@@ -16041,9 +16041,9 @@ __metadata:
   linkType: hard
 
 "caniuse-lite@npm:^1.0.0, caniuse-lite@npm:^1.0.30001688, caniuse-lite@npm:^1.0.30001702":
-  version: 1.0.30001704
-  resolution: "caniuse-lite@npm:1.0.30001704"
-  checksum: ac8c1b625198c9fdf03f55ef631a0917d29d368ded8e8b2e6a3111cb7433c30b2ef16a6dc44077fb6176e76881a51818d55f24efd04478f5e98b6724b64a8f5c
+  version: 1.0.30001705
+  resolution: "caniuse-lite@npm:1.0.30001705"
+  checksum: 42c3b2164bc1f9522dccc80c9770f2825c229a3a6b2e7448c3c7bf330bba45dcb69496e32256a0dd6bf136a2f33617cb23883634132145d6787746a5770aba16
   languageName: node
   linkType: hard
 
@@ -18494,9 +18494,9 @@ __metadata:
   linkType: hard
 
 "electron-to-chromium@npm:^1.5.73":
-  version: 1.5.118
-  resolution: "electron-to-chromium@npm:1.5.118"
-  checksum: 5495c9aaf042cec804d3cdd3608fbe5174379e35c5e0cd5d94e07f9c2b0d875ed34e0d020fc7e387790e6d1bed7f233c52b1ba8302626ce341e51a237b23203a
+  version: 1.5.119
+  resolution: "electron-to-chromium@npm:1.5.119"
+  checksum: c03c55fb852f863497c64faf12779a46ca589ec563ff92fd2f2cf905b324a5eaf53807ec64af1c3d1cba7aeae9240f71fd59a8167ba8718f1b1c51368c044157
   languageName: node
   linkType: hard
 
@@ -26099,11 +26099,11 @@ __metadata:
   linkType: hard
 
 "nanoid@npm:^3.3.8":
-  version: 3.3.9
-  resolution: "nanoid@npm:3.3.9"
+  version: 3.3.10
+  resolution: "nanoid@npm:3.3.10"
   bin:
     nanoid: bin/nanoid.cjs
-  checksum: 42b1dc3e05d6d4f846e65538dd6fbdf78419d8ef60c531f0faf3264cc90600041ebb53c4276013947e03dc3c9a1ac1fce5bb9e1c3a634db608e95349d7e9d3b6
+  checksum: fcc505b06a816c847d2ad4f5690893d4f9dc61863291d065b2b02d879be4ae60d09faf44f2c619ec08f732b627cf34f6d3dd2913e52d3fe287dedb0b84448c91
   languageName: node
   linkType: hard
 

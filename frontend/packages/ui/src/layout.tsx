@@ -93,7 +93,6 @@ export const useDocumentLayout = (
       const observedElement = entries[0]
       if (observedElement) {
         const newWidth = observedElement.contentRect.width
-        console.log('ResizeObserver: element resized, new width:', newWidth)
         setWidthState(newWidth)
       }
     })

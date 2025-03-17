@@ -90,11 +90,19 @@ export type Ability = z.infer<typeof AbilitySchema>
 export async function addDelegatedIdentityOrigin(
   origin: string,
 ): Promise<void> {
-  console.log('STORING ORIGIN addDelegatedIdentityOrigin', origin)
   const store = (await db)
     .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
     .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
   await store.put('', origin)
+}
+
+export async function removeDelegatedIdentityOrigin(
+  origin: string,
+): Promise<void> {
+  const store = (await db)
+    .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
+    .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
+  await store.delete(origin)
 }
 
 export async function getAllDelegatedIdentityOrigins(): Promise<string[]> {
@@ -122,6 +130,13 @@ export async function deleteAbility(id: string): Promise<void> {
     .transaction(ABILITIES_STORE_NAME, 'readwrite')
     .objectStore(ABILITIES_STORE_NAME)
   await store.delete(id)
+}
+
+export async function deleteAllAbilities(): Promise<void> {
+  const store = (await db)
+    .transaction(ABILITIES_STORE_NAME, 'readwrite')
+    .objectStore(ABILITIES_STORE_NAME)
+  await store.clear()
 }
 
 export async function getAllAbilities(): Promise<Ability[]> {

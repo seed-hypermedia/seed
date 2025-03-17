@@ -1,11 +1,10 @@
 import {createComment, postCBOR, SignedComment} from '@/api'
 import {useCreateAccount, useLocalKeyPair} from '@/auth'
-import {Ability} from '@/local-db'
+import type {Ability} from '@/local-db'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
-  HMBlockNode,
   hmId,
   hostnameStripProtocol,
   queryKeys,
@@ -15,6 +14,7 @@ import {
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {toast} from '@shm/ui/toast'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {
   createDelegatedComment,
@@ -23,15 +23,6 @@ import {
 } from './identity-delegation'
 
 injectModels()
-
-type CreateCommentPayload = {
-  content: HMBlockNode[]
-  docId: UnpackedHypermediaId
-  docVersion: string
-  userKeyPair: CryptoKeyPair
-  replyCommentId?: string
-  rootReplyCommentId?: string
-}
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
@@ -122,19 +113,34 @@ export default function WebCommenting({
                       content: getContent(),
                       docId,
                       docVersion,
+                      replyCommentId,
+                      rootReplyCommentId,
                     })
-                      .then((signedComment) =>
-                        postComment.mutateAsync(signedComment),
-                      )
-                      .then(() => {
-                        reset()
-                        onDiscardDraft?.()
+                      .then((signedComment) => {
+                        if (signedComment) {
+                          postComment.mutateAsync(signedComment)
+                        }
+                        return signedComment
+                      })
+                      .then((comment) => {
+                        if (comment) {
+                          reset()
+                          onDiscardDraft?.()
+                        } else {
+                          toast.error(
+                            'Signing identity provider failed. Please try again.',
+                          )
+                        }
+                      })
+                      .catch((error) => {
+                        toast.error(
+                          `Failed to sign and publish your comment. Please try again. (${error.message})`,
+                        )
                       })
                     return
                   }
                   // currently, we only support signing with the default origin
                   delegatedIdentityOriginStore.add(SITE_IDENTITY_DEFAULT_ORIGIN)
-                  console.log('MY ORIGIN', window.location.origin)
                   const params = {
                     requestOrigin: window.location.origin,
                   }
@@ -143,7 +149,6 @@ export default function WebCommenting({
                     `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
                     '_blank',
                   )
-                  console.log('DELEGATING!! WEB IDENTITY!!')
                   return
                 }
                 const content = getContent()
@@ -151,19 +156,14 @@ export default function WebCommenting({
                   createAccount()
                   return
                 }
-                const createCommentPayload: Parameters<
-                  typeof createComment
-                >[0] = {
+                createComment({
                   content,
                   docId,
                   docVersion,
                   keyPair: userKeyPair,
-                }
-                if (replyCommentId && rootReplyCommentId) {
-                  createCommentPayload.replyCommentId = replyCommentId
-                  createCommentPayload.rootReplyCommentId = rootReplyCommentId
-                }
-                createComment(createCommentPayload)
+                  replyCommentId,
+                  rootReplyCommentId,
+                })
                   .then((signedComment) => {
                     postComment.mutateAsync(signedComment)
                   })

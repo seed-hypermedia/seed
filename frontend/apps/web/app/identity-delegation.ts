@@ -5,6 +5,7 @@ import {
   Ability,
   addDelegatedIdentityOrigin,
   getAllDelegatedIdentityOrigins,
+  removeDelegatedIdentityOrigin,
 } from './local-db'
 import {
   EmbedSigningDelegateMessage,
@@ -20,6 +21,13 @@ export const delegatedIdentityOriginStore = {
   add: async (origin: string) => {
     await addDelegatedIdentityOrigin(origin)
     delegatedIdentityOriginsState.push(origin)
+    delegatedIdentityOriginHandlers.forEach((callback) => callback())
+  },
+  remove: async (origin: string) => {
+    await removeDelegatedIdentityOrigin(origin)
+    delegatedIdentityOriginsState = delegatedIdentityOriginsState.filter(
+      (o) => o !== origin,
+    )
     delegatedIdentityOriginHandlers.forEach((callback) => callback())
   },
   subscribe: (callback: () => void) => {
@@ -143,20 +151,24 @@ export async function createDelegatedComment({
   content,
   docId,
   docVersion,
+  replyCommentId,
+  rootReplyCommentId,
 }: {
   ability: Ability
   content: HMBlockNode[]
   docId: UnpackedHypermediaId
   docVersion: string
-}): Promise<SignedComment> {
-  console.log('SUBMITTING DELEGATED COMMENT', ability, content, docId)
+  replyCommentId?: string | null
+  rootReplyCommentId?: string | null
+}): Promise<SignedComment | null> {
   const unsignedComment = createUnsignedComment({
     content,
     docId,
     docVersion,
     signerKey: ability.accountPublicKey,
+    replyCommentId,
+    rootReplyCommentId,
   })
-  console.log('unsignedComment', unsignedComment)
   const signatureId = crypto.randomUUID()
   delegatedIdentityIframes[ability.identityOrigin].send({
     type: 'requestSignComment',
@@ -165,8 +177,16 @@ export async function createDelegatedComment({
   })
   const signature = await new Promise<ArrayBuffer>((resolve, reject) => {
     pendingSignatures[signatureId] = {resolve, reject}
+  }).catch((error) => {
+    if (error.message === 'NoIdentity') {
+      // So the identity is not available. We should consider this ability gone.
+      delegatedIdentityOriginStore.remove(ability.identityOrigin)
+      return null
+    }
   })
+  if (!signature) {
+    return null
+  }
   const signedComment = createSignedComment(unsignedComment, signature)
-  console.log('signedComment!', signedComment)
   return signedComment
 }

@@ -1,43 +1,14 @@
-import {preparePublicKey, useCreateAccount} from '@/auth'
-import {Ability, deleteAbility, getAllAbilities, writeAbility} from '@/local-db'
+import {useAbilities, useCreateAccount} from '@/auth'
+import {preparePublicKey} from '@/auth-utils'
+import {Ability, deleteAbility, writeAbility} from '@/local-db'
+import {hmId} from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
-import {useEffect, useState, useSyncExternalStore} from 'react'
+import {useEffect, useState} from 'react'
 import {Text, XStack, YStack} from 'tamagui'
+import {injectModels} from './models'
 
-let allAbilities: Ability[] | null = null
-let allAbilitiesJson: string | null = null
-const allAbilitiesSubscribers = new Set<() => void>()
-const allAbilitiesStore = {
-  subscribe: (onUpdate: () => void) => {
-    allAbilitiesSubscribers.add(onUpdate)
-    return () => {
-      allAbilitiesSubscribers.delete(onUpdate)
-    }
-  },
-  getSnapshot: () => allAbilities,
-} as const
-
-function useAbilities() {
-  return useSyncExternalStore(
-    allAbilitiesStore.subscribe,
-    allAbilitiesStore.getSnapshot,
-    () => null,
-  )
-}
-
-function updateAbilities() {
-  getAllAbilities().then((abilities) => {
-    const jsonCheck = JSON.stringify(abilities)
-    if (allAbilitiesJson !== jsonCheck) {
-      allAbilities = abilities
-      allAbilitiesJson = jsonCheck
-      allAbilitiesSubscribers.forEach((onUpdate) => onUpdate())
-    }
-  })
-}
-
-updateAbilities()
-setInterval(updateAbilities, 200)
+injectModels()
 
 export default function HMAuthPage({
   enableWebIssuing,
@@ -50,6 +21,7 @@ export default function HMAuthPage({
     userKeyPair,
     content: createAccountContent,
   } = useCreateAccount()
+  const userHomeDoc = useEntity(userKeyPair ? hmId('d', userKeyPair.id) : null)
   const [authMode, setAuthMode] = useState<
     | {
         mode: 'request'
@@ -127,6 +99,7 @@ export default function HMAuthPage({
   return (
     <YStack>
       <Text>You can issue signing abilities to other hosts.</Text>
+      <Text>{userHomeDoc.data?.document?.metadata?.name}</Text>
       {abilities?.map((ability) => (
         <XStack key={ability.id}>
           <Text key={ability.delegateOrigin}>

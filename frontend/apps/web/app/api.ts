@@ -14,7 +14,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {z} from 'zod'
-import {preparePublicKey} from './auth'
+import {preparePublicKey} from './auth-utils'
 
 export * as rawCodec from 'multiformats/codecs/raw'
 
@@ -267,8 +267,8 @@ export function createUnsignedComment({
   docId: UnpackedHypermediaId
   docVersion: string
   signerKey: Uint8Array
-  replyCommentId?: string
-  rootReplyCommentId?: string
+  replyCommentId?: string | null
+  rootReplyCommentId?: string | null
 }): UnsignedComment {
   // this must be serializable because it will be passed between iframe for delegated signing
   const unsignedComment: UnsignedComment = {
@@ -280,10 +280,9 @@ export function createUnsignedComment({
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
     path: hmIdPathToEntityQueryPath(docId.path),
-    replyParent: replyCommentId,
-    threadRoot: rootReplyCommentId,
+    replyParent: replyCommentId || undefined,
+    threadRoot: rootReplyCommentId || undefined,
   }
-  console.log('unsignedComment', unsignedComment)
   // ipld fails to encode undefined, so they must be removed, lol
   if (!unsignedComment.replyParent) delete unsignedComment.replyParent
   if (!unsignedComment.threadRoot) delete unsignedComment.threadRoot
@@ -339,8 +338,8 @@ export async function createComment({
   docId: UnpackedHypermediaId
   docVersion: string
   keyPair: CryptoKeyPair
-  replyCommentId?: string
-  rootReplyCommentId?: string
+  replyCommentId?: string | null
+  rootReplyCommentId?: string | null
 }) {
   const signerKey = await preparePublicKey(keyPair.publicKey)
   const unsignedComment = createUnsignedComment({

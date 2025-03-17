@@ -368,12 +368,12 @@ function DocumentDiscoveryPage({
   return (
     <YStack>
       <PageHeader
-        homeMetadata={homeMetadata}
         originHomeId={originHomeId}
         docMetadata={null}
         docId={id}
         authors={[]}
         updateTime={null}
+        breadcrumbs={[]}
       />
       <YStack>
         <Container>
@@ -461,8 +461,10 @@ function WebDocContentProvider({
           window.location.pathname +
             window.location.search +
             `#${blockId}${
-              'start' in blockRange && 'end' in blockRange
-                ? `[${blockRange.start}:${blockRange.end}]`
+              blockRange
+                ? 'start' in blockRange && 'end' in blockRange
+                  ? `[${blockRange.start}:${blockRange.end}]`
+                  : ''
                 : ''
             }`,
           {replace: true, preventScrollReset: true},
@@ -477,12 +479,6 @@ function WebDocContentProvider({
     </DocContentProvider>
   )
 }
-
-// const WebCommenting = lazy(async () =>
-//   typeof window === "undefined"
-//     ? {default: () => null}
-//     : await import("./commenting")
-// );
 
 function DocumentAppendix({
   id,
@@ -511,7 +507,8 @@ function DocumentAppendix({
           document={document}
           originHomeId={originHomeId}
           siteHost={siteHost}
-          enableReplies={enableWebSigning}
+          enableReplies={enableWebSigning || enableSiteIdentity}
+          enableWebSigning={enableWebSigning || false}
         />
 
         {enableWebSigning || enableSiteIdentity ? (
@@ -533,12 +530,14 @@ function DocumentActivity({
   document,
   siteHost,
   enableReplies,
+  enableWebSigning,
 }: {
   id: UnpackedHypermediaId
   originHomeId: UnpackedHypermediaId
   document: HMDocument
   siteHost: string | undefined
   enableReplies: boolean | undefined
+  enableWebSigning: boolean
 }) {
   const activity = useActivity(id)
   const renderCommentContent = useCallback(
@@ -550,11 +549,7 @@ function DocumentActivity({
           id={id}
           siteHost={siteHost}
         >
-          <BlocksContent
-            blocks={comment.content}
-            parentBlockId={null}
-            renderCommentContent={renderCommentContent}
-          />
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
         </WebDocContentProvider>
       )
     },
@@ -601,6 +596,7 @@ function DocumentActivity({
               siteHost={siteHost}
               enableReplies={enableReplies}
               RepliesEditor={CommentRepliesEditor}
+              enableWebSigning={enableWebSigning}
             />
           )
         }
@@ -643,6 +639,7 @@ function CommentReplies({
   replyCommentId,
   rootReplyCommentId,
   enableReplies = true,
+  enableWebSigning = false,
 }: {
   docId: UnpackedHypermediaId
   homeId?: UnpackedHypermediaId
@@ -650,6 +647,7 @@ function CommentReplies({
   replyCommentId: string
   rootReplyCommentId: string | null
   enableReplies?: boolean
+  enableWebSigning?: boolean
 }) {
   const discussion = useDiscussion(docId, replyCommentId)
   const renderCommentContent = useCallback(
@@ -662,11 +660,7 @@ function CommentReplies({
             id={docId}
             siteHost={siteHost}
           >
-            <BlocksContent
-              blocks={comment.content}
-              parentBlockId={null}
-              renderCommentContent={renderCommentContent}
-            />
+            <BlocksContent blocks={comment.content} parentBlockId={null} />
           </WebDocContentProvider>
         )
       )
@@ -694,6 +688,7 @@ function CommentReplies({
             enableReplies={enableReplies}
             RepliesEditor={enableReplies ? CommentRepliesEditor : undefined}
             rootReplyCommentId={rootReplyCommentId}
+            enableWebSigning={enableWebSigning}
           />
         )
       })}
@@ -708,6 +703,7 @@ function CommentRepliesEditor({
   rootReplyCommentId,
   onDiscardDraft,
   onReplied,
+  enableWebSigning,
 }: {
   isReplying: boolean
   docId: UnpackedHypermediaId
@@ -715,6 +711,7 @@ function CommentRepliesEditor({
   rootReplyCommentId: string
   onDiscardDraft: () => void
   onReplied: () => void
+  enableWebSigning: boolean
 }) {
   if (!isReplying) return null
   return (
@@ -724,6 +721,7 @@ function CommentRepliesEditor({
       rootReplyCommentId={rootReplyCommentId}
       onDiscardDraft={onDiscardDraft}
       onReplied={onReplied}
+      enableWebSigning={enableWebSigning}
     />
   )
 }

@@ -8,8 +8,6 @@ import {
 import {useEffect} from 'react'
 import {signComment} from './api'
 
-console.log('EmbedSignPage, window.location.origin', window.location.origin)
-
 function sendParentMessage(message: EmbedSigningIdentityProviderMessage) {
   window.parent.postMessage(message, '*')
 }
@@ -29,10 +27,9 @@ function broadcastAbilities(origin: string) {
 }
 
 async function handleCommentSignature(message: RequestSignCommentMessage) {
-  console.log('~~ signing comment', message)
   const keyPair = await getStoredLocalKeys()
   if (!keyPair) {
-    throw new Error('No key pair found')
+    throw new Error('NoIdentity')
   }
   const signedComment = await signComment(message.comment, keyPair)
   return signedComment

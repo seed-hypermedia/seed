@@ -43,30 +43,19 @@ import {
   postCBOR,
   rawCodec,
 } from './api'
-import {deleteLocalKeys, getStoredLocalKeys, writeLocalKeys} from './local-db'
+import {preparePublicKey} from './auth-utils'
+import {
+  Ability,
+  deleteAllAbilities,
+  deleteLocalKeys,
+  getAllAbilities,
+  getStoredLocalKeys,
+  writeLocalKeys,
+} from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 
 injectModels()
-
-if (typeof window !== 'undefined') {
-  getStoredLocalKeys()
-    .then(async (kp) => {
-      if (!kp) return null
-      const id = await preparePublicKey(kp.publicKey)
-      return {
-        ...kp,
-        id: base58btc.encode(id),
-      } satisfies LocalWebIdentity
-    })
-    .then((kp) => {
-      console.log('Set up user key pair', kp)
-      if (kp) setLocalWebIdentity(kp)
-    })
-    .catch((err) => {
-      console.error('Error getting key pair', err)
-    })
-}
 
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
@@ -74,15 +63,39 @@ export type LocalWebIdentity = CryptoKeyPair & {
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
 
-function setLocalWebIdentity(kp: LocalWebIdentity | null) {
-  keyPair = kp
-  keyPairHandlers.forEach((callback) => callback())
+const keyPairStore = {
+  get: () => keyPair,
+  set: (kp: LocalWebIdentity | null) => {
+    keyPair = kp
+    keyPairHandlers.forEach((callback) => callback())
+  },
 }
 
+function updateKeyPair() {
+  getStoredLocalKeys()
+    .then(async (kp) => {
+      if (!kp) return null
+      const id = await preparePublicKey(kp.publicKey)
+      const webIdentity: LocalWebIdentity = {
+        ...kp,
+        id: base58btc.encode(id),
+      }
+      return webIdentity
+    })
+    .then((newKeyPair) => {
+      if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
+        keyPairStore.set(newKeyPair)
+      }
+    })
+}
+
+updateKeyPair()
+setInterval(updateKeyPair, 200)
+
 export function logout() {
-  deleteLocalKeys()
+  Promise.all([deleteLocalKeys(), deleteAllAbilities()])
     .then(() => {
-      setLocalWebIdentity(null)
+      keyPairStore.set(null)
       console.log('Logged out')
     })
     .catch((e) => {
@@ -101,28 +114,6 @@ export function useLocalKeyPair() {
     () => keyPair,
     () => null,
   )
-}
-
-export async function preparePublicKey(publicKey: CryptoKey) {
-  // Export raw key first
-  const raw = await crypto.subtle.exportKey('raw', publicKey)
-  const bytes = new Uint8Array(raw)
-
-  // Raw format is 65 bytes: 0x04 + x (32) + y (32)
-  const x = bytes.slice(1, 33)
-  const y = bytes.slice(33)
-
-  // Check if y is odd
-  const prefix = y[31] & 1 ? 0x03 : 0x02
-
-  const outputKeyValue = new Uint8Array([
-    // varint prefix for 0x1200
-    128,
-    36,
-    prefix,
-    ...x,
-  ])
-  return outputKeyValue
 }
 
 export async function createAccount({
@@ -201,30 +192,11 @@ export async function createAccount({
   const createAccountData = cborEncode(createAccountPayload)
   await postCBOR('/hm/api/create-account', createAccountData)
   await writeLocalKeys(keyPair)
-  setLocalWebIdentity({
+  keyPairStore.set({
     ...keyPair,
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
   })
   return keyPair
-}
-
-if (typeof window !== 'undefined') {
-  getStoredLocalKeys()
-    .then(async (kp) => {
-      if (!kp) return null
-      const id = await preparePublicKey(kp.publicKey)
-      return {
-        ...kp,
-        id: base58btc.encode(id),
-      } satisfies LocalWebIdentity
-    })
-    .then((kp) => {
-      console.log('Set up user key pair', kp)
-      if (kp) setLocalWebIdentity(kp)
-    })
-    .catch((err) => {
-      console.error('Error getting key pair', err)
-    })
 }
 
 export const siteMetaSchema = z.object({
@@ -610,4 +582,37 @@ export function AccountFooterActions() {
   )
 }
 
-console.log('~~ IMPORT auth')
+let allAbilities: Ability[] | null = null
+let allAbilitiesJson: string | null = null
+const allAbilitiesSubscribers = new Set<() => void>()
+export const allAbilitiesStore = {
+  subscribe: (onUpdate: () => void) => {
+    allAbilitiesSubscribers.add(onUpdate)
+    return () => {
+      allAbilitiesSubscribers.delete(onUpdate)
+    }
+  },
+  getSnapshot: () => allAbilities,
+} as const
+
+export function useAbilities() {
+  return useSyncExternalStore(
+    allAbilitiesStore.subscribe,
+    allAbilitiesStore.getSnapshot,
+    () => null,
+  )
+}
+
+function updateAbilities() {
+  getAllAbilities().then((abilities) => {
+    const jsonCheck = JSON.stringify(abilities)
+    if (allAbilitiesJson !== jsonCheck) {
+      allAbilities = abilities
+      allAbilitiesJson = jsonCheck
+      allAbilitiesSubscribers.forEach((onUpdate) => onUpdate())
+    }
+  })
+}
+
+updateAbilities()
+setInterval(updateAbilities, 200)
