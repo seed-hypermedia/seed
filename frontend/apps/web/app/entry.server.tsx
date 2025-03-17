@@ -10,7 +10,6 @@ import * as isbotModule from 'isbot'
 import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
-import {initDatabase} from './db'
 import {getHMDocument} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
@@ -45,9 +44,6 @@ const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL
   : 45_000
 
 async function initializeServer() {
-  if (process.env.WEB_SIGNING_ENABLED === 'true') {
-    await initDatabase()
-  }
   recursiveRm(CACHE_PATH)
   if (ENABLE_HTML_CACHE) {
     await mkdir(CACHE_PATH, {recursive: true})
@@ -231,13 +227,17 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext,
 ) {
-  console.log('handleRequest', request.method, request.url)
-
   if (request.method === 'OPTIONS') {
     return await handleOptionsRequest(request)
   }
   const parsedRequest = parseRequest(request)
-  const {url, hostname, method} = parsedRequest
+  const {url, hostname} = parsedRequest
+  if (url.pathname.startsWith('/hm/embed/')) {
+    // allowed to embed anywhere
+  } else {
+    responseHeaders.set('Content-Security-Policy', "frame-ancestors 'none';")
+    responseHeaders.set('X-Frame-Options', 'DENY')
+  }
   const sendPerfLog = logDebugRequest(url.pathname)
 
   if (url.pathname.startsWith('/ipfs')) {

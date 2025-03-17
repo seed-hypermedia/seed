@@ -150,7 +150,7 @@ setEntityQuery(async (hmId) => {
   const grpcDocument = await grpcClient.documents.getDocument({
     account: hmId.uid,
     path: hmIdPathToEntityQueryPath(hmId.path),
-    version: hmId.latest ? undefined : hmId.version,
+    version: (hmId.latest ? undefined : hmId.version) || undefined,
   })
 
   const serverDocument = grpcDocument.toJson()

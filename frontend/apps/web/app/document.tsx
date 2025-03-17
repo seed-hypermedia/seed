@@ -1,3 +1,4 @@
+import {useActivity, useDiscussion} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
@@ -39,7 +40,6 @@ import {WebCommenting} from './client-lazy'
 import {getHref} from './href'
 import type {SiteDocumentPayload} from './loaders'
 import {defaultSiteIcon} from './meta'
-import {useActivity, useDiscussion} from './models'
 import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
@@ -121,6 +121,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     supportQueries,
     accountsMetadata,
     enableWebSigning,
+    enableSiteIdentity,
     origin,
   } = props
   if (!id) return <NotFoundPage {...props} />
@@ -296,6 +297,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     originHomeId={originHomeId}
                     siteHost={siteHost}
                     enableWebSigning={enableWebSigning}
+                    enableSiteIdentity={enableSiteIdentity}
                   />
                 )}
               </YStack>
@@ -366,12 +368,12 @@ function DocumentDiscoveryPage({
   return (
     <YStack>
       <PageHeader
-        homeMetadata={homeMetadata}
         originHomeId={originHomeId}
         docMetadata={null}
         docId={id}
         authors={[]}
         updateTime={null}
+        breadcrumbs={[]}
       />
       <YStack>
         <Container>
@@ -459,8 +461,10 @@ function WebDocContentProvider({
           window.location.pathname +
             window.location.search +
             `#${blockId}${
-              'start' in blockRange && 'end' in blockRange
-                ? `[${blockRange.start}:${blockRange.end}]`
+              blockRange
+                ? 'start' in blockRange && 'end' in blockRange
+                  ? `[${blockRange.start}:${blockRange.end}]`
+                  : ''
                 : ''
             }`,
           {replace: true, preventScrollReset: true},
@@ -476,24 +480,20 @@ function WebDocContentProvider({
   )
 }
 
-// const WebCommenting = lazy(async () =>
-//   typeof window === "undefined"
-//     ? {default: () => null}
-//     : await import("./commenting")
-// );
-
 function DocumentAppendix({
   id,
   document,
   originHomeId,
   siteHost,
   enableWebSigning,
+  enableSiteIdentity,
 }: {
   id: UnpackedHypermediaId
   document: HMDocument
   originHomeId: UnpackedHypermediaId
   siteHost: string | undefined
   enableWebSigning?: boolean
+  enableSiteIdentity?: boolean
 }) {
   const docIdWithVersion: UnpackedHypermediaId = {
     ...id,
@@ -507,14 +507,16 @@ function DocumentAppendix({
           document={document}
           originHomeId={originHomeId}
           siteHost={siteHost}
-          enableReplies={enableWebSigning}
+          enableReplies={enableWebSigning || enableSiteIdentity}
+          enableWebSigning={enableWebSigning || false}
         />
 
-        {enableWebSigning ? (
+        {enableWebSigning || enableSiteIdentity ? (
           <WebCommenting
             docId={docIdWithVersion}
             replyCommentId={null}
             rootReplyCommentId={null}
+            enableWebSigning={enableWebSigning || false}
           />
         ) : null}
       </ActivitySection>
@@ -528,12 +530,14 @@ function DocumentActivity({
   document,
   siteHost,
   enableReplies,
+  enableWebSigning,
 }: {
   id: UnpackedHypermediaId
   originHomeId: UnpackedHypermediaId
   document: HMDocument
   siteHost: string | undefined
   enableReplies: boolean | undefined
+  enableWebSigning: boolean
 }) {
   const activity = useActivity(id)
   const renderCommentContent = useCallback(
@@ -545,11 +549,7 @@ function DocumentActivity({
           id={id}
           siteHost={siteHost}
         >
-          <BlocksContent
-            blocks={comment.content}
-            parentBlockId={null}
-            renderCommentContent={renderCommentContent}
-          />
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
         </WebDocContentProvider>
       )
     },
@@ -596,6 +596,7 @@ function DocumentActivity({
               siteHost={siteHost}
               enableReplies={enableReplies}
               RepliesEditor={CommentRepliesEditor}
+              enableWebSigning={enableWebSigning}
             />
           )
         }
@@ -638,6 +639,7 @@ function CommentReplies({
   replyCommentId,
   rootReplyCommentId,
   enableReplies = true,
+  enableWebSigning = false,
 }: {
   docId: UnpackedHypermediaId
   homeId?: UnpackedHypermediaId
@@ -645,6 +647,7 @@ function CommentReplies({
   replyCommentId: string
   rootReplyCommentId: string | null
   enableReplies?: boolean
+  enableWebSigning?: boolean
 }) {
   const discussion = useDiscussion(docId, replyCommentId)
   const renderCommentContent = useCallback(
@@ -657,11 +660,7 @@ function CommentReplies({
             id={docId}
             siteHost={siteHost}
           >
-            <BlocksContent
-              blocks={comment.content}
-              parentBlockId={null}
-              renderCommentContent={renderCommentContent}
-            />
+            <BlocksContent blocks={comment.content} parentBlockId={null} />
           </WebDocContentProvider>
         )
       )
@@ -689,6 +688,7 @@ function CommentReplies({
             enableReplies={enableReplies}
             RepliesEditor={enableReplies ? CommentRepliesEditor : undefined}
             rootReplyCommentId={rootReplyCommentId}
+            enableWebSigning={enableWebSigning}
           />
         )
       })}
@@ -703,6 +703,7 @@ function CommentRepliesEditor({
   rootReplyCommentId,
   onDiscardDraft,
   onReplied,
+  enableWebSigning,
 }: {
   isReplying: boolean
   docId: UnpackedHypermediaId
@@ -710,6 +711,7 @@ function CommentRepliesEditor({
   rootReplyCommentId: string
   onDiscardDraft: () => void
   onReplied: () => void
+  enableWebSigning: boolean
 }) {
   if (!isReplying) return null
   return (
@@ -719,6 +721,7 @@ function CommentRepliesEditor({
       rootReplyCommentId={rootReplyCommentId}
       onDiscardDraft={onDiscardDraft}
       onReplied={onReplied}
+      enableWebSigning={enableWebSigning}
     />
   )
 }
