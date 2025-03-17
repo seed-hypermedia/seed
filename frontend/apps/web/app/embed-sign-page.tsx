@@ -1,4 +1,4 @@
-import {getAllAbilitiesByOrigin, getStoredLocalKeys, resetDB} from '@/local-db'
+import {getAllAbilitiesByOrigin, getStoredLocalKeys} from '@/local-db'
 import {
   EmbedSigningDelegateMessage,
   embedSigningDelegateMessageSchema,
@@ -62,12 +62,38 @@ function handleParentMessage(
   if (message.type === 'init') {
     console.log('~~ embed init')
     document
-      .requestStorageAccess({localStorage: true, indexedDB: true})
+      .requestStorageAccess({indexedDB: true})
       .then((result) => {
-        resetDB()
+        const indexedDB = result.indexedDB as IDBFactory
+        // resetDB(indexedDB)
+        const openReq = indexedDB.open('keyStore-04', 4)
+        openReq.onerror = (event) => {
+          console.error('~~ openDB error', event)
+        }
+        openReq.onsuccess = (event) => {
+          console.log('~~ openDB success')
+          const db = openReq.result
+          const tx = db.transaction('abilities-01', 'readonly')
+          tx.oncomplete = () => {
+            console.log('~~ tx complete')
+          }
+          tx.onerror = (event) => {
+            console.error('~~ tx error', event)
+          }
+          const objectStore = tx.objectStore('abilities-01')
+          const allAbilities = objectStore.getAll()
+          allAbilities.onsuccess = (event) => {
+            console.log('~~ allAbilities', event.target.result)
+          }
+          allAbilities.onerror = (event) => {
+            console.error('~~ allAbilities error', event)
+          }
+
+          console.log('~~ db', db)
+        }
         console.log('~~ requestStorageAccess success', result)
         updateAndBroadcastAbilities(origin)
-        setInterval(() => updateAndBroadcastAbilities(origin), 100)
+        setInterval(() => updateAndBroadcastAbilities(origin), 1000) // todo, make fast again
       })
       .catch((error) => {
         console.error('~~ requestStorageAccess error', error)
