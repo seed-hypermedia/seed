@@ -1,4 +1,4 @@
-import {getAllAbilitiesByOrigin, getStoredLocalKeys} from '@/local-db'
+import {getAllAbilitiesByOrigin, getStoredLocalKeys, resetDB} from '@/local-db'
 import {
   EmbedSigningDelegateMessage,
   embedSigningDelegateMessageSchema,
@@ -19,14 +19,19 @@ let lastSentAbilities: Ability[] | null = null
 let lastSentAbilitiesJson: string | null = null
 
 function updateAndBroadcastAbilities(origin: string) {
-  getAllAbilitiesByOrigin(origin).then((abilities) => {
-    const abilitiesJson = JSON.stringify(abilities)
-    if (lastSentAbilitiesJson !== abilitiesJson) {
-      lastSentAbilities = abilities
-      lastSentAbilitiesJson = abilitiesJson
-      sendParentMessage({type: 'abilities', abilities})
-    }
-  })
+  getAllAbilitiesByOrigin(origin)
+    .then((abilities) => {
+      console.log('~~ updateAndBroadcastAbilities', abilities)
+      const abilitiesJson = JSON.stringify(abilities)
+      if (lastSentAbilitiesJson !== abilitiesJson) {
+        lastSentAbilities = abilities
+        lastSentAbilitiesJson = abilitiesJson
+        sendParentMessage({type: 'abilities', abilities})
+      }
+    })
+    .catch((error) => {
+      console.error('~~ updateAndBroadcastAbilities error', error)
+    })
 }
 
 async function handleCommentSignature(
@@ -59,6 +64,7 @@ function handleParentMessage(
     document
       .requestStorageAccess({localStorage: true, indexedDB: true})
       .then((result) => {
+        resetDB()
         console.log('~~ requestStorageAccess success', result)
         updateAndBroadcastAbilities(origin)
         setInterval(() => updateAndBroadcastAbilities(origin), 100)

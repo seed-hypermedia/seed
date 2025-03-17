@@ -34,15 +34,24 @@ const ABILITIES_STORE_NAME = 'abilities-01'
 const DELEGATED_IDENTITY_ORIGINS_STORE_NAME = 'delegated-identity-origins-01'
 const DB_VERSION = 4
 
-const db = openDB(DB_NAME, DB_VERSION, {
-  upgrade(db, oldVersion, newVersion, tx, event) {
-    upgradeStore(db, tx, KEYS_STORE_NAME)
-    const abilitiesStore = upgradeStore(db, tx, ABILITIES_STORE_NAME)
-    upgradeIndex(abilitiesStore, 'delegateOrigin')
-    // upgradeStore(db, tx, DELEGATED_ABILITIES_STORE_NAME)
-    upgradeStore(db, tx, DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
-  },
-})
+function initDB() {
+  console.log('~~ initDB')
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db, oldVersion, newVersion, tx, event) {
+      upgradeStore(db, tx, KEYS_STORE_NAME)
+      const abilitiesStore = upgradeStore(db, tx, ABILITIES_STORE_NAME)
+      upgradeIndex(abilitiesStore, 'delegateOrigin')
+      // upgradeStore(db, tx, DELEGATED_ABILITIES_STORE_NAME)
+      upgradeStore(db, tx, DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
+    },
+  })
+}
+
+let db = initDB()
+
+export function resetDB() {
+  db = initDB()
+}
 
 export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
   const store = (await db)
