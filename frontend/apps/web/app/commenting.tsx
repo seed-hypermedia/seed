@@ -111,10 +111,6 @@ export default function WebCommenting({
                 if (!enableWebSigning) {
                   // this origin cannot sign for itself. so we require a valid ability to comment
                   if (validAbility) {
-                    console.log(
-                      'WE HAVE THE ABILITY! NOW TIME TO REQUEST SIGNATURE?!',
-                      validAbility,
-                    )
                     createDelegatedComment({
                       ability: validAbility,
                       content: getContent(),
