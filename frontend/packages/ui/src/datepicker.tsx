@@ -216,7 +216,11 @@ export function SimpleDatePicker({
           if (!date) {
             onReset()
           } else {
-            onValue(date.toISOString().slice(0, 10))
+            // Adjust the local date to UTC date
+            const adjustedDate = new Date(
+              date.getTime() - date.getTimezoneOffset() * 60000,
+            )
+            onValue(adjustedDate.toISOString().slice(0, 10))
           }
         },
         calendar: {
