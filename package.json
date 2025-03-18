@@ -8,6 +8,7 @@
     "web": "yarn workspace @shm/web dev",
     "web:prod": "yarn build && yarn workspace @shm/web build",
     "web:start": "yarn workspace @shm/web start",
+    "web:dev:embed": "yarn web:prod && concurrently -c \"blue,green\" -p \"[{name}]\" \"SEED_IDENTITY_ENABLED=true PORT=3099 SEED_BASE_URL=\\\"http://localhost:3099\\\" SEED_DEFAULT_IDENTITY_ORIGIN=\\\"http://localhost:3000\\\" yarn web:start\" \"SEED_SIGNING_ISSUER=true SEED_SIGNING_ENABLED=true yarn web:start\"",
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace @shm/site dev",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
     "desktop:make": "yarn build && yarn workspace @shm/desktop make",

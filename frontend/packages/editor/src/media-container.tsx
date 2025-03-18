@@ -266,7 +266,9 @@ export const MediaContainer = ({
           : null}
         {children}
       </YStack>
-      {mediaType === 'image' && <InlineContent className="image-caption" />}
+      {mediaType === 'image' && (
+        <InlineContent className="image-caption" contentEditable={true} />
+      )}
     </YStack>
   )
 }

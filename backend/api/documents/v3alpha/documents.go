@@ -461,9 +461,8 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 
 		var attrs blob.DocIndexedAttrs
 		if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
-			return nil, err
+			srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
 		}
-
 		metadata := make(map[string]any, len(attrs))
 		for k, v := range attrs {
 			if v.Value != nil {

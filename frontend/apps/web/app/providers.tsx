@@ -3,8 +3,11 @@ import {
   LIGHTNING_API_URL,
   OptimizedImageSize,
   SITE_BASE_URL,
+  SITE_IDENTITY_DEFAULT_ORIGIN,
   UniversalAppProvider,
   UnpackedHypermediaId,
+  WEB_IDENTITY_ENABLED,
+  WEB_SIGNING_ISSUER,
 } from '@shm/shared'
 import {Toaster} from '@shm/ui/toast'
 import {TamaguiProvider} from '@tamagui/core'
@@ -71,6 +74,9 @@ export function WebSiteProvider(props: {
           __html: `window.ENV = ${JSON.stringify({
             LIGHTNING_API_URL,
             SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
+            SITE_IDENTITY_DEFAULT_ORIGIN,
+            WEB_IDENTITY_ENABLED,
+            WEB_SIGNING_ISSUER,
           })}`,
         }}
       />

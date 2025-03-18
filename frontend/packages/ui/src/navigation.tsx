@@ -432,13 +432,14 @@ export function SiteNavigationWrapper({
           <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
         </Popover.Trigger>
         <Popover.Content
+          minWidth={280}
           y={50}
           enterStyle={{x: -10, y: 50, opacity: 0}}
           exitStyle={{x: -10, y: 50, opacity: 0}}
           animation="fast"
           elevation="$4"
         >
-          <YStack height="100%" maxHeight="80vh" overflow="scroll">
+          <YStack height="100%" w="100%" maxHeight="80vh" overflow="scroll">
             {children}
           </YStack>
         </Popover.Content>

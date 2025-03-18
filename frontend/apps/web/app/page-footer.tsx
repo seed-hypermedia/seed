@@ -12,7 +12,7 @@ export function PageFooter({
   id,
   enableWebSigning,
 }: {
-  id?: UnpackedHypermediaId
+  id?: UnpackedHypermediaId | null
   enableWebSigning?: boolean
 }) {
   return (

@@ -75,6 +75,7 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 export default function DraftPage() {
@@ -248,6 +249,7 @@ function DraftAppHeader({
   // const draft = useDraft(docId)
   return (
     <SiteHeader
+      onScroll={() => dispatchScroll('scroll')}
       homeId={siteHomeEntity.id}
       items={navItems}
       docId={docId}

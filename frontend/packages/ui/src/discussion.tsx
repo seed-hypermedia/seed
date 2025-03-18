@@ -38,6 +38,7 @@ export function CommentGroup({
   siteHost,
   rootReplyCommentId,
   enableReplies = true,
+  enableWebSigning = false,
 }: {
   docId: UnpackedHypermediaId
   commentGroup: HMCommentGroup
@@ -54,6 +55,7 @@ export function CommentGroup({
     rootReplyCommentId: string
     onDiscardDraft: () => void
     onReplied: () => void
+    enableWebSigning: boolean
   }>
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
@@ -65,6 +67,7 @@ export function CommentGroup({
   homeId?: UnpackedHypermediaId
   siteHost?: string
   enableReplies?: boolean
+  enableWebSigning?: boolean
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
@@ -97,6 +100,7 @@ export function CommentGroup({
             replyCount={
               isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
             }
+            enableWebSigning={enableWebSigning}
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
             enableReplies={enableReplies}
@@ -124,6 +128,7 @@ function Comment({
   CommentReplies,
   siteHost,
   enableReplies = true,
+  enableWebSigning = false,
 }: {
   docId: UnpackedHypermediaId
   comment: HMComment
@@ -135,6 +140,7 @@ function Comment({
   authorMetadata?: HMMetadata
   renderCommentContent: (comment: HMComment) => ReactNode
   homeId?: UnpackedHypermediaId
+  enableWebSigning: boolean
   RepliesEditor?: React.FC<{
     isReplying: boolean
     docId: UnpackedHypermediaId
@@ -142,6 +148,7 @@ function Comment({
     rootReplyCommentId: string
     onDiscardDraft: () => void
     onReplied: () => void
+    enableWebSigning: boolean
   }>
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
@@ -316,6 +323,7 @@ function Comment({
           replyCommentId={comment.id}
           rootReplyCommentId={rootReplyCommentId || comment.id}
           onDiscardDraft={() => setIsReplying(false)}
+          enableWebSigning={enableWebSigning}
           onReplied={() => {
             // we want to show the replies if it was collapsed, because the new one should be visible
             if (replyCount === undefined || replyCount > 0) {

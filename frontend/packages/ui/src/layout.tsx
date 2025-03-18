@@ -84,7 +84,6 @@ export const useDocumentLayout = (
       setWidthState(initialWidth)
     } else {
       const width = element.getBoundingClientRect().width
-      console.log('useDocumentLayout: element found, setting width:', width)
       setWidthState(width)
     }
 
@@ -93,7 +92,6 @@ export const useDocumentLayout = (
       const observedElement = entries[0]
       if (observedElement) {
         const newWidth = observedElement.contentRect.width
-        console.log('ResizeObserver: element resized, new width:', newWidth)
         setWidthState(newWidth)
       }
     })
@@ -102,19 +100,13 @@ export const useDocumentLayout = (
     const mutationObserver = new MutationObserver((mutations) => {
       if (elementRef.current && !element) {
         element = elementRef.current
-        console.log(
-          'MutationObserver: Element detected, attaching ResizeObserver',
-        )
 
         // Observe the newly found element
         resizeObserver.observe(element)
 
         // Get initial dimensions
         const initialWidth = element.getBoundingClientRect().width
-        console.log(
-          'MutationObserver: Initial width after detection:',
-          initialWidth,
-        )
+
         setWidthState(initialWidth)
 
         // Once we find the element, no need to continue observing mutations
@@ -134,7 +126,6 @@ export const useDocumentLayout = (
     }
 
     return () => {
-      console.log('useDocumentLayout cleanup running')
       // Clean up both observers
       resizeObserver.disconnect()
       mutationObserver.disconnect()

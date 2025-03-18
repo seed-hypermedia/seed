@@ -21,5 +21,15 @@ export const WebCommenting = clientLazy<WebCommentingProps>(async () => ({
 }))
 
 export const AccountFooterActionsLazy = clientLazy<{}>(async () => ({
-  default: (await import('./commenting')).AccountFooterActions,
+  default: (await import('./auth')).AccountFooterActions,
+}))
+
+export const HMAuthPageLazy = clientLazy<{enableWebIssuing: boolean}>(
+  async () => ({
+    default: (await import('./auth-page')).default,
+  }),
+)
+
+export const EmbedSignPageLazy = clientLazy<{}>(async () => ({
+  default: (await import('./embed-sign-page')).default,
 }))
