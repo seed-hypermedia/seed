@@ -100,107 +100,111 @@ export default function WebCommenting({
   if (!docVersion) return null
   return (
     <>
-      <CommentEditor
-        submitButton={({getContent, reset}) => {
-          return (
-            <Button
-              size="$2"
-              theme="blue"
-              icon={
-                myAccountId ? (
-                  <HMIcon
-                    id={myAccountId}
-                    metadata={myAccount.data?.document?.metadata}
-                    size={24}
-                  />
-                ) : undefined
-              }
-              onPress={() => {
-                if (!enableWebSigning) {
-                  // this origin cannot sign for itself. so we require a valid ability to comment
-                  if (validAbility) {
-                    console.log(
-                      'WE HAVE THE ABILITY! NOW TIME TO REQUEST SIGNATURE?!',
-                      validAbility,
-                    )
-                    createDelegatedComment({
-                      ability: validAbility,
-                      content: getContent(),
-                      docId,
-                      docVersion,
-                      replyCommentId,
-                      rootReplyCommentId,
-                    })
-                      .then((signedComment) => {
-                        if (signedComment) {
-                          postComment.mutateAsync(signedComment)
-                        }
-                        return signedComment
+      <CommentDocContentProvider getFileCID={getFileCID}>
+        <CommentEditor
+          submitButton={({getContent, reset}) => {
+            return (
+              <Button
+                size="$2"
+                theme="blue"
+                icon={
+                  myAccountId ? (
+                    <HMIcon
+                      id={myAccountId}
+                      metadata={myAccount.data?.document?.metadata}
+                      size={24}
+                    />
+                  ) : undefined
+                }
+                onPress={() => {
+                  if (!enableWebSigning) {
+                    // this origin cannot sign for itself. so we require a valid ability to comment
+                    if (validAbility) {
+                      console.log(
+                        'WE HAVE THE ABILITY! NOW TIME TO REQUEST SIGNATURE?!',
+                        validAbility,
+                      )
+                      createDelegatedComment({
+                        ability: validAbility,
+                        content: getContent(),
+                        docId,
+                        docVersion,
+                        replyCommentId,
+                        rootReplyCommentId,
                       })
-                      .then((comment) => {
-                        if (comment) {
-                          reset()
-                          onDiscardDraft?.()
-                        } else {
+                        .then((signedComment) => {
+                          if (signedComment) {
+                            postComment.mutateAsync(signedComment)
+                          }
+                          return signedComment
+                        })
+                        .then((comment) => {
+                          if (comment) {
+                            reset()
+                            onDiscardDraft?.()
+                          } else {
+                            toast.error(
+                              'Signing identity provider failed. Please try again.',
+                            )
+                          }
+                        })
+                        .catch((error) => {
                           toast.error(
-                            'Signing identity provider failed. Please try again.',
+                            `Failed to sign and publish your comment. Please try again. (${error.message})`,
                           )
-                        }
-                      })
-                      .catch((error) => {
-                        toast.error(
-                          `Failed to sign and publish your comment. Please try again. (${error.message})`,
-                        )
-                      })
-                    return
-                  } else {
-                    // we don't have the ability to sign, and origin signing is disabled. so we need to request ability from another origin
-                    // currently, we only support signing with the default origin
-                    delegatedIdentityOriginStore.add(
-                      SITE_IDENTITY_DEFAULT_ORIGIN,
-                    )
-                    const params = {
-                      requestOrigin: window.location.origin,
-                      targetUid: docId.uid,
-                    } satisfies AuthFragmentOptions
-                    const encodedParams = new URLSearchParams(params).toString()
-                    window.open(
-                      `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
-                      '_blank',
-                    )
+                        })
+                      return
+                    } else {
+                      // we don't have the ability to sign, and origin signing is disabled. so we need to request ability from another origin
+                      // currently, we only support signing with the default origin
+                      delegatedIdentityOriginStore.add(
+                        SITE_IDENTITY_DEFAULT_ORIGIN,
+                      )
+                      const params = {
+                        requestOrigin: window.location.origin,
+                        targetUid: docId.uid,
+                      } satisfies AuthFragmentOptions
+                      const encodedParams = new URLSearchParams(
+                        params,
+                      ).toString()
+                      window.open(
+                        `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
+                        '_blank',
+                      )
+                      return
+                    }
+                  }
+                  const content = getContent()
+                  if (canCreateAccount || !userKeyPair) {
+                    createAccount()
                     return
                   }
-                }
-                const content = getContent()
-                if (canCreateAccount || !userKeyPair) {
-                  createAccount()
-                  return
-                }
-                createComment({
-                  content,
-                  docId,
-                  docVersion,
-                  keyPair: userKeyPair,
-                  replyCommentId,
-                  rootReplyCommentId,
-                })
-                  .then((signedComment) => {
-                    postComment.mutateAsync(signedComment)
+                  createComment({
+                    content,
+                    docId,
+                    docVersion,
+                    keyPair: userKeyPair,
+                    replyCommentId,
+                    rootReplyCommentId,
                   })
-                  .then(() => {
-                    reset()
-                    onDiscardDraft?.()
-                  })
-              }}
-            >
-              {userKeyPair
-                ? commentActionMessage
-                : unauthenticatedActionMessage}
-            </Button>
-          )
-        }}
-        onDiscardDraft={onDiscardDraft}
-      />
+                    .then((signedComment) => {
+                      postComment.mutateAsync(signedComment)
+                    })
+                    .then(() => {
+                      reset()
+                      onDiscardDraft?.()
+                    })
+                }}
+              >
+                {userKeyPair
+                  ? commentActionMessage
+                  : unauthenticatedActionMessage}
+              </Button>
+            )
+          }}
+          onDiscardDraft={onDiscardDraft}
+        />
+      </CommentDocContentProvider>
       {createAccountContent}
     </>
   )
@@ -221,8 +225,8 @@ function CommentDocContentProvider({
   getFileCID,
   children,
   comment, // originHomeId,
-  // supportQueries,
-} // id,
+  // id,
+} // supportQueries,
 // siteHost,
 // supportDocuments,
 // routeParams,

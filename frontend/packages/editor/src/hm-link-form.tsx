@@ -52,6 +52,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             flex={1}
             size={formSize}
             placeholder={`${props.type} text`}
+            background="$background"
+            borderWidth="$0"
+            outlineWidth="$0"
+            color="$color12"
             id="link-text"
             value={_text}
             onKeyPress={handleKeydown}
@@ -102,6 +106,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             size="$2"
             value={_url}
             onKeyPress={handleKeydown}
+            background="$background"
+            borderWidth="$0"
+            outlineWidth="$0"
+            color="$color12"
             onChangeText={(val) => {
               setUrl(val)
               props.updateLink(val, _text)
@@ -152,7 +160,7 @@ const SearchInput = ({
             // assign({props: {url: id.id}} as ButtonType)
             setLink(item.id.id)
             setSearch(item.id.id)
-            updateLink(item.id.id, title ? item.title : '')
+            updateLink(item.id.id, title ? item.title : text)
           },
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
@@ -248,6 +256,10 @@ const SearchInput = ({
     <>
       <Input
         unstyled
+        background="$background"
+        borderWidth="$0"
+        outlineWidth="$0"
+        color="$color12"
         ref={inputRef}
         flex={1}
         size="$2"
