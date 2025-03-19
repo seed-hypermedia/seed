@@ -509,6 +509,7 @@ function MediaForm({
                   unstyled
                   backgroundColor={comment ? '$color5' : '$color4'}
                   borderColor="$color8"
+                  color="$color12"
                   borderWidth="$1"
                   borderRadius="$2"
                   paddingLeft="$3"

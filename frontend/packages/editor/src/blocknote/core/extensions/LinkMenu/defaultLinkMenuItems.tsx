@@ -51,16 +51,18 @@ export function getLinkMenuItems({
         disabled: false,
         icon: <Link size={18} />,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+          let insertedText = docTitle ? docTitle : sourceUrl
           const {state, schema, view} = editor._tiptapEditor
           const {selection} = state
-          const pos = selection.from - docTitle!.length
+          const pos =
+            selection.from - (docTitle ? docTitle.length : sourceUrl.length)
           view.dispatch(
             view.state.tr
-              .deleteRange(pos, pos + docTitle!.length)
-              .insertText(docTitle!, pos)
+              .deleteRange(pos, pos + insertedText.length)
+              .insertText(insertedText, pos)
               .addMark(
                 pos,
-                pos + docTitle!.length,
+                pos + insertedText.length,
                 schema.mark('link', {
                   href: sourceUrl,
                 }),

@@ -10,7 +10,9 @@ import CodeBlockLowlight from '@/tiptap-extension-code-block'
 import {common, createLowlight} from 'lowlight'
 import {ButtonBlock} from './button'
 import {MathBlock} from './math'
+import {NostrBlock} from './nostr'
 import {VideoBlock} from './video'
+import {WebEmbed} from './web-embed'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,
@@ -26,6 +28,7 @@ export const hmBlockSchema: BlockSchema = {
       ...defaultProps,
       language: {default: ''},
     },
+    // @ts-ignore
     node: CodeBlockLowlight.configure({
       defaultLanguage: 'plaintext',
       lowlight: createLowlight(common),
@@ -37,6 +40,9 @@ export const hmBlockSchema: BlockSchema = {
   video: VideoBlock,
   button: ButtonBlock,
   math: MathBlock('math'),
+  ['web-embed']: WebEmbed,
+  // embed: EmbedBlock,
+  nostr: NostrBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

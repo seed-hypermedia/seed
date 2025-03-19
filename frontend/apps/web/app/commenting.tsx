@@ -214,7 +214,6 @@ export default function WebCommenting({
                     .then(() => {
                       reset()
                       onDiscardDraft?.()
-                      promptEmailNotifications()
                     })
                 }}
               >
@@ -228,7 +227,6 @@ export default function WebCommenting({
         />
       </CommentDocContentProvider>
       {createAccountContent}
-      {emailNotificationsPromptContent}
     </>
   )
 }
@@ -268,8 +266,8 @@ function CommentDocContentProvider({
   handleFileAttachment,
   children,
   comment, // originHomeId,
-  // id,
-} // supportQueries,
+  // supportQueries,
+} // id,
 // siteHost,
 // supportDocuments,
 // routeParams,
