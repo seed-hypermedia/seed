@@ -5,18 +5,17 @@ function upgradeStore(
   storeName: string,
   options?: IDBObjectStoreParameters,
 ): IDBObjectStore {
-  if (db.objectStoreNames.contains(storeName)) {
-    return db.transaction(storeName, 'versionchange').objectStore(storeName)
-  }
   return db.createObjectStore(storeName, options)
 }
 
 function upgradeIndex(
-  store: IDBObjectStore,
+  tx: IDBTransaction,
+  storeName: string,
   indexName: string,
   keyPath: string | string[],
   options?: IDBIndexParameters,
 ): IDBIndex {
+  const store = tx.objectStore(storeName)
   if (store.indexNames.contains(indexName)) {
     return store.index(indexName)
   }
@@ -43,10 +42,11 @@ function initDB(db?: IDBFactory): Promise<IDBDatabase> {
   const openDb = db.open(DB_NAME, DB_VERSION)
   openDb.onupgradeneeded = (event) => {
     const db = event.target.result
+    const tx = event.target.transaction
     console.log(`Upgrading to version ${db.version}`)
     upgradeStore(db, KEYS_STORE_NAME)
-    const abilitiesStore = upgradeStore(db, ABILITIES_STORE_NAME)
-    upgradeIndex(abilitiesStore, 'delegateOrigin', 'delegateOrigin', {
+    upgradeStore(db, ABILITIES_STORE_NAME)
+    upgradeIndex(tx, ABILITIES_STORE_NAME, 'delegateOrigin', 'delegateOrigin', {
       unique: false,
     })
     upgradeStore(db, DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
