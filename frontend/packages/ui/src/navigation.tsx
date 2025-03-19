@@ -409,7 +409,7 @@ export function SiteNavigationWrapper({
 
   return showCollapsed ? (
     <YStack jc="center" ai="center">
-      <Popover placement="right" {...popoverState}>
+      <Popover placement="right" {...popoverState} hoverable>
         <Popover.Trigger
           opacity={popoverState.open ? 0 : 1}
           bg="$color6"
