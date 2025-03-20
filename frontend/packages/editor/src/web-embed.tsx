@@ -12,6 +12,7 @@ import {YStack} from '@tamagui/stacks'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
 import {SizableText, useTheme} from 'tamagui'
+import {useDocContentContext} from '../../ui/src/document-content'
 
 export const WebEmbed = createReactBlockSpec({
   type: 'web-embed',
@@ -106,6 +107,7 @@ const display = ({
   const xPostId = urlArray[urlArray.length - 1].split('?')[0]
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const {openUrl} = useDocContentContext()
 
   // const iframeRef = useRef(null)
 
@@ -212,8 +214,8 @@ const display = ({
       assign={assign}
       onPress={() => {
         // open URl disabled for now
-        // openUrl(block.props.link);
-        console.log('openUrl: IMPLEMENT ME', block.props.link)
+        openUrl(block.props.link)
+        // console.log('openUrl: IMPLEMENT ME', block.props.link)
       }}
       styleProps={{
         padding: '$3',

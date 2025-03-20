@@ -12,6 +12,7 @@ import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useState} from 'react'
 import {Label, SizableText} from 'tamagui'
+import {useDocContentContext} from '../../ui/src/document-content'
 import {Popover} from '../../ui/src/TamaguiPopover'
 
 export const ButtonBlock = createReactBlockSpec({
@@ -78,9 +79,7 @@ const Render = (
   // ]
   // const [link, setLink] = useState(block.props.url)
   // const openUrl = useOpenUrl()
-  const openUrl = (...params: any) => {
-    console.log('openUrl inside editor package', params)
-  }
+  const {openUrl} = useDocContentContext()
 
   const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {

@@ -221,12 +221,21 @@ async function getFileCID(file: File) {
   }
 }
 
+function openUrlWeb(url?: string, newWindow?: boolean) {
+  if (!url) return
+  if (newWindow) {
+    window.open(url, '_blank')
+  } else {
+    window.location.href = url
+  }
+}
+
 function CommentDocContentProvider({
   getFileCID,
   children,
   comment, // originHomeId,
-  // supportQueries,
-} // id,
+  // id,
+} // supportQueries,
 // siteHost,
 // supportDocuments,
 // routeParams,
@@ -286,6 +295,7 @@ function CommentDocContentProvider({
       // routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}
+      openUrl={openUrlWeb}
       debug={false}
       comment
     >

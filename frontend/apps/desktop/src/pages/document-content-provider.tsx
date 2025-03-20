@@ -80,6 +80,7 @@ export function AppDocContentProvider({
               }
             : null
         }
+        openUrl={openUrl}
         saveCidAsFile={saveCidAsFile}
         routeParams={{}}
         {...overrides}
