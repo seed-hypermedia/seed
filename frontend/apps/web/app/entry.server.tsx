@@ -238,6 +238,7 @@ export default async function handleRequest(
     responseHeaders.set('Content-Security-Policy', "frame-ancestors 'none';")
     responseHeaders.set('X-Frame-Options', 'DENY')
   }
+  responseHeaders.set('Permissions-Policy', 'storage-access=*')
   const sendPerfLog = logDebugRequest(url.pathname)
 
   if (url.pathname.startsWith('/ipfs')) {

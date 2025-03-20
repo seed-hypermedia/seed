@@ -91,8 +91,9 @@ function addOriginIframe(origin: string) {
   iframe.src = src
   iframe.setAttribute(
     'sandbox',
-    'allow-storage-access-by-user-activation allow-scripts allow-same-origin',
+    'allow-storage-access-by-user-activation allow-scripts allow-same-origin storage-access',
   )
+  iframe.setAttribute('allow', 'storage-access')
   // iframe.style.display = 'none'
   function send(message: EmbedSigningDelegateMessage) {
     iframe.contentWindow?.postMessage(message, origin)
