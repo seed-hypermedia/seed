@@ -3,16 +3,17 @@ import {
   defaultBlockSchema,
   defaultProps,
 } from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {ButtonBlock} from '@/button'
+import {EmbedBlock} from '@/embed-block'
 import {FileBlock} from '@/file'
 import {HMHeadingBlockContent} from '@/heading-component-plugin'
 import {ImageBlock} from '@/image'
+import {MathBlock} from '@/math'
+import {NostrBlock} from '@/nostr'
 import CodeBlockLowlight from '@/tiptap-extension-code-block'
+import {VideoBlock} from '@/video'
+import {WebEmbed} from '@/web-embed'
 import {common, createLowlight} from 'lowlight'
-import {ButtonBlock} from './button'
-import {MathBlock} from './math'
-import {NostrBlock} from './nostr'
-import {VideoBlock} from './video'
-import {WebEmbed} from './web-embed'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,
@@ -41,7 +42,7 @@ export const hmBlockSchema: BlockSchema = {
   button: ButtonBlock,
   math: MathBlock('math'),
   ['web-embed']: WebEmbed,
-  // embed: EmbedBlock,
+  embed: EmbedBlock,
   nostr: NostrBlock,
 }
 

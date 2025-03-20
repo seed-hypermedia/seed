@@ -262,6 +262,15 @@ export function useOpenUrlWeb() {
   }
 }
 
+function openUrlWeb(url?: string, newWindow?: boolean) {
+  if (!url) return
+  if (newWindow) {
+    window.open(url, '_blank')
+  } else {
+    window.location.href = url
+  }
+}
+
 function CommentDocContentProvider({
   handleFileAttachment,
   children,
@@ -331,8 +340,7 @@ function CommentDocContentProvider({
       // routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}
-      openUrl={openUrl}
-      handleFileAttachment={handleFileAttachment}
+      openUrl={openUrlWeb}
       debug={false}
       comment
     >

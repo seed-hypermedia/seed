@@ -7,6 +7,7 @@ import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
+import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
@@ -25,6 +26,7 @@ export default function CommentEditor({
   }) => JSX.Element
 }) {
   const {editor} = useCommentEditor()
+  const {openUrl} = useDocContentContext()
   return (
     <YStack gap="$3">
       <YStack
@@ -47,7 +49,7 @@ export default function CommentEditor({
         gap="$4"
         paddingBottom="$2"
       >
-        <HyperMediaEditorView editor={editor} openUrl={() => {}} />
+        <HyperMediaEditorView editor={editor} openUrl={openUrl} />
       </YStack>
       <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
         {onDiscardDraft ? (

@@ -135,6 +135,7 @@ export type DocContentContextValue = {
   }
   importWebFile?: any
   getFileCID?: any
+  openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
 }
