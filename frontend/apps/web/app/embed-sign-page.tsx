@@ -145,7 +145,6 @@ export default function EmbedSignPage() {
         const isSafari = /^((?!chrome|android).)*safari/i.test(
           navigator.userAgent,
         )
-
         if (isSafari) {
           document.hasStorageAccess().then((hasAccess) => {
             console.log('~~ hasStorageAccess', hasAccess)
@@ -155,10 +154,8 @@ export default function EmbedSignPage() {
             .then((dbs) => console.log('IndexedDB Instances:', dbs))
         }
         console.log('~~ IS safari', isSafari)
-        const requestPromise = isSafari
-          ? document.requestStorageAccess()
-          : document.requestStorageAccess({indexedDB: true})
-        requestPromise
+        document
+          .requestStorageAccess({indexedDB: true})
           .then(async (result) => {
             const indexedDB = isSafari
               ? window.indexedDB
@@ -169,7 +166,11 @@ export default function EmbedSignPage() {
               .then((dbs) => console.log('~~ 2 IndexedDB Instances:', dbs))
 
             document.hasStorageAccess().then((hasAccess) => {
-              console.log('~~ 22 hasStorageAccess', hasAccess)
+              console.log(
+                '~~ 22 hasStorageAccess',
+                hasAccess,
+                window.location.origin,
+              )
             })
 
             resetDB(indexedDB).then((db) => {
