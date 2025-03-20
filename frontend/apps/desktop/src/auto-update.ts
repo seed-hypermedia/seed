@@ -272,7 +272,39 @@ export class AutoUpdater {
 
   private compareVersions(v1: string, v2: string): number {
     log.info(`[AUTO-UPDATE] Comparing versions: ${v1} vs ${v2}`)
-    return v1 === v2 ? 0 : 1
+
+    // Split version and dev suffix
+    const [v1Base, v1Dev] = v1.split('-dev.')
+    const [v2Base, v2Dev] = v2.split('-dev.')
+
+    // Compare main version numbers first (2025.2.8)
+    const v1Parts = v1Base.split('.').map(Number)
+    const v2Parts = v2Base.split('.').map(Number)
+
+    // Compare year.month.patch
+    for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+      const v1Part = v1Parts[i] || 0
+      const v2Part = v2Parts[i] || 0
+      if (v1Part > v2Part) return 1
+      if (v1Part < v2Part) return -1
+    }
+
+    // If base versions are equal, compare dev versions
+    if (v1Base === v2Base) {
+      // If one is dev and other isn't, non-dev is newer
+      if (!v1Dev && v2Dev) return 1
+      if (v1Dev && !v2Dev) return -1
+      // If both are dev versions, compare dev numbers
+      if (v1Dev && v2Dev) {
+        const v1DevNum = parseInt(v1Dev)
+        const v2DevNum = parseInt(v2Dev)
+        return v1DevNum - v2DevNum
+      }
+      return 0
+    }
+
+    // If we get here, base versions were different
+    return 0
   }
 
   private async handleUpdate(updateInfo: UpdateInfo): Promise<void> {
@@ -532,7 +564,10 @@ export class AutoUpdater {
                 }
               } catch (error) {
                 log.error(`[AUTO-UPDATE] Installation error: ${error}`)
-                this.status = {type: 'error', error: error.message}
+                this.status = {
+                  type: 'error',
+                  error: error instanceof Error ? error.message : String(error),
+                }
                 win?.webContents.send('auto-update:status', this.status)
 
                 // Attempt rollback
@@ -638,7 +673,7 @@ export class AutoUpdater {
                   this.status = {
                     type: 'error',
                     error:
-                      error instanceof Error ? error.message : 'Unknown error',
+                      error instanceof Error ? error.message : String(error),
                   }
                   win?.webContents.send('auto-update:status', this.status)
 
@@ -680,8 +715,7 @@ export class AutoUpdater {
                 log.error(`[AUTO-UPDATE] Error: ${error}`)
                 this.status = {
                   type: 'error',
-                  error:
-                    error instanceof Error ? error.message : 'Unknown error',
+                  error: error instanceof Error ? error.message : String(error),
                 }
                 win?.webContents.send('auto-update:status', this.status)
               }

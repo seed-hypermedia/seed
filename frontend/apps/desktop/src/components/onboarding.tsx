@@ -11,7 +11,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CheckboxField} from '@shm/ui/checkbox-field'
 import {toast} from '@shm/ui/toast'
-import {ArrowLeft, ExternalLink} from '@tamagui/lucide-icons'
+import {ArrowLeft} from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
@@ -247,7 +247,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
       </XStack>
 
       <YStack gap="$4" alignItems="center" className="no-window-drag">
-        <Button
+        {/* <Button
           variant="outlined"
           onPress={() => openUrl('https://seed.hyper.media')}
           icon={ExternalLink}
@@ -262,7 +262,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           }}
         >
           Getting Started Guides
-        </Button>
+        </Button> */}
         <Button
           onPress={onNext}
           size="$4"

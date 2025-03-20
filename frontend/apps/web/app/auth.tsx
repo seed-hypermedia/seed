@@ -43,9 +43,9 @@ import {
   postCBOR,
   rawCodec,
 } from './api'
+import {Ability} from './auth-abilities'
 import {preparePublicKey} from './auth-utils'
 import {
-  Ability,
   deleteAbility,
   deleteAllAbilities,
   deleteLocalKeys,

@@ -39,6 +39,7 @@ export function Layout({children}: {children: React.ReactNode}) {
           <>
             <script
               defer
+              file-types="rpm,deb,dmg,exe"
               data-domain={process.env.MONITORING_DOMAIN}
               src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
             ></script>
