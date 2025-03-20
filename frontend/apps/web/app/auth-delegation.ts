@@ -89,7 +89,11 @@ function addOriginIframe(origin: string) {
   const iframe = document.createElement('iframe')
   const src = `${origin}/hm/embed/sign`
   iframe.src = src
-  iframe.style.display = 'none'
+  iframe.setAttribute(
+    'sandbox',
+    'allow-storage-access-by-user-activation allow-scripts allow-same-origin',
+  )
+  // iframe.style.display = 'none'
   function send(message: EmbedSigningDelegateMessage) {
     iframe.contentWindow?.postMessage(message, origin)
   }

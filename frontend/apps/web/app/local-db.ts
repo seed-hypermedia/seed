@@ -29,17 +29,12 @@ const ABILITIES_STORE_NAME = 'abilities-01'
 const DELEGATED_IDENTITY_ORIGINS_STORE_NAME = 'delegated-identity-origins-01'
 const DB_VERSION = 4
 
-function promisify<
-  Event,
-  E,
-  R extends {onsuccess: (event: Event) => void; onerror: (error: E) => {}},
->(req: R, onReq: (r: R) => void) {}
-
-function initDB(db?: IDBFactory): Promise<IDBDatabase> {
-  if (!db) {
+function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
+  console.log('~~ initDB', idb, window.location.origin)
+  if (!idb) {
     throw new Error('NoIndexedDB')
   }
-  const openDb = db.open(DB_NAME, DB_VERSION)
+  const openDb = idb.open(DB_NAME, DB_VERSION)
   openDb.onupgradeneeded = (event) => {
     const db = event.target.result
     const tx = event.target.transaction
@@ -53,7 +48,15 @@ function initDB(db?: IDBFactory): Promise<IDBDatabase> {
   }
   return new Promise((resolve, reject) => {
     openDb.onsuccess = (event) => {
-      console.log('~ db opened', openDb.result)
+      console.log('~ db opened', openDb.result, window.location.origin)
+      getAllAbilitiesByOrigin(origin).then((abilities) => {
+        const abilitiesJson = JSON.stringify(abilities)
+        console.log(
+          '~~000  abilitiesJson',
+          abilitiesJson,
+          window.location.origin,
+        )
+      })
       resolve(openDb.result)
     }
     openDb.onerror = (error) => {
@@ -63,10 +66,22 @@ function initDB(db?: IDBFactory): Promise<IDBDatabase> {
   })
 }
 
-let db: Promise<IDBDatabase> = initDB(window.indexedDB)
+let db: Promise<IDBDatabase> | null = null
 
 export async function resetDB(idb: IDBFactory) {
+  if (db) {
+    ;(await getDB()).close()
+    console.log('~ db closed')
+  }
   db = initDB(idb)
+  return await db
+}
+
+function getDB(idb = window.indexedDB): Promise<IDBDatabase> {
+  if (!db) {
+    db = initDB(idb)
+  }
+  return db
 }
 
 function storeGet<T>(store: IDBObjectStore, key: string): Promise<T> {
@@ -147,7 +162,7 @@ function storeIndexGetAll<T>(store: IDBObjectStore | IDBIndex): Promise<T[]> {
 }
 
 export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(KEYS_STORE_NAME)
     .objectStore(KEYS_STORE_NAME)
   const [privateKey, publicKey] = await Promise.all([
@@ -158,7 +173,7 @@ export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
 }
 
 export async function writeLocalKeys(keyPair: CryptoKeyPair): Promise<void> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(KEYS_STORE_NAME, 'readwrite')
     .objectStore(KEYS_STORE_NAME)
   console.log('~! writeLocalKeys', keyPair)
@@ -169,7 +184,7 @@ export async function writeLocalKeys(keyPair: CryptoKeyPair): Promise<void> {
 }
 
 export async function deleteLocalKeys() {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(KEYS_STORE_NAME, 'readwrite')
     .objectStore(KEYS_STORE_NAME)
   await storeClear(store)
@@ -178,7 +193,7 @@ export async function deleteLocalKeys() {
 export async function addDelegatedIdentityOrigin(
   origin: string,
 ): Promise<void> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
     .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
   await storePut(store, '', origin)
@@ -187,14 +202,14 @@ export async function addDelegatedIdentityOrigin(
 export async function removeDelegatedIdentityOrigin(
   origin: string,
 ): Promise<void> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
     .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
   await storeDelete(store, origin)
 }
 
 export async function getAllDelegatedIdentityOrigins(): Promise<string[]> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readonly')
     .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
   return await storeGetAllKeys(store)
@@ -204,7 +219,7 @@ export async function writeAbility(
   ability: Omit<Ability, 'id'>,
 ): Promise<Ability> {
   const id = crypto.randomUUID()
-  const store = (await db)
+  const store = (await getDB())
     .transaction(ABILITIES_STORE_NAME, 'readwrite')
     .objectStore(ABILITIES_STORE_NAME)
   const writtenAbility = {...ability, id}
@@ -213,21 +228,21 @@ export async function writeAbility(
 }
 
 export async function deleteAbility(id: string): Promise<void> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(ABILITIES_STORE_NAME, 'readwrite')
     .objectStore(ABILITIES_STORE_NAME)
   await storeDelete(store, id)
 }
 
 export async function deleteAllAbilities(): Promise<void> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(ABILITIES_STORE_NAME, 'readwrite')
     .objectStore(ABILITIES_STORE_NAME)
   await storeClear(store)
 }
 
 export async function getAllAbilities(): Promise<Ability[]> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(ABILITIES_STORE_NAME, 'readonly')
     .objectStore(ABILITIES_STORE_NAME)
   const abilities = await storeIndexGetAll<Ability>(store)
@@ -239,7 +254,7 @@ export async function getAllAbilities(): Promise<Ability[]> {
 export async function getAllAbilitiesByOrigin(
   origin: string,
 ): Promise<Ability[]> {
-  const store = (await db)
+  const store = (await getDB())
     .transaction(ABILITIES_STORE_NAME, 'readonly')
     .objectStore(ABILITIES_STORE_NAME)
   const index = store.index('delegateOrigin')

@@ -1,15 +1,21 @@
 import {getAllAbilitiesByOrigin, getStoredLocalKeys, resetDB} from '@/local-db'
 import {
   EmbedSigningDelegateMessage,
-  embedSigningDelegateMessageSchema,
   EmbedSigningIdentityProviderMessage,
   RequestSignCommentMessage,
 } from '@/signing-embed-messages'
 import {entityQueryPathToHmIdPath, hmId} from '@shm/shared'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect} from 'react'
 import {signComment} from './api'
 import {Ability, getValidAbility} from './auth-abilities'
+
+declare global {
+  interface Document {
+    requestStorageAccess(options?: {
+      indexedDB: boolean
+    }): Promise<{indexedDB: IDBFactory} | void>
+  }
+}
 
 function sendParentMessage(message: EmbedSigningIdentityProviderMessage) {
   window.parent.postMessage(message, '*')
@@ -22,6 +28,7 @@ function updateAndBroadcastAbilities(origin: string) {
   getAllAbilitiesByOrigin(origin)
     .then((abilities) => {
       const abilitiesJson = JSON.stringify(abilities)
+      console.log('~~ abilitiesJson', abilitiesJson)
       if (lastSentAbilitiesJson !== abilitiesJson) {
         lastSentAbilities = abilities
         lastSentAbilitiesJson = abilitiesJson
@@ -60,15 +67,35 @@ function handleParentMessage(
 ) {
   if (message.type === 'init') {
     console.log('~~ embed init')
-    document
-      .requestStorageAccess({indexedDB: true})
+    // Chrome supports options, Safari doesn't
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    console.log('~~ isSafari', isSafari)
+    const requestPromise = isSafari
+      ? document.requestStorageAccess()
+      : document.requestStorageAccess({indexedDB: true})
+
+    requestPromise
       .then(async (result) => {
-        const indexedDB = result.indexedDB
+        const indexedDB = isSafari
+          ? window.indexedDB
+          : result?.indexedDB || window.indexedDB
         resetDB(indexedDB)
         setInterval(() => updateAndBroadcastAbilities(origin), 1000) // todo, make fast again
       })
       .catch((error) => {
-        console.error('~~ requestStorageAccess error', error)
+        console.error(
+          '~~ requestStorageAccess error',
+          error?.message || 'Unknown error',
+          error,
+        )
+        // if (!isSafari) return
+        // // Fallback for Safari - try to use storage anyway
+        // try {
+        //   resetDB(window.indexedDB)
+        //   setInterval(() => updateAndBroadcastAbilities(origin), 1000)
+        // } catch (e) {
+        //   console.error('~~ fallback storage access error', e)
+        // }
       })
     return
   }
@@ -94,15 +121,75 @@ function handleParentMessage(
 }
 
 export default function EmbedSignPage() {
-  useEffect(() => {
-    console.log('~~ embed sign page ready')
-    sendParentMessage({type: 'ready'})
-    const handleMessage = (event: MessageEvent) => {
-      const message = embedSigningDelegateMessageSchema.parse(event.data)
-      handleParentMessage(message, event.origin)
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
-  return <div>Embed Signing</div>
+  // useEffect(() => {
+  //   console.log('~~ embed sign page ready')
+  //   sendParentMessage({type: 'ready'})
+  //   const handleMessage = (event: MessageEvent) => {
+  //     const message = embedSigningDelegateMessageSchema.parse(event.data)
+  //     handleParentMessage(message, event.origin)
+  //   }
+  //   window.addEventListener('message', handleMessage)
+  //   return () => window.removeEventListener('message', handleMessage)
+  // }, [])
+  return (
+    <button
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'red',
+      }}
+      onClick={() => {
+        const isSafari = /^((?!chrome|android).)*safari/i.test(
+          navigator.userAgent,
+        )
+
+        if (isSafari) {
+          document.hasStorageAccess().then((hasAccess) => {
+            console.log('~~ hasStorageAccess', hasAccess)
+          })
+          indexedDB
+            .databases()
+            .then((dbs) => console.log('IndexedDB Instances:', dbs))
+        }
+        console.log('~~ IS safari', isSafari)
+        const requestPromise = isSafari
+          ? document.requestStorageAccess()
+          : document.requestStorageAccess({indexedDB: true})
+        requestPromise
+          .then(async (result) => {
+            const indexedDB = isSafari
+              ? window.indexedDB
+              : result?.indexedDB || window.indexedDB
+            console.log('~~ CLICK REQUESTED STORAGE', result, indexedDB)
+            indexedDB
+              .databases()
+              .then((dbs) => console.log('~~ 2 IndexedDB Instances:', dbs))
+
+            document.hasStorageAccess().then((hasAccess) => {
+              console.log('~~ 22 hasStorageAccess', hasAccess)
+            })
+
+            resetDB(indexedDB).then((db) => {
+              updateAndBroadcastAbilities(origin)
+              indexedDB
+                .databases()
+                .then((dbs) => console.log('~~ 2 IndexedDB Instances:', dbs))
+            })
+            // setInterval(() => updateAndBroadcastAbilities(origin), 1000) // todo, make fast again
+          })
+          .catch((error) => {
+            console.error(
+              '~~ CLICK requestStorageAccess error',
+              error?.message || 'Unknown error',
+              error,
+            )
+          })
+      }}
+    >
+      Embed Signing
+    </button>
+  )
 }
