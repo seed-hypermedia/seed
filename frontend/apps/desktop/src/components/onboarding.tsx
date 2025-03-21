@@ -1892,8 +1892,16 @@ export function ResetOnboardingButton() {
       position="absolute"
       bottom={10}
       right={10}
+      gap="$2"
     >
-      <Button onPress={() => dispatchSiteTemplateEvent(true)}>
+      <Button
+        size="$2"
+        opacity={0.7}
+        onPress={() => dispatchSiteTemplateEvent(true)}
+        bg="$brand5"
+        color="white"
+        hoverStyle={{opacity: 1, bg: '$brand4'}}
+      >
         show template dialog
       </Button>
       <Button
