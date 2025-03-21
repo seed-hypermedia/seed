@@ -525,36 +525,55 @@ export class AutoUpdater {
                 // Start new version and quit current
                 log.info('[AUTO-UPDATE] Starting new version...')
                 try {
-                  // Launch the new version with the relaunch flag
-                  exec(
-                    `open -n "/Applications/${appName}.app" --args --relaunch-after-update`,
-                    {
-                      detached: true,
-                      stdio: 'ignore',
-                    },
+                  // Create a temporary script to launch the new app after this one quits
+                  const launchScriptPath = path.join(
+                    app.getPath('temp'),
+                    'launch-seed.sh',
+                  )
+                  await fs.writeFile(
+                    launchScriptPath,
+                    `#!/bin/bash
+sleep 1
+open -n "/Applications/${appName}.app" --args --relaunch-after-update
+`,
+                    {mode: 0o755}, // Make executable
                   )
 
-                  // Wait a bit to ensure the new version starts
-                  setTimeout(() => {
-                    log.info('[AUTO-UPDATE] Quitting current version...')
-                    app.quit()
-                  }, 2000)
+                  // Execute the script in the background
+                  exec(`"${launchScriptPath}"`, {
+                    detached: true,
+                    stdio: 'ignore',
+                  })
+
+                  // Quit the current app
+                  log.info('[AUTO-UPDATE] Quitting current version...')
+
+                  app.quit()
                 } catch (startError) {
                   log.error(
                     `[AUTO-UPDATE] Error starting new version: ${startError}`,
                   )
-                  // If the first attempt fails, try one more time
+                  // If the first attempt fails, try one more time with direct approach
                   try {
-                    exec(
-                      `open "/Applications/${appName}.app" --args --relaunch-after-update`,
-                      {
-                        detached: true,
-                        stdio: 'ignore',
-                      },
+                    const launchScriptPath = path.join(
+                      app.getPath('temp'),
+                      'launch-seed-retry.sh',
                     )
-                    setTimeout(() => {
-                      app.quit()
-                    }, 2000)
+                    fs.writeFileSync(
+                      launchScriptPath,
+                      `#!/bin/bash
+sleep 2
+open "/Applications/${appName}.app" --args --relaunch-after-update
+`,
+                      {mode: 0o755}, // Make executable
+                    )
+
+                    exec(`"${launchScriptPath}"`, {
+                      detached: true,
+                      stdio: 'ignore',
+                    })
+
+                    app.quit()
                   } catch (retryError) {
                     log.error(
                       `[AUTO-UPDATE] Retry to start new version failed: ${retryError}`,
@@ -663,11 +682,28 @@ export class AutoUpdater {
 
                   // Start new version and quit current
                   log.info('[AUTO-UPDATE] Starting new version...')
-                  exec(`${packageName}`, {detached: true})
-                  setTimeout(() => {
-                    log.info('[AUTO-UPDATE] Quitting app...')
-                    app.quit()
-                  }, 100)
+
+                  // Create a temporary script to launch the new app after this one quits
+                  const launchScriptPath = path.join(tempPath, 'launch-seed.sh')
+                  await fs.writeFile(
+                    launchScriptPath,
+                    `#!/bin/bash
+sleep 1
+${packageName}
+`,
+                    {mode: 0o755}, // Make executable
+                  )
+
+                  // Execute the script in the background
+                  exec(`"${launchScriptPath}"`, {
+                    detached: true,
+                    stdio: 'ignore',
+                  })
+
+                  // Quit current app
+
+                  log.info('[AUTO-UPDATE] Quitting app...')
+                  app.quit()
                 } catch (error) {
                   log.error(`[AUTO-UPDATE] Installation error: ${error}`)
                   this.status = {
