@@ -71,6 +71,10 @@ initPaths()
 
 contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
+  // prepend: (defaultActions, params, browserWindow) => {
+  //   console.log('context menu triggered at', params.x, params.y)
+  //   return []
+  // },
 })
 
 Menu.setApplicationMenu(createAppMenu())
@@ -104,10 +108,6 @@ if (IS_PROD_DESKTOP) {
     },
   })
 }
-
-contextMenu({
-  showInspectElement: !IS_PROD_DESKTOP,
-})
 
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
