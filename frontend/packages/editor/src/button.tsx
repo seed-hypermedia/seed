@@ -167,20 +167,32 @@ const Render = (
           >
             <Popover.Trigger>
               <Button
-                data-type="hm-button"
-                borderWidth="$1"
-                backgroundColor="$brand10"
-                size="$3"
+                bg="$brand5"
+                color="white"
                 width="100%"
-                padding="$2"
-                fontSize="$4"
                 justifyContent="center"
                 textAlign="center"
                 userSelect="none"
-                borderColor={selected ? '$color8' : '$colorTransparent'}
-                focusStyle={{borderWidth: '$1'}}
+                borderColor="$colorTransparent"
+                borderWidth={0}
+                size="$5"
+                maxWidth="100%"
+                hoverStyle={{
+                  bg: '$brand4',
+                  borderWidth: 0,
+                }}
+                focusStyle={{
+                  bg: '$brand3',
+                  borderWidth: 0,
+                }}
               >
-                <SizableText numberOfLines={1} ellipsizeMode="tail">
+                <SizableText
+                  size="$5"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  fontWeight="bold"
+                  color="white"
+                >
                   {block.props.name}
                 </SizableText>
               </Button>

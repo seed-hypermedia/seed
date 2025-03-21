@@ -2073,7 +2073,7 @@ export function BlockContentButton({
         maxWidth="100%"
       >
         <Button
-          borderWidth="$1"
+          borderWidth={0}
           bg="$brand5"
           color="white"
           width="100%"
@@ -2086,11 +2086,11 @@ export function BlockContentButton({
           maxWidth="100%"
           hoverStyle={{
             bg: '$brand4',
-            borderColor: '$color8',
+            borderWidth: 0,
           }}
           focusStyle={{
             bg: '$brand3',
-            borderColor: '$color8',
+            borderWidth: 0,
           }}
         >
           <SizableText
