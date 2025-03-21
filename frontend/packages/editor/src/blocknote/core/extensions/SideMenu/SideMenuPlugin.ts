@@ -1,7 +1,6 @@
 import {PluginView} from '@tiptap/pm/state'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, Selection} from 'prosemirror-state'
-import * as pv from 'prosemirror-view'
 import {EditorView} from 'prosemirror-view'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
@@ -13,8 +12,9 @@ import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 import {slashMenuPluginKey} from '../SlashMenu/SlashMenuPlugin'
 import {MultipleNodeSelection} from './MultipleNodeSelection'
 
-const serializeForClipboard = (pv as any).__serializeForClipboard
-// code based on https://github.com/ueberdosis/tiptap/issues/323#issuecomment-506637799
+// Deprecated in newer versions of prosemirror
+// const serializeForClipboard = (pv as any).__serializeForClipboard
+// // code based on https://github.com/ueberdosis/tiptap/issues/323#issuecomment-506637799
 
 let dragImageElement: Element | undefined
 
@@ -153,7 +153,7 @@ function setDragImage(view: EditorView, from: number, to = from) {
   }
 
   // dataTransfer.setDragImage(element) only works if element is attached to the DOM.
-  unsetDragImage()
+  unsetDragImage(view.root)
   dragImageElement = parentClone
 
   // TODO: This is hacky, need a better way of assigning classes to the editor so that they can also be applied to the
@@ -175,12 +175,23 @@ function setDragImage(view: EditorView, from: number, to = from) {
     ' ' +
     inheritedClasses
 
-  document.body.appendChild(dragImageElement)
+  if (view.root instanceof ShadowRoot) {
+    view.root.appendChild(dragImageElement)
+  } else {
+    view.root.body.appendChild(dragImageElement)
+  }
 }
 
-function unsetDragImage() {
+export function unsetDragImage(rootEl?: Document | ShadowRoot) {
   if (dragImageElement !== undefined) {
-    document.body.removeChild(dragImageElement)
+    if (rootEl) {
+      if (rootEl instanceof ShadowRoot) {
+        rootEl.removeChild(dragImageElement)
+      } else {
+        rootEl.body.removeChild(dragImageElement)
+      }
+    } else document.body.removeChild(dragImageElement)
+
     dragImageElement = undefined
   }
 }
@@ -225,15 +236,22 @@ function dragStart(
     }
 
     const slice = view.state.selection.content()
-    const {dom, text} = serializeForClipboard(view, slice)
+    const clipboardHTML = view.serializeForClipboard(slice).dom.innerHTML
+    const plainText = htmlToPlainText(clipboardHTML)
 
     e.dataTransfer.clearData()
-    e.dataTransfer.setData('text/html', dom.innerHTML)
-    e.dataTransfer.setData('text/plain', text)
+    e.dataTransfer.setData('text/html', clipboardHTML)
+    e.dataTransfer.setData('text/plain', plainText)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setDragImage(dragImageElement!, 0, 0)
     view.dragging = {slice, move: true}
   }
+}
+
+function htmlToPlainText(html: string): string {
+  const div = document.createElement('div')
+  div.innerHTML = html
+  return div.innerText.trim()
 }
 
 export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
@@ -319,7 +337,7 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      // console.log("dispatch fake drop");
+      console.log('dispatch fake drop', evt)
       this.pmView.dom.dispatchEvent(evt)
     }
   }
