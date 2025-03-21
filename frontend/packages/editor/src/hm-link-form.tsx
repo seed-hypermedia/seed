@@ -147,12 +147,12 @@ const SearchInput = ({
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.uid,
+          key: item.id.id,
           onSelect: () => {
             // assign({props: {url: id.id}} as ButtonType)
             setLink(item.id.id)
             setSearch(item.id.id)
-            updateLink(item.id.id, title ? item.title : '')
+            updateLink(item.id.id, title ? item.title : text)
           },
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
@@ -191,7 +191,7 @@ const SearchInput = ({
     if (inputRef.current) {
       setInputPosition(inputRef.current.getBoundingClientRect())
     }
-  }, [focused])
+  }, [focused, search])
 
   let dropdownContent = (
     <YStack
