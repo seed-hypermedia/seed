@@ -152,25 +152,28 @@ app.whenReady().then(() => {
         logger.error('InitAccountSubscriptionsError ' + e.message)
       })
 
-    grpcClient.daemon.listKeys({}).then((response) => {
-      const onboardingState = getOnboardingState()
-      setInitialAccountIdCount(response.keys.length)
-      if (
-        response.keys.length === 0 &&
-        !onboardingState.hasCompletedOnboarding &&
-        !onboardingState.hasSkippedOnboarding
-      ) {
-        console.log('========= No keys found')
-        deleteWindowsState().then(() => {
-          trpc.createAppWindow({routes: [defaultRoute]})
-        })
-      } else {
-        console.log('========= Keys found', response.keys)
-        openInitialWindows()
-      }
-    })
-
-    autoUpdate()
+    grpcClient.daemon
+      .listKeys({})
+      .then((response) => {
+        setInitialAccountIdCount(response.keys.length)
+        const onboardingState = getOnboardingState()
+        if (
+          !onboardingState.initialAccountIdCount &&
+          !onboardingState.hasCompletedOnboarding &&
+          !onboardingState.hasSkippedOnboarding
+        ) {
+          console.log('========= No keys found')
+          deleteWindowsState().then(() => {
+            trpc.createAppWindow({routes: [defaultRoute]})
+          })
+        } else {
+          console.log('========= Keys found', response.keys)
+          openInitialWindows()
+        }
+      })
+      .finally(() => {
+        autoUpdate()
+      })
   })
 
   if (!IS_PROD_DESKTOP) {
