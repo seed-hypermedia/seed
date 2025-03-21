@@ -37,6 +37,7 @@ import {
   ImageValidationError,
   OnboardingState,
   OnboardingStep,
+  resetOnboardingState,
   setHasCompletedOnboarding,
   setHasSkippedOnboarding,
   setOnboardingFormData,
@@ -44,6 +45,7 @@ import {
   validateImage,
 } from '../app-onboarding'
 import {ImageForm} from '../pages/image-form'
+import {dispatchSiteTemplateEvent} from './site-template'
 
 interface OnboardingProps {
   onComplete: () => void
@@ -72,6 +74,8 @@ export function Onboarding({onComplete}: OnboardingProps) {
         'Onboarding already completed or skipped, skipping to main app',
       )
       if (account) {
+        console.log('Dispatching site template event')
+
         navigate({
           key: 'document',
           id: account,
@@ -131,6 +135,7 @@ export function Onboarding({onComplete}: OnboardingProps) {
       // Clean up form data but keep the completed flag
       cleanupOnboardingFormData()
       if (account) {
+        console.log('Dispatching site template event')
         navigate({
           key: 'document',
           id: account,
@@ -1398,73 +1403,73 @@ function ArchiveIcon({size = '151', ...props}: IconProps) {
         d="M45.623 31.6241L45.92 32.7259L46.2147 31.6234C46.4812 30.6267 46.5383 29.6368 46.5482 28.6693L46.5483 28.6693L46.5482 28.6628C46.5377 27.6949 46.4786 26.7048 46.2086 25.7085L45.9117 24.6126L45.6171 25.7091C45.3492 26.7061 45.2921 27.6962 45.2835 28.6641L45.2834 28.6641L45.2835 28.6705C45.2954 29.6381 45.3545 30.6279 45.623 31.6241Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M51.4852 33.1542L51.1908 34.2584L51.9981 33.4496C52.7269 32.7194 53.2711 31.8911 53.764 31.0579L53.7641 31.0579L53.7673 31.0522C54.242 30.2088 54.6858 29.3225 54.9504 28.3241L55.2413 27.226L54.4377 28.0289C53.7073 28.7586 53.1624 29.5877 52.6712 30.4214L52.6711 30.4213L52.6679 30.427C52.1947 31.2708 51.751 32.1575 51.4852 33.1542Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M55.7968 37.411L54.9895 38.2198L56.0932 37.9233C57.0899 37.6554 57.976 37.2097 58.8184 36.7352L58.8184 36.7353L58.8241 36.7319C59.6571 36.2387 60.4842 35.6925 61.2125 34.9608L62.0142 34.1553L60.9163 34.4487C59.9187 34.7152 59.0325 35.1603 58.1901 35.6371L58.1901 35.6371L58.1845 35.6404C57.3532 36.1347 56.5257 36.6808 55.7968 37.411Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M57.4027 43.2524L56.3005 43.5495L57.4033 43.8442C58.4007 44.1106 59.3905 44.1677 60.3575 44.1776L60.3575 44.1777L60.364 44.1776C61.3318 44.167 62.3219 44.108 63.3183 43.838L64.4142 43.5411L63.3177 43.2464C62.3206 42.9785 61.3306 42.9215 60.3627 42.9129L60.3627 42.9128L60.3562 42.9129C59.3886 42.9248 58.3988 42.9839 57.4027 43.2524Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M55.8719 49.1141L54.7678 48.8197L55.5765 49.627C56.3067 50.3558 57.1349 50.9006 57.9684 51.393L57.9684 51.3931L57.974 51.3962C58.8174 51.8709 59.7043 52.3147 60.702 52.5793L61.8004 52.8705L60.9973 52.0666C60.2675 51.3362 59.4384 50.7913 58.6048 50.3001L58.6048 50.3L58.5991 50.2968C57.7553 49.8236 56.8686 49.3799 55.8719 49.1141Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M51.6168 53.4257L50.808 52.6184L51.1045 53.7221C51.3723 54.7188 51.8174 55.6041 52.2926 56.4473L52.2926 56.4474L52.2959 56.453C52.7891 57.286 53.3353 58.1131 54.067 58.8414L54.8725 59.6431L54.5791 58.5452C54.3126 57.5475 53.8668 56.6612 53.3908 55.8192L53.3908 55.8191L53.3874 55.8134C52.8931 54.9821 52.347 54.1546 51.6168 53.4257Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M45.7751 55.0316L45.4781 53.9297L45.1833 55.0322C44.9169 56.029 44.8598 57.0188 44.8499 57.9864L44.8498 57.9864L44.8499 57.9929C44.8604 58.9607 44.9195 59.9508 45.1895 60.9472L45.4864 62.0431L45.781 60.9466C46.049 59.9495 46.106 58.9595 46.1146 57.9916L46.1147 57.9916L46.1146 57.9851C46.1027 57.0176 46.0436 56.0277 45.7751 55.0316Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M39.9131 53.5003L40.207 52.3975L39.4004 53.2049C38.6708 53.9352 38.1266 54.7642 37.6343 55.5967L37.6343 55.5967L37.6311 55.6024C37.1564 56.4458 36.7125 57.3321 36.448 58.3305L36.1571 59.4285L36.9607 58.6257C37.6911 57.8959 38.236 57.0668 38.7272 56.2332L38.7272 56.2332L38.7304 56.2275C39.2036 55.3838 39.6473 54.4977 39.9131 53.5003Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M35.6009 49.2447L36.4082 48.4359L35.3045 48.7325C34.3078 49.0003 33.4224 49.446 32.5794 49.9205L32.5794 49.9204L32.5736 49.9238C31.7406 50.417 30.9135 50.9632 30.1852 51.695L29.3835 52.5004L30.4814 52.2071C31.4791 51.9405 32.3648 51.4947 33.2074 51.0187L33.2074 51.0188L33.2132 51.0154C34.0452 50.521 34.8721 49.9749 35.6009 49.2447Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M33.9956 43.403L35.0975 43.106L33.995 42.8113C32.9983 42.5448 32.0084 42.4877 31.0408 42.4778L31.0408 42.4778L31.0344 42.4778C30.0665 42.4884 29.0764 42.5475 28.08 42.8174L26.9841 43.1143L28.0807 43.409C29.0777 43.6769 30.0678 43.734 31.0356 43.7425L31.0356 43.7426L31.0421 43.7425C32.0097 43.7307 32.9995 43.6716 33.9956 43.403Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M35.5258 37.5411L36.6289 37.8352L35.8213 37.0283C35.0917 36.2994 34.2627 35.7546 33.4293 35.2622L33.4294 35.2621L33.4238 35.259C32.5804 34.7843 31.6941 34.3405 30.6956 34.0759L29.5976 33.785L30.4005 34.5886C31.1302 35.319 31.9593 35.8639 32.7929 36.3551L32.7929 36.3552L32.7986 36.3584C33.6424 36.8316 34.5291 37.2753 35.5258 37.5411Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M39.7817 33.2299L40.5904 34.0364L40.2938 32.9334C40.026 31.9374 39.581 31.0514 39.1058 30.2082L39.1058 30.2081L39.1025 30.2025C38.6093 29.3695 38.0631 28.5425 37.3314 27.8141L36.5259 27.0124L36.8193 28.1103C37.0858 29.108 37.5309 29.9942 38.0077 30.8365L38.0077 30.8365L38.011 30.8421C38.5052 31.674 39.0507 32.501 39.7817 33.2299Z"
         fill="#038E7A"
         stroke="#038E7A"
-        stroke-width="0.612717"
+        strokeWidth="0.612717"
       />
       <path
         d="M109.577 43.9844H54.2656V114.987H109.577V43.9844Z"
@@ -1868,3 +1873,39 @@ function base64ToFile(imageData: ImageData): File {
 }
 
 // gift, general, police, ticket, slogan, outdoor, health, hockey, wool, taste, dignity, yard
+
+// This component creates a small floating button to reset the onboarding state
+// Only shown when explicitly enabled or in development mode
+export function ResetOnboardingButton() {
+  // Show if environment variable is set to 'true' or if in development mode
+  if (!__SHOW_OB_RESET_BTN__) return null
+
+  const handleReset = () => {
+    resetOnboardingState()
+    toast.success('Onboarding state reset! Refresh to see changes.')
+  }
+
+  return (
+    <XStack
+      className="no-window-drag"
+      zIndex="$zIndex.9"
+      position="absolute"
+      bottom={10}
+      right={10}
+    >
+      <Button onPress={() => dispatchSiteTemplateEvent(true)}>
+        show template dialog
+      </Button>
+      <Button
+        size="$2"
+        backgroundColor="$red10"
+        color="white"
+        onPress={handleReset}
+        opacity={0.7}
+        hoverStyle={{opacity: 1, bg: '$red11'}}
+      >
+        Reset Onboarding
+      </Button>
+    </XStack>
+  )
+}

@@ -42,7 +42,6 @@ import {useOpenDraft} from '../utils/open-draft'
 import {IconForm} from './icon-form'
 
 export const [dispatchWizardEvent, wizardEvents] = eventStream<boolean>()
-export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
 
 type AccountStep = 'create' | 'name' | 'members' | 'complete'
 
