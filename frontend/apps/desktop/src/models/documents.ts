@@ -62,7 +62,6 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
-import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, fromPromise, OutputFrom} from 'xstate'
 import {hmBlockSchema} from '../editor'
@@ -95,7 +94,9 @@ export function useDraftList() {
   return trpc.drafts.list.useQuery(undefined, {})
 }
 export function useAccountDraftList(accountUid?: string) {
-  return trpc.drafts.listAccount.useQuery(accountUid, {})
+  return trpc.drafts.listAccount.useQuery(accountUid, {
+    enabled: !!accountUid,
+  })
 }
 
 export function useDeleteDraft(
@@ -185,10 +186,13 @@ export function usePublishDraft(
     {
       draft: HMDraft
       previous: HMDocument | undefined
-      id: UnpackedHypermediaId | undefined
+      destinationUid: string
+      destinationPath: string[] | undefined
+
+      // id: UnpackedHypermediaId | undefined
     }
   >({
-    mutationFn: async ({draft, previous, id}) => {
+    mutationFn: async ({draft, previous, destinationUid, destinationPath}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
 
       const content = removeTrailingBlocks(draft.content || [])
@@ -410,7 +414,7 @@ export function queryDraft({
   }
 }
 
-export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
+export function useDraftEditor({id}: {id: string}) {
   const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const route = useNavRoute()
@@ -1399,17 +1403,26 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   return trailedBlocks
 }
 
-export function useCreateDraft(parentDocId: UnpackedHypermediaId) {
+export function useCreateDraft(parentDocId?: UnpackedHypermediaId) {
   const navigate = useNavigate('push')
+  const saveDraft = trpc.drafts.write.useMutation()
   return () => {
-    const id = hmId('d', parentDocId.uid, {
-      path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
-    })
-    navigate({
-      key: 'draft',
-      id,
-      new: true,
-    })
+    saveDraft
+      .mutateAsync({
+        destinationUid: parentDocId?.uid,
+        destinationPath: parentDocId?.path || undefined,
+        isNewChild: true,
+      })
+      .then((draft) => {
+        navigate({
+          key: 'draft',
+          id: draft.id,
+        })
+      })
+      .catch((e) => {
+        console.error(e)
+        toast.error('Failed to create draft')
+      })
   }
 }
 

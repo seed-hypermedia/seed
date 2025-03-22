@@ -5,7 +5,6 @@ import {StateStream} from './stream'
 export const HYPERMEDIA_ENTITY_TYPES = {
   d: 'Document', // the default type
   comment: 'Comment',
-  draft: 'Local Draft',
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES

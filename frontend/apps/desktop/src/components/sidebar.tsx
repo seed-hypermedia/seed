@@ -1,4 +1,5 @@
 import {useMyAccountIds} from '@/models/daemon'
+import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -11,6 +12,8 @@ import {
   ChevronDown,
   Forward as ChevronRight,
   Contact,
+  File,
+  FilePlus2,
   Library,
   Plus,
   UserPlus2,
@@ -27,6 +30,7 @@ export function MainAppSidebar() {
   const navigate = useNavigate()
   return (
     <GenericSidebarContainer>
+      <CreateDocumentButton />
       <SmallListItem
         active={route.key == 'library'}
         onPress={() => {
@@ -56,6 +60,15 @@ export function MainAppSidebar() {
         title="Contacts"
         bold
       />
+      <SmallListItem
+        active={route.key == 'drafts'}
+        onPress={() => {
+          navigate({key: 'drafts'})
+        }}
+        icon={File}
+        title="Drafts"
+        bold
+      />
       <FavoritesSection />
       <AccountsSection />
       {/* <OutlineSection route={route} /> */}
@@ -63,6 +76,29 @@ export function MainAppSidebar() {
   )
 }
 
+function CreateDocumentButton() {
+  const createDraft = useCreateDraft()
+  const myAccountIds = useMyAccountIds()
+  if (!myAccountIds.data?.length) return null
+  return (
+    <Button
+      icon={FilePlus2}
+      size="$2"
+      marginBottom="$3"
+      onPress={() => createDraft()}
+      backgroundColor="$brand5"
+      hoverStyle={{
+        backgroundColor: '$brand6',
+      }}
+      pressStyle={{
+        backgroundColor: '$brand7',
+      }}
+      color="white"
+    >
+      Create Document
+    </Button>
+  )
+}
 function SidebarSection({
   title,
   children,

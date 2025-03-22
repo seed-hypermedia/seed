@@ -5,7 +5,6 @@ import {IconForm} from '@/components/icon-form'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
-import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
@@ -15,7 +14,6 @@ import {
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useSubscribedEntity} from '@/models/entities'
-import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {
   chromiumSupportedImageMimeTypes,
@@ -24,15 +22,11 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
-import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
-import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
   useDocContentContext,
   useHeadingTextStyles,
@@ -43,41 +37,33 @@ import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Heading, Input, Separator, SizableText, XStack} from 'tamagui'
 
-import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
-import {useSelector} from '@xstate/react'
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
-import {GestureResponderEvent} from 'react-native'
-// import 'show-keys'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useOpenUrl} from '@/open-url'
 import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {
   HMBlockNode,
-  HMDocument,
   HMDraft,
   HMEntityContent,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {
-  BlockRange,
-  createWebHMUrl,
-  ExpandedBlockRange,
-  hmId,
-  packHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Spinner} from '@shm/ui/spinner'
+import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
+import {useSelector} from '@xstate/react'
+import {useEffect, useRef, useState} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
+import {GestureResponderEvent} from 'react-native'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
-import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+
 export default function DraftPage() {
   const route = useNavRoute()
 
@@ -93,10 +79,7 @@ export default function DraftPage() {
   })
 
   const {shouldRebase, performRebase, isRebasing} = useDraftRebase({
-    currentId: route.id,
-    draftId: draft.data?.previousId,
-    draft: draft.data,
-    document: data.state.context.entity?.document,
+    draftData: draft.data,
     handleRebase: data.handleRebase,
   })
 
@@ -135,7 +118,19 @@ export default function DraftPage() {
     icon: Options,
   })
 
-  const homeEntity = useEntity(hmId('d', route.id.uid))
+  const destinationHomeId = draft.data?.destinationUid
+    ? hmId('d', draft.data.destinationUid)
+    : undefined
+
+  const homeEntity = useEntity(destinationHomeId)
+
+  const isEditingHomeDoc =
+    draft.data?.destinationUid &&
+    draft.data?.destinationPath?.length === 0 &&
+    !draft.data?.isNewChild
+  const siteHomeMetadata = isEditingHomeDoc
+    ? draft.data?.draft.metadata
+    : homeEntity.data?.document?.metadata
 
   const documentEditorContent = (
     <>
@@ -160,18 +155,18 @@ export default function DraftPage() {
           </Button>
         </XStack>
       ) : null}
-      <DraftAppHeader
-        siteHomeMetadata={
-          route.id.path?.length
-            ? homeEntity.data?.document?.metadata
-            : draft.data?.metadata
-        }
-        siteHomeEntity={homeEntity.data}
-        docId={route.id}
-        document={homeEntity.data?.document || undefined}
-      >
-        <DocumentEditor {...data} id={route.id} />
-      </DraftAppHeader>
+      {destinationHomeId ? (
+        <DraftAppHeader
+          siteHomeMetadata={siteHomeMetadata}
+          siteHomeEntity={homeEntity.data}
+          docId={destinationHomeId}
+          document={homeEntity.data?.document || undefined}
+        >
+          <DocumentEditor {...data} />
+        </DraftAppHeader>
+      ) : (
+        <DocumentEditor {...data} />
+      )}
     </>
   )
 
@@ -198,23 +193,8 @@ export default function DraftPage() {
                 boxShadow={dialogBoxShadow}
               >
                 <Heading size="$3" fontSize="$4">
-                  Document Model Upgrade Required
+                  Document Model Outdated. Upgrade using version 2025.3.7
                 </Heading>
-                <Button
-                  onPress={() => {
-                    upgradeNewspaperLayoutModel(
-                      route.id,
-                      (metadata) => {
-                        data.actor.send({type: 'CHANGE', metadata})
-                      },
-                      (blockNodes: HMBlockNode[]) => {
-                        data.actor.send({type: 'RESET.CONTENT', blockNodes})
-                      },
-                    )
-                  }}
-                >
-                  Upgrade Document
-                </Button>
               </YStack>
             </YStack>
           ) : (
@@ -253,7 +233,7 @@ function DraftAppHeader({
   return (
     <SiteHeader
       onScroll={() => dispatchScroll('scroll')}
-      homeId={siteHomeEntity.id}
+      originHomeId={siteHomeEntity.id}
       items={navItems}
       document={document || undefined}
       docId={docId}
@@ -298,8 +278,7 @@ function DocumentEditor({
   state,
   actor,
   handleFocusAtMousePos,
-  id,
-}: ReturnType<typeof useDraftEditor> & {id: UnpackedHypermediaId}) {
+}: ReturnType<typeof useDraftEditor>) {
   const route = useNavRoute()
   const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
@@ -332,15 +311,15 @@ function DocumentEditor({
     }
   }, [cover])
 
-  useEffect(() => {
-    if (!id?.id) return
-    return subscribeDraftFocus(id?.id, (blockId: string) => {
-      if (editor) {
-        editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
-        editor.setTextCursorPosition(blockId, 'end')
-      }
-    })
-  }, [id?.id, editor])
+  // useEffect(() => {
+  //   if (!id?.id) return
+  //   return subscribeDraftFocus(id?.id, (blockId: string) => {
+  //     if (editor) {
+  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
+  //       editor.setTextCursorPosition(blockId, 'end')
+  //     }
+  //   })
+  // }, [id?.id, editor])
 
   if (state.matches('ready'))
     return (
@@ -360,9 +339,8 @@ function DocumentEditor({
       >
         <AppDocContentProvider
           disableEmbedClick
-          onCopyBlock={onCopyBlock}
+          // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
           importWebFile={importWebFile}
-          docId={id}
         >
           <DraftCover
             draftActor={actor}
@@ -539,24 +517,24 @@ function DocumentEditor({
     return false
   }
 
-  function onCopyBlock(
-    blockId: string,
-    blockRange: BlockRange | ExpandedBlockRange | undefined,
-  ) {
-    const gwUrl = useGatewayUrl()
+  // function onCopyBlock(
+  //   blockId: string,
+  //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+  // ) {
+  //   const gwUrl = useGatewayUrl()
 
-    if (!id) throw new Error('draft route id is missing')
+  //   if (!id) throw new Error('draft route id is missing')
 
-    if (!id?.uid) throw new Error('uid could not be extracted from draft route')
-    copyUrlToClipboardWithFeedback(
-      createWebHMUrl(id.type, id.uid, {
-        blockRef: blockId,
-        blockRange,
-        hostname: gwUrl.data,
-      }),
-      'Block',
-    )
-  }
+  //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+  //   copyUrlToClipboardWithFeedback(
+  //     createWebHMUrl(id.type, id.uid, {
+  //       blockRef: blockId,
+  //       blockRange,
+  //       hostname: gwUrl.data,
+  //     }),
+  //     'Block',
+  //   )
+  // }
 }
 
 export function DraftHeader({
@@ -753,14 +731,6 @@ export function DraftHeader({
             {...headingTextStyles}
             padding={0}
           />
-          {route.id?.path?.length ? (
-            <XStack marginTop="$3" gap="$3">
-              {route.id?.path?.length ? (
-                <PathDraft canEditPath={!prevDoc} draftActor={draftActor} />
-              ) : null}
-            </XStack>
-          ) : null}
-
           <Separator borderColor="$color8" />
         </YStack>
       </Container>
@@ -847,206 +817,64 @@ function applyTitleResize(target: HTMLTextAreaElement) {
   target.style.height = `${target.scrollHeight}px`
 }
 
-function PathDraft({
-  draftActor,
-  canEditPath = true,
-}: {
-  draftActor: ActorRefFrom<typeof draftMachine>
-  canEditPath: boolean
-}) {
-  const route = useNavRoute()
-  if (route.key != 'draft') throw new Error('not a draft')
-  const replaceRoute = useNavigate('replace')
-  const input = useRef<HTMLTextAreaElement | null>(null)
-  const draftContext = useSelector(draftActor, (s) => s.context)
-  const name = useMemo(
-    () => draftContext.metadata.name,
-    [draftContext.metadata],
-  )
-  const routePath = useMemo(() => route.id?.path, [route])
-  const [isDirty, setDirty] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isEditing, setEditing] = useState(false)
-  const [paths, currentPath] = useMemo(
-    () => separateLastItem(routePath),
-    [routePath],
-  )
-
-  const {data: draft} = useDraft(route.id)
-  const createDraft = trpc.drafts.write.useMutation()
-  const deleteDraft = trpc.drafts.delete.useMutation()
-
-  useEffect(() => {
-    if (isDirty) return
-    if (!!name && currentPath?.startsWith('_')) {
-      setPath(pathNameify(name))
-    }
-  }, [name, isDirty])
-
-  const [path, setPath] = useState('')
-
-  async function handleDraftChange() {
-    setError(null)
-    if (route.key != 'draft') return
-    const invalid = validatePath(path)
-    if (invalid) {
-      setError(invalid.error)
-      input.current?.focus()
-      return
-    }
-    const newId = hmId('d', route.id.uid, {path: [...paths, path]})
-    const packedId = packHmId(newId)
-
-    let newContent = {
-      metadata: draftContext.metadata,
-      signingAccount: draftContext.signingAccount,
-      content: draft?.content || [],
-    } as HMDraft
-
-    await createDraft.mutateAsync({
-      id: packedId,
-      draft: newContent,
-    })
-
-    await deleteDraft.mutateAsync(packHmId(route.id))
-    replaceRoute({...route, id: newId})
-    setEditing(false)
-  }
-
-  return (
-    <YStack>
-      <XStack ai="center" gap="$2" f={1} w="100%">
-        <SizableText size="$1">Path:</SizableText>
-        <XStack ai="center" gap="$2" f={1}>
-          {!isEditing || paths.length ? (
-            <SizableText
-              size="$2"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
-            >
-              {paths.map((p) => `/${p}`)}
-              {!isEditing ? `/${path || currentPath}` : ''}
-            </SizableText>
-          ) : null}
-
-          {isEditing ? (
-            <>
-              <Input
-                f={1}
-                size="$1"
-                value={path}
-                onChangeText={(t: string) => setPath(pathNameify(t))}
-                ref={input}
-              />
-              <SizableText
-                size="$2"
-                color="$brand5"
-                userSelect="none"
-                hoverStyle={{textDecorationLine: 'underline'}}
-                onPress={handleDraftChange}
-              >
-                Apply
-              </SizableText>
-              <SizableText
-                size="$2"
-                color="$red9"
-                userSelect="none"
-                hoverStyle={{textDecorationLine: 'underline'}}
-                onPress={() => {
-                  if (!!name && path.startsWith('_')) {
-                    setPath(pathNameify(name))
-                  } else {
-                    setPath(currentPath || '')
-                  }
-                  setDirty(false)
-                  setEditing(false)
-                }}
-              >
-                Cancel
-              </SizableText>
-            </>
-          ) : canEditPath ? (
-            <>
-              <SizableText
-                flexGrow={0}
-                flexShrink={0}
-                size="$2"
-                color="$brand5"
-                userSelect="none"
-                hoverStyle={{textDecorationLine: 'underline'}}
-                onPress={() => {
-                  setDirty(true)
-                  setEditing(true)
-                }}
-              >
-                Edit
-              </SizableText>
-            </>
-          ) : null}
-        </XStack>
-      </XStack>
-      {error ? (
-        <SizableText color="$red9" size="$2">
-          {error}
-        </SizableText>
-      ) : null}
-    </YStack>
-  )
-}
-
-function separateLastItem(
-  arr: string[] | null | undefined,
-): [string[], string | undefined] {
-  if (arr?.length == 0) {
-    return [[], undefined]
-  } else if (arr?.length == 1) {
-    return [[], arr[0]]
-  } else {
-    const allButLast = arr!.slice(0, -1) // All elements except the last one
-    const lastItem = arr![arr!.length - 1] // The last element
-
-    return [allButLast, lastItem]
-  }
-}
-
 function useDraftRebase({
-  currentId,
-  draftId,
-  document,
-  draft,
+  draftData,
   handleRebase,
 }: {
-  currentId?: UnpackedHypermediaId | null
-  draftId?: UnpackedHypermediaId | null
-  document?: HMDocument | null
-  draft?: HMDraft | null
+  draftData?: {
+    draft: HMDraft
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+    id: string
+  } | null
   handleRebase: (newEntity: HMEntityContent) => Promise<void>
 }) {
   const [isRebasing, setIsRebasing] = useState(false)
-  const rebasedData = useSubscribedEntity(currentId)
+  const willEditDocId = getDraftEditId(draftData)
+  const latestDoc = useSubscribedEntity(willEditDocId)
 
   async function performRebase() {
     setIsRebasing(true)
-    if (rebasedData.data?.document) {
-      handleRebase(rebasedData.data).then(() => {
+    if (latestDoc.data?.document) {
+      handleRebase(latestDoc.data).then(() => {
         setIsRebasing(false)
       })
     }
 
     // console.log('performRebase', {
     //   draft: draft?.content,
-    //   document: rebasedData.data?.document,
+    //   document: latestDoc.data?.document,
     // })
   }
 
+  const draftPrevId = draftData?.draft.previousId
   return {
     isRebasing,
     shouldRebase:
       // Only show rebase if we have both versions and they don't match
-      draftId?.version != null &&
-      rebasedData.data?.id.version != null &&
-      draftId.version !== rebasedData.data.id.version,
+      draftPrevId?.version != null &&
+      latestDoc.data?.id.version != null &&
+      draftPrevId.version !== latestDoc.data.id.version,
     performRebase,
+  }
+}
+
+function getDraftEditId(
+  draftData?: {
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+  } | null,
+): UnpackedHypermediaId | undefined {
+  if (!draftData) return undefined
+  if (draftData.isNewChild) {
+    return undefined
+  } else if (!draftData.destinationUid) {
+    return undefined
+  } else {
+    return hmId('d', draftData.destinationUid, {
+      path: draftData.destinationPath,
+    })
   }
 }
