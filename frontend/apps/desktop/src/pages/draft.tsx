@@ -865,3 +865,22 @@ function useDraftRebase({
     performRebase,
   }
 }
+
+function getDraftEditId(
+  draftData?: {
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+  } | null,
+): UnpackedHypermediaId | undefined {
+  if (!draftData) return undefined
+  if (draftData.isNewChild) {
+    return undefined
+  } else if (!draftData.destinationUid) {
+    return undefined
+  } else {
+    return hmId('d', draftData.destinationUid, {
+      path: draftData.destinationPath,
+    })
+  }
+}
