@@ -45,7 +45,6 @@ export function setInitialAccountIdCount(count: number) {
 
 export function setupOnboardingHandlers() {
   ipcMain.on('get-onboarding-state', (event) => {
-    console.log('📥 Getting onboarding state:', obState)
     event.returnValue = obState
   })
 

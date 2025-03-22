@@ -22,7 +22,7 @@ export function OptionsPanel({
   onResetContent,
 }: {
   onClose: () => void
-  draftId: UnpackedHypermediaId
+  draftId: string
   onMetadata: (values: Partial<HMMetadata>) => void
   metadata: HMMetadata
   onResetContent: (blockNodes: HMBlockNode[]) => void

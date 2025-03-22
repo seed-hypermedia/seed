@@ -653,7 +653,9 @@ export type HMQueryResult = {
 export type HMRole = 'owner' | 'writer' | 'none'
 
 export type HMListedDraft = {
-  id: UnpackedHypermediaId
+  id: string
+  isNewChild: boolean | undefined
+  targetId?: UnpackedHypermediaId
   metadata: HMMetadata
   lastUpdateTime: number
 }
