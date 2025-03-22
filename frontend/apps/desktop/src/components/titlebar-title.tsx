@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Contact,
   Copy,
+  File,
   Library,
   Sparkles,
   Star,
@@ -103,6 +104,14 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
       <>
         <Library size={12} />
         <TitleText {...titleProps}>Library</TitleText>
+      </>
+    )
+  }
+  if (route.key === 'drafts') {
+    return (
+      <>
+        <File size={12} />
+        <TitleText {...titleProps}>Drafts</TitleText>
       </>
     )
   }

@@ -396,14 +396,14 @@ function _AppDocSiteHeader({
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
-      afterLinksContent={
-        canEditDoc ? (
-          <NewNavigationDocumentButton
-            parentDocId={siteHomeEntity.id}
-            importDropdown={false}
-          />
-        ) : null
-      }
+      // afterLinksContent={
+      //   canEditDoc ? (
+      //     <NewNavigationDocumentButton
+      //       parentDocId={siteHomeEntity.id}
+      //       importDropdown={false}
+      //     />
+      //   ) : null
+      // }
       supportQueries={supportQueries}
       children={children}
       onShowMobileMenu={(isShown) => {

@@ -92,8 +92,9 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
-  id: unpackedHmIdSchema,
-  new: z.boolean().optional(),
+  // id: unpackedHmIdSchema.or(z.string()),
+  id: z.string(),
+  // new: z.boolean().optional(),
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
@@ -114,6 +115,11 @@ export const favoritesSchema = z.object({
   key: z.literal('favorites'),
 })
 export type FavoritesRoute = z.infer<typeof favoritesSchema>
+
+export const draftsSchema = z.object({
+  key: z.literal('drafts'),
+})
+export type DraftsRoute = z.infer<typeof draftsSchema>
 
 export const settingsRouteSchema = z.object({key: z.literal('settings')})
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
@@ -147,6 +153,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRebaseRouteSchema,
   exploreRouteSchema,
   favoritesSchema,
+  draftsSchema,
   deletedContentRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>

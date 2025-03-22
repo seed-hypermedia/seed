@@ -70,7 +70,11 @@ export function updateGoDaemonState(state: GoDaemonState) {
   daemonStateHandlers.forEach((handler) => handler(state))
 }
 
-export function startMainDaemon(onStarted?: () => void) {
+export async function startMainDaemon(): Promise<{
+  httpPort: string | undefined
+  grpcPort: string | undefined
+  p2pPort: string | undefined
+}> {
   if (process.env.SEED_NO_DAEMON_SPAWN) {
     log.debug('Go daemon spawn skipped')
     updateGoDaemonState({t: 'ready'})
@@ -94,51 +98,54 @@ export function startMainDaemon(onStarted?: () => void) {
   let hasStartupCompleted = false
   let lastStderr = ''
   const stderr = readline.createInterface({input: daemonProcess.stderr})
-  stderr.on('line', (line: string) => {
-    lastStderr = line
-    if (line.includes('DaemonStarted')) {
-      updateGoDaemonState({t: 'ready'})
-    }
+  await new Promise<void>((resolve, reject) => {
+    stderr.on('line', (line: string) => {
+      lastStderr = line
+      if (line.includes('DaemonStarted')) {
+        updateGoDaemonState({t: 'ready'})
+      }
 
-    log.rawMessage(line)
+      // log.rawMessage(line)
 
-    const daemonEvent = JSON.parse(line)
+      const daemonEvent = JSON.parse(line)
 
-    if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
-      hasStartupCompleted = true
-      onStarted?.()
-    }
-  })
+      if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
+        hasStartupCompleted = true
+        resolve()
+      }
+    })
 
-  const stdout = readline.createInterface({input: daemonProcess.stdout})
-  stdout.on('line', (line: string) => {
-    console.log('Daemon Stdout:', line)
-  })
+    const stdout = readline.createInterface({input: daemonProcess.stdout})
+    stdout.on('line', (line: string) => {
+      console.log('Daemon Stdout:', line)
+    })
 
-  let expectingDaemonClose = false
+    let expectingDaemonClose = false
 
-  daemonProcess.on('error', (err) => {
-    log.error('Go daemon spawn error', {error: err})
-  })
+    daemonProcess.on('error', (err) => {
+      log.error('Go daemon spawn error', {error: err})
+      reject(err)
+    })
 
-  daemonProcess.on('close', (code, signal) => {
-    if (!expectingDaemonClose) {
-      updateGoDaemonState({
-        t: 'error',
-        message: 'Service Error: !!!' + lastStderr,
-      })
-      log.error('Go daemon closed', {code: code, signal: signal})
-    }
-  })
+    daemonProcess.on('close', (code, signal) => {
+      if (!expectingDaemonClose) {
+        updateGoDaemonState({
+          t: 'error',
+          message: 'Service Error: !!!' + lastStderr,
+        })
+        log.error('Go daemon closed', {code: code, signal: signal})
+      }
+    })
 
-  daemonProcess.on('spawn', () => {
-    log.debug('Go daemon spawned')
-  })
+    daemonProcess.on('spawn', () => {
+      log.debug('Go daemon spawned')
+    })
 
-  app.addListener('will-quit', () => {
-    log.debug('App will quit')
-    expectingDaemonClose = true
-    daemonProcess.kill()
+    app.addListener('will-quit', () => {
+      log.debug('App will quit')
+      expectingDaemonClose = true
+      daemonProcess.kill()
+    })
   })
 
   const mainDaemon = {
