@@ -74,7 +74,6 @@ export function useSetProfile_deprecated() {
 }
 
 export function useDraft(id?: string) {
-  console.log('=== DRAFT useDraft', id)
   return trpc.drafts.get.useQuery(id, {
     enabled: !!id,
   })
