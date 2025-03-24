@@ -38,16 +38,8 @@ export const useDocumentLayout = (
     }
   > = {},
 ) => {
-  const uniqueId = useMemo(() => Math.random().toString(36).substring(7), [])
-
   // Always call hooks in the same order
   const elementRef = useRef<HTMLDivElement>(null)
-
-  console.log(
-    `useDocumentLayout[${uniqueId}] called with config:`,
-    config,
-    elementRef.current,
-  )
 
   // Initialize with default content width instead of 0
   const initialWidth = useMemo(() => {
