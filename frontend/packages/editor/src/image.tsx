@@ -20,7 +20,10 @@ export const ImageBlock = createReactBlockSpec({
     url: {
       default: '',
     },
-    src: {
+    fileBinary: {
+      default: '', // really a Uint8Array
+    },
+    displaySrc: {
       default: '',
     },
     alt: {
@@ -135,10 +138,12 @@ const Render = (
       }
     }
   }
+  console.log('block.props.url', block.props.url)
+  console.log('block.props.displaySrc', block.props.displaySrc)
   return (
     <MediaRender
       block={block}
-      hideForm={!!block.props.url}
+      hideForm={!!block.props.url || !!block.props.displaySrc}
       editor={editor}
       mediaType="image"
       submit={submitImage}
@@ -155,9 +160,8 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const imageUrl = block.props.url.includes('.')
-    ? null
-    : getDaemonFileUrl(block.props.url)
+  console.log('display block.props', block.props)
+  const imageSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64
   // Max image height in px.
@@ -341,14 +345,14 @@ const display = ({
           />
         </>
       )}
-      {imageUrl && (
+      {imageSrc && (
         <img
           style={{
             width: `100%`,
             maxHeight: `${maxHeight}px`,
             objectFit: 'contain',
           }}
-          src={imageUrl}
+          src={imageSrc}
           alt={block.props.name || block.props.alt}
           contentEditable={false}
           onLoad={handleImageLoad}

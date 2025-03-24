@@ -4,6 +4,7 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
+  HMBlockNode,
   hmId,
   hostnameStripProtocol,
   idToUrl,
@@ -20,6 +21,9 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {MemoryBlockstore} from 'blockstore-core/memory'
+import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
+import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {SizableText, Spinner, XStack, YStack} from 'tamagui'
 import {getValidAbility} from './auth-abilities'
@@ -29,12 +33,7 @@ import {
   useDelegatedAbilities,
 } from './auth-delegation'
 import type {AuthFragmentOptions} from './auth-page'
-import {EmailNotificationsForm} from './email-notifications'
-import {useEmailNotifications} from './email-notifications-models'
-import {
-  hasPromptedEmailNotifications,
-  setHasPromptedEmailNotifications,
-} from './local-db'
+import type {CommentPayload} from './routes/hm.api.comment'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 injectModels()
 
@@ -120,6 +119,7 @@ export default function WebCommenting({
   }
 
   if (!docVersion) return null
+
   return (
     <>
       <CommentDocContentProvider handleFileAttachment={handleFileAttachment}>
@@ -195,21 +195,19 @@ export default function WebCommenting({
                       return
                     }
                   }
-                  const content = getContent()
                   if (canCreateAccount || !userKeyPair) {
                     createAccount()
                     return
                   }
-                  createComment({
-                    content,
+                  prepareComment(getContent, {
                     docId,
                     docVersion,
                     keyPair: userKeyPair,
                     replyCommentId,
                     rootReplyCommentId,
                   })
-                    .then((signedComment) => {
-                      postComment.mutateAsync(signedComment)
+                    .then((commentPayload) => {
+                      postComment.mutateAsync(commentPayload)
                     })
                     .then(() => {
                       reset()
@@ -229,6 +227,64 @@ export default function WebCommenting({
       {createAccountContent}
     </>
   )
+}
+
+async function prepareAttachment(
+  binary: Uint8Array,
+  blockstore: MemoryBlockstore,
+): Promise<CID> {
+  // const fileBlock = await encodeBlock(fileBinary, rawCodec)
+  const results = unixFSImporter([{content: binary}], blockstore)
+
+  const result = await results.next()
+  if (!result.value) {
+    throw new Error('Failed to prepare attachment')
+  }
+  return result.value.cid
+}
+
+async function prepareAttachments(binaries: Uint8Array[]) {
+  const blockstore = new MemoryBlockstore()
+  const resultCIDs: string[] = []
+  for (const binary of binaries) {
+    const cid = await prepareAttachment(binary, blockstore)
+    resultCIDs.push(cid.toString())
+  }
+  const allAttachmentBlobs = blockstore.getAll()
+  const blobs: {cid: string; data: Uint8Array}[] = []
+  for await (const blob of allAttachmentBlobs) {
+    blobs.push({
+      cid: blob.cid.toString(),
+      data: blob.block,
+    })
+  }
+  return {blobs, resultCIDs}
+}
+
+async function prepareComment(
+  getContent: (
+    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+      blobs: {cid: string; data: Uint8Array}[]
+      resultCIDs: string[]
+    }>,
+  ) => Promise<{
+    blockNodes: HMBlockNode[]
+    blobs: {cid: string; data: Uint8Array}[]
+  }>,
+  commentMeta: {
+    docId: UnpackedHypermediaId
+    docVersion: string
+    keyPair: LocalWebIdentity
+    replyCommentId: string | null | undefined
+    rootReplyCommentId: string | null | undefined
+  },
+): Promise<CommentPayload> {
+  const {blockNodes, blobs} = await getContent(prepareAttachments)
+  const signedComment = await createComment({
+    content: blockNodes,
+    ...commentMeta,
+  })
+  return {comment: cborEncode(signedComment), blobs}
 }
 
 async function handleFileAttachment(file: File) {
@@ -262,34 +318,12 @@ export function useOpenUrlWeb() {
   }
 }
 
-export function useOpenUrlWeb() {
-  const {originHomeId} = useUniversalAppContext()
-
-  return (url?: string, newWindow?: boolean) => {
-    if (!url) return
-
-    const unpacked = unpackHmId(url)
-    const newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
-
-    if (!newUrl) {
-      console.error('URL is empty', newUrl)
-      return
-    }
-
-    if (newWindow) {
-      window.open(newUrl, '_blank')
-    } else {
-      window.location.href = newUrl
-    }
-  }
-}
-
 function CommentDocContentProvider({
   handleFileAttachment,
   children,
   comment, // originHomeId,
-  // supportQueries,
-} // id,
+  // id,
+} // supportQueries,
 // siteHost,
 // supportDocuments,
 // routeParams,
@@ -354,6 +388,7 @@ function CommentDocContentProvider({
       textUnit={18}
       layoutUnit={24}
       openUrl={openUrl}
+      handleFileAttachment={handleFileAttachment}
       debug={false}
       comment
     >

@@ -1,4 +1,4 @@
-import {writeableStateStream} from '@shm/shared'
+import {EditorBlock, writeableStateStream} from '@shm/shared'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
@@ -23,7 +23,15 @@ export default function CommentEditor({
   onDiscardDraft?: () => void
   submitButton: (opts: {
     reset: () => void
-    getContent: () => HMBlockNode[]
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>
   }) => JSX.Element
 }) {
   const {editor} = useCommentEditor()
@@ -69,20 +77,48 @@ export default function CommentEditor({
           reset: () => {
             editor.removeBlocks(editor.topLevelBlocks)
           },
-          getContent: () => {
+          getContent: async (
+            prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+              blobs: {cid: string; data: Uint8Array}[]
+              resultCIDs: string[]
+            }>,
+          ) => {
+            const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+            const blocksWithAttachments = crawlEditorBlocks(
+              editorBlocks,
+              (block) => !!block.props?.fileBinary,
+            )
+            const {blobs, resultCIDs} = await prepareAttachments(
+              blocksWithAttachments.map((block) => block.props.fileBinary),
+            )
+            blocksWithAttachments.forEach((block, blockWithAttachmentIndex) => {
+              const resultCID = resultCIDs[blockWithAttachmentIndex]
+              // performing a mutation so the same block is modififed with the new CID
+              block.props.url = `ipfs://${resultCID}`
+            })
             const blocks = serverBlockNodesFromEditorBlocks(
               editor,
-              editor.topLevelBlocks,
+              editorBlocks,
             )
-            const commentContent = blocks.map((block) =>
+            const blockNodes = blocks.map((block) =>
               block.toJson(),
             ) as HMBlockNode[]
-            return commentContent
+            return {blockNodes, blobs}
           },
         })}
       </XStack>
     </YStack>
   )
+}
+
+function crawlEditorBlocks(
+  blocks: EditorBlock[],
+  filter: (block: EditorBlock) => boolean,
+): EditorBlock[] {
+  const matchedChildren = blocks.flatMap((block) =>
+    crawlEditorBlocks(block.children, filter),
+  )
+  return [...matchedChildren, ...blocks.filter(filter)]
 }
 
 const [setGwUrl, gwUrl] = writeableStateStream<string | null>(

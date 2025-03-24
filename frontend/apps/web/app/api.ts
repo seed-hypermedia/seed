@@ -357,6 +357,7 @@ export async function createComment({
   rootReplyCommentId?: string | null
 }) {
   const signerKey = await preparePublicKey(keyPair.publicKey)
+  cleanContentOfUndefined(content)
   const unsignedComment = createUnsignedComment({
     content,
     docId,
@@ -367,6 +368,14 @@ export async function createComment({
   })
   const signedComment = await signComment(unsignedComment, keyPair)
   return signedComment
+}
+
+function cleanContentOfUndefined(content: HMBlockNode[]) {
+  content.forEach((blockNode) => {
+    const {block, children} = blockNode
+    if (typeof block.text === 'undefined') block.text = ''
+    if (children) cleanContentOfUndefined(children)
+  })
 }
 
 export async function createDocumentGenesisChange({

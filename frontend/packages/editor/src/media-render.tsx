@@ -6,6 +6,7 @@ import {getNodesInSelection} from '@/utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useDocContentContext} from '@shm/ui/document-content'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -25,7 +26,9 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 export type MediaType = {
   id: string
   props: {
-    url: string
+    url?: string
+    fileBinary?: Uint8Array
+    displaySrc?: string
     name: string
     size?: string
     view?: 'Content' | 'Card'
@@ -399,7 +402,7 @@ function MediaForm({
   //   }
   // }
 
-  const {getFileCID, comment} = useDocContentContext()
+  const {handleFileAttachment, comment} = useDocContentContext()
 
   const handleUpload = async (files: File[]) => {
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
@@ -421,33 +424,35 @@ function MediaForm({
     }
 
     const {name, size} = files[0]
-
-    if (getFileCID) {
-      // const fileBuffer = await files[0].arrayBuffer())
-      const {cid, previewUrl} = await getFileCID(files[0])
-
+    if (handleFileAttachment) {
+      const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
+      console.log('displaySrc', displaySrc, fileBinary)
       assign({
         props: {
-          url: previewUrl, // temporary preview URL
+          fileBinary,
+          displaySrc,
           name,
           size: size.toString(),
         },
       } as MediaType)
     } else {
-      // upload to IPFS immediately if getFileCID is not available
-      const formData = new FormData()
-      formData.append('file', files[0])
-
+      // upload to IPFS immediately if handleFileAttachment is not available
       try {
+        const formData = new FormData()
+        formData.append('file', files[0])
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',
           body: formData,
         })
-        const data = await response.text()
-
+        const responseCID = await response.text()
+        if (!responseCID) {
+          throw new Error('Failed to upload file to IPFS')
+        }
+        const ipfsUrl = `ipfs://${responseCID}`
         assign({
           props: {
-            url: data ? `ipfs://${data}` : '',
+            url: ipfsUrl,
+            displaySrc: getDaemonFileUrl(ipfsUrl),
             name,
             size: size.toString(),
           },

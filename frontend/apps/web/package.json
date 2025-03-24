@@ -57,6 +57,8 @@
     "@tiptap/pm": "2.0.3",
     "@tiptap/react": "2.0.3",
     "better-sqlite3": "^11.8.1",
+    "blockstore-core": "^5.0.2",
+    "ipfs-unixfs-importer": "^15.3.2",
     "isbot": "4",
     "mjml": "^4.15.3",
     "multiformats": "^13.3.2",

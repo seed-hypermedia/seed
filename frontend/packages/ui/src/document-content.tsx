@@ -134,7 +134,9 @@ export type DocContentContextValue = {
     blockRange?: BlockRange
   }
   importWebFile?: any
-  getFileCID?: any
+  handleFileAttachment?: (
+    file: File,
+  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
   openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]

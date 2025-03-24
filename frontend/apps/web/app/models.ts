@@ -98,7 +98,6 @@ export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
 }
 
 export function injectModels() {
-  console.log('~! injectModels')
   setSearchQuery(searchQuery)
   setEntityQuery(entityQuery)
 }
