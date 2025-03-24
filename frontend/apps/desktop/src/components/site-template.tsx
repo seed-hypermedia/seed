@@ -1,5 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
+import {DocumentRoute} from '@shm/shared'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
 import {useEffect, useMemo, useState} from 'react'
@@ -10,7 +12,7 @@ export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
 
 export function SiteTemplate() {
   const route = useNavRoute()
-
+  const navigate = useNavigate('push')
   const targetId = useMemo(() => {
     if (route.key === 'document') {
       return route.id.uid
@@ -40,12 +42,15 @@ export function SiteTemplate() {
                 client: grpcClient,
                 targetId,
                 templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+              }).then(() => {
+                dispatchSiteTemplateEvent(false)
+                window.location.reload()
               })
             }
           }}
         >
-          <View width={200} height={140} bg="$color7" />
-          <SizableText>Template 1</SizableText>
+          <TemplateImage name="blog" />
+          <SizableText>Blog</SizableText>
         </YStack>
         <YStack
           p="$4"
@@ -62,13 +67,16 @@ export function SiteTemplate() {
               forkSitefromTemplate({
                 client: grpcClient,
                 targetId,
-                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+                templateId: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
+              }).then(() => {
+                dispatchSiteTemplateEvent(false)
+                window.location.reload()
               })
             }
           }}
         >
-          <View width={200} height={140} bg="$color7" />
-          <SizableText>Template 2</SizableText>
+          <TemplateImage name="documentation" />
+          <SizableText>Documentation</SizableText>
         </YStack>
         <YStack
           p="$4"
@@ -81,17 +89,16 @@ export function SiteTemplate() {
           alignItems="center"
           onPress={() => {
             if (targetId) {
-              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
-              forkSitefromTemplate({
-                client: grpcClient,
-                targetId,
-                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+              dispatchSiteTemplateEvent(false)
+              navigate({
+                key: 'draft',
+                id: (route as DocumentRoute).id,
               })
             }
           }}
         >
           <View width={200} height={140} bg="$color7" />
-          <SizableText>Template 3</SizableText>
+          <SizableText>Blanc</SizableText>
         </YStack>
       </XStack>
     </YStack>
@@ -148,5 +155,25 @@ export function SiteTemplateDialog() {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog>
+  )
+}
+
+function TemplateImage({name}: {name: 'blog' | 'documentation'}) {
+  return (
+    <picture style={{width: 200, height: 140}}>
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcSet={`/assets/template-${name}-dark.png`}
+      />
+      <source
+        media="(prefers-color-scheme: light)"
+        srcSet={`/assets/template-${name}-light.png`}
+      />
+      <img
+        style={{width: 200, height: 140}}
+        src={`/assets/template-${name}-light.png`}
+        alt={name}
+      />
+    </picture>
   )
 }
