@@ -409,7 +409,10 @@ function AccountKeys() {
               ) : null}
               <YStack f={1} gap="$3" marginTop="$2">
                 <Field id="username" label="Profile name">
-                  <Input disabled value={getMetadataName(profile?.document)} />
+                  <Input
+                    disabled
+                    value={getMetadataName(profile?.document?.metadata)}
+                  />
                 </Field>
                 <Field id="accountid" label="Account Id">
                   <Input disabled value={selectedAccount} />
