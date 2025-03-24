@@ -116,11 +116,18 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 // indexBlob is an uber-function that knows about all types of blobs we want to index.
 // This is probably a bad idea to put here, but for now it's easier to work with that way.
 // TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
-func (idx *Index) indexBlob(ctx context.Context, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
+func (idx *Index) indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
+	return indexBlob(trackUnreads, conn, id, c, data, idx.bs, idx.log)
+}
+
+func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
-	ictx := newCtx(conn, id, idx.bs, idx.log)
-	ictx.mustTrackUnreads = unreadsTrackingEnabled(ctx) // TODO: refactor this. It's ugly af.
+	ictx := newCtx(conn, id, bs, log)
+	ictx.mustTrackUnreads = trackUnreads
+	if err := ictx.Unstash(); err != nil {
+		return err
+	}
 
 	for _, fn := range indexersList {
 		if err := fn(ictx, id, c, data); err != nil {
@@ -784,6 +791,25 @@ type stashMetadata struct {
 	DeniedSigners []core.Principal `json:"deniedSigners,omitempty"`
 }
 
+type stashError struct {
+	Reason   stashReason
+	Metadata stashMetadata
+}
+
+func (se stashError) As(v any) bool {
+	tt, ok := v.(*stashError)
+	if !ok {
+		return false
+	}
+
+	*tt = se
+	return true
+}
+
+func (se stashError) Error() string {
+	return fmt.Sprintf("stash error: %s", se.Reason)
+}
+
 func (idx *indexingCtx) Unstash() error {
 	return sqlitex.Exec(idx.conn, "DELETE FROM stashed_blobs WHERE id = ?", nil, idx.blobID)
 }
@@ -1275,4 +1301,49 @@ var qLookupPublicKey = dqb.Str(`
 	SELECT principal
 	FROM public_keys
 	WHERE id = :id;
+`)
+
+func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger) (err error) {
+	rows, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match)
+	defer func() {
+		err = errors.Join(err, check())
+	}()
+
+	for row := range rows {
+		inc := sqlite.NewIncrementor(0)
+		var (
+			id      = row.ColumnInt64(inc())
+			codec   = row.ColumnInt64(inc())
+			hash    = row.ColumnBytesUnsafe(inc())
+			rawData = row.ColumnBytesUnsafe(inc())
+			size    = row.ColumnInt64(inc())
+		)
+
+		data, err := bs.decompress(rawData, int(size))
+		if err != nil {
+			return err
+		}
+
+		c := cid.NewCidV1(uint64(codec), hash)
+
+		if err := indexBlob(trackUnreads, conn, id, c, data, bs, log); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var qLoadStashedBlobs = dqb.Str(`
+	SELECT
+		blobs.id,
+		blobs.codec,
+		blobs.multihash,
+		blobs.data,
+		blobs.size
+	FROM blobs WHERE id IN (
+		SELECT id FROM stashed_blobs
+		WHERE reason = :reason
+		AND instr(extra_attrs, json_quote(:signer)) > 0
+	)
 `)

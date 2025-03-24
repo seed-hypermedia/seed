@@ -86,21 +86,10 @@ func mapToCBOR(data map[string]any, v any) {
 }
 
 type baseBlob struct {
-	Type    blobType       `refmt:"type"`
-	Author_ core.Principal `refmt:"author,omitempty"`
-	Signer  core.Principal `refmt:"signer"`
-	Sig     core.Signature `refmt:"sig"`
-	Ts      time.Time      `refmt:"ts"`
-}
-
-// Author returns the author of the blob.
-// Normally it's just the signer, but for delegated signatures there's a dedicated author field.
-func (b baseBlob) Author() core.Principal {
-	if len(b.Author_) == 0 {
-		return b.Signer
-	}
-
-	return b.Author_
+	Type   blobType       `refmt:"type"`
+	Signer core.Principal `refmt:"signer"`
+	Sig    core.Signature `refmt:"sig"`
+	Ts     time.Time      `refmt:"ts"`
 }
 
 // signBlob and fill in the signature.

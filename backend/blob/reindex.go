@@ -94,7 +94,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 			}
 
 			blobsIndexed++
-			return bs.indexBlob(context.TODO(), conn, id, c, data)
+			return bs.indexBlob(false, conn, id, c, data)
 		}); err != nil {
 			return err
 		}
