@@ -262,12 +262,25 @@ export function useOpenUrlWeb() {
   }
 }
 
-function openUrlWeb(url?: string, newWindow?: boolean) {
-  if (!url) return
-  if (newWindow) {
-    window.open(url, '_blank')
-  } else {
-    window.location.href = url
+export function useOpenUrlWeb() {
+  const {originHomeId} = useUniversalAppContext()
+
+  return (url?: string, newWindow?: boolean) => {
+    if (!url) return
+
+    const unpacked = unpackHmId(url)
+    const newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
+
+    if (!newUrl) {
+      console.error('URL is empty', newUrl)
+      return
+    }
+
+    if (newWindow) {
+      window.open(newUrl, '_blank')
+    } else {
+      window.location.href = newUrl
+    }
   }
 }
 
@@ -340,7 +353,7 @@ function CommentDocContentProvider({
       // routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}
-      openUrl={openUrlWeb}
+      openUrl={openUrl}
       debug={false}
       comment
     >

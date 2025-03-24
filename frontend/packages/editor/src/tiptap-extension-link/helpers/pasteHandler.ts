@@ -3,7 +3,11 @@ import {linkMenuPluginKey} from '@/blocknote/core/extensions/LinkMenu/LinkMenuPl
 import {resolveHypermediaUrl} from '@/link-utils'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {HMDocument, HMDocumentMetadataSchema} from '@shm/shared/hm-types'
+import {
+  HMDocument,
+  HMDocumentMetadataSchema,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {
   extractBlockRefOfUrl,
   hmId,
@@ -11,7 +15,6 @@ import {
   isHypermediaScheme,
   isPublicGatewayLink,
   packHmId,
-  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'

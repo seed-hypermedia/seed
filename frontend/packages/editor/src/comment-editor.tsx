@@ -10,6 +10,7 @@ import {Extension} from '@tiptap/core'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
+import {EmbedToolbarProvider} from './embed-toolbar-context'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {hmBlockSchema} from './schema'
 import {slashMenuItems} from './slash-menu-items'
@@ -49,7 +50,9 @@ export default function CommentEditor({
         gap="$4"
         paddingBottom="$2"
       >
-        <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+        <EmbedToolbarProvider>
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+        </EmbedToolbarProvider>
       </YStack>
       <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
         {onDiscardDraft ? (

@@ -630,7 +630,7 @@ const EmbedLauncherInput = ({
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.uid,
+          key: item.id.id,
           onSelect: () => {
             assign({props: {url: item.id.id}} as MediaType)
           },

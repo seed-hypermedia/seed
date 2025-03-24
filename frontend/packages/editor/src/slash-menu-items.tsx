@@ -6,6 +6,7 @@ import {
   PropSchema,
 } from '@/blocknote/core'
 import {
+  RiArticleFill,
   RiCodeBoxFill,
   RiFile2Fill,
   RiFunctions,
@@ -141,29 +142,29 @@ export const slashMenuItems = [
       view.dispatch(state.tr.scrollIntoView())
     },
   },
-  //   {
-  //     name: "Embed",
-  //     aliases: ["embed", "card"],
-  //     group: "Media blocks",
-  //     icon: <RiArticleFill size={18} />,
-  //     hint: "Insert a Hypermedia Embed",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "embed",
-  //           props: {
-  //             link: "",
-  //           },
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
+  {
+    name: 'Embed',
+    aliases: ['embed', 'card'],
+    group: 'Media blocks',
+    icon: <RiArticleFill size={18} />,
+    hint: 'Insert a Hypermedia Embed',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'embed',
+          props: {
+            link: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
   {
     name: 'Math',
     aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
