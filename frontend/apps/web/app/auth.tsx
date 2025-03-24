@@ -58,6 +58,8 @@ import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 
 injectModels()
 
+let AccountWithImage : boolean = false
+
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
 }
@@ -349,7 +351,7 @@ function EditProfileForm({
         <ImageField control={control} name="icon" label="Site Icon" />
         <XStack jc="center">
           <Form.Trigger asChild>
-            <Button>{submitLabel || 'Save Account'}</Button>
+            <Button className={`plausible-event-name=finish-create-account plausible-event-image=${AccountWithImage || 'false'}`}>{submitLabel || 'Save Account'}</Button>
           </Form.Trigger>
         </XStack>
       </YStack>
@@ -406,6 +408,7 @@ function ImageField<Fields extends FieldValues>({
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (!file) return
+          AccountWithImage = true
           optimizeImage(file).then((blob) => {
             c.field.onChange(blob)
           })
