@@ -19,6 +19,8 @@ export async function forkSitefromTemplate({
 }) {
   /**
    * - get the template Entity
+   * - get the target home document
+   * - update the target home document with the template home document content and metadata
    * - get all document entities in the template
    * - create each document from the template entity in the target site
    *   - set all document changes for all metadata
@@ -39,10 +41,10 @@ export async function forkSitefromTemplate({
       templateHomeDoc.toJson(),
     )
 
-    console.log(`== ~ templateHomeDocEntity:`, templateHomeDocEntity)
+    // remove the template name so it will not override the current target name
     delete templateHomeDocEntity.metadata.name
     const blocksMap = createBlocksMap(templateHomeDocEntity.content, '')
-    let targetHomeDocChange = await client.documents.createDocumentChange({
+    await client.documents.createDocumentChange({
       signingKeyName: targetId,
       account: targetId,
       baseVersion: targetHomeDoc.version,
@@ -56,10 +58,9 @@ export async function forkSitefromTemplate({
         ),
       ],
     })
-
-    console.log(`== ~ targetHomeDocChange:`, targetHomeDocChange)
   } catch (error) {
     console.error(`========= ~ Home Doc Fork: error:`, error)
+    throw error
   }
 
   const templateDocuments = await client.documents.listDocuments({
@@ -85,6 +86,7 @@ export async function forkSitefromTemplate({
       })
     } catch (e) {
       console.error(`========= ~ Forking: error: ${document.path}`, e)
+      throw e
     }
   }
 }

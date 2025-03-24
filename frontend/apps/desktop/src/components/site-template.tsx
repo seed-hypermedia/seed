@@ -5,12 +5,20 @@ import {DocumentRoute} from '@shm/shared'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
 import {useEffect, useMemo, useState} from 'react'
-import {Dialog, SizableText, View, XStack, YStack} from 'tamagui'
+import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
+
+let templates = {
+  blog: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+  documentation: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
+}
 
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
 
 export function SiteTemplate() {
+  const [selectedTemplate, setSelectedTemplate] = useState<
+    'blog' | 'documentation' | 'blank' | null
+  >(null)
   const route = useNavRoute()
   const navigate = useNavigate('push')
   const targetId = useMemo(() => {
@@ -19,6 +27,30 @@ export function SiteTemplate() {
     }
     return ''
   }, [route])
+
+  function handleForking() {
+    if (!targetId) return
+    if (selectedTemplate === 'blank') {
+      dispatchSiteTemplateEvent(false)
+      navigate({
+        key: 'draft',
+        id: (route as DocumentRoute).id,
+      })
+      return
+    }
+
+    if (targetId && selectedTemplate) {
+      forkSitefromTemplate({
+        client: grpcClient,
+        targetId,
+        templateId: templates[selectedTemplate],
+      }).then(() => {
+        dispatchSiteTemplateEvent(false)
+        window.location.reload()
+      })
+      return
+    }
+  }
 
   return (
     <YStack alignItems="center" gap="$6">
@@ -31,26 +63,21 @@ export function SiteTemplate() {
           paddingBottom="$2"
           gap="$2"
           borderRadius="$4"
+          bg={selectedTemplate === 'blog' ? '$brand5' : 'transparent'}
           hoverStyle={{
-            bg: '$color5',
+            bg: selectedTemplate === 'blog' ? '$brand5' : '$color5',
           }}
           alignItems="center"
           onPress={() => {
-            if (targetId) {
-              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
-              forkSitefromTemplate({
-                client: grpcClient,
-                targetId,
-                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
-              }).then(() => {
-                dispatchSiteTemplateEvent(false)
-                window.location.reload()
-              })
-            }
+            setSelectedTemplate('blog')
           }}
         >
           <TemplateImage name="blog" />
-          <SizableText>Blog</SizableText>
+          <SizableText
+            color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
+          >
+            Blog
+          </SizableText>
         </YStack>
         <YStack
           p="$4"
@@ -58,49 +85,68 @@ export function SiteTemplate() {
           gap="$2"
           borderRadius="$4"
           hoverStyle={{
-            bg: '$color5',
+            bg: selectedTemplate === 'documentation' ? '$brand5' : '$color5',
           }}
+          bg={selectedTemplate === 'documentation' ? '$brand5' : 'transparent'}
           alignItems="center"
           onPress={() => {
-            if (targetId) {
-              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
-              forkSitefromTemplate({
-                client: grpcClient,
-                targetId,
-                templateId: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
-              }).then(() => {
-                dispatchSiteTemplateEvent(false)
-                window.location.reload()
-              })
-            }
+            setSelectedTemplate('documentation')
           }}
         >
           <TemplateImage name="documentation" />
-          <SizableText>Documentation</SizableText>
+          <SizableText
+            color={
+              selectedTemplate === 'documentation' ? '$color1' : '$color10'
+            }
+          >
+            Documentation
+          </SizableText>
         </YStack>
         <YStack
           p="$4"
           paddingBottom="$2"
           gap="$2"
           borderRadius="$4"
+          bg={selectedTemplate === 'blank' ? '$brand5' : 'transparent'}
           hoverStyle={{
-            bg: '$color5',
+            bg: selectedTemplate === 'blank' ? '$brand5' : '$color5',
           }}
           alignItems="center"
           onPress={() => {
-            if (targetId) {
-              dispatchSiteTemplateEvent(false)
-              navigate({
-                key: 'draft',
-                id: (route as DocumentRoute).id,
-              })
-            }
+            setSelectedTemplate('blank')
           }}
         >
           <View width={200} height={140} bg="$color7" />
-          <SizableText>Blanc</SizableText>
+          <SizableText
+            color={selectedTemplate === 'blank' ? '$color1' : '$color10'}
+          >
+            Blank
+          </SizableText>
         </YStack>
       </XStack>
+      <Button
+        opacity={selectedTemplate == null ? 0.5 : 1}
+        disabled={selectedTemplate == null}
+        onPress={handleForking}
+        bg="$brand5"
+        color="white"
+        width="100%"
+        justifyContent="center"
+        textAlign="center"
+        userSelect="none"
+        borderColor="$colorTransparent"
+        borderWidth={0}
+        hoverStyle={{
+          bg: '$brand4',
+          borderWidth: 0,
+        }}
+        focusStyle={{
+          bg: '$brand3',
+          borderWidth: 0,
+        }}
+      >
+        Submit
+      </Button>
     </YStack>
   )
 }
