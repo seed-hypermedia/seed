@@ -168,6 +168,7 @@ export default function DraftPage() {
         }
         siteHomeEntity={homeEntity.data}
         docId={route.id}
+        document={homeEntity.data?.document || undefined}
       >
         <DocumentEditor {...data} id={route.id} />
       </DraftAppHeader>
@@ -230,11 +231,13 @@ function DraftAppHeader({
   siteHomeEntity,
   docId,
   children,
+  document,
 }: {
   siteHomeMetadata: HMMetadata | undefined | null
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
+  document?: HMDocument
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId.uid)
@@ -252,6 +255,7 @@ function DraftAppHeader({
       onScroll={() => dispatchScroll('scroll')}
       homeId={siteHomeEntity.id}
       items={navItems}
+      document={document || undefined}
       docId={docId}
       isCenterLayout={
         siteHomeMetadata?.theme?.headerLayout === 'Center' ||
