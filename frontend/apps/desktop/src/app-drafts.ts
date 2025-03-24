@@ -11,14 +11,14 @@ import {error} from './logger'
 const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
 
-let draftIndex:
-  | {
-      id: string
-      destinationUid?: string
-      destinationPath?: string[]
-      isNewChild?: boolean
-    }[]
-  | undefined = undefined
+type DraftMeta = {
+  id: string
+  destinationUid?: string
+  destinationPath?: string[]
+  isNewChild?: boolean
+}
+
+let draftIndex: DraftMeta[] | undefined = undefined
 
 export async function initDrafts() {
   await fs.mkdir(draftsDir, {recursive: true})
@@ -89,9 +89,30 @@ function draftFileNameToId(filename: string) {
   return id
 }
 
+async function loadDraft(d: DraftMeta): Promise<HMListedDraft> {
+  const draftPath = join(draftsDir, `${d.id}.json`)
+  const fileContent = await fs.readFile(draftPath, 'utf-8')
+  const draft = JSON.parse(fileContent) as HMDraft
+  const targetId = d.destinationUid
+    ? hmId('d', d.destinationUid, {
+        path: d.destinationPath,
+      })
+    : undefined
+  return {
+    id: d.id,
+    metadata: draft.metadata,
+    lastUpdateTime: draft.lastUpdateTime,
+    isNewChild: d.isNewChild,
+    targetId,
+  }
+}
+
 export const draftsApi = t.router({
   list: t.procedure.query(async () => {
     return draftIndex
+  }),
+  listFull: t.procedure.input(z.undefined()).query(async () => {
+    return await Promise.all(draftIndex?.map(loadDraft) || [])
   }),
   listAccount: t.procedure
     .input(z.string().optional())
@@ -101,23 +122,7 @@ export const draftsApi = t.router({
           ?.filter(
             (d) => !!input && d.destinationUid && d.destinationUid === input,
           )
-          .map(async (d) => {
-            const draftPath = join(draftsDir, `${d.id}.json`)
-            const fileContent = await fs.readFile(draftPath, 'utf-8')
-            const draft = JSON.parse(fileContent) as HMDraft
-            const targetId = d.destinationUid
-              ? hmId('d', d.destinationUid, {
-                  path: d.destinationPath,
-                })
-              : undefined
-            return {
-              id: d.id,
-              metadata: draft.metadata,
-              lastUpdateTime: draft.lastUpdateTime,
-              isNewChild: d.isNewChild,
-              targetId,
-            }
-          }) || [],
+          .map(loadDraft) || [],
       )
       return drafts satisfies HMListedDraft[]
     }),
