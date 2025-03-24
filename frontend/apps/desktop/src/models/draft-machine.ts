@@ -14,6 +14,7 @@ export const draftMachine = setup({
     context: {} as {
       metadata: HMMetadata
       signingAccount: null | string
+      draftId: string
       draft: null | HMDraft
       entity: null | HMEntityContent
       errorMessage: string
@@ -146,7 +147,6 @@ export const draftMachine = setup({
       },
     }),
     populateEditor: function () {},
-    replaceRouteifNeeded: function () {},
     focusEditor: function () {},
     focusName: function () {},
     onSaveSuccess: function ({context}) {},
@@ -323,7 +323,6 @@ export const draftMachine = setup({
                   {type: 'setDraft'},
                   {type: 'setAttributes'},
                   {type: 'setSigningAccount'},
-                  {type: 'replaceRouteifNeeded'},
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},

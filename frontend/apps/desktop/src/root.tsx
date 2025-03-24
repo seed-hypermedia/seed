@@ -271,6 +271,8 @@ function MainApp({}: {}) {
           utils.drafts.get.invalidate(value[1] as string | undefined)
         } else if (value[0] == 'trpc.drafts.list') {
           utils.drafts.list.invalidate()
+        } else if (value[0] == 'trpc.drafts.listFull') {
+          utils.drafts.listFull.invalidate()
         } else if (value[0] == 'trpc.drafts.listAccount') {
           utils.drafts.listAccount.invalidate()
         } else if (value[0] == 'trpc.secureStorage.get') {
@@ -400,7 +402,6 @@ function MainApp({}: {}) {
               }
             >
               {mainContent}
-              <ResetOnboardingButton />
             </NavigationContainer>
             <Toaster
             // position="bottom-center"

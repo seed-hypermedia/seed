@@ -1,10 +1,7 @@
 import {useSizeObserver} from '@/components/app-embeds'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
-import {
-  useAccountDraftList,
-  useDraftName,
-  useListDirectory,
-} from '@/models/documents'
+import {useDraft} from '@/models/accounts'
+import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -35,6 +32,7 @@ import {
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
@@ -46,7 +44,6 @@ import {
   Text,
   TextProps,
   Theme,
-  Tooltip,
   View,
   XStack,
   YStack,
@@ -156,7 +153,8 @@ function BreadcrumbTitle({
         return [
           {
             name: getDocumentTitle(contents.entity?.document) || undefined,
-            fallbackName: route.id?.path?.at(-1),
+            fallbackName:
+              typeof route.id === 'string' ? route.id : route.id?.path?.at(-1),
             isError: contents.entity && !contents.entity.document,
             isLoading: !contents.entity,
             route: {
@@ -573,11 +571,11 @@ function PathItemCard({
           {directoryItems?.map((item) => {
             return (
               <DocumentSmallListItem
-                key={item.id.path?.join('/') || item.id.id}
+                key={item.id?.path?.join('/') || item.id?.id || item.draftId}
                 metadata={item.metadata}
                 id={item.id}
                 onPress={() => {}}
-                isDraft={item.isDraft}
+                draftId={item.draftId}
                 isPublished={item.isPublished}
               />
             )
@@ -666,19 +664,52 @@ export function Title({size}: {size?: FontSizeTokens}) {
 }
 
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
-  const name = useDraftName({
-    id: route.id,
-  })
-  const entity = useEntity(route.id)
-  const realTitle = name ?? getDocumentTitle(entity.data?.document)
-  const fixedName = undefined
-  const displayTitle = fixedName || realTitle
-  useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
-  if (!route.id || route.id.type === 'draft') return null // todo: include location picker
+  const draft = useDraft(route.id)
+
+  const name = draft.data?.draft?.metadata?.name
+
+  const displayTitle = name || 'Untitled Document'
+  // const entity = useEntity(route.id)
+  // const realTitle = name ?? getDocumentTitle(entity.data?.document)
+  // const fixedName = undefined
+  // const displayTitle = fixedName || realTitle
+  useWindowTitle(name ? `Draft: ${name}` : undefined)
+
+  const navigate = useNavigate()
+
+  if (!route.id) return null
+
+  return (
+    <XStack
+      f={1}
+      marginRight={'$4'}
+      margin={0}
+      ai="stretch"
+      alignSelf="stretch"
+      overflow="hidden"
+      height="100%"
+      width="100%"
+    >
+      <TitleTextButton
+        onPress={() => {
+          navigate({key: 'drafts'})
+        }}
+      >
+        Drafts
+      </TitleTextButton>
+      <TitleTextButton
+        onPress={() => {
+          navigate({key: 'draft', id: route.id})
+        }}
+      >
+        {displayTitle}
+      </TitleTextButton>
+    </XStack>
+  )
   return (
     <BreadcrumbTitle
       route={{key: 'document', id: route.id}}
-      overwriteActiveTitle={realTitle || 'Untitled Document'}
+      overwriteActiveTitle={name || 'Untitled Document'}
     />
   )
 }
