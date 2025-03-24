@@ -59,10 +59,20 @@ export default defineConfig(({command, mode}) => {
     ],
     resolve: {
       extensions,
-      dedupe: ['@shm/shared', '@shm/shared/*', '@shm/ui', 'react', 'react-dom'],
+      dedupe: [
+        '@shm/shared',
+        '@shm/shared/*',
+        '@shm/editor',
+        '@shm/editor/*',
+        '@shm/ui',
+        '@shm/ui/*',
+        'react',
+        'react-dom',
+      ],
       alias: {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
+        '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
       },
     },
     alias: {
