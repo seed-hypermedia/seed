@@ -7,6 +7,7 @@ import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {useDraft} from '@/models/accounts'
 import {
+  getDraftEditId,
   useAccountDraftList,
   useCreateDraft,
   useDraftEditor,
@@ -857,24 +858,5 @@ function useDraftRebase({
       latestDoc.data?.id.version != null &&
       draftPrevId.version !== latestDoc.data.id.version,
     performRebase,
-  }
-}
-
-function getDraftEditId(
-  draftData?: {
-    destinationUid: string | undefined
-    destinationPath: string[] | undefined
-    isNewChild: boolean | undefined
-  } | null,
-): UnpackedHypermediaId | undefined {
-  if (!draftData) return undefined
-  if (draftData.isNewChild) {
-    return undefined
-  } else if (!draftData.destinationUid) {
-    return undefined
-  } else {
-    return hmId('d', draftData.destinationUid, {
-      path: draftData.destinationPath,
-    })
   }
 }

@@ -63,7 +63,7 @@ import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
 import {useEffect, useMemo, useRef} from 'react'
-import {ContextFrom, fromPromise, OutputFrom} from 'xstate'
+import {ContextFrom, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
@@ -93,6 +93,11 @@ export function useDocumentList(
 export function useDraftList() {
   return trpc.drafts.list.useQuery(undefined, {})
 }
+
+export function useFullDraftList() {
+  return trpc.drafts.listFull.useQuery(undefined, {})
+}
+
 export function useAccountDraftList(accountUid?: string) {
   return trpc.drafts.listAccount.useQuery(accountUid, {
     enabled: !!accountUid,
@@ -168,31 +173,18 @@ function useDraftDiagnosis() {
 }
 
 export function usePublishDraft(
-  opts?: UseMutationOptions<
-    HMDocument,
-    unknown,
-    {
-      draft: HMDraft
-      previous: HMDocument | undefined
-      id: UnpackedHypermediaId | undefined
-    }
-  >,
+  opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
-  return useMutation<
-    HMDocument,
-    any,
-    {
-      draft: HMDraft
-      previous: HMDocument | undefined
-      destinationUid: string
-      destinationPath: string[] | undefined
-
-      // id: UnpackedHypermediaId | undefined
-    }
-  >({
-    mutationFn: async ({draft, previous, destinationUid, destinationPath}) => {
+  return useMutation<HMDocument, any, PublishDraftInput>({
+    mutationFn: async ({
+      draft,
+      previous,
+      draftId,
+      destinationUid,
+      destinationPath,
+    }) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
 
       const content = removeTrailingBlocks(draft.content || [])
@@ -205,7 +197,7 @@ export function usePublishDraft(
         dispatchOnboardingDialog(true)
       } else {
         try {
-          if (draft.signingAccount && id?.id) {
+          if (draft.signingAccount && draftId) {
             const allChanges = [
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
@@ -213,11 +205,11 @@ export function usePublishDraft(
             ]
 
             let capabilityId = ''
-            if (draft.signingAccount !== id.uid) {
+            if (draft.signingAccount !== destinationUid) {
               const capabilities =
                 await grpcClient.accessControl.listCapabilities({
-                  account: id.uid,
-                  path: hmIdPathToEntityQueryPath(id.path),
+                  account: destinationUid,
+                  path: hmIdPathToEntityQueryPath(destinationPath || []),
                 })
               const capability = capabilities.capabilities.find(
                 (cap) => cap.delegate === draft.signingAccount,
@@ -266,8 +258,6 @@ export function usePublishDraft(
 
             return resultDoc
           } else {
-            // dispatchWizardEvent(true)
-            // toast.error('PUBLISH ERROR: Please select an account to sign first')
             throw Error('PUBLISH ERROR: Please select an account to sign first')
           }
         } catch (error) {
@@ -285,13 +275,15 @@ export function usePublishDraft(
       }
     },
     onSuccess: (result, variables, context) => {
-      const documentId = variables.id?.id
+      const resultDocId = hmId('d', result.account, {
+        path: entityQueryPathToHmIdPath(result.path),
+      })
       opts?.onSuccess?.(result, variables, context)
-      if (documentId) {
-        invalidateQueries([queryKeys.ENTITY, documentId])
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
+      if (resultDocId) {
+        invalidateQueries([queryKeys.ENTITY, resultDocId.id])
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        invalidateQueries([queryKeys.SITE_LIBRARY, variables.id?.uid])
+        invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }
     },
@@ -342,13 +334,6 @@ export type EditorDraftState = {
   changes: DraftChangesState
   webUrl: string
   updatedAt: any
-}
-
-export function useDraftName(
-  input: UseQueryOptions<EditorDraftState> & {id?: UnpackedHypermediaId},
-) {
-  const draft = useDraft(input.id)
-  return (draft.data?.metadata?.name || undefined) as string | undefined
 }
 
 type DraftChangesState = {
@@ -493,7 +478,7 @@ export function useDraftEditor({id}: {id: string}) {
   >(async ({input}) => {
     const blocks = editor.topLevelBlocks
     let inputData: Partial<HMDraft> = {}
-    const draftId = id.id || input.id
+    const {draftId} = input
 
     if (!draftId)
       throw new Error('Draft Error: no id passed to update function')
@@ -504,7 +489,7 @@ export function useDraftEditor({id}: {id: string}) {
         metadata: input.metadata,
         members: {},
         lastUpdateTime: Date.now(),
-        previousId: input.entity.id,
+        previousId: input.entity?.id,
         signingAccount: input.signingAccount || undefined,
       } as HMDraft
     } else {
@@ -521,7 +506,7 @@ export function useDraftEditor({id}: {id: string}) {
     const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
 
     if (!id) {
-      return {...res, id: draftId}
+      return {...inputData, id: draftId}
     } else {
       return res
     }
@@ -565,25 +550,11 @@ export function useDraftEditor({id}: {id: string}) {
             )
           }
         },
-        replaceRouteifNeeded: ({
-          event,
-        }: {
-          event: {output: OutputFrom<typeof createOrUpdateDraft>}
-        }) => {
-          if (event.output.id) {
-            const id = unpackHmId(event.output.id)
-            if (!id) throw new Error('Draft save resulted in invalid hm ID')
-            if (route.key !== 'draft')
-              throw new Error('Invalid route, draft expected.')
-            replaceRoute({...route, id, new: false})
-          }
-        },
         onSaveSuccess: function () {
-          invalidateQueries([queryKeys.DRAFT, id?.id])
+          invalidateQueries([queryKeys.DRAFT, id])
           invalidateQueries(['trpc.drafts.get'])
           invalidateQueries(['trpc.drafts.list'])
           invalidateQueries(['trpc.drafts.listAccount'])
-          invalidateQueries([queryKeys.ENTITY, id?.id])
         },
         resetContent: function ({event}) {
           if (event.type !== 'RESET.CONTENT') return
@@ -603,9 +574,9 @@ export function useDraftEditor({id}: {id: string}) {
 
   const backendDraft = useDraft(id)
   const backendDocument = useEntity(
-    backendDraft.status == 'success' && backendDraft.data?.previousId
-      ? backendDraft.data.previousId
-      : id,
+    backendDraft.status == 'success' && backendDraft.data?.draft?.previousId
+      ? backendDraft.data.draft.previousId
+      : undefined,
   )
 
   async function handleRebase(newEntity: HMEntityContent) {
@@ -649,11 +620,12 @@ export function useDraftEditor({id}: {id: string}) {
   useEffect(() => {
     if (
       backendDraft.status == 'success' &&
-      backendDocument.status != 'loading'
+      backendDocument.status != 'loading' &&
+      backendDraft.data?.draft
     ) {
       send({
         type: 'GET.DRAFT.SUCCESS',
-        draft: backendDraft.data,
+        draft: backendDraft.data?.draft,
         entity:
           backendDocument.status != 'error' && backendDocument.data
             ? backendDocument.data
@@ -1515,4 +1487,23 @@ export function useMoveDocument() {
       })
     },
   })
+}
+
+export function getDraftEditId(
+  draftData?: {
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+  } | null,
+): UnpackedHypermediaId | undefined {
+  if (!draftData) return undefined
+  if (draftData.isNewChild) {
+    return undefined
+  } else if (!draftData.destinationUid) {
+    return undefined
+  } else {
+    return hmId('d', draftData.destinationUid, {
+      path: draftData.destinationPath,
+    })
+  }
 }

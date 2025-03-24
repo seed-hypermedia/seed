@@ -11,7 +11,7 @@ import {HMEntityContent} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
-import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
@@ -24,12 +24,13 @@ import {
   SuccessToastDecoration,
   toast,
 } from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
 import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
 import {
   SizableText,
   Spinner,
-  Tooltip,
   XGroup,
   XStack,
   YStack,
@@ -38,6 +39,7 @@ import {
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
+  getDraftEditId,
   usePublishDraft,
   usePublishToSite,
 } from '../models/documents'
@@ -51,7 +53,8 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
-  const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
+  const prevId = getDraftEditId(draft.data)
+  const prevEntity = useEntity(prevId)
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
     null,
   )
@@ -61,8 +64,8 @@ export default function PublishDraftButton() {
     },
   })
   const recentSigners = trpc.recentSigners.get.useQuery()
-  const accts = useMyAccountsWithWriteAccess(draftId)
-  const rootDraftUid = draftId?.uid
+  const accts = useMyAccountsWithWriteAccess(prevId)
+  const rootDraftUid = prevId?.uid
   const rootEntity = useEntity(
     rootDraftUid ? hmId('d', rootDraftUid) : undefined,
   )
@@ -73,16 +76,16 @@ export default function PublishDraftButton() {
   const publish = usePublishDraft({
     onSuccess: (resultDoc, input) => {
       if (pushOnPublish.data === 'never') return
-      const {id} = input
+      const {draftId} = input
       const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
       const {close} = toast.custom(
         <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
         {waitForClose: true, duration: 4000},
       )
-      if (id && resultDoc.version) {
+      if (draftId && resultDoc.version) {
         const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
         publishToSite(
-          hmId('d', id.uid, {
+          hmId('d', resultDoc.account, {
             path: resultPath,
             version: resultDoc.version,
           }),
@@ -121,17 +124,19 @@ export default function PublishDraftButton() {
         : accts[0]
     }
     if (
-      draft.data?.signingAccount &&
+      draft.data?.draft?.signingAccount &&
       signingAccount == null &&
-      draft.data?.signingAccount != signingAccount
+      draft.data?.draft?.signingAccount != signingAccount
     ) {
-      const acc = accts.find((c) => c.data?.id.uid == draft.data.signingAccount)
+      const acc = accts.find(
+        (c) => c.data?.id.uid == draft.data?.draft?.signingAccount,
+      )
       if (acc?.data) {
         setSigningAccount(acc.data)
       }
     } else if (
       defaultSigner?.data &&
-      !draft.data?.signingAccount &&
+      !draft.data?.draft?.signingAccount &&
       signingAccount == null &&
       signingAccount != defaultSigner.data
     ) {
@@ -139,34 +144,46 @@ export default function PublishDraftButton() {
     }
   }, [accts, draft.data])
 
-  function handlePublish() {
+  const firstPublishDialog = useFirstPublishDialog()
+
+  function handlePublishPress() {
     if (!draftId) throw new Error('No Draft ID?!')
 
-    if (draft.data) {
+    if (!draft.data) {
+      throw new Error('Draft not loaded')
+    }
+
+    if (draft.data.isNewChild || !draft.data.destinationUid) {
+      firstPublishDialog.open({
+        onSelectDestination: (uid, path) => {
+          console.log('select destination', uid, path)
+        },
+      })
+    } else {
       publish
         .mutateAsync({
-          draft: draft.data,
+          draft: draft.data.draft,
           previous: prevEntity.data?.document as
             | PlainMessage<Document>
             | undefined,
-          id: draftId,
+          draftId,
+          destinationPath: draft.data.destinationPath,
+          destinationUid: draft.data.destinationUid,
         })
         .then(async (res) => {
-          const resultDocId = hmId('d', draftId.uid, {
-            path: res?.path
-              ? res.path?.split('/').filter(Boolean)
-              : draftId.path,
+          const resultDocId = hmId('d', res.account, {
+            path: entityQueryPathToHmIdPath(res.path),
           })
-
           if (resultDocId && draftId)
             await deleteDraft
-              .mutateAsync(packHmId(draftId))
+              .mutateAsync(draftId)
               .catch((e) => {
                 console.error('Failed to delete draft', e)
               })
               .then(() => {
                 invalidateQueries(['trpc.drafts.get']) // todo, invalidate the specific draft id
                 invalidateQueries(['trpc.drafts.list'])
+                invalidateQueries(['trpc.drafts.listFull'])
                 invalidateQueries(['trpc.drafts.listAccount'])
               })
           if (resultDocId) {
@@ -195,7 +212,7 @@ export default function PublishDraftButton() {
           >
             <Button
               size="$2"
-              onPress={handlePublish}
+              onPress={handlePublishPress}
               borderRadius={0}
               hoverStyle={{cursor: 'default'}}
               // disabled={!hassigningKeySelected}
@@ -244,8 +261,40 @@ export default function PublishDraftButton() {
           </XGroup.Item>
         ) : null}
       </XGroup>
+      {firstPublishDialog.content}
     </>
   )
+}
+
+function FirstPublishDialog({
+  input,
+  onClose,
+}: {
+  input: {
+    onSelectDestination: (uid: string, path: string[]) => void
+  }
+  onClose: () => void
+}) {
+  return (
+    <YStack>
+      <SizableText>
+        This is the first time you are publishing this draft. Todo: choose
+        location and path.
+      </SizableText>
+      <Button
+        onPress={() => {
+          // onSelectDestination('uid', ['path'])
+          onClose()
+        }}
+      >
+        Publish
+      </Button>
+    </YStack>
+  )
+}
+
+function useFirstPublishDialog() {
+  return useAppDialog(FirstPublishDialog)
 }
 
 function StatusWrapper({children, ...props}: PropsWithChildren<YStackProps>) {
