@@ -1,13 +1,23 @@
 import {grpcClient} from '@/grpc-client'
+import {useNavRoute} from '@/utils/navigation'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
-import {useEffect, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {Dialog, SizableText, View, XStack, YStack} from 'tamagui'
 
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
 
 export function SiteTemplate() {
+  const route = useNavRoute()
+
+  const targetId = useMemo(() => {
+    if (route.key === 'document') {
+      return route.id.uid
+    }
+    return ''
+  }, [route])
+
   return (
     <YStack alignItems="center" gap="$6">
       <SizableText size="$6" fontWeight="bold">
@@ -24,12 +34,14 @@ export function SiteTemplate() {
           }}
           alignItems="center"
           onPress={() => {
-            // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
-            forkSitefromTemplate({
-              client: grpcClient,
-              targetId: 'z6Mkka59Cpa9fUJ8SeAYkQsE1ifhaid1rb7jPNUtWaBfDU6r',
-              templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
-            })
+            if (targetId) {
+              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
+              forkSitefromTemplate({
+                client: grpcClient,
+                targetId,
+                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+              })
+            }
           }}
         >
           <View width={200} height={140} bg="$color7" />
@@ -44,7 +56,16 @@ export function SiteTemplate() {
             bg: '$color5',
           }}
           alignItems="center"
-          onPress={() => {}}
+          onPress={() => {
+            if (targetId) {
+              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
+              forkSitefromTemplate({
+                client: grpcClient,
+                targetId,
+                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+              })
+            }
+          }}
         >
           <View width={200} height={140} bg="$color7" />
           <SizableText>Template 2</SizableText>
@@ -58,7 +79,16 @@ export function SiteTemplate() {
             bg: '$color5',
           }}
           alignItems="center"
-          onPress={() => {}}
+          onPress={() => {
+            if (targetId) {
+              // template: z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2
+              forkSitefromTemplate({
+                client: grpcClient,
+                targetId,
+                templateId: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+              })
+            }
+          }}
         >
           <View width={200} height={140} bg="$color7" />
           <SizableText>Template 3</SizableText>
