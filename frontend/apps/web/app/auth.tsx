@@ -58,7 +58,7 @@ import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 
 injectModels()
 
-let AccountWithImage : boolean = false
+let AccountWithImage: boolean = false
 
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
@@ -351,7 +351,13 @@ function EditProfileForm({
         <ImageField control={control} name="icon" label="Site Icon" />
         <XStack jc="center">
           <Form.Trigger asChild>
-            <Button className={`plausible-event-name=finish-create-account plausible-event-image=${AccountWithImage || 'false'}`}>{submitLabel || 'Save Account'}</Button>
+            <Button
+              className={`plausible-event-name=finish-create-account plausible-event-image=${
+                AccountWithImage || 'false'
+              }`}
+            >
+              {submitLabel || 'Save Account'}
+            </Button>
           </Form.Trigger>
         </XStack>
       </YStack>

@@ -98,7 +98,9 @@ export default function WebCommenting({
             <Button
               size="$2"
               theme="blue"
-              className={`plausible-event-name=${userKeyPair? 'comment' : 'start-create-account'}`}
+              className={`plausible-event-name=${
+                userKeyPair ? 'comment' : 'start-create-account'
+              }`}
               icon={
                 myAccountId ? (
                   <HMIcon
