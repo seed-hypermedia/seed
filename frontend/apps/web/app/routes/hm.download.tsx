@@ -297,8 +297,9 @@ function PlatformItem({
       <XStack gap="$2">
         {assets.map((asset) => (
           <Button
-            className ={`plausible-event-name=download plausible-event-os=${
-              asset.url.split('.').pop()}`}
+            className={`plausible-event-name=download plausible-event-os=${asset.url
+              .split('.')
+              .pop()}`}
             size="$2"
             icon={Download}
             tag="a"
@@ -326,8 +327,9 @@ function ReleaseEntry({
   return (
     <Button
       tag="a"
-      className ={`plausible-event-name=download plausible-event-os=${
-        asset.download_url.split('.').pop()}`}
+      className={`plausible-event-name=download plausible-event-os=${asset.download_url
+        .split('.')
+        .pop()}`}
       href={asset.download_url}
       style={{textDecoration: 'none'}}
       download
