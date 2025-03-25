@@ -13,6 +13,8 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {useDocContentContext} from '../../ui/src/document-content'
+import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
 
 export const MathBlock = (type: 'math') =>
   createReactBlockSpec({
@@ -51,6 +53,7 @@ const Render = (
   const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
     useState(true)
   const [error, setError] = useState<string>()
+  const {comment} = useDocContentContext()
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
@@ -181,7 +184,7 @@ const Render = (
 
   return (
     <YStack
-      backgroundColor={selected ? '$color3' : '$color4'}
+      backgroundColor={selected ? '$color3' : comment ? '$color5' : '$color4'}
       borderColor={selected ? '$color8' : 'transparent'}
       borderWidth={2}
       borderRadius="$2"
@@ -238,9 +241,8 @@ const Render = (
                 // if (!selected)
                 setOpened(false)
               }}
-              onKeyPress={(e) => {
-                // @ts-ignore
-                if (e.key === 'ArrowUp') {
+              onKeyDown={(e) => {
+                if (e.nativeEvent.key === 'ArrowUp') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
                   const prevBlockInfo = findPreviousBlock(
@@ -251,34 +253,24 @@ const Render = (
                     const {prevBlock, prevBlockPos} = prevBlockInfo
                     const prevNode = prevBlock.firstChild!
                     const prevNodePos = prevBlockPos + 1
-                    if (
-                      [
-                        'image',
-                        'file',
-                        'embed',
-                        'video',
-                        'web-embed',
-                        'math',
-                      ].includes(prevNode.type.name)
-                    ) {
+                    if (selectableNodeTypes.includes(prevNode.type.name)) {
                       const selection = NodeSelection.create(
                         state.doc,
                         prevNodePos,
                       )
                       view.dispatch(state.tr.setSelection(selection))
-                      return true
                     } else {
                       editor.setTextCursorPosition(
                         editor.getTextCursorPosition().prevBlock!,
                         'end',
                       )
                     }
-                    editor.focus()
+                    // editor.focus()
+                    view.focus()
                     setOpened(false)
                   }
-                }
-                // @ts-ignore
-                else if (e.key === 'ArrowDown') {
+                  return
+                } else if (e.nativeEvent.key === 'ArrowDown') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
                   let nextBlockInfo = findNextBlock(view, state.selection.from)
@@ -286,16 +278,7 @@ const Render = (
                     const {nextBlock, nextBlockPos} = nextBlockInfo
                     const nextNode = nextBlock.firstChild!
                     const nextNodePos = nextBlockPos + 1
-                    if (
-                      [
-                        'image',
-                        'file',
-                        'embed',
-                        'video',
-                        'web-embed',
-                        'math',
-                      ].includes(nextNode.type.name)
-                    ) {
+                    if (selectableNodeTypes.includes(nextNode.type.name)) {
                       const selection = NodeSelection.create(
                         state.doc,
                         nextNodePos,
@@ -307,9 +290,28 @@ const Render = (
                         'start',
                       )
                     }
-                    editor.focus()
+                    view.focus()
                     setOpened(false)
                   }
+                  return
+                } else if (e.nativeEvent.key === 'Backspace') {
+                  const blockInfo = getBlockInfoFromSelection(
+                    tiptapEditor.state,
+                  )
+                  if (
+                    blockInfo.block.node.attrs.id === block.id &&
+                    !blockInfo.blockContent.node.textContent.length
+                  ) {
+                    const {state, view} = tiptapEditor
+                    view.dispatch(
+                      state.tr.delete(
+                        blockInfo.block.beforePos + 1,
+                        blockInfo.block.afterPos - 1,
+                      ),
+                    )
+                    editor.focus()
+                  }
+                  return
                 }
               }}
               width={'100%'}

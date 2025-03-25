@@ -620,6 +620,7 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
+  const {comment} = useDocContentContext()
   // const recents = useRecents()
   const searchResults = useSearch(search, {})
 
@@ -708,6 +709,9 @@ const EmbedLauncherInput = ({
     <YStack flex={1} gap="$4">
       <Input
         unstyled
+        backgroundColor={comment ? '$color5' : '$color4'}
+        outlineWidth="$0"
+        color="$color12"
         borderColor="$color8"
         borderWidth="$1"
         borderRadius="$2"

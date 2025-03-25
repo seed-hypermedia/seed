@@ -142,6 +142,7 @@ export const BlockManipulationExtension = Extension.create({
                     let tr = state.tr.setSelection(selection)
                     tr = tr.scrollIntoView()
                     view.dispatch(tr)
+                    view.focus()
                     return true
                   }
 
@@ -165,6 +166,7 @@ export const BlockManipulationExtension = Extension.create({
                   let tr = state.tr.setSelection(selection)
                   tr = tr.scrollIntoView()
                   view.dispatch(tr)
+                  view.focus()
                   return true
                 }
               } else {
@@ -184,6 +186,7 @@ export const BlockManipulationExtension = Extension.create({
                   )
                   tr = tr.scrollIntoView()
                   view.dispatch(tr)
+                  view.focus()
                   return true
                 }
               }
@@ -231,6 +234,7 @@ export const BlockManipulationExtension = Extension.create({
                       let tr = state.tr.setSelection(selection)
                       tr = tr.scrollIntoView()
                       view.dispatch(tr)
+                      view.focus()
                       return true
                     }
                   }
@@ -258,6 +262,7 @@ export const BlockManipulationExtension = Extension.create({
                   let tr = state.tr.setSelection(selection)
                   tr = tr.scrollIntoView()
                   view.dispatch(tr)
+                  view.focus()
                   return true
                 }
               }
