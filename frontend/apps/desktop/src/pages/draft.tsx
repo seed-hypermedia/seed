@@ -79,6 +79,8 @@ export default function DraftPage() {
     id: route.id,
   })
 
+  console.log('Draft State', draft.data)
+
   const {shouldRebase, performRebase, isRebasing} = useDraftRebase({
     draftData: draft.data,
     handleRebase: data.handleRebase,
