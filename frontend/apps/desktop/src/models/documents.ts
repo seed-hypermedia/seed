@@ -572,6 +572,7 @@ export function useDraftEditor({id}: {id: string}) {
     }),
   )
 
+  console.log('Draft State', state)
   const backendDraft = useDraft(id)
   const backendDocument = useEntity(
     backendDraft.status == 'success' && backendDraft.data?.draft?.previousId
