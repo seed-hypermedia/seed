@@ -1,9 +1,11 @@
 import {grpcClient} from '@/grpc-client'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentRoute} from '@shm/shared'
+import {DocumentRoute, hmId} from '@shm/shared'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
+import {Tooltip} from '@shm/ui/tooltip'
+import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
 
@@ -21,6 +23,7 @@ export function SiteTemplate() {
   >(null)
   const route = useNavRoute()
   const navigate = useNavigate('push')
+  const openWindow = useNavigate('spawn')
   const targetId = useMemo(() => {
     if (route.key === 'document') {
       return route.id.uid
@@ -73,11 +76,29 @@ export function SiteTemplate() {
           }}
         >
           <TemplateImage name="blog" />
-          <SizableText
-            color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
-          >
-            Blog
-          </SizableText>
+          <XStack ai="center" gap="$3">
+            <SizableText
+              color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
+            >
+              Blog
+            </SizableText>
+            <Tooltip content="Preview Blog Site">
+              <Button
+                chromeless
+                color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
+                icon={ExternalLink}
+                onPress={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  openWindow({
+                    key: 'document',
+                    id: hmId('d', templates.blog),
+                  })
+                }}
+                size="$2"
+              />
+            </Tooltip>
+          </XStack>
         </YStack>
         <YStack
           p="$4"
@@ -94,13 +115,33 @@ export function SiteTemplate() {
           }}
         >
           <TemplateImage name="documentation" />
-          <SizableText
-            color={
-              selectedTemplate === 'documentation' ? '$color1' : '$color10'
-            }
-          >
-            Documentation
-          </SizableText>
+          <XStack ai="center" gap="$3">
+            <SizableText
+              color={
+                selectedTemplate === 'documentation' ? '$color1' : '$color10'
+              }
+            >
+              Documentation
+            </SizableText>
+            <Tooltip content="Preview Documentation Site">
+              <Button
+                chromeless
+                color={
+                  selectedTemplate === 'documentation' ? '$color1' : '$color10'
+                }
+                icon={ExternalLink}
+                onPress={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  openWindow({
+                    key: 'document',
+                    id: hmId('d', templates.documentation),
+                  })
+                }}
+                size="$2"
+              />
+            </Tooltip>
+          </XStack>
         </YStack>
         <YStack
           p="$4"
@@ -130,7 +171,6 @@ export function SiteTemplate() {
         onPress={handleForking}
         bg="$brand5"
         color="white"
-        width="100%"
         justifyContent="center"
         textAlign="center"
         userSelect="none"
