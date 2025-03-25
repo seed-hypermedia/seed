@@ -135,6 +135,19 @@ function getBlockNodeChanges(
       // change space id to the targetId
       bn.block.attributes.query.includes[0].space = targetId
     }
+
+    if (bn.block.type == 'Button') {
+      console.log('[Fork] Processing Button block:')
+      console.log(`[Fork] Original link: ${bn.block.link}`)
+      const originalUrl = bn.block.link
+      bn.block.link = bn.block.link.replace(
+        /hm:\/\/([^/]+)/,
+        `hm://${targetId}`,
+      )
+      console.log(`[Fork] New link: ${bn.block.link}`)
+      console.log(`[Fork] Target ID used: ${targetId}`)
+    }
+
     changes.push(
       new DocumentChange({
         op: {
