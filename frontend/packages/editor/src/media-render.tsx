@@ -430,7 +430,7 @@ function MediaForm({
       assign({
         props: {
           fileBinary,
-          displaySrc,
+          displaySrc: block.type === 'file' ? undefined : displaySrc,
           name,
           size: size.toString(),
         },

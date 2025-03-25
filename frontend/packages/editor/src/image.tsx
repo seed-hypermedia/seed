@@ -138,8 +138,7 @@ const Render = (
       }
     }
   }
-  console.log('block.props.url', block.props.url)
-  console.log('block.props.displaySrc', block.props.displaySrc)
+
   return (
     <MediaRender
       block={block}
@@ -160,7 +159,6 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  console.log('display block.props', block.props)
   const imageSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64
