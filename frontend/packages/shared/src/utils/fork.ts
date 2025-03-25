@@ -17,6 +17,10 @@ export async function forkSitefromTemplate({
   targetId: string
   templateId: string
 }) {
+  console.log(
+    `[Fork] Starting fork process from template ${templateId} to target ${targetId}`,
+  )
+
   /**
    * - get the template Entity
    * - get the target home document
@@ -29,21 +33,31 @@ export async function forkSitefromTemplate({
    */
 
   try {
+    console.log('[Fork] Fetching target home document...')
     const targetHomeDoc = await client.documents.getDocument({
       account: targetId,
       path: '',
     })
+    console.log(`[Fork] Target home document version: ${targetHomeDoc.version}`)
 
+    console.log('[Fork] Fetching template home document...')
     const templateHomeDoc = await client.documents.getDocument({
       account: templateId,
     })
     const templateHomeDocEntity = HMDocumentSchema.parse(
       templateHomeDoc.toJson(),
     )
+    console.log('[Fork] Template home document parsed successfully')
 
     // remove the template name so it will not override the current target name
     delete templateHomeDocEntity.metadata.name
+    console.log('[Fork] Creating blocks map for template home document...')
     const blocksMap = createBlocksMap(templateHomeDocEntity.content, '')
+    console.log(
+      `[Fork] Blocks map created with ${Object.keys(blocksMap).length} blocks`,
+    )
+
+    console.log('[Fork] Applying changes to target home document...')
     await client.documents.createDocumentChange({
       signingKeyName: targetId,
       account: targetId,
@@ -58,23 +72,40 @@ export async function forkSitefromTemplate({
         ),
       ],
     })
+    console.log('[Fork] Target home document updated successfully')
   } catch (error) {
-    console.error(`========= ~ Home Doc Fork: error:`, error)
+    console.error(`[Fork] Error updating home document:`, error)
     throw error
   }
 
+  console.log('[Fork] Fetching template documents...')
   const templateDocuments = await client.documents.listDocuments({
     account: templateId,
   })
+  const documentsToProcess = templateDocuments.documents.filter(
+    (doc) => doc.path !== '',
+  )
+  console.log(
+    `[Fork] Found ${documentsToProcess.length} documents to process (excluding home document)`,
+  )
 
-  for (const document of templateDocuments.documents) {
+  for (const document of documentsToProcess) {
     try {
+      console.log(`[Fork] Processing document: ${document.path}`)
       const documentEntity = await client.documents.getDocument({
         account: templateId,
         path: document.path,
       })
       const doc = HMDocumentSchema.parse(documentEntity.toJson())
+      console.log(`[Fork] Document ${document.path} parsed successfully`)
+
       const blocksMap = createBlocksMap(doc.content, '')
+      console.log(
+        `[Fork] Created blocks map for ${document.path} with ${
+          Object.keys(blocksMap).length
+        } blocks`,
+      )
+
       await client.documents.createDocumentChange({
         signingKeyName: targetId,
         account: targetId,
@@ -84,11 +115,13 @@ export async function forkSitefromTemplate({
           ...getBlockNodeChanges(targetId, doc.content, blocksMap),
         ],
       })
+      console.log(`[Fork] Successfully created document: ${document.path}`)
     } catch (e) {
-      console.error(`========= ~ Forking: error: ${document.path}`, e)
+      console.error(`[Fork] Error processing document ${document.path}:`, e)
       throw e
     }
   }
+  console.log('[Fork] Fork process completed successfully')
 }
 
 function getBlockNodeChanges(
