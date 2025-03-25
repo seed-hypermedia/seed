@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Empty, Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
+import { Empty, Message, proto3, protoInt64, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Attrbites that can be used for sorting.
@@ -1292,6 +1292,13 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   activitySummary?: ActivitySummary;
 
+  /**
+   * Information about the generation of the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 12;
+   */
+  generationInfo?: GenerationInfo;
+
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1310,6 +1317,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "breadcrumbs", kind: "message", T: Breadcrumb, repeated: true },
     { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
+    { no: 12, name: "generation_info", kind: "message", T: GenerationInfo },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
@@ -1326,6 +1334,57 @@ export class DocumentInfo extends Message<DocumentInfo> {
 
   static equals(a: DocumentInfo | PlainMessage<DocumentInfo> | undefined, b: DocumentInfo | PlainMessage<DocumentInfo> | undefined): boolean {
     return proto3.util.equals(DocumentInfo, a, b);
+  }
+}
+
+/**
+ * Information about the generation of a document.
+ *
+ * @generated from message com.seed.documents.v3alpha.GenerationInfo
+ */
+export class GenerationInfo extends Message<GenerationInfo> {
+  /**
+   * CID of the genesis change.
+   *
+   * @generated from field: string genesis = 1;
+   */
+  genesis = "";
+
+  /**
+   * A generation number of the document.
+   * Usually it's a timestamp of the first time the generation is created,
+   * but it shouldn't be used as such, and should instead be treated as an opaque value.
+   *
+   * @generated from field: int64 generation = 2;
+   */
+  generation = protoInt64.zero;
+
+  constructor(data?: PartialMessage<GenerationInfo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GenerationInfo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerationInfo {
+    return new GenerationInfo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerationInfo {
+    return new GenerationInfo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerationInfo {
+    return new GenerationInfo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GenerationInfo | PlainMessage<GenerationInfo> | undefined, b: GenerationInfo | PlainMessage<GenerationInfo> | undefined): boolean {
+    return proto3.util.equals(GenerationInfo, a, b);
   }
 }
 
@@ -1546,6 +1605,13 @@ export class Document extends Message<Document> {
    */
   version = "";
 
+  /**
+   * Information about the generation of the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 13;
+   */
+  generationInfo?: GenerationInfo;
+
   constructor(data?: PartialMessage<Document>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1565,6 +1631,7 @@ export class Document extends Message<Document> {
     { no: 8, name: "update_time", kind: "message", T: Timestamp },
     { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "generation_info", kind: "message", T: GenerationInfo },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {
@@ -2152,6 +2219,13 @@ export class Ref extends Message<Ref> {
    */
   timestamp?: Timestamp;
 
+  /**
+   * Information about the generation of the Ref.
+   *
+   * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 8;
+   */
+  generationInfo?: GenerationInfo;
+
   constructor(data?: PartialMessage<Ref>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2167,6 +2241,7 @@ export class Ref extends Message<Ref> {
     { no: 5, name: "signer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "timestamp", kind: "message", T: Timestamp },
+    { no: 8, name: "generation_info", kind: "message", T: GenerationInfo },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ref {

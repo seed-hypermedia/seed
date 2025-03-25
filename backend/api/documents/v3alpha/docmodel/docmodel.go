@@ -547,6 +547,10 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		CreateTime: timestamppb.New(first.Ts),
 		Genesis:    e.cids[0].String(),
 		Version:    e.Version().String(),
+		GenerationInfo: &documents.GenerationInfo{
+			Genesis:    e.cids[0].String(),
+			Generation: dm.Generation.Value(),
+		},
 	}
 
 	docpb.UpdateTime = timestamppb.New(last.Ts)

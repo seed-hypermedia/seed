@@ -92,7 +92,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis", "GenerationInfo").
 		Compare(t, "profile document must match")
 }
 
@@ -551,7 +551,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "Version", "Genesis").
+		IgnoreFields(documents.Document{}, "Version", "Genesis", "GenerationInfo").
 		Compare(t, "profile document must match")
 
 	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -639,9 +639,10 @@ func TestTombstoneRef(t *testing.T) {
 				Tombstone: &documents.RefTarget_Tombstone{},
 			},
 		},
-		Signer:     "z6MkvFrq593SZ3QNsAgXdsHC2CJGrrwUdwxY2EdRGaT4UbYj",
-		Capability: "",
-		Timestamp:  tombstone.Timestamp,
+		Signer:         "z6MkvFrq593SZ3QNsAgXdsHC2CJGrrwUdwxY2EdRGaT4UbYj",
+		Capability:     "",
+		Timestamp:      tombstone.Timestamp,
+		GenerationInfo: tombstone.GenerationInfo,
 	}
 	testutil.StructsEqual(want, tombstone).Compare(t, "tombstone ref must match")
 	require.True(t, tombstone.Timestamp.AsTime().After(time.Now().Add(time.Hour*-1)), "ref timestamp must be set around the current time")

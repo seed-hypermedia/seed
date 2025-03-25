@@ -694,6 +694,7 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 		Select(
 			"r.iri",
 			"dg.genesis",
+			"dg.generation",
 			"dg.metadata",
 			"dg.comment_count",
 			"dg.heads",
@@ -719,6 +720,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	var (
 		iriRaw            = row.ColumnText(inc())
 		genesis           = row.ColumnText(inc())
+		generation        = row.ColumnInt64(inc())
 		metadataJSON      = row.ColumnBytesUnsafe(inc())
 		commentCount      = row.ColumnInt64(inc())
 		headsJSON         = row.ColumnBytesUnsafe(inc())
@@ -839,6 +841,10 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
+		},
+		GenerationInfo: &documents.GenerationInfo{
+			Genesis:    genesis,
+			Generation: generation,
 		},
 	}
 
@@ -982,6 +988,10 @@ func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 		Path:      ref.Path,
 		Signer:    ref.Signer.String(),
 		Timestamp: timestamppb.New(ref.Ts),
+		GenerationInfo: &documents.GenerationInfo{
+			Genesis:    ref.GenesisBlob.String(),
+			Generation: ref.Generation,
+		},
 	}
 
 	switch {
@@ -1193,13 +1203,14 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 	return &documents.DocumentInfo{
-		Account:    doc.Account,
-		Path:       doc.Path,
-		Metadata:   doc.Metadata,
-		Authors:    doc.Authors,
-		CreateTime: doc.CreateTime,
-		UpdateTime: doc.UpdateTime,
-		Genesis:    doc.Genesis,
-		Version:    doc.Version,
+		Account:        doc.Account,
+		Path:           doc.Path,
+		Metadata:       doc.Metadata,
+		Authors:        doc.Authors,
+		CreateTime:     doc.CreateTime,
+		UpdateTime:     doc.UpdateTime,
+		Genesis:        doc.Genesis,
+		Version:        doc.Version,
+		GenerationInfo: doc.GenerationInfo,
 	}
 }

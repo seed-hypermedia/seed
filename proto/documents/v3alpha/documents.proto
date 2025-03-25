@@ -382,6 +382,20 @@ message DocumentInfo {
 
   // Summary of the activity on the document.
   ActivitySummary activity_summary = 11;
+
+  // Information about the generation of the document.
+  GenerationInfo generation_info = 12;
+}
+
+// Information about the generation of a document.
+message GenerationInfo {
+  // CID of the genesis change.
+  string genesis = 1;
+
+  // A generation number of the document.
+  // Usually it's a timestamp of the first time the generation is created,
+  // but it shouldn't be used as such, and should instead be treated as an opaque value.
+  int64 generation = 2;
 }
 
 // Summary of the activity on a document or account.
@@ -452,6 +466,9 @@ message Document {
 
   // Output only. Current version of the document.
   string version = 10;
+
+  // Information about the generation of the document.
+  GenerationInfo generation_info = 13;
 }
 
 // Content block with children.
@@ -617,6 +634,9 @@ message Ref {
 
   // Timestamp of the Ref.
   google.protobuf.Timestamp timestamp = 7;
+
+  // Information about the generation of the Ref.
+  GenerationInfo generation_info = 8;
 }
 
 // Description of where the Ref points to.

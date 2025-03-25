@@ -28,6 +28,7 @@ const blobTypeRef blobType = "Ref"
 
 func init() {
 	cbornode.RegisterCborType(Ref{})
+	cbornode.RegisterCborType(RedirectTarget{})
 }
 
 // Ref is a blob that claims an entry for a path in a space
@@ -36,12 +37,13 @@ func init() {
 type Ref struct {
 	baseBlob
 
-	Space_      core.Principal `refmt:"space,omitempty"` // Use Space() method.
-	Path        string         `refmt:"path,omitempty"`
-	GenesisBlob cid.Cid        `refmt:"genesisBlob,omitempty"`
-	Capability  cid.Cid        `refmt:"capability,omitempty"`
-	Heads       []cid.Cid      `refmt:"heads"`
-	Generation  int64          `refmt:"generation,omitempty"`
+	Space_      core.Principal  `refmt:"space,omitempty"` // Use Space() method.
+	Path        string          `refmt:"path,omitempty"`
+	GenesisBlob cid.Cid         `refmt:"genesisBlob,omitempty"`
+	Capability  cid.Cid         `refmt:"capability,omitempty"`
+	Heads       []cid.Cid       `refmt:"heads"`
+	Redirect    *RedirectTarget `refmt:"redirect,omitempty"`
+	Generation  int64           `refmt:"generation,omitempty"`
 }
 
 // NewRef creates a new Ref blob.
@@ -74,6 +76,36 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 	return encodeBlob(ru)
 }
 
+// NewRefRedirect creates a new Ref blob that redirects to another document.
+func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, rt RedirectTarget, ts time.Time) (eb Encoded[*Ref], err error) {
+	// If we redirect within the same space, we don't need to specify the space in the redirect target.
+	if space.Equal(rt.Space) {
+		rt.Space = nil
+	}
+
+	ru := &Ref{
+		baseBlob: baseBlob{
+			Type:   blobTypeRef,
+			Signer: kp.Principal(),
+			Ts:     ts,
+		},
+		Path:        path,
+		GenesisBlob: genesis,
+		Redirect:    &rt,
+		Generation:  generation,
+	}
+
+	if !kp.Principal().Equal(space) {
+		ru.Space_ = space
+	}
+
+	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
+		return eb, err
+	}
+
+	return encodeBlob(ru)
+}
+
 // Space returns the space the Ref is applied to.
 func (r *Ref) Space() core.Principal {
 	if len(r.Space_) == 0 {
@@ -81,6 +113,12 @@ func (r *Ref) Space() core.Principal {
 	}
 
 	return r.Space_
+}
+
+// RedirectTarget holds information about the redirect target.
+type RedirectTarget struct {
+	Space core.Principal `refmt:"space,omitempty"`
+	Path  string         `refmt:"path,omitempty"`
 }
 
 func init() {
