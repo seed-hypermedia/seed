@@ -9,6 +9,7 @@ import {EditorBlock} from '@shm/shared/editor-types'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
+import {toast} from '../../ui/src/toast'
 
 export function youtubeParser(url: string) {
   var regExp =
@@ -159,3 +160,79 @@ export function serverBlockNodesFromEditorBlocks(
     })
   })
 }
+
+type FileType = {
+  id: string
+  props: {
+    displaySrc: string
+    name: string
+    size: string
+    fileBinary: Uint8Array
+  }
+  children: []
+  content: []
+  type: string
+}
+
+export async function handleDragMedia(
+  file: File,
+  handleFileAttachment?: (
+    file: File,
+  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>,
+) {
+  if (file.size > 62914560) {
+    toast.error(`The size of ${file.name} exceeds 60 MB.`)
+    return null
+  }
+
+  if (handleFileAttachment) {
+    const {displaySrc, fileBinary} = await handleFileAttachment(file)
+    console.log('displaySrc', displaySrc, fileBinary)
+
+    const {name, size} = file
+
+    console.log({
+      fileBinary,
+      displaySrc,
+      name,
+      size: size.toString(),
+    })
+
+    return {
+      displaySrc: displaySrc,
+      fileBinary: fileBinary,
+      name: name,
+      size: size.toString(),
+    } as FileType['props']
+  }
+  return
+}
+
+export function generateBlockId(length: number = 8): string {
+  const characters =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
+  return result
+}
+
+export const chromiumSupportedImageMimeTypes = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/bmp',
+  'image/svg+xml',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+  'image/apng',
+  'image/avif',
+])
+
+export const chromiumSupportedVideoMimeTypes = new Set([
+  'video/mp4',
+  'video/webm',
+])

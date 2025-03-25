@@ -7,14 +7,20 @@ import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
+import {useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
-import {BlockNoteEditor, useBlockNote} from './blocknote'
+import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {EmbedToolbarProvider} from './embed-toolbar-context'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {hmBlockSchema} from './schema'
 import {slashMenuItems} from './slash-menu-items'
-import {serverBlockNodesFromEditorBlocks} from './utils'
+import {
+  chromiumSupportedImageMimeTypes,
+  generateBlockId,
+  handleDragMedia,
+  serverBlockNodesFromEditorBlocks,
+} from './utils'
 
 export default function CommentEditor({
   onDiscardDraft,
@@ -35,7 +41,130 @@ export default function CommentEditor({
   }) => JSX.Element
 }) {
   const {editor} = useCommentEditor()
-  const {openUrl} = useDocContentContext()
+  const {openUrl, handleFileAttachment} = useDocContentContext()
+  const [isDragging, setIsDragging] = useState(false)
+
+  function onDrop(event: DragEvent) {
+    if (!isDragging) return
+    const dataTransfer = event.dataTransfer
+
+    if (dataTransfer) {
+      const ttEditor = editor._tiptapEditor
+      const files: File[] = []
+
+      if (dataTransfer.files.length) {
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+          files.push(dataTransfer.files[i])
+        }
+      } else if (dataTransfer.items.length) {
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i].getAsFile()
+          if (item) {
+            files.push(item)
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        const editorElement = document.getElementsByClassName(
+          'mantine-Editor-root',
+        )[0]
+        const editorBoundingBox = editorElement.getBoundingClientRect()
+        const posAtCoords = ttEditor.view.posAtCoords({
+          left: editorBoundingBox.left + editorBoundingBox.width / 2,
+          top: event.clientY,
+        })
+        let pos: number | null
+        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+        else if (event.clientY > editorBoundingBox.bottom)
+          pos = ttEditor.view.state.doc.content.size - 4
+
+        let lastId: string
+
+        // using reduce so files get inserted sequentially
+        files
+          // @ts-expect-error
+          .reduce((previousPromise, file, index) => {
+            return previousPromise.then(() => {
+              event.preventDefault()
+              event.stopPropagation()
+
+              if (pos) {
+                return handleDragMedia(file, handleFileAttachment).then(
+                  (props) => {
+                    if (!props) return false
+
+                    const {state} = ttEditor.view
+                    let blockNode
+                    const newId = generateBlockId()
+
+                    if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                      blockNode = {
+                        id: newId,
+                        type: 'image',
+                        props: {
+                          displaySrc: props.displaySrc,
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                        },
+                      }
+                    }
+                    // else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                    //   blockNode = {
+                    //     id: newId,
+                    //     type: 'video',
+                    //     props: {
+                    //       url: props.url,
+                    //       name: props.name,
+                    //     },
+                    //   }
+                    // } else {
+                    //   blockNode = {
+                    //     id: newId,
+                    //     type: 'file',
+                    //     props: {
+                    //       ...props,
+                    //     },
+                    //   }
+                    // }
+
+                    const blockInfo = getBlockInfoFromPos(state, pos)
+
+                    console.log(blockNode)
+
+                    if (index === 0) {
+                      ;(editor as BlockNoteEditor).insertBlocks(
+                        [blockNode],
+                        blockInfo.block.node.attrs.id,
+                        // blockInfo.node.textContent ? 'after' : 'before',
+                        'after',
+                      )
+                    } else {
+                      ;(editor as BlockNoteEditor).insertBlocks(
+                        [blockNode],
+                        lastId,
+                        'after',
+                      )
+                    }
+
+                    lastId = newId
+                  },
+                )
+              }
+            })
+          }, Promise.resolve())
+        // .then(() => true) // TODO: @horacio ask Iskak about this
+        setIsDragging(false)
+        return true
+      }
+      setIsDragging(false)
+      return false
+    }
+    setIsDragging(false)
+
+    return false
+  }
+
   return (
     <YStack gap="$3">
       <YStack
@@ -57,6 +186,22 @@ export default function CommentEditor({
         }}
         gap="$4"
         paddingBottom="$2"
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        // onDrop={(e) => {
+        //   e.preventDefault()
+        //   const files = Array.from(e.dataTransfer.files)
+        //   console.log('Dropped files:', files)
+        // }}
+        onDrop={onDrop}
       >
         <EmbedToolbarProvider>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} />
