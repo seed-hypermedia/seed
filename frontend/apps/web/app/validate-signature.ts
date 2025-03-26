@@ -1,4 +1,4 @@
-import {webcrypto} from "crypto";
+import {webcrypto} from 'crypto'
 
 /**
  * Decompresses a compressed P-256 public key
@@ -6,135 +6,135 @@ import {webcrypto} from "crypto";
  * @returns Uncompressed public key as CryptoKey
  */
 async function decompressPublicKey(
-  compressedKey: Uint8Array
+  compressedKey: Uint8Array,
 ): Promise<CryptoKey> {
   // Remove the varint prefix (128, 36) to get just the compressed key
-  const actualCompressedKey = compressedKey.slice(2);
+  const actualCompressedKey = compressedKey.slice(2)
 
   // First byte is the prefix (0x02 or 0x03) indicating if y is even or odd
-  const prefix = actualCompressedKey[0];
-  const x = actualCompressedKey.slice(1);
+  const prefix = actualCompressedKey[0]
+  const x = actualCompressedKey.slice(1)
 
   // Convert x coordinate to big integer
-  const xBigInt = BigInt("0x" + Buffer.from(x).toString("hex"));
+  const xBigInt = BigInt('0x' + Buffer.from(x).toString('hex'))
 
   // P-256 curve parameters
   const p = BigInt(
-    "0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF"
-  );
-  const a = BigInt(-3);
+    '0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF',
+  )
+  const a = BigInt(-3)
   const b = BigInt(
-    "0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B"
-  );
+    '0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B',
+  )
 
   // Calculate y² = x³ + ax + b
-  const ySquared = (xBigInt * xBigInt * xBigInt + a * xBigInt + b) % p;
+  const ySquared = (xBigInt * xBigInt * xBigInt + a * xBigInt + b) % p
 
   // Calculate y using square root
-  let y = modularSquareRoot(ySquared, p);
+  let y = modularSquareRoot(ySquared, p)
 
   // If prefix doesn't match y's oddness, use the other root
-  const yIsOdd = (y & 1n) === 1n;
+  const yIsOdd = (y & 1n) === 1n
   if ((prefix === 0x03 && !yIsOdd) || (prefix === 0x02 && yIsOdd)) {
-    y = p - y;
+    y = p - y
   }
 
   // Convert to uncompressed format (0x04 || x || y)
-  const uncompressedKey = new Uint8Array(65);
-  uncompressedKey[0] = 0x04;
-  uncompressedKey.set(x, 1);
-  const yBytes = new Uint8Array(32);
+  const uncompressedKey = new Uint8Array(65)
+  uncompressedKey[0] = 0x04
+  uncompressedKey.set(x, 1)
+  const yBytes = new Uint8Array(32)
   for (let i = 0; i < 32; i++) {
-    yBytes[31 - i] = Number((y >> BigInt(i * 8)) & 0xffn);
+    yBytes[31 - i] = Number((y >> BigInt(i * 8)) & 0xffn)
   }
-  uncompressedKey.set(yBytes, 33);
+  uncompressedKey.set(yBytes, 33)
 
   // Import as CryptoKey
   return webcrypto.subtle.importKey(
-    "raw",
+    'raw',
     uncompressedKey,
     {
-      name: "ECDSA",
-      namedCurve: "P-256",
+      name: 'ECDSA',
+      namedCurve: 'P-256',
     },
     true,
-    ["verify"]
-  );
+    ['verify'],
+  )
 }
 
 /**
  * Calculate modular square root using Tonelli-Shanks algorithm
  */
 function modularSquareRoot(n: bigint, p: bigint): bigint {
-  if (n === 0n) return 0n;
+  if (n === 0n) return 0n
 
   // Legendre symbol test
-  const ls = legendreSymbol(n, p);
-  if (ls === -1) throw new Error("No square root exists");
+  const ls = legendreSymbol(n, p)
+  if (ls === -1) throw new Error('No square root exists')
 
-  let q = p - 1n;
-  let s = 0n;
+  let q = p - 1n
+  let s = 0n
   while (q % 2n === 0n) {
-    q /= 2n;
-    s++;
+    q /= 2n
+    s++
   }
 
   if (s === 1n) {
-    const r = modPow(n, (p + 1n) / 4n, p);
-    return r;
+    const r = modPow(n, (p + 1n) / 4n, p)
+    return r
   }
 
-  let z = 2n;
+  let z = 2n
   while (legendreSymbol(z, p) !== -1) {
-    z++;
+    z++
   }
 
-  let c = modPow(z, q, p);
-  let r = modPow(n, (q + 1n) / 2n, p);
-  let t = modPow(n, q, p);
-  let m = s;
+  let c = modPow(z, q, p)
+  let r = modPow(n, (q + 1n) / 2n, p)
+  let t = modPow(n, q, p)
+  let m = s
 
   while (t !== 1n) {
-    let i = 0n;
-    let temp = t;
+    let i = 0n
+    let temp = t
     while (temp !== 1n && i < m) {
-      temp = (temp * temp) % p;
-      i++;
+      temp = (temp * temp) % p
+      i++
     }
 
-    if (i === 0n) return r;
+    if (i === 0n) return r
 
-    const b = modPow(c, modPow(2n, m - i - 1n, p - 1n), p);
-    r = (r * b) % p;
-    c = (b * b) % p;
-    t = (t * c) % p;
-    m = i;
+    const b = modPow(c, modPow(2n, m - i - 1n, p - 1n), p)
+    r = (r * b) % p
+    c = (b * b) % p
+    t = (t * c) % p
+    m = i
   }
 
-  return r;
+  return r
 }
 
 function legendreSymbol(a: bigint, p: bigint): number {
-  const ls = modPow(a, (p - 1n) / 2n, p);
-  if (ls === p - 1n) return -1;
-  return Number(ls);
+  const ls = modPow(a, (p - 1n) / 2n, p)
+  if (ls === p - 1n) return -1
+  return Number(ls)
 }
 
 function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
-  if (modulus === 1n) return 0n;
+  if (modulus === 1n) return 0n
 
-  let result = 1n;
-  base = base % modulus;
+  let result = 1n
+  base = base % modulus
 
   while (exponent > 0n) {
     if (exponent % 2n === 1n) {
-      result = (result * base) % modulus;
+      result = (result * base) % modulus
     }
-    base = (base * base) % modulus;
-    exponent = exponent / 2n;
+    base = (base * base) % modulus
+    exponent = exponent / 2n
   }
 
-  return result;
+  return result
 }
 
 /**
@@ -147,24 +147,24 @@ function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
 export async function validateSignature(
   compressedPublicKey: Uint8Array,
   signature: Uint8Array,
-  data: Uint8Array
+  data: Uint8Array,
 ): Promise<boolean> {
   try {
-    const publicKey = await decompressPublicKey(compressedPublicKey);
+    const publicKey = await decompressPublicKey(compressedPublicKey)
 
     const isValid = await webcrypto.subtle.verify(
       {
-        name: "ECDSA",
-        hash: {name: "SHA-256"},
+        name: 'ECDSA',
+        hash: {name: 'SHA-256'},
       },
       publicKey,
       signature,
-      data
-    );
+      data,
+    )
 
-    return isValid;
+    return isValid
   } catch (error) {
-    console.error("Signature validation error:", error);
-    return false;
+    console.error('Signature validation error:', error)
+    return false
   }
 }
