@@ -1,13 +1,14 @@
 import {grpcClient} from '@/grpc-client'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentRoute, hmId} from '@shm/shared'
+import {DocumentRoute, hmId, queryClient, queryKeys} from '@shm/shared'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
+import {dispatchEditPopover} from './onboarding'
 
 let templates = {
   blog: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
@@ -47,9 +48,15 @@ export function SiteTemplate() {
         client: grpcClient,
         targetId,
         templateId: templates[selectedTemplate],
-      }).then(() => {
+      }).then((targetVersion) => {
         dispatchSiteTemplateEvent(false)
-        window.location.reload()
+        queryClient.invalidateQueries({
+          queryKey: [queryKeys.ENTITY, (route as DocumentRoute).id?.id],
+        })
+
+        setTimeout(() => {
+          dispatchEditPopover(true)
+        }, 500)
       })
       return
     }

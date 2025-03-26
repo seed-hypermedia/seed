@@ -139,7 +139,6 @@ function getBlockNodeChanges(
     if (bn.block.type == 'Button') {
       console.log('[Fork] Processing Button block:')
       console.log(`[Fork] Original link: ${bn.block.link}`)
-      const originalUrl = bn.block.link
       bn.block.link = bn.block.link.replace(
         /hm:\/\/([^/]+)/,
         `hm://${targetId}`,

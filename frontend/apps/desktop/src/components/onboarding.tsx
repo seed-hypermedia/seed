@@ -2,10 +2,9 @@ import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
-import {useNavRoute} from '@/utils/navigation'
 import {extractWords} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId, useOpenUrl} from '@shm/shared'
+import {eventStream, UnpackedHypermediaId, useOpenUrl} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -57,16 +56,15 @@ interface ProfileFormData {
   seedExperimentalLogo?: ImageData
 }
 
+export const [dispatchEditPopover, editPopoverEvents] = eventStream<boolean>()
+
 export function Onboarding({onComplete}: OnboardingProps) {
   // Check if onboarding has been completed or skipped
   const state = getOnboardingState()
   const navigate = useNavigate('replace')
-  const route = useNavRoute()
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(
     undefined,
   )
-
-  console.log(`== ~ Onboarding ~ route:`, route)
   // If onboarding has been completed or skipped, don't show it
   useEffect(() => {
     if (state.hasCompletedOnboarding || state.hasSkippedOnboarding) {
