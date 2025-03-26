@@ -49,7 +49,7 @@ export async function sendEmail(
     html: body.html,
   })
 
-  console.log('Message sent: %s', info.messageId)
+  console.log('Email sent to %s (%s)', to, info.messageId)
 
   return info
 }

@@ -11,8 +11,8 @@ import {
   getNotifierLastProcessedBlobCid,
   initDatabase,
   setAccount,
+  setEmailUnsubscribed,
   setNotifierLastProcessedBlobCid,
-  unsubscribeEmail,
   updateAccount,
 } from './db'
 
@@ -296,7 +296,7 @@ describe('Database', () => {
       )
     })
 
-    it('should unsubscribe email', () => {
+    it('should unsubscribe and subscribe email', () => {
       const email = 'test@example.com'
       createAccount({
         id: 'test-id',
@@ -309,10 +309,15 @@ describe('Database', () => {
         .get(email) as {adminToken: string}
       db.close()
 
-      unsubscribeEmail(adminToken.adminToken)
+      setEmailUnsubscribed(adminToken.adminToken, true)
 
       const emailData = getEmail(adminToken.adminToken)
       expect(emailData?.isUnsubscribed).toBe(true)
+
+      setEmailUnsubscribed(adminToken.adminToken, false)
+
+      const emailData2 = getEmail(adminToken.adminToken)
+      expect(emailData2?.isUnsubscribed).toBe(false)
     })
 
     it('should return null for non-existent email', () => {

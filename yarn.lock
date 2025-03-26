@@ -9639,8 +9639,8 @@ __metadata:
     "@types/katex": 0.16.7
     "@types/node": 20.6.5
     "@types/prosemirror-dev-tools": 3.0.3
-    "@types/react": 18.2.21
-    "@types/react-dom": 18.2.7
+    "@types/react": 18.2.64
+    "@types/react-dom": 18.2.21
     "@vitejs/plugin-react": 4.0.4
     "@xstate/react": 4.1.3
     cheerio: 1.0.0-rc.12
@@ -9752,8 +9752,8 @@ __metadata:
     "@tiptap/extension-underline": 2.0.3
     "@tiptap/pm": 2.0.3
     "@tiptap/react": 2.0.3
-    "@types/react": ^18.3.18
-    "@types/react-dom": ^18.3.5
+    "@types/react": 18.2.64
+    "@types/react-dom": 18.2.21
     "@vitejs/plugin-react": ^4.3.4
     eslint: ^9.17.0
     eslint-plugin-react-hooks: ^5.0.0
@@ -9936,8 +9936,8 @@ __metadata:
     "@types/mjml": ^4.7.4
     "@types/mjml-core": ^4.15.1
     "@types/nodemailer": ^6.4.17
-    "@types/react": 18.2.55
-    "@types/react-dom": 18.2.19
+    "@types/react": 18.2.64
+    "@types/react-dom": 18.2.21
     "@types/sharp": ^0.32.0
     better-sqlite3: ^11.8.1
     isbot: 4
@@ -13698,30 +13698,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-dom@npm:18.2.19":
-  version: 18.2.19
-  resolution: "@types/react-dom@npm:18.2.19"
+"@types/react-dom@npm:18.2.21":
+  version: 18.2.21
+  resolution: "@types/react-dom@npm:18.2.21"
   dependencies:
     "@types/react": "*"
-  checksum: 087a19d8e4c1c0900ec4ac5ddb749a811a38274b25683d233c11755d2895cc6e475e8bf9bea3dee36519769298e078d4c2feab9ab4bd13b26bc2a6170716437e
-  languageName: node
-  linkType: hard
-
-"@types/react-dom@npm:18.2.7":
-  version: 18.2.7
-  resolution: "@types/react-dom@npm:18.2.7"
-  dependencies:
-    "@types/react": "*"
-  checksum: e02ea908289a7ad26053308248d2b87f6aeafd73d0e2de2a3d435947bcea0422599016ffd1c3e38ff36c42f5e1c87c7417f05b0a157e48649e4a02f21727d54f
-  languageName: node
-  linkType: hard
-
-"@types/react-dom@npm:^18.3.5":
-  version: 18.3.5
-  resolution: "@types/react-dom@npm:18.3.5"
-  peerDependencies:
-    "@types/react": ^18.0.0
-  checksum: 95c757684f71e761515c5a11299e5feec550c72bb52975487f360e6f0d359b26454c26eaf2ce45dd22748205aa9b2c2fe0abe7005ebcbd233a7615283ac39a7d
+  checksum: 0ff00aedf5ffad90ed226c0ab0acdca609804c81af5dbde0d13a4ae53dac6bd92f85f1adc032c42966ec2e9417d13d18a41767434afa4d8c1979cad57348191b
   languageName: node
   linkType: hard
 
@@ -13775,35 +13757,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:18.2.21":
-  version: 18.2.21
-  resolution: "@types/react@npm:18.2.21"
+"@types/react@npm:18.2.64":
+  version: 18.2.64
+  resolution: "@types/react@npm:18.2.64"
   dependencies:
     "@types/prop-types": "*"
     "@types/scheduler": "*"
     csstype: ^3.0.2
-  checksum: ffed203bfe7aad772b8286f7953305c9181ac3a8f27d3f5400fbbc2a8e27ca8e5bbff818ee014f39ca0d19d2b3bb154e5bdbec7e232c6f80b59069375aa78349
-  languageName: node
-  linkType: hard
-
-"@types/react@npm:18.2.55":
-  version: 18.2.55
-  resolution: "@types/react@npm:18.2.55"
-  dependencies:
-    "@types/prop-types": "*"
-    "@types/scheduler": "*"
-    csstype: ^3.0.2
-  checksum: a8eb4fa77f73831b9112d4f11a7006217dc0740361649b9b0da3fd441d151a9cd415d5d68b91c0af4e430e063424d301c77489e5edaddc9f711c4e46cf9818a5
-  languageName: node
-  linkType: hard
-
-"@types/react@npm:^18.3.18":
-  version: 18.3.20
-  resolution: "@types/react@npm:18.3.20"
-  dependencies:
-    "@types/prop-types": "*"
-    csstype: ^3.0.2
-  checksum: a93a4eec87c671ad9d68eaedaa2aa3688926409802939d2b291800cf926c771eb505a18721174364217ae9e1e8b89d09c1519f06ba1f168271de9f4c832710ea
+  checksum: 1fd28dc5e5d191619e0b001485f428a070bad11f55683a212d3bd937bdc979335913f90f4ca4f0510871e5f35d8f46b169a23276fb048d06584623d3652cc0f3
   languageName: node
   linkType: hard
 

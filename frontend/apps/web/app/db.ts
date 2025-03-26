@@ -18,7 +18,7 @@ type BaseEmail = {
 }
 
 type Account = BaseAccount
-type Email = BaseEmail & {
+export type Email = BaseEmail & {
   accounts: BaseAccount[]
 }
 
@@ -187,11 +187,14 @@ export function getEmail(emailAdminToken: string): Email | null {
   }
 }
 
-export function unsubscribeEmail(emailAdminToken: string): void {
+export function setEmailUnsubscribed(
+  emailAdminToken: string,
+  isUnsubscribed: boolean,
+): void {
   const stmt = db.prepare(`
     UPDATE emails SET isUnsubscribed = ? WHERE adminToken = ?
   `)
-  stmt.run(1, emailAdminToken)
+  stmt.run(isUnsubscribed ? 1 : 0, emailAdminToken)
 }
 
 export function getAllEmails(): Email[] {

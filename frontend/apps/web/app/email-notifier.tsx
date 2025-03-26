@@ -3,7 +3,6 @@ import {
   Mjml,
   MjmlBody,
   MjmlButton,
-  MjmlColumn,
   MjmlHead,
   MjmlPreview,
   MjmlSection,
@@ -21,6 +20,7 @@ import {
   hmId,
   HMMetadata,
   SITE_BASE_URL,
+  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import mjml2html from 'mjml'
@@ -36,24 +36,23 @@ import {getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
-  console.log('initEmailNotifier', {ENABLE_EMAIL_NOTIFICATIONS})
   if (!ENABLE_EMAIL_NOTIFICATIONS) return
 
-  await handleEmailNotifications()
-  console.log('Email notifications handled')
+  console.log('Email Notifications Enabled')
 
-  setInterval(
-    () => {
-      handleEmailNotifications()
-        .then(() => {
-          console.log('Email notifications handled')
-        })
-        .catch((err) => {
-          console.error('Error handling email notifications', err)
-        })
-    },
-    1000 * 60 * 1,
-  ) // 1 minute
+  await handleEmailNotifications()
+
+  const handleEmailNotificationsIntervalSeconds = 30
+
+  setInterval(() => {
+    handleEmailNotifications()
+      .then(() => {
+        // console.log('Email notifications handled')
+      })
+      .catch((err) => {
+        console.error('Error handling email notifications', err)
+      })
+  }, 1000 * handleEmailNotificationsIntervalSeconds)
 }
 
 async function handleEmailNotifications() {
@@ -95,6 +94,7 @@ type Notification =
       comment: PlainMessage<Comment>
       commentAuthorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
       url: string
     }
@@ -103,6 +103,7 @@ type Notification =
       comment: PlainMessage<Comment>
       commentAuthorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
       url: string
     }
@@ -138,10 +139,12 @@ async function handleEventsForEmailNotifications(
     string, // email
     {
       accountId: string
+      accountMeta: HMMetadata | null
       notif: Notification
     }[]
   > = {}
-  function appendNotification(
+  const accountMetas: Record<string, HMMetadata | null> = {}
+  async function appendNotification(
     email: string,
     accountId: string,
     notif: Notification,
@@ -149,7 +152,16 @@ async function handleEventsForEmailNotifications(
     if (!notificationsToSend[email]) {
       notificationsToSend[email] = []
     }
-    notificationsToSend[email].push({accountId, notif})
+    if (accountMetas[accountId] === undefined) {
+      accountMetas[accountId] = (
+        await getMetadata(hmId('d', accountId))
+      ).metadata
+    }
+    notificationsToSend[email].push({
+      accountId,
+      accountMeta: accountMetas[accountId],
+      notif,
+    })
   }
   for (const email of allEmails) {
     for (const account of email.accounts) {
@@ -203,24 +215,29 @@ async function handleEventsForEmailNotifications(
       const account = accountNotificationOptions[accountId]
       const comment = newComment.comment
       const targetDocUrl = `${SITE_BASE_URL}/hm/${comment.targetAccount}${comment.targetPath}`
+      const targetDocId = hmId('d', comment.targetAccount, {
+        path: entityQueryPathToHmIdPath(comment.targetPath),
+      })
       if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
-        appendNotification(account.email, accountId, {
+        await appendNotification(account.email, accountId, {
           type: 'reply',
           comment: newComment.comment,
           parentComments: newComment.parentComments,
           commentAuthorMeta: newComment.commentAuthorMeta,
           targetMeta: newComment.targetMeta,
+          targetId: targetDocId,
           url: targetDocUrl,
         })
       }
       if (account.notifyAllMentions) {
         if (newComment.mentions.has(accountId)) {
-          appendNotification(account.email, accountId, {
+          await appendNotification(account.email, accountId, {
             type: 'mention',
             comment: newComment.comment,
             parentComments: newComment.parentComments,
             commentAuthorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
+            targetId: targetDocId,
             url: targetDocUrl,
           })
         }
@@ -235,29 +252,79 @@ async function handleEventsForEmailNotifications(
   }
 }
 
+type FullNotification = {
+  accountId: string
+  accountMeta: HMMetadata | null
+  notif: Notification
+}
+
 async function sendNotificationsEmail(
   email: string,
   opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
-  notifications: {accountId: string; notif: Notification}[],
+  notifications: FullNotification[],
 ) {
   if (!notifications.length) return
+  const subscriberNames: Set<string> = new Set()
+  const notificationsByDocument: Record<string, FullNotification[]> = {}
+  for (const notification of notifications) {
+    if (!notificationsByDocument[notification.notif.targetId.id]) {
+      notificationsByDocument[notification.notif.targetId.id] = []
+    }
+    notificationsByDocument[notification.notif.targetId.id].push(notification)
+    subscriberNames.add(notification.accountMeta?.name || 'You')
+  }
+  const docNotifs = Object.values(notificationsByDocument)
+  const baseNotifsSubject =
+    notifications.length > 1
+      ? `${notifications.length} Notifications`
+      : 'Notification'
+  let subject = baseNotifsSubject
+  const singleDocumentTitle = notifications.every(
+    (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name,
+  )
+    ? notifications[0].notif.targetMeta?.name
+    : undefined
+  if (singleDocumentTitle) {
+    subject = `${baseNotifsSubject} on ${singleDocumentTitle}`
+  }
+  const firstNotificationSummary = getNotificationSummary(
+    notifications[0].notif,
+    notifications[0].accountMeta,
+  )
   const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
-  const text = `New Updates from ${SITE_BASE_URL}
+
+  const text = `${baseNotifsSubject}
+
+${docNotifs
+  .map((notifications) => {
+    const docName =
+      notifications[0].notif.targetMeta?.name || 'Untitled Document'
+    return `${docName}
 
 ${notifications
   .map((notification) => {
     const comment = notification.notif.comment
     return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`
   })
-  .join('\n\n')}
+  .join('\n')}
+
+${notifications[0].notif.url}
+
+`
+  })
+  .join('\n')}
   
 Unsubscribe from this email: ${notifSettingsUrl}`
-  const {html, errors} = renderReactToMjml(
+  const {html} = renderReactToMjml(
     <Mjml>
       <MjmlHead>
-        <MjmlTitle>Hypermedia Notifications</MjmlTitle>
+        <MjmlTitle>{subject}</MjmlTitle>
         {/* This preview is visible from the email client before the user clicks on the email */}
-        <MjmlPreview>{notifications.length} notifications</MjmlPreview>
+        <MjmlPreview>
+          {notifications.length > 1
+            ? `${firstNotificationSummary} and more`
+            : firstNotificationSummary}
+        </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
         {/* <MjmlSection fullWidth backgroundColor="#efefef">
@@ -265,32 +332,72 @@ Unsubscribe from this email: ${notifSettingsUrl}`
             <MjmlImage src="https://static.wixstatic.com/media/5cb24728abef45dabebe7edc1d97ddd2.jpg" />
           </MjmlColumn>
         </MjmlSection> */}
-        {notifications.map((notification) => {
+        {docNotifs.map((notifications) => {
           return (
             <MjmlSection>
-              <MjmlText>${getNotificationSummary(notification)}</MjmlText>
-              <MjmlColumn>
-                <MjmlButton
-                  padding="20px"
-                  backgroundColor="#346DB7"
-                  href={notification.notif.url}
-                >
-                  Open Document
-                </MjmlButton>
-              </MjmlColumn>
+              <MjmlText fontSize={20} fontWeight={'bold'}>
+                {notifications[0].notif.targetMeta?.name || 'Untitled Document'}
+              </MjmlText>
+              {notifications.map((notification) => {
+                return (
+                  <MjmlText paddingBottom={8} paddingTop={8}>
+                    {getNotificationSummary(
+                      notification.notif,
+                      notification.accountMeta,
+                    )}
+                  </MjmlText>
+                )
+              })}
+              <MjmlButton
+                padding="8px"
+                backgroundColor="#346DB7"
+                href={notifications[0].notif.url}
+              >
+                Open Document
+              </MjmlButton>
             </MjmlSection>
           )
         })}
+        <MjmlSection>
+          <MjmlText fontSize={10} paddingBottom={10} align="center">
+            Subscribed by mistake? Click here to unsubscribe:
+          </MjmlText>
+          <MjmlButton
+            padding="8px"
+            backgroundColor="#828282"
+            href={notifSettingsUrl}
+            align="center"
+          >
+            Manage Email Notifications
+          </MjmlButton>
+        </MjmlSection>
       </MjmlBody>
     </Mjml>,
-    {validationLevel: 'soft'},
   )
-  console.log('Sending email to', email, 'with text', text)
-  await sendEmail(email, 'New notifications', {text, html})
+  console.log('Sending email to', email, 'with text:\n', text)
+
+  await sendEmail(
+    email,
+    subject,
+    {text, html},
+    `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`,
+  )
 }
 
-function getNotificationSummary(notification: Notification): string {
-  // return `${notification.commentAuthorMeta.author} you in a document.`
+function getNotificationSummary(
+  notification: Notification,
+  accountMeta: HMMetadata | null,
+): string {
+  if (notification.type === 'mention') {
+    return `${accountMeta?.name || 'You were'} mentioned by ${
+      notification.commentAuthorMeta?.name || notification.comment.author
+    }.`
+  }
+  if (notification.type === 'reply') {
+    return `Reply from ${
+      notification.commentAuthorMeta?.name || notification.comment.author
+    }.`
+  }
   return ''
 }
 

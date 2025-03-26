@@ -1,4 +1,5 @@
 import {Check} from '@tamagui/lucide-icons'
+import {useId} from 'react'
 import {
   Control,
   FieldErrors,
@@ -6,7 +7,7 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
-import {Checkbox, Input, Text, TextArea} from 'tamagui'
+import {Checkbox, Input, Label, Text, TextArea, XStack} from 'tamagui'
 
 export function FormInput<Fields extends FieldValues>({
   control,
@@ -84,5 +85,37 @@ export function FormError<TFieldValues extends Record<string, string>>({
     <Text fontFamily="$body" color="$red9">
       {error.message}
     </Text>
+  )
+}
+
+export function FullCheckbox({
+  value,
+  onValue,
+  isLoading,
+  label,
+  ...props
+}: {
+  value: boolean
+  onValue: (value: boolean) => void
+  isLoading?: boolean
+  label: string
+} & React.ComponentProps<typeof XStack>) {
+  const id = useId()
+  return (
+    <XStack gap="$2" {...props}>
+      <Checkbox
+        checked={value}
+        onCheckedChange={onValue}
+        opacity={isLoading ? 0.5 : 1}
+        id={id}
+      >
+        <Checkbox.Indicator>
+          <Check color="$brand5" />
+        </Checkbox.Indicator>
+      </Checkbox>
+      <Label lineHeight={0} htmlFor={id}>
+        {label}
+      </Label>
+    </XStack>
   )
 }

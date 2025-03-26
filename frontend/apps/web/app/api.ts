@@ -31,6 +31,19 @@ export async function postCBOR(path: string, body: Uint8Array) {
   return await response.json()
 }
 
+export async function get(path: string) {
+  const response = await fetch(`${path}`, {})
+  return await response.json()
+}
+
+export async function post(path: string, body: any) {
+  const response = await fetch(`${path}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+  return await response.json()
+}
+
 export const cborCodec = {
   code: 0x71,
   encode: (input: any) => cborEncode(input),
