@@ -293,7 +293,9 @@ function MainApp({}: {}) {
         onComplete={() => {
           setShowOnboarding(false)
           setTimeout(() => {
-            dispatchSiteTemplateEvent(true)
+            if (getOnboardingState().hasCompletedOnboarding) {
+              dispatchSiteTemplateEvent(true)
+            }
           }, 1000)
         }}
       />
