@@ -1968,7 +1968,6 @@ export function getBlockNodeById(
 }
 
 export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
-  console.log(block)
   const {hover, ...hoverProps} = useHover()
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''

@@ -17,6 +17,7 @@ import {hmBlockSchema} from './schema'
 import {slashMenuItems} from './slash-menu-items'
 import {
   chromiumSupportedImageMimeTypes,
+  chromiumSupportedVideoMimeTypes,
   generateBlockId,
   handleDragMedia,
   serverBlockNodesFromEditorBlocks,
@@ -108,25 +109,27 @@ export default function CommentEditor({
                           name: props.name,
                         },
                       }
+                    } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                      blockNode = {
+                        id: newId,
+                        type: 'video',
+                        props: {
+                          displaySrc: props.displaySrc,
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                        },
+                      }
+                    } else {
+                      blockNode = {
+                        id: newId,
+                        type: 'file',
+                        props: {
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                          size: props.size,
+                        },
+                      }
                     }
-                    // else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                    //   blockNode = {
-                    //     id: newId,
-                    //     type: 'video',
-                    //     props: {
-                    //       url: props.url,
-                    //       name: props.name,
-                    //     },
-                    //   }
-                    // } else {
-                    //   blockNode = {
-                    //     id: newId,
-                    //     type: 'file',
-                    //     props: {
-                    //       ...props,
-                    //     },
-                    //   }
-                    // }
 
                     const blockInfo = getBlockInfoFromPos(state, pos)
 
