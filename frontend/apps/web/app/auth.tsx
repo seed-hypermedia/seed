@@ -51,6 +51,7 @@ import {
   deleteLocalKeys,
   getAllAbilities,
   getStoredLocalKeys,
+  setHasPromptedEmailNotifications,
   writeLocalKeys,
 } from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
@@ -96,7 +97,11 @@ updateKeyPair()
 setInterval(updateKeyPair, 200)
 
 export function logout() {
-  Promise.all([deleteLocalKeys(), deleteAllAbilities()])
+  Promise.all([
+    deleteLocalKeys(),
+    deleteAllAbilities(),
+    setHasPromptedEmailNotifications(false),
+  ])
     .then(() => {
       keyPairStore.set(null)
       console.log('Logged out')

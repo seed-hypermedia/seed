@@ -1,6 +1,7 @@
 import {createPromiseClient, PromiseClient} from '@connectrpc/connect'
 import {
   AccessControl,
+  ActivityFeed,
   Comments,
   Daemon,
   Documents,
@@ -12,6 +13,7 @@ import {
 } from './client'
 
 export type GRPCClient = {
+  activityFeed: PromiseClient<typeof ActivityFeed>
   daemon: PromiseClient<typeof Daemon>
   comments: PromiseClient<typeof Comments>
   documents: PromiseClient<typeof Documents>
@@ -25,6 +27,7 @@ export type GRPCClient = {
 
 export function createGRPCClient(transport: any): GRPCClient {
   return {
+    activityFeed: createPromiseClient(ActivityFeed, transport),
     daemon: createPromiseClient(Daemon, transport),
     comments: createPromiseClient(Comments, transport),
     documents: createPromiseClient(Documents, transport),

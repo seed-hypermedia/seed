@@ -16,6 +16,8 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {z} from 'zod'
 import {preparePublicKey} from './auth-utils'
 
+export {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
+
 export * as rawCodec from 'multiformats/codecs/raw'
 
 export async function postCBOR(path: string, body: Uint8Array) {
@@ -25,6 +27,19 @@ export async function postCBOR(path: string, body: Uint8Array) {
     headers: {
       'Content-Type': 'application/cbor',
     },
+  })
+  return await response.json()
+}
+
+export async function get(path: string) {
+  const response = await fetch(`${path}`, {})
+  return await response.json()
+}
+
+export async function post(path: string, body: any) {
+  const response = await fetch(`${path}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   })
   return await response.json()
 }
@@ -60,7 +75,7 @@ export async function getChangesDepth(deps: string[]) {
   return Math.max(...allDepths)
 }
 
-async function signObject(
+export async function signObject(
   keyPair: CryptoKeyPair,
   data: any,
 ): Promise<ArrayBuffer> {

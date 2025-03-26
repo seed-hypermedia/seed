@@ -1,5 +1,6 @@
 import {
   DAEMON_FILE_URL,
+  ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
   OptimizedImageSize,
   SITE_BASE_URL,
@@ -77,6 +78,7 @@ export function WebSiteProvider(props: {
             SITE_IDENTITY_DEFAULT_ORIGIN,
             WEB_IDENTITY_ENABLED,
             WEB_SIGNING_ISSUER,
+            ENABLE_EMAIL_NOTIFICATIONS,
           })}`,
         }}
       />

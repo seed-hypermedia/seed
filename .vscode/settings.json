@@ -5,7 +5,6 @@
     "**/.hg": true,
     "**/CVS": true,
     "**/.DS_Store": true,
-    "**/*.env": true,
     ".git/**": true
   },
 
@@ -26,7 +25,7 @@
   },
   "files.readonlyInclude": {
     "frontend/node_modules/**": true,
-    "node_modules/**": true,
+    "node_modules/**": true
   },
   "search.exclude": {
     ".bazel/**": true,
@@ -73,16 +72,10 @@
   },
   "[shellscript]": {
     "editor.detectIndentation": false,
-    "editor.insertSpaces": false,
+    "editor.insertSpaces": false
   },
   "gopls": {
-    "build.directoryFilters": [
-      "-",
-      "-plz-out",
-      "+backend",
-      "+proto",
-      "+build"
-    ]
+    "build.directoryFilters": ["-", "-plz-out", "+backend", "+proto", "+build"]
   },
   "go.lintTool": "golangci-lint",
   "prettier.bracketSpacing": false,

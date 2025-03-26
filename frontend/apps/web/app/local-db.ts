@@ -4,7 +4,10 @@ function upgradeStore(
   db: IDBDatabase,
   storeName: string,
   options?: IDBObjectStoreParameters,
-): IDBObjectStore {
+): IDBObjectStore | null {
+  if (db.objectStoreNames.contains(storeName)) {
+    return null
+  }
   return db.createObjectStore(storeName, options)
 }
 
@@ -27,7 +30,8 @@ const KEYS_STORE_NAME = 'keys-01'
 const ABILITIES_STORE_NAME = 'abilities-01'
 // const DELEGATED_ABILITIES_STORE_NAME = 'delegated-abilities-01'
 const DELEGATED_IDENTITY_ORIGINS_STORE_NAME = 'delegated-identity-origins-01'
-const DB_VERSION = 4
+const EMAIL_NOTIFICATIONS_STORE_NAME = 'email-notifications-01'
+const DB_VERSION = 5
 
 function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
   console.log('~~ initDB', idb, window.location.origin)
@@ -45,6 +49,7 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
       unique: false,
     })
     upgradeStore(db, DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
+    upgradeStore(db, EMAIL_NOTIFICATIONS_STORE_NAME)
   }
   return new Promise((resolve, reject) => {
     openDb.onsuccess = (event) => {
@@ -262,4 +267,20 @@ export async function getAllAbilitiesByOrigin(
   return abilities.map((ability) => {
     return AbilitySchema.parse(ability)
   })
+}
+
+export async function hasPromptedEmailNotifications(): Promise<boolean> {
+  const store = (await getDB())
+    .transaction(EMAIL_NOTIFICATIONS_STORE_NAME, 'readonly')
+    .objectStore(EMAIL_NOTIFICATIONS_STORE_NAME)
+  return (await storeGet<boolean>(store, 'hasPrompted')) ?? false
+}
+
+export async function setHasPromptedEmailNotifications(
+  hasPrompted: boolean,
+): Promise<void> {
+  const store = (await getDB())
+    .transaction(EMAIL_NOTIFICATIONS_STORE_NAME, 'readwrite')
+    .objectStore(EMAIL_NOTIFICATIONS_STORE_NAME)
+  await storePut(store, hasPrompted, 'hasPrompted')
 }

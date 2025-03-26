@@ -90,6 +90,7 @@ export function SiteHeader({
       overflowX="hidden"
       $gtSm={{overflowX: 'inherit'}}
       h="100%"
+      minHeight="calc(100vh - 78px)"
       onScroll={onScroll}
     >
       <YStack
