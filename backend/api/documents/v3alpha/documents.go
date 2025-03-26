@@ -970,9 +970,31 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, err
 		}
 	case *documents.RefTarget_Redirect_:
-		return nil, status.Errorf(codes.Unimplemented, "redirect Ref target is not implemented yet")
+		var targetSpace core.Principal
+		if rt.Redirect.Account == "" {
+			targetSpace = ns
+		} else {
+			targetSpace, err = core.DecodePrincipal(rt.Redirect.Account)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid redirect account")
+			}
+		}
+
+		if _, err := blob.NewIRI(targetSpace, rt.Redirect.Path); err != nil {
+			return nil, err
+		}
+
+		target := blob.RedirectTarget{
+			Space: targetSpace,
+			Path:  rt.Redirect.Path,
+		}
+
+		refBlob, err = blob.NewRefRedirect(kp, in.Generation, doc.Genesis(), ns, in.Path, target, ts)
+		if err != nil {
+			return nil, err
+		}
 	default:
-		return nil, fmt.Errorf("BUG: unhandled ref target type case")
+		return nil, fmt.Errorf("BUG: unhandled ref target type %T", rt)
 	}
 
 	if err := srv.idx.Put(ctx, refBlob); err != nil {

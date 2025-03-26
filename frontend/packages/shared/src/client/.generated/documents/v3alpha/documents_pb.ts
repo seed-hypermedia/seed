@@ -104,6 +104,58 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
 }
 
 /**
+ * When GetDocument RPC fails due to an existing redirect, this message will be attached
+ * to the built-in status message's details field. The client should handle the error,
+ * and parse this message to follow the redirect.
+ * The client must be careful to prevent redirect cycles and very deep redirect chains.
+ *
+ * @generated from message com.seed.documents.v3alpha.RedirectErrorDetails
+ */
+export class RedirectErrorDetails extends Message<RedirectErrorDetails> {
+  /**
+   * Account ID where the redirect points to.
+   *
+   * @generated from field: string target_account = 1;
+   */
+  targetAccount = "";
+
+  /**
+   * Path of the target document within the target account.
+   *
+   * @generated from field: string target_path = 2;
+   */
+  targetPath = "";
+
+  constructor(data?: PartialMessage<RedirectErrorDetails>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.RedirectErrorDetails";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined, b: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined): boolean {
+    return proto3.util.equals(RedirectErrorDetails, a, b);
+  }
+}
+
+/**
  * Request to create a new document change.
  *
  * @generated from message com.seed.documents.v3alpha.CreateDocumentChangeRequest

@@ -115,6 +115,20 @@ func (r *Ref) Space() core.Principal {
 	return r.Space_
 }
 
+// RedirectIRI returns the IRI for the redirect target (if any).
+func (r *Ref) RedirectIRI() (IRI, error) {
+	if r.Redirect == nil {
+		return "", fmt.Errorf("redirect target is not set")
+	}
+
+	targetSpace := r.Redirect.Space
+	if targetSpace == nil {
+		targetSpace = r.Space()
+	}
+
+	return NewIRI(targetSpace, r.Redirect.Path)
+}
+
 // RedirectTarget holds information about the redirect target.
 type RedirectTarget struct {
 	Space core.Principal `refmt:"space,omitempty"`
@@ -148,8 +162,9 @@ func init() {
 
 func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 	type Meta struct {
-		Tombstone  bool  `json:"tombstone,omitempty"`
-		Generation int64 `json:"generation,omitempty"`
+		Tombstone      bool   `json:"tombstone,omitempty"`
+		Generation     int64  `json:"generation,omitempty"`
+		RedirectTarget string `json:"redirect,omitempty"`
 	}
 
 	space := v.Space()
@@ -180,6 +195,14 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 	// A tombstone Ref must have Genesis and no Heads.
 	case v.GenesisBlob.Defined() && len(v.Heads) == 0:
 		meta.Tombstone = true
+		if v.Redirect != nil {
+			redirectTarget, err := v.RedirectIRI()
+			if err != nil {
+				return err
+			}
+
+			meta.RedirectTarget = string(redirectTarget)
+		}
 	// All the other cases are invalid.
 	default:
 		return fmt.Errorf("invalid Ref blob invariants %+v", v)

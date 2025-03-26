@@ -9,10 +9,12 @@ import (
 	"iter"
 	"net/url"
 	"seed/backend/core"
+	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/btree"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
+	"seed/backend/util/must"
 	"seed/backend/util/strbytes"
 	"slices"
 	"strings"
@@ -198,7 +200,21 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		maxRef := generations[0]
 
 		if maxRef.IsTombstone {
-			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+			if maxRef.RedirectTarget == "" {
+				outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+			} else {
+				space, path, err := maxRef.RedirectTarget.SpacePath()
+				if err != nil {
+					outErr = err
+					return
+				}
+
+				outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s", resource, maxRef.RedirectTarget).
+					WithDetails(&documents.RedirectErrorDetails{
+						TargetAccount: space.String(),
+						TargetPath:    path,
+					})).Err()
+			}
 			return
 		}
 
@@ -518,13 +534,19 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 			Ts:         row.ColumnInt64(seq()),
 		}
 
-		isTomb := row.ColumnInt64(seq())
-		if isTomb != 0 && isTomb != 1 {
-			err = fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
-			break
+		{
+			isTomb := row.ColumnInt64(seq())
+			if isTomb != 0 && isTomb != 1 {
+				err = fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
+				break
+			}
+
+			g.IsTombstone = isTomb == 1
 		}
 
-		g.IsTombstone = isTomb == 1
+		{
+			g.RedirectTarget = IRI(row.ColumnText(seq()))
+		}
 
 		if xerr := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); xerr != nil {
 			err = fmt.Errorf("BUG: failed to unmarshal JSON heads: %w", xerr)
@@ -543,13 +565,14 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 }
 
 type generation struct {
-	RefID       int64
-	Generation  int64
-	GenesisID   int64
-	AuthorID    int64
-	Ts          int64
-	IsTombstone bool
-	Heads       []int64
+	RefID          int64
+	Generation     int64
+	GenesisID      int64
+	AuthorID       int64
+	Ts             int64
+	IsTombstone    bool
+	RedirectTarget IRI
+	Heads          []int64
 }
 
 // TODO: check caps for all parent docs explicitly, instead of relying on prefix matching,
@@ -570,7 +593,7 @@ var qLoadGenerations = dqb.Str(`
 		AND author = (SELECT owner FROM space LIMIT 1)
 		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
 	),
-	refs (id, generation, genesis, author, ts, is_tombstone, heads) AS (
+	refs (id, generation, genesis, author, ts, is_tombstone, redirect_target, heads) AS (
 		SELECT
 			structural_blobs.id,
 			COALESCE(extra_attrs->>'generation', 0) AS generation,
@@ -578,6 +601,7 @@ var qLoadGenerations = dqb.Str(`
 			author,
 			ts,
 			COALESCE(extra_attrs->>'tombstone', 0) AS is_tombstone,
+			COALESCE(extra_attrs->>'redirect', '') AS redirect_target,
 			JSON_GROUP_ARRAY(blob_links.target) AS heads
 		FROM structural_blobs
 		JOIN space ON space.id = structural_blobs.resource

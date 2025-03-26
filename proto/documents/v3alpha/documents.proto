@@ -66,6 +66,18 @@ message GetDocumentRequest {
   string version = 3;
 }
 
+// When GetDocument RPC fails due to an existing redirect, this message will be attached
+// to the built-in status message's details field. The client should handle the error,
+// and parse this message to follow the redirect.
+// The client must be careful to prevent redirect cycles and very deep redirect chains.
+message RedirectErrorDetails {
+  // Account ID where the redirect points to.
+  string target_account = 1;
+
+  // Path of the target document within the target account.
+  string target_path = 2;
+}
+
 // Request to create a new document change.
 message CreateDocumentChangeRequest {
   // Required. The ID of the account where the document is located.
