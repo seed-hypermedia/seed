@@ -20,6 +20,7 @@ import {
   Button,
   ButtonFrame,
   Form,
+  H2,
   Input,
   ScrollView,
   SizableText,
@@ -1913,5 +1914,37 @@ export function ResetOnboardingButton() {
         Reset Onboarding
       </Button>
     </XStack>
+  )
+}
+
+export function CreateAccountBanner() {
+  const [show, setShow] = useState(() => {
+    const obState = getOnboardingState()
+    return obState.initialAccountIdCount === 0
+  })
+  if (!show) return null
+
+  return (
+    <YStack
+      gap="$4"
+      padding="$4"
+      borderRadius="$4"
+      elevation="$3"
+      marginBottom="$6"
+    >
+      <H2 fontWeight="bold">Let's Get Started!</H2>
+      <SizableText>
+        Create an account to get started. It's free and takes less than a
+        minute.
+      </SizableText>
+      <YStack gap="$2">
+        <Button bg="$brand5" color="white" hoverStyle={{bg: '$brand4'}}>
+          Create a Site
+        </Button>
+        <Button size="#3" chromeless hoverStyle={{bg: '$color4'}}>
+          I already have a Site
+        </Button>
+      </YStack>
+    </YStack>
   )
 }
