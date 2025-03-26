@@ -143,7 +143,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.ResourcesIRI.String() + " IS NULL) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
+		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " IS NOT 'Ref') AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30

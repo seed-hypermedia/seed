@@ -66,7 +66,7 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    * or comments), link (mention) to another resource (currently only account
    * mentions supported). We can add these blobs to the feed result by providing a 
    * list of resources iris we want links to aggregated as a logical OR. 
-   * These link events are also treated as ogical OR when grouped with other filters. 
+   * These link events are also treated as logical OR when grouped with other filters. 
    * Unlike filters (users, event_types) that are grouped under a logic AND. 
    * filter_users(u1 OR u2 ...) AND filter_event_type(et1 OR et2 ...) OR 
    * add_linked_resource(lr1 OR lr2 ...)
