@@ -1,4 +1,6 @@
-export async function preparePublicKey(publicKey: CryptoKey) {
+export async function preparePublicKey(
+  publicKey: CryptoKey,
+): Promise<Uint8Array> {
   // Export raw key first
   const raw = await crypto.subtle.exportKey('raw', publicKey)
   const bytes = new Uint8Array(raw)
@@ -19,3 +21,13 @@ export async function preparePublicKey(publicKey: CryptoKey) {
   ])
   return outputKeyValue
 }
+
+// // key pair was generated like this:
+// const keyPair = await crypto.subtle.generateKey(
+//   {
+//     name: 'ECDSA',
+//     namedCurve: 'P-256',
+//   },
+//   false, // non-extractable
+//   ['sign', 'verify'],
+// )

@@ -1,3 +1,6 @@
+// we import configDotenv first so that it gets applied before contants.ts in shared
+import configDotenv from './config-dotenv'
+
 import {PassThrough} from 'node:stream'
 
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
@@ -10,11 +13,16 @@ import * as isbotModule from 'isbot'
 import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
+import {initDatabase} from './db'
+import {initEmailNotifier} from './email-notifier'
 import {getHMDocument} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config'
 
+configDotenv() // we need this so dotenv config stays in the imports.
+
+console.log('222tf process.env')
 const ABORT_DELAY = 5_000
 
 const CACHE_PATH = resolve(join(process.env.DATA_DIR || process.cwd(), 'cache'))
@@ -67,6 +75,8 @@ async function initializeServer() {
       }, CACHE_WARM_INTERVAL)
     }
   }
+  await initDatabase()
+  await initEmailNotifier()
 }
 
 function logDebugRequest(path: string) {

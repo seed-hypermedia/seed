@@ -1,3 +1,4 @@
+import {Check} from '@tamagui/lucide-icons'
 import {
   Control,
   FieldErrors,
@@ -5,7 +6,7 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
-import {Input, Text, TextArea} from 'tamagui'
+import {Checkbox, Input, Text, TextArea} from 'tamagui'
 
 export function FormInput<Fields extends FieldValues>({
   control,
@@ -32,6 +33,29 @@ export function FormInput<Fields extends FieldValues>({
       }}
       {...props}
     />
+  )
+}
+
+export function FormCheckbox<Fields extends FieldValues>({
+  control,
+  name,
+  ...props
+}: React.ComponentProps<typeof Checkbox> & {
+  control: Control<Fields>
+  name: Path<Fields>
+}) {
+  const c = useController({control, name})
+  return (
+    <Checkbox
+      {...c.field}
+      checked={c.field.value}
+      onCheckedChange={c.field.onChange}
+      {...props}
+    >
+      <Checkbox.Indicator>
+        <Check color="$brand5" />
+      </Checkbox.Indicator>
+    </Checkbox>
   )
 }
 
