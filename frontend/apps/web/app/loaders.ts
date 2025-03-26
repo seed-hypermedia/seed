@@ -221,13 +221,6 @@ export async function getBaseDocument(
   )
   const enableWebSigning =
     WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
-  console.log('enableWebSigning', {
-    enableWebSigning,
-    WEB_SIGNING_ENABLED,
-    WEB_IDENTITY_ENABLED,
-    SITE_BASE_URL,
-    parsedRequestOrigin: parsedRequest.origin,
-  })
   return {
     document,
     supportDocuments,
