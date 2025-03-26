@@ -246,6 +246,9 @@ function _MainDocumentPage({
     ? NewspaperDocContainer
     : BaseDocContainer
 
+  const capability = useMyCapability(id)
+  const canEditDoc = roleCanWrite(capability?.role)
+
   const {
     showSidebars,
     sidebarProps,
@@ -265,10 +268,12 @@ function _MainDocumentPage({
   }
   return (
     <YStack>
-      <SetupDomainBanner
-        docId={id}
-        hasDomain={!!entity.data?.document?.metadata.siteUrl}
-      />
+      {canEditDoc && (
+        <SetupDomainBanner
+          docId={id}
+          hasDomain={!!entity.data?.document?.metadata.siteUrl}
+        />
+      )}
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
