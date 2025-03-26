@@ -10,6 +10,10 @@ export function setHasSkippedOnboarding(value: boolean) {
   window.onboarding.setSkipped(value)
 }
 
+export function setInitialAccountIdCount(count: number) {
+  window.onboarding.setInitialAccountIdCount(count)
+}
+
 export function setOnboardingStep(step: OnboardingStep) {
   window.onboarding.setStep(step)
 }

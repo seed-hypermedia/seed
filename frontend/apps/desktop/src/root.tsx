@@ -29,6 +29,7 @@ import {AccountWizardDialog} from './components/create-account'
 import {
   Onboarding,
   OnboardingDebugBox,
+  OnboardingDialog,
   ResetOnboardingButton,
 } from './components/onboarding'
 import type {GoDaemonState} from './daemon'
@@ -304,6 +305,7 @@ function MainApp({}: {}) {
   ) : (
     <>
       <AccountWizardDialog />
+      <OnboardingDialog />
       <SiteTemplateDialog />
       <Main
         className={
@@ -327,24 +329,6 @@ function MainApp({}: {}) {
   //   // @ts-ignore
   //   return window.docImport.readMediaFile(filePath)
   // }
-  const appContent = showOnboarding ? (
-    <>
-      <Onboarding onComplete={() => setShowOnboarding(false)} />
-      <OnboardingDebugBox />
-      <ResetOnboardingButton />
-    </>
-  ) : (
-    <>
-      <AccountWizardDialog />
-      <Main
-        className={
-          // this is used by editor.css which doesn't know tamagui styles, boooo!
-          darkMode ? 'seed-app-dark' : 'seed-app-light'
-        }
-      />
-      <ResetOnboardingButton />
-    </>
-  )
 
   if (daemonState?.t == 'ready') {
     return (
