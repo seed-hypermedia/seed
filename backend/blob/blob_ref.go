@@ -308,6 +308,19 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 				})
 			}
 
+			changeGenesis, err := ictx.lookup.CID(cm.Genesis())
+			if err != nil {
+				return err
+			}
+
+			if !v.GenesisBlob.Equals(changeGenesis) {
+				c, err := ictx.lookup.CID(change)
+				if err != nil {
+					return err
+				}
+				return fmt.Errorf("genesis mismatch in Ref for Change %s: %s != %s", c, v.GenesisBlob, changeGenesis)
+			}
+
 			pendingChangesMap[cm.ID] = cm
 
 			queue = append(queue, cm.Deps...)
@@ -705,11 +718,23 @@ func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 type changeMetadata struct {
 	shouldUpdate bool
 
-	ID         int64
-	Ts         int64
-	Author     int64
-	ExtraAttrs changeIndexedAttrs
-	Deps       []int64
+	ID          int64
+	Ts          int64
+	Author      int64
+	GenesisBlob int64
+	ExtraAttrs  changeIndexedAttrs
+	Deps        []int64
+}
+
+func (cm *changeMetadata) Genesis() int64 {
+	switch {
+	case len(cm.Deps) == 0 && cm.GenesisBlob == 0:
+		return cm.ID
+	case len(cm.Deps) > 0 && cm.GenesisBlob != 0:
+		return cm.GenesisBlob
+	default:
+		panic("BUG: change must either have both deps and genesis or neither")
+	}
 }
 
 func (cm *changeMetadata) load(conn *sqlite.Conn, id int64) (err error) {
@@ -720,17 +745,11 @@ func (cm *changeMetadata) load(conn *sqlite.Conn, id int64) (err error) {
 		cm.ID = row.ColumnInt64(inc())
 		cm.Ts = row.ColumnInt64(inc())
 		cm.Author = row.ColumnInt64(inc())
+		cm.GenesisBlob = row.ColumnInt64(inc())
 
 		extraJSON := row.ColumnBytesUnsafe(inc())
 		if len(extraJSON) > 0 {
 			if err := json.Unmarshal(extraJSON, &cm.ExtraAttrs); err != nil {
-				return err
-			}
-		}
-
-		depsJSON := row.ColumnBytesUnsafe(inc())
-		if len(depsJSON) > 0 {
-			if err := json.Unmarshal(depsJSON, &cm.Deps); err != nil {
 				return err
 			}
 		}
@@ -765,6 +784,7 @@ var qLoadChangeMetadata = dqb.Str(`
 		id,
 		ts,
 		author,
+		genesis_blob,
 		extra_attrs
 	FROM structural_blobs
 	WHERE id = ?1;

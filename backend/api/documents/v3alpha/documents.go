@@ -930,22 +930,42 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 		ts = cclock.New().MustNow()
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, nil, false)
+	doc, err := srv.loadDocument(ctx, ns, in.Path, nil, true)
 	if err != nil {
 		return nil, err
 	}
 
-	if !doc.Generation.IsSet() {
-		return nil, fmt.Errorf("BUG: generation is not set on a loaded document")
+	if in.Generation == 0 {
+		in.Generation = doc.Generation.Value()
 	}
 
 	var refBlob blob.Encoded[*blob.Ref]
 
-	switch in.Target.Target.(type) {
+	switch rt := in.Target.Target.(type) {
 	case *documents.RefTarget_Version_:
-		return nil, status.Errorf(codes.Unimplemented, "version Ref target is not implemented yet")
+		heads, err := blob.Version(rt.Version.Version).Parse()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse version: %v", err)
+		}
+
+		genesis, err := cid.Decode(rt.Version.Genesis)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
+		}
+
+		// If there's an existing document, we want to make sure the genesis of the ref we are creating is the same.
+		if len(doc.Heads()) > 0 {
+			if !doc.Genesis().Equals(genesis) && in.Generation <= doc.Generation.Value() {
+				return nil, status.Errorf(codes.FailedPrecondition, "There's already a Ref for this path with a different genesis. Provide an explicit generation number higher than %d to overwrite.", doc.Generation.Value())
+			}
+		}
+
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, capc, ts)
+		if err != nil {
+			return nil, err
+		}
 	case *documents.RefTarget_Tombstone_:
-		refBlob, err = blob.NewRef(kp, doc.Generation.Value(), doc.Genesis(), ns, in.Path, nil, capc, ts)
+		refBlob, err = blob.NewRef(kp, in.Generation, doc.Genesis(), ns, in.Path, nil, capc, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -1095,12 +1115,16 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		}
 	}
 	err = errors.Join(err, check())
-	if err != nil {
+	if err != nil && !(status.Code(err) == codes.FailedPrecondition && ensurePath) {
 		return nil, err
 	}
 
-	if !ensurePath && len(doc.Heads()) == 0 {
-		return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
+	if len(doc.Heads()) == 0 {
+		if !ensurePath {
+			return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
+		}
+
+		doc.Generation = maybe.New(cclock.New().MustNow().UnixMilli())
 	}
 
 	return doc, nil

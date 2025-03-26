@@ -784,11 +784,13 @@ type stashReason string
 const (
 	stashReasonFailedPrecondition stashReason = "FailedPrecondition"
 	stashReasonPermissionDenied   stashReason = "PermissionDenied"
+	stashReasonBadData            stashReason = "BadData"
 )
 
 type stashMetadata struct {
 	MissingBlobs  []cid.Cid        `json:"missingBlobs,omitempty"`
 	DeniedSigners []core.Principal `json:"deniedSigners,omitempty"`
+	Details       string           `json:"details,omitempty"`
 }
 
 type stashError struct {

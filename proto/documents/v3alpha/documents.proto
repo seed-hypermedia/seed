@@ -318,6 +318,11 @@ message CreateRefRequest {
   // The provided timestamp will be rounded to the nearest millisecond,
   // so the final timestamp in the resulting Ref blob may not be exactly as provided.
   google.protobuf.Timestamp timestamp = 6;
+
+  // Optional. The generation number for the Ref.
+  // If not specified, the server will use the generation number of the most recent generation,
+  // or will create a fresh generation number if there are no existing Refs for this path.
+  int64 generation = 7;
 }
 
 // Request to get a Ref by ID.

@@ -1067,6 +1067,15 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    */
   timestamp?: Timestamp;
 
+  /**
+   * Optional. The generation number for the Ref.
+   * If not specified, the server will use the generation number of the most recent generation,
+   * or will create a fresh generation number if there are no existing Refs for this path.
+   *
+   * @generated from field: int64 generation = 7;
+   */
+  generation = protoInt64.zero;
+
   constructor(data?: PartialMessage<CreateRefRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1081,6 +1090,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
     { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "timestamp", kind: "message", T: Timestamp },
+    { no: 7, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRefRequest {

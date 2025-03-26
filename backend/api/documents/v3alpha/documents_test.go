@@ -1069,6 +1069,58 @@ func TestDocumentAttributesFullJSONModel(t *testing.T) {
 	}
 }
 
+func TestRedirect(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+
+	v1, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/doc1", "", "main").
+		SetAttribute("", []string{"stringValue"}, "Hello World").
+		SetAttribute("", []string{"intValue"}, 42).
+		SetAttribute("", []string{"boolValue"}, true).
+		SetAttribute("", []string{"boolValueFalse"}, false).
+		SetAttribute("", []string{"nullValue"}, nil).
+		SetAttribute("", []string{"a", "b", "c"}, "Nested String").
+		Build(),
+	)
+	require.NoError(t, err)
+
+	v2, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), v1.Path, v1.Version, "main").
+		SetAttribute("", []string{"stringValue"}, "Changed string").
+		Build(),
+	)
+	require.NoError(t, err)
+
+	newRef, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: v1.Account,
+		Path:    "/fork",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: v2.Genesis,
+					Version: v2.Version,
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	_ = newRef
+
+	fork, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: v2.Account,
+		Path:    "/fork",
+		Version: v2.Version,
+	})
+	require.NoError(t, err)
+
+	testutil.StructsEqual(v2, fork).
+		IgnoreFields(documents.GenerationInfo{}, "Generation").
+		IgnoreFields(documents.Document{}, "Path").
+		Compare(t, "fork must match the original document")
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester
