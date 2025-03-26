@@ -27,14 +27,7 @@ export function useEmailNotifications() {
           sig: new Uint8Array(sig),
         } satisfies EmailNotifierAction),
       )
-      console.log('notifs... state...', result)
-      return result as {
-        account: {
-          notifyAllMentions: boolean
-          notifyAllReplies: boolean
-          email: string
-        }
-      }
+      return result
     },
   })
 }

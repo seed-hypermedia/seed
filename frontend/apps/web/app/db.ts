@@ -160,23 +160,7 @@ export function updateAccount(
   stmt.run(notifyAllMentions ? 1 : 0, notifyAllReplies ? 1 : 0, id)
 }
 
-export function getEmail(email: string): BaseEmail | null {
-  const stmt = db.prepare(`
-    SELECT emails.*
-    FROM emails 
-    WHERE emails.email = ?
-  `)
-  const emailValue = stmt.get(email) as DBEmail | undefined
-  if (!emailValue) return null
-
-  return {
-    ...emailValue,
-    email,
-    isUnsubscribed: Boolean(emailValue.isUnsubscribed),
-  }
-}
-
-export function getEmailWithToken(emailAdminToken: string): Email | null {
+export function getEmail(emailAdminToken: string): Email | null {
   const stmt = db.prepare(`
     SELECT emails.*
     FROM emails 

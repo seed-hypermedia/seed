@@ -40,21 +40,23 @@ export function FormInput<Fields extends FieldValues>({
 export function FormCheckbox<Fields extends FieldValues>({
   control,
   name,
-  label,
   ...props
 }: React.ComponentProps<typeof Checkbox> & {
   control: Control<Fields>
   name: Path<Fields>
-  label: string
 }) {
   const c = useController({control, name})
   return (
-    <FullCheckbox
-      value={c.field.value}
-      label={label}
-      onValue={c.field.onChange}
+    <Checkbox
+      {...c.field}
+      checked={c.field.value}
+      onCheckedChange={c.field.onChange}
       {...props}
-    />
+    >
+      <Checkbox.Indicator>
+        <Check color="$brand5" />
+      </Checkbox.Indicator>
+    </Checkbox>
   )
 }
 

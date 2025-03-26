@@ -33,6 +33,11 @@ import {
   useDelegatedAbilities,
 } from './auth-delegation'
 import type {AuthFragmentOptions} from './auth-page'
+import {useEmailNotifications} from './email-notifications-models'
+import {
+  hasPromptedEmailNotifications,
+  setHasPromptedEmailNotifications,
+} from './local-db'
 import type {CommentPayload} from './routes/hm.api.comment'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 injectModels()
@@ -212,6 +217,7 @@ export default function WebCommenting({
                     .then(() => {
                       reset()
                       onDiscardDraft?.()
+                      promptEmailNotifications()
                     })
                 }}
               >
@@ -225,6 +231,7 @@ export default function WebCommenting({
         />
       </CommentDocContentProvider>
       {createAccountContent}
+      {emailNotificationsPromptContent}
     </>
   )
 }
@@ -322,8 +329,8 @@ function CommentDocContentProvider({
   handleFileAttachment,
   children,
   comment, // originHomeId,
-  // id,
-} // supportQueries,
+  // supportQueries,
+} // id,
 // siteHost,
 // supportDocuments,
 // routeParams,
