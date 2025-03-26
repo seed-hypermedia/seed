@@ -59,6 +59,7 @@ import {dispatchSiteTemplateEvent} from './site-template'
 
 interface OnboardingProps {
   onComplete: () => void
+  modal?: boolean
 }
 
 interface ProfileFormData {
@@ -101,9 +102,10 @@ export function OnboardingDialog() {
         />
         <Dialog.Content
           overflow="hidden"
-          h={460}
-          w="100%"
-          maxWidth={600}
+          h="80%"
+          w="90%"
+          maxWidth={1200}
+          maxHeight={800}
           p={0}
           backgroundColor={'$background'}
           animation={[
@@ -118,6 +120,7 @@ export function OnboardingDialog() {
           exitStyle={{y: -10, opacity: 0}}
         >
           <Onboarding
+            modal={true}
             onComplete={() => {
               setOpen(false)
             }}
@@ -128,22 +131,44 @@ export function OnboardingDialog() {
   )
 }
 
-export function Onboarding({onComplete}: OnboardingProps) {
-  // Check if onboarding has been completed or skipped
-  const state = getOnboardingState()
+export function Onboarding({onComplete, modal = false}: OnboardingProps) {
+  // Get the global state
+  const globalState = getOnboardingState()
   const navigate = useNavigate('replace')
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(
     undefined,
   )
-  // If onboarding has been completed or skipped, don't show it
+
+  // Initialize local state based on whether we're in modal mode
+  const [localState, setLocalState] = useState(() => {
+    if (modal) {
+      // In modal mode, start fresh regardless of global state
+      return {
+        hasCompletedOnboarding: false,
+        hasSkippedOnboarding: false,
+        currentStep: 'welcome' as OnboardingStep,
+        formData: {
+          name: '',
+          icon: undefined,
+          seedExperimentalLogo: undefined,
+        },
+      }
+    }
+    // In non-modal mode, use global state
+    return globalState
+  })
+
+  // Only check global state for completion in non-modal mode
   useEffect(() => {
-    if (state.hasCompletedOnboarding || state.hasSkippedOnboarding) {
+    if (
+      !modal &&
+      (globalState.hasCompletedOnboarding || globalState.hasSkippedOnboarding)
+    ) {
       console.log(
         'Onboarding already completed or skipped, skipping to main app',
       )
       if (account) {
         console.log('Dispatching site template event')
-
         navigate({
           key: 'document',
           id: account,
@@ -151,57 +176,88 @@ export function Onboarding({onComplete}: OnboardingProps) {
       }
       onComplete()
     }
-  }, [onComplete])
+  }, [
+    modal,
+    globalState.hasCompletedOnboarding,
+    globalState.hasSkippedOnboarding,
+    account,
+    navigate,
+    onComplete,
+  ])
 
-  // Initialize step from store
+  // Initialize step from local state
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(() => {
-    console.log('🔄 Initializing onboarding with state:', state)
-    return state.currentStep
+    console.log('🔄 Initializing onboarding with state:', localState)
+    return localState.currentStep
   })
 
   const handleSkip = useCallback(() => {
     console.group('🚀 Skipping Onboarding')
-    const beforeState = getOnboardingState()
+    const beforeState = modal ? localState : getOnboardingState()
     console.log('Before state:', beforeState)
 
-    setHasSkippedOnboarding(true)
-    // Clean up form data but keep the skipped flag
-    cleanupOnboardingFormData()
+    if (modal) {
+      setLocalState((prev) => ({...prev, hasSkippedOnboarding: true}))
+    } else {
+      setHasSkippedOnboarding(true)
+      // Clean up form data but keep the skipped flag
+      cleanupOnboardingFormData()
+    }
 
-    const afterState = getOnboardingState()
+    const afterState = modal ? localState : getOnboardingState()
     console.log('After state:', afterState)
     console.groupEnd()
 
     onComplete()
-  }, [onComplete])
+  }, [modal, localState, onComplete])
 
   const handleNext = useCallback(() => {
     console.group('🚀 Next Step in Onboarding')
-    const beforeState = getOnboardingState()
+    const beforeState = modal ? localState : getOnboardingState()
     console.log('Before - Local step:', currentStep)
     console.log('Before - Store state:', beforeState)
 
     if (currentStep === 'welcome') {
       console.log('Moving from welcome to profile')
-      setOnboardingStep('profile')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+      } else {
+        setOnboardingStep('profile')
+      }
       setCurrentStep('profile')
     } else if (currentStep === 'profile') {
       console.log('Moving from profile to recovery')
-      setOnboardingStep('recovery')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'recovery'}))
+      } else {
+        setOnboardingStep('recovery')
+      }
       setCurrentStep('recovery')
     } else if (currentStep === 'recovery') {
       console.log('Moving from recovery to ready')
-      setOnboardingStep('ready')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'ready'}))
+      } else {
+        setOnboardingStep('ready')
+      }
       setCurrentStep('ready')
     } else if (currentStep === 'existing') {
       console.log('Moving from existing to ready')
-      setOnboardingStep('ready')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'ready'}))
+      } else {
+        setOnboardingStep('ready')
+      }
       setCurrentStep('ready')
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
-      setHasCompletedOnboarding(true)
-      // Clean up form data but keep the completed flag
-      cleanupOnboardingFormData()
+      if (modal) {
+        setLocalState((prev) => ({...prev, hasCompletedOnboarding: true}))
+      } else {
+        setHasCompletedOnboarding(true)
+        // Clean up form data but keep the completed flag
+        cleanupOnboardingFormData()
+      }
       if (account) {
         console.log('Dispatching site template event')
         navigate({
@@ -212,37 +268,53 @@ export function Onboarding({onComplete}: OnboardingProps) {
       onComplete()
     }
 
-    const afterState = getOnboardingState()
+    const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [currentStep, onComplete])
+  }, [currentStep, modal, localState, account, navigate, onComplete])
 
   const handleExistingSite = useCallback(() => {
-    setOnboardingStep('existing')
+    if (modal) {
+      setLocalState((prev) => ({...prev, currentStep: 'existing'}))
+    } else {
+      setOnboardingStep('existing')
+    }
     setCurrentStep('existing')
-  }, [])
+  }, [modal])
 
   const handlePrev = useCallback(() => {
     console.group('🚀 Previous Step in Onboarding')
-    const beforeState = getOnboardingState()
+    const beforeState = modal ? localState : getOnboardingState()
     console.log('Before - Local step:', currentStep)
     console.log('Before - Store state:', beforeState)
 
     if (currentStep === 'recovery') {
-      setOnboardingStep('profile')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+      } else {
+        setOnboardingStep('profile')
+      }
       setCurrentStep('profile')
     } else if (currentStep === 'profile') {
-      setOnboardingStep('welcome')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'welcome'}))
+      } else {
+        setOnboardingStep('welcome')
+      }
       setCurrentStep('welcome')
     } else if (currentStep === 'existing') {
-      setOnboardingStep('profile')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+      } else {
+        setOnboardingStep('profile')
+      }
       setCurrentStep('profile')
     }
 
-    const afterState = getOnboardingState()
+    const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [currentStep])
+  }, [currentStep, modal, localState])
 
   return (
     <YStack flex={1} backgroundColor="$background" className="window-drag">
