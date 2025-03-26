@@ -10,6 +10,7 @@ import {
   getEmail,
   getNotifierLastProcessedBlobCid,
   initDatabase,
+  setAccount,
   setNotifierLastProcessedBlobCid,
   unsubscribeEmail,
   updateAccount,
@@ -167,6 +168,81 @@ describe('Database', () => {
     it('should return null for non-existent account', () => {
       const account = getAccount('non-existent-id')
       expect(account).toBeNull()
+    })
+
+    it('should set account - create new if not exists', () => {
+      const accountData = {
+        id: 'test-id',
+        email: 'test@example.com',
+        notifyAllMentions: true,
+        notifyAllReplies: false,
+      }
+      setAccount(accountData)
+
+      const account = getAccount(accountData.id)
+      expect(account).toMatchObject({
+        id: accountData.id,
+        email: accountData.email,
+        notifyAllMentions: accountData.notifyAllMentions,
+        notifyAllReplies: accountData.notifyAllReplies,
+      })
+    })
+
+    it('should set account - update existing', () => {
+      const initialData = {
+        id: 'test-id',
+        email: 'test1@example.com',
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+      }
+      createAccount(initialData)
+
+      const updateData = {
+        id: 'test-id',
+        email: 'test2@example.com',
+        notifyAllMentions: true,
+        notifyAllReplies: true,
+      }
+      setAccount(updateData)
+
+      const account = getAccount(updateData.id)
+      expect(account).toMatchObject({
+        id: updateData.id,
+        email: updateData.email,
+        notifyAllMentions: updateData.notifyAllMentions,
+        notifyAllReplies: updateData.notifyAllReplies,
+      })
+
+      // Verify new email was created
+      const db = new Database(join(tmpDir, 'web-db.sqlite'))
+      const emails = db.prepare('SELECT email FROM emails').all() as {
+        email: string
+      }[]
+      db.close()
+      expect(emails.map((e) => e.email)).toContain(updateData.email)
+    })
+
+    it('should set account - partial update', () => {
+      const initialData = {
+        id: 'test-id',
+        email: 'test@example.com',
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+      }
+      createAccount(initialData)
+
+      setAccount({
+        id: 'test-id',
+        notifyAllMentions: true,
+      })
+
+      const account = getAccount(initialData.id)
+      expect(account).toMatchObject({
+        id: initialData.id,
+        email: initialData.email,
+        notifyAllMentions: true,
+        notifyAllReplies: false,
+      })
     })
   })
 

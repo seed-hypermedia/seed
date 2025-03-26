@@ -220,3 +220,56 @@ export function getAllEmails(): Email[] {
     }
   })
 }
+
+export function setAccount({
+  id,
+  email,
+  notifyAllMentions,
+  notifyAllReplies,
+}: {
+  id: string
+  email?: string
+  notifyAllMentions?: boolean
+  notifyAllReplies?: boolean
+}): void {
+  const existingAccount = getAccount(id)
+
+  if (!existingAccount) {
+    createAccount({
+      id,
+      email,
+      notifyAllMentions,
+      notifyAllReplies,
+    })
+    return
+  }
+
+  // If email is being changed, create new email entry
+  if (email && email !== existingAccount.email) {
+    const emailStmt = db.prepare(
+      'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
+    )
+    emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
+  }
+
+  // Update account with new values
+  const stmt = db.prepare(`
+    UPDATE accounts 
+    SET email = ?,
+        notifyAllMentions = ?,
+        notifyAllReplies = ?
+    WHERE id = ?
+  `)
+
+  const getBooleanValue = (
+    newValue: boolean | undefined,
+    currentValue: boolean,
+  ) => (newValue !== undefined ? (newValue ? 1 : 0) : currentValue ? 1 : 0)
+
+  stmt.run(
+    email ?? existingAccount.email,
+    getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
+    getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
+    id,
+  )
+}

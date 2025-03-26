@@ -1,5 +1,5 @@
 import {cborDecode} from '@/api'
-import {getAccount} from '@/db'
+import {getAccount, setAccount} from '@/db'
 import {validateSignature} from '@/validate-signature'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
@@ -74,6 +74,12 @@ export const action: ActionFunction = async ({request, params}) => {
     })
   }
   if (restPayload.action === 'set-email-notifications') {
+    setAccount({
+      id: accountId,
+      email: restPayload.email,
+      notifyAllMentions: restPayload.notifyAllMentions,
+      notifyAllReplies: restPayload.notifyAllReplies,
+    })
     console.log('set-email-notifications', restPayload)
     return json({})
   }
