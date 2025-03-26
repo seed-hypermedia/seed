@@ -112,8 +112,7 @@ export default function WebCommenting({
   function promptEmailNotifications() {
     hasPromptedEmailNotifications().then((hasPrompted) => {
       if (hasPrompted) {
-        // bring this back! dont prompt if we already have!
-        // return
+        return
       }
       openEmailNotificationsPrompt({})
     })
