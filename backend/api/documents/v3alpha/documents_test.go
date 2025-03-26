@@ -1076,7 +1076,7 @@ func TestRedirect(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := t.Context()
 
-	v1, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/doc1", "", "main").
+	v1, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/src", "", "main").
 		SetAttribute("", []string{"stringValue"}, "Hello World").
 		SetAttribute("", []string{"intValue"}, 42).
 		SetAttribute("", []string{"boolValue"}, true).
@@ -1120,6 +1120,41 @@ func TestRedirect(t *testing.T) {
 		IgnoreFields(documents.GenerationInfo{}, "Generation").
 		IgnoreFields(documents.Document{}, "Path").
 		Compare(t, "fork must match the original document")
+
+	// Now let's redirect /src to /fork.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        v2.Account,
+		Path:           v2.Path,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account: v2.Account,
+					Path:    fork.Path,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	{
+		_, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: v2.Account,
+			Path:    v2.Path,
+		})
+		require.Error(t, err)
+
+		s, ok := status.FromError(err)
+		require.True(t, ok, "error must be grpc status")
+		details := s.Details()
+		require.Len(t, details, 1, "redirect must have one detail object in the status error")
+		redirectDetails := details[0].(*documents.RedirectErrorDetails)
+		wantDetails := &documents.RedirectErrorDetails{
+			TargetAccount: fork.Account,
+			TargetPath:    fork.Path,
+		}
+		testutil.StructsEqual(wantDetails, redirectDetails).Compare(t, "redirect details must match")
+	}
 }
 
 type testServer struct {
