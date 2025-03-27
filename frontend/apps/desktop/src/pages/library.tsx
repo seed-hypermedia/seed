@@ -1,628 +1,258 @@
-import { useAppContext } from '@/app-context'
-import { MainWrapper } from '@/components/main-wrapper'
+import {MainWrapper} from '@/components/main-wrapper'
+import {CreateAccountBanner} from '@/components/onboarding'
+import {useMarkAsRead} from '@/models/documents'
 
-import { LibraryListItem } from '@/components/list-item'
-import { EditorBlock } from '@/editor'
+import {useExportDocuments} from '@/models/export-documents'
 import {
-  FilterItem,
-  LibraryData,
-  LibraryQueryState,
-  useClassicLibrary,
+  LibraryItem,
+  LibrarySite,
+  useLibrary,
+  useSiteLibrary,
 } from '@/models/library'
-import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
-import { hmBlocksToEditorContent } from '@shm/shared/client/hmblock-to-editorblock'
-import { getDocumentTitle } from '@shm/shared/content'
-import { HMBlockNode } from '@shm/shared/hm-types'
-import { Button } from '@shm/ui/button'
-import { Container } from '@shm/ui/container'
-import { ListItemSkeleton } from '@shm/ui/entity-card'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
+import {getMetadataName} from '@shm/shared/content'
 import {
-  Archive,
-  ArrowDownUp,
+  HMAccountsMetadata,
+  HMActivitySummary,
+  HMBreadcrumb,
+  HMDocumentInfo,
+  HMLibraryDocument,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {DocumentRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
+import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {Container} from '@shm/ui/container'
+import {FacePile} from '@shm/ui/face-pile'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {
   Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
   FileOutput,
-  Pencil,
-  Search,
-  Settings2,
-  Star,
+  ListFilter,
+  MessageSquare,
   X,
-} from '@shm/ui/icons'
-import { toast } from '@shm/ui/toast'
-import { usePopoverState } from '@shm/ui/use-popover-state'
-import { ComponentProps, useMemo, useRef, useState } from 'react'
+} from '@tamagui/lucide-icons'
+import {ComponentProps, createContext, useContext, useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {
+  Button,
   Checkbox,
-  Dialog,
-  DialogContent,
-  Input,
   Popover,
   SizableText,
-  SizeTokens,
-  Square,
-  Text,
+  View,
   XStack,
   YGroup,
   YStack,
 } from 'tamagui'
-import LibraryPage from './library2'
 
-const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
-
-export default function MainLibraryPage() {
-  return <LibraryPage />
-}
-
-function ClassicLibraryPage() {
-  const [queryState, setQueryState] = useState<LibraryQueryState>({
-    sort: defaultSort,
-    display: 'list',
-    filterString: '',
-    filter: {},
-  })
-  const [exportMode, setExportMode] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-
-  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(
-    new Set(),
-  )
-  const [allSelected, setAllSelected] = useState(false)
-
-  const library = useClassicLibrary(queryState)
-
-  const filteredLibrary = useMemo(() => {
-    return exportMode
-      ? library?.items.filter((entry) => !entry.draft)
-      : library?.items
-  }, [exportMode, library])
-
-  const filteredDocumentIds = useMemo(() => {
-    return filteredLibrary?.map((entry) => entry.id.id)
-  }, [filteredLibrary])
-  const {exportDocuments, openDirectory} = useAppContext()
-
-  const handleExportButtonClick = () => {
-    if (exportMode) {
-      if (selectedDocuments.size == 0) setExportMode(false)
-      else setIsDialogOpen(true)
-    } else {
-      setExportMode(true)
-    }
-  }
-
-  const toggleDocumentSelection = (id: string) => {
-    setSelectedDocuments((prevSelected) => {
-      const newSelected = new Set(prevSelected)
-      if (newSelected.has(id)) {
-        newSelected.delete(id)
-      } else {
-        newSelected.add(id)
-      }
-
-      // Check if all documents are selected and update `allSelected` state
-      if (filteredDocumentIds)
-        setAllSelected(
-          filteredDocumentIds.every((docId) => newSelected.has(docId)),
-        )
-
-      return newSelected
+export default function LibraryPage() {
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  const libraryRoute = route.key === 'library' ? route : undefined
+  const displayMode = libraryRoute?.displayMode || 'subscribed'
+  function setDisplayMode(mode: 'all' | 'subscribed' | 'favorites') {
+    replace({
+      key: 'library',
+      ...(libraryRoute || {}),
+      displayMode: mode,
     })
   }
-
-  const handleSelectAllChange = (checked: boolean) => {
-    setAllSelected(checked)
-    if (checked) {
-      setSelectedDocuments(new Set(filteredDocumentIds))
-    } else {
-      setSelectedDocuments(new Set())
-    }
+  const grouping = libraryRoute?.grouping || 'site'
+  const setGrouping = (grouping: 'site' | 'none') => {
+    replace({
+      key: 'library',
+      ...(libraryRoute || {}),
+      grouping,
+    })
   }
-
-  const submitExportDocuments = async () => {
-    if (selectedDocuments.size == 0) {
-      toast.error('No documents selected')
-      return
-    }
-
-    const selectedDocs = library?.items.filter((entry) =>
-      selectedDocuments.has(entry.id.id),
-    )
-
-    const documentsToExport = await Promise.all(
-      (selectedDocs || []).map(async (doc) => {
-        const blocks: HMBlockNode[] | undefined = doc.document?.content
-        const editorBlocks: EditorBlock[] = blocks
-          ? hmBlocksToEditorContent(blocks)
-          : []
-        const markdown = await convertBlocksToMarkdown(
-          editorBlocks,
-          doc.document!,
-        )
-        return {
-          title: getDocumentTitle(doc.document) || 'Untitled document',
-          markdown,
-        }
-      }),
-    )
-
-    exportDocuments(documentsToExport)
-      .then((res) => {
-        const success = (
-          <>
-            <YStack gap="$1.5" maxWidth={700}>
-              <SizableText wordWrap="break-word" textOverflow="break-word">
-                Successfully exported documents to: <b>{`${res}`}</b>.
-              </SizableText>
-              <SizableText
-                textDecorationLine="underline"
-                textDecorationColor="currentColor"
-                color="$brand5"
-                tag={'a'}
-                onPress={() => {
-                  openDirectory(res)
-                }}
-              >
-                Show directory
-              </SizableText>
-            </YStack>
-          </>
-        )
-        toast.success('', {customContent: success})
-      })
-      .catch((err) => {
-        toast.error(err)
-      })
-  }
-
-  const isLibraryEmpty = library?.totalItemCount === 0
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
+  const exportDocuments = useExportDocuments()
+  const library = useLibrary({
+    grouping,
+    displayMode,
+  })
+  const markAsRead = useMarkAsRead()
+  const isLibraryEmpty = library && library.items && library.items.length === 0
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-
-          {filteredLibrary && library && (
-            <>
-              <LibraryQueryBar
-                queryState={queryState}
-                setQueryState={setQueryState}
-                exportMode={exportMode}
-                handleExportButtonClick={handleExportButtonClick}
-                isLibraryEmpty={filteredLibrary.length == 0}
+          <CreateAccountBanner />
+          <XStack marginBottom="$4">
+            <DisplayModeTab
+              label="Subscribed"
+              value="subscribed"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="Favorites"
+              value="favorites"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="All"
+              value="all"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+          </XStack>
+          <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
+            <XStack gap="$2">
+              <GroupingControl
+                grouping={grouping}
+                onGroupingChange={setGrouping}
               />
-              {queryState.display == 'list' ? (
-                <LibraryList
-                  library={{
-                    items: filteredLibrary,
-                    totalItemCount: filteredLibrary.length,
+            </XStack>
+            {isLibraryEmpty ? null : (
+              <XStack gap="$3" ai="center">
+                <Button
+                  size="$2"
+                  onPress={() => {
+                    if (isSelecting) {
+                      exportDocuments(selectedDocIds).then((res) => {
+                        setIsSelecting(false)
+                        setSelectedDocIds([])
+                      })
+                    } else {
+                      setIsSelecting(true)
+                    }
                   }}
-                  exportMode={exportMode}
-                  toggleDocumentSelection={toggleDocumentSelection}
-                  selectedDocuments={selectedDocuments}
-                  allSelected={allSelected}
-                  handleSelectAllChange={handleSelectAllChange}
+                  icon={FileOutput}
+                  bg="$brand5"
+                  borderColor="$brand5"
+                  color="white"
+                  hoverStyle={{
+                    bg: '$brand6',
+                    borderColor: '$brand6',
+                  }}
+                >
+                  Export
+                </Button>
+                {isSelecting ? (
+                  <Button
+                    size="$2"
+                    theme="red"
+                    onPress={() => {
+                      setIsSelecting(false)
+                      setSelectedDocIds([])
+                    }}
+                    iconAfter={X}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <OptionsDropdown
+                  menuItems={[
+                    {
+                      label: 'Mark all as read',
+                      key: 'mark-all-as-read',
+                      icon: CheckCheck,
+                      onPress: () => {
+                        markAsRead(
+                          library.items
+                            ?.map((item) => {
+                              if (item.type === 'site') {
+                                return hmId('d', item.id)
+                              }
+                              return hmId('d', item.account, {
+                                path: item.path,
+                              })
+                            })
+                            .filter(
+                              (id) => id !== null,
+                            ) as UnpackedHypermediaId[],
+                        )
+                      },
+                    },
+                  ]}
                 />
-              ) : queryState.display == 'cards' ? (
-                <LibraryCards />
-              ) : null}
-              {exportMode && (
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <Dialog.Portal>
-                    <Dialog.Overlay
-                      height="100vh"
-                      bg={'#00000088'}
-                      width="100vw"
-                      animation="fast"
-                      opacity={0.8}
-                      enterStyle={{opacity: 0}}
-                      exitStyle={{opacity: 0}}
-                    />
-                    <DialogContent>
-                      <YStack>
-                        {selectedDocuments.size === 1 ? (
-                          <XStack
-                            maxWidth={290}
-                            whiteSpace="normal"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            style={{wordWrap: 'break-word'}}
-                          >
-                            <SizableText size="$3">
-                              You are choosing to{' '}
-                              <Text fontWeight="800">export</Text> the document
-                              named{' '}
-                              <Text fontWeight="800">
-                                “
-                                {library.items.find(
-                                  (entry) =>
-                                    entry.id.id ===
-                                    Array.from(selectedDocuments)[0],
-                                )?.document?.metadata?.name || 'Untitled'}
-                                ”
-                              </Text>
-                              .
-                            </SizableText>
-                          </XStack>
-                        ) : (
-                          <SizableText size="$3">
-                            You are choosing to{' '}
-                            <Text fontWeight="800">
-                              export ({selectedDocuments.size}) documents
-                            </Text>
-                            .
-                          </SizableText>
-                        )}
-                        <SizableText size="$2" marginVertical="$4">
-                          Do you want to continue with the export?
-                        </SizableText>
-                        <XStack width="100%" gap="$3" jc="space-between">
-                          <Button
-                            flex={1}
-                            bc="$gray3"
-                            onPress={() => {
-                              setIsDialogOpen(false)
-                              setExportMode(false)
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            flex={1}
-                            bg="$brand12"
-                            borderColor="$brand11"
-                            hoverStyle={{
-                              bg: '$brand11',
-                              borderColor: '$brand10',
-                            }}
-                            onPress={() => {
-                              setIsDialogOpen(false)
-                              setExportMode(false)
-                              submitExportDocuments()
-                            }}
-                          >
-                            Export
-                          </Button>
-                        </XStack>
-                      </YStack>
-                    </DialogContent>
-                  </Dialog.Portal>
-                </Dialog>
-              )}
-            </>
-          )}
+              </XStack>
+            )}
+          </XStack>
+          <librarySelectionContext.Provider
+            value={{
+              isSelecting,
+              selectedDocIds,
+              onSelect: (id, isSelected) => {
+                setSelectedDocIds(
+                  isSelected
+                    ? [...selectedDocIds, id]
+                    : selectedDocIds.filter((id) => id !== id),
+                )
+              },
+            }}
+          >
+            {library?.items?.map((item: LibraryItem) => {
+              if (item.type === 'site') {
+                return (
+                  <LibrarySiteItem
+                    key={item.id}
+                    site={item}
+                    accountsMetadata={library.accountsMetadata}
+                  />
+                )
+              }
+              return (
+                <LibraryDocumentItem
+                  key={`${item.account}-${item.path}`}
+                  item={item}
+                  accountsMetadata={library.accountsMetadata || {}}
+                />
+              )
+            })}
+          </librarySelectionContext.Provider>
         </Container>
       </MainWrapper>
     </XStack>
   )
 }
 
-function LibraryQueryBar({
-  queryState,
-  setQueryState,
-  exportMode,
-  handleExportButtonClick,
-  isLibraryEmpty = true,
+function DisplayModeTab({
+  label,
+  value,
+  activeValue,
+  onDisplayMode,
 }: {
-  queryState: LibraryQueryState
-  setQueryState: React.Dispatch<React.SetStateAction<LibraryQueryState>>
-  exportMode: boolean
-  handleExportButtonClick: () => void
-  isLibraryEmpty: boolean
+  label: string
+  value: 'all' | 'subscribed' | 'favorites'
+  activeValue: 'all' | 'subscribed' | 'favorites'
+  onDisplayMode: (value: 'all' | 'subscribed' | 'favorites') => void
 }) {
-  return (
-    <XStack gap="$2" w="100%">
-      <SortControl
-        sort={queryState.sort}
-        onSort={(sort) => {
-          setQueryState((v) => ({
-            ...v,
-            sort,
-          }))
-        }}
-      />
-      <FilterControl
-        filter={queryState.filter}
-        onFilter={(filter) => {
-          setQueryState((v) => ({
-            ...v,
-            filter,
-          }))
-        }}
-      />
-      <LibrarySearch
-        search={queryState.filterString}
-        onSearch={(filterString: string) => {
-          setQueryState((v) => ({
-            ...v,
-            filterString,
-          }))
-        }}
-      />
-      {isLibraryEmpty ? null : (
-        <XStack position="absolute" right="$2" top="$1" gap="$2">
-          <Button
-            size="$2"
-            onPress={handleExportButtonClick}
-            icon={FileOutput}
-            bg="$brand5"
-            borderColor="$brand5"
-            color="white"
-            hoverStyle={{
-              bg: '$brand6',
-              borderColor: '$brand6',
-            }}
-          >
-            Export
-          </Button>
-          {exportMode ? (
-            <Button
-              size="$2"
-              theme="red"
-              onPress={handleExportButtonClick}
-              iconAfter={X}
-            >
-              Cancel
-            </Button>
-          ) : null}
-        </XStack>
-      )}
-    </XStack>
-  )
-}
-
-const sortOptions: Readonly<
-  {label: string; value: LibraryQueryState['sort']}[]
-> = [
-  {label: 'Last Update', value: 'lastUpdate'},
-  {label: 'Alphabetical', value: 'alphabetical'},
-] as const
-
-function SortControl({
-  sort,
-  onSort,
-}: {
-  sort: LibraryQueryState['sort']
-  onSort: (sort: LibraryQueryState['sort']) => void
-}) {
-  const popoverState = usePopoverState()
-  function select(sort: LibraryQueryState['sort']) {
-    return () => {
-      onSort(sort)
-      popoverState.onOpenChange(false)
-    }
-  }
-  const activeOption = sortOptions.find((option) => option.value === sort)
-  const isDefault = sort === defaultSort
-  return (
-    <Popover {...popoverState} placement="bottom-start">
-      <Popover.Trigger asChild>
-        <Button
-          size="$2"
-          icon={ArrowDownUp}
-          bg={isDefault ? undefined : '$brand5'}
-          hoverStyle={{
-            bg: isDefault ? undefined : '$brand6',
-            borderColor: isDefault ? undefined : '$brand6',
-          }}
-        >
-          {activeOption && !isDefault ? (
-            <XStack>
-              <SizableText size="$2">{activeOption.label}</SizableText>
-              <TagXButton onPress={() => onSort(defaultSort)} />
-            </XStack>
-          ) : null}
-        </Button>
-      </Popover.Trigger>
-      <Popover.Content {...commonPopoverProps}>
-        <YGroup>
-          {sortOptions.map((option) => (
-            <Button
-              size="$2"
-              onPress={select(option.value)}
-              key={option.value}
-              iconAfter={sort === option.value ? Check : null}
-              justifyContent="flex-start"
-            >
-              {option.label}
-            </Button>
-          ))}
-        </YGroup>
-      </Popover.Content>
-    </Popover>
-  )
-}
-
-function TagXButton({onPress}: {onPress: () => void}) {
+  const borderWidth = 4
+  const activationColor = activeValue === value ? '$brand5' : undefined
   return (
     <Button
-      size="$1"
-      chromeless
+      onPress={() => onDisplayMode(value)}
+      borderWidth={0}
+      borderColor="$colorTransparent"
+      borderRadius={0}
+      borderBottomWidth={borderWidth}
+      borderBottomColor={activationColor}
       hoverStyle={{
-        bg: '$colorTransparent',
+        borderWidth: 0,
         borderColor: '$colorTransparent',
+        borderBottomWidth: borderWidth,
+        borderBottomColor: activationColor,
       }}
-      onPress={(e: MouseEvent) => {
-        e.stopPropagation()
-        onPress()
+      focusStyle={{
+        bg: '$colorTransparent',
+        borderWidth: 0,
+        borderColor: '$colorTransparent',
+        borderBottomWidth: borderWidth,
+        borderBottomColor: activationColor,
       }}
-      color="white"
-      icon={X}
-    />
-  )
-}
-
-const roleFilterOptions: Readonly<{label: string; value: FilterItem}[]> = [
-  {label: 'Owner', value: 'owner'},
-  {label: 'Editor', value: 'editor'},
-  {label: 'Writer', value: 'writer'},
-] as const
-
-const allRoleFilterOptions = roleFilterOptions.map((option) => option.value)
-
-const filterOptions: Readonly<
-  {
-    label: string
-    value: FilterItem
-    icon: React.FC<{size: SizeTokens}> | null
-  }[]
-> = [
-  {label: 'Drafts', value: 'drafts', icon: Pencil},
-  {label: 'Subscribed', value: 'subscribed', icon: Archive},
-  {label: 'Favorites', value: 'favorites', icon: Star},
-] as const
-
-function FilterControl({
-  filter,
-  onFilter,
-}: {
-  filter: LibraryQueryState['filter']
-  onFilter: (filter: LibraryQueryState['filter']) => void
-}) {
-  const popoverState = usePopoverState()
-  const activeFilters = Object.entries(filter)
-    .filter(([key, value]) => value)
-    .map(([key, value]) => {
-      return filterOptions.find((option) => option.value === key)
-    })
-    .filter((f) => !!f)
-  const activeRoleFilters = Object.entries(filter)
-    .filter(([key, value]) => value)
-    .map(([key, value]) => {
-      return roleFilterOptions.find((option) => option.value === key)
-    })
-    .filter((f) => !!f)
-  const isEmptyFilter =
-    activeFilters.length === 0 && activeRoleFilters.length === 0
-  const allEditorialRolesSelected = allRoleFilterOptions.every(
-    (role) => filter[role],
-  )
-  return (
-    <Popover {...popoverState} placement="bottom-start">
-      <Popover.Trigger asChild>
-        <Button
-          size="$2"
-          paddingVertical={0}
-          icon={Settings2}
-          bg={isEmptyFilter ? undefined : '$brand5'}
-          color={isEmptyFilter ? undefined : 'white'}
-          hoverStyle={{
-            bg: isEmptyFilter ? undefined : '$brand6',
-            borderColor: isEmptyFilter ? undefined : '$brand6',
-          }}
-        >
-          {/* {allEditorialRolesSelected ? (
-            <SelectedFilterTag
-              label="Editorial Role"
-              onX={() => {
-                onFilter({
-                  ...filter,
-                  ...Object.fromEntries(
-                    allRoleFilterOptions.map((role) => [role, false]),
-                  ),
-                })
-              }}
-            />
-          ) : (
-            activeRoleFilters.map((activeFilter) => (
-              <SelectedFilterTag
-                label={activeFilter.label}
-                key={activeFilter.value}
-                onX={() => onFilter({...filter, [activeFilter.value]: false})}
-              />
-            ))
-          )} */}
-          {activeFilters.map((activeFilter) => (
-            <SelectedFilterTag
-              label={activeFilter.label}
-              key={activeFilter.value}
-              onX={() => onFilter({...filter, [activeFilter.value]: false})}
-            />
-          ))}
-        </Button>
-      </Popover.Trigger>
-      <Popover.Content {...commonPopoverProps}>
-        <YGroup>
-          {filterOptions.map((option) => (
-            <RoleFilterOption
-              key={option.value}
-              option={option}
-              checked={!!filter[option.value]}
-              onCheckedChange={(newValue) => {
-                onFilter({...filter, [option.value]: !!newValue})
-              }}
-              onPress={() => {
-                onFilter({[option.value]: true})
-                popoverState.onOpenChange(false)
-              }}
-            />
-          ))}
-        </YGroup>
-      </Popover.Content>
-    </Popover>
-  )
-}
-
-function SelectedFilterTag({label, onX}: {label: string; onX: () => void}) {
-  return (
-    <XStack ai="center">
-      <SizableText color="white" size="$1">
-        {label}
-      </SizableText>
-      <TagXButton color="white" onPress={onX} />
-    </XStack>
-  )
-}
-
-function RoleFilterOption({
-  option,
-  onCheckedChange,
-  onPress,
-  checked,
-}: {
-  option: {
-    label: string
-    value?: FilterItem
-    icon?: React.FC<{size: SizeTokens}> | null
-  }
-  onCheckedChange: (newValue: boolean) => void
-  onPress: () => void
-  checked: boolean
-}) {
-  return (
-    <Button
-      onPress={onPress}
-      key={option.value}
-      size="$2"
-      justifyContent="space-between"
-      icon={
-        option.icon ? (
-          <option.icon size={12} />
-        ) : (
-          <Square color="$colorTransparent" size={12} />
-        )
-      }
-      iconAfter={
-        <Checkbox
-          id="link-latest"
-          size="$2"
-          borderColor="$color8"
-          hoverStyle={{
-            borderColor: '$color9',
-          }}
-          checked={checked}
-          onPress={(e: MouseEvent) => {
-            e.stopPropagation()
-          }}
-          focusStyle={{borderColor: '$color10'}}
-          onCheckedChange={onCheckedChange}
-        >
-          <Checkbox.Indicator borderColor="$color8">
-            <Check color="$brand5" />
-          </Checkbox.Indicator>
-        </Checkbox>
-      }
     >
-      <SizableText f={1} size="$1">
-        {option.label}
-      </SizableText>
+      {label}
     </Button>
   )
 }
@@ -643,147 +273,351 @@ const commonPopoverProps: ComponentProps<typeof Popover.Content> = {
   elevate: true,
 }
 
-function LibrarySearch({
-  search,
-  onSearch,
+const groupingOptions: Readonly<{label: string; value: 'site' | 'none'}[]> = [
+  {label: 'All Documents', value: 'none'},
+  {label: 'Group by Site', value: 'site'},
+] as const
+
+function GroupingControl({
+  grouping,
+  onGroupingChange,
 }: {
-  search: string
-  onSearch: (search: string) => void
+  grouping: 'site' | 'none'
+  onGroupingChange: (grouping: 'site' | 'none') => void
 }) {
-  const [isOpened, setIsOpened] = useState(!!search)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const popoverState = usePopoverState()
   return (
-    <XStack
-      borderWidth={2}
-      ai="center"
-      borderColor={isOpened ? '$color5' : '$colorTransparent'}
-      borderRadius="$2"
-      animation="fast"
-      onKeyUp={(e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          setIsOpened(false)
-          onSearch('')
-        }
-      }}
-    >
-      <Button
-        size="$2"
-        borderColor="$colorTransparent"
-        outlineColor="$colorTransparent"
-        icon={Search}
-        onPress={() => {
-          if (search === '' && isOpened) {
-            setIsOpened(false)
-          } else {
-            setIsOpened(true)
-            setTimeout(() => inputRef.current?.focus(), 10)
-          }
+    <Popover {...popoverState} placement="bottom-start">
+      <Popover.Trigger asChild>
+        <Button size="$2" paddingVertical={0} bg="$color5" icon={ListFilter} />
+      </Popover.Trigger>
+      <Popover.Content {...commonPopoverProps}>
+        <YGroup>
+          {groupingOptions.map((option) => (
+            <Button
+              size="$2"
+              onPress={() => onGroupingChange(option.value)}
+              key={option.value}
+              iconAfter={grouping === option.value ? Check : null}
+              justifyContent="flex-start"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </YGroup>
+      </Popover.Content>
+    </Popover>
+  )
+}
+
+const librarySelectionContext = createContext<{
+  isSelecting: boolean
+  selectedDocIds: string[]
+  onSelect: (id: string, isSelected: boolean) => void
+}>({
+  isSelecting: false,
+  selectedDocIds: [],
+  onSelect: () => {},
+})
+
+function SelectionCollapseButton({
+  isCollapsed,
+  setIsCollapsed,
+  docId,
+}: {
+  isCollapsed: boolean | null
+  setIsCollapsed?: (isCollapsed: boolean) => void
+  docId: string
+}) {
+  const {isSelecting, selectedDocIds, onSelect} = useContext(
+    librarySelectionContext,
+  )
+  const isSelected = selectedDocIds.includes(docId)
+  if (isSelecting) {
+    return (
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={(isSelected: boolean) => onSelect(docId, !!isSelected)}
+        size="$3"
+        borderColor="$color8"
+        hoverStyle={{
+          borderColor: '$color9',
         }}
-        bg="$colorTransparent"
-        hoverStyle={{borderColor: isOpened ? '$colorTransparent' : undefined}}
-      />
-      {isOpened ? (
+        onPress={(e: GestureResponderEvent) => {
+          e.stopPropagation()
+        }}
+        focusStyle={{borderColor: '$color10'}}
+      >
+        <Checkbox.Indicator borderColor="$color8">
+          <Check color="$brand5" />
+        </Checkbox.Indicator>
+      </Checkbox>
+    )
+  }
+  if (isCollapsed === null) return <View width="$1" />
+  return (
+    <Button
+      icon={isCollapsed ? ChevronRight : ChevronDown}
+      onPress={(e: GestureResponderEvent) => {
+        e.stopPropagation()
+        setIsCollapsed?.(!isCollapsed)
+      }}
+      circular
+      size="$1"
+    />
+  )
+}
+
+function LibrarySiteItem({
+  site,
+  accountsMetadata,
+}: {
+  site: LibrarySite
+  accountsMetadata?: HMAccountsMetadata
+}) {
+  const route = useNavRoute()
+  const libraryRoute = route.key === 'library' ? route : undefined
+  const replace = useNavigate('replace')
+  const expandedIds =
+    (route.key === 'library' ? route.expandedIds : undefined) || []
+  const isCollapsed = !expandedIds.includes(site.id)
+  function setIsCollapsed(isCollapsed: boolean) {
+    replace({
+      key: 'library',
+      ...(libraryRoute || {}),
+      expandedIds: isCollapsed
+        ? expandedIds?.filter((id) => id !== site.id)
+        : [...expandedIds, site.id],
+    })
+  }
+  const navigate = useNavigate()
+  const metadata = site?.metadata
+  const id = hmId('d', site.id)
+  const documents = useSiteLibrary(site.id, !isCollapsed)
+  const homeDocument = documents.data?.find((doc) => !doc.path?.length)
+  const siteDisplayActivitySummary =
+    !isCollapsed && homeDocument
+      ? homeDocument.activitySummary
+      : site.activitySummary
+  const latestComment = isCollapsed
+    ? site.latestComment
+    : homeDocument?.latestComment
+  const isRead = !siteDisplayActivitySummary?.isUnread
+  return (
+    <>
+      <Button
+        group="item"
+        borderWidth={0}
+        hoverStyle={{
+          bg: '$color5',
+        }}
+        bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+        paddingHorizontal={16}
+        paddingVertical="$2"
+        onPress={() => {
+          navigate({key: 'document', id})
+        }}
+        h="auto"
+        ai="center"
+      >
+        <SelectionCollapseButton
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+          docId={id.id}
+        />
+        <HMIcon id={id} metadata={metadata} />
+        <YStack f={1}>
+          <XStack gap="$3" ai="center">
+            <SizableText
+              f={1}
+              fontWeight={isRead ? undefined : 'bold'}
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {getMetadataName(metadata)}
+            </SizableText>
+            {siteDisplayActivitySummary && (
+              <LibraryEntryCommentCount
+                activitySummary={siteDisplayActivitySummary}
+              />
+            )}
+          </XStack>
+          {siteDisplayActivitySummary && (
+            <LibraryEntryUpdateSummary
+              accountsMetadata={accountsMetadata}
+              latestComment={latestComment}
+              activitySummary={siteDisplayActivitySummary}
+            />
+          )}
+        </YStack>
+      </Button>
+      {isCollapsed ? null : (
+        <YStack>
+          {documents.data?.map((item) => {
+            if (item.path?.length === 0) return null
+            return (
+              <LibraryDocumentItem
+                key={item.path?.join('/') || ''}
+                item={item}
+                accountsMetadata={accountsMetadata || {}}
+              />
+            )
+          })}
+        </YStack>
+      )}
+    </>
+  )
+}
+
+export function LibraryDocumentItem({
+  item,
+  indent,
+  accountsMetadata,
+}: {
+  item: HMLibraryDocument
+  indent?: boolean
+  accountsMetadata: HMAccountsMetadata
+}) {
+  const navigate = useNavigate()
+  const metadata = item?.metadata
+  const id = hmId('d', item.account, {
+    path: item.path,
+  })
+  const isRead = !item.activitySummary?.isUnread
+  return (
+    <Button
+      group="item"
+      borderWidth={0}
+      hoverStyle={{
+        bg: '$color5',
+      }}
+      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+      // elevation="$1"
+      paddingHorizontal={16}
+      paddingVertical="$2"
+      onPress={() => {
+        navigate({key: 'document', id})
+      }}
+      h="auto"
+      marginVertical={'$1'}
+      ai="center"
+    >
+      <SelectionCollapseButton isCollapsed={null} docId={id.id} />
+      <View width={32} />
+
+      <YStack f={1}>
+        <LibraryEntryBreadcrumbs
+          breadcrumbs={item.breadcrumbs}
+          onNavigate={navigate}
+          id={id}
+        />
+        <XStack gap="$3" ai="center">
+          <SizableText
+            f={1}
+            fontWeight={isRead ? undefined : 'bold'}
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            overflow="hidden"
+          >
+            {getMetadataName(metadata)}
+          </SizableText>
+          {item.activitySummary && (
+            <LibraryEntryCommentCount activitySummary={item.activitySummary} />
+          )}
+          <LibraryEntryAuthors
+            item={item}
+            accountsMetadata={accountsMetadata}
+          />
+        </XStack>
+        {item.activitySummary && (
+          <LibraryEntryUpdateSummary
+            accountsMetadata={accountsMetadata}
+            latestComment={item.latestComment}
+            activitySummary={item.activitySummary}
+          />
+        )}
+      </YStack>
+    </Button>
+  )
+}
+
+function LibraryEntryBreadcrumbs({
+  breadcrumbs,
+  onNavigate,
+  id,
+}: {
+  breadcrumbs: HMBreadcrumb[]
+  onNavigate: (route: DocumentRoute) => void
+  id: UnpackedHypermediaId
+}) {
+  const displayCrumbs = breadcrumbs.slice(1).filter((crumb) => !!crumb.name)
+  if (!displayCrumbs.length) return null
+  return (
+    <XStack>
+      {displayCrumbs.map((breadcrumb, idx) => (
         <>
-          <Input
-            borderWidth={0}
-            outline="none"
-            unstyled
-            placeholder="Filter Library..."
-            value={search}
-            size="$2"
-            onChangeText={onSearch}
-            ref={inputRef}
-            width={250}
-          />
           <Button
-            size="$2"
-            chromeless
-            bg="$colorTransparent"
-            onPress={(e: MouseEvent) => {
-              e.stopPropagation()
-              onSearch('')
-              setIsOpened(false)
+            color="$color10"
+            fontWeight="400"
+            size="$1"
+            textProps={{
+              hoverStyle: {
+                color: '$color',
+              },
             }}
-            icon={X}
+            margin={0}
+            marginRight="$1"
+            paddingHorizontal={0}
             hoverStyle={{
-              bg: '$color4',
+              bg: '$colorTransparent',
             }}
-          />
+            borderWidth={0}
+            bg="$colorTransparent"
+            onPress={(e: GestureResponderEvent) => {
+              e.stopPropagation()
+              onNavigate({
+                key: 'document',
+                id: {...id, path: entityQueryPathToHmIdPath(breadcrumb.path)},
+              })
+            }}
+          >
+            {breadcrumb.name}
+          </Button>
+          {idx === displayCrumbs.length - 1 ? null : (
+            <SizableText size="$1" color="$color10" margin={0} marginRight="$1">
+              /
+            </SizableText>
+          )}
         </>
-      ) : null}
+      ))}
     </XStack>
   )
 }
 
-function LibraryCards() {
-  return null
+function LibraryEntryCommentCount({
+  activitySummary,
+}: {
+  activitySummary: HMActivitySummary
+}) {
+  const commentCount = activitySummary?.commentCount
+  if (!commentCount) return null
+  return (
+    <XStack gap="$1" ai="center">
+      <MessageSquare size={16} />
+      <SizableText size="$1">{commentCount}</SizableText>
+    </XStack>
+  )
 }
 
-function LibraryList({
-  library,
-  exportMode,
-  toggleDocumentSelection,
-  selectedDocuments,
-  allSelected,
-  handleSelectAllChange,
+function LibraryEntryAuthors({
+  item,
+  accountsMetadata,
 }: {
-  library: LibraryData
-  exportMode: boolean
-  toggleDocumentSelection: (id: string) => void
-  selectedDocuments: Set<string>
-  allSelected: boolean
-  handleSelectAllChange: (checked: boolean) => void
+  item: HMDocumentInfo
+  accountsMetadata: HMAccountsMetadata
 }) {
-  return (
-    <YStack paddingVertical="$4" marginHorizontal={-8}>
-      {exportMode && (
-        <XStack
-          paddingHorizontal={16}
-          paddingVertical="$1"
-          group="item"
-          gap="$3"
-          ai="center"
-          f={1}
-          h={60}
-        >
-          <Checkbox
-            size="$3"
-            checked={allSelected}
-            onCheckedChange={handleSelectAllChange}
-            borderColor="$color9"
-            focusStyle={{
-              borderColor: '$color9',
-            }}
-            hoverStyle={{
-              borderColor: '$color9',
-            }}
-          >
-            <Checkbox.Indicator>
-              <Check color="$brand5" />
-            </Checkbox.Indicator>
-          </Checkbox>
-          <SizableText fontSize="$4" fontWeight="800" textAlign="left">
-            Select All
-          </SizableText>
-        </XStack>
-      )}
-      <YStack gap="$3">
-        {library.items.length
-          ? library.items.map((entry) => {
-              const selected = selectedDocuments.has(entry.id.id)
-              return (
-                <LibraryListItem
-                  key={entry.id.id}
-                  entry={entry}
-                  exportMode={exportMode}
-                  selected={selected}
-                  toggleDocumentSelection={toggleDocumentSelection}
-                />
-              )
-            })
-          : [...Array(5)].map((_, index) => <ListItemSkeleton key={index} />)}
-      </YStack>
-    </YStack>
-  )
+  const {authors} = item
+  return <FacePile accounts={authors} accountsMetadata={accountsMetadata} />
+  // return <XStack>{authors.map((author) => <LinkIcon id={author.id} metadata={author.metadata} size={16} />)}</XStack>
 }
