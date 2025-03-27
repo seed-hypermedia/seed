@@ -8,14 +8,12 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
-import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
 
-// Import template images
-import blogDark from '/template-blog-dark.png'
-import blogLight from '/template-blog-light.png'
-import documentationDark from '/template-documentation-dark.png'
-import documentationLight from '/template-documentation-light.png'
+let templates = {
+  blog: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
+  documentation: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
+}
 
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
@@ -36,8 +34,6 @@ export function SiteTemplate() {
 
   function handleForking() {
     if (!targetId) return
-    invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
-    invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
     if (selectedTemplate === 'blank') {
       dispatchSiteTemplateEvent(false)
       navigate({
@@ -54,7 +50,8 @@ export function SiteTemplate() {
         templateId: templates[selectedTemplate],
       }).then((targetVersion) => {
         dispatchSiteTemplateEvent(false)
-
+        invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
+        invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
         setTimeout(() => {
           dispatchEditPopover(true)
         }, 500)
@@ -253,14 +250,21 @@ export function SiteTemplateDialog() {
 }
 
 function TemplateImage({name}: {name: 'blog' | 'documentation'}) {
-  const lightImage = name === 'blog' ? blogLight : documentationLight
-  const darkImage = name === 'blog' ? blogDark : documentationDark
-
   return (
     <picture style={{width: 200, height: 140}}>
-      <source media="(prefers-color-scheme: dark)" srcSet={darkImage} />
-      <source media="(prefers-color-scheme: light)" srcSet={lightImage} />
-      <img style={{width: 200, height: 140}} src={lightImage} alt={name} />
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcSet={`/assets/template-${name}-dark.png`}
+      />
+      <source
+        media="(prefers-color-scheme: light)"
+        srcSet={`/assets/template-${name}-light.png`}
+      />
+      <img
+        style={{width: 200, height: 140}}
+        src={`/assets/template-${name}-light.png`}
+        alt={name}
+      />
     </picture>
   )
 }

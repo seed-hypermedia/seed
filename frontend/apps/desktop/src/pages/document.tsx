@@ -268,7 +268,7 @@ function _MainDocumentPage({
   }
   return (
     <YStack>
-      {isHomeDoc && canEditDoc && (
+      {canEditDoc && (
         <SetupDomainBanner
           docId={id}
           hasDomain={!!entity.data?.document?.metadata.siteUrl}
