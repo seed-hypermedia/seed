@@ -321,6 +321,10 @@ NESTED BLOCKS
   padding: 0;
 }
 
+:global(.comment-editor) .blockContent[data-content-type='code-block'] code {
+  font-size: 1em;
+}
+
 /* LISTS */
 
 .blockContent::before {
@@ -450,6 +454,10 @@ NESTED BLOCKS
     'Helvetica Neue',
     sans-serif;
   content: "Enter text or type '/' for commands";
+}
+
+:global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
+  font-size: 1em !important;
 }
 
 .blockContent.isFilter.hasAnchor .inlineContent:before {

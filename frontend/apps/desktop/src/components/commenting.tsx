@@ -1,4 +1,3 @@
-import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {
   useCommentDraft,
   useCommentEditor,
@@ -8,6 +7,7 @@ import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntities} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {getDocumentTitle} from '@shm/shared/content'
 import {
   HMAccountsMetadata,

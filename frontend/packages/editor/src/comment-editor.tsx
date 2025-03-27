@@ -7,7 +7,7 @@ import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -44,6 +44,24 @@ export default function CommentEditor({
   const {editor} = useCommentEditor()
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    function handleSelectAll(event: KeyboardEvent) {
+      if (event.key == 'a' && event.metaKey) {
+        if (editor && editor._tiptapEditor.isFocused) {
+          event.preventDefault()
+          editor._tiptapEditor.commands.focus()
+          editor._tiptapEditor.commands.selectAll()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSelectAll)
+
+    return () => {
+      window.removeEventListener('keydown', handleSelectAll)
+    }
+  }, [])
 
   function onDrop(event: DragEvent) {
     if (!isDragging) return
