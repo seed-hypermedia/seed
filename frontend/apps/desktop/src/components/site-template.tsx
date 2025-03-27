@@ -8,13 +8,8 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
+import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
-
-let templates = {
-  blog: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
-  documentation: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
-}
-
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
 
