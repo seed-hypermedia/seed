@@ -43,6 +43,8 @@ export default defineConfig(({command, mode}) => {
         },
       },
     },
+    publicDir: 'assets',
+    assetsInclude: ['**/*.png'],
     plugins: [
       tsConfigPaths({
         root: '../../',

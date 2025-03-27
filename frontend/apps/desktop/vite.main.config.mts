@@ -35,6 +35,7 @@ export default defineConfig(({command, mode}) => {
     define: {
       __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN),
     },
+    publicDir: 'assets',
     build: {
       sourcemap: true,
       rollupOptions: {
