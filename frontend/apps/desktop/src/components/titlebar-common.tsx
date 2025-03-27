@@ -287,7 +287,6 @@ function EditDocButton() {
 
   useEffect(() => {
     editPopoverEvents.subscribe((visible) => {
-      console.log('== ~ editPopoverEvents ~ visible:', visible)
       setPopoverVisible(visible)
     })
   }, [])
@@ -323,7 +322,6 @@ function EditDocButton() {
           onPress={(e) => {
             e.stopPropagation()
             e.preventDefault()
-            console.log('== ~ onPress ~ popoverVisible:', popoverVisible)
             setPopoverVisible(false)
           }}
         />
@@ -372,10 +370,15 @@ function EditDocButton() {
               borderBottomColor="$colorTransparent"
               transform={[{rotate: '45deg'}]}
             />
-            <SizableText>
-              You have completed a fork of this document. Please continue
-              editing in the forked document.
-            </SizableText>
+            <YStack gap="$2">
+              <SizableText size="$6" fontWeight="bold">
+                Start Editing the Content
+              </SizableText>
+              <SizableText>
+                When you press "Edit" you can start customizing the content of
+                the current page
+              </SizableText>
+            </YStack>
           </Popover.Content>
         </Popover>
       </>

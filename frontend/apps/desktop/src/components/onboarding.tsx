@@ -1396,6 +1396,16 @@ export function ResetOnboardingButton() {
       <Button
         size="$2"
         opacity={0.7}
+        onPress={() => dispatchEditPopover(true)}
+        bg="$brand5"
+        color="white"
+        hoverStyle={{opacity: 1, bg: '$brand4'}}
+      >
+        show Edit Dialog
+      </Button>
+      <Button
+        size="$2"
+        opacity={0.7}
         onPress={() => dispatchSiteTemplateEvent(true)}
         bg="$brand5"
         color="white"
