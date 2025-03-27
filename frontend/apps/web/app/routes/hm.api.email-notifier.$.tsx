@@ -1,9 +1,12 @@
 import {cborDecode} from '@/api'
-import {getAccount, setAccount} from '@/db'
+import {getAccount, getEmail, setAccount} from '@/db'
+import {sendNotificationWelcomeEmail} from '@/emails'
+import {getMetadata} from '@/loaders'
 import {validateSignature} from '@/validate-signature'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
+import {hmId} from '@shm/shared'
 import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
 
@@ -67,20 +70,45 @@ export const action: ActionFunction = async ({request, params}) => {
   }
   if (restPayload.action === 'get-email-notifications') {
     const account = getAccount(accountId)
-    console.log('account', account)
-    console.log('restPayload', restPayload)
     return json({
       account,
     })
   }
   if (restPayload.action === 'set-email-notifications') {
+    const account = getAccount(accountId)
+    const email = getEmail(restPayload.email)
+    if (!account) {
+      return json({error: 'Account not found'}, {status: 400})
+    }
     setAccount({
       id: accountId,
       email: restPayload.email,
       notifyAllMentions: restPayload.notifyAllMentions,
       notifyAllReplies: restPayload.notifyAllReplies,
     })
-    console.log('set-email-notifications', restPayload)
+    if (restPayload.email && !email) {
+      const metadata = await getMetadata(hmId('d', accountId))
+      if (!metadata.metadata) {
+        console.error(
+          'Account not found. Cannot send welcome email. ',
+          accountId,
+        )
+        return json({})
+      }
+      const newEmail = getEmail(restPayload.email)
+      if (!newEmail) {
+        console.error(
+          'Created email not found. Cannot send welcome email. ',
+          restPayload.email,
+        )
+        return json({})
+      }
+      sendNotificationWelcomeEmail(restPayload.email, metadata.metadata, {
+        adminToken: newEmail.adminToken,
+        notifyAllMentions: restPayload.notifyAllMentions,
+        notifyAllReplies: restPayload.notifyAllReplies,
+      })
+    }
     return json({})
   }
   return json({error: 'Invalid action'}, {status: 400})

@@ -18,7 +18,7 @@ import {
   DialogTitle,
   useAppDialog,
 } from '@shm/ui/universal-dialog'
-import {LogOut, Pencil} from '@tamagui/lucide-icons'
+import {LogOut, Megaphone, Pencil} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
@@ -45,6 +45,7 @@ import {
 } from './api'
 import {Ability} from './auth-abilities'
 import {preparePublicKey} from './auth-utils'
+import {NotifSettingsDialog} from './email-notifications'
 import {
   deleteAbility,
   deleteAllAbilities,
@@ -571,10 +572,19 @@ export function AccountFooterActions() {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
+  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   console.log('AccountFooterActions', userKeyPair?.id)
   if (!userKeyPair) return null
   return (
     <XStack gap="$2">
+      <Button
+        size="$2"
+        onPress={() => notifSettingsDialog.open({})}
+        backgroundColor="$color4"
+        icon={Megaphone}
+      >
+        Notification Settings
+      </Button>
       <Button
         size="$2"
         onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
@@ -593,6 +603,7 @@ export function AccountFooterActions() {
       </Button>
       {logoutDialog.content}
       {editProfileDialog.content}
+      {notifSettingsDialog.content}
     </XStack>
   )
 }

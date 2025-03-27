@@ -1,7 +1,6 @@
 import {createComment, postCBOR, SignedComment} from '@/api'
 import {useCreateAccount, useLocalKeyPair} from '@/auth'
 import {injectModels} from '@/models'
-import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
@@ -13,16 +12,12 @@ import {
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
-import {FormCheckbox, FormInput} from '@shm/ui/form-input'
-import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {useEffect} from 'react'
-import {useForm} from 'react-hook-form'
-import {Form, SizableText, Spinner, XStack, YStack} from 'tamagui'
-import {z} from 'zod'
+import {useEffect, useState} from 'react'
+import {SizableText, Spinner, XStack, YStack} from 'tamagui'
 import {getValidAbility} from './auth-abilities'
 import {
   createDelegatedComment,
@@ -30,10 +25,8 @@ import {
   useDelegatedAbilities,
 } from './auth-delegation'
 import type {AuthFragmentOptions} from './auth-page'
-import {
-  useEmailNotifications,
-  useSetEmailNotifications,
-} from './email-notifications-models'
+import {EmailNotificationsForm} from './email-notifications'
+import {useEmailNotifications} from './email-notifications-models'
 import {
   hasPromptedEmailNotifications,
   setHasPromptedEmailNotifications,
@@ -232,89 +225,58 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
   useEffect(() => {
     setHasPromptedEmailNotifications(true)
   }, [])
+  const [mode, setMode] = useState<'prompt' | 'form' | 'success'>('prompt')
   const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
     useEmailNotifications()
-  console.log('emailNotifications', emailNotifications)
-  if (isEmailNotificationsLoading) return <Spinner /> // make it look better
-  if (emailNotifications?.account) {
+  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  if (mode === 'prompt') {
     return (
-      <SizableText>{JSON.stringify(emailNotifications.account)}</SizableText>
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <SizableText>
+          Do you want to receive an email when someone mentions your or replies
+          to your comments?
+        </SizableText>
+        <XStack gap="$3" jc="flex-end">
+          <Button onPress={() => onClose()}>No Thanks</Button>
+          <Button onPress={() => setMode('form')} theme="blue">
+            Yes, Notify Me
+          </Button>
+        </XStack>
+      </YStack>
     )
   }
-  return (
-    <YStack>
-      <SizableText>
-        Do you want to receive email notifications when someone replies or
-        mentions you?
-      </SizableText>
-      <EmailNotificationsForm onClose={onClose} />
-      {/* <SizableText>{JSON.stringify(emailNotifications)}</SizableText> */}
-    </YStack>
-  )
-}
-
-const emailNotificationsSchema = z.object({
-  email: z.string().email(),
-  notifyAllMentions: z.boolean(),
-  notifyAllReplies: z.boolean(),
-})
-
-function EmailNotificationsForm({onClose}: {onClose: () => void}) {
-  const {mutateAsync: setEmailNotifications} = useSetEmailNotifications()
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<z.infer<typeof emailNotificationsSchema>>({
-    resolver: zodResolver(emailNotificationsSchema),
-    defaultValues: {
-      email: '',
-      notifyAllMentions: true,
-      notifyAllReplies: true,
-    },
-  })
-  function onSubmit(data: z.infer<typeof emailNotificationsSchema>) {
-    console.log('data', data)
-    setEmailNotifications(data).then(() => {
-      // onClose()
-    })
-  }
-  useEffect(() => {
-    setFocus('email')
-  }, [setFocus])
-  return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
-      <FormField name="email" label="What is your email?" errors={errors}>
-        <FormInput name="email" control={control} label="Email" />
-      </FormField>
-      <SizableText>Notify me when:</SizableText>
-      <FormField
-        name="notifyAllMentions"
-        label="Someone mentions me"
-        errors={errors}
-      >
-        <FormCheckbox name="notifyAllMentions" control={control} />
-      </FormField>
-      <FormField
-        name="notifyAllReplies"
-        label="Someone replies to me"
-        errors={errors}
-      >
-        <FormCheckbox name="notifyAllReplies" control={control} />
-      </FormField>
-      <XStack jc="center" gap="$3">
-        <Button
-          onPress={() => {
-            onClose()
+  if (mode === 'form') {
+    return (
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <EmailNotificationsForm
+          onClose={onClose}
+          onComplete={() => {
+            setMode('success')
           }}
-        >
-          No, Thanks.
-        </Button>
-        <Form.Trigger asChild>
-          <Button type="submit">Save Notification Settings</Button>
-        </Form.Trigger>
-      </XStack>
-    </Form>
-  )
+          defaultValues={emailNotifications?.account}
+        />
+      </YStack>
+    )
+  }
+  if (mode === 'success') {
+    return (
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <SizableText>
+          Email notifications have been set for{' '}
+          <SizableText fontWeight="bold">
+            {emailNotifications?.account?.email}
+          </SizableText>
+          .
+        </SizableText>
+        <SizableText>
+          You can edit your notification preferences by pressing "Notification
+          Settings" in the footer.
+        </SizableText>
+        <Button onPress={() => onClose()}>Done</Button>
+      </YStack>
+    )
+  }
 }
