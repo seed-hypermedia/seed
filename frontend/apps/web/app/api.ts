@@ -193,6 +193,14 @@ function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
       ...block.attributes,
       children: hmBlocksToPublishable(blockNode.children || []),
     }
+  } else if (block.type === 'WebEmbed') {
+    return {
+      id: block.id,
+      type: 'WebEmbed',
+      link: block.link,
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    }
   }
   throw new Error(`Unsupported block type: ${block.type}`)
 }

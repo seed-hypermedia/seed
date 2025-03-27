@@ -426,7 +426,6 @@ function MediaForm({
     const {name, size} = files[0]
     if (handleFileAttachment) {
       const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
-      console.log('displaySrc', displaySrc, fileBinary)
       assign({
         props: {
           fileBinary,

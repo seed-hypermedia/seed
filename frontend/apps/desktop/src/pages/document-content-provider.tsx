@@ -43,6 +43,7 @@ export function AppDocContentProvider({
       <DocContentProvider
         showDevMenu={experiments.data?.pubContentDevMenu}
         layoutUnit={contentLayoutUnit}
+        disableEmbedClick={true}
         importWebFile={importWebFile}
         textUnit={contentTextUnit}
         entityId={docId}

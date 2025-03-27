@@ -151,8 +151,6 @@ export default function CommentEditor({
 
                     const blockInfo = getBlockInfoFromPos(state, pos)
 
-                    console.log(blockNode)
-
                     if (index === 0) {
                       ;(editor as BlockNoteEditor).insertBlocks(
                         [blockNode],
@@ -217,11 +215,6 @@ export default function CommentEditor({
           event.preventDefault()
           setIsDragging(true)
         }}
-        // onDrop={(e) => {
-        //   e.preventDefault()
-        //   const files = Array.from(e.dataTransfer.files)
-        //   console.log('Dropped files:', files)
-        // }}
         onDrop={onDrop}
       >
         <EmbedToolbarProvider>

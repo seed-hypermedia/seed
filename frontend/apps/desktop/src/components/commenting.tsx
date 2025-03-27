@@ -33,6 +33,7 @@ export function renderCommentContent(comment: HMComment) {
   return (
     <AppDocContentProvider
       comment
+      disableEmbedClick={true}
       // onReplyBlock={onReplyBlock}
       // onReplyBlock={() => {}}
       // onCopyBlock={(
