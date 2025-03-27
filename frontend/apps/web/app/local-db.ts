@@ -53,6 +53,15 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
   }
   return new Promise((resolve, reject) => {
     openDb.onsuccess = (event) => {
+      console.log('~ db opened', openDb.result, window.location.origin)
+      getAllAbilitiesByOrigin(origin).then((abilities) => {
+        const abilitiesJson = JSON.stringify(abilities)
+        console.log(
+          '~~000  abilitiesJson',
+          abilitiesJson,
+          window.location.origin,
+        )
+      })
       resolve(openDb.result)
     }
     openDb.onerror = (error) => {
