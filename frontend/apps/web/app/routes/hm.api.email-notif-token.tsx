@@ -1,4 +1,4 @@
-import {getEmail, setAccount, setEmailUnsubscribed} from '@/db'
+import {getEmailWithToken, setAccount, setEmailUnsubscribed} from '@/db'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {z} from 'zod'
@@ -9,7 +9,7 @@ export const loader: LoaderFunction = async ({request, params}) => {
   if (!token) {
     return json({error: 'Invalid token'}, {status: 400})
   }
-  const email = getEmail(token)
+  const email = getEmailWithToken(token)
   if (!email) {
     return json({error: 'Invalid token'}, {status: 400})
   }
@@ -38,7 +38,7 @@ export const action: ActionFunction = async ({request, params}) => {
   if (!token) {
     return json({error: 'No token provided'}, {status: 400})
   }
-  const email = getEmail(token)
+  const email = getEmailWithToken(token)
   if (!email) {
     return json({error: 'Invalid token'}, {status: 400})
   }

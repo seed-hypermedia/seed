@@ -7,6 +7,7 @@ import {
   createAccount,
   getAccount,
   getAllEmails,
+  getEmailWithToken,
   getNotifierLastProcessedBlobCid,
   initDatabase,
   setAccount,
@@ -271,7 +272,7 @@ describe('Database', () => {
         .get(email) as {adminToken: string}
       db.close()
 
-      const emailData = getEmail(adminToken.adminToken)
+      const emailData = getEmailWithToken(adminToken.adminToken)
       expect(emailData).toBeDefined()
       expect(emailData?.email).toBe(email)
       expect(emailData?.adminToken).toBe(adminToken.adminToken)
@@ -310,17 +311,17 @@ describe('Database', () => {
 
       setEmailUnsubscribed(adminToken.adminToken, true)
 
-      const emailData = getEmail(adminToken.adminToken)
+      const emailData = getEmailWithToken(adminToken.adminToken)
       expect(emailData?.isUnsubscribed).toBe(true)
 
       setEmailUnsubscribed(adminToken.adminToken, false)
 
-      const emailData2 = getEmail(adminToken.adminToken)
+      const emailData2 = getEmailWithToken(adminToken.adminToken)
       expect(emailData2?.isUnsubscribed).toBe(false)
     })
 
     it('should return null for non-existent email', () => {
-      const emailData = getEmail('non-existent-token')
+      const emailData = getEmailWithToken('non-existent-token')
       expect(emailData).toBeNull()
     })
 

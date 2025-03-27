@@ -33,6 +33,7 @@ import {
   useDelegatedAbilities,
 } from './auth-delegation'
 import type {AuthFragmentOptions} from './auth-page'
+import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
 import {
   hasPromptedEmailNotifications,
@@ -329,8 +330,8 @@ function CommentDocContentProvider({
   handleFileAttachment,
   children,
   comment, // originHomeId,
-  // supportQueries,
-} // id,
+  // id,
+} // supportQueries,
 // siteHost,
 // supportDocuments,
 // routeParams,
