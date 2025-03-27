@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Capability, CreateCapabilityRequest, GetCapabilityRequest, ListCapabilitiesRequest, ListCapabilitiesResponse } from "./access_control_pb";
+import { Capability, CreateCapabilityRequest, GetCapabilityRequest, ListCapabilitiesForDelegateRequest, ListCapabilitiesRequest, ListCapabilitiesResponse } from "./access_control_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -22,6 +22,17 @@ export const AccessControl = {
     listCapabilities: {
       name: "ListCapabilities",
       I: ListCapabilitiesRequest,
+      O: ListCapabilitiesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * List capabilities for a specific delegate.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.AccessControl.ListCapabilitiesForDelegate
+     */
+    listCapabilitiesForDelegate: {
+      name: "ListCapabilitiesForDelegate",
+      I: ListCapabilitiesForDelegateRequest,
       O: ListCapabilitiesResponse,
       kind: MethodKind.Unary,
     },

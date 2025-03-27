@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccessControl_ListCapabilities_FullMethodName = "/com.seed.documents.v3alpha.AccessControl/ListCapabilities"
-	AccessControl_CreateCapability_FullMethodName = "/com.seed.documents.v3alpha.AccessControl/CreateCapability"
-	AccessControl_GetCapability_FullMethodName    = "/com.seed.documents.v3alpha.AccessControl/GetCapability"
+	AccessControl_ListCapabilities_FullMethodName            = "/com.seed.documents.v3alpha.AccessControl/ListCapabilities"
+	AccessControl_ListCapabilitiesForDelegate_FullMethodName = "/com.seed.documents.v3alpha.AccessControl/ListCapabilitiesForDelegate"
+	AccessControl_CreateCapability_FullMethodName            = "/com.seed.documents.v3alpha.AccessControl/CreateCapability"
+	AccessControl_GetCapability_FullMethodName               = "/com.seed.documents.v3alpha.AccessControl/GetCapability"
 )
 
 // AccessControlClient is the client API for AccessControl service.
@@ -32,6 +33,8 @@ const (
 type AccessControlClient interface {
 	// Lists existing capabilities.
 	ListCapabilities(ctx context.Context, in *ListCapabilitiesRequest, opts ...grpc.CallOption) (*ListCapabilitiesResponse, error)
+	// List capabilities for a specific delegate.
+	ListCapabilitiesForDelegate(ctx context.Context, in *ListCapabilitiesForDelegateRequest, opts ...grpc.CallOption) (*ListCapabilitiesResponse, error)
 	// Creates a new capability.
 	CreateCapability(ctx context.Context, in *CreateCapabilityRequest, opts ...grpc.CallOption) (*Capability, error)
 	// Get a single capability by ID.
@@ -50,6 +53,16 @@ func (c *accessControlClient) ListCapabilities(ctx context.Context, in *ListCapa
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCapabilitiesResponse)
 	err := c.cc.Invoke(ctx, AccessControl_ListCapabilities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessControlClient) ListCapabilitiesForDelegate(ctx context.Context, in *ListCapabilitiesForDelegateRequest, opts ...grpc.CallOption) (*ListCapabilitiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCapabilitiesResponse)
+	err := c.cc.Invoke(ctx, AccessControl_ListCapabilitiesForDelegate_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +97,8 @@ func (c *accessControlClient) GetCapability(ctx context.Context, in *GetCapabili
 type AccessControlServer interface {
 	// Lists existing capabilities.
 	ListCapabilities(context.Context, *ListCapabilitiesRequest) (*ListCapabilitiesResponse, error)
+	// List capabilities for a specific delegate.
+	ListCapabilitiesForDelegate(context.Context, *ListCapabilitiesForDelegateRequest) (*ListCapabilitiesResponse, error)
 	// Creates a new capability.
 	CreateCapability(context.Context, *CreateCapabilityRequest) (*Capability, error)
 	// Get a single capability by ID.
@@ -99,6 +114,9 @@ type UnimplementedAccessControlServer struct{}
 
 func (UnimplementedAccessControlServer) ListCapabilities(context.Context, *ListCapabilitiesRequest) (*ListCapabilitiesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCapabilities not implemented")
+}
+func (UnimplementedAccessControlServer) ListCapabilitiesForDelegate(context.Context, *ListCapabilitiesForDelegateRequest) (*ListCapabilitiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCapabilitiesForDelegate not implemented")
 }
 func (UnimplementedAccessControlServer) CreateCapability(context.Context, *CreateCapabilityRequest) (*Capability, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCapability not implemented")
@@ -140,6 +158,24 @@ func _AccessControl_ListCapabilities_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessControlServer).ListCapabilities(ctx, req.(*ListCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessControl_ListCapabilitiesForDelegate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCapabilitiesForDelegateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessControlServer).ListCapabilitiesForDelegate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessControl_ListCapabilitiesForDelegate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessControlServer).ListCapabilitiesForDelegate(ctx, req.(*ListCapabilitiesForDelegateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -190,6 +226,10 @@ var AccessControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCapabilities",
 			Handler:    _AccessControl_ListCapabilities_Handler,
+		},
+		{
+			MethodName: "ListCapabilitiesForDelegate",
+			Handler:    _AccessControl_ListCapabilitiesForDelegate_Handler,
 		},
 		{
 			MethodName: "CreateCapability",

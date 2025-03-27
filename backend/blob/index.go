@@ -111,6 +111,7 @@ func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, 
 	return idx, nil
 }
 
+// IPFSBlockstore returns the blockstore used by the index.
 func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 	return idx.bs
 }
@@ -616,6 +617,7 @@ var qLoadGenerations = dqb.Str(`
 	ORDER BY refs.generation DESC, refs.ts DESC;
 `)
 
+// WalkCapabilities walks through capabilities for a specific resource.
 func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
@@ -666,6 +668,59 @@ var qWalkCapabilities = dqb.Str(`
 	WHERE sb.type = 'Capability'
 	AND sb.resource IN (SELECT id FROM resources WHERE :iri BETWEEN iri AND iri || '~~~~~~')
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	ORDER BY sb.ts
+`)
+
+// WalkCapabilitiesForDelegate walks through capabilities for a specific delegate.
+func (idx *Index) WalkCapabilitiesForDelegate(ctx context.Context, delegate core.Principal, fn func(cid.Cid, *Capability) error) error {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	if err := sqlitex.Exec(conn, qWalkCapabilitiesForDelegate(), func(stmt *sqlite.Stmt) error {
+		var (
+			codec = stmt.ColumnInt64(0)
+			hash  = stmt.ColumnBytesUnsafe(1)
+			data  = stmt.ColumnBytesUnsafe(2)
+		)
+
+		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			return err
+		}
+
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		cpb := &Capability{}
+		if err := cbornode.DecodeInto(buf, cpb); err != nil {
+			return err
+		}
+
+		if err := fn(chcid, cpb); err != nil {
+			return err
+		}
+
+		buf = buf[:0] // reset the slice reusing the backing array
+
+		return nil
+	}, delegate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var qWalkCapabilitiesForDelegate = dqb.Str(`
+	SELECT
+		b.codec,
+		b.multihash,
+		b.data
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Capability'
+	AND sb.extra_attrs->>'del' = (SELECT id FROM public_keys WHERE principal = :delegate)
 	ORDER BY sb.ts
 `)
 

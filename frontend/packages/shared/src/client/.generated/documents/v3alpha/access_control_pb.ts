@@ -157,6 +157,63 @@ export class ListCapabilitiesResponse extends Message<ListCapabilitiesResponse> 
 }
 
 /**
+ * Request to list capabilities for a specific delegate.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCapabilitiesForDelegateRequest
+ */
+export class ListCapabilitiesForDelegateRequest extends Message<ListCapabilitiesForDelegateRequest> {
+  /**
+   * The public key of the delegate to list capabilities for.
+   *
+   * @generated from field: string delegate = 1;
+   */
+  delegate = "";
+
+  /**
+   * Optional. Number of capabilities to return in the response.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Page token to continue listing capabilities.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListCapabilitiesForDelegateRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCapabilitiesForDelegateRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "delegate", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCapabilitiesForDelegateRequest | PlainMessage<ListCapabilitiesForDelegateRequest> | undefined, b: ListCapabilitiesForDelegateRequest | PlainMessage<ListCapabilitiesForDelegateRequest> | undefined): boolean {
+    return proto3.util.equals(ListCapabilitiesForDelegateRequest, a, b);
+  }
+}
+
+/**
  * Request to create a new capability.
  *
  * @generated from message com.seed.documents.v3alpha.CreateCapabilityRequest

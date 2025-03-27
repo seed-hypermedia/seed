@@ -11,6 +11,9 @@ service AccessControl {
   // Lists existing capabilities.
   rpc ListCapabilities(ListCapabilitiesRequest) returns (ListCapabilitiesResponse);
 
+  // List capabilities for a specific delegate.
+  rpc ListCapabilitiesForDelegate(ListCapabilitiesForDelegateRequest) returns (ListCapabilitiesResponse);
+
   // Creates a new capability.
   rpc CreateCapability(CreateCapabilityRequest) returns (Capability);
 
@@ -51,6 +54,18 @@ message ListCapabilitiesResponse {
 
   // Token for the next page, if any.
   string next_page_token = 2;
+}
+
+// Request to list capabilities for a specific delegate.
+message ListCapabilitiesForDelegateRequest {
+  // The public key of the delegate to list capabilities for.
+  string delegate = 1;
+
+  // Optional. Number of capabilities to return in the response.
+  int32 page_size = 2;
+
+  // Optional. Page token to continue listing capabilities.
+  string page_token = 3;
 }
 
 // Request to create a new capability.

@@ -5,6 +5,7 @@ import (
 	"seed/backend/api/apitest"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,4 +71,14 @@ func TestCapabilities_Smoke(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, list.Capabilities, 1, "must return the capability")
+	testutil.StructsEqual(cpb, list.Capabilities[0]).Compare(t, "must return the capability")
+
+	{
+		list, err := alice.ListCapabilitiesForDelegate(ctx, &pb.ListCapabilitiesForDelegateRequest{
+			Delegate: bob.Account.PublicKey.String(),
+		})
+		require.NoError(t, err)
+		require.Len(t, list.Capabilities, 1, "must return the capability")
+		testutil.StructsEqual(cpb, list.Capabilities[0]).Compare(t, "must return the capability")
+	}
 }

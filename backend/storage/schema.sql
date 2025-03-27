@@ -62,6 +62,9 @@ CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
 CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 
+-- Index for querying capabilities by delegate.
+CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';
+
 -- Stores blobs that we have failed to index for some reason.
 -- Sometimes we still keep the blob, even if we have failed to index it,
 -- because we might be able to index it later, e.g. when some other related blobs arrive out of order.

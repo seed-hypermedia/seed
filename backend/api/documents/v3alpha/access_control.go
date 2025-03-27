@@ -136,6 +136,34 @@ func (srv *Server) ListCapabilities(ctx context.Context, in *documents.ListCapab
 	return resp, nil
 }
 
+// ListCapabilitiesForDelegate implements Access Control API.
+func (srv *Server) ListCapabilitiesForDelegate(ctx context.Context, in *documents.ListCapabilitiesForDelegateRequest) (*documents.ListCapabilitiesResponse, error) {
+	if in.Delegate == "" {
+		return nil, errutil.MissingArgument("delegate")
+	}
+
+	del, err := core.DecodePrincipal(in.Delegate)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: implement pagination.
+	resp := &documents.ListCapabilitiesResponse{}
+
+	if err := srv.idx.WalkCapabilitiesForDelegate(ctx, del, func(c cid.Cid, cpb *blob.Capability) error {
+		pb, err := capToProto(c, cpb)
+		if err != nil {
+			return err
+		}
+		resp.Capabilities = append(resp.Capabilities, pb)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) {
 	role, ok := documents.Role_value[cpb.Role]
 	if !ok {
