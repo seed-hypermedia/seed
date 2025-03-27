@@ -12,7 +12,6 @@ import {
   RiFunctions,
   RiHeading,
   RiImage2Fill,
-  RiMessage2Fill,
   RiRadioButtonFill,
   RiText,
   RiVideoAddFill,
@@ -208,29 +207,29 @@ export const slashMenuItems = [
       view.dispatch(state.tr.scrollIntoView())
     },
   },
-  {
-    name: 'Nostr',
-    aliases: ['nostr', 'note', 'event'],
-    group: 'Web embeds',
-    icon: <RiMessage2Fill size={18} />,
-    hint: 'Insert a nostr note',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'nostr',
-          props: {
-            url: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  },
+  // {
+  //   name: 'Nostr',
+  //   aliases: ['nostr', 'note', 'event'],
+  //   group: 'Web embeds',
+  //   icon: <RiMessage2Fill size={18} />,
+  //   hint: 'Insert a nostr note',
+  //   execute: (
+  //     editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+  //   ) => {
+  //     insertOrUpdateBlock(
+  //       editor,
+  //       {
+  //         type: 'nostr',
+  //         props: {
+  //           url: '',
+  //         },
+  //       } as PartialBlock<HMBlockSchema>,
+  //       true,
+  //     )
+  //     const {state, view} = editor._tiptapEditor
+  //     view.dispatch(state.tr.scrollIntoView())
+  //   },
+  // },
   //   {
   //     name: "Query",
   //     aliases: ["query"],
