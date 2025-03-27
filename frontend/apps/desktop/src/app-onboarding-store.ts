@@ -76,6 +76,12 @@ export function setupOnboardingHandlers() {
     },
   )
 
+  ipcMain.on('set-onboarding-initial-account-id-count', (_, count: number) => {
+    console.log('📝 Setting initial account id count:', count)
+    setOnboardingState({initialAccountIdCount: count})
+    console.log('📝 New store state:', getOnboardingState())
+  })
+
   ipcMain.on('reset-onboarding-state', () => {
     console.log('🔄 Resetting onboarding state')
     setOnboardingState(getInitialState())

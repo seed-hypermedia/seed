@@ -1,22 +1,21 @@
-import {useAppContext} from '@/app-context'
-import {GettingStarted} from '@/components/getting-started'
-import {MainWrapper} from '@/components/main-wrapper'
+import { useAppContext } from '@/app-context'
+import { MainWrapper } from '@/components/main-wrapper'
 
-import {LibraryListItem} from '@/components/list-item'
-import {EditorBlock} from '@/editor'
+import { LibraryListItem } from '@/components/list-item'
+import { EditorBlock } from '@/editor'
 import {
   FilterItem,
   LibraryData,
   LibraryQueryState,
   useClassicLibrary,
 } from '@/models/library'
-import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
-import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {getDocumentTitle} from '@shm/shared/content'
-import {HMBlockNode} from '@shm/shared/hm-types'
-import {Button} from '@shm/ui/button'
-import {Container} from '@shm/ui/container'
-import {ListItemSkeleton} from '@shm/ui/entity-card'
+import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
+import { hmBlocksToEditorContent } from '@shm/shared/client/hmblock-to-editorblock'
+import { getDocumentTitle } from '@shm/shared/content'
+import { HMBlockNode } from '@shm/shared/hm-types'
+import { Button } from '@shm/ui/button'
+import { Container } from '@shm/ui/container'
+import { ListItemSkeleton } from '@shm/ui/entity-card'
 import {
   Archive,
   ArrowDownUp,
@@ -28,9 +27,9 @@ import {
   Star,
   X,
 } from '@shm/ui/icons'
-import {toast} from '@shm/ui/toast'
-import {usePopoverState} from '@shm/ui/use-popover-state'
-import {ComponentProps, useMemo, useRef, useState} from 'react'
+import { toast } from '@shm/ui/toast'
+import { usePopoverState } from '@shm/ui/use-popover-state'
+import { ComponentProps, useMemo, useRef, useState } from 'react'
 import {
   Checkbox,
   Dialog,
@@ -179,7 +178,6 @@ function ClassicLibraryPage() {
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          {isLibraryEmpty ? <GettingStarted /> : null}
 
           {filteredLibrary && library && (
             <>

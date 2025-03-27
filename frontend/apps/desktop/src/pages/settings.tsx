@@ -52,7 +52,6 @@ import {
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {useEffect, useId, useMemo, useState} from 'react'
-import {dispatchWizardEvent} from 'src/components/create-account'
 import {
   AlertDialog,
   Button,
@@ -77,6 +76,7 @@ import {
   YStack,
 } from 'tamagui'
 
+import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {Biohazard} from '@tamagui/lucide-icons'
 import React from 'react'
 
@@ -388,7 +388,7 @@ function AccountKeys() {
             f={1}
             icon={Plus}
             size="$2"
-            onPress={() => dispatchWizardEvent(true)}
+            onPress={() => dispatchOnboardingDialog(true)}
             theme="brand"
             color="$color11"
           >
@@ -409,7 +409,10 @@ function AccountKeys() {
               ) : null}
               <YStack f={1} gap="$3" marginTop="$2">
                 <Field id="username" label="Profile name">
-                  <Input disabled value={getMetadataName(profile?.document)} />
+                  <Input
+                    disabled
+                    value={getMetadataName(profile?.document?.metadata)}
+                  />
                 </Field>
                 <Field id="accountid" label="Account Id">
                   <Input disabled value={selectedAccount} />

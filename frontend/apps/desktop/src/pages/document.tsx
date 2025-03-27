@@ -10,6 +10,7 @@ import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
+import {usePublishSite} from '@/components/publish-site'
 import {SiteNavigation} from '@/components/site-navigation'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
@@ -59,6 +60,7 @@ import {
   ButtonText,
   SizableText,
   Spinner,
+  Theme,
   Tooltip,
   Separator as TSeparator,
   XStack,
@@ -244,6 +246,9 @@ function _MainDocumentPage({
     ? NewspaperDocContainer
     : BaseDocContainer
 
+  const capability = useMyCapability(id)
+  const canEditDoc = roleCanWrite(capability?.role)
+
   const {
     showSidebars,
     sidebarProps,
@@ -263,6 +268,12 @@ function _MainDocumentPage({
   }
   return (
     <YStack>
+      {canEditDoc && (
+        <SetupDomainBanner
+          docId={id}
+          hasDomain={!!entity.data?.document?.metadata.siteUrl}
+        />
+      )}
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
@@ -744,5 +755,37 @@ function DocPageAppendix({
         <DocumentActivity docId={docId} />
       )}
     </Container>
+  )
+}
+
+function SetupDomainBanner({
+  docId,
+  hasDomain,
+}: {
+  docId: UnpackedHypermediaId
+  hasDomain: boolean
+}) {
+  const publishSite = usePublishSite()
+  if (hasDomain) return null
+  return (
+    <>
+      <Theme name="brand">
+        <XStack
+          bg="$color5"
+          ai="center"
+          jc="center"
+          p="$3"
+          gap="$4"
+          onPress={() => {
+            publishSite.open({id: docId})
+          }}
+        >
+          <SizableText size="$2" color="white">
+            Setup web Domain →
+          </SizableText>
+        </XStack>
+      </Theme>
+      {publishSite.content}
+    </>
   )
 }

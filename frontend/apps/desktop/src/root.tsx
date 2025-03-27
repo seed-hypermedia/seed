@@ -1,5 +1,9 @@
 import {AppContextProvider, StyleProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
+import {
+  dispatchSiteTemplateEvent,
+  SiteTemplateDialog,
+} from '@/components/site-template'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -18,11 +22,15 @@ import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
-import {getOnboardingState, resetOnboardingState} from './app-onboarding'
+import {SizableText, YStack} from 'tamagui'
+import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
-import {AccountWizardDialog} from './components/create-account'
-import {Onboarding, OnboardingDebugBox} from './components/onboarding'
+import {
+  Onboarding,
+  OnboardingDebugBox,
+  OnboardingDialog,
+  ResetOnboardingButton,
+} from './components/onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -281,12 +289,22 @@ function MainApp({}: {}) {
 
   let mainContent = showOnboarding ? (
     <>
-      <Onboarding onComplete={() => setShowOnboarding(false)} />
+      <Onboarding
+        onComplete={() => {
+          setShowOnboarding(false)
+          setTimeout(() => {
+            if (getOnboardingState().hasCompletedOnboarding) {
+              dispatchSiteTemplateEvent(true)
+            }
+          }, 1000)
+        }}
+      />
       <OnboardingDebugBox />
     </>
   ) : (
     <>
-      <AccountWizardDialog />
+      <OnboardingDialog />
+      <SiteTemplateDialog />
       <Main
         className={
           // this is used by editor.css which doesn't know tamagui styles, boooo!
@@ -467,36 +485,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ElectronApp />
   </React.StrictMode>,
 )
-
-// This component creates a small floating button to reset the onboarding state
-// Only shown when explicitly enabled or in development mode
-function ResetOnboardingButton() {
-  // Show if environment variable is set to 'true' or if in development mode
-  if (!__SHOW_OB_RESET_BTN__) return null
-
-  const handleReset = () => {
-    resetOnboardingState()
-    toast.success('Onboarding state reset! Refresh to see changes.')
-  }
-
-  return (
-    <XStack
-      className="no-window-drag"
-      zIndex="$zIndex.9"
-      position="absolute"
-      bottom={10}
-      right={10}
-    >
-      <Button
-        size="$2"
-        backgroundColor="$red10"
-        color="white"
-        onPress={handleReset}
-        opacity={0.7}
-        hoverStyle={{opacity: 1, bg: '$red11'}}
-      >
-        Reset Onboarding
-      </Button>
-    </XStack>
-  )
-}

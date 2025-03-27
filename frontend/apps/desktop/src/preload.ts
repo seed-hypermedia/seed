@@ -221,6 +221,8 @@ const onboarding = {
   setFormData: (data: Partial<OnboardingFormData>) =>
     ipcRenderer.send('set-onboarding-form-data', data),
   resetState: () => ipcRenderer.send('reset-onboarding-state'),
+  setInitialAccountIdCount: (count: number) =>
+    ipcRenderer.send('set-onboarding-initial-account-id-count', count),
 }
 
 contextBridge.exposeInMainWorld('onboarding', onboarding)

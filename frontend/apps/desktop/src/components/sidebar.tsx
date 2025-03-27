@@ -1,4 +1,4 @@
-import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
+import {useMyAccountIds} from '@/models/daemon'
 import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -17,7 +17,7 @@ import {
 } from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
 import {Button, SizableText, Tooltip, XStack, YStack} from 'tamagui'
-import {openAddAccountWizard} from './create-account'
+import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 
 export const AppSidebar = memo(MainAppSidebar)
@@ -145,7 +145,6 @@ function AccountsSection() {
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()
   const navigate = useNavigate()
-  const deleteKey = useDeleteKey()
   return (
     <SidebarSection
       title="Accounts"
@@ -157,7 +156,7 @@ function AccountsSection() {
               chromeless
               size="$1"
               icon={Plus}
-              onPress={openAddAccountWizard}
+              onPress={() => dispatchOnboardingDialog(true)}
             />
           </Tooltip>
         ) : undefined
@@ -186,7 +185,7 @@ function AccountsSection() {
         <SmallListItem
           key="add-account"
           title="Add Account"
-          onPress={openAddAccountWizard}
+          onPress={() => dispatchOnboardingDialog(true)}
           icon={UserPlus2}
         />
       )}

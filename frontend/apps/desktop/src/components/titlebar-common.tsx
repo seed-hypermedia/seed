@@ -41,14 +41,15 @@ import {
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
 import {FilePlus, Import} from '@tamagui/lucide-icons'
-import {ReactNode, useContext} from 'react'
+import {ReactNode, useContext, useEffect, useState} from 'react'
 import {
   Button,
   ColorProp,
+  Popover,
   SizableText,
-  Tooltip,
   View,
   XGroup,
   XStack,
@@ -58,6 +59,7 @@ import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
+import {editPopoverEvents} from './onboarding'
 import PublishDraftButton from './publish-draft-button'
 import {
   usePublishSite,
@@ -280,23 +282,109 @@ function EditDocButton() {
   const navigate = useNavigate()
   const draft = useDraft(route.id)
   const hasExistingDraft = !!draft.data
+
+  const [popoverVisible, setPopoverVisible] = useState(false)
+
+  useEffect(() => {
+    editPopoverEvents.subscribe((visible) => {
+      console.log('== ~ editPopoverEvents ~ visible:', visible)
+      setPopoverVisible(visible)
+    })
+  }, [])
+
+  const button = (
+    <Button
+      size="$2"
+      theme={hasExistingDraft ? 'yellow' : undefined}
+      onPress={() => {
+        navigate({
+          key: 'draft',
+          id: entity?.id,
+        })
+      }}
+      icon={Pencil}
+    >
+      {hasExistingDraft ? 'Resume Editing' : 'Edit'}
+    </Button>
+  )
   if (!roleCanWrite(capability?.role)) return null
+  if (popoverVisible) {
+    return (
+      <>
+        <XStack
+          width="100vw"
+          height="100vh"
+          position="fixed"
+          top={0}
+          left={0}
+          bg="black"
+          zIndex="$zIndex.9"
+          opacity={0.5}
+          onPress={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            console.log('== ~ onPress ~ popoverVisible:', popoverVisible)
+            setPopoverVisible(false)
+          }}
+        />
+        <Popover
+          open={popoverVisible}
+          onOpenChange={(val) => {
+            console.log('== ~ onOpenChange ~ val:', val)
+            setPopoverVisible(val)
+          }}
+          stayInFrame
+          placement="bottom"
+        >
+          <Popover.Trigger zIndex="$zIndex.9">{button}</Popover.Trigger>
+
+          <Popover.Content
+            borderWidth={1}
+            borderColor="$borderColor"
+            width="100%"
+            maxWidth={400}
+            margin="$4"
+            enterStyle={{y: -10, opacity: 0}}
+            exitStyle={{y: -10, opacity: 0}}
+            elevate
+            elevation="$3"
+            zIndex="$zIndex.9"
+            backgroundColor="$background"
+            animation={[
+              'fast',
+              {
+                opacity: {
+                  overshootClamping: true,
+                },
+              },
+            ]}
+          >
+            <View
+              position="absolute"
+              top={-8}
+              right={36}
+              width={16}
+              height={16}
+              backgroundColor="$background"
+              borderWidth={1}
+              borderColor="$borderColor"
+              borderRightColor="$colorTransparent"
+              borderBottomColor="$colorTransparent"
+              transform={[{rotate: '45deg'}]}
+            />
+            <SizableText>
+              You have completed a fork of this document. Please continue
+              editing in the forked document.
+            </SizableText>
+          </Popover.Content>
+        </Popover>
+      </>
+    )
+  }
   return (
     <>
       <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>
-        <Button
-          size="$2"
-          theme={hasExistingDraft ? 'yellow' : undefined}
-          onPress={() => {
-            navigate({
-              key: 'draft',
-              id: entity?.id,
-            })
-          }}
-          icon={Pencil}
-        >
-          {hasExistingDraft ? 'Resume Editing' : 'Edit'}
-        </Button>
+        {button}
       </Tooltip>
     </>
   )

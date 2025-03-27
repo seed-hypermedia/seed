@@ -111,7 +111,6 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           ]}
           enterStyle={{y: -10, opacity: 0}}
           exitStyle={{y: -10, opacity: 0}}
-          elevate={true}
         >
           <YStack maxWidth={300} overflow="hidden" borderRadius="$4">
             {subscription.parentSubscription ? (

@@ -1,5 +1,5 @@
-import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
+import {CreateAccountBanner} from '@/components/onboarding'
 import {useMarkAsRead} from '@/models/documents'
 
 import {useExportDocuments} from '@/models/export-documents'
@@ -85,6 +85,7 @@ export default function LibraryPage() {
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
+          <CreateAccountBanner />
           <XStack marginBottom="$4">
             <DisplayModeTab
               label="Subscribed"
@@ -191,7 +192,6 @@ export default function LibraryPage() {
               },
             }}
           >
-            {isLibraryEmpty ? <GettingStarted /> : null}
             {library?.items?.map((item: LibraryItem) => {
               if (item.type === 'site') {
                 return (
