@@ -2,7 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
-import {forkSitefromTemplate} from '@shm/shared/utils/fork'
+import {cloneSiteFromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
@@ -52,7 +52,7 @@ export function SiteTemplate() {
     }
 
     if (targetId && selectedTemplate) {
-      forkSitefromTemplate({
+      cloneSiteFromTemplate({
         client: grpcClient,
         targetId,
         templateId: templates[selectedTemplate],

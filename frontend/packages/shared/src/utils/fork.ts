@@ -8,7 +8,7 @@ import {
   getDocAttributeChanges,
 } from './document-changes'
 
-export async function forkSitefromTemplate({
+export async function cloneSiteFromTemplate({
   client,
   targetId,
   templateId,
