@@ -1,28 +1,27 @@
-import {useAppContext} from '@/app-context'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {useDeleteDialog} from '@/components/delete-dialog'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
-import {useCreateDraft} from '@/models/documents'
-import {useSubscribedEntity} from '@/models/entities'
-import {useExperiments} from '@/models/experiments'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {useHostSession} from '@/models/host'
-import {SidebarContext, SidebarWidth} from '@/sidebar-context'
-import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import { useAppContext } from '@/app-context'
+import { useCopyReferenceUrl } from '@/components/copy-reference-url'
+import { useDeleteDialog } from '@/components/delete-dialog'
+import { roleCanWrite, useMyCapability } from '@/models/access-control'
+import { useDraft } from '@/models/accounts'
+import { useCreateDraft } from '@/models/documents'
+import { useSubscribedEntity } from '@/models/entities'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { useHostSession } from '@/models/host'
+import { SidebarContext, SidebarWidth } from '@/sidebar-context'
+import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
-import {hostnameStripProtocol} from '@shm/shared'
-import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMBlockNode} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
-import {DocumentRoute} from '@shm/shared/routes'
-import {displayHostname, hmId} from '@shm/shared/utils/entity-id-url'
+import { useNavigate } from '@/utils/useNavigate'
+import { hostnameStripProtocol } from '@shm/shared'
+import { hmBlocksToEditorContent } from '@shm/shared/client/hmblock-to-editorblock'
+import { DEFAULT_GATEWAY_URL } from '@shm/shared/constants'
+import { HMBlockNode } from '@shm/shared/hm-types'
+import { useEntity } from '@shm/shared/models/entity'
+import { DocumentRoute } from '@shm/shared/routes'
+import { displayHostname, hmId } from '@shm/shared/utils/entity-id-url'
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -38,13 +37,13 @@ import {
   UploadCloud,
   UserPlus,
 } from '@shm/ui/icons'
-import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
-import {TitlebarSection} from '@shm/ui/titlebar'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useStream} from '@shm/ui/use-stream'
-import {FilePlus, Import} from '@tamagui/lucide-icons'
-import {ReactNode, useContext, useEffect, useState} from 'react'
+import { MenuItemType, OptionsDropdown } from '@shm/ui/options-dropdown'
+import { TitlebarSection } from '@shm/ui/titlebar'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { useStream } from '@shm/ui/use-stream'
+import { FilePlus, Import } from '@tamagui/lucide-icons'
+import { ReactNode, useContext, useEffect, useState } from 'react'
 import {
   Button,
   ColorProp,
@@ -55,19 +54,19 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-import {AddConnectionDialog} from './contacts-prompt'
-import {useAppDialog} from './dialog'
+import { AddConnectionDialog } from './contacts-prompt'
+import { useAppDialog } from './dialog'
 import DiscardDraftButton from './discard-draft-button'
-import {useImportDialog, useImporting} from './import-doc-button'
-import {editPopoverEvents} from './onboarding'
+import { useImportDialog, useImporting } from './import-doc-button'
+import { editPopoverEvents } from './onboarding'
 import PublishDraftButton from './publish-draft-button'
 import {
   usePublishSite,
   useRemoveSiteDialog,
   useSeedHostDialog,
 } from './publish-site'
-import {SubscriptionButton} from './subscription'
-import {TitleBarProps} from './titlebar'
+import { SubscriptionButton } from './subscription'
+import { TitleBarProps } from './titlebar'
 
 export function DocOptionsButton() {
   const route = useNavRoute()
@@ -100,7 +99,6 @@ export function DocOptionsButton() {
   const publishSite = usePublishSite()
   const capability = useMyCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
-  const experiments = useExperiments()
   const seedHostDialog = useSeedHostDialog()
 
   const pendingDomain = useHostSession().pendingDomains?.find(
@@ -204,7 +202,6 @@ export function DocOptionsButton() {
       if (
         siteHost.endsWith(gwHost) &&
         !pendingDomain &&
-        experiments.data?.hosting
       ) {
         menuItems.push({
           key: 'publish-custom-domain',
@@ -227,7 +224,7 @@ export function DocOptionsButton() {
     } else
       menuItems.push({
         key: 'publish-site',
-        label: 'Publish Site',
+        label: 'Publish Site to Domain',
         icon: UploadCloud,
         onPress: () => {
           publishSite.open({id: route.id})

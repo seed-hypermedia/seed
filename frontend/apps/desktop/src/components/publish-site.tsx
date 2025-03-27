@@ -1,4 +1,3 @@
-import {useExperiments} from '@/models/experiments'
 import {HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
@@ -311,14 +310,10 @@ function PublishSiteDialog({
   }
   onClose: () => void
 }) {
-  const experiments = useExperiments()
   const {id, step: initialStep} = input
   const [mode, setMode] = useState<
     'input-url' | 'self-host' | 'seed-host' | 'seed-host-custom-domain' | null
   >(initialStep || null)
-  if (!experiments.data?.hosting) {
-    return <PublishWithUrl id={id} onComplete={onClose} />
-  }
   if (mode === 'input-url') {
     return (
       <PublishWithUrl

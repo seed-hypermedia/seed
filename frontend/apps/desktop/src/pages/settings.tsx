@@ -77,7 +77,6 @@ import {
 } from 'tamagui'
 
 import {dispatchOnboardingDialog} from '@/components/onboarding'
-import {Biohazard} from '@tamagui/lucide-icons'
 import React from 'react'
 
 export default function Settings() {
@@ -120,12 +119,12 @@ export default function Settings() {
           icon={Info}
           label="App Info"
         />
-        <Tab
+        {/* <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
-        />
+        /> */}
         <Tab
           value="developer"
           active={activeTab === 'developer'}
@@ -144,9 +143,9 @@ export default function Settings() {
         <AppSettings />
         {/* <DevicesInfo /> */}
       </TabsContent>
-      <TabsContent value="experiments">
+      {/* <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent>
+      </TabsContent> */}
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>
