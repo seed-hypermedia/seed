@@ -1,36 +1,55 @@
-import { MainWrapper } from '@/components/main-wrapper'
+import {MainWrapper} from '@/components/main-wrapper'
+import {CreateAccountBanner} from '@/components/onboarding'
+import {useMarkAsRead} from '@/models/documents'
 
+import {useExportDocuments} from '@/models/export-documents'
 import {
   LibraryItem,
   LibrarySite,
   useLibrary,
   useSiteLibrary,
 } from '@/models/library'
-import { Button } from '@shm/ui/button'
-import { Container } from '@shm/ui/container'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
+import {getMetadataName} from '@shm/shared/content'
+import {
+  HMAccountsMetadata,
+  HMActivitySummary,
+  HMBreadcrumb,
+  HMDocumentInfo,
+  HMLibraryDocument,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {DocumentRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
+import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {Container} from '@shm/ui/container'
+import {FacePile} from '@shm/ui/face-pile'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   Check,
-  FileOutput,
-  X
-} from '@shm/ui/icons'
-import { usePopoverState } from '@shm/ui/use-popover-state'
-import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  FileOutput,
   ListFilter,
-  MessageSquare
+  MessageSquare,
+  X,
 } from '@tamagui/lucide-icons'
-import { ComponentProps, createContext, useContext, useState } from 'react'
-import { GestureResponderEvent } from 'react-native'
+import {ComponentProps, createContext, useContext, useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {
+  Button,
   Checkbox,
   Popover,
   SizableText,
   View,
   XStack,
   YGroup,
-  YStack
+  YStack,
 } from 'tamagui'
 
 export default function LibraryPage() {
@@ -66,15 +85,32 @@ export default function LibraryPage() {
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-
-          {filteredLibrary && library && (
-            <>
-              <LibraryQueryBar
-                queryState={queryState}
-                setQueryState={setQueryState}
-                exportMode={exportMode}
-                handleExportButtonClick={handleExportButtonClick}
-                isLibraryEmpty={filteredLibrary.length == 0}
+          <CreateAccountBanner />
+          <XStack marginBottom="$4">
+            <DisplayModeTab
+              label="Subscribed"
+              value="subscribed"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="Favorites"
+              value="favorites"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="All"
+              value="all"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+          </XStack>
+          <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
+            <XStack gap="$2">
+              <GroupingControl
+                grouping={grouping}
+                onGroupingChange={setGrouping}
               />
             </XStack>
             {isLibraryEmpty ? null : (
