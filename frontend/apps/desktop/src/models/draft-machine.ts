@@ -5,7 +5,7 @@ import {
   HMEntityContent,
   HMMetadata,
 } from '@shm/shared/hm-types'
-import {assign, setup, StateFrom} from 'xstate'
+import {assign, ContextFrom, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
 
@@ -14,7 +14,6 @@ export const draftMachine = setup({
     context: {} as {
       metadata: HMMetadata
       signingAccount: null | string
-      draftId: string
       draft: null | HMDraft
       entity: null | HMEntityContent
       errorMessage: string
@@ -102,7 +101,7 @@ export const draftMachine = setup({
           return event.signingAccount
         } else if (
           // @ts-expect-error ignore this XState error
-          event.type == 'xstate.done.actor.createOrUpdateDraft' &&
+          event.type == 'xstate.done.actor.updateDraft' &&
           // @ts-expect-error ignore this XState error
           event.output.draft.signingAccount
         ) {
@@ -147,6 +146,7 @@ export const draftMachine = setup({
       },
     }),
     populateEditor: function () {},
+    replaceRouteifNeeded: function () {},
     focusEditor: function () {},
     focusName: function () {},
     onSaveSuccess: function ({context}) {},
@@ -155,7 +155,6 @@ export const draftMachine = setup({
   guards: {
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
   },
-  actors: {},
   delays: {
     autosaveTimeout: 500,
   },
@@ -298,20 +297,22 @@ export const draftMachine = setup({
             },
           },
           invoke: {
-            input: ({context}) => ({
+            input: ({
+              context,
+            }: {
+              context: ContextFrom<typeof draftMachine>
+            }) => ({
               metadata: context.metadata,
               currentDraft: context.draft,
               signingAccount: context.signingAccount,
               entity: context.entity,
             }),
-            id: 'createOrUpdateDraft',
-            src: 'createOrUpdateDraft',
+            id: 'updateDraft',
+            src: 'updateDraft',
             onDone: [
               {
                 target: 'saving',
-                guard: {
-                  type: 'didChangeWhileSaving',
-                },
+                guard: 'didChangeWhileSaving',
                 reenter: true,
               },
               {
@@ -323,6 +324,7 @@ export const draftMachine = setup({
                   {type: 'setDraft'},
                   {type: 'setAttributes'},
                   {type: 'setSigningAccount'},
+
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},
@@ -330,6 +332,11 @@ export const draftMachine = setup({
                 ],
               },
             ],
+            onError: {
+              actions: (res) => {
+                console.log('=== DRAFT onError: ', res)
+              },
+            },
           },
         },
       },
