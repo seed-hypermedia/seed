@@ -62,6 +62,7 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
@@ -403,7 +404,6 @@ export function useDraftEditor({id}: {id: string}) {
   const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const route = useNavRoute()
-  const replaceRoute = useNavigate('replace')
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const gotEdited = useRef(false)
@@ -472,44 +472,35 @@ export function useDraftEditor({id}: {id: string}) {
     },
   })
 
-  const createOrUpdateDraft = fromPromise<
-    HMDraft & {id?: string},
+  const updateDraft = fromPromise<
+    HMDraft & {id: string},
     ContextFrom<typeof draftMachine>
   >(async ({input}) => {
     const blocks = editor.topLevelBlocks
-    let inputData: Partial<HMDraft> = {}
-    const {draftId} = input
 
-    if (!draftId)
-      throw new Error('Draft Error: no id passed to update function')
-    if (!input.draft) {
-      inputData = {
-        content: blocks,
-        deps: [],
-        metadata: input.metadata,
-        members: {},
-        lastUpdateTime: Date.now(),
-        previousId: input.entity?.id,
-        signingAccount: input.signingAccount || undefined,
-      } as HMDraft
-    } else {
-      inputData = {
-        ...input.draft,
-        content: blocks,
-        metadata: {
-          ...input.draft.metadata,
-          ...input.metadata,
-        },
-        signingAccount: input.signingAccount || undefined,
-      } as HMDraft
-    }
-    const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
+    console.log(`=== DRAFT blocks:`, blocks)
 
-    if (!id) {
-      return {...inputData, id: draftId}
-    } else {
-      return res
+    console.log('=== DRAFT updateDraft: ', input)
+
+    const {draft = {} as Partial<HMDraft>, metadata, signingAccount} = input
+
+    const inputData: HMDraft = {
+      ...draft,
+      content: blocks as Array<EditorBlock>,
+      metadata: {
+        ...draft?.metadata,
+        ...metadata,
+      },
+      signingAccount: signingAccount || '',
+      members: draft?.members || [],
+      deps: draft?.deps || [],
+      previousId: draft?.previousId || null,
+      lastUpdateTime: draft?.lastUpdateTime || undefined,
     }
+
+    console.log('=== DRAFT inputData: ', inputData)
+    const result = await saveDraft.mutateAsync({id, draft: inputData})
+    return result as HMDraft & {id: string}
   })
 
   const [state, send, actor] = useMachine(
@@ -567,18 +558,86 @@ export function useDraftEditor({id}: {id: string}) {
         },
       },
       actors: {
-        createOrUpdateDraft,
+        updateDraft,
       },
     }),
   )
 
-  console.log('Draft State', state)
   const backendDraft = useDraft(id)
-  const backendDocument = useEntity(
+  const backendDocId =
     backendDraft.status == 'success' && backendDraft.data?.draft?.previousId
       ? backendDraft.data.draft.previousId
-      : undefined,
-  )
+      : undefined
+
+  console.log('=== DRAFT backendDocId: ', backendDocId)
+  const backendDocument = useEntity(backendDocId)
+
+  actor.subscribe((state) => {
+    console.log('=== DRAFT STATE: ', state.value)
+  })
+
+  useEffect(() => {
+    console.log(
+      '=== DRAFT backendDraft',
+      backendDraft.status,
+      backendDraft.data,
+    )
+    console.log(
+      '=== DRAFT backendDocument',
+      backendDocument.status,
+      backendDocument.data,
+    )
+    console.log('=== DRAFT =======================================')
+    if (backendDraft.status == 'success') {
+      send({
+        type: 'GET.DRAFT.SUCCESS',
+        draft: backendDraft.data?.draft || null,
+        entity: backendDocument.data || null,
+      })
+    }
+    if (backendDraft.status == 'error') {
+      send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})
+    }
+    // }
+  }, [
+    backendDraft.status,
+    backendDraft.data,
+    backendDocument.status,
+    backendDocument.data,
+  ])
+
+  // useEffect(() => {
+  //   function handleSelectAll(event: KeyboardEvent) {
+  //     if (event.key == 'a' && event.metaKey) {
+  //       if (editor) {
+  //         event.preventDefault()
+  //         editor._tiptapEditor.commands.focus()
+  //         editor._tiptapEditor.commands.selectAll()
+  //       }
+  //     }
+  //   }
+
+  //   window.addEventListener('keydown', handleSelectAll)
+
+  //   return () => {
+  //     window.removeEventListener('keydown', handleSelectAll)
+  //   }
+  // }, [])
+
+  // this updates the draft with the correct signing account
+  useEffect(() => {
+    draftEvents.subscribe(
+      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
+        if (value) {
+          send(value)
+        }
+      },
+    )
+  }, [])
+
+  return {editor, handleFocusAtMousePos, state, send, actor, handleRebase}
+
+  // ==============
 
   async function handleRebase(newEntity: HMEntityContent) {
     /**
@@ -617,59 +676,6 @@ export function useDraftEditor({id}: {id: string}) {
 
     send({type: 'FINISH.REBASE', entity: newEntity})
   }
-
-  useEffect(() => {
-    if (
-      backendDraft.status == 'success' &&
-      backendDocument.status != 'loading' &&
-      backendDraft.data?.draft
-    ) {
-      send({
-        type: 'GET.DRAFT.SUCCESS',
-        draft: backendDraft.data?.draft,
-        entity:
-          backendDocument.status != 'error' && backendDocument.data
-            ? backendDocument.data
-            : null,
-      })
-    }
-    if (backendDraft.status == 'error') {
-      send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})
-    }
-    // }
-  }, [backendDraft.status, backendDocument.status])
-
-  useEffect(() => {
-    function handleSelectAll(event: KeyboardEvent) {
-      if (event.key == 'a' && event.metaKey) {
-        if (editor) {
-          event.preventDefault()
-          editor._tiptapEditor.commands.focus()
-          editor._tiptapEditor.commands.selectAll()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleSelectAll)
-
-    return () => {
-      window.removeEventListener('keydown', handleSelectAll)
-    }
-  }, [])
-
-  useEffect(() => {
-    draftEvents.subscribe(
-      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
-        if (value) {
-          send(value)
-        }
-      },
-    )
-  }, [])
-
-  return {editor, handleFocusAtMousePos, state, send, actor, handleRebase}
-
-  // ==============
 
   // TODO: fix types
   function handleFocusAtMousePos(event: any) {
@@ -1380,22 +1386,29 @@ export function useCreateDraft(parentDocId?: UnpackedHypermediaId) {
   const navigate = useNavigate('push')
   const saveDraft = trpc.drafts.write.useMutation()
   return () => {
-    saveDraft
-      .mutateAsync({
-        destinationUid: parentDocId?.uid,
-        destinationPath: parentDocId?.path || undefined,
-        isNewChild: true,
+    if (!parentDocId) {
+      navigate({
+        key: 'draft',
+        id: nanoid(10),
       })
-      .then((draft) => {
-        navigate({
-          key: 'draft',
-          id: draft.id,
+    } else {
+      saveDraft
+        .mutateAsync({
+          destinationUid: parentDocId?.uid,
+          destinationPath: parentDocId?.path || undefined,
+          isNewChild: true,
         })
-      })
-      .catch((e) => {
-        console.error(e)
-        toast.error('Failed to create draft')
-      })
+        .then((draft) => {
+          navigate({
+            key: 'draft',
+            id: draft.id,
+          })
+        })
+        .catch((e) => {
+          console.error(e)
+          toast.error('Failed to create draft')
+        })
+    }
   }
 }
 

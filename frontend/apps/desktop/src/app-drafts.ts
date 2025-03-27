@@ -1,21 +1,55 @@
-import {HMDraft, HMListedDraft} from '@shm/shared/hm-types'
-import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import { HMDraft, HMListedDraft } from '@shm/shared/hm-types'
+import { hmId, unpackHmId } from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
-import {nanoid} from 'nanoid'
-import {join} from 'path'
+import { nanoid } from 'nanoid'
+import { join } from 'path'
 import z from 'zod'
-import {userDataPath} from './app-paths'
-import {t} from './app-trpc'
-import {error} from './logger'
+import { userDataPath } from './app-paths'
+import { t } from './app-trpc'
+import { error } from './logger'
+
+/**
+ * new draft creation:
+ * - draft route params:
+ *   - draftId?: string
+ *   - locationId?: UnpackedHMId
+ *   - editId?: UnpackedHMId
+ *
+ * - use cases:
+ * 1. new draft from the sidebar button:
+ * - everything is undefined
+ * - need to load the editor with no content
+ *
+ * 2. new draft from location:
+ * - locationId is defined
+ * - editId is empty
+ * - draftId is empty
+ *
+ * 3. new draft from edit:
+ * - editId is defined
+ * - locationId is empty
+ * - draftId is empty
+ *
+ * 4. open draft:
+ * - draftId is defined
+ * - open the draft from the middle end
+ *
+ * after the first edit, we create the draft with the correct info in the draft state and replace the route with the draftId ONLY
+ * 
+ * DraftMeta
+ * - if the draftMeta has editUId and editPath, we don't show the publish dialog when the user clicks PUBLISH
+ */
 
 const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
 
 type DraftMeta = {
   id: string
-  destinationUid?: string
-  destinationPath?: string[]
-  isNewChild?: boolean
+  locationUid?: string
+  locationPath?: string[]
+  editUid?: string
+  editPath?: string[]
+}
 }
 
 let draftIndex: DraftMeta[] | undefined = undefined
@@ -79,8 +113,7 @@ async function saveDraftIndex() {
 }
 
 function inputIdToDraftFile(id: string) {
-  const encodedId = Buffer.from(id).toString('base64')
-  return `${encodedId}.json`
+  return `${id}.json`
 }
 
 function draftFileNameToId(filename: string) {
@@ -129,17 +162,22 @@ export const draftsApi = t.router({
   get: t.procedure.input(z.string().optional()).query(async ({input}) => {
     if (!input) return null
     const draftPath = join(draftsDir, inputIdToDraftFile(input))
+
+    console.log(`=== DRAFT get:t.procedure.input ~ draftPath:`, draftPath)
     try {
       const draftIndexEntry = draftIndex?.find((d) => d.id === input)
       const fileContent = await fs.readFile(draftPath, 'utf-8')
+
+      console.log(`=== DRAFT get:t.procedure.input ~ fileContent:`, fileContent)
       const draft = JSON.parse(fileContent)
 
       return {
         id: input,
         draft: draft as HMDraft,
-        destinationUid: draftIndexEntry?.destinationUid,
-        destinationPath: draftIndexEntry?.destinationPath,
-        isNewChild: draftIndexEntry?.isNewChild,
+        locationUid: draftIndexEntry?.locationUid,
+        locationPath: draftIndexEntry?.locationPath,
+        editUid: draftIndexEntry?.editUid,
+        editPath: draftIndexEntry?.editPath,
       }
     } catch (e) {
       error('[DRAFT]: Error when getting draft', {input: input, error: e})
@@ -151,12 +189,14 @@ export const draftsApi = t.router({
       z.object({
         draft: z.any(), // TODO: zod for draft object?
         id: z.string().optional(),
-        destinationUid: z.string().optional(),
-        destinationPath: z.string().array().optional(),
-        isNewChild: z.boolean().optional(),
+        locationUid: z.string().optional(),
+        locationPath: z.string().array().optional(),
+        editUid: z.string().optional(),
+        editPath: z.string().array().optional(),
       }),
     )
     .mutation(async ({input}) => {
+      console.log('=== DRAFT write: ', input)
       if (!draftIndex) {
         throw Error('[DRAFT]: Draft Index not initialized')
       }
