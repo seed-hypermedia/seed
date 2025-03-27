@@ -1449,9 +1449,9 @@ export function CreateAccountBanner() {
         >
           Create a Site
         </Button>
-        <Button size="#3" chromeless hoverStyle={{bg: '$color4'}}>
+        {/* <Button size="#3" chromeless hoverStyle={{bg: '$color4'}}>
           I already have a Site
-        </Button>
+        </Button> */}
       </YStack>
     </YStack>
   )
