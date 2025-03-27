@@ -75,9 +75,12 @@ export default function DraftPage() {
   )
 
   const draft = useDraft(route.id)
+
   let data = useDraftEditor({
     id: route.id,
   })
+
+  console.log(`== ~ DraftPage ~ data:`, data.state.value)
 
   console.log('Draft State', draft.data)
 
