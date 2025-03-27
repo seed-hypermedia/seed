@@ -1,7 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentRoute, hmId, queryClient, queryKeys} from '@shm/shared'
+import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
 import {forkSitefromTemplate} from '@shm/shared/utils/fork'
 import {eventStream} from '@shm/shared/utils/stream'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -50,10 +50,8 @@ export function SiteTemplate() {
         templateId: templates[selectedTemplate],
       }).then((targetVersion) => {
         dispatchSiteTemplateEvent(false)
-        queryClient.invalidateQueries({
-          queryKey: [queryKeys.ENTITY, (route as DocumentRoute).id?.id],
-        })
-
+        invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
+        invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
         setTimeout(() => {
           dispatchEditPopover(true)
         }, 500)

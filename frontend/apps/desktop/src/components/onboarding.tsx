@@ -41,6 +41,7 @@ import {
   resetOnboardingState,
   setHasCompletedOnboarding,
   setHasSkippedOnboarding,
+  setInitialAccountIdCount,
   setOnboardingFormData,
   setOnboardingStep,
   validateImage,
@@ -76,20 +77,21 @@ export function OnboardingDialog() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    onboardingDialogEvents.subscribe((open) => setOpen(open))
+    onboardingDialogEvents.subscribe((open) => {
+      console.log('== ~ useEffect ~ open:', open)
+      setOpen(open)
+    })
   }, [])
 
+  const handleOpenChange = (val: boolean) => {
+    dispatchOnboardingDialog(val)
+    setOpen(val)
+  }
+
+  if (!open) return null
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(val: boolean) => {
-        dispatchOnboardingDialog(val)
-        if (!val) {
-          // setStep('create')
-          // setNewAccount(true)
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
           height="100vh"
@@ -122,7 +124,12 @@ export function OnboardingDialog() {
           <Onboarding
             modal={true}
             onComplete={() => {
-              setOpen(false)
+              handleOpenChange(false)
+              setTimeout(() => {
+                if (getOnboardingState().hasCompletedOnboarding) {
+                  dispatchSiteTemplateEvent(true)
+                }
+              }, 1000)
             }}
           />
         </Dialog.Content>
@@ -160,9 +167,10 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 
   // Only check global state for completion in non-modal mode
   useEffect(() => {
+    const state = modal ? localState : globalState
     if (
       !modal &&
-      (globalState.hasCompletedOnboarding || globalState.hasSkippedOnboarding)
+      (state.hasCompletedOnboarding || state.hasSkippedOnboarding)
     ) {
       console.log(
         'Onboarding already completed or skipped, skipping to main app',
@@ -253,6 +261,11 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       console.log('Completing onboarding')
       if (modal) {
         setLocalState((prev) => ({...prev, hasCompletedOnboarding: true}))
+        // Update initialAccountIdCount in modal mode
+        setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
+        setTimeout(() => {
+          dispatchSiteTemplateEvent(true)
+        }, 1000)
       } else {
         setHasCompletedOnboarding(true)
         // Clean up form data but keep the completed flag
@@ -271,7 +284,15 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [currentStep, modal, localState, account, navigate, onComplete])
+  }, [
+    currentStep,
+    modal,
+    localState,
+    account,
+    navigate,
+    onComplete,
+    globalState.initialAccountIdCount,
+  ])
 
   const handleExistingSite = useCallback(() => {
     if (modal) {
@@ -1421,7 +1442,10 @@ export function CreateAccountBanner() {
           bg="$brand5"
           color="white"
           hoverStyle={{bg: '$brand4'}}
-          onPress={() => dispatchOnboardingDialog(true)}
+          onPress={() => {
+            console.log('== ~ onPress ~ create site:')
+            dispatchOnboardingDialog(true)
+          }}
         >
           Create a Site
         </Button>

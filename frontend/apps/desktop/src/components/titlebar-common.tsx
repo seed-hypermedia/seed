@@ -311,20 +311,15 @@ function EditDocButton() {
   if (popoverVisible) {
     return (
       <>
-        <View
-          width="100vw"
-          height="100vh"
-          position="fixed"
-          top={0}
-          left={0}
-          zIndex="$zIndex.9"
-          bg="black"
-          opacity={0.5}
-          onPress={() => {
-            setPopoverVisible(false)
+        <Popover
+          open={popoverVisible}
+          onOpenChange={(val) => {
+            console.log('== ~ onOpenChange ~ val:', val)
+            setPopoverVisible(val)
           }}
-        />
-        <Popover open={popoverVisible} stayInFrame placement="bottom">
+          stayInFrame
+          placement="bottom"
+        >
           <Popover.Trigger zIndex="$zIndex.9">{button}</Popover.Trigger>
 
           <Popover.Content
@@ -365,6 +360,25 @@ function EditDocButton() {
               You have completed a fork of this document. Please continue
               editing in the forked document.
             </SizableText>
+            {/* <Portal>
+              <XStack
+                width="100vw"
+                height="100vh"
+                position="fixed"
+                top={0}
+                left={0}
+                
+                bg="black"
+                opacity={0.5}
+                onPress={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  console.log('== ~ onPress ~ popoverVisible:', popoverVisible)
+                  setPopoverVisible(false)
+                }}
+                fullscreen
+              />
+            </Portal> */}
           </Popover.Content>
         </Popover>
       </>
