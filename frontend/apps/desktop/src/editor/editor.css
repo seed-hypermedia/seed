@@ -81,13 +81,13 @@
   width: calc(100%);
   height: calc(100%);
 }
-.image-caption {
+/* .image-caption {
   font-size: 0.75em;
   opacity: 0.6;
   width: 100%;
   display: block;
   text-align: center;
-}
+} */
 
 @keyframes rotation {
   0% {
