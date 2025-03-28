@@ -79,7 +79,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
       </XStack>
     )
   }
-  const drafts = useAccountDraftList(id.uid)
+  const drafts = useAccountDraftList(id?.uid)
 
   if (!document || !siteListQuery) return null
 
@@ -139,7 +139,7 @@ export function SiteNavigationDraftLoader({
     : null
   const embeds = useDocumentEmbeds(document)
 
-  const drafts = useAccountDraftList(id.uid)
+  const drafts = useAccountDraftList(id)
 
   if (!siteListQuery || !metadata) return null
 

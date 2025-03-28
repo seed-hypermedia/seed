@@ -3,13 +3,26 @@ import '@shm/shared/styles/document.css'
 
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
+import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
+import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
-import {useDraft} from '@/models/accounts'
-import {useAccountDraftList, useListDirectory} from '@/models/documents'
+import {
+  useAccountDraftList,
+  useDraftEditor,
+  useListDirectory,
+} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {useOpenUrl} from '@/open-url'
+import {trpc} from '@/trpc'
+import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
+import {
+  chromiumSupportedImageMimeTypes,
+  chromiumSupportedVideoMimeTypes,
+  generateBlockId,
+} from '@shm/editor/utils'
 import {
   HMBlockNode,
   HMDocument,
@@ -17,8 +30,6 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
@@ -26,28 +37,30 @@ import {
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Options, Smile} from '@shm/ui/icons'
+import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
-import {useSelector} from '@xstate/react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Button, Heading, Input, Separator, XStack, YStack} from 'tamagui'
+import {GestureResponderEvent} from 'react-native'
+import {
+  Button,
+  Heading,
+  Image,
+  Input,
+  Separator,
+  SizableText,
+  Spinner,
+  XStack,
+  YStack,
+} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
+import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {
-  /**
-   * fetch:
-   * - draft with draft ID (can be null)
-   * - home document with location UID (can be null)
-   * - edit document with edit UID + edit path (can be null)
-   */
-  const route = useNavRoute()
-
-  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-
   const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
     undefined,
   )
@@ -86,32 +99,68 @@ export default function DraftPage() {
       />
     )
   }
+
+  const {data, editor, send, state, actor, locationEntity, editEntity} =
+    useDraftEditor()
+
   // const isNewspaperLayout =
   //   data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
   const isNewspaperLayout = false
   const isEditingHomeDoc = false
 
-  const {data} = useDraft(route.id)
+  function handleFocusAtMousePos(event: any) {
+    let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
+    let editorView = ttEditor.view
+    let editorRect = editorView.dom.getBoundingClientRect()
+    let centerEditor = editorRect.left + editorRect.width / 2
 
-  const locationId = useMemo(() => {
-    if (!route.locationUid) return undefined
-    return hmId('d', route.locationUid, {
-      path: route.locationPath,
+    const pos = editorView.posAtCoords({
+      left: editorRect.left + 1,
+      top: event.clientY,
     })
-  }, [data])
 
-  console.log(`== ~ locationId ~ locationId:`, locationId)
+    if (pos) {
+      let node = editorView.state.doc.nodeAt(pos.pos)
+      if (node) {
+        let resolvedPos = editorView.state.doc.resolve(pos.pos)
+        let lineStartPos = pos.pos
+        let selPos = lineStartPos
 
-  const locationEntity = useEntity(locationId)
+        if (event.clientX >= centerEditor) {
+          let lineEndPos = lineStartPos
 
-  const editId = useMemo(() => {
-    if (!route.editUid) return undefined
-    return hmId('d', route.editUid, {
-      path: route.editPath,
-    })
-  }, [route])
+          // Loop through the line to find its end based on next Y position
+          while (lineEndPos < resolvedPos.end()) {
+            const coords = editorView.coordsAtPos(lineEndPos)
+            if (coords && coords.top >= event.clientY) {
+              lineEndPos--
+              break
+            }
+            lineEndPos++
+          }
+          selPos = lineEndPos
+        }
 
-  const editEntity = useEntity(editId)
+        const sel = Selection.near(editorView.state.doc.resolve(selPos))
+        ttEditor.commands.focus()
+        ttEditor.commands.setTextSelection(sel)
+      }
+    } else {
+      if (event.clientY > editorRect.bottom) {
+        // editorView.state.doc.descendants((node, pos) => {
+        //   console.log(node, pos)
+        // })
+        // From debugging positions, the last node is always resolved at position doc.content.size - 4, but it is possible to add exact position by calling doc.descendants
+        ttEditor.commands.setTextSelection(
+          editorView.state.doc.content.size - 4,
+        )
+        ttEditor.commands.focus()
+      } else
+        console.warn(
+          'No position found within the editor for the given mouse coordinates.',
+        )
+    }
+  }
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
@@ -125,6 +174,9 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
+          <pre>
+            <code>{JSON.stringify({state}, null, 2)}</code>
+          </pre>
           {isNewspaperLayout ? (
             <YStack f={1} ai="center" jc="center" h="100%">
               <YStack
@@ -141,26 +193,310 @@ export default function DraftPage() {
               </YStack>
             </YStack>
           ) : (
-            <pre>
-              <code style={{whiteSpace: 'pre-wrap'}}>
-                {JSON.stringify(
-                  {
-                    route,
-                    locationId,
-                    locationEntity,
-                    editId,
-                    editEntity,
-                  },
-                  null,
-                  2,
-                )}
-              </code>
-            </pre>
+            <>
+              <DraftRebaseBanner />
+              <DocumentEditor
+                editor={editor}
+                state={state}
+                actor={actor}
+                data={data}
+                send={send}
+                locationEntity={locationEntity}
+                editEntity={editEntity}
+                handleFocusAtMousePos={handleFocusAtMousePos}
+                isHomeDoc={isEditingHomeDoc}
+              />
+              <pre>
+                <code style={{whiteSpace: 'pre-wrap'}}>
+                  {JSON.stringify(
+                    {
+                      data,
+                      locationEntity,
+                      editEntity,
+                    },
+                    null,
+                    2,
+                  )}
+                </code>
+              </pre>
+            </>
           )}
         </AccessoryLayout>
       </XStack>
     </ErrorBoundary>
   )
+}
+
+function DocumentEditor({
+  editor,
+  state,
+  actor,
+  data,
+  send,
+  handleFocusAtMousePos,
+  isHomeDoc = false,
+}: {
+  editor: BlockNoteEditor
+  state: ReturnType<typeof useDraftEditor>['state']
+  actor: ReturnType<typeof useDraftEditor>['actor']
+  data: ReturnType<typeof useDraftEditor>['data']
+  send: ReturnType<typeof useDraftEditor>['send']
+  handleFocusAtMousePos: (event: any) => void
+  isHomeDoc: boolean
+}) {
+  const route = useNavRoute()
+  const openUrl = useOpenUrl()
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+  const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const [isDragging, setIsDragging] = useState(false)
+  const [showCover, setShowCover] = useState(false)
+  const showOutline = false
+  // typeof state.context.metadata.showOutline == 'undefined' ||
+  // state.context.metadata.showOutline
+
+  // const cover = useSelector(actor, (s) => s.context.metadata.cover)
+
+  const cover = undefined
+
+  const {
+    showSidebars,
+    elementRef,
+    showCollapsed,
+    mainContentProps,
+    sidebarProps,
+    wrapperProps,
+    contentMaxWidth,
+  } = useDocumentLayout({
+    // contentWidth: state.context.metadata.contentWidth,
+    contentWidth: 'M',
+    showSidebars: showOutline && !isHomeDoc,
+  })
+
+  useEffect(() => {
+    let val = !!cover
+    if (val != showCover) {
+      setShowCover(val)
+    }
+  }, [cover])
+
+  // useEffect(() => {
+  //   if (!id?.id) return
+  //   return subscribeDraftFocus(id?.id, (blockId: string) => {
+  //     if (editor) {
+  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
+  //       editor.setTextCursorPosition(blockId, 'end')
+  //     }
+  //   })
+  // }, [id?.id, editor])
+
+  if (state.matches('editing'))
+    return (
+      <YStack
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        onDrop={onDrop}
+        onPress={handleFocusAtMousePos}
+      >
+        <AppDocContentProvider
+          disableEmbedClick
+          // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
+          importWebFile={importWebFile}
+        >
+          <DraftCover
+            draftActor={actor}
+            disabled={!state.matches('editing')}
+            show={showCover}
+            setShow={setShowCover}
+            showOutline={showOutline}
+          />
+          <YStack ref={elementRef} w="100%" f={1}>
+            <XStack {...wrapperProps}>
+              {showSidebars ? (
+                <YStack
+                  marginTop={showCover ? 152 : 220}
+                  onPress={(e) => e.stopPropagation()}
+                  {...sidebarProps}
+                >
+                  {/* <SiteNavigationDraftLoader showCollapsed={showCollapsed} /> */}
+                </YStack>
+              ) : null}
+              <YStack {...mainContentProps}>
+                {!isHomeDoc ? (
+                  <DraftMetadataEditor
+                    draftActor={actor}
+                    onEnter={() => {
+                      editor._tiptapEditor.commands.focus()
+                      editor._tiptapEditor.commands.setTextSelection(0)
+                    }}
+                    // disabled={!state.matches('ready')}
+                    showCover={showCover}
+                    setShowCover={setShowCover}
+                  />
+                ) : null}
+                <EmbedToolbarProvider>
+                  <Container
+                    paddingLeft="$4"
+                    marginBottom={300}
+                    onPress={(e: GestureResponderEvent) => {
+                      // this prevents to fire handleFocusAtMousePos on click
+                      e.stopPropagation()
+                      // editor?._tiptapEditor.commands.focus()
+                    }}
+                  >
+                    {editor ? (
+                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                    ) : null}
+                  </Container>
+                </EmbedToolbarProvider>
+              </YStack>
+              {showSidebars ? <YStack {...sidebarProps} /> : null}
+            </XStack>
+          </YStack>
+        </AppDocContentProvider>
+      </YStack>
+    )
+
+  return null
+
+  function onDrop(event: DragEvent) {
+    if (!isDragging) return
+    const dataTransfer = event.dataTransfer
+
+    if (dataTransfer) {
+      const ttEditor = (editor as BlockNoteEditor)._tiptapEditor
+      const files: File[] = []
+
+      if (dataTransfer.files.length) {
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+          files.push(dataTransfer.files[i])
+        }
+      } else if (dataTransfer.items.length) {
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i].getAsFile()
+          if (item) {
+            files.push(item)
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        const editorElement = document.getElementsByClassName(
+          'mantine-Editor-root',
+        )[0]
+        const editorBoundingBox = editorElement.getBoundingClientRect()
+        const posAtCoords = ttEditor.view.posAtCoords({
+          left: editorBoundingBox.left + editorBoundingBox.width / 2,
+          top: event.clientY,
+        })
+        let pos: number | null
+        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+        else if (event.clientY > editorBoundingBox.bottom)
+          pos = ttEditor.view.state.doc.content.size - 4
+
+        let lastId: string
+
+        // using reduce so files get inserted sequentially
+        files.reduce((previousPromise, file, index) => {
+          return previousPromise.then(() => {
+            event.preventDefault()
+            event.stopPropagation()
+
+            if (pos) {
+              return handleDragMedia(file).then((props) => {
+                if (!props) return false
+
+                const {state} = ttEditor.view
+                let blockNode
+                const newId = generateBlockId()
+
+                if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                  blockNode = {
+                    id: newId,
+                    type: 'image',
+                    props: {
+                      url: props.url,
+                      name: props.name,
+                    },
+                  }
+                } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                  blockNode = {
+                    id: newId,
+                    type: 'video',
+                    props: {
+                      url: props.url,
+                      name: props.name,
+                    },
+                  }
+                } else {
+                  blockNode = {
+                    id: newId,
+                    type: 'file',
+                    props: {
+                      ...props,
+                    },
+                  }
+                }
+
+                const blockInfo = getBlockInfoFromPos(state, pos)
+
+                if (index === 0) {
+                  ;(editor as BlockNoteEditor).insertBlocks(
+                    [blockNode],
+                    blockInfo.block.node.attrs.id,
+                    // blockInfo.node.textContent ? 'after' : 'before',
+                    'after',
+                  )
+                } else {
+                  ;(editor as BlockNoteEditor).insertBlocks(
+                    [blockNode],
+                    lastId,
+                    'after',
+                  )
+                }
+
+                lastId = newId
+              })
+            }
+          })
+        }, Promise.resolve())
+        // .then(() => true) // TODO: @horacio ask Iskak about this
+        setIsDragging(false)
+        return true
+      }
+      setIsDragging(false)
+      return false
+    }
+    setIsDragging(false)
+
+    return false
+  }
+
+  // function onCopyBlock(
+  //   blockId: string,
+  //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+  // ) {
+  //   const gwUrl = useGatewayUrl()
+
+  //   if (!id) throw new Error('draft route id is missing')
+
+  //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+  //   copyUrlToClipboardWithFeedback(
+  //     createWebHMUrl(id.type, id.uid, {
+  //       blockRef: blockId,
+  //       blockRange,
+  //       hostname: gwUrl.data,
+  //     }),
+  //     'Block',
+  //   )
+  // }
 }
 
 function DraftAppHeader({
@@ -177,7 +513,7 @@ function DraftAppHeader({
   document?: HMDocument
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(docId.uid)
+  const drafts = useAccountDraftList(docId?.uid)
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -513,12 +849,14 @@ export function DraftHeader({
   const {textUnit} = useDocContentContext()
   const [showIcon, setShowIcon] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
-  const name = useSelector(draftActor, (s) => {
-    return s.context.metadata.name
-  })
-  const icon = useSelector(draftActor, (s) => {
-    return s.context.metadata.icon
-  })
+  // const name = useSelector(draftActor, (s) => {
+  //   return s.context.metadata.name
+  // })
+  const name = 'test'
+  // const icon = useSelector(draftActor, (s) => {
+  //   return s.context.metadata.icon
+  // })
+  const icon = 'test'
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 
@@ -709,9 +1047,10 @@ function DraftCover({
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
 
-  const cover = useSelector(draftActor, (s) => {
-    return s.context.metadata.cover
-  })
+  // const cover = useSelector(draftActor, (s) => {
+  //   return s.context.metadata.cover
+  // })
+  const cover = 'test'
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 
@@ -761,6 +1100,56 @@ function DraftCover({
       />
     </YStack>
   )
+}
+
+function DraftRebaseBanner() {
+  const [isRebasing, setIsRebasing] = useState(false)
+  // const willEditDocId = getDraftEditId(draftData)
+  // const latestDoc = useSubscribedEntity(willEditDocId)
+
+  async function performRebase() {
+    //   setIsRebasing(true)
+    //   if (latestDoc.data?.document) {
+    //     handleRebase(latestDoc.data).then(() => {
+    //       setIsRebasing(false)
+    //     })
+    //   }
+    //   // console.log('performRebase', {
+    //   //   draft: draft?.content,
+    //   //   document: latestDoc.data?.document,
+    //   // })
+    // }
+    // const draftPrevId = draftData?.draft.previousId
+    // async function performRebase() {
+    //   setIsRebasing(true)
+    // if (latestDoc.data?.document) {
+    //   handleRebase(latestDoc.data).then(() => {
+    //     setIsRebasing(false)
+    //   })
+    // }
+    // console.log('performRebase', {
+    //   draft: draft?.content,
+    //   document: latestDoc.data?.document,
+    // })
+  }
+
+  return false ? (
+    <XStack
+      theme="yellow"
+      bg="$backgroundHover"
+      ai="center"
+      jc="center"
+      p="$3"
+      gap="$4"
+    >
+      <SizableText size="$2">
+        A new change has been published to this document.{' '}
+      </SizableText>
+      <Button bg="$backgroundFocus" size="$2" onPress={() => performRebase()}>
+        {isRebasing ? <Spinner /> : 'Merge'}
+      </Button>
+    </XStack>
+  ) : null
 }
 
 function applyTitleResize(target: HTMLTextAreaElement) {

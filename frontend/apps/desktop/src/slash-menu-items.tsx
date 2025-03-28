@@ -5,7 +5,7 @@ import {
   PartialBlock,
   PropSchema,
 } from '@shm/editor/blocknote'
-import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {
   RiArticleFill,
@@ -30,7 +30,7 @@ export function getSlashMenuItems({
 }: {
   showNostr?: boolean
   showQuery?: boolean
-  docId: UnpackedHypermediaId
+  docId?: UnpackedHypermediaId
 }) {
   const slashMenuItems = []
 
@@ -289,11 +289,11 @@ export function getSlashMenuItems({
               columnCount: '3',
               queryLimit: '',
               queryIncludes: JSON.stringify([
-                {
-                  space: docId.uid,
-                  path: hmIdPathToEntityQueryPath(docId.path).slice(1),
-                  mode: 'Children',
-                },
+                // {
+                //   space: docId.uid,
+                //   path: hmIdPathToEntityQueryPath(docId.path).slice(1),
+                //   mode: 'Children',
+                // },
               ]),
               querySort: '[{"term": "UpdateTime", "reverse": false}]',
               defaultOpen: 'true',
