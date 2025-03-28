@@ -76,7 +76,7 @@ import {useGatewayUrlStream} from './gateway-settings'
 import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
-  type: 'CHANGE'
+  type: 'change'
   signingAccount: string
 }>()
 
@@ -461,7 +461,7 @@ export function useDraftEditor() {
         () => {},
         // send({type: 'CHANGE'}),
       )
-      send({type: 'CHANGE'})
+      send({type: 'change'})
     },
     onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       const {view} = editor._tiptapEditor
@@ -514,7 +514,7 @@ export function useDraftEditor() {
       typeof route.locationUid === 'undefined' &&
       typeof route.editUid === 'undefined'
     ) {
-      send({type: 'load.new.draft'})
+      send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
     if (draftStatus === 'success' && data) {
       send({type: 'fetch.success', payload: {type: 'draft', data: data.draft}})
@@ -552,7 +552,7 @@ export function useDraftEditor() {
   // this updates the draft with the correct signing account
   useEffect(() => {
     draftEvents.subscribe(
-      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
+      (value: {type: 'change'; signingAccount: string} | null) => {
         if (value) {
           send(value)
         }
@@ -595,7 +595,7 @@ export function _useDraftEditor({id}: {id: string}) {
         () => {},
         // send({type: 'CHANGE'}),
       )
-      send({type: 'CHANGE'})
+      send({type: 'change'})
     },
     onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       const {view} = editor._tiptapEditor

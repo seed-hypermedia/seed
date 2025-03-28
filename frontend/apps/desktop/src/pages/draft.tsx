@@ -936,7 +936,7 @@ export function DraftHeader({
                 onIconUpload={(icon) => {
                   if (icon) {
                     draftActor.send({
-                      type: 'CHANGE',
+                      type: 'change',
                       metadata: {
                         icon: `ipfs://${icon}`,
                       },
@@ -946,7 +946,7 @@ export function DraftHeader({
                 onRemoveIcon={() => {
                   setShowIcon(false)
                   draftActor.send({
-                    type: 'CHANGE',
+                    type: 'change',
                     metadata: {
                       icon: null,
                     },
@@ -1013,7 +1013,7 @@ export function DraftHeader({
               }
 
               draftActor.send({
-                type: 'CHANGE',
+                type: 'change',
                 metadata: {
                   name: newName,
                 },
@@ -1079,7 +1079,7 @@ function DraftCover({
         onCoverUpload={(cover) => {
           if (cover) {
             draftActor.send({
-              type: 'CHANGE',
+              type: 'change',
               metadata: {
                 cover: `ipfs://${cover}`,
               },
@@ -1089,7 +1089,7 @@ function DraftCover({
         onRemoveCover={() => {
           setShowOutline?.(true)
           draftActor.send({
-            type: 'CHANGE',
+            type: 'change',
             metadata: {
               cover: '',
             },
