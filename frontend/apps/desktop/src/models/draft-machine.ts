@@ -14,6 +14,7 @@ export const draftMachine = setup({
       error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
+      draftCreated: boolean
     },
     events: {} as
       | {
@@ -50,6 +51,7 @@ export const draftMachine = setup({
       }
     },
     onSaveSuccess: ({context}) => context,
+    oncreatingSuccess: ({context}) => context,
     populateEditor: ({context, event}) => {
       // Add your editor population logic here
       return context
@@ -129,6 +131,11 @@ export const draftMachine = setup({
     setHasChangedWhileSaving: assign({
       hasChangedWhileSaving: true,
     }),
+    setDraftCreated: assign({
+      draftCreated: ({event}, params: {draftCreated: boolean}) => {
+        return params.draftCreated
+      },
+    }),
   },
   guards: {
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
@@ -137,7 +144,7 @@ export const draftMachine = setup({
     autosaveTimeout: 500,
   },
   actors: {
-    updateDraft: fromPromise(
+    create: fromPromise(
       async ({
         input,
       }: {
@@ -145,9 +152,27 @@ export const draftMachine = setup({
           metadata: HMMetadata
           currentDraft: HMDraft | null
           signingAccount: string | null
+          draftCreated: boolean
         }
       }) => {
-        console.log('=== DRAFT updateDraft: ', input)
+        console.log('=== DRAFT invoke creating: CREATE')
+
+        return {} as HMDraft & {id: string}
+      },
+    ),
+    update: fromPromise(
+      async ({
+        input,
+      }: {
+        input: {
+          metadata: HMMetadata
+          currentDraft: HMDraft | null
+          signingAccount: string | null
+          draftCreated: boolean
+        }
+      }) => {
+        console.log('=== DRAFT invoke updateDraft: UPDATE')
+
         return {} as HMDraft & {id: string}
       },
     ),
@@ -162,6 +187,7 @@ export const draftMachine = setup({
     signingAccount: null,
     changed: false,
     hasChangedWhileSaving: false,
+    draftCreated: false,
   },
   initial: 'fetching',
   states: {
@@ -227,8 +253,79 @@ export const draftMachine = setup({
             },
           },
           after: {
-            autosaveTimeout: {
+            autosaveTimeout: [
+              {
+                target: 'saving',
+                guard: ({context}) => context.draftCreated,
+              },
+              {
+                target: 'creating',
+              },
+            ],
+          },
+        },
+        creating: {
+          entry: [
+            'resetChangeWhileSaving',
+            {type: 'setDraftStatus', params: {status: 'saving'}},
+          ],
+          on: {
+            change: {
               target: 'saving',
+              actions: [
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'setAttributes'},
+                {type: 'setSigningAccount'},
+              ],
+              reenter: false,
+            },
+            'reset.content': {
+              target: 'saving',
+              actions: [
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'resetContent'},
+              ],
+              reenter: false,
+            },
+          },
+          invoke: {
+            id: 'create',
+            src: 'create',
+            input: ({context}) => ({
+              metadata: context.metadata,
+              currentDraft: context.draft,
+              signingAccount: context.signingAccount,
+              draftCreated: context.draftCreated,
+            }),
+            onDone: [
+              {
+                target: 'saving',
+                actions: [
+                  {type: 'setDraftCreated', params: {draftCreated: true}},
+                ],
+                guard: 'didChangeWhileSaving',
+                reenter: true,
+              },
+              {
+                target: 'idle',
+                actions: [
+                  {type: 'setDraftCreated', params: {draftCreated: true}},
+                  // {type: 'setDraft'},
+                  {type: 'setAttributes'},
+                  {type: 'setSigningAccount'},
+                  {
+                    type: 'setDraftStatus',
+                    params: {status: 'saved'},
+                  },
+                ],
+              },
+            ],
+            onError: {
+              actions: [
+                () => {
+                  console.log('=== DRAFT onError: ')
+                },
+              ],
             },
           },
         },
@@ -257,12 +354,13 @@ export const draftMachine = setup({
             },
           },
           invoke: {
-            id: 'updateDraft',
-            src: 'updateDraft',
+            id: 'update',
+            src: 'update',
             input: ({context}) => ({
               metadata: context.metadata,
               currentDraft: context.draft,
               signingAccount: context.signingAccount,
+              draftCreated: context.draftCreated,
             }),
             onDone: [
               {
