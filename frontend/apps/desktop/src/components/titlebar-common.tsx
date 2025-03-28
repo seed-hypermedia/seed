@@ -6,7 +6,6 @@ import {
   useMyCapabilities,
   useMyCapability,
 } from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
@@ -249,7 +248,10 @@ export function DocOptionsButton({
         },
       })
   }
-  const createDraft = useCreateDraft(route.id)
+  const createDraft = useCreateDraft({
+    locationUid: route.id.uid,
+    locationPath: route.id.path,
+  })
   const importDialog = useImportDialog()
   const importing = useImporting(route.id)
   if (canEditDoc) {
@@ -319,10 +321,9 @@ function EditDocButton() {
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id)
-  const {data: entity} = useEntity(route.id)
   const navigate = useNavigate()
-  const draft = useDraft(route.id)
-  const hasExistingDraft = !!draft.data
+  // TODO: corerctly check fro drafts here (horacio)
+  const hasExistingDraft = false
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
@@ -339,7 +340,8 @@ function EditDocButton() {
       onPress={() => {
         navigate({
           key: 'draft',
-          id: entity?.id,
+          editUid: route.id.uid,
+          editPath: route.id.path ?? undefined,
         })
       }}
       icon={Pencil}

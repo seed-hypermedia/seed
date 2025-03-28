@@ -62,7 +62,6 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
-import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
@@ -1382,37 +1381,31 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   return trailedBlocks
 }
 
-export function useCreateDraft(parentDocId?: UnpackedHypermediaId) {
+export function useCreateDraft({
+  locationUid,
+  locationPath,
+  editUid,
+  editPath,
+}: {
+  locationUid?: string
+  locationPath?: string[] | null
+  editUid?: string
+  editPath?: string[] | null
+} = {}) {
+  const route = useNavRoute()
   const navigate = useNavigate('push')
-  const saveDraft = trpc.drafts.write.useMutation()
+  // const saveDraft = trpc.drafts.write.useMutation()
   return () => {
-    navigate({
-      key: 'draft',
-    })
-  }
-  return () => {
-    if (!parentDocId) {
+    if (route.key != 'draft') {
       navigate({
         key: 'draft',
-        id: nanoid(10),
+        editUid: editUid ?? undefined,
+        editPath: editPath ?? undefined,
+        locationUid: locationUid ?? undefined,
+        locationPath: locationPath ?? undefined,
       })
     } else {
-      saveDraft
-        .mutateAsync({
-          destinationUid: parentDocId?.uid,
-          destinationPath: parentDocId?.path || undefined,
-          isNewChild: true,
-        })
-        .then((draft) => {
-          navigate({
-            key: 'draft',
-            id: draft.id,
-          })
-        })
-        .catch((e) => {
-          console.error(e)
-          toast.error('Failed to create draft')
-        })
+      // TODO: Focus the draft editor??
     }
   }
 }

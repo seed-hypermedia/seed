@@ -21,13 +21,14 @@ import {error} from './logger'
  * - need to load the editor with no content
  *
  * 2. new draft from location:
- * - locationId is defined
+ * - locationUId is defined
+ * - locationPath is defined (optional)
  * - editId is empty
  * - draftId is empty
  *
  * 3. new draft from edit:
- * - editId is defined
- * - locationId is empty
+ * - editUId is defined
+ * - locationId is empty`
  * - draftId is empty
  *
  * 4. open draft:

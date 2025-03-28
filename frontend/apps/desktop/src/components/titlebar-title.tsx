@@ -584,7 +584,7 @@ function PathItemCard({
       </YStack>
       {canEditDoc ? (
         <XStack gap="$2" ai="center" paddingHorizontal="$2">
-          <NewSubDocumentButton parentDocId={docId} importDropdown={false} />
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
         </XStack>
       ) : null}
     </YStack>

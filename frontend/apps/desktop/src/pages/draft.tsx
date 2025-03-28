@@ -17,6 +17,8 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
@@ -28,7 +30,7 @@ import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 import {useSelector} from '@xstate/react'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Button, Heading, Input, Separator, XStack, YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
@@ -89,7 +91,27 @@ export default function DraftPage() {
   const isNewspaperLayout = false
   const isEditingHomeDoc = false
 
-  const draft = useDraft(route.id)
+  const {data} = useDraft(route.id)
+
+  const locationId = useMemo(() => {
+    if (!route.locationUid) return undefined
+    return hmId('d', route.locationUid, {
+      path: route.locationPath,
+    })
+  }, [data])
+
+  console.log(`== ~ locationId ~ locationId:`, locationId)
+
+  const locationEntity = useEntity(locationId)
+
+  const editId = useMemo(() => {
+    if (!route.editUid) return undefined
+    return hmId('d', route.editUid, {
+      path: route.editPath,
+    })
+  }, [route])
+
+  const editEntity = useEntity(editId)
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
@@ -120,7 +142,19 @@ export default function DraftPage() {
             </YStack>
           ) : (
             <pre>
-              <code>{JSON.stringify({route}, null, 2)}</code>
+              <code style={{whiteSpace: 'pre-wrap'}}>
+                {JSON.stringify(
+                  {
+                    route,
+                    locationId,
+                    locationEntity,
+                    editId,
+                    editEntity,
+                  },
+                  null,
+                  2,
+                )}
+              </code>
             </pre>
           )}
         </AccessoryLayout>
