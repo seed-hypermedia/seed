@@ -1386,6 +1386,11 @@ export function useCreateDraft(parentDocId?: UnpackedHypermediaId) {
   const navigate = useNavigate('push')
   const saveDraft = trpc.drafts.write.useMutation()
   return () => {
+    navigate({
+      key: 'draft',
+    })
+  }
+  return () => {
     if (!parentDocId) {
       navigate({
         key: 'draft',

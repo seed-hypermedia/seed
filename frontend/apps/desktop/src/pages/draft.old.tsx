@@ -1,47 +1,71 @@
-import {useNavRoute} from '@/utils/navigation'
-import '@shm/shared/styles/document.css'
-
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
+import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {useDraft} from '@/models/accounts'
-import {useAccountDraftList, useListDirectory} from '@/models/documents'
-import {draftMachine} from '@/models/draft-machine'
 import {
-  HMBlockNode,
-  HMDocument,
-  HMEntityContent,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+  getDraftEditId,
+  useAccountDraftList,
+  useCreateDraft,
+  useDraftEditor,
+  useListDirectory,
+} from '@/models/documents'
+import {draftMachine} from '@/models/draft-machine'
+import {useSubscribedEntity} from '@/models/entities'
+import {trpc} from '@/trpc'
+import {
+  chromiumSupportedImageMimeTypes,
+  chromiumSupportedVideoMimeTypes,
+  generateBlockId,
+  handleDragMedia,
+} from '@/utils/media-drag'
+import {useNavRoute} from '@/utils/navigation'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {useEntity} from '@shm/shared/models/entity'
+import '@shm/shared/styles/document.css'
+import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Options, Smile} from '@shm/ui/icons'
+import {Options} from '@shm/ui/icons'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
-import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+import {Heading, Input, Separator, SizableText, XStack} from 'tamagui'
+
+import {ImportDropdownButton} from '@/components/import-doc-button'
+import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
+import {useOpenUrl} from '@/open-url'
+import {
+  HMBlockNode,
+  HMDraft,
+  HMEntityContent,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Spinner} from '@shm/ui/spinner'
+import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Button, Heading, Input, Separator, XStack, YStack} from 'tamagui'
+import {GestureResponderEvent} from 'react-native'
+import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
+import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
+import {useDocumentLayout} from '@shm/ui/layout'
+import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+
 export default function DraftPage() {
-  /**
-   * fetch:
-   * - draft with draft ID (can be null)
-   * - home document with location UID (can be null)
-   * - edit document with edit UID + edit path (can be null)
-   */
   const route = useNavRoute()
 
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
@@ -50,6 +74,41 @@ export default function DraftPage() {
     undefined,
   )
 
+  const draft = useDraft(route.id)
+
+  let data = useDraftEditor({
+    id: route.id,
+  })
+
+  console.log(`== ~ DraftPage ~ data:`, data.state.value)
+
+  console.log('Draft State', draft.data)
+
+  const {shouldRebase, performRebase, isRebasing} = useDraftRebase({
+    draftData: draft.data,
+    handleRebase: data.handleRebase,
+  })
+
+  let accessory = null
+
+  if (accessoryKey == 'options' && route.id) {
+    accessory = (
+      <OptionsPanel
+        metadata={data.state.context.metadata}
+        onMetadata={(metadata) => {
+          if (!draft.data) return
+          data.actor.send({type: 'CHANGE', metadata})
+        }}
+        onClose={() => setAccessory(undefined)}
+        draftId={route.id}
+        onResetContent={(blockNodes: HMBlockNode[]) => {
+          data.actor.send({type: 'RESET.CONTENT', blockNodes})
+        }}
+      />
+    )
+  }
+  const isNewspaperLayout =
+    data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
   const accessoryOptions: {
     key: 'options'
     label: string
@@ -65,31 +124,57 @@ export default function DraftPage() {
     icon: Options,
   })
 
-  let accessory = null
+  const destinationHomeId = draft.data?.destinationUid
+    ? hmId('d', draft.data.destinationUid)
+    : undefined
 
-  if (accessoryKey == 'options' && route.id) {
-    accessory = (
-      <OptionsPanel
-        // metadata={data.state.context.metadata}
-        metadata={{}}
-        onMetadata={(metadata) => {
-          if (!draft.data) return
-          // data.actor.send({type: 'CHANGE', metadata})
-        }}
-        onClose={() => setAccessory(undefined)}
-        draftId={route.id}
-        onResetContent={(blockNodes: HMBlockNode[]) => {
-          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
-        }}
-      />
-    )
-  }
-  // const isNewspaperLayout =
-  //   data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
-  const isNewspaperLayout = false
-  const isEditingHomeDoc = false
+  const homeEntity = useEntity(destinationHomeId)
 
-  const draft = useDraft(route.id)
+  const isEditingHomeDoc =
+    draft.data?.destinationUid &&
+    draft.data?.destinationPath?.length === 0 &&
+    !draft.data?.isNewChild
+  const siteHomeMetadata = isEditingHomeDoc
+    ? draft.data?.draft.metadata
+    : homeEntity.data?.document?.metadata
+
+  const documentEditorContent = (
+    <>
+      {shouldRebase ? (
+        <XStack
+          theme="yellow"
+          bg="$backgroundHover"
+          ai="center"
+          jc="center"
+          p="$3"
+          gap="$4"
+        >
+          <SizableText size="$2">
+            A new change has been published to this document.{' '}
+          </SizableText>
+          <Button
+            bg="$backgroundFocus"
+            size="$2"
+            onPress={() => performRebase()}
+          >
+            {isRebasing ? <Spinner /> : 'Merge'}
+          </Button>
+        </XStack>
+      ) : null}
+      {destinationHomeId ? (
+        <DraftAppHeader
+          siteHomeMetadata={siteHomeMetadata}
+          siteHomeEntity={homeEntity.data}
+          docId={destinationHomeId}
+          document={homeEntity.data?.document || undefined}
+        >
+          <DocumentEditor {...data} />
+        </DraftAppHeader>
+      ) : (
+        <DocumentEditor {...data} />
+      )}
+    </>
+  )
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
@@ -119,9 +204,7 @@ export default function DraftPage() {
               </YStack>
             </YStack>
           ) : (
-            <pre>
-              <code>{JSON.stringify({route}, null, 2)}</code>
-            </pre>
+            documentEditorContent
           )}
         </AccessoryLayout>
       </XStack>
@@ -222,6 +305,7 @@ function DocumentEditor({
     mainContentProps,
     sidebarProps,
     wrapperProps,
+    contentMaxWidth,
   } = useDocumentLayout({
     contentWidth: state.context.metadata.contentWidth,
     showSidebars: showOutline && !isHomeDoc,
@@ -486,6 +570,8 @@ export function DraftHeader({
     return s.context.metadata.icon
   })
 
+  const prevDoc = useSelector(draftActor, (s) => s.context.entity?.document)
+
   const input = useRef<HTMLTextAreaElement | null>(null)
 
   useShowTitleObserver(input.current)
@@ -640,6 +726,7 @@ export function DraftHeader({
                 if (isHyphen) newName = newName.slice(0, -2) + '—'
               }
 
+              // TODO: change title here
               draftActor.send({
                 type: 'CHANGE',
                 metadata: {
@@ -658,7 +745,7 @@ export function DraftHeader({
   )
 }
 
-function DraftCover({
+export function DraftCover({
   draftActor,
   disabled = false,
   show = false,
@@ -723,7 +810,7 @@ function DraftCover({
           })
         }}
         url={cover ? getDaemonFileUrl(cover) : ''}
-        id={route.id}
+        id={route.id?.id}
       />
     </YStack>
   )
@@ -735,4 +822,47 @@ function applyTitleResize(target: HTMLTextAreaElement) {
 
   // here is the actual auto-resize
   target.style.height = `${target.scrollHeight}px`
+}
+
+function useDraftRebase({
+  draftData,
+  handleRebase,
+}: {
+  draftData?: {
+    draft: HMDraft
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+    id: string
+  } | null
+  handleRebase: (newEntity: HMEntityContent) => Promise<void>
+}) {
+  const [isRebasing, setIsRebasing] = useState(false)
+  const willEditDocId = getDraftEditId(draftData)
+  const latestDoc = useSubscribedEntity(willEditDocId)
+
+  async function performRebase() {
+    setIsRebasing(true)
+    if (latestDoc.data?.document) {
+      handleRebase(latestDoc.data).then(() => {
+        setIsRebasing(false)
+      })
+    }
+
+    // console.log('performRebase', {
+    //   draft: draft?.content,
+    //   document: latestDoc.data?.document,
+    // })
+  }
+
+  const draftPrevId = draftData?.draft.previousId
+  return {
+    isRebasing,
+    shouldRebase:
+      // Only show rebase if we have both versions and they don't match
+      draftPrevId?.version != null &&
+      latestDoc.data?.id.version != null &&
+      draftPrevId.version !== latestDoc.data.id.version,
+    performRebase,
+  }
 }
