@@ -41,7 +41,10 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const entity = useSubscribedEntity(id, true) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
   const document = entity.data?.document
-  const createDraft = useCreateDraft(id)
+  const createDraft = useCreateDraft({
+    locationUid: id.uid,
+    locationPath: id.path,
+  })
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
   const isHome = !id.path?.length
