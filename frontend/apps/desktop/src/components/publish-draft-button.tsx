@@ -109,7 +109,7 @@ export default function PublishDraftButton() {
 
   useEffect(() => {
     if (signingAccount && signingAccount.id.uid) {
-      draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
+      draftDispatch({type: 'change', signingAccount: signingAccount.id.uid})
     }
   }, [signingAccount])
 
