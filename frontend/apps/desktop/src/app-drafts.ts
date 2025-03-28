@@ -37,13 +37,21 @@ import {error} from './logger'
  * after the first edit, we create the draft with the correct info in the draft state and replace the route with the draftId ONLY
  *
  * DraftMeta
- * - if the draftMeta has editUId and editPath, we don't show the publish dialog when the user clicks PUBLISH
+ * - if the draftMeta has editUId and editPath, we don't show the publish dialog when the user clicks
  */
 
 const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
 
-let draftIndex: HMDraftMeta[] | undefined = undefined
+type DraftMeta = {
+  id: string
+  locationUid?: string
+  locationPath?: string[]
+  editUid?: string
+  editPath?: string[]
+}
+
+let draftIndex: DraftMeta[] | undefined = undefined
 
 export async function initDrafts() {
   await fs.mkdir(draftsDir, {recursive: true})
@@ -112,14 +120,16 @@ async function loadDraft(d: HMDraftMeta): Promise<HMListedDraft> {
   const draftPath = join(draftsDir, `${d.id}.json`)
   const fileContent = await fs.readFile(draftPath, 'utf-8')
   const draft = JSON.parse(fileContent) as HMDraft
+  const targetId = d.locationUid
+    ? hmId('d', d.locationUid, {
+        path: d.locationPath,
+      })
+    : undefined
   return {
     ...d,
     metadata: draft.metadata,
     lastUpdateTime: draft.lastUpdateTime,
-    editId: d.editUid ? hmId('d', d.editUid, {path: d.editPath}) : undefined,
-    locationId: d.locationUid
-      ? hmId('d', d.locationUid, {path: d.locationPath})
-      : undefined,
+    targetId,
   }
 }
 
@@ -136,11 +146,7 @@ export const draftsApi = t.router({
       if (!input) return []
       const drafts = await Promise.all(
         draftIndex
-          ?.filter((d) => {
-            if (d.locationUid === input) return true
-            if (d.editUid === input) return true
-            return false
-          })
+          ?.filter((d) => !!input && d.locationUid && d.locationUid === input)
           .map(loadDraft) || [],
       )
       return drafts satisfies HMListedDraft[]
@@ -192,7 +198,10 @@ export const draftsApi = t.router({
         ...draftIndex.filter((d) => d.id !== draftId),
         {
           id: draftId,
-          ...input,
+          locationUid: input.locationUid,
+          locationPath: input.locationPath,
+          editUid: input.editUid,
+          editPath: input.editPath,
         },
       ]
       await saveDraftIndex()
