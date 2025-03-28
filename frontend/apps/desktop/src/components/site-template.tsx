@@ -12,6 +12,7 @@ import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
 
 // Import template images
+
 import blogDark from '/template-blog-dark.png'
 import blogLight from '/template-blog-light.png'
 import documentationDark from '/template-documentation-dark.png'
@@ -36,8 +37,10 @@ export function SiteTemplate() {
 
   function handleForking() {
     if (!targetId) return
-    invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
-    invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+    setTimeout(() => {
+      invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+    }, 500)
     if (selectedTemplate === 'blank') {
       dispatchSiteTemplateEvent(false)
       navigate({
