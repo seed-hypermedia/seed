@@ -520,8 +520,8 @@ NESTED BLOCKS
   line-height: 1.5;
 }
 
-.isEmpty.hasAnchor 
-  .blockContent[data-content-type='image'] 
+.isEmpty.hasAnchor
+  .blockContent[data-content-type='image']
   .inlineContent::before {
   content: 'Image caption';
   position: absolute;
@@ -529,14 +529,13 @@ NESTED BLOCKS
   transform: translateX(-50%);
 }
 
-.blockContent[data-content-type='image'] 
-  .inlineContent {
+.blockContent[data-content-type='image'] .inlineContent {
   font-size: 0.9em;
   opacity: 0.6;
   min-width: 30%;
   display: block;
   text-align: center;
-  }
+}
 
 [data-content-type='heading'] {
   font-family:
