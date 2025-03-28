@@ -1,4 +1,3 @@
-import {useAppContext} from '@/app-context'
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useBlockNote} from '@/editor/useBlockNote'
@@ -48,7 +47,7 @@ import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
-import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {eventStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -99,6 +98,7 @@ export function useFullDraftList() {
 }
 
 export function useAccountDraftList(accountUid?: string) {
+  if (!accountUid) return {data: []}
   return trpc.drafts.listAccount.useQuery(accountUid, {
     enabled: !!accountUid,
   })
@@ -399,15 +399,185 @@ export function queryDraft({
   }
 }
 
-export function useDraftEditor({id}: {id: string}) {
-  const {grpcClient} = useAppContext()
+export function useDraftEditor() {
+  /**
+   * fetch:
+   * - draft with draft ID (can be null)
+   * - home document with location UID (can be null)
+   * - edit document with edit UID + edit path (can be null)
+   */
+  const route = useNavRoute()
+
+  console.log(`=== DRAFT route:`, route)
+
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+
+  const {data, status: draftStatus} = useDraft(route.id)
+
+  const locationId = useMemo(() => {
+    if (!route.locationUid) return undefined
+    return hmId('d', route.locationUid, {
+      path: route.locationPath,
+    })
+  }, [route])
+
+  const locationEntity = useEntity(locationId)
+
+  const editId = useMemo(() => {
+    if (!route.editUid) return undefined
+    return hmId('d', route.editUid, {
+      path: route.editPath,
+    })
+  }, [route])
+
+  const editEntity = useEntity(editId)
+
+  // state machine
+  const [state, send, actor] = useMachine(draftMachine.provide({}))
+
+  actor.subscribe((event) => {
+    console.log('=== DRAFT actor event: ', event)
+  })
+
+  // editor props
+  // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
+  const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const openUrl = useOpenUrl()
+  const gwUrl = useGatewayUrlStream()
+  const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
+  const saveDraft = trpc.drafts.write.useMutation()
+  const {onMentionsQuery} = useInlineMentions()
+
+  const editor = useBlockNote<typeof hmBlockSchema>({
+    onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      // if (!gotEdited.current) {
+      //   gotEdited.current = true
+      // }
+
+      // writeEditorStream(editor.topLevelBlocks)
+      observeBlocks(
+        editor,
+        editor.topLevelBlocks,
+        () => {},
+        // send({type: 'CHANGE'}),
+      )
+      send({type: 'CHANGE'})
+    },
+    onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      const {view} = editor._tiptapEditor
+      const {selection} = view.state
+      if (
+        selection.from !== selection.to &&
+        !(selection instanceof NodeSelection)
+      )
+        return
+      const domAtPos = view.domAtPos(selection.from)
+      try {
+        const rect: DOMRect = domAtPos.node.getBoundingClientRect()
+        // Check if the cursor is off screen
+        // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
+        if (rect && rect.top > window.innerHeight) {
+          // Scroll the cursor into view if not caused by media drag
+          // @ts-ignore
+          if (!editor.sideMenu.sideMenuView?.isDragging)
+            domAtPos.node.scrollIntoView({block: 'center'})
+        }
+      } catch {}
+      return
+    },
+    linkExtensionOptions: {
+      // openOnClick: false,
+      grpcClient,
+      gwUrl,
+      openUrl,
+      checkWebUrl: checkWebUrl.mutateAsync,
+    },
+    onMentionsQuery,
+    blockSchema: hmBlockSchema,
+    slashMenuItems: getSlashMenuItems({showNostr}),
+    _tiptapOptions: {
+      extensions: [
+        Extension.create({
+          name: 'hypermedia-link',
+          addProseMirrorPlugins() {
+            return [createHypermediaDocLinkPlugin({}).plugin]
+          },
+        }),
+      ],
+    },
+  })
+
+  // send events to machine when fetch do draft or other documents
+  useEffect(() => {
+    if (
+      typeof route.id === 'undefined' &&
+      typeof route.locationUid === 'undefined' &&
+      typeof route.editUid === 'undefined'
+    ) {
+      send({type: 'load.new.draft'})
+    }
+    if (draftStatus === 'success' && data) {
+      send({type: 'fetch.success', payload: {type: 'draft', data: data.draft}})
+    } else if (locationEntity.status === 'success' && locationEntity.data) {
+      send({
+        type: 'fetch.success',
+        payload: {type: 'location', data: locationEntity.data},
+      })
+    } else if (editEntity.status === 'success' && editEntity.data) {
+      send({
+        type: 'fetch.success',
+        payload: {type: 'edit', data: editEntity.data},
+      })
+    }
+  }, [data, locationEntity.status, editEntity.status])
+
+  useEffect(() => {
+    function handleSelectAll(event: KeyboardEvent) {
+      if (event.key == 'a' && event.metaKey) {
+        if (editor) {
+          event.preventDefault()
+          editor._tiptapEditor.commands.focus()
+          editor._tiptapEditor.commands.selectAll()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSelectAll)
+
+    return () => {
+      window.removeEventListener('keydown', handleSelectAll)
+    }
+  }, [])
+
+  // this updates the draft with the correct signing account
+  useEffect(() => {
+    draftEvents.subscribe(
+      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
+        if (value) {
+          send(value)
+        }
+      },
+    )
+  }, [])
+
+  return {
+    data,
+    state,
+    send,
+    actor,
+    locationEntity,
+    editEntity,
+    editor,
+  }
+}
+
+export function _useDraftEditor({id}: {id: string}) {
   const openUrl = useOpenUrl()
   const route = useNavRoute()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const gotEdited = useRef(false)
-  const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
+
   const saveDraft = trpc.drafts.write.useMutation()
   const {onMentionsQuery} = useInlineMentions()
   const isNewDraft = route.key == 'draft' && !!route.new
@@ -570,10 +740,6 @@ export function useDraftEditor({id}: {id: string}) {
 
   console.log('=== DRAFT backendDocId: ', backendDocId)
   const backendDocument = useEntity(backendDocId)
-
-  actor.subscribe((state) => {
-    console.log('=== DRAFT STATE: ', state.value)
-  })
 
   useEffect(() => {
     console.log(
