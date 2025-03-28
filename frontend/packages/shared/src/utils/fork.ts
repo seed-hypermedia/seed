@@ -40,6 +40,8 @@ export async function forkSitefromTemplate({
     })
     console.log(`[Fork] Target home document version: ${targetHomeDoc.version}`)
 
+    const targetHomeDocEntity = HMDocumentSchema.parse(targetHomeDoc.toJson())
+
     console.log('[Fork] Fetching template home document...')
     const templateHomeDoc = await client.documents.getDocument({
       account: templateId,
@@ -51,6 +53,17 @@ export async function forkSitefromTemplate({
 
     // remove the template name so it will not override the current target name
     delete templateHomeDocEntity.metadata.name
+
+    // remove the template icon so it will not override the current target icon
+    if (targetHomeDocEntity.metadata.icon) {
+      delete templateHomeDocEntity.metadata.icon
+    }
+
+    // remove the template experimental logo so it will not override the current target experimental logo
+    if (targetHomeDocEntity.metadata.seedExperimentalLogo) {
+      delete templateHomeDocEntity.metadata.seedExperimentalLogo
+    }
+
     console.log('[Fork] Creating blocks map for template home document...')
     const blocksMap = createBlocksMap(templateHomeDocEntity.content, '')
     console.log(
