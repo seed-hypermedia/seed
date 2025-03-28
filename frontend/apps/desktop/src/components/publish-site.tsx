@@ -682,6 +682,7 @@ function versionToInt(version: string): number | null {
 
 function isAppVersionEqualOrAbove(version: string) {
   if (VERSION === '0.0.0.local-dev') return true // for local dev
+  if (VERSION.match('0.0.0.local')) return true // for local builds
   const expectedVersionInt = versionToInt(version)
   const currentVersionInt = versionToInt(VERSION)
   if (expectedVersionInt === null || currentVersionInt === null) return false
