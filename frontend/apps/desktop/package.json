@@ -17,7 +17,6 @@
   "scripts": {
     "dev": "electron-forge start",
     "dev:debug": "ELECTRON_ENABLE_LOGGING=true electron-forge start -- --remote-debugging-port=9222",
-    "format": "echo TODO",
     "make": "electron-forge make",
     "package": "electron-forge package",
     "publish": "electron-forge publish",
