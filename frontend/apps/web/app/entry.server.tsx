@@ -22,7 +22,6 @@ import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 
-console.log('222tf process.env')
 const ABORT_DELAY = 5_000
 
 const CACHE_PATH = resolve(join(process.env.DATA_DIR || process.cwd(), 'cache'))
