@@ -134,6 +134,10 @@ export type DocContentContextValue = {
     blockRange?: BlockRange
   }
   importWebFile?: any
+  handleFileAttachment?: (
+    file: File,
+  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
+  openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
 }
@@ -266,14 +270,15 @@ function getFocusedBlocks(blocks: HMBlockNode[], blockId?: string) {
 }
 
 // Get attribute from plain JSON format (document) and protobuff format (comments)
-function getBlockAttribute(attributes, key): HMBlockChildrenType | undefined {
-  if (!attributes) return
+function getBlockAttribute(attributes: any, key: string): any {
+  if (!attributes) return undefined
 
-  if (attributes?.[key]) {
-    return attributes[key]
-  }
+  // JSON
+  if (key in attributes) return attributes[key]
 
-  return attributes?.fields?.[key]?.kind?.value || undefined
+  // Protobuf Struct
+  const field = attributes?.fields?.[key]
+  return field?.kind?.value ?? undefined
 }
 
 export function DocContent({
@@ -1271,7 +1276,7 @@ function BlockContentImage({
       data-content-type="image"
       data-url={block?.link}
       data-name={block?.attributes?.name}
-      data-width={block.attributes?.width}
+      data-width={getBlockAttribute(block.attributes, 'width')}
       maxWidth="100%"
       paddingVertical="$3"
       gap="$2"
@@ -1280,7 +1285,9 @@ function BlockContentImage({
     >
       <YStack
         width={
-          block.attributes?.width ? `${block.attributes?.width}px` : undefined
+          getBlockAttribute(block.attributes, 'width')
+            ? `${getBlockAttribute(block.attributes, 'width')}px`
+            : undefined
         }
         maxWidth="100%"
       >
@@ -1324,7 +1331,7 @@ function BlockContentVideo({
       gap="$2"
       data-content-type="video"
       data-url={link}
-      data-name={block.attributes?.name}
+      data-name={getBlockAttribute(block.attributes, 'name')}
       position="relative"
       width="100%"
       ai="center"
@@ -1332,7 +1339,9 @@ function BlockContentVideo({
       {link ? (
         <YStack
           width={
-            block.attributes?.width ? `${block.attributes?.width}px` : '100%'
+            getBlockAttribute(block.attributes, 'width')
+              ? `${getBlockAttribute(block.attributes, 'width')}px`
+              : '100%'
           }
           maxWidth="100%"
           position="relative"
@@ -1354,7 +1363,9 @@ function BlockContentVideo({
             >
               <source
                 src={fileUrl(link)}
-                type={getSourceType(block.attributes.name)}
+                type={getSourceType(
+                  getBlockAttribute(block.attributes, 'name'),
+                )}
               />
             </XStack>
           ) : (
@@ -1974,8 +1985,8 @@ export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
       className="block-content block-file"
       data-content-type="file"
       data-url={block.link}
-      data-name={block.attributes?.name}
-      data-size={block.attributes?.size}
+      data-name={getBlockAttribute(block.attributes, 'name')}
+      data-size={getBlockAttribute(block.attributes, 'size')}
       hoverStyle={{
         backgroundColor: '$backgroundHover',
       }}
@@ -2001,16 +2012,20 @@ export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
           userSelect="text"
           flex={1}
         >
-          {block.attributes?.name || 'Untitled File'}
+          {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
-        {block.attributes?.size && (
+        {getBlockAttribute(block.attributes, 'size') && (
           <SizableText paddingTop="$1" color="$color10" size="$2">
-            {formatBytes(parseInt(block.attributes?.size))}
+            {formatBytes(parseInt(getBlockAttribute(block.attributes, 'size')))}
           </SizableText>
         )}
 
         {fileCid && (
-          <Tooltip content={`Download ${block.attributes?.name || 'File'}`}>
+          <Tooltip
+            content={`Download ${
+              getBlockAttribute(block.attributes, 'name') || 'File'
+            }`}
+          >
             <Button
               position="absolute"
               right={0}
@@ -2020,12 +2035,16 @@ export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
               {...(saveCidAsFile
                 ? {
                     onPress: () => {
-                      saveCidAsFile(fileCid, block.attributes?.name || 'File')
+                      saveCidAsFile(
+                        fileCid,
+                        getBlockAttribute(block.attributes, 'name') || 'File',
+                      )
                     },
                   }
                 : {
                     tag: 'a',
-                    download: block.attributes?.name || true,
+                    download:
+                      getBlockAttribute(block.attributes, 'name') || true,
                     href: getDaemonFileUrl(fileCid),
                     style: {
                       textDecoration: 'none',
@@ -2056,13 +2075,15 @@ export function BlockContentButton({
   return (
     <XStack
       width="100%"
-      justifyContent={block.attributes?.alignment || 'flex-start'}
+      justifyContent={
+        getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
+      }
       userSelect="none"
       className="block-content block-file"
       data-content-type="file"
       maxWidth="100%"
       data-url={block.link}
-      data-name={block.attributes?.name}
+      data-name={getBlockAttribute(block.attributes, 'name')}
       {...props}
       {...hoverProps}
     >
@@ -2100,7 +2121,7 @@ export function BlockContentButton({
             fontWeight="bold"
             color="white"
           >
-            {block.attributes?.name}
+            {getBlockAttribute(block.attributes, 'name')}
           </SizableText>
         </Button>
       </XStack>
@@ -2115,7 +2136,7 @@ export function BlockContentButton({
 // }: BlockContentProps) {
 //   console.log("BlockContentNostr", block);
 //   const {layoutUnit} = useDocContentContext();
-//   const name = block.attributes?.name ?? "";
+//   const name = getBlockAttribute(block.attributes, 'name') ?? "";
 //   const nostrNpud = nip19.npubEncode(name) ?? "";
 
 //   const [verified, setVerified] = useState<boolean>();
@@ -2314,7 +2335,10 @@ export function BlockContentCode({
     return null
   }
   const lowlight = useLowlight(common)
-  const language = block.type === 'Code' ? block.attributes?.language : null
+  const language =
+    block.type === 'Code'
+      ? getBlockAttribute(block.attributes, 'language')
+      : null
   const nodes: any[] =
     language && language.length > 0
       ? getHighlightNodes(lowlight.highlight(language, block.text))

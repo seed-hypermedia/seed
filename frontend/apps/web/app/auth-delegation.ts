@@ -48,8 +48,12 @@ if (typeof window !== 'undefined') {
       console.error('Error getAllDelegatedIdentityOrigins', err)
     })
   window.addEventListener('message', (event) => {
-    const message = embedSigningIdentityProviderMessage.parse(event.data)
-    handleIframeMessage(event.origin, message)
+    try {
+      const message = embedSigningIdentityProviderMessage.parse(event.data)
+      handleIframeMessage(event.origin, message)
+    } catch (error) {
+      // console.error('Error parsing message', error)
+    }
   })
 }
 

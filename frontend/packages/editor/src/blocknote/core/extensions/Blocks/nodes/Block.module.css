@@ -321,6 +321,10 @@ NESTED BLOCKS
   padding: 0;
 }
 
+:global(.comment-editor) .blockContent[data-content-type='code-block'] code {
+  font-size: 1em;
+}
+
 /* LISTS */
 
 .blockContent::before {
@@ -452,6 +456,10 @@ NESTED BLOCKS
   content: "Enter text or type '/' for commands";
 }
 
+:global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
+  font-size: 1em !important;
+}
+
 .blockContent.isFilter.hasAnchor .inlineContent:before {
   font-family:
     'Inter',
@@ -512,11 +520,23 @@ NESTED BLOCKS
   line-height: 1.5;
 }
 
-.isEmpty.hasAnchor
-  .blockContent[data-content-type='image']
-  .inlineContent:before {
+.isEmpty.hasAnchor 
+  .blockContent[data-content-type='image'] 
+  .inlineContent::before {
   content: 'Image caption';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
+
+.blockContent[data-content-type='image'] 
+  .inlineContent {
+  font-size: 0.9em;
+  opacity: 0.6;
+  min-width: 30%;
+  display: block;
+  text-align: center;
+  }
 
 [data-content-type='heading'] {
   font-family:

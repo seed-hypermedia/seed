@@ -28,7 +28,6 @@ function updateAndBroadcastAbilities(origin: string) {
   getAllAbilitiesByOrigin(origin)
     .then((abilities) => {
       const abilitiesJson = JSON.stringify(abilities)
-      console.log('~~ abilitiesJson', abilitiesJson)
       if (lastSentAbilitiesJson !== abilitiesJson) {
         lastSentAbilities = abilities
         lastSentAbilitiesJson = abilitiesJson

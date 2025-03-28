@@ -6,8 +6,7 @@ import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {isValidUrl, youtubeParser} from '@/utils'
-import {DAEMON_FILE_URL} from '@shm/shared/constants'
-import {isIpfsUrl} from '@shm/ui/get-file-url'
+import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
@@ -25,6 +24,12 @@ export const VideoBlock = createReactBlockSpec({
   propSchema: {
     ...defaultProps,
     url: {
+      default: '',
+    },
+    fileBinary: {
+      default: '',
+    },
+    displaySrc: {
       default: '',
     },
     src: {
@@ -116,7 +121,7 @@ const Render = (
   return (
     <MediaRender
       block={block}
-      hideForm={!!block.props.url}
+      hideForm={!!block.props.url || !!block.props.displaySrc}
       editor={editor}
       mediaType="video"
       submit={submitVideo}
@@ -133,6 +138,8 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
+  // const videoSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
+
   // Min video width in px.
   const minWidth = 256
   let width: number =
@@ -288,10 +295,9 @@ const display = ({
           />
         </>
       )}
-      {isIpfsUrl(block.props.url) ? (
+      {block.props.displaySrc ? (
         <XStack
           tag="video"
-          //@ts-expect-error
           contentEditable={false}
           playsInline
           controls
@@ -303,7 +309,26 @@ const display = ({
           height="100%"
         >
           <source
-            src={`${DAEMON_FILE_URL}/${block.props.url.replace('ipfs://', '')}`}
+            src={block.props.displaySrc}
+            type={getSourceType(block.props.name)}
+          />
+          <SizableText>Something is wrong with the video file.</SizableText>
+        </XStack>
+      ) : isIpfsUrl(block.props.url) ? (
+        <XStack
+          tag="video"
+          contentEditable={false}
+          playsInline
+          controls
+          preload="metadata"
+          top={0}
+          left={0}
+          position="absolute"
+          width="100%"
+          height="100%"
+        >
+          <source
+            src={getDaemonFileUrl(block.props.url)}
             type={getSourceType(block.props.name)}
           />
           <SizableText>Something is wrong with the video file.</SizableText>
@@ -318,7 +343,6 @@ const display = ({
           left={0}
           bottom={0}
           right={0}
-          // @ts-expect-error
           src={block.props.url}
           frameBorder="0"
           allowFullScreen

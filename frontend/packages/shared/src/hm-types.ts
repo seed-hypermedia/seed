@@ -477,6 +477,13 @@ export type HMPublishableBlockEmbed = {
   children?: HMPublishableBlock[]
 }
 
+export type HMPublishableBlockWebEmbed = {
+  id: string
+  type: 'WebEmbed'
+  link: string
+  children?: HMPublishableBlock[]
+}
+
 export type HMPublishableBlock =
   | HMPublishableBlockParagraph
   | HMPublishableBlockHeading
@@ -487,6 +494,7 @@ export type HMPublishableBlock =
   | HMPublishableBlockFile
   | HMPublishableBlockButton
   | HMPublishableBlockEmbed
+  | HMPublishableBlockWebEmbed
 
 export type HMBlockNode = {
   children?: HMBlockNode[]

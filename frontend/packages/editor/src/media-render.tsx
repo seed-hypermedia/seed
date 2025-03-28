@@ -6,6 +6,7 @@ import {getNodesInSelection} from '@/utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useDocContentContext} from '@shm/ui/document-content'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -25,7 +26,9 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 export type MediaType = {
   id: string
   props: {
-    url: string
+    url?: string
+    fileBinary?: Uint8Array
+    displaySrc?: string
     name: string
     size?: string
     view?: 'Content' | 'Card'
@@ -318,8 +321,11 @@ function MediaForm({
     },
   }
 
+  const {handleFileAttachment, comment} = useDocContentContext()
+
   const handleUpload = async (files: File[]) => {
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
+
     if (largeFileIndex > -1) {
       const largeFile = files[largeFileIndex]
       setFileName({
@@ -336,65 +342,41 @@ function MediaForm({
       return
     }
 
-    const {name} = files[0]
-    const formData = new FormData()
-    formData.append('file', files[0])
-
-    try {
-      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await response.text()
+    const {name, size} = files[0]
+    if (handleFileAttachment) {
+      const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
       assign({
         props: {
-          url: data ? `ipfs://${data}` : '',
-          name: name,
-          size: mediaType === 'file' ? files[0].size.toString() : undefined,
+          fileBinary,
+          displaySrc: block.type === 'file' ? undefined : displaySrc,
+          name,
+          size: size.toString(),
         },
       } as MediaType)
-    } catch (error) {
-      console.error(`Editor: ${mediaType} upload error (MediaForm): ${error}`)
-    }
-    for (let i = files.length - 1; i > 0; i--) {
-      const {name} = files[i]
-      const formData = new FormData()
-      formData.append('file', files[i])
-
+    } else {
+      // upload to IPFS immediately if handleFileAttachment is not available
       try {
+        const formData = new FormData()
+        formData.append('file', files[0])
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',
           body: formData,
         })
-        const data = await response.text()
+        const responseCID = await response.text()
+        if (!responseCID) {
+          throw new Error('Failed to upload file to IPFS')
+        }
+        const ipfsUrl = `ipfs://${responseCID}`
         assign({
           props: {
-            url: data ? `ipfs://${data}` : '',
-            name: name,
-            size: mediaType === 'file' ? files[0].size.toString() : undefined,
+            url: ipfsUrl,
+            displaySrc: getDaemonFileUrl(ipfsUrl),
+            name,
+            size: size.toString(),
           },
         } as MediaType)
       } catch (error) {
-        console.error(
-          `Editor: ${mediaType} upload error (MediaForm forloop): ${error}`,
-        )
-      }
-    }
-    const cursorPosition = editor.getTextCursorPosition()
-    editor.focus()
-    if (cursorPosition.block.id === block.id) {
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
-      else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          block.id,
-          'after',
-        )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
-          'start',
-        )
+        console.error(`Editor: file upload error: ${error}`)
       }
     }
   }
@@ -402,11 +384,10 @@ function MediaForm({
   return (
     <YStack
       position="relative"
-      borderColor={
-        drag ? '$color8' : selected ? '$color8' : '$colorTransparent'
-      }
+      borderColor={drag || selected ? '$color8' : '$colorTransparent'}
       borderWidth={3}
-      backgroundColor={selected ? '$color4' : '$color4'}
+      // backgroundColor={selected ? '$color4' : '$color4'}
+      backgroundColor={comment ? '$color5' : '$color4'}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
@@ -449,7 +430,9 @@ function MediaForm({
               ) : (
                 <Input
                   unstyled
+                  backgroundColor={comment ? '$color5' : '$color4'}
                   borderColor="$color8"
+                  color="$color12"
                   borderWidth="$1"
                   borderRadius="$2"
                   paddingLeft="$3"

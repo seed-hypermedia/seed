@@ -51,16 +51,18 @@ export function getLinkMenuItems({
         disabled: false,
         icon: <Link size={18} />,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+          let insertedText = docTitle ? docTitle : sourceUrl
           const {state, schema, view} = editor._tiptapEditor
           const {selection} = state
-          const pos = selection.from - docTitle!.length
+          const pos =
+            selection.from - (docTitle ? docTitle.length : sourceUrl.length)
           view.dispatch(
             view.state.tr
-              .deleteRange(pos, pos + docTitle!.length)
-              .insertText(docTitle!, pos)
+              .deleteRange(pos, pos + insertedText.length)
+              .insertText(insertedText, pos)
               .addMark(
                 pos,
-                pos + docTitle!.length,
+                pos + insertedText.length,
                 schema.mark('link', {
                   href: sourceUrl,
                 }),
@@ -95,6 +97,7 @@ export function getLinkMenuItems({
       key: 'loading',
       // hm://z6Mkj5NQAYGQSLRAV2L6g4R2LC8D2FL47XW5miJsPaRvkerg?v=bafy2bzacecwv74orbeuwfdzyvnbyzqnwzdn3gorznjku7ythcyyj6aqqktcqu
       icon: <Spinner size="small" />,
+      // size="small"
       disabled: true,
       execute: (_editor: BlockNoteEditor<HMBlockSchema>, _ref: string) => {},
     }
@@ -183,7 +186,8 @@ export function getLinkMenuItems({
             name: 'Mention',
             disabled: false,
             icon: <Quote size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+              let link = sourceUrl || ref
               if (
                 isPublicGatewayLink(link, gwUrl) ||
                 isHypermediaScheme(link)
@@ -202,7 +206,7 @@ export function getLinkMenuItems({
                 schema.text(' '),
               )
 
-              insertMentionNode(editor, sourceUrl || link, docTitle, node)
+              insertMentionNode(editor, link, docTitle, node)
             },
           },
           {

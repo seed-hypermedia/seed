@@ -1,4 +1,5 @@
 import {queryClient} from '@/client'
+import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 import {HMBlockNodeSchema, HMTimestampSchema} from '@shm/shared'
 import {z} from 'zod'
@@ -24,6 +25,11 @@ const hmUnsignedCommentSchema = z.object({
 
 export type HMUnsignedComment = z.infer<typeof hmUnsignedCommentSchema>
 
+export type CommentPayload = {
+  comment: Uint8Array
+  blobs: {cid: string; data: Uint8Array}[]
+}
+
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return json({message: 'Method not allowed'}, {status: 405})
@@ -34,18 +40,16 @@ export const action: ActionFunction = async ({request}) => {
       {status: 400},
     )
   }
-
   const cborData = await request.arrayBuffer()
-  // in case we actually want to read the comment in this server:
-  // const comment = cborDecode(new Uint8Array(cborData));
+  const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
+  await queryClient.daemon.storeBlobs({blobs: commentPayload.blobs})
   await queryClient.daemon.storeBlobs({
     blobs: [
       {
-        data: new Uint8Array(cborData),
+        data: commentPayload.comment,
       },
     ],
   })
-
   return json({
     message: 'Success',
   })

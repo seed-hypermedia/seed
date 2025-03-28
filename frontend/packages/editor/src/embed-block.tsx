@@ -1,17 +1,13 @@
-import {useGatewayUrlStream} from '@/models/gateway-settings'
-import {useRecents} from '@/models/recents'
-import {loadWebLinkMeta} from '@/models/web-links'
-import {useOpenUrl} from '@/open-url'
-import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
-import {createReactBlockSpec} from '@shm/editor/blocknote/react'
-import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
-import {LauncherItem, SwitcherItem} from '@shm/editor/launcher-item'
-import {MediaContainer} from '@shm/editor/media-container'
-import {
-  DisplayComponentProps,
-  MediaRender,
-  MediaType,
-} from '@shm/editor/media-render'
+import {Block, BlockNoteEditor} from '@/blocknote'
+import {createReactBlockSpec} from '@/blocknote/react'
+import {useEmbedToolbarContext} from '@/embed-toolbar-context'
+import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
+import {LauncherItem, SwitcherItem} from '@/launcher-item'
+import {resolveHypermediaUrl} from '@/link-utils'
+import {MediaContainer} from '@/media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
+import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
@@ -26,14 +22,17 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {Popover} from '@shm/ui/TamaguiPopover'
-import {BlockContentEmbed, ErrorBlock} from '@shm/ui/document-content'
+import {
+  BlockContentEmbed,
+  ErrorBlock,
+  useDocContentContext,
+} from '@shm/ui/document-content'
 import {
   Check,
   ChevronDown,
   Forward as ChevronRight,
   ExternalLink,
 } from '@shm/ui/icons'
-import {toast} from '@shm/ui/toast'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
@@ -50,8 +49,6 @@ import {
   YGroup,
   YStack,
 } from 'tamagui'
-import {HMBlockSchema} from '.'
-import {useEmbedToolbarContext} from './embed-toolbar-context'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -127,12 +124,13 @@ const Render = (
       }
     } else {
       setLoading(true)
-      loadWebLinkMeta(url)
+      resolveHypermediaUrl(url)
         .then((res) => {
           const fullHmId = hmIdWithVersion(
-            res?.hmId,
-            res?.hmVersion,
+            res?.id,
+            res?.version,
             res?.blockRef,
+            res?.blockRange,
           )
           if (fullHmId) {
             assign({props: {url: fullHmId}} as MediaType)
@@ -278,7 +276,7 @@ function EmbedControl({
   setActiveId: (id: string | null) => void
 }) {
   const [url, setUrl] = useState<string>(block.props.url || '')
-  const openUrl = useOpenUrl()
+  const {openUrl} = useDocContentContext()
   const popoverState = usePopoverState()
   const popoverViewState = usePopoverState()
   const popoverLatestState = usePopoverState()
@@ -533,6 +531,7 @@ function EmbedControl({
       <HypermediaLinkSwitchToolbar
         url={url}
         text={''}
+        openUrl={openUrl}
         editHyperlink={(url: string, _text: string) => {
           setUrl(url)
           assign({props: {url: url}})
@@ -550,7 +549,6 @@ function EmbedControl({
             setUrl(value)
           }
         }}
-        openUrl={openUrl}
         editor={editor}
         stopEditing={!hovered && !selected}
         formComponents={EmbedLinkComponents}
@@ -622,7 +620,8 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
-  const recents = useRecents()
+  const {comment} = useDocContentContext()
+  // const recents = useRecents()
   const searchResults = useSearch(search, {})
 
   const searchItems: SwitcherItem[] =
@@ -638,22 +637,23 @@ const EmbedLauncherInput = ({
         }
       })
       .filter(Boolean) || []
-  const recentItems =
-    recents.data?.map(({url, title, subtitle, type}) => {
-      return {
-        key: url,
-        title,
-        subtitle,
-        onSelect: () => {
-          const id = unpackHmId(url)
-          if (!id) {
-            toast.error('Failed to open recent: ' + url)
-            return
-          }
-          assign({props: {url: id.id}} as MediaType)
-        },
-      }
-    }) || []
+  // const recentItems =
+  //   recents.data?.map(({url, title, subtitle, type}) => {
+  //     return {
+  //       key: url,
+  //       title,
+  //       subtitle,
+  //       onSelect: () => {
+  //         const id = unpackHmId(url)
+  //         if (!id) {
+  //           toast.error('Failed to open recent: ' + url)
+  //           return
+  //         }
+  //         assign({props: {url: id.id}} as MediaType)
+  //       },
+  //     }
+  //   }) || []
+  const recentItems = []
   const isDisplayingRecents = !search.length
   const activeItems = isDisplayingRecents ? recentItems : searchItems
 
@@ -709,6 +709,9 @@ const EmbedLauncherInput = ({
     <YStack flex={1} gap="$4">
       <Input
         unstyled
+        backgroundColor={comment ? '$color5' : '$color4'}
+        outlineWidth="$0"
+        color="$color12"
         borderColor="$color8"
         borderWidth="$1"
         borderRadius="$2"

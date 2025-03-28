@@ -5,7 +5,6 @@ import {BlockNoteEditor} from './BlockNoteEditor'
 
 import {LocalMediaPastePlugin} from '@/editor/handle-local-media-paste-plugin'
 import {debugPlugin} from '@/editor/prosemirror-debugger'
-import Link from '@/editor/tiptap-extension-link'
 import {BlockManipulationExtension} from '@shm/editor/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
 import {
   BlockContainer,
@@ -21,6 +20,7 @@ import {Placeholder} from '@shm/editor/blocknote/core/extensions/Placeholder/Pla
 import {TrailingNode} from '@shm/editor/blocknote/core/extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from '@shm/editor/blocknote/core/extensions/UniqueID/UniqueID'
 import {createInlineEmbedNode} from '@shm/editor/mentions-plugin'
+import Link from '@shm/editor/tiptap-extension-link'
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
 import {Dropcursor} from '@tiptap/extension-dropcursor'

@@ -668,8 +668,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public updateBlock(
     blockToUpdate: BlockIdentifier,
     update: PartialBlock<BSchema>,
+    keepSelection?: boolean,
   ) {
-    return updateBlock(this, blockToUpdate, update)
+    return updateBlock(this, blockToUpdate, update, keepSelection)
   }
 
   // /**

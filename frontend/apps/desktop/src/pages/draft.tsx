@@ -50,8 +50,8 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {useOpenUrl} from '@/open-url'
+import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {
   HMBlockNode,
   HMDocument,

@@ -5,17 +5,17 @@ import {
   defaultProps,
 } from '@shm/editor/blocknote'
 import {ButtonBlock} from '@shm/editor/button'
+import {EmbedBlock} from '@shm/editor/embed-block'
 import {FileBlock} from '@shm/editor/file'
 import {HMHeadingBlockContent} from '@shm/editor/heading-component-plugin'
+import {ImageBlock} from '@shm/editor/image'
+import {MathBlock} from '@shm/editor/math'
 import CodeBlockLowlight from '@shm/editor/tiptap-extension-code-block'
+import {VideoBlock} from '@shm/editor/video'
+import {WebEmbed} from '@shm/editor/web-embed'
 import {common, createLowlight} from 'lowlight'
-import {EmbedBlock} from './embed-block'
-import {ImageBlock} from './image'
-import {MathBlock} from './math'
 import {NostrBlock} from './nostr'
 import {QueryBlock} from './query-block'
-import {VideoBlock} from './video'
-import {WebEmbed} from './web-embed'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,

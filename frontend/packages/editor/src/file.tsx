@@ -19,6 +19,9 @@ export const FileBlock = createReactBlockSpec({
     url: {
       default: '',
     },
+    fileBinary: {
+      default: '',
+    },
     name: {
       default: '',
     },
@@ -51,7 +54,7 @@ const Render = (
   return (
     <MediaRender
       block={block}
-      hideForm={!!block.props.url}
+      hideForm={!!block.props.url || !!block.props.fileBinary}
       editor={editor}
       mediaType="file"
       DisplayComponent={display}
