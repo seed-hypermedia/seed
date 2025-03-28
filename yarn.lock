@@ -5473,8 +5473,8 @@ __metadata:
   linkType: hard
 
 "@graphql-tools/executor@npm:^1.0.0":
-  version: 1.4.6
-  resolution: "@graphql-tools/executor@npm:1.4.6"
+  version: 1.4.7
+  resolution: "@graphql-tools/executor@npm:1.4.7"
   dependencies:
     "@graphql-tools/utils": ^10.8.6
     "@graphql-typed-document-node/core": ^3.2.0
@@ -5484,7 +5484,7 @@ __metadata:
     tslib: ^2.4.0
   peerDependencies:
     graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-  checksum: 8c62c345055687a1fa01c622da88b2f2d2cf08ee69b1ea7148ad684cd6b6478e0ecef7b7aa1c1822e2b84da07e87412f05a54d0ff1d552428a0210ac1795b8e3
+  checksum: e7d4923851a31ae8f81e76edf4396837d8b5518272fdc42ffb58d8eadf31f3a470e3d133daf23779c1265301f27f0b367ce619a415371286566372f114af3e69
   languageName: node
   linkType: hard
 
@@ -9160,10 +9160,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/babel-plugin-component-annotate@npm:3.2.3":
-  version: 3.2.3
-  resolution: "@sentry/babel-plugin-component-annotate@npm:3.2.3"
-  checksum: 3656390f1a1d810c287aed3b266d613a86f5eb1ba8e962d7542c6515b4d08325dafbf8f401ada178aa9bea017693753847743984fc891b411605280c497cc475
+"@sentry/babel-plugin-component-annotate@npm:3.2.4":
+  version: 3.2.4
+  resolution: "@sentry/babel-plugin-component-annotate@npm:3.2.4"
+  checksum: 08ad215909b1b8a3b07b47c3b8607a911828a4b98f0d7a3ec9cbd5ba848030b698df98f3f1cd7d6290655558b67a09b8e6a96254196bd2cc4acb705543da747f
   languageName: node
   linkType: hard
 
@@ -9196,19 +9196,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/bundler-plugin-core@npm:3.2.3":
-  version: 3.2.3
-  resolution: "@sentry/bundler-plugin-core@npm:3.2.3"
+"@sentry/bundler-plugin-core@npm:3.2.4":
+  version: 3.2.4
+  resolution: "@sentry/bundler-plugin-core@npm:3.2.4"
   dependencies:
     "@babel/core": ^7.18.5
-    "@sentry/babel-plugin-component-annotate": 3.2.3
+    "@sentry/babel-plugin-component-annotate": 3.2.4
     "@sentry/cli": 2.42.2
     dotenv: ^16.3.1
     find-up: ^5.0.0
     glob: ^9.3.2
     magic-string: 0.30.8
     unplugin: 1.0.1
-  checksum: e3ea13ab5658c0c1033ce888fd76e78999ca7399b6d45a75ddfa421507b10c09b92c3a7543ca375c61d61afa8f5cca07d14371851ecce5bcd57d8de3d26e0346
+  checksum: 2d5218d71334581cd2c109775ad10b1fe9b486a82ca1e507fcdd5e6c62c29e8b0c83b708c535ea7501b023eff5ea4803b8bb1d34fa9ed7069cc0f47e0006f67f
   languageName: node
   linkType: hard
 
@@ -9677,12 +9677,12 @@ __metadata:
   linkType: hard
 
 "@sentry/vite-plugin@npm:latest":
-  version: 3.2.3
-  resolution: "@sentry/vite-plugin@npm:3.2.3"
+  version: 3.2.4
+  resolution: "@sentry/vite-plugin@npm:3.2.4"
   dependencies:
-    "@sentry/bundler-plugin-core": 3.2.3
+    "@sentry/bundler-plugin-core": 3.2.4
     unplugin: 1.0.1
-  checksum: fcbb9f6623f93f1f033432cbf35a9a32b3e85febe87ecd346a00a3b816282aecb6b8d5c9a9683a7566f8d578c0db84667245c5b5313714613124be401959a391
+  checksum: bf0746881c2f40b31b268313fc3a93a9cfe1319c5e92950dac777afd28b3997ca41caa7642d16c2e1398d78cc653ce95a0e7ca28e6c2e93689f83cd9f8674d05
   languageName: node
   linkType: hard
 
@@ -12818,14 +12818,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-bubble-menu@npm:^2.0.3":
-  version: 2.11.5
-  resolution: "@tiptap/extension-bubble-menu@npm:2.11.5"
+  version: 2.11.6
+  resolution: "@tiptap/extension-bubble-menu@npm:2.11.6"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
     "@tiptap/core": ^2.7.0
     "@tiptap/pm": ^2.7.0
-  checksum: 556524d07e7cfc520fb11a665a25df5f71f48adcd2bd8ef0040e99dbbca1587963e8f233efff3820101bfb4d049e0a48c91fce99d90eed59e76382b535f39668
+  checksum: fa330b58ca8e3fffa6ed8f0c5af36049245f86ed598d2f40b9e2d40288324a34dbccf3ca2f6396ae8a35e30facef789ca8467289b6bec1f7ef43b8926c5e58c7
   languageName: node
   linkType: hard
 
@@ -12870,14 +12870,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-floating-menu@npm:^2.0.3":
-  version: 2.11.5
-  resolution: "@tiptap/extension-floating-menu@npm:2.11.5"
+  version: 2.11.6
+  resolution: "@tiptap/extension-floating-menu@npm:2.11.6"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
     "@tiptap/core": ^2.7.0
     "@tiptap/pm": ^2.7.0
-  checksum: 0de53b6d6b111273326e1b6ef3c04ce5e466de5cc064ee5704c7b9fd1295018c5ad8faadda633027910f331fb155bcb1f533decfc4236f29f0a73e908b2ac70b
+  checksum: 33ae077851e3fcfb86fe76dabe56c75a44d425c1c38991d3e2cabe50066786230826157360dbaf67a36fa42690cdbbf0da2ba10e9fcfe5430b605ba883f2c6f1
   languageName: node
   linkType: hard
 
@@ -15310,13 +15310,13 @@ __metadata:
   linkType: hard
 
 "asn1js@npm:^3.0.5":
-  version: 3.0.5
-  resolution: "asn1js@npm:3.0.5"
+  version: 3.0.6
+  resolution: "asn1js@npm:3.0.6"
   dependencies:
-    pvtsutils: ^1.3.2
+    pvtsutils: ^1.3.6
     pvutils: ^1.1.3
-    tslib: ^2.4.0
-  checksum: 3b6af1bbadd5762ef8ead5daf2f6bda1bc9e23bc825c4dcc996aa1f9521ad7390a64028565d95d98090d69c8431f004c71cccb866004759169d7c203cf9075eb
+    tslib: ^2.8.1
+  checksum: 2b43a4c7964183cc2c6b45d7f757eeeb93d2c60e89250dae2826250580e2049a43a795af6ab6d8eb6cbb13c8f51674a430923b2981313c64503b7159e378b477
   languageName: node
   linkType: hard
 
@@ -30128,7 +30128,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pvtsutils@npm:^1.3.2, pvtsutils@npm:^1.3.6":
+"pvtsutils@npm:^1.3.6":
   version: 1.3.6
   resolution: "pvtsutils@npm:1.3.6"
   dependencies:

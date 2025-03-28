@@ -490,7 +490,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       else if (['mp4', 'webm', 'ogg'].includes(extension))
         return [3, matchResult[0]]
     } else if (
-      ['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))
+      ['youtu.be', 'youtube', 'vimeo', 'twitch.tv'].some((value) =>
+        url.includes(value),
+      )
     ) {
       return [3, '']
     } else if (['twitter', 'x.com'].some((value) => url.includes(value))) {

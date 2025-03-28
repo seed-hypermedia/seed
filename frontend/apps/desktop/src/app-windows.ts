@@ -212,6 +212,10 @@ export function createAppWindow(input: {
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      contextIsolation: true,
+      nodeIntegration: false,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,
@@ -397,6 +401,20 @@ export function createAppWindow(input: {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     )
   }
+
+  // Set CSP headers to allow Twitch embeds
+  browserWindow.webContents.session.webRequest.onHeadersReceived(
+    (details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self' https://player.twitch.tv https://*.twitch.tv;",
+          ],
+        },
+      })
+    },
+  )
 
   return browserWindow
 }

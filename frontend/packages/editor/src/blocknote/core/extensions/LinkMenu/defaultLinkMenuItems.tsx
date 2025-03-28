@@ -271,6 +271,14 @@ export function getLinkMenuItems({
               videoUrl =
                 'https://player.vimeo.com/video/' +
                 urlArray[urlArray.length - 1]
+            } else if (videoUrl.includes('twitch.tv')) {
+              // Handle Twitch URLs
+              const twitchUrl = new URL(videoUrl)
+              const pathParts = twitchUrl.pathname.split('/')
+              const videoId = pathParts[pathParts.length - 1]
+              videoUrl = `https://player.twitch.tv/?video=${videoId}&parent=${
+                window.location.hostname || 'localhost'
+              }`
             }
             embedUrl = videoUrl
           }

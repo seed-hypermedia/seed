@@ -93,6 +93,23 @@ const Render = (
         embedUrl = `https://player.vimeo.com/video/${
           urlArray[urlArray.length - 1]
         }`
+      } else if (url.includes('twitch.tv')) {
+        // Handle Twitch URLs
+        const twitchUrl = new URL(url)
+        const pathParts = twitchUrl.pathname.split('/')
+        const videoId = pathParts[pathParts.length - 1]
+        // Check if we're in Electron environment
+        const isElectron = window?.process?.type === 'renderer'
+        if (isElectron) {
+          // In Electron, use the actual app origin
+          const appOrigin = window.location.origin
+          embedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${appOrigin}`
+        } else {
+          // In web environment, use the normal embed URL
+          embedUrl = `https://player.twitch.tv/?video=${videoId}&parent=${
+            window.location.hostname || 'localhost'
+          }`
+        }
       } else {
         setFileName({name: 'Unsupported video source.', color: 'red'})
         return

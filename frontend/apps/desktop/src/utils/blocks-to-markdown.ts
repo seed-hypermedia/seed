@@ -151,7 +151,8 @@ async function extractMediaFiles(blocks: EditorBlock[]) {
         if (
           url.includes('youtu.be') ||
           url.includes('youtube') ||
-          url.includes('vimeo')
+          url.includes('vimeo') ||
+          url.includes('twitch.tv')
         ) {
           return
         }
