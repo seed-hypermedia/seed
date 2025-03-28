@@ -1,12 +1,12 @@
-import { HMDraft, HMListedDraft } from '@shm/shared/hm-types'
-import { hmId, unpackHmId } from '@shm/shared/utils/entity-id-url'
+import {HMDraft, HMDraftMeta, HMListedDraft} from '@shm/shared/hm-types'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
-import { nanoid } from 'nanoid'
-import { join } from 'path'
+import {nanoid} from 'nanoid'
+import {join} from 'path'
 import z from 'zod'
-import { userDataPath } from './app-paths'
-import { t } from './app-trpc'
-import { error } from './logger'
+import {userDataPath} from './app-paths'
+import {t} from './app-trpc'
+import {error} from './logger'
 
 /**
  * new draft creation:
@@ -35,7 +35,7 @@ import { error } from './logger'
  * - open the draft from the middle end
  *
  * after the first edit, we create the draft with the correct info in the draft state and replace the route with the draftId ONLY
- * 
+ *
  * DraftMeta
  * - if the draftMeta has editUId and editPath, we don't show the publish dialog when the user clicks PUBLISH
  */
@@ -43,37 +43,25 @@ import { error } from './logger'
 const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
 
-type DraftMeta = {
-  id: string
-  locationUid?: string
-  locationPath?: string[]
-  editUid?: string
-  editPath?: string[]
-}
-}
-
-let draftIndex: DraftMeta[] | undefined = undefined
+let draftIndex: HMDraftMeta[] | undefined = undefined
 
 export async function initDrafts() {
   await fs.mkdir(draftsDir, {recursive: true})
   if (!(await fs.stat(draftIndexPath).catch(() => false))) {
     // index does not exist yet!
     // so we need to create the index. either because this is a fresh install, or because the user has migrated to a new version
-    await fs.readdir(draftsDir)
     const allDraftFiles = await fs.readdir(draftsDir)
+    const newDraftIndex: HMDraftMeta[] = []
     const allDraftIds = allDraftFiles
       .filter((item) => item.match('.json'))
       .map(draftFileNameToId)
-    console.log('MUST MIGRATE DRAFTS', allDraftIds)
-    // draftIndex = allDraftIds
-    const newDraftIndex: {
-      id: string
-      destinationUid?: string
-      destinationPath?: string[]
-      isNewChild?: boolean
-    }[] = []
+    console.log('Will migrate drafts', allDraftIds)
+
     for (const draftId of allDraftIds) {
-      const oldDraftPath = join(draftsDir, inputIdToDraftFile(draftId))
+      const oldDraftPath = join(
+        draftsDir,
+        `${Buffer.from(draftId).toString('base64')}.json`,
+      )
       const draftContentJSON = await fs.readFile(oldDraftPath, 'utf-8')
       // legacy draft ids might start with hm:// or nothing
       const draftHmId = unpackHmId(draftId) || hmId('d', draftId)
@@ -90,12 +78,14 @@ export async function initDrafts() {
       const newDraftId = nanoid(10)
       console.log('New Draft ID', newDraftId)
       await fs.rename(oldDraftPath, join(draftsDir, `${newDraftId}.json`))
-
       newDraftIndex.push({
         id: newDraftId,
-        destinationUid: draftHmId.uid,
-        destinationPath: draftPath || undefined,
-        isNewChild,
+        locationUid: isNewChild ? undefined : draftHmId.uid,
+        locationPath: isNewChild
+          ? draftHmId.path?.slice(0, -1)
+          : draftPath || undefined,
+        editUid: isNewChild ? undefined : draftHmId.uid,
+        editPath: isNewChild ? draftHmId.path?.slice(0, -1) : undefined,
       })
     }
     console.log('Writing Draft Index', newDraftIndex)
@@ -112,31 +102,24 @@ async function saveDraftIndex() {
   await fs.writeFile(draftIndexPath, JSON.stringify(draftIndex, null, 2))
 }
 
-function inputIdToDraftFile(id: string) {
-  return `${id}.json`
-}
-
 function draftFileNameToId(filename: string) {
   const baseName = filename.replace(/\.json$/, '')
   const id = Buffer.from(baseName, 'base64').toString('utf-8')
   return id
 }
 
-async function loadDraft(d: DraftMeta): Promise<HMListedDraft> {
+async function loadDraft(d: HMDraftMeta): Promise<HMListedDraft> {
   const draftPath = join(draftsDir, `${d.id}.json`)
   const fileContent = await fs.readFile(draftPath, 'utf-8')
   const draft = JSON.parse(fileContent) as HMDraft
-  const targetId = d.destinationUid
-    ? hmId('d', d.destinationUid, {
-        path: d.destinationPath,
-      })
-    : undefined
   return {
-    id: d.id,
+    ...d,
     metadata: draft.metadata,
     lastUpdateTime: draft.lastUpdateTime,
-    isNewChild: d.isNewChild,
-    targetId,
+    editId: d.editUid ? hmId('d', d.editUid, {path: d.editPath}) : undefined,
+    locationId: d.locationUid
+      ? hmId('d', d.locationUid, {path: d.locationPath})
+      : undefined,
   }
 }
 
@@ -150,40 +133,43 @@ export const draftsApi = t.router({
   listAccount: t.procedure
     .input(z.string().optional())
     .query(async ({input}) => {
+      if (!input) return []
       const drafts = await Promise.all(
         draftIndex
-          ?.filter(
-            (d) => !!input && d.destinationUid && d.destinationUid === input,
-          )
+          ?.filter((d) => {
+            if (d.locationUid === input) return true
+            if (d.editUid === input) return true
+            return false
+          })
           .map(loadDraft) || [],
       )
       return drafts satisfies HMListedDraft[]
     }),
-  get: t.procedure.input(z.string().optional()).query(async ({input}) => {
-    if (!input) return null
-    const draftPath = join(draftsDir, inputIdToDraftFile(input))
+  get: t.procedure
+    .input(z.string().optional())
+    .query(async ({input: draftId}) => {
+      if (!draftId) return null
+      const draftPath = join(draftsDir, `${draftId}.json`)
 
-    console.log(`=== DRAFT get:t.procedure.input ~ draftPath:`, draftPath)
-    try {
-      const draftIndexEntry = draftIndex?.find((d) => d.id === input)
-      const fileContent = await fs.readFile(draftPath, 'utf-8')
+      try {
+        const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
+        const fileContent = await fs.readFile(draftPath, 'utf-8')
 
-      console.log(`=== DRAFT get:t.procedure.input ~ fileContent:`, fileContent)
-      const draft = JSON.parse(fileContent)
+        const draft = JSON.parse(fileContent)
 
-      return {
-        id: input,
-        draft: draft as HMDraft,
-        locationUid: draftIndexEntry?.locationUid,
-        locationPath: draftIndexEntry?.locationPath,
-        editUid: draftIndexEntry?.editUid,
-        editPath: draftIndexEntry?.editPath,
+        return {
+          id: draftId,
+          draft: draft as HMDraft,
+          locationUid: draftIndexEntry?.locationUid,
+          locationPath: draftIndexEntry?.locationPath,
+          editUid: draftIndexEntry?.editUid,
+          editPath: draftIndexEntry?.editPath,
+        }
+      } catch (e) {
+        error('[DRAFT]: Error when getting draft', {draftId, error: e})
+        return null
       }
-    } catch (e) {
-      error('[DRAFT]: Error when getting draft', {input: input, error: e})
-      return null
-    }
-  }),
+    }),
   write: t.procedure
     .input(
       z.object({
@@ -196,7 +182,6 @@ export const draftsApi = t.router({
       }),
     )
     .mutation(async ({input}) => {
-      console.log('=== DRAFT write: ', input)
       if (!draftIndex) {
         throw Error('[DRAFT]: Draft Index not initialized')
       }
@@ -207,9 +192,7 @@ export const draftsApi = t.router({
         ...draftIndex.filter((d) => d.id !== draftId),
         {
           id: draftId,
-          destinationUid: input.destinationUid,
-          destinationPath: input.destinationPath,
-          isNewChild: input.isNewChild,
+          ...input,
         },
       ]
       await saveDraftIndex()

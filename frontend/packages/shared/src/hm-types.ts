@@ -653,12 +653,19 @@ export type HMQueryResult = {
 
 export type HMRole = 'owner' | 'writer' | 'none'
 
-export type HMListedDraft = {
+export type HMDraftMeta = {
   id: string
-  isNewChild: boolean | undefined
-  targetId?: UnpackedHypermediaId
+  locationUid?: string
+  locationPath?: string[]
+  editUid?: string
+  editPath?: string[]
+}
+
+export type HMListedDraft = HMDraftMeta & {
   metadata: HMMetadata
   lastUpdateTime: number
+  editId?: UnpackedHypermediaId
+  locationId?: UnpackedHypermediaId
 }
 
 export type HMInvoice = {
