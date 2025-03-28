@@ -4,6 +4,7 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
+  ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
   hostnameStripProtocol,
@@ -116,6 +117,7 @@ export default function WebCommenting({
   } = useAppDialog(EmailNotificationsPrompt)
 
   function promptEmailNotifications() {
+    if (!ENABLE_EMAIL_NOTIFICATIONS) return
     hasPromptedEmailNotifications().then((hasPrompted) => {
       if (hasPrompted) {
         return

@@ -2,6 +2,7 @@ import {injectModels} from '@/models'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
+  ENABLE_EMAIL_NOTIFICATIONS,
   hmId,
   hostnameStripProtocol,
   queryKeys,
@@ -577,14 +578,16 @@ export function AccountFooterActions() {
   if (!userKeyPair) return null
   return (
     <XStack gap="$2">
-      <Button
-        size="$2"
-        onPress={() => notifSettingsDialog.open({})}
-        backgroundColor="$color4"
-        icon={Megaphone}
-      >
-        Notification Settings
-      </Button>
+      {ENABLE_EMAIL_NOTIFICATIONS && (
+        <Button
+          size="$2"
+          onPress={() => notifSettingsDialog.open({})}
+          backgroundColor="$color4"
+          icon={Megaphone}
+        >
+          Notification Settings
+        </Button>
+      )}
       <Button
         size="$2"
         onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
