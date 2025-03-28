@@ -268,12 +268,12 @@ function _MainDocumentPage({
   }
   return (
     <YStack>
-      {isHomeDoc && canEditDoc && (
-        <SetupDomainBanner
-          docId={id}
-          hasDomain={!!entity.data?.document?.metadata.siteUrl}
-        />
-      )}
+      <SetupDomainBanner
+        docId={id}
+        showBanner={
+          isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
+        }
+      />
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
@@ -760,31 +760,32 @@ function DocPageAppendix({
 
 function SetupDomainBanner({
   docId,
-  hasDomain,
+  showBanner,
 }: {
   docId: UnpackedHypermediaId
-  hasDomain: boolean
+  showBanner: boolean
 }) {
   const publishSite = usePublishSite()
-  if (hasDomain) return null
   return (
     <>
-      <Theme name="brand">
-        <XStack
-          bg="$color5"
-          ai="center"
-          jc="center"
-          p="$3"
-          gap="$4"
-          onPress={() => {
-            publishSite.open({id: docId})
-          }}
-        >
-          <SizableText size="$2" color="white">
-            Setup web Domain →
-          </SizableText>
-        </XStack>
-      </Theme>
+      {showBanner && (
+        <Theme name="brand">
+          <XStack
+            bg="$color5"
+            ai="center"
+            jc="center"
+            p="$3"
+            gap="$4"
+            onPress={() => {
+              publishSite.open({id: docId})
+            }}
+          >
+            <SizableText size="$2" color="white">
+              Setup web Domain →
+            </SizableText>
+          </XStack>
+        </Theme>
+      )}
       {publishSite.content}
     </>
   )
