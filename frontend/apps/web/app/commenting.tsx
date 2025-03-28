@@ -329,13 +329,7 @@ export function useOpenUrlWeb() {
 function CommentDocContentProvider({
   handleFileAttachment,
   children,
-  comment, // originHomeId,
-  // supportQueries,
-} // id,
-// siteHost,
-// supportDocuments,
-// routeParams,
-: {
+}: {
   children: React.ReactNode | JSX.Element
   // TODO: specify return type
   handleFileAttachment: (
