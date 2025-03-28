@@ -34,7 +34,6 @@ export async function loadEntity(
 
     const serverDocument = await queryEntity(id)
 
-    console.log(`=== DRAFT loadEntity:`, serverDocument)
     documentParseAdjustments(serverDocument)
 
     const result = HMDocumentSchema.safeParse(serverDocument)
