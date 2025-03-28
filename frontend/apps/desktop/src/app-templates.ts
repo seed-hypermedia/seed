@@ -1,5 +1,3 @@
-import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared'
-
 const devTemplates = {
   blog: 'z6Mkv1SrE6LFGkYKxZs33qap5MSQGbk41XnLdMu7EkKy3gv2',
   documentation: 'z6Mkk4LFMaccittZNsRiE1VPuzaZYWu5QnpUtQHsMLnrr7tN',
@@ -10,8 +8,9 @@ const prodTemplates = {
   documentation: 'z6MkjcZ1VbmV7oqzXnACizhgEZwT9kjtaN7dUicwSZ3qSkmU',
 }
 
-export const templates =
-  IS_PROD_DESKTOP && !IS_PROD_DEV ? prodTemplates : devTemplates
+export const templates = prodTemplates
+// export const templates =
+//   IS_PROD_DESKTOP && !IS_PROD_DEV ? prodTemplates : devTemplates
 
 // if (IS_PROD_DESKTOP && !IS_PROD_DEV) {
 //   console.log('========= USING PRODUCTION TEMPLATES ========')
