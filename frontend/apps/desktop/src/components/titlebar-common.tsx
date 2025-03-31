@@ -322,8 +322,8 @@ function EditDocButton() {
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id)
   const navigate = useNavigate()
-  // TODO: corerctly check fro drafts here (horacio)
-  const hasExistingDraft = false
+  // TODO: corerctly check for drafts here (horacio)
+  const existingDraft = undefined
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
@@ -336,17 +336,17 @@ function EditDocButton() {
   const button = (
     <Button
       size="$2"
-      theme={hasExistingDraft ? 'yellow' : undefined}
+      theme={existingDraft ? 'yellow' : undefined}
       onPress={() => {
         navigate({
           key: 'draft',
-          editUid: route.id.uid,
-          editPath: route.id.path ?? undefined,
+          id: existingDraft,
+          editId: existingDraft ? undefined : route.id,
         })
       }}
       icon={Pencil}
     >
-      {hasExistingDraft ? 'Resume Editing' : 'Edit'}
+      {existingDraft ? 'Resume Editing' : 'Edit'}
     </Button>
   )
   if (!roleCanWrite(capability?.role)) return null
@@ -429,7 +429,7 @@ function EditDocButton() {
   }
   return (
     <>
-      <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>
+      <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
         {button}
       </Tooltip>
     </>

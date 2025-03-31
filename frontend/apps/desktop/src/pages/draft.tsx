@@ -6,7 +6,6 @@ import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {SidebarSpacer} from '@/components/main-wrapper'
-import {OptionsPanel} from '@/components/options-panel'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {
@@ -24,23 +23,24 @@ import {
   generateBlockId,
 } from '@shm/editor/utils'
 import {
-  HMBlockNode,
   HMDocument,
   HMEntityContent,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {DraftRoute} from '@shm/shared/routes'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Options, Smile} from '@shm/ui/icons'
+import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+import {useSelector} from '@xstate/react'
 import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
@@ -59,11 +59,14 @@ import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
-
 export default function DraftPage() {
+  const route = useNavRoute()
   const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
     undefined,
   )
+
+  const {data, editor, send, state, actor, locationEntity, editEntity} =
+    useDraftEditor()
 
   const accessoryOptions: {
     key: 'options'
@@ -74,39 +77,44 @@ export default function DraftPage() {
     }>
   }[] = []
 
-  accessoryOptions.push({
-    key: 'options',
-    label: 'Options',
-    icon: Options,
-  })
+  // accessoryOptions.push({
+  //   key: 'options',
+  //   label: 'Options',
+  //   icon: Options,
+  // })
 
   let accessory = null
 
-  if (accessoryKey == 'options' && route.id) {
-    accessory = (
-      <OptionsPanel
-        // metadata={data.state.context.metadata}
-        metadata={{}}
-        onMetadata={(metadata) => {
-          if (!draft.data) return
-          // data.actor.send({type: 'CHANGE', metadata})
-        }}
-        onClose={() => setAccessory(undefined)}
-        draftId={route.id}
-        onResetContent={(blockNodes: HMBlockNode[]) => {
-          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
-        }}
-      />
-    )
-  }
-
-  const {data, editor, send, state, actor, locationEntity, editEntity} =
-    useDraftEditor()
+  // if (accessoryKey == 'options') {
+  //   // TODO update options panel flow of updating from newspaper layout
+  //   accessory = (
+  //     <OptionsPanel
+  //       draftId={'UPDATE ME'}
+  //       // metadata={data.state.context.metadata}
+  //       metadata={{}}
+  //       onMetadata={(metadata) => {
+  //         if (!data?.draft) return
+  //         actor.send({type: 'change', metadata})
+  //         // data.actor.send({type: 'CHANGE', metadata})
+  //       }}
+  //       onClose={() => setAccessory(undefined)}
+  //       onResetContent={(blockNodes: HMBlockNode[]) => {
+  //         // data.actor.send({type: 'RESET.CONTENT', blockNodes})
+  //         actor.send({type: 'reset.content'})
+  //       }}
+  //     />
+  //   )
+  // }
 
   // const isNewspaperLayout =
   //   data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
   const isNewspaperLayout = false
-  const isEditingHomeDoc = false
+  const isEditingHomeDoc =
+    ((route as DraftRoute).editId &&
+      (route as DraftRoute).editId?.path == null) ||
+    (route as DraftRoute).editId?.path?.length === 0
+
+  console.log(`== ~ DraftPage ~ isEditingHomeDoc:`, route, isEditingHomeDoc)
 
   function handleFocusAtMousePos(event: any) {
     let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
@@ -174,9 +182,9 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          <pre>
+          {/* <pre>
             <code>{JSON.stringify({state}, null, 2)}</code>
-          </pre>
+          </pre> */}
           {isNewspaperLayout ? (
             <YStack f={1} ai="center" jc="center" h="100%">
               <YStack
@@ -201,8 +209,6 @@ export default function DraftPage() {
                 actor={actor}
                 data={data}
                 send={send}
-                locationEntity={locationEntity}
-                editEntity={editEntity}
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
@@ -250,13 +256,11 @@ function DocumentEditor({
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
-  const showOutline = false
-  // typeof state.context.metadata.showOutline == 'undefined' ||
-  // state.context.metadata.showOutline
+  const showOutline =
+    typeof state.context.metadata.showOutline == 'undefined' ||
+    state.context.metadata.showOutline
 
-  // const cover = useSelector(actor, (s) => s.context.metadata.cover)
-
-  const cover = undefined
+  const cover = useSelector(actor, (s) => s.context.metadata.cover)
 
   const {
     showSidebars,
@@ -280,7 +284,7 @@ function DocumentEditor({
   }, [cover])
 
   // useEffect(() => {
-  //   if (!id?.id) return
+  //   if () return
   //   return subscribeDraftFocus(id?.id, (blockId: string) => {
   //     if (editor) {
   //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
@@ -849,14 +853,13 @@ export function DraftHeader({
   const {textUnit} = useDocContentContext()
   const [showIcon, setShowIcon] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
-  // const name = useSelector(draftActor, (s) => {
-  //   return s.context.metadata.name
-  // })
-  const name = 'test'
-  // const icon = useSelector(draftActor, (s) => {
-  //   return s.context.metadata.icon
-  // })
-  const icon = 'test'
+  const name = useSelector(draftActor, (s) => {
+    return s.context.metadata.name
+  })
+
+  const icon = useSelector(draftActor, (s) => {
+    return s.context.metadata.icon
+  })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 
@@ -1047,10 +1050,9 @@ function DraftCover({
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
 
-  // const cover = useSelector(draftActor, (s) => {
-  //   return s.context.metadata.cover
-  // })
-  const cover = 'test'
+  const cover = useSelector(draftActor, (s) => {
+    return s.context.metadata.cover
+  })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 

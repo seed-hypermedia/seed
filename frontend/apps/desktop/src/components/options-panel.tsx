@@ -30,8 +30,6 @@ export function OptionsPanel({
   const isHomeDoc = !draftId.path || draftId.path.length === 0
   const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
 
-  console.log('~~', draftId)
-
   return (
     <AccessoryContainer
       title={isHomeDoc ? 'Home Options' : 'Document Options'}

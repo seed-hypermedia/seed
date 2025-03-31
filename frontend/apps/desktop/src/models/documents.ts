@@ -30,6 +30,7 @@ import {
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
+  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
@@ -62,7 +63,7 @@ import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
 import {useEffect, useMemo, useRef} from 'react'
-import {ContextFrom, fromPromise} from 'xstate'
+import {assign, ContextFrom, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
@@ -407,12 +408,14 @@ export function useDraftEditor() {
    * - edit document with edit UID + edit path (can be null)
    */
   const route = useNavRoute()
-
+  const replace = useNavigate('replace')
   console.log(`=== DRAFT route:`, route)
 
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   const {data, status: draftStatus} = useDraft(route.id)
+
+  console.log(`== ~ DRAFT data:`, JSON.stringify(data, null, 2))
 
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
@@ -423,21 +426,7 @@ export function useDraftEditor() {
 
   const locationEntity = useEntity(locationId)
 
-  const editId = useMemo(() => {
-    if (!route.editUid) return undefined
-    return hmId('d', route.editUid, {
-      path: route.editPath,
-    })
-  }, [route])
-
-  const editEntity = useEntity(editId)
-
-  // state machine
-  const [state, send, actor] = useMachine(draftMachine.provide({}))
-
-  actor.subscribe((event) => {
-    console.log('=== DRAFT actor event: ', event)
-  })
+  const editEntity = useEntity(route.editId)
 
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
@@ -507,12 +496,141 @@ export function useDraftEditor() {
     },
   })
 
+  const updateDraft = fromPromise<
+    {id: string},
+    {
+      id: string
+      metadata: HMDraft['metadata']
+      signingAccount: HMDraft['signingAccount']
+    }
+  >(async ({input}) => {
+    console.log('=== DRAFT UPDATE start')
+    console.log('=== DRAFT UPDATE input: ', input)
+    console.log('=== DRAFT UPDATE editor: ', editor.topLevelBlocks)
+    const updatedDraft = await saveDraft.mutateAsync({
+      id: input.id,
+      draft: {
+        metadata: input.metadata,
+        signingAccount: input.signingAccount,
+        content: editor.topLevelBlocks,
+      },
+      locationUid: route.locationUid || undefined,
+      locationPath: route.locationPath || undefined,
+      editId: route.editId || undefined,
+    })
+    console.log('=== DRAFT UPDATE end')
+    return updatedDraft
+  })
+
+  const createDraft = fromPromise<
+    {id: string},
+    {
+      metadata: HMMetadata
+      locationUid?: string
+      locationPath?: string[]
+      editId?: UnpackedHypermediaId
+    }
+  >(async ({input}) => {
+    // Implementation will be provided in documents.ts
+    try {
+      console.log('=== DRAFT CREATE start')
+      const newDraft = await saveDraft.mutateAsync({
+        draft: {
+          content: editor.topLevelBlocks,
+          metadata: input.metadata,
+          signingAccount: null,
+        },
+        locationUid: input.locationUid || undefined,
+        locationPath: input.locationPath || undefined,
+        editId: input.editId || undefined,
+      })
+      console.log('=== DRAFT CREATE newDraft: ', newDraft)
+      console.log('=== DRAFT CREATE end')
+      return newDraft
+    } catch (error) {
+      console.error('Error creating draft', error)
+      throw error
+    }
+  })
+
+  // state machine
+  const [state, send, actor] = useMachine(
+    draftMachine.provide({
+      actions: {
+        focusContent: ({context, event}) => {
+          if (route.editId) {
+            const tiptap = editor?._tiptapEditor
+            if (tiptap && !tiptap.isFocused) {
+              editor._tiptapEditor.commands.focus()
+            }
+          } else {
+            if (context.nameRef) {
+              context.nameRef.focus()
+            }
+          }
+        },
+        populateData: assign(({context, event}) => {
+          console.log('=== DRAFT populateData: ', context, event)
+          let content: Array<EditorBlock> = []
+          if (event.type == 'fetch.success') {
+            if (event.payload.type == 'draft') {
+              content = event.payload.data.content
+              editor.replaceBlocks(editor.topLevelBlocks, content as any)
+              const tiptap = editor?._tiptapEditor
+              // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
+              setGroupTypes(tiptap, content as any)
+              return {
+                content: event.payload.data.content,
+                metadata: event.payload.data.metadata,
+                signingAccount: event.payload.data.signingAccount,
+              }
+            } else if (event.payload.type == 'edit') {
+              if (context.editId && editEntity.data?.document?.content) {
+                content = hmBlocksToEditorContent(
+                  editEntity.data.document.content || [],
+                  {
+                    childrenType: 'Group',
+                  },
+                )
+                editor.replaceBlocks(editor.topLevelBlocks, content as any)
+                const tiptap = editor?._tiptapEditor
+                // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
+                setGroupTypes(tiptap, content as any)
+              }
+              return {
+                metadata: event.payload.data.document?.metadata,
+                signingAccount: context.signingAccount,
+                content,
+              }
+            }
+          }
+
+          return context
+        }),
+        replaceRoute: assign((_, {id}) => {
+          replace({
+            ...route,
+            id,
+          })
+          return {}
+        }),
+      },
+      actors: {
+        create: createDraft,
+        update: updateDraft,
+      },
+    }),
+    {
+      input: route,
+    },
+  )
+
   // send events to machine when fetch do draft or other documents
   useEffect(() => {
     if (
       typeof route.id === 'undefined' &&
       typeof route.locationUid === 'undefined' &&
-      typeof route.editUid === 'undefined'
+      typeof route.editId === 'undefined'
     ) {
       send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
@@ -688,10 +806,10 @@ export function _useDraftEditor({id}: {id: string}) {
           ) {
             content = context.draft.content
           }
-          editor.replaceBlocks(editor.topLevelBlocks, content)
+          editor.replaceBlocks(editor.topLevelBlocks, content as any)
           const tiptap = editor?._tiptapEditor
           // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
-          setGroupTypes(tiptap, content)
+          setGroupTypes(tiptap, content as any)
         },
         focusEditor: () => {
           if (!isNewDraft) {
@@ -721,9 +839,9 @@ export function _useDraftEditor({id}: {id: string}) {
           const content = hmBlocksToEditorContent(event.blockNodes, {
             childrenType: 'Group',
           })
-          editor.replaceBlocks(editor.topLevelBlocks, content)
+          editor.replaceBlocks(editor.topLevelBlocks, content as any)
           const tiptap = editor?._tiptapEditor
-          setGroupTypes(tiptap, content)
+          setGroupTypes(tiptap, content as any)
         },
       },
       actors: {
@@ -1550,13 +1668,11 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
 export function useCreateDraft({
   locationUid,
   locationPath,
-  editUid,
-  editPath,
+  editId,
 }: {
   locationUid?: string
   locationPath?: string[] | null
-  editUid?: string
-  editPath?: string[] | null
+  editId?: UnpackedHypermediaId | null
 } = {}) {
   const route = useNavRoute()
   const navigate = useNavigate('push')
@@ -1565,8 +1681,7 @@ export function useCreateDraft({
     if (route.key != 'draft') {
       navigate({
         key: 'draft',
-        editUid: editUid ?? undefined,
-        editPath: editPath ?? undefined,
+        editId: editId ?? undefined,
         locationUid: locationUid ?? undefined,
         locationPath: locationPath ?? undefined,
       })

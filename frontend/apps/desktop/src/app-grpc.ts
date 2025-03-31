@@ -40,8 +40,8 @@ const prodInter: Interceptor = (next) => async (req) => {
 }
 
 const IS_DEV = process.env.NODE_ENV == 'development'
-const DEV_INTERCEPTORS = [loggingInterceptor, prodInter]
-
+// const DEV_INTERCEPTORS = [loggingInterceptor, prodInter]
+const DEV_INTERCEPTORS = []
 export const transport = createGrpcWebTransport({
   baseUrl: DAEMON_HTTP_URL,
   httpVersion: '1.1',
