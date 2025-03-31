@@ -283,6 +283,7 @@ function HeaderLinkItem({
   isDraft?: boolean
   isPublished?: boolean
 }) {
+  // TODO: change this to use the draft id
   const linkProps = useRouteLink(
     isDraft
       ? {key: 'draft', id}

@@ -29,8 +29,9 @@ import {
   HMDocumentMetadataSchema,
   HMDocumentSchema,
   HMDraft,
+  HMDraftContent,
+  HMDraftMeta,
   HMEntityContent,
-  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
@@ -92,10 +93,6 @@ export function useDocumentList(
 
 export function useDraftList() {
   return trpc.drafts.list.useQuery(undefined, {})
-}
-
-export function useFullDraftList() {
-  return trpc.drafts.listFull.useQuery(undefined, {})
 }
 
 export function useAccountDraftList(accountUid?: string) {
@@ -426,7 +423,14 @@ export function useDraftEditor() {
 
   const locationEntity = useEntity(locationId)
 
-  const editEntity = useEntity(route.editId)
+  const editId = useMemo(() => {
+    if (!route.editUid) return undefined
+    return hmId('d', route.editUid, {
+      path: route.editPath,
+    })
+  }, [route])
+
+  const editEntity = useEntity(editId)
 
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
@@ -499,8 +503,8 @@ export function useDraftEditor() {
   const updateDraft = fromPromise<
     {id: string},
     {
-      id: string
       metadata: HMDraft['metadata']
+      deps: HMDraft['deps']
       signingAccount: HMDraft['signingAccount']
     }
   >(async ({input}) => {
@@ -508,15 +512,15 @@ export function useDraftEditor() {
     console.log('=== DRAFT UPDATE input: ', input)
     console.log('=== DRAFT UPDATE editor: ', editor.topLevelBlocks)
     const updatedDraft = await saveDraft.mutateAsync({
-      id: input.id,
-      draft: {
-        metadata: input.metadata,
-        signingAccount: input.signingAccount,
-        content: editor.topLevelBlocks,
-      },
-      locationUid: route.locationUid || undefined,
-      locationPath: route.locationPath || undefined,
-      editId: route.editId || undefined,
+      id: route.id,
+      metadata: input.metadata,
+      signingAccount: input.signingAccount,
+      content: editor.topLevelBlocks,
+      deps: input.deps,
+      locationUid: route.locationUid,
+      locationPath: route.locationPath,
+      editUid: route.editUid,
+      editPath: route.editPath,
     })
     console.log('=== DRAFT UPDATE end')
     return updatedDraft
@@ -525,24 +529,23 @@ export function useDraftEditor() {
   const createDraft = fromPromise<
     {id: string},
     {
-      metadata: HMMetadata
-      locationUid?: string
-      locationPath?: string[]
-      editId?: UnpackedHypermediaId
+      metadata: HMDraft['metadata']
+      deps: HMDraft['deps']
+      signingAccount: HMDraft['signingAccount']
     }
   >(async ({input}) => {
     // Implementation will be provided in documents.ts
     try {
       console.log('=== DRAFT CREATE start')
       const newDraft = await saveDraft.mutateAsync({
-        draft: {
-          content: editor.topLevelBlocks,
-          metadata: input.metadata,
-          signingAccount: null,
-        },
-        locationUid: input.locationUid || undefined,
-        locationPath: input.locationPath || undefined,
-        editId: input.editId || undefined,
+        metadata: input.metadata,
+        signingAccount: input.signingAccount,
+        content: editor.topLevelBlocks,
+        deps: input.deps,
+        locationUid: route.locationUid,
+        locationPath: route.locationPath,
+        editUid: route.editUid,
+        editPath: route.editPath,
       })
       console.log('=== DRAFT CREATE newDraft: ', newDraft)
       console.log('=== DRAFT CREATE end')
@@ -558,7 +561,7 @@ export function useDraftEditor() {
     draftMachine.provide({
       actions: {
         focusContent: ({context, event}) => {
-          if (route.editId) {
+          if (route.editUid) {
             const tiptap = editor?._tiptapEditor
             if (tiptap && !tiptap.isFocused) {
               editor._tiptapEditor.commands.focus()
@@ -585,7 +588,7 @@ export function useDraftEditor() {
                 signingAccount: event.payload.data.signingAccount,
               }
             } else if (event.payload.type == 'edit') {
-              if (context.editId && editEntity.data?.document?.content) {
+              if (context.editUid && editEntity.data?.document?.content) {
                 content = hmBlocksToEditorContent(
                   editEntity.data.document.content || [],
                   {
@@ -630,12 +633,13 @@ export function useDraftEditor() {
     if (
       typeof route.id === 'undefined' &&
       typeof route.locationUid === 'undefined' &&
-      typeof route.editId === 'undefined'
+      typeof route.editUid === 'undefined'
     ) {
       send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
     if (draftStatus === 'success' && data) {
-      send({type: 'fetch.success', payload: {type: 'draft', data: data.draft}})
+      console.log(`== ~ useDraftEditor ~ data:`, data)
+      send({type: 'fetch.success', payload: {type: 'draft', data}})
     } else if (locationEntity.status === 'success' && locationEntity.data) {
       send({
         type: 'fetch.success',
@@ -827,6 +831,8 @@ export function _useDraftEditor({id}: {id: string}) {
               context.nameRef.value.length,
             )
           }
+
+          return {}
         },
         onSaveSuccess: function () {
           invalidateQueries([queryKeys.DRAFT, id])
@@ -1665,15 +1671,15 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   return trailedBlocks
 }
 
-export function useCreateDraft({
-  locationUid,
-  locationPath,
-  editId,
-}: {
-  locationUid?: string
-  locationPath?: string[] | null
-  editId?: UnpackedHypermediaId | null
-} = {}) {
+export function useCreateDraft(
+  draftParams: {
+    locationUid?: HMDraftMeta['locationUid']
+    locationPath?: HMDraftMeta['locationPath']
+    editUid?: HMDraftMeta['editUid']
+    editPath?: HMDraftMeta['editPath']
+    deps?: HMDraftContent['deps']
+  } = {},
+) {
   const route = useNavRoute()
   const navigate = useNavigate('push')
   // const saveDraft = trpc.drafts.write.useMutation()
@@ -1681,9 +1687,7 @@ export function useCreateDraft({
     if (route.key != 'draft') {
       navigate({
         key: 'draft',
-        editId: editId ?? undefined,
-        locationUid: locationUid ?? undefined,
-        locationPath: locationPath ?? undefined,
+        ...draftParams,
       })
     } else {
       // TODO: Focus the draft editor??

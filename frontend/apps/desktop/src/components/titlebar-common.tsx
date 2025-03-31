@@ -322,7 +322,7 @@ function EditDocButton() {
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id)
   const navigate = useNavigate()
-  // TODO: corerctly check for drafts here (horacio)
+  // TODO: correctly check for drafts here (horacio)
   const existingDraft = undefined
 
   const [popoverVisible, setPopoverVisible] = useState(false)
@@ -340,8 +340,9 @@ function EditDocButton() {
       onPress={() => {
         navigate({
           key: 'draft',
-          id: existingDraft,
-          editId: existingDraft ? undefined : route.id,
+          editUid: route.id.uid,
+          editPath: route.id.path || [],
+          deps: route.id.version ? [route.id.version] : undefined,
         })
       }}
       icon={Pencil}

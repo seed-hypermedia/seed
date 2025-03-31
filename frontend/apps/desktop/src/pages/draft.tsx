@@ -1,21 +1,23 @@
-import {useNavRoute} from '@/utils/navigation'
-import '@shm/shared/styles/document.css'
-
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
+import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
+import {OptionsPanel} from '@/components/options-panel'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {
   useAccountDraftList,
+  useCreateDraft,
   useDraftEditor,
   useListDirectory,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {handleDragMedia} from '@/utils/media-drag'
+import {useNavRoute} from '@/utils/navigation'
+import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {
   chromiumSupportedImageMimeTypes,
@@ -23,12 +25,14 @@ import {
   generateBlockId,
 } from '@shm/editor/utils'
 import {
+  HMBlockNode,
   HMDocument,
   HMEntityContent,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {DraftRoute} from '@shm/shared/routes'
+import '@shm/shared/styles/document.css'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
@@ -40,6 +44,7 @@ import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -47,7 +52,6 @@ import {GestureResponderEvent} from 'react-native'
 import {
   Button,
   Heading,
-  Image,
   Input,
   Separator,
   SizableText,
@@ -85,34 +89,31 @@ export default function DraftPage() {
 
   let accessory = null
 
-  // if (accessoryKey == 'options') {
-  //   // TODO update options panel flow of updating from newspaper layout
-  //   accessory = (
-  //     <OptionsPanel
-  //       draftId={'UPDATE ME'}
-  //       // metadata={data.state.context.metadata}
-  //       metadata={{}}
-  //       onMetadata={(metadata) => {
-  //         if (!data?.draft) return
-  //         actor.send({type: 'change', metadata})
-  //         // data.actor.send({type: 'CHANGE', metadata})
-  //       }}
-  //       onClose={() => setAccessory(undefined)}
-  //       onResetContent={(blockNodes: HMBlockNode[]) => {
-  //         // data.actor.send({type: 'RESET.CONTENT', blockNodes})
-  //         actor.send({type: 'reset.content'})
-  //       }}
-  //     />
-  //   )
-  // }
+  if (accessoryKey == 'options') {
+    // TODO update options panel flow of updating from newspaper layout
+    accessory = (
+      <OptionsPanel
+        draftId={'UPDATE ME'}
+        // metadata={data.state.context.metadata}
+        metadata={{}}
+        onMetadata={(metadata) => {
+          if (!data?.draft) return
+          actor.send({type: 'change', metadata})
+          // data.actor.send({type: 'CHANGE', metadata})
+        }}
+        onClose={() => setAccessory(undefined)}
+        onResetContent={(blockNodes: HMBlockNode[]) => {
+          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
+          actor.send({type: 'reset.content'})
+        }}
+      />
+    )
+  }
 
   // const isNewspaperLayout =
   //   data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
   const isNewspaperLayout = false
-  const isEditingHomeDoc =
-    ((route as DraftRoute).editId &&
-      (route as DraftRoute).editId?.path == null) ||
-    (route as DraftRoute).editId?.path?.length === 0
+  const isEditingHomeDoc = (route as DraftRoute).editPath?.length === 0
 
   console.log(`== ~ DraftPage ~ isEditingHomeDoc:`, route, isEditingHomeDoc)
 
@@ -256,6 +257,7 @@ function DocumentEditor({
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
+  console.log(`== ~ DocumentEditor ~ state:`, state.context)
   const showOutline =
     typeof state.context.metadata.showOutline == 'undefined' ||
     state.context.metadata.showOutline
@@ -570,271 +572,271 @@ function NewSubDocumentButton({
   )
 }
 
-function DocumentEditor({
-  editor,
-  state,
-  actor,
-  handleFocusAtMousePos,
-}: ReturnType<typeof useDraftEditor>) {
-  const route = useNavRoute()
-  const openUrl = useOpenUrl()
-  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-  const importWebFile = trpc.webImporting.importWebFile.useMutation()
-  const [isDragging, setIsDragging] = useState(false)
-  const [showCover, setShowCover] = useState(false)
-  const isHomeDoc = !route.id.path?.length
-  const showOutline =
-    typeof state.context.metadata.showOutline == 'undefined' ||
-    state.context.metadata.showOutline
+// function DocumentEditor({
+//   editor,
+//   state,
+//   actor,
+//   handleFocusAtMousePos,
+// }: ReturnType<typeof useDraftEditor>) {
+//   const route = useNavRoute()
+//   const openUrl = useOpenUrl()
+//   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+//   const importWebFile = trpc.webImporting.importWebFile.useMutation()
+//   const [isDragging, setIsDragging] = useState(false)
+//   const [showCover, setShowCover] = useState(false)
+//   const isHomeDoc = !route.id.path?.length
+//   const showOutline =
+//     typeof state.context.metadata.showOutline == 'undefined' ||
+//     state.context.metadata.showOutline
 
-  const cover = useSelector(actor, (s) => s.context.metadata.cover)
+//   const cover = useSelector(actor, (s) => s.context.metadata.cover)
 
-  const {
-    showSidebars,
-    elementRef,
-    showCollapsed,
-    mainContentProps,
-    sidebarProps,
-    wrapperProps,
-  } = useDocumentLayout({
-    contentWidth: state.context.metadata.contentWidth,
-    showSidebars: showOutline && !isHomeDoc,
-  })
+//   const {
+//     showSidebars,
+//     elementRef,
+//     showCollapsed,
+//     mainContentProps,
+//     sidebarProps,
+//     wrapperProps,
+//   } = useDocumentLayout({
+//     contentWidth: state.context.metadata.contentWidth,
+//     showSidebars: showOutline && !isHomeDoc,
+//   })
 
-  useEffect(() => {
-    let val = !!cover
-    if (val != showCover) {
-      setShowCover(val)
-    }
-  }, [cover])
+//   useEffect(() => {
+//     let val = !!cover
+//     if (val != showCover) {
+//       setShowCover(val)
+//     }
+//   }, [cover])
 
-  // useEffect(() => {
-  //   if (!id?.id) return
-  //   return subscribeDraftFocus(id?.id, (blockId: string) => {
-  //     if (editor) {
-  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
-  //       editor.setTextCursorPosition(blockId, 'end')
-  //     }
-  //   })
-  // }, [id?.id, editor])
+//   // useEffect(() => {
+//   //   if (!id?.id) return
+//   //   return subscribeDraftFocus(id?.id, (blockId: string) => {
+//   //     if (editor) {
+//   //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
+//   //       editor.setTextCursorPosition(blockId, 'end')
+//   //     }
+//   //   })
+//   // }, [id?.id, editor])
 
-  if (state.matches('ready'))
-    return (
-      <YStack
-        onDragStart={() => {
-          setIsDragging(true)
-        }}
-        onDragEnd={() => {
-          setIsDragging(false)
-        }}
-        onDragOver={(event: DragEvent) => {
-          event.preventDefault()
-          setIsDragging(true)
-        }}
-        onDrop={onDrop}
-        onPress={handleFocusAtMousePos}
-      >
-        <AppDocContentProvider
-          disableEmbedClick
-          // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
-          importWebFile={importWebFile}
-        >
-          <DraftCover
-            draftActor={actor}
-            disabled={!state.matches('ready')}
-            show={showCover}
-            setShow={setShowCover}
-            showOutline={
-              typeof state.context.metadata.showOutline == 'undefined'
-                ? true
-                : state.context.metadata.showOutline
-            }
-          />
-          <YStack ref={elementRef} w="100%" f={1}>
-            <XStack {...wrapperProps}>
-              {showSidebars ? (
-                <YStack
-                  marginTop={showCover ? 152 : 220}
-                  onPress={(e) => e.stopPropagation()}
-                  {...sidebarProps}
-                >
-                  <SiteNavigationDraftLoader showCollapsed={showCollapsed} />
-                </YStack>
-              ) : null}
-              <YStack {...mainContentProps}>
-                {!isHomeDoc ? (
-                  <DraftHeader
-                    draftActor={actor}
-                    onEnter={() => {
-                      editor._tiptapEditor.commands.focus()
-                      editor._tiptapEditor.commands.setTextSelection(0)
-                    }}
-                    disabled={!state.matches('ready')}
-                    showCover={showCover}
-                    setShowCover={setShowCover}
-                  />
-                ) : null}
-                <EmbedToolbarProvider>
-                  <Container
-                    paddingLeft="$4"
-                    marginBottom={300}
-                    onPress={(e: GestureResponderEvent) => {
-                      // this prevents to fire handleFocusAtMousePos on click
-                      e.stopPropagation()
-                      // editor?._tiptapEditor.commands.focus()
-                    }}
-                  >
-                    {editor ? (
-                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                    ) : null}
-                  </Container>
-                </EmbedToolbarProvider>
-              </YStack>
-              {showSidebars ? <YStack {...sidebarProps} /> : null}
-            </XStack>
-          </YStack>
-        </AppDocContentProvider>
-      </YStack>
-    )
+//   if (state.matches('ready'))
+//     return (
+//       <YStack
+//         onDragStart={() => {
+//           setIsDragging(true)
+//         }}
+//         onDragEnd={() => {
+//           setIsDragging(false)
+//         }}
+//         onDragOver={(event: DragEvent) => {
+//           event.preventDefault()
+//           setIsDragging(true)
+//         }}
+//         onDrop={onDrop}
+//         onPress={handleFocusAtMousePos}
+//       >
+//         <AppDocContentProvider
+//           disableEmbedClick
+//           // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
+//           importWebFile={importWebFile}
+//         >
+//           <DraftCover
+//             draftActor={actor}
+//             disabled={!state.matches('ready')}
+//             show={showCover}
+//             setShow={setShowCover}
+//             showOutline={
+//               typeof state.context.metadata.showOutline == 'undefined'
+//                 ? true
+//                 : state.context.metadata.showOutline
+//             }
+//           />
+//           <YStack ref={elementRef} w="100%" f={1}>
+//             <XStack {...wrapperProps}>
+//               {showSidebars ? (
+//                 <YStack
+//                   marginTop={showCover ? 152 : 220}
+//                   onPress={(e) => e.stopPropagation()}
+//                   {...sidebarProps}
+//                 >
+//                   <SiteNavigationDraftLoader showCollapsed={showCollapsed} />
+//                 </YStack>
+//               ) : null}
+//               <YStack {...mainContentProps}>
+//                 {!isHomeDoc ? (
+//                   <DraftHeader
+//                     draftActor={actor}
+//                     onEnter={() => {
+//                       editor._tiptapEditor.commands.focus()
+//                       editor._tiptapEditor.commands.setTextSelection(0)
+//                     }}
+//                     disabled={!state.matches('ready')}
+//                     showCover={showCover}
+//                     setShowCover={setShowCover}
+//                   />
+//                 ) : null}
+//                 <EmbedToolbarProvider>
+//                   <Container
+//                     paddingLeft="$4"
+//                     marginBottom={300}
+//                     onPress={(e: GestureResponderEvent) => {
+//                       // this prevents to fire handleFocusAtMousePos on click
+//                       e.stopPropagation()
+//                       // editor?._tiptapEditor.commands.focus()
+//                     }}
+//                   >
+//                     {editor ? (
+//                       <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+//                     ) : null}
+//                   </Container>
+//                 </EmbedToolbarProvider>
+//               </YStack>
+//               {showSidebars ? <YStack {...sidebarProps} /> : null}
+//             </XStack>
+//           </YStack>
+//         </AppDocContentProvider>
+//       </YStack>
+//     )
 
-  return null
+//   return null
 
-  function onDrop(event: DragEvent) {
-    if (!isDragging) return
-    const dataTransfer = event.dataTransfer
+//   function onDrop(event: DragEvent) {
+//     if (!isDragging) return
+//     const dataTransfer = event.dataTransfer
 
-    if (dataTransfer) {
-      const ttEditor = (editor as BlockNoteEditor)._tiptapEditor
-      const files: File[] = []
+//     if (dataTransfer) {
+//       const ttEditor = (editor as BlockNoteEditor)._tiptapEditor
+//       const files: File[] = []
 
-      if (dataTransfer.files.length) {
-        for (let i = 0; i < dataTransfer.files.length; i++) {
-          files.push(dataTransfer.files[i])
-        }
-      } else if (dataTransfer.items.length) {
-        for (let i = 0; i < dataTransfer.items.length; i++) {
-          const item = dataTransfer.items[i].getAsFile()
-          if (item) {
-            files.push(item)
-          }
-        }
-      }
+//       if (dataTransfer.files.length) {
+//         for (let i = 0; i < dataTransfer.files.length; i++) {
+//           files.push(dataTransfer.files[i])
+//         }
+//       } else if (dataTransfer.items.length) {
+//         for (let i = 0; i < dataTransfer.items.length; i++) {
+//           const item = dataTransfer.items[i].getAsFile()
+//           if (item) {
+//             files.push(item)
+//           }
+//         }
+//       }
 
-      if (files.length > 0) {
-        const editorElement = document.getElementsByClassName(
-          'mantine-Editor-root',
-        )[0]
-        const editorBoundingBox = editorElement.getBoundingClientRect()
-        const posAtCoords = ttEditor.view.posAtCoords({
-          left: editorBoundingBox.left + editorBoundingBox.width / 2,
-          top: event.clientY,
-        })
-        let pos: number | null
-        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
-        else if (event.clientY > editorBoundingBox.bottom)
-          pos = ttEditor.view.state.doc.content.size - 4
+//       if (files.length > 0) {
+//         const editorElement = document.getElementsByClassName(
+//           'mantine-Editor-root',
+//         )[0]
+//         const editorBoundingBox = editorElement.getBoundingClientRect()
+//         const posAtCoords = ttEditor.view.posAtCoords({
+//           left: editorBoundingBox.left + editorBoundingBox.width / 2,
+//           top: event.clientY,
+//         })
+//         let pos: number | null
+//         if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+//         else if (event.clientY > editorBoundingBox.bottom)
+//           pos = ttEditor.view.state.doc.content.size - 4
 
-        let lastId: string
+//         let lastId: string
 
-        // using reduce so files get inserted sequentially
-        files
-          // @ts-expect-error
-          .reduce((previousPromise, file, index) => {
-            return previousPromise.then(() => {
-              event.preventDefault()
-              event.stopPropagation()
+//         // using reduce so files get inserted sequentially
+//         files
+//           // @ts-expect-error
+//           .reduce((previousPromise, file, index) => {
+//             return previousPromise.then(() => {
+//               event.preventDefault()
+//               event.stopPropagation()
 
-              if (pos) {
-                return handleDragMedia(file).then((props) => {
-                  if (!props) return false
+//               if (pos) {
+//                 return handleDragMedia(file).then((props) => {
+//                   if (!props) return false
 
-                  const {state} = ttEditor.view
-                  let blockNode
-                  const newId = generateBlockId()
+//                   const {state} = ttEditor.view
+//                   let blockNode
+//                   const newId = generateBlockId()
 
-                  if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'image',
-                      props: {
-                        url: props.url,
-                        name: props.name,
-                      },
-                    }
-                  } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'video',
-                      props: {
-                        url: props.url,
-                        name: props.name,
-                      },
-                    }
-                  } else {
-                    blockNode = {
-                      id: newId,
-                      type: 'file',
-                      props: {
-                        ...props,
-                      },
-                    }
-                  }
+//                   if (chromiumSupportedImageMimeTypes.has(file.type)) {
+//                     blockNode = {
+//                       id: newId,
+//                       type: 'image',
+//                       props: {
+//                         url: props.url,
+//                         name: props.name,
+//                       },
+//                     }
+//                   } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+//                     blockNode = {
+//                       id: newId,
+//                       type: 'video',
+//                       props: {
+//                         url: props.url,
+//                         name: props.name,
+//                       },
+//                     }
+//                   } else {
+//                     blockNode = {
+//                       id: newId,
+//                       type: 'file',
+//                       props: {
+//                         ...props,
+//                       },
+//                     }
+//                   }
 
-                  const blockInfo = getBlockInfoFromPos(state, pos)
+//                   const blockInfo = getBlockInfoFromPos(state, pos)
 
-                  if (index === 0) {
-                    ;(editor as BlockNoteEditor).insertBlocks(
-                      [blockNode],
-                      blockInfo.block.node.attrs.id,
-                      // blockInfo.node.textContent ? 'after' : 'before',
-                      'after',
-                    )
-                  } else {
-                    ;(editor as BlockNoteEditor).insertBlocks(
-                      [blockNode],
-                      lastId,
-                      'after',
-                    )
-                  }
+//                   if (index === 0) {
+//                     ;(editor as BlockNoteEditor).insertBlocks(
+//                       [blockNode],
+//                       blockInfo.block.node.attrs.id,
+//                       // blockInfo.node.textContent ? 'after' : 'before',
+//                       'after',
+//                     )
+//                   } else {
+//                     ;(editor as BlockNoteEditor).insertBlocks(
+//                       [blockNode],
+//                       lastId,
+//                       'after',
+//                     )
+//                   }
 
-                  lastId = newId
-                })
-              }
-            })
-          }, Promise.resolve())
-        // .then(() => true) // TODO: @horacio ask Iskak about this
-        setIsDragging(false)
-        return true
-      }
-      setIsDragging(false)
-      return false
-    }
-    setIsDragging(false)
+//                   lastId = newId
+//                 })
+//               }
+//             })
+//           }, Promise.resolve())
+//         // .then(() => true) // TODO: @horacio ask Iskak about this
+//         setIsDragging(false)
+//         return true
+//       }
+//       setIsDragging(false)
+//       return false
+//     }
+//     setIsDragging(false)
 
-    return false
-  }
+//     return false
+//   }
 
-  // function onCopyBlock(
-  //   blockId: string,
-  //   blockRange: BlockRange | ExpandedBlockRange | undefined,
-  // ) {
-  //   const gwUrl = useGatewayUrl()
+//   // function onCopyBlock(
+//   //   blockId: string,
+//   //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+//   // ) {
+//   //   const gwUrl = useGatewayUrl()
 
-  //   if (!id) throw new Error('draft route id is missing')
+//   //   if (!id) throw new Error('draft route id is missing')
 
-  //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
-  //   copyUrlToClipboardWithFeedback(
-  //     createWebHMUrl(id.type, id.uid, {
-  //       blockRef: blockId,
-  //       blockRange,
-  //       hostname: gwUrl.data,
-  //     }),
-  //     'Block',
-  //   )
-  // }
-}
+//   //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+//   //   copyUrlToClipboardWithFeedback(
+//   //     createWebHMUrl(id.type, id.uid, {
+//   //       blockRef: blockId,
+//   //       blockRange,
+//   //       hostname: gwUrl.data,
+//   //     }),
+//   //     'Block',
+//   //   )
+//   // }
+// }
 
-export function DraftHeader({
+function DraftMetadataEditor({
   onEnter,
   draftActor,
   disabled = false,
@@ -871,7 +873,7 @@ export function DraftHeader({
     if (!target) return
     applyTitleResize(target)
     draftActor.send({
-      type: 'SET.NAME.REF',
+      type: 'set.nameRef',
       nameRef: target,
     })
   }, [input.current])
@@ -927,13 +929,13 @@ export function DraftHeader({
             {showIcon ? (
               <IconForm
                 borderRadius={
-                  route.id?.path && route.id?.path.length != 0
+                  route.editPath && route.editPath.length != 0
                     ? 100 / 8
                     : undefined
                 }
                 marginTop={showCover ? -80 : 0}
                 size={100}
-                id={route.id ? route.id.uid : 'document-avatar'}
+                id={route.editUid ? route.editUid : 'document-avatar'}
                 label={name}
                 url={icon ? getDaemonFileUrl(icon) : ''}
                 onIconUpload={(icon) => {
@@ -951,7 +953,7 @@ export function DraftHeader({
                   draftActor.send({
                     type: 'change',
                     metadata: {
-                      icon: null,
+                      icon: undefined,
                     },
                   })
                 }}
@@ -1064,7 +1066,7 @@ function DraftCover({
     if (!target) return
     applyTitleResize(target)
     draftActor.send({
-      type: 'SET.NAME.REF',
+      type: 'set.nameRef',
       nameRef: target,
     })
   }, [input.current])
