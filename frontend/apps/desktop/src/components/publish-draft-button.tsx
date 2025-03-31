@@ -182,7 +182,6 @@ export default function PublishDraftButton() {
               .then(() => {
                 invalidateQueries(['trpc.drafts.get']) // todo, invalidate the specific draft id
                 invalidateQueries(['trpc.drafts.list'])
-                invalidateQueries(['trpc.drafts.listFull'])
                 invalidateQueries(['trpc.drafts.listAccount'])
               })
           if (resultDocId) {

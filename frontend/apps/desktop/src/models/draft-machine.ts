@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMEntityContent, UnpackedHypermediaId} from '@shm/shared'
+import {HMDraft, HMEntityContent} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -10,21 +10,23 @@ export const draftMachine = setup({
       id?: string
       locationUid?: string
       locationPath?: string[]
-      editId?: UnpackedHypermediaId
+      editUid?: string
+      editPath?: string[]
     },
     context: {} as {
       nameRef: null | HTMLTextAreaElement
-      metadata: HMDraft['metadata'] | null
-      content: HMDraft['content'] | null
-      signingAccount: HMDraft['signingAccount'] | null
+      id?: string
+      metadata: HMDraft['metadata']
+      deps: HMDraft['deps']
+      locationUid: HMDraft['locationUid']
+      locationPath: HMDraft['locationPath']
+      editUid: HMDraft['editUid']
+      editPath: HMDraft['editPath']
+      signingAccount: HMDraft['signingAccount']
       error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
       draftCreated: boolean
-      id: string | null
-      locationUid: string | null
-      locationPath: string[] | null
-      editId: UnpackedHypermediaId | null
     },
     events: {} as
       | {
@@ -147,14 +149,15 @@ export const draftMachine = setup({
   id: 'Draft',
   context: ({input}) => {
     return {
-      id: input.id ?? null,
-      locationUid: input.locationUid ?? null,
-      locationPath: input.locationPath ?? null,
-      editId: input.editId ?? null,
-      nameRef: null,
+      id: input.id,
       metadata: {},
-      content: [],
-      signingAccount: null,
+      deps: [],
+      locationUid: input.locationUid ?? '',
+      locationPath: input.locationPath ?? [],
+      editUid: input.editUid ?? '',
+      editPath: input.editPath ?? [],
+      signingAccount: '',
+      nameRef: null,
       changed: false,
       hasChangedWhileSaving: false,
       draftCreated: !!input.id,
@@ -275,9 +278,8 @@ export const draftMachine = setup({
             src: 'create',
             input: ({context}) => ({
               metadata: context.metadata,
-              locationUid: context.locationUid,
-              locationPath: context.locationPath,
-              editId: context.editId,
+              deps: context.deps,
+              signingAccount: context.signingAccount,
             }),
             onDone: [
               {
@@ -342,11 +344,9 @@ export const draftMachine = setup({
             id: 'update',
             src: 'update',
             input: ({context}) => ({
-              id: context.id,
               metadata: context.metadata,
-              currentDraft: context.draft,
+              deps: context.deps,
               signingAccount: context.signingAccount,
-              draftCreated: context.draftCreated,
             }),
             onDone: [
               {

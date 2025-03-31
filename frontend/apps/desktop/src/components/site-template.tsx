@@ -58,7 +58,12 @@ export function SiteTemplate({
     if (selectedTemplate === 'blank') {
       navigate({
         key: 'draft',
-        id: (route as DocumentRoute).id,
+        editUid: (route as DocumentRoute).id.uid,
+        editPath: (route as DocumentRoute).id.path || [],
+        deps:
+          typeof (route as DocumentRoute).id.version === 'string'
+            ? [(route as DocumentRoute).id.version]
+            : [],
       })
       return
     }

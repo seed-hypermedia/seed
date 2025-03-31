@@ -269,7 +269,7 @@ export function LibraryListItem({
             size="$2"
             onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
-              navigate({key: 'draft', id: entry.id})
+              navigate({key: 'draft', id: entry.draft?.id})
             }}
           >
             Resume Editing

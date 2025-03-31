@@ -576,13 +576,14 @@ export const HMCommentDraftSchema = z.object({
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
-export type HMDraft = {
+// TODO: change this type to be the union of the content *this) and HMListedDraft
+export type HMDraftContent = {
   content: Array<EditorBlock>
-  metadata: HMMetadata
-
+  deps: string[]
   signingAccount: string
-  lastUpdateTime: number // ms
 }
+
+export type HMDraft = HMDraftContent & HMListedDraft
 
 export type HMComment = Omit<PlainMessage<Comment>, 'content'> & {
   content: HMBlockNode[]
@@ -651,19 +652,24 @@ export type HMQueryResult = {
 
 export type HMRole = 'owner' | 'writer' | 'none'
 
-export type HMDraftMeta = {
-  id: string
-  locationUid?: string
-  locationPath?: string[]
-  editId?: UnpackedHypermediaId
-}
+export const HMDraftMetaSchema = z.object({
+  id: z.string(),
+  locationUid: z.string().optional(),
+  locationPath: z.array(z.string()).optional(),
+  editUid: z.string().optional(),
+  editPath: z.array(z.string()).optional(),
+  metadata: HMDocumentMetadataSchema,
+})
 
-export type HMListedDraft = HMDraftMeta & {
-  metadata: HMMetadata
-  lastUpdateTime: number
-  locationId?: UnpackedHypermediaId
-  editId?: UnpackedHypermediaId
-}
+export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
+
+export const HMListedDraftSchema = HMDraftMetaSchema.extend({
+  lastUpdateTime: z.number(),
+  locationId: unpackedHmIdSchema.optional(),
+  editId: unpackedHmIdSchema.optional(),
+})
+
+export type HMListedDraft = z.infer<typeof HMListedDraftSchema>
 
 export type HMInvoice = {
   payload: string

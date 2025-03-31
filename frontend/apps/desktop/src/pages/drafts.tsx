@@ -1,12 +1,14 @@
 import {MainWrapper} from '@/components/main-wrapper'
-import {useFullDraftList} from '@/models/documents'
+import {useDraftList} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName, HMListedDraft} from '@shm/shared'
 import {Container} from '@shm/ui/container'
 import {Button, SizableText, XStack, YStack} from 'tamagui'
 
 export default function DraftsPage() {
-  const drafts = useFullDraftList()
+  const drafts = useDraftList()
+
+  console.log(`== ~ DraftsPage ~ drafts:`, drafts)
   // console.log(drafts.data)
   return (
     <XStack flex={1} height="100%">

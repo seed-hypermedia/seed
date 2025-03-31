@@ -109,22 +109,17 @@ function DraftTag() {
   )
 }
 
-function DraftItem({
-  id,
-  indented,
-}: {
-  id: UnpackedHypermediaId
-  indented?: number
-}) {
+function DraftItem({id, indented}: {id: string; indented?: number}) {
   const navigate = useNavigate()
 
   const draft = useDraft(id)
   function goToDraft() {
     navigate({key: 'draft', id})
   }
+  //TODO: refactor Unpacked ID here
   return (
     <SmallListItem
-      key={id.id}
+      key={id}
       title={draft.data?.metadata.name || 'Untitled'}
       icon={<HMIcon size={20} id={id} metadata={draft.data?.metadata} />}
       indented={indented}
