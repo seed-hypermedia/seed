@@ -2,17 +2,20 @@ import {PlainMessage} from '@bufbuild/protobuf'
 import _ from 'lodash'
 import {
   EditorBlock,
+  EditorBlockProps,
   EditorBlockType,
   EditorInlineEmbed,
+  EditorLink,
+  EditorText,
   HMInlineContent,
+  MediaBlockProps,
 } from '../editor-types'
 import {
+  HMAnnotation,
   HMBlock,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockType,
-  InlineEmbedAnnotation,
-  LinkAnnotation,
 } from '../hm-types'
 import {
   Annotation,
@@ -53,20 +56,32 @@ export function hmBlocksToEditorContent(
   const childRecursiveOpts: ServerToEditorRecursiveOpts = {
     level: opts.level || 0,
   }
-  return blocks.map((hmBlock: PlainMessage<BlockNode> | HMBlockNode) => {
-    let res: EditorBlock | null = hmBlock.block
-      ? hmBlockToEditorBlock(hmBlock.block)
-      : null
+  return blocks
+    .map((hmBlock: PlainMessage<BlockNode> | HMBlockNode) => {
+      let res = hmBlock.block
+        ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock)
+        : null
 
-    if (hmBlock.children?.length) {
-      res.children = hmBlocksToEditorContent(hmBlock.children, {
-        level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
-        // @ts-expect-error the type {} prevents childrenType from being set
-        childrenType: hmBlock.block?.attributes?.childrenType || 'Group',
-      })
-    }
-    return res
-  })
+      if (res && hmBlock.children?.length) {
+        const childrenType = ((hmBlock.block?.attributes || {}) as any)
+          ?.childrenType
+        // Ensure we only assign valid values to childrenType
+        const validChildrenType: HMBlockChildrenType =
+          childrenType === 'Group' ||
+          childrenType === 'Ordered' ||
+          childrenType === 'Unordered' ||
+          childrenType === 'Blockquote'
+            ? childrenType
+            : 'Group'
+
+        res.children = hmBlocksToEditorContent(hmBlock.children, {
+          level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
+          childrenType: validChildrenType,
+        })
+      }
+      return res as EditorBlock
+    })
+    .filter((block): block is EditorBlock => block !== null)
 }
 
 export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
@@ -82,11 +97,20 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       revision: block.revision,
     },
     children: [],
-  }
+  } as EditorBlock
 
-  // @ts-expect-error the type {} prevents childrenType from being set
-  if (block.attributes?.childrenType) {
-    out.props.childrenType = block.attributes.childrenType
+  const attributes = block.attributes || {}
+  if ('childrenType' in attributes && attributes.childrenType) {
+    const childrenType = attributes.childrenType
+    // Ensure we only assign valid values to childrenType
+    if (
+      childrenType === 'Group' ||
+      childrenType === 'Ordered' ||
+      childrenType === 'Unordered' ||
+      childrenType === 'Blockquote'
+    ) {
+      ;(out.props as EditorBlockProps).childrenType = childrenType
+    }
   }
 
   // if (block.attributes?.start) {
@@ -110,7 +134,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     ].includes(blockType)
   ) {
     if (block.link) {
-      out.props.url = block.link
+      ;(out.props as MediaBlockProps).url = block.link
     }
 
     if (blockType == 'code-block') {
@@ -122,10 +146,11 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         if (value !== undefined) {
           if (key == 'width' || key == 'size') {
             if (typeof value == 'number') {
-              out.props![key] = String(value)
+              ;(out.props as MediaBlockProps)[key as keyof MediaBlockProps] =
+                String(value)
             }
           } else {
-            out.props![key] = value
+            ;(out.props as any)[key] = value
           }
         }
       })
@@ -135,18 +160,21 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   }
 
   if (block.type === 'Query') {
-    out.props.style = block.attributes.style
-    out.props.columnCount = String(block.attributes.columnCount)
-    out.props.queryIncludes = JSON.stringify(block.attributes.query.includes)
-    out.props.querySort = JSON.stringify(block.attributes.query.sort)
-    out.props.banner = block.attributes.banner ? 'true' : 'false'
-    out.props.queryLimit = String(block.attributes.query.limit)
+    const queryProps = out.props as any
+    queryProps.style = block.attributes?.style
+    queryProps.columnCount = String(block.attributes?.columnCount || '')
+    queryProps.queryIncludes = JSON.stringify(
+      block.attributes?.query?.includes || [],
+    )
+    queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
+    queryProps.banner = block.attributes?.banner ? 'true' : 'false'
+    queryProps.queryLimit = String(block.attributes?.query?.limit || '')
   }
 
   const blockText = block.text || ''
   const leaves = out.content
 
-  let leaf: HMInlineContent | null = null
+  let leaf: EditorText | null = null
 
   let inlineBlockContent: HMInlineContent | null = null
 
@@ -158,7 +186,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   let pos = 0
 
-  const leafAnnotations = new Set<Annotation>()
+  const leafAnnotations = new Set<HMAnnotation>()
 
   if (blockText == '') {
     leaves.push({type: 'text', text: blockText, styles: {}})
@@ -260,38 +288,46 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   // Creates a new leaf, and makes it current.
   // Uses annotations current position belongs to.
-  function startLeaf(posAnnotations: Set<Annotation>) {
+  function startLeaf(posAnnotations: Set<HMAnnotation>) {
     leaf = {
       type: 'text',
       text: '',
       styles: {},
     }
 
-    let linkAnnotation: LinkAnnotation | InlineEmbedAnnotation | null = null
-    posAnnotations.forEach((l) => {
-      // if (['Link', 'Embed'].includes(l.type)) {
-      //   linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
-      // }
-      if (l.type == 'Link') {
+    type CustomAnnotation = {
+      type: string
+      link?: string
+      href?: string
+      starts?: number[]
+      ends?: number[]
+    }
+
+    let linkAnnotation: CustomAnnotation | null = null
+    posAnnotations.forEach((l: unknown) => {
+      const annotationData = l as CustomAnnotation
+
+      if (annotationData.type === 'Link') {
         linkAnnotation = {
-          type: 'link',
-          href: l.link,
+          type: 'Link',
+          href: annotationData.link || '',
         }
       }
 
-      if (l.type == 'Embed') {
+      if (annotationData.type === 'Embed') {
         linkAnnotation = {
-          type: 'inline-embed',
-          link: l.link,
+          type: 'Embed',
+          link: annotationData.link || '',
         }
       }
+
       if (
         ['Bold', 'Italic', 'Strike', 'Underline', 'Code', 'Range'].includes(
-          l.type,
+          annotationData.type,
         )
       ) {
         // @ts-ignore
-        leaf.styles[l.type.toLowerCase()] = true
+        leaf.styles[annotationData.type.toLowerCase()] = true
       }
 
       // if (l.type === 'color') {
@@ -301,36 +337,43 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     if (linkAnnotation) {
-      if (linkAnnotation.type === 'inline-embed') {
+      if (linkAnnotation.type === 'Embed') {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          link: linkAnnotation.link,
+          link: linkAnnotation.link || '',
         } as EditorInlineEmbed)
         textStart = i + 1
       } else if (inlineBlockContent) {
         if (linkChangedIdentity(linkAnnotation)) {
           leaves.push(inlineBlockContent)
-          inlineBlockContent = {
-            type: linkAnnotation.type,
-            content: [],
-          }
-
-          if (linkAnnotation.type == 'link') {
-            inlineBlockContent.href = linkAnnotation.href
-          } else if (linkAnnotation.type == 'inline-embed') {
-            inlineBlockContent.link = linkAnnotation.link
+          if (linkAnnotation.type === 'Link') {
+            inlineBlockContent = {
+              type: 'link',
+              content: [],
+              href: linkAnnotation.href || '',
+            } as EditorLink
+          } else {
+            inlineBlockContent = {
+              type: 'inline-embed',
+              styles: {},
+              link: linkAnnotation.link || '',
+            } as EditorInlineEmbed
           }
         }
       } else {
-        inlineBlockContent = {
-          type: linkAnnotation.type,
-          content: [],
-        }
-        if (linkAnnotation.type == 'link') {
-          inlineBlockContent.href = linkAnnotation.href
-        } else if (linkAnnotation.type == 'inline-embed') {
-          inlineBlockContent.link = linkAnnotation.link
+        if (linkAnnotation.type === 'Link') {
+          inlineBlockContent = {
+            type: 'link',
+            content: [],
+            href: linkAnnotation.href || '',
+          } as EditorLink
+        } else {
+          inlineBlockContent = {
+            type: 'inline-embed',
+            styles: {},
+            link: linkAnnotation.link || '',
+          } as EditorInlineEmbed
         }
       }
     } else {
@@ -341,23 +384,34 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
   }
 
-  function linkChangedIdentity(annotation: Annotation): boolean {
+  function linkChangedIdentity(annotation: CustomAnnotation): boolean {
     if (!inlineBlockContent) return false
-    let currentLink = inlineBlockContent.link
-    return currentLink != annotation.link
+    let currentLink =
+      (inlineBlockContent as any).link ||
+      (inlineBlockContent as EditorLink).href
+    return currentLink != annotation.link && currentLink != annotation.href
   }
 
   function finishLeaf(low: number, high: number) {
     let newValue = blockText.substring(low, high)
-    if (leaf) leaf.text = newValue
+    if (leaf) (leaf as EditorText).text = newValue
 
     textStart = high
 
     if (inlineBlockContent) {
       if (leaf && inlineBlockContent.type == 'link') {
-        inlineBlockContent.content.push(leaf)
-      } else {
-        inlineBlockContent.content.push({...leaf, text: ''})
+        ;(inlineBlockContent as EditorLink).content.push(leaf)
+      } else if (inlineBlockContent.type == 'inline-embed' && leaf) {
+        // For inline-embed we just ignore the leaf since it doesn't have content
+      } else if (leaf) {
+        const typedLeaf: EditorText = {
+          type: 'text',
+          text: '',
+          styles: leaf.styles,
+        }
+        ;((inlineBlockContent as EditorLink).content as HMInlineContent[]).push(
+          typedLeaf,
+        )
       }
     } else {
       if (leaf && !_.isEqual(leaf, {type: 'text', text: '', styles: {}})) {
@@ -377,23 +431,23 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     // When position matches — we enable the annotation for the current leaf.
     // When it doesn't match — we disable the annotation for the current leaf.
     block.annotations.forEach((l) => {
-      let spanIdx = annotationContains(l, pos)
+      let spanIdx = annotationContains(l as unknown as Annotation, pos)
       if (spanIdx === -1) {
         // If the annotation was in the set, we remove it and mark set as "dirty".
-        if (leafAnnotations.delete(l)) {
+        if (leafAnnotations.delete(l as unknown as HMAnnotation)) {
           annotationsChanged = true
         }
         return
       }
 
       // If the annotation was already enabled we continue.
-      if (leafAnnotations.has(l)) {
+      if (leafAnnotations.has(l as unknown as HMAnnotation)) {
         return
       }
 
       // Whenever we found a new annotation that current position matches,
       // we add it to the set and mark te set as "dirty".
-      leafAnnotations.add(l)
+      leafAnnotations.add(l as unknown as HMAnnotation)
       annotationsChanged = true
     })
 
@@ -438,5 +492,9 @@ export function annotationContains(
 }
 
 function isText(entry: HMInlineContent): boolean {
-  return entry?.type && entry.type == 'text' && typeof entry.text == 'string'
+  return (
+    entry?.type &&
+    entry.type == 'text' &&
+    typeof (entry as EditorText).text == 'string'
+  )
 }

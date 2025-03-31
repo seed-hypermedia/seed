@@ -387,7 +387,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       resetValueOnHide: true,
     })
 
-    const select = Ariakit.useSelectStore<any>({
+    const select = Ariakit.useSelectStore<SearchResult>({
       combobox,
       value: values,
       defaultValue: defaultValues,
@@ -404,7 +404,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
     useEffect(() => combobox.setValue(''), [selectedValues, combobox])
 
     const toggleValueFromSelectedValues = (value: SearchResult) => {
-      select.setValue((prevSelectedValues) => {
+      select.setValue((prevSelectedValues: SearchResult[]) => {
         const index = prevSelectedValues.indexOf(value)
         if (index !== -1) {
           return prevSelectedValues.filter(
@@ -430,7 +430,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       const {selectionStart, selectionEnd} = event.currentTarget
       const isCaretAtTheBeginning = selectionStart === 0 && selectionEnd === 0
       if (!isCaretAtTheBeginning) return
-      select.setValue((values) => {
+      select.setValue((values: SearchResult[]) => {
         if (!values.length) return values
         return values.slice(0, values.length - 1)
       })
@@ -497,7 +497,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               </Ariakit.CompositeItem>
             )
           })}
-          <YStack role="gridcell" flex={1}>
+          <YStack role="cell" flex={1}>
             <Ariakit.CompositeItem
               id={comboboxId}
               render={
@@ -583,7 +583,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
             />
           ) : null}
           <XStack flex={1}>
-            <SizableText size="$2" color="currentColor">
+            <SizableText size="$2" textColor="currentColor">
               {props.children || props.member?.label}
             </SizableText>
           </XStack>

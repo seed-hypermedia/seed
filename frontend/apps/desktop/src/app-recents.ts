@@ -5,6 +5,7 @@ import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
+// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 

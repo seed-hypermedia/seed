@@ -12,6 +12,7 @@ import {Check, Link, Pencil} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps, ReactElement, useMemo, useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {
   Button,
   ButtonProps,
@@ -70,7 +71,7 @@ export function ListItem({
       >
         {icon}
         <ButtonText
-          onPress={(e: MouseEvent) => {
+          onPress={(e: GestureResponderEvent) => {
             e.stopPropagation()
             onPress?.(e)
           }}
@@ -115,7 +116,7 @@ export function TimeAccessory({
   tooltipLabel,
 }: {
   time: Timestamp | undefined
-  onPress: (e: MouseEvent) => void
+  onPress: (e: GestureResponderEvent) => void
   tooltipLabel?: string
 }) {
   return (
@@ -266,7 +267,7 @@ export function LibraryListItem({
             theme="yellow"
             icon={Pencil}
             size="$2"
-            onPress={(e: MouseEvent) => {
+            onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
               navigate({key: 'draft', id: entry.id})
             }}
@@ -331,22 +332,12 @@ export function LibraryListItem({
   )
 }
 
-function LibraryEntryTime({entry}: {entry: LibraryData[0]}) {
-  if (entry.document?.updateTime) {
-    return (
-      <SizableText size="$1">
-        {formattedDate(entry.document.updateTime)}
-      </SizableText>
-    )
-  }
-  if (entry.draft?.lastUpdateTime) {
-    return (
-      <SizableText size="$1">
-        {formattedDate(new Date(entry.draft.lastUpdateTime))}
-      </SizableText>
-    )
-  }
-  return null
+function LibraryEntryTime({entry}: {entry: LibraryData['items'][number]}) {
+  return (
+    <SizableText size="$1" color="$color10">
+      {formattedDate(entry.updateTime)}
+    </SizableText>
+  )
 }
 
 function LibraryEntryLocation({
@@ -371,7 +362,7 @@ function LibraryEntryLocation({
           textDecorationLine: 'underline',
           textDecorationColor: 'currentColor',
         }}
-        onPress={(e: MouseEvent) => {
+        onPress={(e: GestureResponderEvent) => {
           e.stopPropagation()
           onNavigate({key: 'document', id: space.id})
         }}
@@ -407,7 +398,7 @@ function LibraryEntryLocation({
                     textDecorationLine: 'underline',
                     textDecorationColor: 'currentColor',
                   }}
-                  onPress={(e: MouseEvent) => {
+                  onPress={(e: GestureResponderEvent) => {
                     e.stopPropagation()
                     onNavigate({key: 'document', id})
                   }}

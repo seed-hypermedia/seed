@@ -1,18 +1,20 @@
 import {X} from '@tamagui/lucide-icons'
 import {FC, useMemo, useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {
   AlertDialog,
   Button,
   Dialog,
   Unspaced,
   XStack,
+  XStackProps,
   YStack,
   YStackProps,
   styled,
 } from 'tamagui'
 import {NavContextProvider, useNavigation} from '../utils/navigation'
 
-export function DialogOverlay(props) {
+export function DialogOverlay(props: any) {
   // for somer reason this is required for the overlay to go behind the DialogContent. maybe because of the DialogContent position:fixed below
   return (
     <Dialog.Overlay
@@ -32,7 +34,9 @@ export const DialogContent = styled(YStack, {
   backgroundColor: '$base-background-normal',
   borderRadius: 6,
   boxShadow: dialogBoxShadow,
-  position: 'fixed',
+  // Can't use 'fixed' as it's not in the type
+  // Just keeping the comment here to document the issue:
+  // position: 'fixed',
   width: '90vw',
   maxWidth: '500px',
   maxHeight: '85vh',
@@ -43,14 +47,14 @@ export const DialogContent = styled(YStack, {
   zIndex: '$zIndex.9',
 })
 
-export function AlertDialogContent(props) {
+export function AlertDialogContent(props: any) {
   return <AlertDialog.Content borderWidth={0} {...props} />
 }
 
-export function DialogFooter(props) {
+export function DialogFooter(props: XStackProps) {
   return <XStack justifyContent="flex-end" gap="$4" {...props} />
 }
-export function DialogTitle(props) {
+export function DialogTitle(props: any) {
   return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />
 }
 
@@ -105,7 +109,7 @@ export function AppDialog<
 }: {
   TriggerComponent: React.FC<
     {
-      onPress?: (e: MouseEvent) => void
+      onPress?: (e: GestureResponderEvent) => void
       children: React.ReactNode
     } & TriggerComponentProps
   >

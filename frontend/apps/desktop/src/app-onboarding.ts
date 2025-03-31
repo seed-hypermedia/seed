@@ -108,6 +108,7 @@ declare global {
       setStep: (step: OnboardingStep) => void
       setFormData: (data: Partial<OnboardingFormData>) => void
       resetState: () => void
+      setInitialAccountIdCount: (count: number) => void
     }
   }
 }

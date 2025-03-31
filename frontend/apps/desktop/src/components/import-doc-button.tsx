@@ -1,15 +1,11 @@
 import {useAppContext} from '@/app-context'
-import {
-  BlockSchema,
-  createHypermediaDocLinkPlugin,
-  hmBlockSchema,
-} from '@/editor'
+import {createHypermediaDocLinkPlugin, hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {BlockNoteEditor} from '@shm/editor/blocknote'
+import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
   MarkdownToBlocks,
   processLinkMarkdown,
@@ -157,7 +153,6 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
-        openOnClick: false,
         queryClient,
         grpcClient,
         gwUrl,

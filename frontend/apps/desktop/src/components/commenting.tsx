@@ -26,6 +26,7 @@ import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {Button, Tooltip, View, XStack, YStack} from 'tamagui'
 import {HyperMediaEditorView} from './editor'
 
@@ -252,7 +253,7 @@ function _CommentDraftEditor({
       f={1}
       marginTop="$1"
       paddingHorizontal="$4"
-      onPress={(e: MouseEvent) => {
+      onPress={(e: GestureResponderEvent) => {
         const target = e.target as HTMLElement
 
         // Check if the clicked element is not an input, button, or textarea
@@ -297,7 +298,10 @@ function _CommentDraftEditor({
         <Button
           size="$2"
           // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
-          onPress={onSubmit}
+          onPress={(e: GestureResponderEvent) => {
+            e.stopPropagation()
+            onSubmit()
+          }}
           disabled={!isSaved.get()}
         >
           Publish
@@ -306,7 +310,10 @@ function _CommentDraftEditor({
           <Button
             // marginLeft="$2"
             size="$2"
-            onPress={onDiscard}
+            onPress={(e: GestureResponderEvent) => {
+              e.stopPropagation()
+              onDiscard()
+            }}
             theme="red"
             icon={Trash}
           />
@@ -339,15 +346,16 @@ function SelectAccountDropdown({
   accounts: HMEntityContent[]
 }) {
   const currentAccount = useStream(account)
-  const options = accounts.map((acct) => {
-    return {
-      label: getDocumentTitle(acct.document),
-      value: acct.id.uid,
-      icon: (
-        <HMIcon size={20} id={acct.id} metadata={acct.document?.metadata} />
-      ),
-    }
-  })
+  const options: {label: string; value: string; icon: React.ReactNode}[] =
+    accounts.map((acct) => {
+      return {
+        label: getDocumentTitle(acct.document) || '',
+        value: acct.id.uid,
+        icon: (
+          <HMIcon size={20} id={acct.id} metadata={acct.document?.metadata} />
+        ),
+      }
+    })
   if (!options || !currentAccount) return null
   return (
     <SelectDropdown
