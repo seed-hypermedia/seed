@@ -86,6 +86,9 @@ export default function WebCommenting({
   })
 
   const docVersion = docId.version
+
+  if (!docVersion) return null
+
   const {
     content: createAccountContent,
     canCreateAccount,
@@ -126,12 +129,81 @@ export default function WebCommenting({
     })
   }
 
-  if (!docVersion) return null
+  const handleSubmit = async (
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>,
+    reset: () => void,
+  ) => {
+    if (!enableWebSigning) {
+      if (validAbility) {
+        try {
+          const signedComment = await createDelegatedComment({
+            ability: validAbility,
+            content: await getContent(prepareAttachments),
+            docId,
+            docVersion,
+            replyCommentId,
+            rootReplyCommentId,
+          })
+          if (signedComment) {
+            await postComment.mutateAsync(signedComment)
+            reset()
+            onDiscardDraft?.()
+          } else {
+            toast.error('Signing identity provider failed. Please try again.')
+          }
+        } catch (error: any) {
+          toast.error(
+            `Failed to sign and publish your comment. (${error.message})`,
+          )
+        }
+        return
+      } else {
+        delegatedIdentityOriginStore.add(SITE_IDENTITY_DEFAULT_ORIGIN)
+        const params = {
+          requestOrigin: window.location.origin,
+          targetUid: docId.uid,
+        } satisfies AuthFragmentOptions
+        const encodedParams = new URLSearchParams(params).toString()
+        window.open(
+          `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
+          '_blank',
+        )
+        return
+      }
+    }
+
+    if (canCreateAccount || !userKeyPair) {
+      createAccount()
+      return
+    }
+
+    const commentPayload = await prepareComment(getContent, {
+      docId,
+      docVersion,
+      keyPair: userKeyPair,
+      replyCommentId,
+      rootReplyCommentId,
+    })
+
+    await postComment.mutateAsync(commentPayload)
+    reset()
+    onDiscardDraft?.()
+    promptEmailNotifications()
+  }
 
   return (
     <>
       <CommentDocContentProvider handleFileAttachment={handleFileAttachment}>
         <CommentEditor
+          handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
             return (
               <Button
@@ -149,80 +221,7 @@ export default function WebCommenting({
                     />
                   ) : undefined
                 }
-                onPress={() => {
-                  if (!enableWebSigning) {
-                    // this origin cannot sign for itself. so we require a valid ability to comment
-                    if (validAbility) {
-                      createDelegatedComment({
-                        ability: validAbility,
-                        content: getContent(),
-                        docId,
-                        docVersion,
-                        replyCommentId,
-                        rootReplyCommentId,
-                      })
-                        .then((signedComment) => {
-                          if (signedComment) {
-                            postComment.mutateAsync(signedComment)
-                          }
-                          return signedComment
-                        })
-                        .then((comment) => {
-                          if (comment) {
-                            reset()
-                            onDiscardDraft?.()
-                          } else {
-                            toast.error(
-                              'Signing identity provider failed. Please try again.',
-                            )
-                          }
-                        })
-                        .catch((error) => {
-                          toast.error(
-                            `Failed to sign and publish your comment. Please try again. (${error.message})`,
-                          )
-                        })
-                      return
-                    } else {
-                      // we don't have the ability to sign, and origin signing is disabled. so we need to request ability from another origin
-                      // currently, we only support signing with the default origin
-                      delegatedIdentityOriginStore.add(
-                        SITE_IDENTITY_DEFAULT_ORIGIN,
-                      )
-                      const params = {
-                        requestOrigin: window.location.origin,
-                        targetUid: docId.uid,
-                      } satisfies AuthFragmentOptions
-                      const encodedParams = new URLSearchParams(
-                        params,
-                      ).toString()
-                      window.open(
-                        `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
-                        '_blank',
-                      )
-                      return
-                    }
-                  }
-                  if (canCreateAccount || !userKeyPair) {
-                    createAccount()
-                    return
-                  }
-                  prepareComment(getContent, {
-                    docId,
-                    docVersion,
-                    keyPair: userKeyPair,
-                    replyCommentId,
-                    rootReplyCommentId,
-                  })
-                    .then((commentPayload) => {
-                      postComment.mutateAsync(commentPayload)
-                    })
-                    .then(() => {
-                      reset()
-                      onDiscardDraft?.()
-                      promptEmailNotifications()
-                    })
-                }}
+                onPress={() => handleSubmit(getContent, reset)}
               >
                 {userKeyPair
                   ? commentActionMessage

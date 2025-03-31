@@ -26,6 +26,7 @@ import {
 export default function CommentEditor({
   onDiscardDraft,
   submitButton,
+  handleSubmit,
 }: {
   onDiscardDraft?: () => void
   submitButton: (opts: {
@@ -40,10 +41,50 @@ export default function CommentEditor({
       blobs: {cid: string; data: Uint8Array}[]
     }>
   }) => JSX.Element
+  handleSubmit: (
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>,
+    reset: () => void,
+  ) => void
 }) {
   const {editor} = useCommentEditor()
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
+
+  const reset = () => {
+    editor.removeBlocks(editor.topLevelBlocks)
+  }
+
+  const getContent = async (
+    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+      blobs: {cid: string; data: Uint8Array}[]
+      resultCIDs: string[]
+    }>,
+  ) => {
+    const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+    const blocksWithAttachments = crawlEditorBlocks(
+      editorBlocks,
+      (block) => !!block.props?.fileBinary,
+    )
+    const {blobs, resultCIDs} = await prepareAttachments(
+      blocksWithAttachments.map((block) => block.props.fileBinary),
+    )
+    blocksWithAttachments.forEach((block, i) => {
+      block.props.url = `ipfs://${resultCIDs[i]}`
+    })
+    const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+    return {
+      blockNodes: blocks.map((b) => b.toJson()) as HMBlockNode[],
+      blobs,
+    }
+  }
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -203,6 +244,15 @@ export default function CommentEditor({
           e.stopPropagation()
           editor._tiptapEditor.commands.focus()
         }}
+        onKeyDownCapture={(e: KeyboardEvent) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault()
+            e.stopPropagation()
+            editor._tiptapEditor.commands.blur()
+            handleSubmit(getContent, reset)
+            return true
+          }
+        }}
         gap="$4"
         paddingBottom="$2"
         onDragStart={() => {
@@ -233,37 +283,8 @@ export default function CommentEditor({
           </Tooltip>
         ) : null}
         {submitButton({
-          reset: () => {
-            editor.removeBlocks(editor.topLevelBlocks)
-          },
-          getContent: async (
-            prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-              blobs: {cid: string; data: Uint8Array}[]
-              resultCIDs: string[]
-            }>,
-          ) => {
-            const editorBlocks: EditorBlock[] = editor.topLevelBlocks
-            const blocksWithAttachments = crawlEditorBlocks(
-              editorBlocks,
-              (block) => !!block.props?.fileBinary,
-            )
-            const {blobs, resultCIDs} = await prepareAttachments(
-              blocksWithAttachments.map((block) => block.props.fileBinary),
-            )
-            blocksWithAttachments.forEach((block, blockWithAttachmentIndex) => {
-              const resultCID = resultCIDs[blockWithAttachmentIndex]
-              // performing a mutation so the same block is modififed with the new CID
-              block.props.url = `ipfs://${resultCID}`
-            })
-            const blocks = serverBlockNodesFromEditorBlocks(
-              editor,
-              editorBlocks,
-            )
-            const blockNodes = blocks.map((block) =>
-              block.toJson(),
-            ) as HMBlockNode[]
-            return {blockNodes, blobs}
-          },
+          reset,
+          getContent,
         })}
       </XStack>
     </YStack>

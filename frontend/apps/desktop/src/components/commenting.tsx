@@ -262,6 +262,15 @@ function _CommentDraftEditor({
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
+      onKeyDownCapture={(e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault()
+          e.stopPropagation()
+          editor._tiptapEditor.commands.blur()
+          onSubmit()
+          return true
+        }
+      }}
       gap="$4"
       paddingBottom="$2"
       className="comment-editor"
@@ -289,7 +298,7 @@ function _CommentDraftEditor({
           size="$2"
           // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
           onPress={onSubmit}
-          disabled={!isSaved}
+          disabled={!isSaved.get()}
         >
           Publish
         </Button>

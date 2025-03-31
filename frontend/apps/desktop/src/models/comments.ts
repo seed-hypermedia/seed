@@ -368,6 +368,8 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
+
+      clearTimeout(saveTimeoutRef.current)
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId,
