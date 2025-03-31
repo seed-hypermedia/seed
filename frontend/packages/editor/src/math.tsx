@@ -184,7 +184,7 @@ const Render = (
 
   return (
     <YStack
-      backgroundColor={selected ? '$color3' : comment ? '$color5' : '$color4'}
+      backgroundColor={selected ? '$color3' : comment ? '$color6' : '$color4'}
       borderColor={selected ? '$color8' : 'transparent'}
       borderWidth={2}
       borderRadius="$2"

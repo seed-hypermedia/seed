@@ -386,8 +386,7 @@ function MediaForm({
       position="relative"
       borderColor={drag || selected ? '$color8' : '$colorTransparent'}
       borderWidth={3}
-      // backgroundColor={selected ? '$color4' : '$color4'}
-      backgroundColor={comment ? '$color5' : '$color4'}
+      backgroundColor={comment ? '$color6' : '$color4'}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
@@ -430,7 +429,7 @@ function MediaForm({
               ) : (
                 <Input
                   unstyled
-                  backgroundColor={comment ? '$color5' : '$color4'}
+                  backgroundColor={comment ? '$color6' : '$color4'}
                   borderColor="$color8"
                   color="$color12"
                   borderWidth="$1"

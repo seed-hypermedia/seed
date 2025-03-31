@@ -709,7 +709,7 @@ const EmbedLauncherInput = ({
     <YStack flex={1} gap="$4">
       <Input
         unstyled
-        backgroundColor={comment ? '$color5' : '$color4'}
+        backgroundColor={comment ? '$color6' : '$color4'}
         outlineWidth="$0"
         color="$color12"
         borderColor="$color8"
