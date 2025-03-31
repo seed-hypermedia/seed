@@ -1,11 +1,12 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {getDocumentTitle} from '@shm/shared/content'
+import {HMDocument} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
-// @ts-expect-error ignore this import error
+// @ts-expect-error ignore import
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
@@ -52,7 +53,10 @@ export async function updateRecentRoute(route: NavRoute) {
       path: hmIdPathToEntityQueryPath(route.id.path),
       version: route.id.version || undefined,
     })
-    title = getDocumentTitle(toPlainMessage(document))
+
+    // Cast the document to the expected type for getDocumentTitle
+    title =
+      getDocumentTitle(toPlainMessage(document) as unknown as HMDocument) || ''
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {

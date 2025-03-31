@@ -1,6 +1,5 @@
 import {
   HMDocumentMetadataSchema,
-  HMDraft,
   HMDraftContent,
   HMListedDraft,
   HMListedDraftSchema,
@@ -148,6 +147,7 @@ export const draftsApi = t.router({
     .input(z.string().optional())
     .query(async ({input}) => {
       if (!input) return []
+      // TODO: do we need to add editUid and editPath to the filter??
       const drafts = await Promise.all(
         draftIndex
           ?.filter((d) => !!input && d.locationUid && d.locationUid === input)
@@ -178,9 +178,8 @@ export const draftsApi = t.router({
 
         return {
           ...draftIndexEntry,
-          id: draftId,
           ...draft,
-        } satisfies HMListedDraft & {draft: HMDraft}
+        } satisfies HMListedDraft
       } catch (e) {
         error('[DRAFT]: Error when getting draft', {draftId, error: e})
         return null
@@ -189,18 +188,15 @@ export const draftsApi = t.router({
   write: t.procedure
     .input(
       z.object({
-        //content,
-        // signingAccount,
-        // deps
-        content: z.any(),
-        signingAccount: z.string(),
-        deps: z.array(z.string()),
         id: z.string().optional(),
         locationUid: z.string().optional(),
         locationPath: z.string().array().optional(),
         editUid: z.string().optional(),
         editPath: z.string().array().optional(),
         metadata: HMDocumentMetadataSchema,
+        content: z.any(),
+        signingAccount: z.string(),
+        deps: z.array(z.string()),
       }),
     )
     .mutation(async ({input}) => {

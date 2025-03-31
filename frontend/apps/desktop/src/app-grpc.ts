@@ -16,8 +16,8 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
       error = new Error('RPC broken, try running yarn and ./dev gen')
     } else {
       console.error(`🚨 to ${req.method.name} `, req.message, error)
-      throw error
     }
+    throw error
   }
 }
 
@@ -40,8 +40,8 @@ const prodInter: Interceptor = (next) => async (req) => {
 }
 
 const IS_DEV = process.env.NODE_ENV == 'development'
-// const DEV_INTERCEPTORS = [loggingInterceptor, prodInter]
-const DEV_INTERCEPTORS = []
+const DEV_INTERCEPTORS = [loggingInterceptor, prodInter]
+
 export const transport = createGrpcWebTransport({
   baseUrl: DAEMON_HTTP_URL,
   httpVersion: '1.1',

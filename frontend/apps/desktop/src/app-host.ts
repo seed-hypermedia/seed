@@ -1,11 +1,11 @@
 import {hmId, queryKeys} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client'
 import {SEED_HOST_URL} from '@shm/shared/constants'
-import fetch from 'node-fetch'
 import z from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-import {appStore} from './app-store'
+// @ts-expect-error ignore import
+import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 const HOST_STORAGE_KEY = 'Host-v001'
