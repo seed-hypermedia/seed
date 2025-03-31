@@ -1,4 +1,4 @@
-import {useForkDocument} from '@/models/documents'
+import {useMoveDocument} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
@@ -8,7 +8,7 @@ import {Spinner, XStack, YStack} from 'tamagui'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 
-export function BranchDialog({
+export function MoveDialog({
   onClose,
   input,
 }: {
@@ -16,15 +16,15 @@ export function BranchDialog({
   input: UnpackedHypermediaId
 }) {
   const {data: entity} = useEntity(input)
-  const forkDoc = useForkDocument()
+  const moveDoc = useMoveDocument()
   const [account, setAccount] = useState<string | null>(null)
   const navigate = useNavigate()
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(input)
 
   if (!entity) return <Spinner />
   return (
     <YStack>
-      <DialogTitle>Branch from "{entity?.document?.metadata.name}"</DialogTitle>
+      <DialogTitle>Move "{entity?.document?.metadata.name}"</DialogTitle>
       {entity ? (
         <>
           <LocationPicker
@@ -35,12 +35,12 @@ export function BranchDialog({
             setAccount={setAccount}
           />
           <XStack gap="$2">
-            <Spinner opacity={forkDoc.isLoading ? 1 : 0} />
+            <Spinner opacity={moveDoc.isLoading ? 1 : 0} />
 
             {location && account ? (
               <Button
                 onPress={() => {
-                  forkDoc
+                  moveDoc
                     .mutateAsync({
                       from: input,
                       to: location,
@@ -51,7 +51,7 @@ export function BranchDialog({
                     })
                 }}
               >
-                Create Document Branch
+                Move
               </Button>
             ) : null}
           </XStack>

@@ -13,6 +13,7 @@ export function writeableStateStream<S extends Object | null>(
   function writeState(updater: S | Updater<S>) {
     const newState = typeof updater === 'function' ? updater(state) : updater
 
+    console.log('~~ writeState fuckkk', state, newState, handlers.size)
     state = newState
 
     handlers.forEach((handle) => handle(newState))

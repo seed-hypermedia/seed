@@ -1489,10 +1489,14 @@ export function useMoveDocument() {
       await grpcClient.documents.createRef({
         account: from.uid,
         signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(to.path),
+        path: hmIdPathToEntityQueryPath(from.path),
         target: {
           target: {
-            case: '',
+            case: 'redirect',
+            value: {
+              account: to.uid,
+              path: hmIdPathToEntityQueryPath(to.path),
+            },
           },
         },
       })

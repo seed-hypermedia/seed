@@ -6,6 +6,7 @@ import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
+import {globalNavState} from './navigation-container'
 
 global.Buffer = global.Buffer || Buffer
 
@@ -37,6 +38,7 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
+  console.log('~~ getRouteKey', route)
   if (route.key === 'draft')
     return `draft:${route.id?.uid}:${route.id?.path?.join(':')}`
   if (route.key === 'document')
@@ -146,14 +148,28 @@ export function useNavigation() {
 
 export const NavContextProvider = NavContext.Provider
 
-export function useNavRoute() {
+export function useNavRoute(debugFlag?: string) {
   const nav = useContext(NavContext)
   if (!nav)
     throw new Error('useNavRoute must be used within a NavigationProvider')
-  return useStreamSelector<NavState, NavRoute>(
+  if (!globalNavState)
+    throw new Error('globalNavState must be ready within a NavigationProvider')
+  const navRoute = useStreamSelector<NavState, NavRoute>(
     nav.state,
-    (state) => state.routes[state.routeIndex] || defaultRoute,
+    (state, prevSelected) => {
+      debugFlag &&
+        console.log(
+          '~~ useNavRoute Selector',
+          state.routes[state.routeIndex],
+          prevSelected,
+          state.routes[state.routeIndex] === prevSelected,
+        )
+      return state.routes[state.routeIndex] || defaultRoute
+    },
+    debugFlag,
   )
+  debugFlag && console.log('~~ useNavRoute =', navRoute, debugFlag)
+  return navRoute
 }
 
 export function useNavigationState() {

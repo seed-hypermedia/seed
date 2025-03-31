@@ -2,7 +2,7 @@ import {client} from '@/trpc'
 import {DAEMON_FILE_URL} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {writeableStateStream} from '@shm/shared/utils/stream'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useAppContext, useIPC} from '../app-context'
 import {
@@ -13,6 +13,15 @@ import {
   setAppNavDispatch,
 } from './navigation'
 import {AppWindowEvent} from './window-events'
+
+let navStateStore:
+  | {
+      dispatch: (action: NavAction) => void
+      state: StateStream<NavState>
+    }
+  | undefined = undefined
+
+export let globalNavState: StateStream<NavState> | undefined = undefined
 
 export function NavigationContainer({
   children,
@@ -26,14 +35,22 @@ export function NavigationContainer({
   children: ReactNode
   initialNav?: NavState
 }) {
+  console.log('~~ NavigationContainer render ', initialNav)
   const {externalOpen} = useAppContext()
   const navigation = useMemo(() => {
+    console.log('~~ NavigationContainer useMemo')
     const [updateNavState, navState] = writeableStateStream(initialNav)
-    return {
+    globalNavState = navState
+    if (navStateStore) {
+      return navStateStore
+      // throw new Error('~~ NavigationContainer already here')
+    }
+    navStateStore = {
       dispatch(action: NavAction) {
         const prevState = navState.get()
         const newState = navStateReducer(prevState, action)
         if (prevState !== newState) {
+          console.log('~~ NavigationContainer dispatch', action, newState)
           updateNavState(newState)
         } else if (action.type === 'closeBack') {
           client.closeAppWindow.mutate(window.windowId)
@@ -41,6 +58,7 @@ export function NavigationContainer({
       },
       state: navState,
     }
+    return navStateStore
   }, [])
   const {send} = useIPC()
 

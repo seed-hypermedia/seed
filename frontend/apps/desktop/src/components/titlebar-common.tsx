@@ -65,6 +65,7 @@ import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
+import {MoveDialog} from './move-dialog'
 import {editPopoverEvents} from './onboarding'
 import PublishDraftButton from './publish-draft-button'
 import {
@@ -108,6 +109,7 @@ export function DocOptionsButton() {
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
+  const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find(
     (pending) => pending.siteUid === route.id.uid,
@@ -276,7 +278,7 @@ export function DocOptionsButton() {
       label: 'Move Document',
       icon: ForwardIcon,
       onPress: () => {
-        // moveDialog.open({})
+        moveDialog.open(route.id)
       },
     })
   }
@@ -292,6 +294,7 @@ export function DocOptionsButton() {
       {importing.content}
       {seedHostDialog.content}
       {branchDialog.content}
+      {moveDialog.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )

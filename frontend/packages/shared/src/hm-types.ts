@@ -89,6 +89,7 @@ export type HMDeletedEntity = PlainMessage<DeletedEntity>
 export type HMEntityContent = {
   id: UnpackedHypermediaId
   document?: HMDocument | null
+  redirectTarget?: UnpackedHypermediaId | null
 }
 
 const baseAnnotationProperties = {
