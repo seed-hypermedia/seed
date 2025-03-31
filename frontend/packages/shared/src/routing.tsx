@@ -105,7 +105,10 @@ export function useRouteLink(
     typeof route === 'string'
       ? route
       : route.key == 'document'
-      ? idToUrl(route.id, {originHomeId: context.originHomeId})
+      ? idToUrl(route.id, {
+          originHomeId: context.originHomeId,
+          hasExplicitRouteHandling: !!context.openRoute,
+        })
       : undefined
   return {
     onPress: context.openRoute
