@@ -539,6 +539,16 @@ function ProfileStep({
     setOnboardingFormData(newData)
   }
 
+  useEffect(() => {
+    return () => {
+      setFormData({
+        name: '',
+        icon: undefined,
+        seedExperimentalLogo: undefined,
+      })
+    }
+  }, [])
+
   return (
     <StepWrapper onPrev={onPrev}>
       <StepTitle>CREATE YOUR SITE</StepTitle>
@@ -831,6 +841,13 @@ function RecoveryStep({
 
   let icon = ''
   let seedExperimentalLogo = ''
+
+  useEffect(() => {
+    return () => {
+      mnemonics.refetch()
+    }
+  }, [])
+
   async function handleSubmit() {
     try {
       console.group('📝 Starting Profile Submission')
