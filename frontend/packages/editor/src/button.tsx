@@ -70,6 +70,7 @@ const Render = (
     (block.props.alignment as ButtonAlignment) || 'flex-start',
   )
   const [selected, setSelected] = useState(false)
+  const [forceEdit, setForceEdit] = useState(false)
   // const [buttonText, setButtonText] = useState(
   //   block.props.name || 'Button Label',
   // )
@@ -103,6 +104,7 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
+              setForceEdit(true)
               setAlignment('flex-start')
               assign({props: {alignment: 'flex-start'}} as ButtonType)
             }}
@@ -118,6 +120,7 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
+              setForceEdit(true)
               setAlignment('center')
               assign({props: {alignment: 'center'}} as ButtonType)
             }}
@@ -133,6 +136,7 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
+              setForceEdit(true)
               setAlignment('flex-end')
               assign({props: {alignment: 'flex-end'}} as ButtonType)
             }}
@@ -154,10 +158,23 @@ const Render = (
       open={popoverState.open}
       onOpenChange={(open) => {
         popoverState.onOpenChange(open)
+        if (forceEdit) {
+          setForceEdit(false)
+        }
       }}
     >
-      <YStack justifyContent={alignment} alignItems={alignment}>
-        <XStack width="100%" justifyContent={alignment} userSelect="none">
+      <YStack
+        justifyContent={alignment}
+        alignItems={alignment}
+        animateOnly={['left', 'right']}
+        animation="quick"
+      >
+        <XStack
+          width="100%"
+          justifyContent={alignment}
+          userSelect="none"
+          key={alignment}
+        >
           <XStack
             position="relative"
             // width={sizing === 'fill-width' ? '92.5%' : ''}
@@ -174,7 +191,7 @@ const Render = (
                 userSelect="none"
                 borderColor="$colorTransparent"
                 borderWidth={0}
-                size="$5"
+                size="$4"
                 maxWidth="100%"
                 hoverStyle={{
                   bg: '$brand4',
@@ -186,18 +203,20 @@ const Render = (
                 }}
               >
                 <SizableText
-                  size="$5"
+                  size="$4"
                   numberOfLines={1}
                   ellipsizeMode="tail"
-                  fontWeight="bold"
-                  color="white"
+                  fontWeight="600"
+                  fontStyle={block.props.name ? 'normal' : 'italic'}
+                  color={block.props.name ? 'white' : 'lightgrey'}
+                  opacity={block.props.name ? 1 : 0.6}
                 >
-                  {block.props.name}
+                  {block.props.name || 'Button Text'}
                 </SizableText>
               </Button>
             </Popover.Trigger>
             <Popover.Content size="$0" zIndex={99998}>
-              <YStack marginBottom="$2">
+              <YStack marginBottom="$2" position="absolute" bottom="100%">
                 <HypermediaLinkSwitchToolbar
                   url={block.props.url}
                   text={block.props.name}
@@ -217,6 +236,7 @@ const Render = (
                   openUrl={openUrl}
                   editor={editor}
                   stopEditing={false}
+                  forceEditing={forceEdit}
                   formComponents={ButtonLinkComponents}
                   type="button"
                   id={block.id}

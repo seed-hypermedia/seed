@@ -25,12 +25,13 @@ export function HypermediaLinkSwitchToolbar(
   props: HyperlinkToolbarProps & {
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
     stopEditing: boolean
+    forceEditing?: boolean
     formComponents: () => React.JSX.Element
     type: string
     setHovered?: (hovered: boolean) => void
   },
 ) {
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
   // const entity = useEntity(unpackedRef)
   const entity = {data: null}
