@@ -14,10 +14,7 @@ import {
   DocumentChange,
 } from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
-import {
-  hmBlocksToEditorContent,
-  hmBlockToEditorBlock,
-} from '@shm/shared/client/hmblock-to-editorblock'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs} from '@shm/shared/content'
 import {EditorBlock} from '@shm/shared/editor-types'
@@ -39,6 +36,7 @@ import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {DraftRoute} from '@shm/shared/routes'
 import {
   createBlocksMap,
   getDocAttributeChanges,
@@ -60,11 +58,11 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query'
 import {Extension, findParentNode} from '@tiptap/core'
-import {NodeSelection, Selection} from '@tiptap/pm/state'
+import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
-import {useEffect, useMemo, useRef} from 'react'
-import {assign, ContextFrom, fromPromise} from 'xstate'
+import {useEffect, useMemo} from 'react'
+import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
@@ -174,20 +172,35 @@ export function usePublishDraft(
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
+  const route = useNavRoute()
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+  const editId = useMemo(() => {
+    if (route.key == 'draft' && route.editUid) {
+      return hmId('d', route.editUid, {
+        path: route.editPath,
+      })
+    } else {
+      return undefined
+    }
+  }, [route])
+  const editEntity = useEntity(editId)
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
-  return useMutation<HMDocument, any, PublishDraftInput>({
+  return useMutation<HMDocument, any, HMDraft>({
     mutationFn: async ({
-      draft,
-      previous,
-      draftId,
-      destinationUid,
-      destinationPath,
+      content,
+      locationId,
+      editId,
+      metadata,
+      signingAccount,
+      deps,
     }) => {
-      const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
+      const blocksMap = editId
+        ? createBlocksMap(editEntity.data?.document?.content || [], '')
+        : {}
 
-      const content = removeTrailingBlocks(draft.content || [])
+      const newContent = removeTrailingBlocks(content || [])
 
-      const changes = compareBlocksWithMap(blocksMap, content, '')
+      const changes = compareBlocksWithMap(blocksMap, newContent, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       // return null
@@ -195,19 +208,22 @@ export function usePublishDraft(
         dispatchOnboardingDialog(true)
       } else {
         try {
-          if (draft.signingAccount && draftId) {
+          if (signingAccount && (route as DraftRoute).id) {
             const allChanges = [
-              ...getDocAttributeChanges(draft.metadata),
+              ...getDocAttributeChanges(metadata),
               ...changes.changes,
               ...deleteChanges,
             ]
 
             let capabilityId = ''
-            if (draft.signingAccount !== destinationUid) {
+            if (
+              signingAccount !== route.editUid ||
+              signingAccount != route.locationUid
+            ) {
               const capabilities =
                 await grpcClient.accessControl.listCapabilities({
-                  account: destinationUid,
-                  path: hmIdPathToEntityQueryPath(destinationPath || []),
+                  account: route.locationUid,
+                  path: hmIdPathToEntityQueryPath(route.locationPath || []),
                 })
               const capability = capabilities.capabilities.find(
                 (cap) => cap.delegate === draft.signingAccount,
@@ -690,335 +706,6 @@ export function useDraftEditor() {
     locationEntity,
     editEntity,
     editor,
-  }
-}
-
-export function _useDraftEditor({id}: {id: string}) {
-  const openUrl = useOpenUrl()
-  const route = useNavRoute()
-  const gwUrl = useGatewayUrlStream()
-  const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const gotEdited = useRef(false)
-
-  const saveDraft = trpc.drafts.write.useMutation()
-  const {onMentionsQuery} = useInlineMentions()
-  const isNewDraft = route.key == 'draft' && !!route.new
-
-  const editor = useBlockNote<typeof hmBlockSchema>({
-    onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      if (!gotEdited.current) {
-        gotEdited.current = true
-      }
-
-      writeEditorStream(editor.topLevelBlocks)
-      observeBlocks(
-        editor,
-        editor.topLevelBlocks,
-        () => {},
-        // send({type: 'CHANGE'}),
-      )
-      send({type: 'change'})
-    },
-    onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      const {view} = editor._tiptapEditor
-      const {selection} = view.state
-      if (
-        selection.from !== selection.to &&
-        !(selection instanceof NodeSelection)
-      )
-        return
-      const domAtPos = view.domAtPos(selection.from)
-      try {
-        const rect: DOMRect = domAtPos.node.getBoundingClientRect()
-        // Check if the cursor is off screen
-        // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
-        if (rect && rect.top > window.innerHeight) {
-          // Scroll the cursor into view if not caused by media drag
-          // @ts-ignore
-          if (!editor.sideMenu.sideMenuView?.isDragging)
-            domAtPos.node.scrollIntoView({block: 'center'})
-        }
-      } catch {}
-      return
-    },
-    linkExtensionOptions: {
-      openOnClick: false,
-      grpcClient,
-      gwUrl,
-      openUrl,
-      checkWebUrl: checkWebUrl.mutateAsync,
-    },
-    onMentionsQuery,
-    blockSchema: hmBlockSchema,
-    slashMenuItems: getSlashMenuItems({showNostr, docId: id}),
-    _tiptapOptions: {
-      extensions: [
-        Extension.create({
-          name: 'hypermedia-link',
-          addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({}).plugin]
-          },
-        }),
-      ],
-    },
-  })
-
-  const updateDraft = fromPromise<
-    HMDraft & {id: string},
-    ContextFrom<typeof draftMachine>
-  >(async ({input}) => {
-    const blocks = editor.topLevelBlocks
-
-    console.log(`=== DRAFT blocks:`, blocks)
-
-    console.log('=== DRAFT updateDraft: ', input)
-
-    const {draft = {} as Partial<HMDraft>, metadata, signingAccount} = input
-
-    const inputData: HMDraft = {
-      ...draft,
-      content: blocks as Array<EditorBlock>,
-      metadata: {
-        ...draft?.metadata,
-        ...metadata,
-      },
-      signingAccount: signingAccount || '',
-      members: draft?.members || [],
-      deps: draft?.deps || [],
-      previousId: draft?.previousId || null,
-      lastUpdateTime: draft?.lastUpdateTime || undefined,
-    }
-
-    console.log('=== DRAFT inputData: ', inputData)
-    const result = await saveDraft.mutateAsync({id, draft: inputData})
-    return result as HMDraft & {id: string}
-  })
-
-  const [state, send, actor] = useMachine(
-    draftMachine.provide({
-      actions: {
-        populateEditor: function ({context, event}) {
-          let content: Array<EditorBlock> = []
-          if (context.entity && !context.draft && context.entity.document) {
-            // populate draft from document
-            content = hmBlocksToEditorContent(context.entity.document.content, {
-              childrenType: 'Group',
-            })
-          } else if (
-            context.draft != null &&
-            context.draft.content.length != 0
-          ) {
-            content = context.draft.content
-          }
-          editor.replaceBlocks(editor.topLevelBlocks, content as any)
-          const tiptap = editor?._tiptapEditor
-          // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
-          setGroupTypes(tiptap, content as any)
-        },
-        focusEditor: () => {
-          if (!isNewDraft) {
-            const tiptap = editor?._tiptapEditor
-            if (tiptap && !tiptap.isFocused) {
-              editor._tiptapEditor.commands.focus()
-            }
-          }
-        },
-        focusName: ({context}) => {
-          if (context.nameRef && isNewDraft) {
-            context.nameRef.focus()
-            context.nameRef.setSelectionRange(
-              context.nameRef.value.length,
-              context.nameRef.value.length,
-            )
-          }
-
-          return {}
-        },
-        onSaveSuccess: function () {
-          invalidateQueries([queryKeys.DRAFT, id])
-          invalidateQueries(['trpc.drafts.get'])
-          invalidateQueries(['trpc.drafts.list'])
-          invalidateQueries(['trpc.drafts.listAccount'])
-        },
-        resetContent: function ({event}) {
-          if (event.type !== 'RESET.CONTENT') return
-          const content = hmBlocksToEditorContent(event.blockNodes, {
-            childrenType: 'Group',
-          })
-          editor.replaceBlocks(editor.topLevelBlocks, content as any)
-          const tiptap = editor?._tiptapEditor
-          setGroupTypes(tiptap, content as any)
-        },
-      },
-      actors: {
-        updateDraft,
-      },
-    }),
-  )
-
-  const backendDraft = useDraft(id)
-  const backendDocId =
-    backendDraft.status == 'success' && backendDraft.data?.draft?.previousId
-      ? backendDraft.data.draft.previousId
-      : undefined
-
-  console.log('=== DRAFT backendDocId: ', backendDocId)
-  const backendDocument = useEntity(backendDocId)
-
-  useEffect(() => {
-    console.log(
-      '=== DRAFT backendDraft',
-      backendDraft.status,
-      backendDraft.data,
-    )
-    console.log(
-      '=== DRAFT backendDocument',
-      backendDocument.status,
-      backendDocument.data,
-    )
-    console.log('=== DRAFT =======================================')
-    if (backendDraft.status == 'success') {
-      send({
-        type: 'GET.DRAFT.SUCCESS',
-        draft: backendDraft.data?.draft || null,
-        entity: backendDocument.data || null,
-      })
-    }
-    if (backendDraft.status == 'error') {
-      send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})
-    }
-    // }
-  }, [
-    backendDraft.status,
-    backendDraft.data,
-    backendDocument.status,
-    backendDocument.data,
-  ])
-
-  // useEffect(() => {
-  //   function handleSelectAll(event: KeyboardEvent) {
-  //     if (event.key == 'a' && event.metaKey) {
-  //       if (editor) {
-  //         event.preventDefault()
-  //         editor._tiptapEditor.commands.focus()
-  //         editor._tiptapEditor.commands.selectAll()
-  //       }
-  //     }
-  //   }
-
-  //   window.addEventListener('keydown', handleSelectAll)
-
-  //   return () => {
-  //     window.removeEventListener('keydown', handleSelectAll)
-  //   }
-  // }, [])
-
-  // this updates the draft with the correct signing account
-  useEffect(() => {
-    draftEvents.subscribe(
-      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
-        if (value) {
-          send(value)
-        }
-      },
-    )
-  }, [])
-
-  return {editor, handleFocusAtMousePos, state, send, actor, handleRebase}
-
-  // ==============
-
-  async function handleRebase(newEntity: HMEntityContent) {
-    /**
-     * 1. get current version's blocks map
-     * 2. get new version's blocks map
-     * 3. get touched changes in draft
-     * 4. get touched changes in new version
-     * 5. compare touched blocks in draft vs touched blocks of new version
-     * 6. update blocks in editor
-     * 7. update previousId on draft (state machine)
-     */
-
-    const blocksMap1 = createBlocksMap(
-      backendDocument.data?.document?.content || [],
-      '',
-    )
-    const blocksMap2 = createBlocksMap(newEntity.document?.content || [], '')
-    const editorContent = removeTrailingBlocks(editor.topLevelBlocks)
-
-    const changes = compareBlocksWithMap(blocksMap1, editorContent, '')
-    const changes2 = compareDraftWithMap(
-      blocksMap1,
-      newEntity.document?.content,
-      '',
-    )
-
-    changes2.touchedBlocks.forEach((blockId) => {
-      const blockContent = blocksMap2[blockId]
-      if (blockContent) {
-        const editorBlock = hmBlockToEditorBlock(blockContent.block)
-        // this is updating the editor with the new version's block without comparing with the draft changes (destructive)
-        // TODO: fix types of editorBlock
-        editor.updateBlock(blockId, editorBlock as any)
-      }
-    })
-
-    send({type: 'FINISH.REBASE', entity: newEntity})
-  }
-
-  // TODO: fix types
-  function handleFocusAtMousePos(event: any) {
-    let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
-    let editorView = ttEditor.view
-    let editorRect = editorView.dom.getBoundingClientRect()
-    let centerEditor = editorRect.left + editorRect.width / 2
-
-    const pos = editorView.posAtCoords({
-      left: editorRect.left + 1,
-      top: event.clientY,
-    })
-
-    if (pos) {
-      let node = editorView.state.doc.nodeAt(pos.pos)
-      if (node) {
-        let resolvedPos = editorView.state.doc.resolve(pos.pos)
-        let lineStartPos = pos.pos
-        let selPos = lineStartPos
-
-        if (event.clientX >= centerEditor) {
-          let lineEndPos = lineStartPos
-
-          // Loop through the line to find its end based on next Y position
-          while (lineEndPos < resolvedPos.end()) {
-            const coords = editorView.coordsAtPos(lineEndPos)
-            if (coords && coords.top >= event.clientY) {
-              lineEndPos--
-              break
-            }
-            lineEndPos++
-          }
-          selPos = lineEndPos
-        }
-
-        const sel = Selection.near(editorView.state.doc.resolve(selPos))
-        ttEditor.commands.focus()
-        ttEditor.commands.setTextSelection(sel)
-      }
-    } else {
-      if (event.clientY > editorRect.bottom) {
-        // editorView.state.doc.descendants((node, pos) => {
-        //   console.log(node, pos)
-        // })
-        // From debugging positions, the last node is always resolved at position doc.content.size - 4, but it is possible to add exact position by calling doc.descendants
-        ttEditor.commands.setTextSelection(
-          editorView.state.doc.content.size - 4,
-        )
-        ttEditor.commands.focus()
-      } else
-        console.warn(
-          'No position found within the editor for the given mouse coordinates.',
-        )
-    }
   }
 }
 
