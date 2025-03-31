@@ -342,6 +342,7 @@ export const draftMachine = setup({
             id: 'update',
             src: 'update',
             input: ({context}) => ({
+              id: context.id,
               metadata: context.metadata,
               currentDraft: context.draft,
               signingAccount: context.signingAccount,

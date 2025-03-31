@@ -10,6 +10,7 @@ import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
 import z from 'zod'
+import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {error} from './logger'
@@ -210,13 +211,15 @@ export const draftsApi = t.router({
       await saveDraftIndex()
       try {
         console.log(
-          `=== DRAFT WRITE input: ${draftId}`,
+          `=== DRAFT WRITE input: ${input.id}`,
           JSON.stringify(input.draft, null, 2),
         )
         await fs.writeFile(
           draftPath,
           JSON.stringify({...input.draft, lastUpdateTime: Date.now()}, null, 2),
         )
+        appInvalidateQueries(['trpc.drafts.listFull'])
+        appInvalidateQueries(['trpc.drafts.list'])
         return {id: draftId}
       } catch (error) {
         throw Error(
@@ -230,6 +233,8 @@ export const draftsApi = t.router({
     const draftPath = join(draftsDir, `${input}.json`)
     try {
       await fs.unlink(draftPath)
+      appInvalidateQueries(['trpc.drafts.listFull'])
+      appInvalidateQueries(['trpc.drafts.list'])
     } catch (e) {
       error('[DRAFT]: Error deleting draft', {input: input, error: e})
     }
