@@ -1,7 +1,19 @@
 import {HMCommentDraft} from '@shm/shared/hm-types'
+import Store from 'electron-store'
 import z from 'zod'
+// @ts-expect-error ignore import
 import {commentDraftStore} from './app-store.mts'
 import {t} from './app-trpc'
+
+// Define interface for the electron store instance
+interface CommentStore extends Store<Record<string, any>> {
+  get: (key: string) => any
+  set: (key: string, value: any) => void
+  delete: (key: string) => void
+}
+
+// Cast the store to the interface
+const typedCommentStore = commentDraftStore as CommentStore
 
 function getCommentStoreId(targetDocId: string, replyCommentId?: string) {
   if (replyCommentId) return `Comment-${targetDocId}-${replyCommentId}`
@@ -20,7 +32,7 @@ export const commentsApi = t.router({
       const {targetDocId, replyCommentId} = input
       if (!targetDocId) return null
       const commentId = getCommentStoreId(targetDocId, replyCommentId)
-      const result = commentDraftStore.get(commentId)
+      const result = typedCommentStore.get(commentId)
       if (!result) return null
       return {...result, commentId: input.targetDocId} as HMCommentDraft
     }),
@@ -36,7 +48,7 @@ export const commentsApi = t.router({
     .mutation(async ({input}) => {
       const {targetDocId, replyCommentId} = input
       const commentId = getCommentStoreId(targetDocId, replyCommentId)
-      commentDraftStore.set(commentId, {
+      typedCommentStore.set(commentId, {
         // ...comment,
         blocks: input.blocks,
         account: input.account,
@@ -54,9 +66,9 @@ export const commentsApi = t.router({
     .mutation(async ({input}) => {
       const {targetDocId, replyCommentId} = input
       const commentId = getCommentStoreId(targetDocId, replyCommentId)
-      const comment = commentDraftStore.get(commentId)
+      const comment = typedCommentStore.get(commentId)
       if (!comment) return
-      commentDraftStore.delete(commentId)
+      typedCommentStore.delete(commentId)
       return
     }),
 })
