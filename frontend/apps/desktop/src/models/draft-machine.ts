@@ -1,20 +1,30 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMEntityContent, HMMetadata} from '@shm/shared'
-import {assign, fromPromise, setup, StateFrom} from 'xstate'
+import {HMDraft, HMEntityContent, UnpackedHypermediaId} from '@shm/shared'
+import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
 
 export const draftMachine = setup({
   types: {
+    input: {} as {
+      id?: string
+      locationUid?: string
+      locationPath?: string[]
+      editId?: UnpackedHypermediaId
+    },
     context: {} as {
       nameRef: null | HTMLTextAreaElement
-      metadata: HMMetadata
-      draft: null | HMDraft
-      signingAccount: null | string
+      metadata: HMDraft['metadata'] | null
+      content: HMDraft['content'] | null
+      signingAccount: HMDraft['signingAccount'] | null
       error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
       draftCreated: boolean
+      id: string | null
+      locationUid: string | null
+      locationPath: string[] | null
+      editId: UnpackedHypermediaId | null
     },
     events: {} as
       | {
@@ -52,14 +62,13 @@ export const draftMachine = setup({
     },
     onSaveSuccess: ({context}) => context,
     oncreatingSuccess: ({context}) => context,
-    populateEditor: ({context, event}) => {
-      // Add your editor population logic here
-      return context
-    },
-    focusName: ({context}) => {
-      // Add your focus name logic here
-      return context
-    },
+    populateData: ({context, event}) => {},
+    populateEditor: ({context, event}) => {},
+    focusContent: ({context}) => {},
+    replaceRoute: ({context}, params: {id: string}) => {},
+    setDraftId: assign({
+      id: (_, params: {id: string}) => params.id,
+    }),
     setAttributes: assign({
       metadata: ({context, event}) => {
         if (event.type == 'fetch.success') {
@@ -97,17 +106,8 @@ export const draftMachine = setup({
           }
         } else if (event.type == 'change' && event.signingAccount) {
           return event.signingAccount
-        } else if (
-          // @ts-expect-error ignore this XState error
-          event.type == 'xstate.done.actor.updateDraft' &&
-          // @ts-expect-error ignore this XState error
-          event.output.draft.signingAccount
-        ) {
-          // @ts-expect-error ignore this XState error
-          return event.output.draft.signingAccount
-        } else {
-          return context.signingAccount
         }
+        return context.signingAccount
       },
     }),
     resetContent: ({context}) => {
@@ -143,53 +143,34 @@ export const draftMachine = setup({
   delays: {
     autosaveTimeout: 500,
   },
-  actors: {
-    create: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          metadata: HMMetadata
-          currentDraft: HMDraft | null
-          signingAccount: string | null
-          draftCreated: boolean
-        }
-      }) => {
-        console.log('=== DRAFT invoke creating: CREATE')
-
-        return {} as HMDraft & {id: string}
-      },
-    ),
-    update: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          metadata: HMMetadata
-          currentDraft: HMDraft | null
-          signingAccount: string | null
-          draftCreated: boolean
-        }
-      }) => {
-        console.log('=== DRAFT invoke updateDraft: UPDATE')
-
-        return {} as HMDraft & {id: string}
-      },
-    ),
-  },
 }).createMachine({
   id: 'Draft',
-  context: {
-    nameRef: null,
-    error: '',
-    metadata: {},
-    draft: null,
-    signingAccount: null,
-    changed: false,
-    hasChangedWhileSaving: false,
-    draftCreated: false,
+  context: ({input}) => {
+    return {
+      id: input.id ?? null,
+      locationUid: input.locationUid ?? null,
+      locationPath: input.locationPath ?? null,
+      editId: input.editId ?? null,
+      nameRef: null,
+      metadata: {},
+      content: [],
+      signingAccount: null,
+      changed: false,
+      hasChangedWhileSaving: false,
+      draftCreated: !!input.id,
+      error: '',
+    }
   },
   initial: 'fetching',
+  on: {
+    change: {
+      actions: [
+        {
+          type: 'setSigningAccount',
+        },
+      ],
+    },
+  },
   states: {
     fetching: {
       on: {
@@ -209,10 +190,12 @@ export const draftMachine = setup({
       },
     },
     setupData: {
-      // always: {
-      //   target: 'editing',
-      //   actions: ['populateEditor'],
-      // },
+      entry: ['populateEditor', 'populateData'],
+      after: {
+        100: {
+          target: 'editing',
+        },
+      },
     },
     editing: {
       initial: 'idle',
@@ -221,11 +204,10 @@ export const draftMachine = setup({
           type: 'setDraftStatus',
           params: {status: 'idle'},
         },
-        {type: 'focusEditor'},
       ],
       after: {
         100: {
-          actions: [{type: 'focusName'}],
+          actions: [{type: 'focusContent'}],
         },
       },
       states: {
@@ -256,7 +238,7 @@ export const draftMachine = setup({
             autosaveTimeout: [
               {
                 target: 'saving',
-                guard: ({context}) => context.draftCreated,
+                guard: ({context}) => !!context.id,
               },
               {
                 target: 'creating',
@@ -293,9 +275,9 @@ export const draftMachine = setup({
             src: 'create',
             input: ({context}) => ({
               metadata: context.metadata,
-              currentDraft: context.draft,
-              signingAccount: context.signingAccount,
-              draftCreated: context.draftCreated,
+              locationUid: context.locationUid,
+              locationPath: context.locationPath,
+              editId: context.editId,
             }),
             onDone: [
               {
@@ -311,11 +293,14 @@ export const draftMachine = setup({
                 actions: [
                   {type: 'setDraftCreated', params: {draftCreated: true}},
                   // {type: 'setDraft'},
-                  {type: 'setAttributes'},
-                  {type: 'setSigningAccount'},
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},
+                  },
+                  {type: 'setDraftId', params: ({event}) => event.output},
+                  {
+                    type: 'replaceRoute',
+                    params: ({event}) => event.output,
                   },
                 ],
               },

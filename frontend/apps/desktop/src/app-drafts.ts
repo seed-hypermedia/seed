@@ -1,4 +1,10 @@
-import {HMDraft, HMDraftMeta, HMListedDraft} from '@shm/shared/hm-types'
+import {
+  HMDraft,
+  HMDraftMeta,
+  HMListedDraft,
+  unpackedHmIdSchema,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -48,8 +54,7 @@ type DraftMeta = {
   id: string
   locationUid?: string
   locationPath?: string[]
-  editUid?: string
-  editPath?: string[]
+  editId?: UnpackedHypermediaId
 }
 
 let draftIndex: DraftMeta[] | undefined = undefined
@@ -93,8 +98,7 @@ export async function initDrafts() {
         locationPath: isNewChild
           ? draftHmId.path?.slice(0, -1)
           : draftPath || undefined,
-        editUid: isNewChild ? undefined : draftHmId.uid,
-        editPath: isNewChild ? draftHmId.path?.slice(0, -1) : undefined,
+        editId: isNewChild ? undefined : draftHmId,
       })
     }
     console.log('Writing Draft Index', newDraftIndex)
@@ -169,8 +173,7 @@ export const draftsApi = t.router({
           draft: draft as HMDraft,
           locationUid: draftIndexEntry?.locationUid,
           locationPath: draftIndexEntry?.locationPath,
-          editUid: draftIndexEntry?.editUid,
-          editPath: draftIndexEntry?.editPath,
+          editId: draftIndexEntry?.editId,
         }
       } catch (e) {
         error('[DRAFT]: Error when getting draft', {draftId, error: e})
@@ -184,14 +187,14 @@ export const draftsApi = t.router({
         id: z.string().optional(),
         locationUid: z.string().optional(),
         locationPath: z.string().array().optional(),
-        editUid: z.string().optional(),
-        editPath: z.string().array().optional(),
+        editId: unpackedHmIdSchema.optional(),
       }),
     )
     .mutation(async ({input}) => {
       if (!draftIndex) {
         throw Error('[DRAFT]: Draft Index not initialized')
       }
+
       const draftId = input.id || nanoid(10)
       const draftPath = join(draftsDir, `${draftId}.json`)
 
@@ -201,12 +204,15 @@ export const draftsApi = t.router({
           id: draftId,
           locationUid: input.locationUid,
           locationPath: input.locationPath,
-          editUid: input.editUid,
-          editPath: input.editPath,
+          editId: input.editId,
         },
       ]
       await saveDraftIndex()
       try {
+        console.log(
+          `=== DRAFT WRITE input: ${draftId}`,
+          JSON.stringify(input.draft, null, 2),
+        )
         await fs.writeFile(
           draftPath,
           JSON.stringify({...input.draft, lastUpdateTime: Date.now()}, null, 2),

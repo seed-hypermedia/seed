@@ -96,8 +96,7 @@ export const draftRouteSchema = z.object({
   id: z.string().optional(),
   locationUid: z.string().optional(),
   locationPath: z.string().array().optional(),
-  editUid: z.string().optional(),
-  editPath: z.string().array().optional(),
+  editId: unpackedHmIdSchema.optional(),
   // new: z.boolean().optional(),
   accessory: z
     .discriminatedUnion('key', [

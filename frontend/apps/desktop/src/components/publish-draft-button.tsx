@@ -39,7 +39,6 @@ import {
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
-  getDraftEditId,
   usePublishDraft,
   usePublishToSite,
 } from '../models/documents'
@@ -53,7 +52,7 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
-  const prevId = getDraftEditId(draft.data)
+  const prevId = draftRoute.editId
   const prevEntity = useEntity(prevId)
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
     null,
@@ -167,8 +166,8 @@ export default function PublishDraftButton() {
             | PlainMessage<Document>
             | undefined,
           draftId,
-          destinationPath: draft.data.destinationPath,
-          destinationUid: draft.data.destinationUid,
+          destinationPath: draft.destinationPath,
+          destinationUid: draft.destinationUid,
         })
         .then(async (res) => {
           const resultDocId = hmId('d', res.account, {

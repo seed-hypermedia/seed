@@ -579,10 +579,8 @@ export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 export type HMDraft = {
   content: Array<EditorBlock>
   metadata: HMMetadata
-  members: any //HMDocument['members']
-  deps: Array<string>
+
   signingAccount: string
-  previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
   lastUpdateTime: number // ms
 }
 
@@ -657,15 +655,14 @@ export type HMDraftMeta = {
   id: string
   locationUid?: string
   locationPath?: string[]
-  editUid?: string
-  editPath?: string[]
+  editId?: UnpackedHypermediaId
 }
 
 export type HMListedDraft = HMDraftMeta & {
   metadata: HMMetadata
   lastUpdateTime: number
-  editId?: UnpackedHypermediaId
   locationId?: UnpackedHypermediaId
+  editId?: UnpackedHypermediaId
 }
 
 export type HMInvoice = {
