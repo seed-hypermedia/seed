@@ -1,3 +1,7 @@
+import {
+  HMWritableDocument,
+  useMyWritableDocuments,
+} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useListDirectory} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -7,17 +11,30 @@ import {
   createSiteUrl,
   createWebHMUrl,
   hmId,
+  HMMetadataPayload,
+  isIdParentOfOrEqual,
   UnpackedHypermediaId,
+  useSearch,
 } from '@shm/shared'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Search, Undo2} from '@tamagui/lucide-icons'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
-import {Input, ScrollView, SizableText, XStack, YStack} from 'tamagui'
+import {
+  Input,
+  Popover,
+  ScrollView,
+  SizableText,
+  View,
+  XStack,
+  YStack,
+} from 'tamagui'
 
 export function LocationPicker({
   location,
@@ -25,20 +42,61 @@ export function LocationPicker({
   account,
   setAccount,
   newName,
+  actionLabel,
+  onAvailable,
 }: {
   location: UnpackedHypermediaId | null
   setLocation: (location: UnpackedHypermediaId | null) => void
   account: string | null
   setAccount: (account: string | null) => void
   newName: string
+  actionLabel: string
+  onAvailable?: (isAvailable: boolean) => void
 }) {
   const defaultAccountId = useDefaultAccountId()
   const {data: myAccountIds} = useMyAccountIds()
   const accts = useEntities(myAccountIds?.map((id) => hmId('d', id)) || [])
+  const writableDocuments = useMyWritableDocuments()
+  const newUrlPath = location?.path?.at(-1) || ''
+
+  function handleSetLocation(location: UnpackedHypermediaId) {
+    // make sure the account can write to this location. if not, change the account to the account who can.
+    const allAcctsWithWrite = writableDocuments.filter((d) => {
+      if (isIdParentOfOrEqual(d.entity.id, location)) return true
+    })
+    const thisAccountWithWrite =
+      account &&
+      allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
+    if (thisAccountWithWrite) {
+      setLocation(location)
+    } else {
+      if (allAcctsWithWrite.length) {
+        setAccount(allAcctsWithWrite[0].accountsWithWrite[0])
+        setLocation(location)
+      } else {
+        toast.error('No account has write access to this location')
+      }
+    }
+  }
+
+  function handleSetAccount(account: string) {
+    setAccount(account)
+    // make sure the account can write to this location. if not, change the location to the account home
+    if (
+      location &&
+      !writableDocuments.find(
+        (d) =>
+          isIdParentOfOrEqual(d.entity.id, location) &&
+          d.accountsWithWrite.includes(account),
+      )
+    ) {
+      setLocation(hmId('d', account, {path: [newUrlPath]}))
+    }
+  }
 
   useEffect(() => {
     if (!location && defaultAccountId) {
-      setLocation(
+      handleSetLocation(
         hmId('d', defaultAccountId, {
           path: [pathNameify(newName)],
         }),
@@ -47,15 +105,19 @@ export function LocationPicker({
   }, [location, defaultAccountId])
   useEffect(() => {
     if (!account && defaultAccountId) {
-      setAccount(defaultAccountId)
+      handleSetAccount(defaultAccountId)
     }
   }, [account, defaultAccountId])
+  const newDestinationAlreadyDocument = useEntity(location)
+  useEffect(() => {
+    if (onAvailable) {
+      onAvailable(!!newDestinationAlreadyDocument?.data?.document)
+    }
+  }, [!!newDestinationAlreadyDocument?.data?.document])
   const parentId = useParentId(location)
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
-  const newUrlPath = location?.path?.at(-1) || ''
   return (
     <YStack gap="$3" marginVertical="$4">
-      {/* <SizableText>{JSON.stringify(directory)}</SizableText> */}
       <Field label="Author Account" id="account">
         {account && (
           <SelectDropdown
@@ -77,32 +139,43 @@ export function LocationPicker({
                 }
               })
               .filter((a) => !!a)}
-            onValue={setAccount}
+            onValue={handleSetAccount}
           />
         )}
       </Field>
       {location ? (
-        <Field label="Location" id="location">
+        <Field label={`${capitalize(actionLabel)} to Location`} id="location">
           <XStack jc="space-between" ai="center">
             {location ? (
-              <LocationPreview location={location} setLocation={setLocation} />
+              <LocationPreview
+                location={location}
+                setLocation={handleSetLocation}
+              />
             ) : null}
-            {(location.path?.length || 0) > 1 ? (
-              <Tooltip content="Move location out to here">
-                <Button
-                  onPress={() => {
-                    const newPath = [
-                      ...(location.path?.slice(0, -2) || []),
-                      newUrlPath,
-                    ]
-                    setLocation(hmId('d', location.uid, {path: newPath}))
-                  }}
-                  icon={Undo2}
-                  size="$2"
-                />
-              </Tooltip>
-            ) : null}
-            <LocationSearch location={location} setLocation={setLocation} />
+            <XStack gap="$2">
+              {(location.path?.length || 0) > 1 ? (
+                <Tooltip content={`Location to ${actionLabel} this document`}>
+                  <Button
+                    onPress={() => {
+                      const newPath = [
+                        ...(location.path?.slice(0, -2) || []),
+                        newUrlPath,
+                      ]
+                      handleSetLocation(
+                        hmId('d', location.uid, {path: newPath}),
+                      )
+                    }}
+                    icon={Undo2}
+                    size="$2"
+                  />
+                </Tooltip>
+              ) : null}
+              <LocationSearch
+                writableDocuments={writableDocuments}
+                location={location}
+                setLocation={handleSetLocation}
+              />
+            </XStack>
           </XStack>
           <ScrollView
             height={200}
@@ -115,7 +188,7 @@ export function LocationPicker({
                 return (
                   <Button
                     onPress={() => {
-                      setLocation(
+                      handleSetLocation(
                         hmId('d', location.uid, {
                           path: [...d.path, newUrlPath],
                         }),
@@ -141,7 +214,7 @@ export function LocationPicker({
           value={newUrlPath}
           onChangeText={(text: string) => {
             if (!location) return
-            setLocation(
+            handleSetLocation(
               hmId('d', location?.uid, {
                 path: [...(location?.path?.slice(0, -1) || []), text],
               }),
@@ -149,21 +222,106 @@ export function LocationPicker({
           }}
         />
       </Field>
-      {location && <URLPreview location={location} />}
+      {location && (
+        <URLPreview
+          location={location}
+          isUnavailable={!!newDestinationAlreadyDocument?.data?.document}
+          actionLabel={actionLabel}
+        />
+      )}
     </YStack>
   )
 }
 
 function LocationSearch({
+  writableDocuments,
   location,
   setLocation,
 }: {
+  writableDocuments: HMWritableDocument[]
   location: UnpackedHypermediaId
   setLocation: (location: UnpackedHypermediaId) => void
 }) {
-  const myAccountIds = useMyAccountIds()
-  const [search, setSearch] = useState('')
-  return <Button icon={Search} size="$2" />
+  const popover = usePopoverState()
+  return (
+    <Popover {...popover}>
+      <Popover.Trigger className="no-window-drag">
+        <Button icon={Search} size="$2" />
+      </Popover.Trigger>
+      <Popover.Content bg="$backgroundStrong">
+        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+        <SearchContent
+          writableDocuments={writableDocuments}
+          onLocationSelected={(newParent) => {
+            popover.onOpenChange(false)
+            setLocation(
+              hmId('d', newParent.uid, {
+                path: [...(newParent.path || []), location.path?.at(-1) || ''],
+              }),
+            )
+          }}
+        />
+      </Popover.Content>
+    </Popover>
+  )
+}
+function SearchContent({
+  writableDocuments,
+  onLocationSelected,
+}: {
+  writableDocuments: HMWritableDocument[]
+  onLocationSelected: (location: UnpackedHypermediaId) => void
+}) {
+  const [searchQ, setSearchQ] = useState('')
+  const search = useSearch(searchQ)
+  let searchedLocations: HMMetadataPayload[] = []
+  if (searchQ === '') {
+    searchedLocations = writableDocuments.map((d) => ({
+      id: d.entity.id,
+      metadata: d.entity.document?.metadata || null,
+    }))
+  } else {
+    searchedLocations =
+      search.data?.entities
+        .filter((d) => {
+          return !!writableDocuments.find((writable) =>
+            isIdParentOfOrEqual(writable.entity.id, d.id),
+          )
+        })
+        .map((d) => ({
+          id: d.id,
+          metadata: {name: d.title},
+        })) || []
+  }
+  return (
+    <YStack>
+      <View marginBottom="$2">
+        <Search position="absolute" left="$3" top={11} size="$1" />
+        <Input
+          paddingLeft="$7"
+          value={searchQ}
+          onChangeText={setSearchQ}
+          placeholder="Find Locations..."
+        />
+      </View>
+      {searchedLocations.map((d) => {
+        return (
+          <Button
+            onPress={() => {
+              onLocationSelected(d.id)
+            }}
+            backgroundColor="$colorTransparent"
+            paddingHorizontal="$2"
+          >
+            <XStack gap="$2" ai="center" f={1} jc="flex-start">
+              <HMIcon id={d.id} metadata={d.metadata} size={24} />
+              <SizableText>{d.metadata?.name}</SizableText>
+            </XStack>
+          </Button>
+        )
+      })}
+    </YStack>
+  )
 }
 
 function LocationPreview({
@@ -173,9 +331,7 @@ function LocationPreview({
   location: UnpackedHypermediaId
   setLocation: (location: UnpackedHypermediaId) => void
 }) {
-  const parentId = useParentId(location)
   const newUrlPath = location?.path?.at(-1) || ''
-
   const siteId = hmId('d', location.uid, {latest: true})
   const site = useEntity(siteId)
   const locationBreadcrumbIds = useMemo(() => {
@@ -245,17 +401,40 @@ function useDocumentUrl(location: UnpackedHypermediaId) {
   return url
 }
 
-function URLPreview({location}: {location: UnpackedHypermediaId}) {
+function URLPreview({
+  location,
+  isUnavailable,
+  actionLabel,
+}: {
+  location: UnpackedHypermediaId
+  isUnavailable?: boolean
+  actionLabel: string
+}) {
   const url = useDocumentUrl(location)
   return (
-    <YStack>
-      <SizableText color="$color10" size="$2">
-        Branch Destination URL
-      </SizableText>
-      <SizableText color="$blue11" size="$3">
-        {url}
-      </SizableText>
-    </YStack>
+    <Tooltip
+      content={
+        isUnavailable
+          ? 'This location is unavailable'
+          : `This will be the URL after you ${actionLabel}`
+      }
+    >
+      <YStack>
+        <XStack ai="center" gap="$2">
+          <SizableText
+            color={isUnavailable ? '$red11' : '$color10'}
+            fontWeight={isUnavailable ? 'bold' : 'normal'}
+            size="$2"
+          >
+            Branch Destination URL{isUnavailable ? ' (Unavailable)' : ''}
+          </SizableText>
+          {isUnavailable ? <AlertCircle color="$red11" size="$1" /> : null}
+        </XStack>
+        <SizableText color={isUnavailable ? '$red11' : '$blue11'} size="$3">
+          {url}
+        </SizableText>
+      </YStack>
+    </Tooltip>
   )
 }
 
@@ -280,4 +459,9 @@ function useParentId(id: UnpackedHypermediaId | null) {
       path: id.path?.slice(0, -1),
     })
   }, [id?.uid, id?.path?.slice(0, -1).join('/')])
+}
+
+function capitalize(word: string) {
+  if (!word) return ''
+  return word[0].toUpperCase() + word.slice(1)
 }

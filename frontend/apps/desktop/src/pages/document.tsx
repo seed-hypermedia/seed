@@ -75,7 +75,6 @@ import {AppDocContentProvider} from './document-content-provider'
 export default function DocumentPage() {
   const route = useNavRoute()
   const docId = route.key === 'document' && route.id
-  console.log('~~ Document page route', docId && docId.path)
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
@@ -160,7 +159,6 @@ export default function DocumentPage() {
   //   })
   // }
   const mainPanelRef = useRef<HTMLDivElement>(null)
-  console.log('~~ Document page path', route.id.path)
   return (
     <>
       <XStack flex={1} height="100%">
@@ -276,8 +274,6 @@ function _MainDocumentPage({
   })
 
   if (entity.isInitialLoading) return null
-
-  console.log('~~ entity', entity.data)
 
   if (entity.data?.redirectTarget) {
     return (

@@ -5,21 +5,26 @@ import {
   Role,
 } from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
-import {HMRole, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  HMEntityContent,
+  HMRole,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {
+  hmId,
+  isIdParentOfOrEqual,
+  isPathParentOfOrEqual,
+} from '@shm/shared/utils/entity-id-url'
+import {
+  entityQueryPathToHmIdPath,
+  hmIdPathToEntityQueryPath,
+} from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui/toast'
-import {useMutation, useQuery} from '@tanstack/react-query'
+import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
-import {getParentPaths} from './entities'
-
-export function useDocumentCollaborators(id: UnpackedHypermediaId) {
-  //
-  getParentPaths()
-}
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
   return useMutation({
@@ -91,6 +96,93 @@ function roleToHMRole(role: Role): HMRole {
   if (role === Role.WRITER) return 'writer'
   if (role === Role.ROLE_UNSPECIFIED) return 'none'
   return 'none'
+}
+
+function useAccountsCapabilities(accountIds: string[]) {
+  const capabilities = useQueries({
+    queries: accountIds.map((accountId) => ({
+      queryKey: [queryKeys.ACCOUNT_CAPABILITIES, accountId],
+      queryFn: async () => {
+        const result =
+          await grpcClient.accessControl.listCapabilitiesForDelegate({
+            delegate: accountId,
+            pageSize: BIG_INT,
+          })
+        return {
+          accountId,
+          capabilities: result.capabilities.map(toPlainMessage),
+        }
+      },
+    })),
+  })
+  return capabilities
+}
+
+export type HMWritableDocument = {
+  entity: HMEntityContent
+  accountsWithWrite: string[]
+}
+
+export function useMyWritableDocuments(): HMWritableDocument[] {
+  const accountsCaps = useMyAccountsCapabilities()
+  const writableDocumentIds: UnpackedHypermediaId[] = []
+  function addWritableId(id: UnpackedHypermediaId) {
+    // if writableDocumentIds already has this id, don't add it
+    if (writableDocumentIds.find((doc) => doc.id === id.id)) return
+    // if id is a parent of any of the ids in writableDocumentIds, remove the child
+    writableDocumentIds.forEach((doc) => {
+      if (isIdParentOfOrEqual(id, doc)) {
+        writableDocumentIds.splice(writableDocumentIds.indexOf(doc), 1)
+      }
+    })
+    // add the parent
+    writableDocumentIds.push(id)
+  }
+  accountsCaps?.forEach(({capabilities}) => {
+    capabilities?.forEach((cap) => {
+      if (roleCanWrite(roleToHMRole(cap.role))) {
+        addWritableId(
+          hmId('d', cap.account, {path: entityQueryPathToHmIdPath(cap.path)}),
+        )
+      }
+    })
+  })
+  accountsCaps?.forEach(({accountId}) => {
+    addWritableId(hmId('d', accountId))
+  })
+  const writableDocuments = useEntities(writableDocumentIds)
+    .map((doc) => doc.data)
+    .filter((doc) => !!doc)
+  if (!accountsCaps) return []
+  return writableDocuments.map((doc) => ({
+    entity: doc,
+    accountsWithWrite: accountsCaps
+      .filter(({accountId, capabilities}) => {
+        if (doc.id.uid === accountId) return true
+        return !!capabilities?.find(
+          (cap) =>
+            roleCanWrite(roleToHMRole(cap.role)) &&
+            cap.account === doc.id.uid &&
+            isPathParentOfOrEqual(
+              entityQueryPathToHmIdPath(cap.path),
+              doc.id.path,
+            ),
+        )
+      })
+      .map(({accountId}) => accountId),
+  }))
+}
+
+export function useMyAccountsCapabilities() {
+  const myAccounts = useMyAccountIds()
+  const capabilities = useAccountsCapabilities(myAccounts.data || [])
+  return myAccounts.data?.map((accountId) => {
+    const caps = capabilities?.find((cap) => cap.data?.accountId === accountId)
+    return {
+      accountId,
+      capabilities: caps?.data?.capabilities,
+    }
+  })
 }
 
 export function useMyCapability(

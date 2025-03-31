@@ -18,17 +18,13 @@ export function useStreamSelector<StreamValue, SelectedValue>(
     value: StreamValue,
     previousSelectedValue: SelectedValue | undefined,
   ) => SelectedValue,
-  debugFlag?: string,
 ): SelectedValue {
   const [state, setState] = useState<SelectedValue>(
     selector(stream.get(), undefined),
   )
   useEffect(() => {
     return stream.subscribe(() => {
-      debugFlag &&
-        console.log('~~ useStreamSelector update', stream.get(), debugFlag)
       setState((previousSelectedValue) => {
-        // console.log('~~ useStreamSelector update', stream.get(), previousSelectedValue)
         return selector(stream.get(), previousSelectedValue)
       })
     })

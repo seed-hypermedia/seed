@@ -510,3 +510,22 @@ export function pathMatches(
   if (!a?.length || !b?.length) return a?.length || 0 === b?.length || 0
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
+
+export function isIdParentOfOrEqual(
+  parent: UnpackedHypermediaId,
+  possibleChild: UnpackedHypermediaId,
+) {
+  if (parent.uid !== possibleChild.uid) return false
+  if (!parent.path?.length && !possibleChild.path?.length) return true
+  if (!parent.path) return true
+  return parent.path?.every((v, i) => v === possibleChild.path?.[i])
+}
+
+export function isPathParentOfOrEqual(
+  parentPath?: string[] | null,
+  possibleChildPath?: string[] | null,
+) {
+  if (!parentPath?.length && !possibleChildPath?.length) return true
+  if (!parentPath) return true
+  return parentPath?.every((v, i) => v === possibleChildPath?.[i])
+}

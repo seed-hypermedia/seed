@@ -38,7 +38,6 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
-  console.log('~~ getRouteKey', route)
   if (route.key === 'draft')
     return `draft:${route.id?.uid}:${route.id?.path?.join(':')}`
   if (route.key === 'document')
@@ -148,7 +147,7 @@ export function useNavigation() {
 
 export const NavContextProvider = NavContext.Provider
 
-export function useNavRoute(debugFlag?: string) {
+export function useNavRoute() {
   const nav = useContext(NavContext)
   if (!nav)
     throw new Error('useNavRoute must be used within a NavigationProvider')
@@ -157,18 +156,9 @@ export function useNavRoute(debugFlag?: string) {
   const navRoute = useStreamSelector<NavState, NavRoute>(
     nav.state,
     (state, prevSelected) => {
-      debugFlag &&
-        console.log(
-          '~~ useNavRoute Selector',
-          state.routes[state.routeIndex],
-          prevSelected,
-          state.routes[state.routeIndex] === prevSelected,
-        )
       return state.routes[state.routeIndex] || defaultRoute
     },
-    debugFlag,
   )
-  debugFlag && console.log('~~ useNavRoute =', navRoute, debugFlag)
   return navRoute
 }
 

@@ -45,6 +45,7 @@ export const queryKeys = {
   ENTITY_CHANGES: 'ENTITY_CHANGES',
 
   CAPABILITIES: 'CAPABILITIES', //, id.uid: string, ...id.path
+  ACCOUNT_CAPABILITIES: 'ACCOUNT_CAPABILITIES', //, accountId: string
 
   // comments
   COMMENT: 'COMMENT', //, commentId: string

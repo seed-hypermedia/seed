@@ -35,22 +35,18 @@ export function NavigationContainer({
   children: ReactNode
   initialNav?: NavState
 }) {
-  console.log('~~ NavigationContainer render ', initialNav)
   const {externalOpen} = useAppContext()
   const navigation = useMemo(() => {
-    console.log('~~ NavigationContainer useMemo')
     const [updateNavState, navState] = writeableStateStream(initialNav)
     globalNavState = navState
     if (navStateStore) {
       return navStateStore
-      // throw new Error('~~ NavigationContainer already here')
     }
     navStateStore = {
       dispatch(action: NavAction) {
         const prevState = navState.get()
         const newState = navStateReducer(prevState, action)
         if (prevState !== newState) {
-          console.log('~~ NavigationContainer dispatch', action, newState)
           updateNavState(newState)
         } else if (action.type === 'closeBack') {
           client.closeAppWindow.mutate(window.windowId)

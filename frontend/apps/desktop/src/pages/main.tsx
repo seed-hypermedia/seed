@@ -28,8 +28,7 @@ var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 
 export default function Main({className}: {className?: string}) {
-  const navR = useNavRoute('Main.tsx NavR')
-  console.log('~~ Main navR', navR)
+  const navR = useNavRoute()
   const navigate = useNavigate()
   const {PageComponent, Fallback} = useMemo(
     () => getPageComponent(navR),
