@@ -419,6 +419,7 @@ function WebDocContentProvider({
   supportDocuments,
   supportQueries,
   routeParams,
+  comment,
 }: {
   siteHost: string | undefined
   id: UnpackedHypermediaId
@@ -432,6 +433,7 @@ function WebDocContentProvider({
     blockRef?: string
     blockRange?: BlockRange
   }
+  comment?: boolean
 }) {
   const navigate = useNavigate()
   return (
@@ -474,6 +476,7 @@ function WebDocContentProvider({
       textUnit={18}
       layoutUnit={24}
       debug={false}
+      comment={comment}
     >
       {children}
     </DocContentProvider>
@@ -548,6 +551,7 @@ function DocumentActivity({
           originHomeId={originHomeId}
           id={id}
           siteHost={siteHost}
+          comment={true}
         >
           <BlocksContent blocks={comment.content} parentBlockId={null} />
         </WebDocContentProvider>
@@ -659,6 +663,7 @@ function CommentReplies({
             originHomeId={homeId}
             id={docId}
             siteHost={siteHost}
+            comment={true}
           >
             <BlocksContent blocks={comment.content} parentBlockId={null} />
           </WebDocContentProvider>
