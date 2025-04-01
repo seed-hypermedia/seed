@@ -320,7 +320,6 @@ function DocumentEditor({
     mainContentProps,
     sidebarProps,
     wrapperProps,
-    contentMaxWidth,
   } = useDocumentLayout({
     contentWidth: state.context.metadata.contentWidth,
     showSidebars: showOutline && !isHomeDoc,

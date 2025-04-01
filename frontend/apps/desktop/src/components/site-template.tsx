@@ -13,15 +13,16 @@ import {dispatchEditPopover} from './onboarding'
 
 // Import template images
 
+import {useIsOnline} from '@/models/networking'
 import blogDark from '/template-blog-dark.png'
 import blogLight from '/template-blog-light.png'
 import documentationDark from '/template-documentation-dark.png'
 import documentationLight from '/template-documentation-light.png'
-
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
 
 export function SiteTemplate() {
+  const isOnline = useIsOnline()
   const [selectedTemplate, setSelectedTemplate] = useState<
     'blog' | 'documentation' | 'blank' | null
   >(null)
@@ -73,6 +74,7 @@ export function SiteTemplate() {
       </SizableText>
       <XStack>
         <YStack
+          opacity={isOnline ? 1 : 0.5}
           p="$4"
           paddingBottom="$2"
           gap="$2"
@@ -83,6 +85,7 @@ export function SiteTemplate() {
           }}
           alignItems="center"
           onPress={() => {
+            if (!isOnline) return
             setSelectedTemplate('blog')
           }}
         >
@@ -112,6 +115,7 @@ export function SiteTemplate() {
           </XStack>
         </YStack>
         <YStack
+          opacity={isOnline ? 1 : 0.5}
           p="$4"
           paddingBottom="$2"
           gap="$2"
@@ -122,6 +126,7 @@ export function SiteTemplate() {
           bg={selectedTemplate === 'documentation' ? '$brand5' : 'transparent'}
           alignItems="center"
           onPress={() => {
+            if (!isOnline) return
             setSelectedTemplate('documentation')
           }}
         >
@@ -176,6 +181,19 @@ export function SiteTemplate() {
           </SizableText>
         </YStack>
       </XStack>
+      {!isOnline ? (
+        <YStack
+          bg="$red5"
+          p="$4"
+          borderRadius="$4"
+          width="100%"
+          alignItems="center"
+        >
+          <SizableText color="$color" textAlign="center">
+            You need to be connected to the internet to use templates
+          </SizableText>
+        </YStack>
+      ) : null}
       <Button
         opacity={selectedTemplate == null ? 0.5 : 1}
         disabled={selectedTemplate == null}
