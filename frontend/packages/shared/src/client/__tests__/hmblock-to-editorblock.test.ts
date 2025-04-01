@@ -771,7 +771,7 @@ describe('HMBlock to EditorBlock', () => {
         props: {
           queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
           querySort: '[{"term":"UpdateTime","reverse":false}]',
-          queryLimit: 'undefined',
+          queryLimit: '',
           style: 'Card',
           columnCount: '1',
           banner: 'false',
