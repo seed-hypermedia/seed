@@ -9,8 +9,6 @@ import {
 import dotenv from 'dotenv'
 import nodemailer from 'nodemailer'
 
-console.log('What the what?!')
-
 dotenv.config()
 
 const transporter = ENABLE_EMAIL_NOTIFICATIONS
