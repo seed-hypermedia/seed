@@ -20,16 +20,17 @@ export function OptionsPanel({
   onMetadata,
   metadata,
   onResetContent,
+  isHomeDoc,
+  isNewspaperLayout,
 }: {
   onClose: () => void
   draftId: string
   onMetadata: (values: Partial<HMMetadata>) => void
   metadata: HMMetadata
   onResetContent: (blockNodes: HMBlockNode[]) => void
+  isHomeDoc: boolean
+  isNewspaperLayout: boolean
 }) {
-  const isHomeDoc = !draftId.path || draftId.path.length === 0
-  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
-
   return (
     <AccessoryContainer
       title={isHomeDoc ? 'Home Options' : 'Document Options'}

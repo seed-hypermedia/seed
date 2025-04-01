@@ -39,7 +39,7 @@ import {
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Smile} from '@shm/ui/icons'
+import {Options, Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -72,6 +72,11 @@ export default function DraftPage() {
   const {data, editor, send, state, actor, locationEntity, editEntity} =
     useDraftEditor()
 
+  const isNewspaperLayout =
+    data?.metadata?.layout === 'Seed/Experimental/Newspaper'
+
+  const isEditingHomeDoc = (route as DraftRoute).editPath?.length === 0
+
   const accessoryOptions: {
     key: 'options'
     label: string
@@ -81,11 +86,11 @@ export default function DraftPage() {
     }>
   }[] = []
 
-  // accessoryOptions.push({
-  //   key: 'options',
-  //   label: 'Options',
-  //   icon: Options,
-  // })
+  accessoryOptions.push({
+    key: 'options',
+    label: 'Options',
+    icon: Options,
+  })
 
   let accessory = null
 
@@ -94,28 +99,20 @@ export default function DraftPage() {
     accessory = (
       <OptionsPanel
         draftId={'UPDATE ME'}
-        // metadata={data.state.context.metadata}
-        metadata={{}}
+        metadata={state.context.metadata}
+        isHomeDoc={isEditingHomeDoc}
+        isNewspaperLayout={isNewspaperLayout}
         onMetadata={(metadata) => {
-          if (!data?.draft) return
+          if (!data.metadata) return
           actor.send({type: 'change', metadata})
-          // data.actor.send({type: 'CHANGE', metadata})
         }}
         onClose={() => setAccessory(undefined)}
         onResetContent={(blockNodes: HMBlockNode[]) => {
-          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
           actor.send({type: 'reset.content'})
         }}
       />
     )
   }
-
-  // const isNewspaperLayout =
-  //   data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
-  const isNewspaperLayout = false
-  const isEditingHomeDoc = (route as DraftRoute).editPath?.length === 0
-
-  console.log(`== ~ DraftPage ~ isEditingHomeDoc:`, route, isEditingHomeDoc)
 
   function handleFocusAtMousePos(event: any) {
     let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
@@ -183,9 +180,6 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          {/* <pre>
-            <code>{JSON.stringify({state}, null, 2)}</code>
-          </pre> */}
           {isNewspaperLayout ? (
             <YStack f={1} ai="center" jc="center" h="100%">
               <YStack
@@ -213,19 +207,6 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-              <pre>
-                <code style={{whiteSpace: 'pre-wrap'}}>
-                  {JSON.stringify(
-                    {
-                      data,
-                      locationEntity,
-                      editEntity,
-                    },
-                    null,
-                    2,
-                  )}
-                </code>
-              </pre>
             </>
           )}
         </AccessoryLayout>
@@ -267,14 +248,11 @@ function DocumentEditor({
   const {
     showSidebars,
     elementRef,
-    showCollapsed,
     mainContentProps,
     sidebarProps,
     wrapperProps,
-    contentMaxWidth,
   } = useDocumentLayout({
-    // contentWidth: state.context.metadata.contentWidth,
-    contentWidth: 'M',
+    contentWidth: state.context.metadata.contentWidth || 'M',
     showSidebars: showOutline && !isHomeDoc,
   })
 
