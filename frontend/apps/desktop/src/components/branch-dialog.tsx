@@ -36,6 +36,7 @@ export function BranchDialog({
             setAccount={setAccount}
             actionLabel="branch"
             onAvailable={(isAvail) => {
+              console.log('~~ isAvail', isAvail)
               isAvailable.current = isAvail
             }}
           />

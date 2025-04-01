@@ -111,9 +111,9 @@ export function LocationPicker({
   const newDestinationAlreadyDocument = useEntity(location)
   useEffect(() => {
     if (onAvailable) {
-      onAvailable(!!newDestinationAlreadyDocument?.data?.document)
+      onAvailable(!newDestinationAlreadyDocument?.data?.document)
     }
-  }, [!!newDestinationAlreadyDocument?.data?.document])
+  }, [!newDestinationAlreadyDocument?.data?.document])
   const parentId = useParentId(location)
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
   return (

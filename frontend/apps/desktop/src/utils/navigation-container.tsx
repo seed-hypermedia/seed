@@ -2,7 +2,7 @@ import {client} from '@/trpc'
 import {DAEMON_FILE_URL} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useAppContext, useIPC} from '../app-context'
 import {
@@ -13,15 +13,6 @@ import {
   setAppNavDispatch,
 } from './navigation'
 import {AppWindowEvent} from './window-events'
-
-let navStateStore:
-  | {
-      dispatch: (action: NavAction) => void
-      state: StateStream<NavState>
-    }
-  | undefined = undefined
-
-export let globalNavState: StateStream<NavState> | undefined = undefined
 
 export function NavigationContainer({
   children,
@@ -38,11 +29,8 @@ export function NavigationContainer({
   const {externalOpen} = useAppContext()
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
-    globalNavState = navState
-    if (navStateStore) {
-      return navStateStore
-    }
-    navStateStore = {
+
+    return {
       dispatch(action: NavAction) {
         const prevState = navState.get()
         const newState = navStateReducer(prevState, action)
@@ -54,7 +42,6 @@ export function NavigationContainer({
       },
       state: navState,
     }
-    return navStateStore
   }, [])
   const {send} = useIPC()
 

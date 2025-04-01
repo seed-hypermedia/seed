@@ -6,7 +6,6 @@ import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
-import {globalNavState} from './navigation-container'
 
 global.Buffer = global.Buffer || Buffer
 
@@ -151,8 +150,6 @@ export function useNavRoute() {
   const nav = useContext(NavContext)
   if (!nav)
     throw new Error('useNavRoute must be used within a NavigationProvider')
-  if (!globalNavState)
-    throw new Error('globalNavState must be ready within a NavigationProvider')
   const navRoute = useStreamSelector<NavState, NavRoute>(
     nav.state,
     (state, prevSelected) => {

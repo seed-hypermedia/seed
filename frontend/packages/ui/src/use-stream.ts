@@ -12,21 +12,14 @@ export function useStream<StreamValue>(
   )
 }
 
-export function useStreamSelector<StreamValue, SelectedValue>(
+export function useStreamSelector<StreamValue, InternalValue>(
   stream: StateStream<StreamValue>,
-  selector: (
-    value: StreamValue,
-    previousSelectedValue: SelectedValue | undefined,
-  ) => SelectedValue,
-): SelectedValue {
-  const [state, setState] = useState<SelectedValue>(
-    selector(stream.get(), undefined),
-  )
+  selector: (value: StreamValue) => InternalValue,
+): InternalValue {
+  const [state, setState] = useState(selector(stream.get()))
   useEffect(() => {
     return stream.subscribe(() => {
-      setState((previousSelectedValue) => {
-        return selector(stream.get(), previousSelectedValue)
-      })
+      setState(selector(stream.get()))
     })
   }, [stream, selector])
   return state
