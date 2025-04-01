@@ -666,7 +666,7 @@ export function Title({size}: {size?: FontSizeTokens}) {
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
 
-  const name = draft.data?.draft?.metadata?.name
+  const name = draft.data?.metadata?.name
 
   const displayTitle = name || 'Untitled Document'
   // const entity = useEntity(route.id)
@@ -684,20 +684,30 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
       f={1}
       marginRight={'$4'}
       margin={0}
-      ai="stretch"
-      alignSelf="stretch"
+      alignItems="center"
       overflow="hidden"
       height="100%"
       width="100%"
+      gap="$2"
     >
+      <File size={12} />
       <TitleTextButton
+        alignItems="center"
+        justifyContent="center"
+        className="no-window-drag"
         onPress={() => {
           navigate({key: 'drafts'})
         }}
       >
         Drafts
       </TitleTextButton>
+
+      <BreadcrumbSeparator key={`seperator-draft`} />
       <TitleTextButton
+        alignItems="center"
+        justifyContent="center"
+        className="no-window-drag"
+        fontWeight="bold"
         onPress={() => {
           navigate({key: 'draft', id: route.id})
         }}

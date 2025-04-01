@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMEntityContent} from '@shm/shared'
+import {HMDraft, HMEntityContent, invalidateQueries} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -62,7 +62,9 @@ export const draftMachine = setup({
         }
       }
     },
-    onSaveSuccess: ({context}) => context,
+    onSaveSuccess: ({context, event}, params: {id: string}) => {
+      invalidateQueries(['trpc.drafts.get', params.id])
+    },
     oncreatingSuccess: ({context}) => context,
     populateData: ({context, event}) => {},
     populateEditor: ({context, event}) => {},
@@ -359,6 +361,7 @@ export const draftMachine = setup({
                 actions: [
                   {
                     type: 'onSaveSuccess',
+                    params: ({event}) => event.output,
                   },
                   // {type: 'setDraft'},
                   {type: 'setAttributes'},
