@@ -1,3 +1,4 @@
+import {templates} from '@/app-templates'
 import {MainWrapper} from '@/components/main-wrapper'
 import {CreateAccountBanner} from '@/components/onboarding'
 import {useMarkAsRead} from '@/models/documents'
@@ -80,7 +81,20 @@ export default function LibraryPage() {
     displayMode,
   })
   const markAsRead = useMarkAsRead()
-  const isLibraryEmpty = library && library.items && library.items.length === 0
+
+  // Filter out template items when in subscribed mode
+  const filteredItems = library?.items?.filter((item) => {
+    if (displayMode === 'subscribed') {
+      const templateIds = Object.values(templates)
+      if (item.type === 'site') {
+        return !templateIds.includes(item.id)
+      }
+    }
+    return true
+  })
+
+  const isLibraryEmpty = filteredItems && filteredItems.length === 0
+
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
@@ -192,7 +206,7 @@ export default function LibraryPage() {
               },
             }}
           >
-            {library?.items?.map((item: LibraryItem) => {
+            {filteredItems?.map((item: LibraryItem) => {
               if (item.type === 'site') {
                 return (
                   <LibrarySiteItem
