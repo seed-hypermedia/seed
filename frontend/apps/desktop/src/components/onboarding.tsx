@@ -593,7 +593,7 @@ function ProfileStep({
               </Text>
               <ImageForm
                 height={72}
-                emptyLabel="ADD SITE ICON"
+                emptyLabel="SITE ICON"
                 url={formData.icon?.base64}
                 uploadOnChange={false}
                 onImageUpload={(file) => {
@@ -611,7 +611,7 @@ function ProfileStep({
               </Text>
               <ImageForm
                 height={72}
-                emptyLabel="ADD SITE LOGO"
+                emptyLabel="SITE LOGO"
                 url={formData.seedExperimentalLogo?.base64}
                 uploadOnChange={false}
                 onImageUpload={(file) => {

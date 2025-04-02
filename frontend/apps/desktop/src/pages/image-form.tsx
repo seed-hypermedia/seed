@@ -118,7 +118,7 @@ export function ImageForm({
           </XStack>
         ) : null}
         <XStack
-          bg="rgba(233,233,233,0.3)"
+          bg="rgba(198, 198, 198, 0.3)"
           position="absolute"
           gap="$2"
           zi="$zIndex.5"
@@ -131,7 +131,7 @@ export function ImageForm({
           pointerEvents="none"
           borderRadius="$4"
         >
-          <SizableText textAlign="center" size="$1" color="white">
+          <SizableText textAlign="center" size="$1">
             {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
           </SizableText>
         </XStack>
