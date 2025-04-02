@@ -172,7 +172,7 @@ export function NewspaperCard({
   accountsMetadata: HMAccountsMetadata
   isWeb?: boolean
 }) {
-  const linkProps = useRouteLink({key: 'document', id})
+  const linkProps = useRouteLink(id ? {key: 'document', id} : null)
 
   // const navigate = useNavigate()
   if (!entity?.document) return null
