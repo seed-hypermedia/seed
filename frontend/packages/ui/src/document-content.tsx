@@ -296,7 +296,6 @@ export function DocContent({
   handleBlockReplace?: () => boolean
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection()
-
   const {layoutUnit, onCopyBlock, onBlockComment} = useDocContentContext()
   const allBlocks = document?.content || []
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)

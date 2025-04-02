@@ -12,7 +12,6 @@ export function writeableStateStream<S extends Object | null>(
   const handlers = new Set<(state: S) => void>()
   function writeState(updater: S | Updater<S>) {
     const newState = typeof updater === 'function' ? updater(state) : updater
-
     state = newState
 
     handlers.forEach((handle) => handle(newState))

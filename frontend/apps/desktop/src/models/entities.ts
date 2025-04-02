@@ -294,8 +294,28 @@ export function useSubscribedEntities(
 export function useSubscribedEntity(
   id: UnpackedHypermediaId | null | undefined,
   recursive?: boolean,
+  handleRedirectOrDeleted?: (opts: {
+    isDeleted: boolean
+    redirectTarget: UnpackedHypermediaId | null
+  }) => void,
 ) {
-  return useSubscribedEntities([{id, recursive}])[0]
+  const result = useSubscribedEntities([{id, recursive}])[0]
+  // id && console.log('~~ useSubscribedEntity', id.id, result.data)
+  useEffect(() => {
+    if (result.data?.redirectTarget) {
+      console.error(
+        '~~ Redirected entity',
+        result.data?.redirectTarget,
+        !!handleRedirectOrDeleted,
+      )
+      handleRedirectOrDeleted?.({
+        isDeleted: false,
+        redirectTarget: result.data?.redirectTarget,
+      })
+    }
+    // todo: handle deleted
+  }, [result.data?.redirectTarget])
+  return result
 }
 
 export function useRouteEntities(

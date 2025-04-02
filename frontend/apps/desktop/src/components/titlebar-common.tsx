@@ -3,6 +3,7 @@ import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
+import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -42,7 +43,12 @@ import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
-import {FilePlus, Import} from '@tamagui/lucide-icons'
+import {
+  FilePlus,
+  Forward as ForwardIcon,
+  GitFork,
+  Import,
+} from '@tamagui/lucide-icons'
 import {ReactNode, useContext, useEffect, useState} from 'react'
 import {
   Button,
@@ -54,10 +60,12 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
+import {BranchDialog} from './branch-dialog'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
+import {MoveDialog} from './move-dialog'
 import {editPopoverEvents} from './onboarding'
 import PublishDraftButton from './publish-draft-button'
 import {
@@ -100,7 +108,9 @@ export function DocOptionsButton() {
   const capability = useMyCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
-
+  const branchDialog = useAppDialog(BranchDialog)
+  const moveDialog = useAppDialog(MoveDialog)
+  const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find(
     (pending) => pending.siteUid === route.id.uid,
   )
@@ -251,6 +261,28 @@ export function DocOptionsButton() {
     })
   }
 
+  if (myAccountIds.data?.length) {
+    menuItems.push({
+      key: 'branch',
+      label: 'Create Document Branch',
+      icon: GitFork,
+      onPress: () => {
+        branchDialog.open(route.id)
+      },
+    })
+  }
+
+  if (canEditDoc && myAccountIds.data?.length) {
+    menuItems.push({
+      key: 'move',
+      label: 'Move Document',
+      icon: ForwardIcon,
+      onPress: () => {
+        moveDialog.open(route.id)
+      },
+    })
+  }
+
   return (
     <>
       {copyGatewayContent}
@@ -261,6 +293,8 @@ export function DocOptionsButton() {
       {importDialog.content}
       {importing.content}
       {seedHostDialog.content}
+      {branchDialog.content}
+      {moveDialog.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )

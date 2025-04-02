@@ -54,6 +54,7 @@ import {
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
+import {toast} from '@shm/ui/toast'
 import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {
@@ -220,7 +221,18 @@ function _MainDocumentPage({
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const entity = useSubscribedEntity(id, true) // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
+  const replace = useNavigate('replace')
+  const entity = useSubscribedEntity(
+    id,
+    // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
+    true,
+    ({redirectTarget}) => {
+      if (redirectTarget) {
+        toast(`Redirected to this document from ${id.id}`)
+        replace({key: 'document', id: redirectTarget})
+      }
+    },
+  )
 
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
@@ -263,9 +275,16 @@ function _MainDocumentPage({
 
   if (entity.isInitialLoading) return null
 
+  if (entity.data?.redirectTarget) {
+    return (
+      <DocRedirected docId={id} redirectTarget={entity.data.redirectTarget} />
+    )
+  }
+
   if (entity.data?.document === undefined) {
     return <DocDiscovery docId={id} />
   }
+
   return (
     <YStack>
       <SetupDomainBanner
@@ -584,8 +603,43 @@ function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
-function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
-  // if (didCompleteDiscover) return <DocVersionNotFound docId={docId} />
+function DocRedirected({
+  docId,
+  redirectTarget,
+}: {
+  docId: UnpackedHypermediaId
+  redirectTarget: UnpackedHypermediaId
+}) {
+  const navigate = useNavigate()
+  return (
+    <DocMessageBox
+      title="Redirected"
+      message="This document has been redirected to a new location."
+      children={
+        <Button
+          icon={ArrowRight}
+          onPress={() => {
+            navigate({key: 'document', id: redirectTarget})
+          }}
+        >
+          Go to New Location
+        </Button>
+      }
+    />
+  )
+}
+
+function DocMessageBox({
+  title,
+  message,
+  children,
+  spinner,
+}: {
+  title: string
+  message: string
+  children?: ReactNode
+  spinner?: boolean
+}) {
   return (
     <YStack paddingVertical="$8">
       <YStack
@@ -598,43 +652,23 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
         padding="$5"
         elevation="$4"
       >
-        {/* {discover.error ? (
-          <SizableText size="$8" fontWeight="bold" color="$red11">
-            Could not find this document
-          </SizableText>
-        ) : ( */}
         <SizableText size="$8" fontWeight="bold">
-          Looking for this document...
+          {title}
         </SizableText>
-        {/* )} */}
-        {/* {discover.error ? (
-          <SizableText color="$red11">{discover.error.message}</SizableText>
-        ) : null}
-        {discover.isLoading ? (
-          <> */}
-        <Spinner />
-        <SizableText>
-          This document is not on your node yet. Now finding a peer who can
-          provide it.
-        </SizableText>
-        {/* </>
-        ) : null} */}
-        {/* <XStack>
-          {discover.isError ? (
-            <Button
-              icon={RefreshCw}
-              backgroundColor="$color4"
-              onPress={() => {
-                discover.reset()
-                discover.mutate()
-              }}
-            >
-              Retry Document Discovery
-            </Button>
-          ) : null}
-        </XStack> */}
+        {spinner ? <Spinner /> : null}
+        <SizableText>{message}</SizableText>
+        {children}
       </YStack>
     </YStack>
+  )
+}
+function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
+  return (
+    <DocMessageBox
+      title="Looking for this document..."
+      spinner
+      message="This document is not on your node yet. Now finding a peer who can provide it."
+    />
   )
 }
 const Separator = () => <TSeparator borderColor="$color8" vertical h={20} />

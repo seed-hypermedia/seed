@@ -29,6 +29,7 @@ export function NavigationContainer({
   const {externalOpen} = useAppContext()
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
+
     return {
       dispatch(action: NavAction) {
         const prevState = navState.get()

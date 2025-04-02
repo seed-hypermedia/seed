@@ -1,0 +1,467 @@
+import {
+  HMWritableDocument,
+  useMyWritableDocuments,
+} from '@/models/access-control'
+import {useMyAccountIds} from '@/models/daemon'
+import {useListDirectory} from '@/models/documents'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {trpc} from '@/trpc'
+import {pathNameify} from '@/utils/path'
+import {
+  createSiteUrl,
+  createWebHMUrl,
+  hmId,
+  HMMetadataPayload,
+  isIdParentOfOrEqual,
+  UnpackedHypermediaId,
+  useSearch,
+} from '@shm/shared'
+import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
+import {Field} from '@shm/ui/form-fields'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
+import {useEffect, useMemo, useState} from 'react'
+import {
+  Input,
+  Popover,
+  ScrollView,
+  SizableText,
+  View,
+  XStack,
+  YStack,
+} from 'tamagui'
+
+export function LocationPicker({
+  location,
+  setLocation,
+  account,
+  setAccount,
+  newName,
+  actionLabel,
+  onAvailable,
+}: {
+  location: UnpackedHypermediaId | null
+  setLocation: (location: UnpackedHypermediaId | null) => void
+  account: string | null
+  setAccount: (account: string | null) => void
+  newName: string
+  actionLabel: string
+  onAvailable?: (isAvailable: boolean) => void
+}) {
+  const defaultAccountId = useDefaultAccountId()
+  const {data: myAccountIds} = useMyAccountIds()
+  const accts = useEntities(myAccountIds?.map((id) => hmId('d', id)) || [])
+  const writableDocuments = useMyWritableDocuments()
+  const newUrlPath = location?.path?.at(-1) || ''
+
+  function handleSetLocation(location: UnpackedHypermediaId) {
+    // make sure the account can write to this location. if not, change the account to the account who can.
+    const allAcctsWithWrite = writableDocuments.filter((d) => {
+      if (isIdParentOfOrEqual(d.entity.id, location)) return true
+    })
+    const thisAccountWithWrite =
+      account &&
+      allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
+    if (thisAccountWithWrite) {
+      setLocation(location)
+    } else {
+      if (allAcctsWithWrite.length) {
+        setAccount(allAcctsWithWrite[0].accountsWithWrite[0])
+        setLocation(location)
+      } else {
+        toast.error('No account has write access to this location')
+      }
+    }
+  }
+
+  function handleSetAccount(account: string) {
+    setAccount(account)
+    // make sure the account can write to this location. if not, change the location to the account home
+    if (
+      location &&
+      !writableDocuments.find(
+        (d) =>
+          isIdParentOfOrEqual(d.entity.id, location) &&
+          d.accountsWithWrite.includes(account),
+      )
+    ) {
+      setLocation(hmId('d', account, {path: [newUrlPath]}))
+    }
+  }
+
+  useEffect(() => {
+    if (!location && defaultAccountId) {
+      handleSetLocation(
+        hmId('d', defaultAccountId, {
+          path: [pathNameify(newName)],
+        }),
+      )
+    }
+  }, [location, defaultAccountId])
+  useEffect(() => {
+    if (!account && defaultAccountId) {
+      handleSetAccount(defaultAccountId)
+    }
+  }, [account, defaultAccountId])
+  const newDestinationAlreadyDocument = useEntity(location)
+  useEffect(() => {
+    if (onAvailable) {
+      onAvailable(!newDestinationAlreadyDocument?.data?.document)
+    }
+  }, [!newDestinationAlreadyDocument?.data?.document])
+  const parentId = useParentId(location)
+  const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
+  return (
+    <YStack gap="$3" marginVertical="$4">
+      <Field label="Author Account" id="account">
+        {account && (
+          <SelectDropdown
+            value={account}
+            options={accts
+              .map((a) => {
+                const id = a.data?.id
+                if (!id) return null
+                return {
+                  label: a.data?.document?.metadata.name || '',
+                  icon: (
+                    <HMIcon
+                      size={24}
+                      id={id}
+                      metadata={a.data?.document?.metadata}
+                    />
+                  ),
+                  value: id.uid,
+                }
+              })
+              .filter((a) => !!a)}
+            onValue={handleSetAccount}
+          />
+        )}
+      </Field>
+      {location ? (
+        <Field label={`${capitalize(actionLabel)} to Location`} id="location">
+          <XStack jc="space-between" ai="center">
+            {location ? (
+              <LocationPreview
+                location={location}
+                setLocation={handleSetLocation}
+              />
+            ) : null}
+            <XStack gap="$2">
+              {(location.path?.length || 0) > 1 ? (
+                <Tooltip content={`Location to ${actionLabel} this document`}>
+                  <Button
+                    onPress={() => {
+                      const newPath = [
+                        ...(location.path?.slice(0, -2) || []),
+                        newUrlPath,
+                      ]
+                      handleSetLocation(
+                        hmId('d', location.uid, {path: newPath}),
+                      )
+                    }}
+                    icon={Undo2}
+                    size="$2"
+                  />
+                </Tooltip>
+              ) : null}
+              <LocationSearch
+                writableDocuments={writableDocuments}
+                location={location}
+                setLocation={handleSetLocation}
+              />
+            </XStack>
+          </XStack>
+          <ScrollView
+            height={200}
+            borderWidth={1}
+            borderColor="$borderColor"
+            borderRadius="$4"
+          >
+            <YStack>
+              {directory?.map((d, index) => {
+                return (
+                  <Button
+                    onPress={() => {
+                      handleSetLocation(
+                        hmId('d', location.uid, {
+                          path: [...d.path, newUrlPath],
+                        }),
+                      )
+                    }}
+                  >
+                    <XStack jc="space-between" f={1}>
+                      <SizableText>{d.metadata.name}</SizableText>
+                      <SizableText color="$color8">
+                        {d.path?.at(-1)}
+                      </SizableText>
+                    </XStack>
+                  </Button>
+                )
+              })}
+            </YStack>
+          </ScrollView>
+        </Field>
+      ) : null}
+      <Field label="New URL Path" id="url-path">
+        <Input
+          id="url-path"
+          value={newUrlPath}
+          onChangeText={(text: string) => {
+            if (!location) return
+            handleSetLocation(
+              hmId('d', location?.uid, {
+                path: [...(location?.path?.slice(0, -1) || []), text],
+              }),
+            )
+          }}
+        />
+      </Field>
+      {location && (
+        <URLPreview
+          location={location}
+          isUnavailable={!!newDestinationAlreadyDocument?.data?.document}
+          actionLabel={actionLabel}
+        />
+      )}
+    </YStack>
+  )
+}
+
+function LocationSearch({
+  writableDocuments,
+  location,
+  setLocation,
+}: {
+  writableDocuments: HMWritableDocument[]
+  location: UnpackedHypermediaId
+  setLocation: (location: UnpackedHypermediaId) => void
+}) {
+  const popover = usePopoverState()
+  return (
+    <Popover {...popover}>
+      <Popover.Trigger className="no-window-drag">
+        <Button icon={Search} size="$2" />
+      </Popover.Trigger>
+      <Popover.Content bg="$backgroundStrong">
+        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+        <SearchContent
+          writableDocuments={writableDocuments}
+          onLocationSelected={(newParent) => {
+            popover.onOpenChange(false)
+            setLocation(
+              hmId('d', newParent.uid, {
+                path: [...(newParent.path || []), location.path?.at(-1) || ''],
+              }),
+            )
+          }}
+        />
+      </Popover.Content>
+    </Popover>
+  )
+}
+function SearchContent({
+  writableDocuments,
+  onLocationSelected,
+}: {
+  writableDocuments: HMWritableDocument[]
+  onLocationSelected: (location: UnpackedHypermediaId) => void
+}) {
+  const [searchQ, setSearchQ] = useState('')
+  const search = useSearch(searchQ)
+  let searchedLocations: HMMetadataPayload[] = []
+  if (searchQ === '') {
+    searchedLocations = writableDocuments.map((d) => ({
+      id: d.entity.id,
+      metadata: d.entity.document?.metadata || null,
+    }))
+  } else {
+    searchedLocations =
+      search.data?.entities
+        .filter((d) => {
+          return !!writableDocuments.find((writable) =>
+            isIdParentOfOrEqual(writable.entity.id, d.id),
+          )
+        })
+        .map((d) => ({
+          id: d.id,
+          metadata: {name: d.title},
+        })) || []
+  }
+  return (
+    <YStack>
+      <View marginBottom="$2">
+        <Search position="absolute" left="$3" top={11} size="$1" />
+        <Input
+          paddingLeft="$7"
+          value={searchQ}
+          onChangeText={setSearchQ}
+          placeholder="Find Locations..."
+        />
+      </View>
+      {searchedLocations.map((d) => {
+        return (
+          <Button
+            onPress={() => {
+              onLocationSelected(d.id)
+            }}
+            backgroundColor="$colorTransparent"
+            paddingHorizontal="$2"
+          >
+            <XStack gap="$2" ai="center" f={1} jc="flex-start">
+              <HMIcon id={d.id} metadata={d.metadata} size={24} />
+              <SizableText>{d.metadata?.name}</SizableText>
+            </XStack>
+          </Button>
+        )
+      })}
+    </YStack>
+  )
+}
+
+function LocationPreview({
+  location,
+  setLocation,
+}: {
+  location: UnpackedHypermediaId
+  setLocation: (location: UnpackedHypermediaId) => void
+}) {
+  const newUrlPath = location?.path?.at(-1) || ''
+  const siteId = hmId('d', location.uid, {latest: true})
+  const site = useEntity(siteId)
+  const locationBreadcrumbIds = useMemo(() => {
+    if (!location) return []
+    return (
+      location.path
+        ?.slice(0, -1)
+        ?.map((_path, index) =>
+          hmId('d', location.uid, {path: location.path?.slice(0, index + 1)}),
+        ) || []
+    )
+  }, [location.uid, location.path])
+  const locationBreadcrumbs = useEntities(locationBreadcrumbIds)
+  return (
+    <XStack paddingVertical="$2" ai="center" gap="$3">
+      <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
+      <SizableText
+        fontWeight="bold"
+        hoverStyle={{
+          textDecorationLine: 'underline',
+        }}
+        onPress={() => {
+          setLocation(hmId('d', location.uid, {path: [newUrlPath]}))
+        }}
+      >
+        {site?.data?.document?.metadata.name}
+      </SizableText>
+      {locationBreadcrumbs.map((b, index) => {
+        return (
+          <SizableText
+            hoverStyle={{
+              textDecorationLine: 'underline',
+            }}
+            onPress={() => {
+              const path = b.data?.id?.path || []
+              setLocation(
+                hmId('d', location?.uid, {
+                  path: [...path, newUrlPath],
+                }),
+              )
+            }}
+          >
+            {b.data?.document?.metadata.name}
+          </SizableText>
+        )
+      })}
+      {/* <SizableText>{location.path?.at(-1) || ''}</SizableText> */}
+    </XStack>
+  )
+}
+
+function useDocumentUrl(location: UnpackedHypermediaId) {
+  const gatewayUrl = useGatewayUrl()
+  const {data: site} = useEntity(hmId('d', location.uid, {latest: true}))
+  if (!site || !gatewayUrl.data) return null
+  const siteUrl = site.document?.metadata.siteUrl
+  if (siteUrl) {
+    return createSiteUrl({
+      path: location.path,
+      hostname: siteUrl,
+    })
+  }
+  const url = createWebHMUrl(location.type, location.uid, {
+    path: location.path,
+    hostname: gatewayUrl.data,
+  })
+  return url
+}
+
+function URLPreview({
+  location,
+  isUnavailable,
+  actionLabel,
+}: {
+  location: UnpackedHypermediaId
+  isUnavailable?: boolean
+  actionLabel: string
+}) {
+  const url = useDocumentUrl(location)
+  return (
+    <Tooltip
+      content={
+        isUnavailable
+          ? 'This location is unavailable'
+          : `This will be the URL after you ${actionLabel}`
+      }
+    >
+      <YStack>
+        <XStack ai="center" gap="$2">
+          <SizableText
+            color={isUnavailable ? '$red11' : '$color10'}
+            fontWeight={isUnavailable ? 'bold' : 'normal'}
+            size="$2"
+          >
+            Branch Destination URL{isUnavailable ? ' (Unavailable)' : ''}
+          </SizableText>
+          {isUnavailable ? <AlertCircle color="$red11" size="$1" /> : null}
+        </XStack>
+        <SizableText color={isUnavailable ? '$red11' : '$blue11'} size="$3">
+          {url}
+        </SizableText>
+      </YStack>
+    </Tooltip>
+  )
+}
+
+function useDefaultAccountId(): string | null {
+  const recentSigners = trpc.recentSigners.get.useQuery()
+  const {data: myAccountIds} = useMyAccountIds()
+
+  if (!myAccountIds?.length) return null
+  const myAccounts = new Set(myAccountIds)
+
+  const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
+    myAccounts.has(signer),
+  )
+  if (recentSigner) return recentSigner
+  return myAccountIds[0] || null
+}
+
+function useParentId(id: UnpackedHypermediaId | null) {
+  return useMemo(() => {
+    if (!id) return null
+    return hmId('d', id.uid, {
+      path: id.path?.slice(0, -1),
+    })
+  }, [id?.uid, id?.path?.slice(0, -1).join('/')])
+}
+
+function capitalize(word: string) {
+  if (!word) return ''
+  return word[0].toUpperCase() + word.slice(1)
+}

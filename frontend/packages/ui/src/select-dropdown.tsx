@@ -44,9 +44,10 @@ export function SelectDropdown<Options extends SelectOptions>({
       <Select.Trigger
         size={size}
         width={width}
-        borderRadius={0}
-        borderColor="$colorTransparent"
         iconAfter={ChevronDown}
+        borderRadius="$3"
+        borderWidth={1}
+        borderColor="$borderColor"
       >
         <XStack gap="$2" ai="center" w="100%">
           {selectedOption ? (
@@ -73,8 +74,10 @@ export function SelectDropdown<Options extends SelectOptions>({
           )}
         </XStack>
       </Select.Trigger>
-
-      <Select.Content>
+      <Select.Content
+        // @horacio will fix this to use tokens. make sure the dropdown still works in dialog boxes
+        zIndex={100_000}
+      >
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"

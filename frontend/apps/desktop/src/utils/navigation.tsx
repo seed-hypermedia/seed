@@ -150,10 +150,13 @@ export function useNavRoute() {
   const nav = useContext(NavContext)
   if (!nav)
     throw new Error('useNavRoute must be used within a NavigationProvider')
-  return useStreamSelector<NavState, NavRoute>(
+  const navRoute = useStreamSelector<NavState, NavRoute>(
     nav.state,
-    (state) => state.routes[state.routeIndex] || defaultRoute,
+    (state, prevSelected) => {
+      return state.routes[state.routeIndex] || defaultRoute
+    },
   )
+  return navRoute
 }
 
 export function useNavigationState() {

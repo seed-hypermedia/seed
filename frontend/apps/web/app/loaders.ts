@@ -1,4 +1,6 @@
+import {redirect} from '@remix-run/react'
 import {
+  createWebHMUrl,
   EditorText,
   extractQueryBlocks,
   extractRefs,
@@ -34,7 +36,11 @@ import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from '@shm/shared/models/directory'
-import {documentMetadataParseAdjustments} from '@shm/shared/models/entity'
+import {
+  documentMetadataParseAdjustments,
+  getErrorMessage,
+  HMRedirectError,
+} from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
 import {queryClient} from './client'
 import {logDebug} from './logger'
@@ -46,6 +52,7 @@ export async function getMetadata(
   id: UnpackedHypermediaId,
 ): Promise<HMMetadataPayload> {
   try {
+    console.log('~~~ getMetadata', id.id, id.uid, id.path, id.version)
     const rawDoc = await queryClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
@@ -80,11 +87,25 @@ export type WebDocumentPayload = WebBaseDocumentPayload & {
 export async function getHMDocument(entityId: UnpackedHypermediaId) {
   const {version, uid, latest} = entityId
   const path = hmIdPathToEntityQueryPath(entityId.path)
-  const apiDoc = await queryClient.documents.getDocument({
-    account: uid,
-    path,
-    version: !latest && version ? version : '',
-  })
+  console.log('~~~ getHMDocument', entityId.id, uid, path, version, latest)
+  const apiDoc = await queryClient.documents
+    .getDocument({
+      account: uid,
+      path,
+      version: !latest && version ? version : '',
+    })
+    .catch((e) => {
+      const error = getErrorMessage(e)
+      if (error instanceof HMRedirectError) {
+        // console.error('~~ HMRedirectError to', error.target)
+        return error
+      }
+      throw e
+    })
+  if (apiDoc instanceof HMRedirectError) {
+    console.log('DO REDIRECT?!!', apiDoc)
+    throw apiDoc
+  }
   const docJSON = apiDoc.toJson() as any
   documentMetadataParseAdjustments(docJSON.metadata)
   const document = HMDocumentSchema.parse(docJSON)
@@ -99,7 +120,6 @@ export async function getBaseDocument(
   parsedRequest: ParsedRequest,
 ): Promise<WebBaseDocumentPayload> {
   const {uid} = entityId
-  const {hostname} = parsedRequest
   const path = hmIdPathToEntityQueryPath(entityId.path)
   const discoverPromise = queryClient.entities
     .discoverEntity({
@@ -244,15 +264,11 @@ export async function getDocument(
   const crumbs = getParentPaths(entityId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
-      const document = await queryClient.documents.getDocument({
-        account: entityId.uid,
-        path: hmIdPathToEntityQueryPath(crumbPath),
-      })
+      const id = hmId(entityId.type, entityId.uid, {path: crumbPath})
+      const metadataPayload = await getMetadata(id)
       return {
-        id: hmId(entityId.type, entityId.uid, {path: crumbPath}),
-        metadata: HMDocumentMetadataSchema.parse(
-          document.metadata?.toJson({emitDefaultValues: true}),
-        ),
+        id,
+        metadata: metadataPayload.metadata || {},
       }
     }),
   )
@@ -544,7 +560,7 @@ export async function loadSiteDocument<T>(
     throw new Error('No config found for hostname ' + hostname)
   }
   let homeMetadata = null
-  let originHomeId = null
+  let originHomeId: undefined | UnpackedHypermediaId = undefined
   if (config.registeredAccountUid) {
     try {
       const {id, metadata} = await getMetadata(
@@ -580,6 +596,19 @@ export async function loadSiteDocument<T>(
       headers,
     })
   } catch (e) {
+    if (e instanceof HMRedirectError) {
+      const destRedirectUrl = createWebHMUrl(e.target.type, e.target.uid, {
+        path: e.target.path,
+        version: e.target.version,
+        latest: e.target.latest,
+        blockRef: e.target.blockRef,
+        blockRange: e.target.blockRange,
+        originHomeId,
+        hostname: null,
+      })
+      console.log('REDIRECT TO:', destRedirectUrl)
+      return redirect(destRedirectUrl)
+    }
     console.error('Error Loading Site Document', id, e)
     // probably document not found. todo, handle other errors
   }
