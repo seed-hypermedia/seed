@@ -452,7 +452,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           onPress={() => openUrl('https://seed.hyper.media')}
           icon={ExternalLink}
           chromeless
-          hoverStyle={{
+          hoverStyl4={{
             backgroundColor: '$brand11',
             borderColor: 'transparent',
           }}
@@ -471,7 +471,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           backgroundColor="$brand5"
           borderWidth={0}
           color="white"
-          hoverStyle={{backgroundColor: '$brand6'}}
+          hoverStyle={{backgroundColor: '$brand4'}}
           focusStyle={{backgroundColor: '$brand6'}}
         >
           NEXT
@@ -1190,13 +1190,13 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
 
         <Button
           onPress={onComplete}
-          backgroundColor="$brand2"
+          backgroundColor="$brand5"
           color="white"
           size="$4"
           borderRadius="$2"
           borderWidth={0}
-          hoverStyle={{backgroundColor: '$brand3'}}
-          focusStyle={{backgroundColor: '$brand3'}}
+          hoverStyle={{backgroundColor: '$brand4'}}
+          focusStyle={{backgroundColor: '$brand4'}}
         >
           DONE
         </Button>
@@ -1301,7 +1301,7 @@ function StepWrapper({
                 onPress={onPrev}
                 icon={ArrowLeft}
                 chromeless
-                hoverStyle={{
+                hoverStyl4={{
                   backgroundColor: 'transparent',
                   borderColor: 'transparent',
                 }}
@@ -1436,7 +1436,7 @@ export function ResetOnboardingButton() {
         color="white"
         onPress={handleReset}
         opacity={0.7}
-        hoverStyle={{opacity: 1, bg: '$red11'}}
+        hoverStyle={{opacity: 1, bg: '$red14'}}
       >
         Reset Onboarding
       </Button>
@@ -1476,7 +1476,7 @@ export function CreateAccountBanner() {
         >
           Create a Site
         </Button>
-        {/* <Button size="#3" chromeless hoverStyle={{bg: '$color4'}}>
+        {/* <Button size="#3" chromeless hoverStyle={{bg: '$color44}}>
           I already have a Site
         </Button> */}
       </YStack>
