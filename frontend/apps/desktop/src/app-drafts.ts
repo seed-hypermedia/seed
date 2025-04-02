@@ -2,6 +2,7 @@ import {
   HMDocumentMetadataSchema,
   HMDraft,
   HMDraftContent,
+  HMDraftContentSchema,
   HMListedDraft,
   HMListedDraftSchema,
 } from '@shm/shared/hm-types'
@@ -207,7 +208,7 @@ export const draftsApi = t.router({
         metadata: HMDocumentMetadataSchema,
         content: z.any(),
         signingAccount: z.string(),
-        deps: z.array(z.string()),
+        deps: z.array(z.string().min(1)).default([]),
       }),
     )
     .mutation(async ({input}) => {
@@ -236,6 +237,10 @@ export const draftsApi = t.router({
         signingAccount: input.signingAccount,
         deps: input.deps,
       }
+
+      // Validate draft content
+      HMDraftContentSchema.parse(draft)
+
       try {
         console.log(
           `=== DRAFT WRITE input: ${input.id}`,

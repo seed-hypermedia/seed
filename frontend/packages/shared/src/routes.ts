@@ -92,14 +92,12 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
-  // id: unpackedHmIdSchema.or(z.string()),
   id: z.string().optional(),
   locationUid: z.string().optional(),
   locationPath: z.string().array().optional(),
   editUid: z.string().optional(),
   editPath: z.string().array().optional(),
-  deps: z.array(z.string()).optional(),
-  // new: z.boolean().optional(),
+  deps: z.array(z.string().min(1)).optional().default([]),
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
