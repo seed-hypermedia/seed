@@ -24,6 +24,7 @@ interface ContainerProps {
   width?: number | string
   className?: string
   onPress?: (e: Event) => void
+  validateFile?: (file: File) => boolean
 }
 
 export const MediaContainer = ({
@@ -40,6 +41,7 @@ export const MediaContainer = ({
   width = '100%',
   className,
   onPress,
+  validateFile,
 }: ContainerProps) => {
   const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
@@ -84,6 +86,9 @@ export const MediaContainer = ({
       if (selected) setSelected(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const file = Array.from(e.dataTransfer.files)[0]
+        if (validateFile && !validateFile(file)) {
+          return
+        }
         if (!file.type.includes(`${mediaType}/`) && mediaType !== 'file') {
           toast.error(
             `The dragged file is not ${

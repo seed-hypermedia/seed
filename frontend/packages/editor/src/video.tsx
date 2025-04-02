@@ -11,6 +11,7 @@ import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 import {SizableText, XStack, useTheme} from 'tamagui'
+import {toast} from '../../ui/src/toast'
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split('.')
@@ -127,8 +128,19 @@ const Render = (
       submit={submitVideo}
       DisplayComponent={display}
       icon={<RiVideoAddLine fill={theme.color12?.get()} />}
+      validateFile={validateFile}
     />
   )
+}
+
+function validateFile(file: File) {
+  if (file.type === 'video/quicktime') {
+    toast.error(
+      'This video file format is not supported. Upload as a file, or convert the video to .mp4',
+    )
+    return false
+  }
+  return true
 }
 
 const display = ({
@@ -282,6 +294,7 @@ const display = ({
       }}
       onHoverOut={videoMouseLeaveHandler}
       width={currentWidth}
+      validateFile={validateFile}
     >
       {showHandle && (
         <>

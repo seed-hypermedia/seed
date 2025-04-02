@@ -67,6 +67,7 @@ interface RenderProps {
     setFileName: any
   }>
   hideForm?: boolean
+  validateFile?: (file: File) => boolean
 }
 
 export function updateSelection(
@@ -111,6 +112,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   CustomInput,
   icon,
   hideForm,
+  validateFile,
 }) => {
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -193,6 +195,7 @@ export const MediaRender: React.FC<RenderProps> = ({
           CustomInput={CustomInput}
           submit={submit}
           icon={icon}
+          validateFile={validateFile}
         />
       ) : (
         <></>
@@ -236,6 +239,7 @@ function MediaForm({
   submit,
   icon,
   CustomInput,
+  validateFile,
 }: {
   block: Block<HMBlockSchema>
   assign: any
@@ -256,6 +260,7 @@ function MediaForm({
     fileName: any
     setFileName: any
   }>
+  validateFile?: (file: File) => boolean
 }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -324,6 +329,10 @@ function MediaForm({
   const {handleFileAttachment, comment} = useDocContentContext()
 
   const handleUpload = async (files: File[]) => {
+    if (validateFile && !validateFile(files[0])) {
+      return
+    }
+
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
 
     if (largeFileIndex > -1) {
