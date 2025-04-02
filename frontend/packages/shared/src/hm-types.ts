@@ -16,7 +16,7 @@ import * as z from 'zod'
 
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
-  type: z.union([z.literal('d'), z.literal('comment'), z.literal('draft')]),
+  type: z.union([z.literal('d'), z.literal('comment')]),
   uid: z.string(),
   path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
