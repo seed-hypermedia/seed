@@ -152,7 +152,7 @@ export const draftMachine = setup({
     return {
       id: input.id,
       metadata: {},
-      deps: [],
+      deps: input.deps || [],
       locationUid: input.locationUid ?? '',
       locationPath: input.locationPath ?? [],
       editUid: input.editUid ?? '',

@@ -10,7 +10,6 @@ import {
   type Document,
   type DocumentChangeInfo,
   type DocumentInfo,
-  type EditorBlock,
 } from '@shm/shared'
 import * as z from 'zod'
 
@@ -576,12 +575,13 @@ export const HMCommentDraftSchema = z.object({
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
-// TODO: change this type to be the union of the content *this) and HMListedDraft
-export type HMDraftContent = {
-  content: Array<EditorBlock>
-  deps: string[]
-  signingAccount: string
-}
+export const HMDraftContentSchema = z.object({
+  content: z.array(z.any()), // EditorBlock validation is handled elsewhere
+  deps: z.array(z.string().min(1)).default([]),
+  signingAccount: z.string().min(1),
+})
+
+export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
 
 export type HMDraft = HMDraftContent & HMListedDraft
 
