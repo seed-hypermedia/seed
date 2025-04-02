@@ -75,11 +75,7 @@ export const action: ActionFunction = async ({request, params}) => {
     })
   }
   if (restPayload.action === 'set-email-notifications') {
-    const account = getAccount(accountId)
     const email = getEmail(restPayload.email)
-    if (!account) {
-      return json({error: 'Account not found'}, {status: 400})
-    }
     setAccount({
       id: accountId,
       email: restPayload.email,
