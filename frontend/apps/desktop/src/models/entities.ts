@@ -1,21 +1,20 @@
-import {grpcClient} from '@/grpc-client'
-import {toPlainMessage} from '@bufbuild/protobuf'
+import { grpcClient } from '@/grpc-client'
+import { toPlainMessage } from '@bufbuild/protobuf'
 import {
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
-import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
-import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo} from 'react'
-import {queryListDirectory} from './documents'
-import {useDeleteRecent} from './recents'
+import { setEntityQuery, useEntities } from '@shm/shared/models/entity'
+import { invalidateQueries, queryClient } from '@shm/shared/models/query-client'
+import { queryKeys } from '@shm/shared/models/query-keys'
+import { hmId, unpackHmId } from '@shm/shared/utils/entity-id-url'
+import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
+import { useMutation, UseMutationOptions, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
+import { queryListDirectory } from './documents'
+import { useDeleteRecent } from './recents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -112,29 +111,22 @@ export function getParentPaths(path?: string[] | null): string[][] {
   ]
 }
 
-function getRouteBreadcrumbRoutes(
-  route: NavRoute,
-): Array<DocumentRoute | DraftRoute> {
-  if (route.key === 'document') {
-    return getParentPaths(route.id.path).map((path) => ({
-      key: 'document',
-      id: hmId(route.id.type, route.id.uid, {path}),
-    }))
-  }
-  if (route.key === 'draft') {
-    // TODO: eric determine breadcrumbs based on route.id
-    return [route]
+function getIdsFromIds(
+  id: UnpackedHypermediaId,
+): Array<UnpackedHypermediaId> {
+  if (id.type === 'd') {
+    return getParentPaths(id.path).map((path) => (hmId('d', id.uid, {path}),))
   }
   return []
 }
 
-export function useRouteBreadcrumbRoutes(
-  route: NavRoute,
-): Array<DocumentRoute | DraftRoute> {
+export function useItemsFromId(
+  id: UnpackedHypermediaId,
+): Array<UnpackedHypermediaId> {
   return useMemo(() => {
-    const routes = getRouteBreadcrumbRoutes(route)
-    return routes
-  }, [route])
+    const ids = getIdsFromIds(id)
+    return ids
+  }, [id])
 }
 
 function catchNotFound<Result>(
@@ -318,16 +310,14 @@ export function useSubscribedEntity(
   return result
 }
 
-export function useRouteEntities(
-  routes: Array<DocumentRoute | DraftRoute>,
-): {route: DocumentRoute | DraftRoute; entity?: HMEntityContent}[] {
+export function useIdEntities(
+  ids: Array<UnpackedHypermediaId>,
+): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
   return useSubscribedEntities(
-    routes.map((r) => {
-      if (r.key === 'document') return {id: r.id}
-      return {id: null}
+    ids.map((id) => {
+      return {id}
     }),
   ).map((result, i) => {
-    const route = routes[i]
-    return {route, entity: result.data || undefined}
+    return {id: ids[i], entity: result.data || undefined}
   })
 }
