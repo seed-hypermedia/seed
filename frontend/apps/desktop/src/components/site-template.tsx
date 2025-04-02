@@ -7,12 +7,22 @@ import {eventStream} from '@shm/shared/utils/stream'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, Dialog, SizableText, View, XStack, YStack} from 'tamagui'
+import {
+  Button,
+  ButtonProps,
+  Dialog,
+  SizableText,
+  Spinner,
+  View,
+  XStack,
+  YStack,
+} from 'tamagui'
 import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
 
 // Import template images
 
+import {useSubscribedEntity} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
 import blogDark from '/template-blog-dark.png'
 import blogLight from '/template-blog-light.png'
@@ -29,6 +39,10 @@ export function SiteTemplate() {
   const route = useNavRoute()
   const navigate = useNavigate('push')
   const openWindow = useNavigate('spawn')
+  const blogTemplate = useSubscribedEntity(hmId('d', templates.blog))
+  const documentationTemplate = useSubscribedEntity(
+    hmId('d', templates.documentation),
+  )
   const targetId = useMemo(() => {
     if (route.key === 'document') {
       return route.id.uid
@@ -73,92 +87,52 @@ export function SiteTemplate() {
         Choose a Template to get Started
       </SizableText>
       <XStack>
-        <YStack
-          opacity={isOnline ? 1 : 0.5}
-          p="$4"
-          paddingBottom="$2"
-          gap="$2"
-          borderRadius="$4"
-          bg={selectedTemplate === 'blog' ? '$brand5' : 'transparent'}
-          hoverStyle={{
-            bg: selectedTemplate === 'blog' ? '$brand5' : '$color5',
-          }}
-          alignItems="center"
-          onPress={() => {
-            if (!isOnline) return
-            setSelectedTemplate('blog')
-          }}
-        >
-          <TemplateImage name="blog" />
-          <XStack ai="center" gap="$3">
-            <SizableText
-              color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
-            >
-              Blog
-            </SizableText>
-            <Tooltip content="Preview Blog Site">
-              <Button
-                chromeless
-                color={selectedTemplate === 'blog' ? '$color1' : '$color10'}
-                icon={ExternalLink}
-                onPress={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  openWindow({
-                    key: 'document',
-                    id: hmId('d', templates.blog),
-                  })
-                }}
-                size="$2"
-              />
-            </Tooltip>
-          </XStack>
-        </YStack>
-        <YStack
-          opacity={isOnline ? 1 : 0.5}
-          p="$4"
-          paddingBottom="$2"
-          gap="$2"
-          borderRadius="$4"
-          hoverStyle={{
-            bg: selectedTemplate === 'documentation' ? '$brand5' : '$color5',
-          }}
-          bg={selectedTemplate === 'documentation' ? '$brand5' : 'transparent'}
-          alignItems="center"
-          onPress={() => {
-            if (!isOnline) return
-            setSelectedTemplate('documentation')
-          }}
-        >
-          <TemplateImage name="documentation" />
-          <XStack ai="center" gap="$3">
-            <SizableText
-              color={
-                selectedTemplate === 'documentation' ? '$color1' : '$color10'
-              }
-            >
-              Documentation
-            </SizableText>
-            <Tooltip content="Preview Documentation Site">
-              <Button
-                chromeless
-                color={
-                  selectedTemplate === 'documentation' ? '$color1' : '$color10'
+        <TemplateItem
+          template={templates.blog}
+          active={selectedTemplate === 'blog'}
+          name="blog"
+          label="Blog"
+          isOnline={isOnline}
+          onPress={
+            blogTemplate.data?.document
+              ? () => {
+                  if (!isOnline) return
+                  setSelectedTemplate('blog')
                 }
-                icon={ExternalLink}
-                onPress={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  openWindow({
-                    key: 'document',
-                    id: hmId('d', templates.documentation),
-                  })
-                }}
-                size="$2"
-              />
-            </Tooltip>
-          </XStack>
-        </YStack>
+              : undefined
+          }
+          onPressExternal={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            openWindow({
+              key: 'document',
+              id: hmId('d', templates.blog),
+            })
+          }}
+        />
+        <TemplateItem
+          template={templates.documentation}
+          active={selectedTemplate === 'documentation'}
+          name="documentation"
+          label="Documentation"
+          isOnline={isOnline}
+          onPress={
+            documentationTemplate.data?.document
+              ? () => {
+                  if (!isOnline) return
+                  setSelectedTemplate('documentation')
+                }
+              : undefined
+          }
+          onPressExternal={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            openWindow({
+              key: 'document',
+              id: hmId('d', templates.documentation),
+            })
+          }}
+        />
         <YStack
           p="$4"
           paddingBottom="$2"
@@ -283,5 +257,87 @@ function TemplateImage({name}: {name: 'blog' | 'documentation'}) {
       <source media="(prefers-color-scheme: light)" srcSet={lightImage} />
       <img style={{width: 200, height: 140}} src={lightImage} alt={name} />
     </picture>
+  )
+}
+
+function TemplateItem({
+  name,
+  active,
+  template,
+  label,
+  isOnline,
+  onPress,
+  onPressExternal,
+}: {
+  active: boolean
+  name: 'blog' | 'documentation'
+  template: string
+  label: string
+  isOnline: boolean
+  onPress: ButtonProps['onPress']
+  onPressExternal: ButtonProps['onPress']
+}) {
+  const e = useSubscribedEntity(hmId('d', template))
+  return (
+    <YStack
+      opacity={isOnline ? 1 : 0.5}
+      p="$4"
+      paddingBottom="$2"
+      position="relative"
+      gap="$2"
+      borderRadius="$4"
+      hoverStyle={{
+        bg: active ? '$brand5' : '$color5',
+      }}
+      bg={active ? '$brand5' : 'transparent'}
+      alignItems="center"
+      onPress={onPress}
+    >
+      <TemplateImage name={name} />
+      <XStack ai="center" gap="$3">
+        <SizableText color={active ? '$color1' : '$color10'}>
+          {label}
+        </SizableText>
+        <Tooltip content="Preview Documentation Site">
+          <Button
+            chromeless
+            color={active ? '$color1' : '$color10'}
+            icon={ExternalLink}
+            onPress={onPressExternal}
+            size="$2"
+          />
+        </Tooltip>
+      </XStack>
+      {e.data?.document ? (
+        <>
+          <Tooltip content="Loading template..." placement="top">
+            <View
+              position="absolute"
+              top={0}
+              left={0}
+              bg="$background"
+              opacity={0.5}
+              width="100%"
+              height="100%"
+              onPress={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+              }}
+            />
+          </Tooltip>
+          <Spinner
+            position="absolute"
+            top="50%"
+            left="50%"
+            onPress={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
+            x={-10}
+            y={-10}
+          />
+        </>
+      ) : null}
+    </YStack>
   )
 }
