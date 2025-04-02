@@ -820,7 +820,10 @@ function SeedHostLogin({
 }
 
 const RegisterSubdomainSchema = z.object({
-  subdomain: z.string(),
+  subdomain: z
+    .string()
+    .min(4, 'Subdomain must be at least 4 characters long')
+    .refine((val) => !val.endsWith('-'), 'Subdomain cannot end with a dash'),
 })
 type RegisterSubdomainFields = z.infer<typeof RegisterSubdomainSchema>
 function SeedHostRegisterSubdomain({
@@ -846,6 +849,9 @@ function SeedHostRegisterSubdomain({
     formState: {errors},
   } = useForm<RegisterSubdomainFields>({
     resolver: zodResolver(RegisterSubdomainSchema),
+    defaultValues: {
+      subdomain: '',
+    },
   })
   if (!loggedIn) throw new Error('Not logged in')
   function onSubmit({subdomain}: RegisterSubdomainFields) {
@@ -861,6 +867,9 @@ function SeedHostRegisterSubdomain({
         onPublished(host)
       })
   }
+  useEffect(() => {
+    setFocus('subdomain')
+  }, [])
   const isSubmitting = register.isLoading || createSite.isLoading
   const errorText = register.error?.message || createSite.error?.message
   return (
@@ -909,7 +918,12 @@ function SeedHostRegisterSubdomain({
             control={control}
             name="subdomain"
             placeholder="my-site-name"
-            // appendix={info?.hostDomain}
+            transformInput={(text) =>
+              text
+                .replace(/[ _]/g, '-')
+                .replace(/[^a-zA-Z0-9-]/g, '')
+                .toLowerCase()
+            }
           />
         </FormField>
         <ErrorBox error={errorText} />
@@ -1136,7 +1150,10 @@ function SeedHostDomainPublished({
 }
 
 const RegisterCustomDomainSchema = z.object({
-  domain: z.string(),
+  domain: z
+    .string()
+    .min(3, 'Domain is required')
+    .regex(/^(?!.*\.\.)(?!.*\.$)(?!^\.)[a-z0-9.-]+$/, 'Invalid domain format'),
 })
 type RegisterCustomDomainFields = z.infer<typeof RegisterCustomDomainSchema>
 function SeedHostRegisterCustomDomain({
@@ -1187,6 +1204,11 @@ function SeedHostRegisterCustomDomain({
       }
     }
   }, [pendingDomainId])
+  useEffect(() => {
+    if (!pendingDomain && !localPendingDomain && siteUrl) {
+      setFocus('domain')
+    }
+  }, [pendingDomain, localPendingDomain, siteUrl])
   if (pendingDomain) {
     let pendingStatus = null
     if (pendingDomain?.status === 'error') {
@@ -1263,6 +1285,12 @@ function SeedHostRegisterCustomDomain({
                   control={control}
                   name="domain"
                   placeholder="mydomain.com"
+                  transformInput={(text) =>
+                    text
+                      .replace(/[ _]/g, '-')
+                      .replace(/[^a-zA-Z0-9-\.]/g, '')
+                      .toLowerCase()
+                  }
                 />
               </FormField>
               {createDomain.error ? (
