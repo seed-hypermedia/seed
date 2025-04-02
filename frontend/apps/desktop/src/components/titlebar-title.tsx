@@ -666,18 +666,20 @@ export function Title({size}: {size?: FontSizeTokens}) {
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
 
-  const name = draft.data?.metadata?.name
+  console.log(`== ~ DraftTitle ~ draft:`, route)
 
-  const displayTitle = name || 'Untitled Document'
-  // const entity = useEntity(route.id)
-  // const realTitle = name ?? getDocumentTitle(entity.data?.document)
-  // const fixedName = undefined
-  // const displayTitle = fixedName || realTitle
+  // TODO: get the name from the draft
+  const name = 'foo'
+
+  let displayTitle = name || 'Untitled Document'
+
   useWindowTitle(name ? `Draft: ${name}` : undefined)
 
   const navigate = useNavigate()
 
-  if (!route.id) return null
+  if (!route.id) {
+    displayTitle = 'New Draft'
+  }
 
   return (
     <XStack
