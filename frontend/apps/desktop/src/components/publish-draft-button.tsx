@@ -3,11 +3,10 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Document} from '@shm/shared/client/.generated/documents/v1alpha/documents_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMEntityContent} from '@shm/shared/hm-types'
+import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
@@ -27,7 +26,7 @@ import {
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
-import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
+import {PropsWithChildren, ReactNode, useEffect, useRef, useState} from 'react'
 import {
   SizableText,
   Spinner,
@@ -42,6 +41,8 @@ import {
   usePublishDraft,
   usePublishToSite,
 } from '../models/documents'
+import {DialogTitle} from './dialog'
+import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()
@@ -51,9 +52,12 @@ export default function PublishDraftButton() {
     throw new Error('DraftPublicationButtons requires draft route')
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
+  console.log('~~ draft', draft.data)
   const pushOnPublish = usePushOnPublish()
-  const prevId = draftRoute.editId
-  const prevEntity = useEntity(prevId)
+  const prevId = draftRoute.editUid
+    ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
+    : null
+  // const prevEntity = useEntity(prevId)
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
     null,
   )
@@ -72,16 +76,16 @@ export default function PublishDraftButton() {
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
-  const publish = usePublishDraft({
+  const publish = usePublishDraft(draft.data?.editId, {
     onSuccess: (resultDoc, input) => {
       if (pushOnPublish.data === 'never') return
-      const {draftId} = input
+      const {draft} = input
       const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
       const {close} = toast.custom(
         <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
         {waitForClose: true, duration: 4000},
       )
-      if (draftId && resultDoc.version) {
+      if (draft.id && resultDoc.version) {
         const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
         publishToSite(
           hmId('d', resultDoc.account, {
@@ -123,19 +127,19 @@ export default function PublishDraftButton() {
         : accts[0]
     }
     if (
-      draft.data?.draft?.signingAccount &&
+      draft.data?.signingAccount &&
       signingAccount == null &&
-      draft.data?.draft?.signingAccount != signingAccount
+      draft.data?.signingAccount != signingAccount
     ) {
       const acc = accts.find(
-        (c) => c.data?.id.uid == draft.data?.draft?.signingAccount,
+        (c) => c.data?.id.uid == draft.data?.signingAccount,
       )
       if (acc?.data) {
         setSigningAccount(acc.data)
       }
     } else if (
       defaultSigner?.data &&
-      !draft.data?.draft?.signingAccount &&
+      !draft.data?.signingAccount &&
       signingAccount == null &&
       signingAccount != defaultSigner.data
     ) {
@@ -152,22 +156,21 @@ export default function PublishDraftButton() {
       throw new Error('Draft not loaded')
     }
 
-    if (draft.data.isNewChild || !draft.data.destinationUid) {
-      firstPublishDialog.open({
-        onSelectDestination: (uid, path) => {
-          console.log('select destination', uid, path)
-        },
-      })
-    } else {
+    console.log(draft.data)
+
+    function handlePublish(
+      destinationId: UnpackedHypermediaId,
+      accountId: string,
+    ) {
+      if (!draft.data) {
+        toast.error('Draft not loaded')
+        throw new Error('Draft not loaded')
+      }
       publish
         .mutateAsync({
-          draft: draft.data.draft,
-          previous: prevEntity.data?.document as
-            | PlainMessage<Document>
-            | undefined,
-          draftId,
-          destinationPath: draft.destinationPath,
-          destinationUid: draft.destinationUid,
+          draft: draft.data,
+          destinationId,
+          accountId,
         })
         .then(async (res) => {
           const resultDocId = hmId('d', res.account, {
@@ -197,6 +200,19 @@ export default function PublishDraftButton() {
             console.error(`can't navigate to document`)
           }
         })
+    }
+    console.log('~~ draft editId', draft.data.editId)
+    if (draft.data.editId) {
+      handlePublish(draft.data.editId, draft.data.signingAccount)
+    } else {
+      firstPublishDialog.open({
+        newDefaultName: pathNameify(
+          draft.data.metadata.name || 'Untitled Document',
+        ),
+        onSelectDestination: (location, account) => {
+          handlePublish(location, account)
+        },
+      })
     }
   }
 
@@ -269,20 +285,41 @@ function FirstPublishDialog({
   onClose,
 }: {
   input: {
-    onSelectDestination: (uid: string, path: string[]) => void
+    newDefaultName: string
+    onSelectDestination: (
+      location: UnpackedHypermediaId,
+      account: string,
+    ) => void
   }
   onClose: () => void
 }) {
+  const [account, setAccount] = useState<string | null>(null)
+  // const navigate = useNavigate()
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)
+  const isAvailable = useRef(true)
   return (
     <YStack>
-      <SizableText>
-        This is the first time you are publishing this draft. Todo: choose
-        location and path.
-      </SizableText>
+      <DialogTitle>Publish Document</DialogTitle>
+      <LocationPicker
+        newName={input.newDefaultName}
+        location={location}
+        setLocation={setLocation}
+        account={account}
+        setAccount={setAccount}
+        actionLabel="publish"
+        onAvailable={(isAvail) => {
+          isAvailable.current = isAvail
+        }}
+      />
       <Button
         onPress={() => {
-          // onSelectDestination('uid', ['path'])
-          onClose()
+          if (!isAvailable.current) {
+            toast.error('This location is unavailable. Create a new path name.')
+            return
+          }
+          if (location && account) {
+            input.onSelectDestination(location, account)
+          }
         }}
       >
         Publish

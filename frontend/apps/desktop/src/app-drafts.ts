@@ -1,5 +1,6 @@
 import {
   HMDocumentMetadataSchema,
+  HMDraft,
   HMDraftContent,
   HMListedDraft,
   HMListedDraftSchema,
@@ -175,11 +176,21 @@ export const draftsApi = t.router({
         const fileContent = await fs.readFile(draftPath, 'utf-8')
 
         const draft = JSON.parse(fileContent)
-
-        return {
+        const resultDraft: HMDraft = {
           ...draftIndexEntry,
           ...draft,
-        } satisfies HMListedDraft
+          editId: draftIndexEntry.editUid
+            ? hmId('d', draftIndexEntry.editUid, {
+                path: draftIndexEntry.editPath,
+              })
+            : undefined,
+          locationId: draftIndexEntry.locationUid
+            ? hmId('d', draftIndexEntry.locationUid, {
+                path: draftIndexEntry.locationPath,
+              })
+            : undefined,
+        }
+        return resultDraft
       } catch (e) {
         error('[DRAFT]: Error when getting draft', {draftId, error: e})
         return null

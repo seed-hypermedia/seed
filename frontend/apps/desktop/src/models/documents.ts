@@ -36,12 +36,10 @@ import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {DraftRoute} from '@shm/shared/routes'
 import {
   createBlocksMap,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {validatePath} from '@shm/shared/utils/document-path'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   entityQueryPathToHmIdPath,
@@ -168,65 +166,59 @@ function useDraftDiagnosis() {
   }
 }
 
+type PublishDraftInput = {
+  draft: HMDraft
+  destinationId: UnpackedHypermediaId
+  accountId: string
+}
 export function usePublishDraft(
+  editId: UnpackedHypermediaId | undefined | null,
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
-  const route = useNavRoute()
-  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-  const editId = useMemo(() => {
-    if (route.key == 'draft' && route.editUid) {
-      return hmId('d', route.editUid, {
-        path: route.editPath,
-      })
-    } else {
-      return undefined
-    }
-  }, [route])
   const editEntity = useEntity(editId)
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
-  return useMutation<HMDocument, any, HMDraft>({
+  return useMutation<HMDocument, any, PublishDraftInput>({
     mutationFn: async ({
-      content,
-      locationId,
-      editId,
-      metadata,
-      signingAccount,
-      deps,
-    }) => {
+      draft,
+      destinationId,
+      accountId,
+    }: PublishDraftInput): Promise<HMDocument> => {
+      if (draft.editId?.id !== editId?.id) {
+        throw new Error(
+          'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
+        )
+      }
+      console.log('=== PUBLISH DRAFT start', {draft, destinationId, accountId})
       const blocksMap = editId
         ? createBlocksMap(editEntity.data?.document?.content || [], '')
         : {}
-
-      const newContent = removeTrailingBlocks(content || [])
-
+      const newContent = removeTrailingBlocks(draft.content || [])
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
-
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-      // return null
       if (accts.data?.length == 0) {
+        console.log('~~~ t0.5')
         dispatchOnboardingDialog(true)
       } else {
         try {
-          if (signingAccount && (route as DraftRoute).id) {
+          console.log('~~~ t0')
+          if (accountId && draft.id) {
+            console.log('~~~ t1')
             const allChanges = [
-              ...getDocAttributeChanges(metadata),
+              ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
               ...deleteChanges,
             ]
-
             let capabilityId = ''
-            if (
-              signingAccount !== route.editUid ||
-              signingAccount != route.locationUid
-            ) {
+            if (accountId !== destinationId.uid) {
               const capabilities =
                 await grpcClient.accessControl.listCapabilities({
-                  account: route.locationUid,
-                  path: hmIdPathToEntityQueryPath(route.locationPath || []),
+                  account: destinationId.uid,
+                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
                 })
+              console.log('~~~ t2', capabilities)
               const capability = capabilities.capabilities.find(
-                (cap) => cap.delegate === draft.signingAccount,
+                (cap) => cap.delegate === accountId,
               )
               if (!capability)
                 throw new Error(
@@ -234,42 +226,47 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            writeRecentSigner.mutateAsync(draft.signingAccount).then(() => {
+            console.log('~~~ t3')
+            writeRecentSigner.mutateAsync(accountId).then(() => {
               invalidateQueries(['trpc.recentSigners.get'])
             })
-            const path = id.path?.length
-              ? `/${id.path
-                  .map((p, idx) =>
-                    idx == id.path!.length - 1
-                      ? p.startsWith('_') && draft.metadata.name
-                        ? pathNameify(draft.metadata.name)
-                        : p.replace('_', '')
-                      : p.replace('_', ''),
-                  )
-                  .join('/')}`
-              : ''
-            const invalid = validatePath(path)
 
-            if (invalid) {
-              throw new Error(invalid.error)
-            }
+            // // TODO: move this logic to the LocationPicker component
+            // const path = id.path?.length
+            //   ? `/${id.path
+            //       .map((p, idx) =>
+            //         idx == id.path!.length - 1
+            //           ? p.startsWith('_') && draft.metadata.name
+            //             ? pathNameify(draft.metadata.name)
+            //             : p.replace('_', '')
+            //           : p.replace('_', ''),
+            //       )
+            //       .join('/')}`
+            //   : ''
+            // const invalid = validatePath(path)
+
+            // if (invalid) {
+            //   throw new Error(invalid.error)
+            // }
+
+            console.log('~~~ createDocumentChange', {
+              signingKeyName: accountId,
+              account: destinationId.uid,
+              baseVersion: draft.deps?.join('.') || '',
+              path: hmIdPathToEntityQueryPath(destinationId.path || []),
+              changes: allChanges,
+              capability: capabilityId,
+            })
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
-                signingKeyName: draft.signingAccount,
-                account: id.uid,
-                baseVersion: draft.previousId?.version || '',
-                path,
+                signingKeyName: accountId,
+                account: destinationId.uid,
+                baseVersion: draft.deps?.join('.') || '',
+                path: hmIdPathToEntityQueryPath(destinationId.path || []),
                 changes: allChanges,
                 capability: capabilityId,
               })
-
-            const resultDoc = {
-              ...toPlainMessage(publishedDoc),
-              metadata: HMDocumentMetadataSchema.parse(
-                publishedDoc.metadata?.toJson({emitDefaultValues: true}),
-              ),
-            }
-
+            const resultDoc: HMDocument = HMDocumentSchema.parse(publishedDoc)
             return resultDoc
           } else {
             throw Error('PUBLISH ERROR: Please select an account to sign first')
@@ -287,8 +284,13 @@ export function usePublishDraft(
           throw Error(connectErr.rawMessage)
         }
       }
+      throw new Error('Unhandled publish')
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (
+      result: HMDocument,
+      variables: PublishDraftInput,
+      context: unknown,
+    ) => {
       const resultDocId = hmId('d', result.account, {
         path: entityQueryPathToHmIdPath(result.path),
       })

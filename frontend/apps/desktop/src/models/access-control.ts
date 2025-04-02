@@ -261,7 +261,7 @@ export function useMyCapabilities(
 }
 
 export function useMyAccountsWithWriteAccess(
-  id: UnpackedHypermediaId | undefined,
+  id: UnpackedHypermediaId | undefined | null,
 ) {
   const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
