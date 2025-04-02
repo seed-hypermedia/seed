@@ -622,6 +622,9 @@ export function useDraftEditor() {
                 metadata: event.payload.data.document?.metadata,
                 signingAccount: context.signingAccount,
                 content,
+                deps: event.payload.data.document?.version
+                  ? [event.payload.data.document?.version]
+                  : undefined,
               }
             }
           }

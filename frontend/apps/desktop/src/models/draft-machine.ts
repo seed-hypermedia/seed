@@ -65,9 +65,8 @@ export const draftMachine = setup({
     onSaveSuccess: ({context, event}, params: {id: string}) => {
       invalidateQueries(['trpc.drafts.get', params.id])
     },
-    oncreatingSuccess: ({context}) => context,
+    onCreatingSuccess: ({context}) => {},
     populateData: ({context, event}) => {},
-    populateEditor: ({context, event}) => {},
     focusContent: ({context}) => {},
     replaceRoute: ({context}, params: {id: string}) => {},
     setDraftId: assign({
@@ -195,7 +194,7 @@ export const draftMachine = setup({
       },
     },
     setupData: {
-      entry: ['populateEditor', 'populateData'],
+      entry: ['populateData'],
       after: {
         100: {
           target: 'editing',
@@ -211,7 +210,7 @@ export const draftMachine = setup({
         },
       ],
       after: {
-        100: {
+        200: {
           actions: [{type: 'focusContent'}],
         },
       },
@@ -296,15 +295,22 @@ export const draftMachine = setup({
                 target: 'idle',
                 actions: [
                   {type: 'setDraftCreated', params: {draftCreated: true}},
-                  // {type: 'setDraft'},
+
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},
                   },
-                  {type: 'setDraftId', params: ({event}) => event.output},
+                  {
+                    type: 'setDraftId',
+                    params: ({event}: {event: any}) => event.output,
+                  },
+                  {
+                    type: 'onCreatingSuccess',
+                    params: ({event}: {event: any}) => event.output,
+                  },
                   {
                     type: 'replaceRoute',
-                    params: ({event}) => event.output,
+                    params: ({event}: {event: any}) => event.output,
                   },
                 ],
               },
