@@ -221,6 +221,45 @@ export function useMyCapability(
   return null
 }
 
+export function useMyCapabilities(
+  id?: UnpackedHypermediaId,
+  minimumRole: HMRole = 'writer',
+): HMCapability[] {
+  if (!id) return []
+  const myAccounts = useMyAccountIds()
+  const capabilities = useAllDocumentCapabilities(id)
+
+  const ownerCap: HMCapability[] =
+    myAccounts.data && myAccounts.data.indexOf(id.uid) > -1
+      ? [{accountUid: id.uid, role: 'owner'}]
+      : []
+  const myCapabilities = [...(capabilities.data || [])]
+    ?.sort(
+      // sort by capability id for deterministic capability selection
+      (a, b) => a.id.localeCompare(b.id),
+    )
+    .filter((cap) => {
+      return isGreaterOrEqualRole(minimumRole, roleToHMRole(cap.role))
+    })
+    .filter((cap) => {
+      return !!myAccounts.data?.find(
+        (myAccountUid) => myAccountUid === cap.delegate,
+      )
+    })
+    .map((cap) => {
+      const role = getRoleCapabilityType(cap.role)
+      if (role)
+        return {
+          accountUid: cap.delegate,
+          role,
+          capabilityId: cap.id,
+        }
+      return null
+    })
+    .filter((cap) => cap !== null)
+  return [...ownerCap, ...myCapabilities]
+}
+
 export function useMyAccountsWithWriteAccess(
   id: UnpackedHypermediaId | undefined,
 ) {

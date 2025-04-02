@@ -1,7 +1,11 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {
+  roleCanWrite,
+  useMyCapabilities,
+  useMyCapability,
+} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
@@ -106,6 +110,7 @@ export function DocOptionsButton() {
   const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const capability = useMyCapability(route.id)
+  const capabilities = useMyCapabilities(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
@@ -278,7 +283,10 @@ export function DocOptionsButton() {
       label: 'Move Document',
       icon: ForwardIcon,
       onPress: () => {
-        moveDialog.open(route.id)
+        moveDialog.open({
+          id: route.id,
+          accountsWhoCanMove: capabilities.map((cap) => cap.accountUid),
+        })
       },
     })
   }

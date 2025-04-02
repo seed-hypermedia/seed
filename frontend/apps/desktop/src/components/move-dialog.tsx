@@ -14,13 +14,18 @@ export function MoveDialog({
   input,
 }: {
   onClose: () => void
-  input: UnpackedHypermediaId
+  input: {
+    id: UnpackedHypermediaId
+    accountsWhoCanMove: string[]
+  }
 }) {
-  const {data: entity} = useEntity(input)
+  const {data: entity} = useEntity(input.id)
   const moveDoc = useMoveDocument()
   const [account, setAccount] = useState<string | null>(null)
   const navigate = useNavigate()
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(input)
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(
+    input.id,
+  )
   const isAvailable = useRef(true)
   if (!entity) return <Spinner />
   return (
@@ -38,6 +43,7 @@ export function MoveDialog({
             onAvailable={(isAvail) => {
               isAvailable.current = isAvail
             }}
+            allowedAccounts={input.accountsWhoCanMove}
           />
           <XStack gap="$2">
             <Spinner opacity={moveDoc.isLoading ? 1 : 0} />
@@ -53,7 +59,7 @@ export function MoveDialog({
                   }
                   moveDoc
                     .mutateAsync({
-                      from: input,
+                      from: input.id,
                       to: location,
                       signingAccountId: account,
                     })

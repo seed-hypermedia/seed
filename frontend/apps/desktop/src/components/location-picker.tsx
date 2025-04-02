@@ -44,6 +44,7 @@ export function LocationPicker({
   newName,
   actionLabel,
   onAvailable,
+  allowedAccounts,
 }: {
   location: UnpackedHypermediaId | null
   setLocation: (location: UnpackedHypermediaId | null) => void
@@ -52,10 +53,15 @@ export function LocationPicker({
   newName: string
   actionLabel: string
   onAvailable?: (isAvailable: boolean) => void
+  allowedAccounts?: string[]
 }) {
-  const defaultAccountId = useDefaultAccountId()
+  const defaultAccountId = useDefaultAccountId(allowedAccounts)
   const {data: myAccountIds} = useMyAccountIds()
   const accts = useEntities(myAccountIds?.map((id) => hmId('d', id)) || [])
+  const filteredAccounts = useMemo(() => {
+    if (!allowedAccounts) return accts
+    return accts.filter((a) => allowedAccounts.includes(a.data?.id.uid || ''))
+  }, [accts, allowedAccounts])
   const writableDocuments = useMyWritableDocuments()
   const newUrlPath = location?.path?.at(-1) || ''
 
@@ -122,7 +128,7 @@ export function LocationPicker({
         {account && (
           <SelectDropdown
             value={account}
-            options={accts
+            options={filteredAccounts
               .map((a) => {
                 const id = a.data?.id
                 if (!id) return null
@@ -438,18 +444,24 @@ function URLPreview({
   )
 }
 
-function useDefaultAccountId(): string | null {
+function useDefaultAccountId(allowedAccounts?: string[]): string | null {
   const recentSigners = trpc.recentSigners.get.useQuery()
   const {data: myAccountIds} = useMyAccountIds()
 
   if (!myAccountIds?.length) return null
   const myAccounts = new Set(myAccountIds)
 
+  const allowedAccountsSet = allowedAccounts
+    ? new Set(allowedAccounts)
+    : myAccounts
+  const filteredAccounts = myAccountIds.filter((account) =>
+    allowedAccountsSet ? allowedAccountsSet.has(account) : true,
+  )
   const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
-    myAccounts.has(signer),
+    filteredAccounts.includes(signer),
   )
   if (recentSigner) return recentSigner
-  return myAccountIds[0] || null
+  return filteredAccounts[0] || null
 }
 
 function useParentId(id: UnpackedHypermediaId | null) {
