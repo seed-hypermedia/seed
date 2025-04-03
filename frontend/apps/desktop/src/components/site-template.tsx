@@ -280,7 +280,7 @@ function TemplateItem({
   const e = useSubscribedEntity(hmId('d', template))
   return (
     <YStack
-      opacity={isOnline ? 1 : 0.5}
+      opacity={!!e.data?.document && isOnline ? 1 : 0.5}
       p="$4"
       paddingBottom="$2"
       position="relative"
@@ -308,7 +308,7 @@ function TemplateItem({
           />
         </Tooltip>
       </XStack>
-      {e.data?.document ? (
+      {e.data?.document ? null : (
         <>
           <Tooltip content="Loading template..." placement="top">
             <View
@@ -337,7 +337,7 @@ function TemplateItem({
             y={-10}
           />
         </>
-      ) : null}
+      )}
     </YStack>
   )
 }
