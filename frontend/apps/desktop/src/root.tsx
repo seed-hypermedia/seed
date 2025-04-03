@@ -50,8 +50,6 @@ const daemonState: StateStream<GoDaemonState> = window.daemonState
 // @ts-expect-error
 const appInfo: AppInfoType = window.appInfo
 
-const ONBOARDING_DEBUG_ENABLED = false
-
 // Custom hook to initialize query client settings
 function useInitializeQueryClient() {
   useEffect(() => {
@@ -194,7 +192,7 @@ function MainContent({
     return (
       <>
         <Onboarding onComplete={onOnboardingComplete} />
-        {ONBOARDING_DEBUG_ENABLED && <OnboardingDebugBox />}
+        {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
       </>
     )
   }
@@ -203,12 +201,13 @@ function MainContent({
     <>
       <OnboardingDialog />
       <Main className={darkMode ? 'seed-app-dark' : 'seed-app-light'} />
-      <ResetOnboardingButton />
-      {ONBOARDING_DEBUG_ENABLED && <OnboardingDebugBox />}
+      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
+      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
       <Toaster />
     </>
   )
 }
+__SHOW_OB_RESET_BTN__ = true
 
 // MainApp component
 function MainApp() {

@@ -2,6 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
+import {useNavRoute} from '@/utils/navigation'
 import {extractWords} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {eventStream, UnpackedHypermediaId, useOpenUrl} from '@shm/shared'
@@ -1411,13 +1412,13 @@ function base64ToFile(imageData: ImageData): File {
 // This component creates a small floating button to reset the onboarding state
 // Only shown when explicitly enabled or in development mode
 export function ResetOnboardingButton() {
-  // Show if environment variable is set to 'true' or if in development mode
-  if (!__SHOW_OB_RESET_BTN__) return null
-
   const handleReset = () => {
     resetOnboardingState()
     toast.success('Onboarding state reset! Refresh to see changes.')
   }
+
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
 
   return (
     <XStack
@@ -1438,6 +1439,18 @@ export function ResetOnboardingButton() {
       >
         show Edit Dialog
       </Button>
+      {route.key === 'document' ? (
+        <Button
+          size="$2"
+          opacity={0.7}
+          onPress={() => replace({...route, immediatelyPromptTemplate: true})}
+          bg="$brand5"
+          color="white"
+          hoverStyle={{opacity: 1, bg: '$brand4'}}
+        >
+          show template dialog
+        </Button>
+      ) : null}
       <Button
         size="$2"
         backgroundColor="$red10"

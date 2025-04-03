@@ -66,17 +66,6 @@ export function useMnemonics(
   })
 }
 
-export function useAccountRegistration(
-  opts?: UseMutationOptions<void, unknown, string[]>,
-) {
-  return useMutation({
-    mutationFn: async (words: string[]) => {
-      await grpcClient.daemon.registerKey({mnemonic: words})
-    },
-    ...opts,
-  })
-}
-
 export function useMyAccountIds() {
   return useQuery({
     queryKey: [queryKeys.LOCAL_ACCOUNT_ID_LIST],
@@ -166,6 +155,9 @@ export function useRegisterKey(
           console.log('Subscribed to new account')
         })
       return registration
+    },
+    onSuccess: () => {
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
     },
     ...opts,
   })

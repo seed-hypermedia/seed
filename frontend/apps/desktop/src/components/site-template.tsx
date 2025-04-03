@@ -71,7 +71,7 @@ export function SiteTemplate({
       }).then((targetVersion) => {
         setTimeout(() => {
           dispatchEditPopover(true)
-        }, 2500)
+        }, 1500)
       })
       return
     }
