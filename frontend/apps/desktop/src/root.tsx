@@ -207,7 +207,6 @@ function MainContent({
     </>
   )
 }
-__SHOW_OB_RESET_BTN__ = true
 
 // MainApp component
 function MainApp() {
