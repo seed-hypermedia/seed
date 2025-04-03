@@ -1,11 +1,14 @@
-import * as Sentry from '@sentry/electron'
 import {toast} from '@shm/ui/toast'
 
-export default function appError(message: string, metadata?: any) {
+const IS_SENTRY_ENABLED =
+  import.meta.env.PROD && !import.meta.env.VITE_DISABLE_SENTRY
+
+export default async function appError(message: string, metadata?: any) {
   toast.error(message)
 
-  if (!import.meta.env.VITE_DISABLE_SENTRY) {
-    Sentry.captureException(metadata?.error || new Error(message, metadata))
+  if (IS_SENTRY_ENABLED) {
+    const Sentry = await import('@sentry/electron')
+    Sentry.captureException(metadata?.error || new Error(message))
   }
   console.error('📣 🚨', message, metadata)
 }
