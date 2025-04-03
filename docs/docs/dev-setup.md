@@ -85,6 +85,12 @@ You can also run against the production network:
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
 
+In some linux environments, you will require to [increase UDP buffer size](https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes) 
+for the correct functioning of the app. To do so, just run:
+```bash
+sysctl -w net.core.rmem_max=7500000
+sysctl -w net.core.wmem_max=7500000
+```
 ## Web App Builds
 
 You can build docker images for different modules of the system.
