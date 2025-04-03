@@ -233,15 +233,33 @@ app.on('second-instance', handleSecondInstance)
 app.on('open-url', (_event, url) => handleUrlOpen(url))
 
 async function initAccountSubscriptions() {
-  logger.info('InitAccountSubscriptions')
+  logger.info('InitAccountSubscriptions: Starting initialization')
   try {
+    logger.debug('InitAccountSubscriptions: Fetching keys and subscriptions')
     const [keys, subs] = await Promise.all([
-      grpcClient.daemon.listKeys({}),
-      grpcClient.subscriptions.listSubscriptions({
-        pageSize: BIG_INT,
+      grpcClient.daemon.listKeys({}).then((result) => {
+        logger.debug('InitAccountSubscriptions: Keys fetched successfully', {
+          keyCount: result.keys.length,
+          keys: result.keys.map((k) => k.accountId),
+        })
+        return result
       }),
+      grpcClient.subscriptions
+        .listSubscriptions({
+          pageSize: BIG_INT,
+        })
+        .then((result) => {
+          logger.debug(
+            'InitAccountSubscriptions: Subscriptions fetched successfully',
+            {
+              subCount: result.subscriptions.length,
+            },
+          )
+          return result
+        }),
     ])
 
+    logger.debug('InitAccountSubscriptions: Processing recursive subscriptions')
     const recursiveSubs = new Set(
       subs.subscriptions
         .map((sub) => {
@@ -250,37 +268,70 @@ async function initAccountSubscriptions() {
         })
         .filter((s) => !!s),
     )
+    logger.debug('InitAccountSubscriptions: Existing recursive subscriptions', {
+      count: recursiveSubs.size,
+      accounts: Array.from(recursiveSubs),
+    })
 
     const keysToSubscribeTo = keys.keys.filter((key) => {
       if (recursiveSubs.has(key.accountId)) return false
       return true
     })
+    logger.debug('InitAccountSubscriptions: Keys requiring subscription', {
+      count: keysToSubscribeTo.length,
+      keys: keysToSubscribeTo.map((k) => k.accountId),
+    })
 
     // Subscribe to all keys concurrently with timeout
     const subscribeWithTimeout = async (accountId: string) => {
+      logger.debug('InitAccountSubscriptions: Starting subscription', {
+        accountId,
+      })
       try {
         await Promise.race([
-          grpcClient.subscriptions.subscribe({
-            account: accountId,
-            recursive: true,
-            path: '',
-          }),
+          grpcClient.subscriptions
+            .subscribe({
+              account: accountId,
+              recursive: true,
+              path: '',
+            })
+            .then(() => {
+              logger.debug(
+                'InitAccountSubscriptions: Subscription completed successfully',
+                {accountId},
+              )
+            }),
           new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error(`Subscription timeout for ${accountId}`)),
-              10000,
-            ),
+            setTimeout(() => {
+              logger.warn('InitAccountSubscriptions: Subscription timeout', {
+                accountId,
+              })
+              reject(new Error(`Subscription timeout for ${accountId}`))
+            }, 10000),
           ),
         ])
-        logger.debug('Subscription successful', {accountId})
+        logger.debug('InitAccountSubscriptions: Subscription successful', {
+          accountId,
+        })
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error'
-        logger.error('Subscription failed', {accountId, error: errorMessage})
+        logger.error('InitAccountSubscriptions: Subscription failed', {
+          accountId,
+          error: errorMessage,
+        })
       }
     }
 
     // Subscribe to keys and templates concurrently
+    logger.debug(
+      'InitAccountSubscriptions: Starting concurrent subscriptions',
+      {
+        keyCount: keysToSubscribeTo.length,
+        templateCount: Object.keys(templates).length,
+      },
+    )
+
     const subscriptionPromises = [
       ...keysToSubscribeTo.map((key) => subscribeWithTimeout(key.accountId)),
       ...Object.values(templates).map((template) =>
@@ -288,12 +339,32 @@ async function initAccountSubscriptions() {
       ),
     ]
 
-    await Promise.allSettled(subscriptionPromises)
-    logger.info('All subscription attempts completed')
+    logger.debug(
+      'InitAccountSubscriptions: Waiting for all subscriptions to complete',
+    )
+    const results = await Promise.allSettled(subscriptionPromises)
+
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.filter((r) => r.status === 'rejected').length
+
+    logger.info(
+      'InitAccountSubscriptions: All subscription attempts completed',
+      {
+        total: results.length,
+        succeeded,
+        failed,
+      },
+    )
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Failed to initialize subscriptions', {error: errorMessage})
+    logger.error(
+      'InitAccountSubscriptions: Failed to initialize subscriptions',
+      {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    )
     throw error // Re-throw to be caught by the caller
   }
 }
