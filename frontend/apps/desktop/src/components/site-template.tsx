@@ -50,7 +50,7 @@ export function SiteTemplate() {
     return ''
   }, [route])
 
-  function handleForking() {
+  function handleCloning() {
     if (!targetId) return
     setTimeout(() => {
       invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
@@ -171,7 +171,7 @@ export function SiteTemplate() {
       <Button
         opacity={selectedTemplate == null ? 0.5 : 1}
         disabled={selectedTemplate == null}
-        onPress={handleForking}
+        onPress={handleCloning}
         bg="$brand5"
         color="white"
         justifyContent="center"

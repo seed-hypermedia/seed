@@ -129,7 +129,7 @@ export function OnboardingDialog() {
                 if (getOnboardingState().hasCompletedOnboarding) {
                   dispatchSiteTemplateEvent(true)
                 }
-              }, 1000)
+              }, 100)
             }}
           />
         </Dialog.Content>
