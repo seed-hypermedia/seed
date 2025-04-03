@@ -139,6 +139,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(
     undefined,
   )
+  const [wentThroughRecovery, setWentThroughRecovery] = useState(false)
 
   // Initialize local state based on whether we're in modal mode
   const [localState, setLocalState] = useState(() => {
@@ -235,6 +236,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setOnboardingStep('recovery')
       }
       setCurrentStep('recovery')
+      setWentThroughRecovery(true)
     } else if (currentStep === 'recovery') {
       console.log('Moving from recovery to ready')
       if (modal) {
@@ -251,6 +253,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setOnboardingStep('ready')
       }
       setCurrentStep('ready')
+      setWentThroughRecovery(false)
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       if (modal) {
@@ -266,7 +269,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         navigate({
           key: 'document',
           id: account,
-          immediatelyPromptTemplate: true,
+          immediatelyPromptTemplate: wentThroughRecovery,
         })
       }
       onComplete()
@@ -283,6 +286,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     navigate,
     onComplete,
     globalState.initialAccountIdCount,
+    wentThroughRecovery,
   ])
 
   const handleExistingSite = useCallback(() => {
@@ -1320,7 +1324,7 @@ function StepWrapper({
                 onPress={onPrev}
                 icon={ArrowLeft}
                 chromeless
-                hoverStyl4={{
+                hoverStyle={{
                   backgroundColor: 'transparent',
                   borderColor: 'transparent',
                 }}
