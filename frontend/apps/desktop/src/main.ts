@@ -148,14 +148,8 @@ app.whenReady().then(() => {
 
         // Initialize IPC handlers after the app is ready
         initializeIpcHandlers()
-        initAccountSubscriptions()
-          .then(() => {
-            logger.info('InitAccountSubscriptionsComplete')
-          })
-          .catch((e) => {
-            logger.error('InitAccountSubscriptionsError ' + e.message)
-          })
 
+        // First list keys and handle window creation
         grpcClient.daemon
           .listKeys({})
           .then((response) => {
@@ -188,6 +182,15 @@ app.whenReady().then(() => {
           })
           .finally(() => {
             autoUpdate()
+          })
+
+        // Initialize subscriptions in the background
+        initAccountSubscriptions()
+          .then(() => {
+            logger.info('InitAccountSubscriptionsComplete')
+          })
+          .catch((e) => {
+            logger.error('InitAccountSubscriptionsError ' + e.message)
           })
       } catch (err) {
         logger.error('Error in daemon callback: ' + err)
@@ -288,28 +291,20 @@ async function initAccountSubscriptions() {
         accountId,
       })
       try {
-        await Promise.race([
-          grpcClient.subscriptions
-            .subscribe({
-              account: accountId,
-              recursive: true,
-              path: '',
-            })
-            .then(() => {
-              logger.debug(
-                'InitAccountSubscriptions: Subscription completed successfully',
-                {accountId},
-              )
-            }),
-          new Promise((_, reject) =>
-            setTimeout(() => {
-              logger.warn('InitAccountSubscriptions: Subscription timeout', {
-                accountId,
-              })
-              reject(new Error(`Subscription timeout for ${accountId}`))
-            }, 10000),
-          ),
-        ])
+        const timeoutPromise = new Promise((_, reject) => {
+          const timeout = setTimeout(() => {
+            clearTimeout(timeout)
+            reject(new Error(`Subscription timeout for ${accountId}`))
+          }, 10000)
+        })
+
+        const subscriptionPromise = grpcClient.subscriptions.subscribe({
+          account: accountId,
+          recursive: true,
+          path: '',
+        })
+
+        await Promise.race([subscriptionPromise, timeoutPromise])
         logger.debug('InitAccountSubscriptions: Subscription successful', {
           accountId,
         })
@@ -365,7 +360,7 @@ async function initAccountSubscriptions() {
         stack: error instanceof Error ? error.stack : undefined,
       },
     )
-    throw error // Re-throw to be caught by the caller
+    throw error
   }
 }
 
