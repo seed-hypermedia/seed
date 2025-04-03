@@ -97,12 +97,10 @@ export function getSiteNavDirectory({
   id,
   supportQueries,
   drafts,
-  what,
 }: {
   id: UnpackedHypermediaId
   supportQueries?: HMQueryResult[]
   drafts?: HMListedDraft[]
-  what?: boolean
 }): SiteNavigationDocument[] {
   const directory = supportQueries?.find(
     (query) =>
@@ -141,7 +139,7 @@ export function getSiteNavDirectory({
         )
       })
       ?.map((item) => {
-        const id = hmId('d', item.account, {path: item.path})
+        const id = hmId('d', item.account, {path: item.path, latest: true})
         const sortTime = normalizeDate(item.createTime)
         if (!sortTime) return null
         return {
