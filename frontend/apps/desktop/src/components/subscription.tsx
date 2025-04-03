@@ -3,7 +3,6 @@ import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
-import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {
   Check,
   ChevronDown,
@@ -39,14 +38,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
   const isSubscribed = ['space', 'document'].includes(subscription.subscription)
 
   if (docIsInMyAccount) {
-    return (
-      <XStack ai="center" gap="$2">
-        <Check color="green" />
-        <SizableText userSelect="none" color="$green10" size="$2">
-          Subscribed
-        </SizableText>
-      </XStack>
-    )
+    return null
   }
   return (
     <>

@@ -23,10 +23,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMBlockNode} from '@shm/shared/hm-types'
+import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
-import {displayHostname, hmId} from '@shm/shared/utils/entity-id-url'
+import {displayHostname, hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -80,7 +80,14 @@ import {
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
-export function DocOptionsButton() {
+export function DocOptionsButton({
+  onPublishSite,
+}: {
+  onPublishSite: (input: {
+    id: UnpackedHypermediaId
+    step?: 'seed-host-custom-domain'
+  }) => void
+}) {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
   if (route.key !== 'document')
@@ -108,7 +115,6 @@ export function DocOptionsButton() {
     version: doc.data?.document?.version || null,
   }
   const removeSite = useRemoveSiteDialog()
-  const publishSite = usePublishSite()
   const capability = useMyCapability(route.id)
   const capabilities = useMyCapabilities(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
@@ -220,7 +226,7 @@ export function DocOptionsButton() {
           label: 'Publish Custom Domain',
           icon: UploadCloud,
           onPress: () => {
-            publishSite.open({id: route.id, step: 'seed-host-custom-domain'})
+            onPublishSite({id: route.id, step: 'seed-host-custom-domain'})
           },
         })
       }
@@ -239,7 +245,7 @@ export function DocOptionsButton() {
         label: 'Publish Site to Domain',
         icon: UploadCloud,
         onPress: () => {
-          publishSite.open({id: route.id})
+          onPublishSite({id: route.id})
         },
       })
   }
@@ -296,7 +302,6 @@ export function DocOptionsButton() {
       {copyGatewayContent}
       {copySiteUrlContent}
       {deleteEntity.content}
-      {publishSite.content}
       {removeSite.content}
       {importDialog.content}
       {importing.content}
@@ -464,21 +469,40 @@ export function PageActionButtons(props: TitleBarProps) {
 }
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
-  const latestDoc = useSubscribedEntity({
-    ...route.id,
-    version: null,
-    latest: true,
-  })
+  const {id} = route
+  const latestDoc = useSubscribedEntity(latestId(id))
   const isLatest =
     !route.id.version ||
     route.id.latest ||
     latestDoc.data?.id?.version == route.id.version
+  const publishSite = usePublishSite()
+  const isHomeDoc = !id.path?.length
+  const capability = useMyCapability(id)
+  const canEditDoc = roleCanWrite(capability?.role)
+  const entity = useEntity(id)
+  const showPublishSiteButton =
+    isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
   return (
     <TitlebarSection>
+      {showPublishSiteButton ? (
+        <Button
+          onPress={() => publishSite.open({id})}
+          iconAfter={UploadCloud}
+          size="$2"
+          backgroundColor="$brand5"
+          color="white"
+          hoverStyle={{
+            backgroundColor: '$brand6',
+          }}
+        >
+          Publish to Web Domain
+        </Button>
+      ) : null}
       <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
       {isLatest ? <EditDocButton key="editDoc" /> : null}
-      <DocOptionsButton key="options" />
+      <DocOptionsButton key="options" onPublishSite={publishSite.open} />
+      {publishSite.content}
     </TitlebarSection>
   )
 }
