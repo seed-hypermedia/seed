@@ -70,6 +70,8 @@ export default defineConfig(({command, mode}) => {
         '@shm/ui/*',
         'react',
         'react-dom',
+        '@sentry/electron',
+        '@sentry/electron/renderer',
       ],
       alias: {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
@@ -81,6 +83,7 @@ export default defineConfig(({command, mode}) => {
       'react-native': 'react-native-web',
     },
     optimizeDeps: {
+      include: ['@sentry/electron', '@sentry/electron/renderer'],
       esbuildOptions: {
         resolveExtensions: extensions,
       },

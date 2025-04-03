@@ -43,11 +43,13 @@ export default defineConfig(({command, mode}) => {
     ],
     resolve: {
       extensions,
+      dedupe: ['@sentry/electron', '@sentry/electron/renderer'],
     },
     alias: {
       'react-native': 'react-native-web',
     },
     optimizeDeps: {
+      include: ['@sentry/electron', '@sentry/electron/renderer'],
       esbuildOptions: {
         resolveExtensions: extensions,
       },
