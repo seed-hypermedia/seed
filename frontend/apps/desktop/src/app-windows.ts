@@ -1,6 +1,6 @@
 import appError from '@/errors'
 import type {NavState} from '@/utils/navigation'
-import type {AppWindowEvent} from '@/utils/window-events'
+import {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
 import {NavRoute, defaultRoute} from '@shm/shared/routes'
 import {
@@ -14,6 +14,7 @@ import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
+import * as logger from './logger'
 import {childLogger, debug, info, warn} from './logger'
 
 let windowIdCount = 1
@@ -314,10 +315,16 @@ export function createAppWindow(input: {
       updateWindowState(windowId, (window) => ({
         ...window,
         routes,
-        routeIndex,
+        routeIndex: routeIndex || 0,
         sidebarLocked: sidebarLocked || false,
       }))
-      updateRecentRoute(routes[routeIndex])
+      // Update recents in the background
+      updateRecentRoute(routes[routeIndex || 0]).catch((err) => {
+        logger.warn('Failed to update recent route', {
+          error: err instanceof Error ? err.message : String(err),
+          route: routes[routeIndex || 0],
+        })
+      })
     },
   )
 
@@ -343,7 +350,13 @@ export function createAppWindow(input: {
       ? navState.routes[navState.routeIndex]
       : undefined
     if (activeRoute) {
-      updateRecentRoute(activeRoute)
+      // Update recents in the background
+      updateRecentRoute(activeRoute).catch((err) => {
+        logger.warn('Failed to update recent route on focus', {
+          error: err instanceof Error ? err.message : String(err),
+          route: activeRoute,
+        })
+      })
     }
 
     globalShortcut.register('CommandOrControl+F', () => {

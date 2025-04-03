@@ -8,6 +8,7 @@ import {grpcClient} from './app-grpc'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
+import * as logger from './logger'
 
 const RECENTS_STORAGE_KEY = 'Recents-v001'
 
@@ -42,28 +43,61 @@ export function updateRecents(updater: (state: RecentsState) => RecentsState) {
 }
 
 export async function updateRecentRoute(route: NavRoute) {
-  const url = getRecentsRouteEntityUrl(route)
-  const type: RecentEntry['type'] = route.key === 'draft' ? 'draft' : 'entity'
-  const time = Date.now()
-  let title = '?'
-  if (route.key === 'document') {
-    const document = await grpcClient.documents.getDocument({
-      account: route.id.uid,
-      path: hmIdPathToEntityQueryPath(route.id.path),
-      version: route.id.version || undefined,
-    })
-    title = getDocumentTitle(toPlainMessage(document))
-  }
-  if (!url) return
-  updateRecents((state: RecentsState): RecentsState => {
-    let recents = state.recents
-    return {
-      recents: [
-        ...recents.filter((recent) => recent.url !== url),
-        {type, url, title, time},
-      ],
+  try {
+    const url = getRecentsRouteEntityUrl(route)
+    if (!url) {
+      logger.debug('updateRecentRoute: No URL for route, skipping', {route})
+      return
     }
-  })
+
+    const type: RecentEntry['type'] = route.key === 'draft' ? 'draft' : 'entity'
+    const time = Date.now()
+    let title = '?'
+
+    if (route.key === 'document') {
+      try {
+        logger.debug('updateRecentRoute: Fetching document', {
+          account: route.id.uid,
+          path: hmIdPathToEntityQueryPath(route.id.path),
+        })
+
+        const document = await grpcClient.documents.getDocument({
+          account: route.id.uid,
+          path: hmIdPathToEntityQueryPath(route.id.path),
+          version: route.id.version || undefined,
+        })
+        title = getDocumentTitle(toPlainMessage(document))
+      } catch (error) {
+        // Handle document not found or other errors gracefully
+        logger.warn('updateRecentRoute: Failed to fetch document', {
+          error: error instanceof Error ? error.message : String(error),
+          route,
+        })
+        // Continue with default title
+      }
+    }
+
+    updateRecents((state: RecentsState): RecentsState => {
+      let recents = state.recents.slice(0, MAX_RECENTS - 1) // Ensure we don't exceed MAX_RECENTS
+      return {
+        recents: [
+          ...recents.filter((recent) => recent.url !== url),
+          {type, url, title, time},
+        ],
+      }
+    })
+
+    logger.debug('updateRecentRoute: Successfully updated recents', {
+      url,
+      title,
+    })
+  } catch (error) {
+    // Log error but don't throw - this is a non-critical operation
+    logger.error('updateRecentRoute: Failed to update recents', {
+      error: error instanceof Error ? error.message : String(error),
+      route,
+    })
+  }
 }
 
 export const recentsApi = t.router({
