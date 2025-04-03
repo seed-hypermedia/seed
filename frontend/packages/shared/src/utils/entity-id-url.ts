@@ -535,3 +535,10 @@ export function isPathParentOfOrEqual(
   if (!parentPath) return true
   return parentPath?.every((v, i) => v === possibleChildPath?.[i])
 }
+
+export function latestId(id: UnpackedHypermediaId): UnpackedHypermediaId {
+  return {
+    ...id,
+    latest: true,
+  }
+}

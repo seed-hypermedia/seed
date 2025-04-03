@@ -4,7 +4,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntities} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {
@@ -171,7 +171,7 @@ function AccountsSection() {
             title={getDocumentTitle(document) || id.uid}
             icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
             onPress={() => {
-              navigate({key: 'document', id})
+              navigate({key: 'document', id: latestId(id)})
             }}
             active={
               route.key === 'document' &&
