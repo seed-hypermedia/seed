@@ -100,13 +100,17 @@ export function startMainDaemon(onStarted?: () => void) {
       updateGoDaemonState({t: 'ready'})
     }
 
-    log.rawMessage(line)
+    // log.rawMessage(line)
 
-    const daemonEvent = JSON.parse(line)
-
-    if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
-      hasStartupCompleted = true
-      onStarted?.()
+    try {
+      const daemonEvent = JSON.parse(line)
+      if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
+        hasStartupCompleted = true
+        onStarted?.()
+      }
+    } catch (err) {
+      // Skip lines that aren't valid JSON
+      log.debug('Non-JSON daemon output', {line})
     }
   })
 
