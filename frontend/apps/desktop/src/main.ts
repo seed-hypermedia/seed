@@ -123,63 +123,90 @@ app.on('will-finish-launching', () => {
 app.whenReady().then(() => {
   logger.debug('[MAIN]: Seed ready')
 
-  // Check if app was launched after update
-  const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
-  if (isRelaunchAfterUpdate) {
-    logger.info('[MAIN]: App relaunched after update, ensuring window opens')
-    // Force open a window
-    // Remove the flag from argv to prevent issues on subsequent launches
-    process.argv = process.argv.filter(
-      (arg) => arg !== '--relaunch-after-update',
+  try {
+    // Check if app was launched after update
+    const isRelaunchAfterUpdate = process.argv.includes(
+      '--relaunch-after-update',
     )
-  }
+    if (isRelaunchAfterUpdate) {
+      logger.info('[MAIN]: App relaunched after update, ensuring window opens')
+      // Force open a window
+      // Remove the flag from argv to prevent issues on subsequent launches
+      process.argv = process.argv.filter(
+        (arg) => arg !== '--relaunch-after-update',
+      )
+    }
 
-  if (!IS_PROD_DESKTOP) {
-    performance.mark('app-ready-start')
-  }
+    if (!IS_PROD_DESKTOP) {
+      performance.mark('app-ready-start')
+    }
 
-  // Register global shortcuts
+    // Register global shortcuts
+    startMainDaemon(() => {
+      try {
+        logger.info('DaemonStarted')
 
-  startMainDaemon(() => {
-    logger.info('DaemonStarted')
+        // Initialize IPC handlers after the app is ready
+        initializeIpcHandlers()
+        initAccountSubscriptions()
+          .then(() => {
+            logger.info('InitAccountSubscriptionsComplete')
+          })
+          .catch((e) => {
+            logger.error('InitAccountSubscriptionsError ' + e.message)
+          })
 
-    // Initialize IPC handlers after the app is ready
-    initializeIpcHandlers()
-    initAccountSubscriptions()
-      .then(() => {
-        logger.info('InitAccountSubscriptionsComplete')
-      })
-      .catch((e) => {
-        logger.error('InitAccountSubscriptionsError ' + e.message)
-      })
-
-    grpcClient.daemon
-      .listKeys({})
-      .then((response) => {
-        setInitialAccountIdCount(response.keys.length)
-        const onboardingState = getOnboardingState()
-        if (
-          !onboardingState.initialAccountIdCount &&
-          !onboardingState.hasCompletedOnboarding &&
-          !onboardingState.hasSkippedOnboarding
-        ) {
-          console.log('========= No keys found')
-          deleteWindowsState().then(() => {
+        grpcClient.daemon
+          .listKeys({})
+          .then((response) => {
+            try {
+              setInitialAccountIdCount(response.keys.length)
+              const onboardingState = getOnboardingState()
+              if (
+                !onboardingState.initialAccountIdCount &&
+                !onboardingState.hasCompletedOnboarding &&
+                !onboardingState.hasSkippedOnboarding
+              ) {
+                console.log('========= No keys found')
+                deleteWindowsState().then(() => {
+                  trpc.createAppWindow({routes: [defaultRoute]})
+                })
+              } else {
+                console.log('========= Keys found', response.keys)
+                openInitialWindows()
+              }
+            } catch (err) {
+              logger.error('Error handling onboarding state: ' + err)
+              // Fallback to opening default window
+              trpc.createAppWindow({routes: [defaultRoute]})
+            }
+          })
+          .catch((err) => {
+            logger.error('Error listing keys: ' + err)
+            // Fallback to opening default window
             trpc.createAppWindow({routes: [defaultRoute]})
           })
-        } else {
-          console.log('========= Keys found', response.keys)
-          openInitialWindows()
-        }
-      })
-      .finally(() => {
-        autoUpdate()
-      })
-  })
+          .finally(() => {
+            autoUpdate()
+          })
+      } catch (err) {
+        logger.error('Error in daemon callback: ' + err)
+        // Fallback to opening default window
+        trpc.createAppWindow({routes: [defaultRoute]})
+      }
+    })
 
-  if (!IS_PROD_DESKTOP) {
-    performance.mark('app-ready-end')
-    performance.measure('app-ready', 'app-ready-start', 'app-ready-end')
+    if (!IS_PROD_DESKTOP) {
+      performance.mark('app-ready-end')
+      performance.measure('app-ready', 'app-ready-start', 'app-ready-end')
+    }
+  } catch (err) {
+    logger.error('Critical error in app initialization: ' + err)
+    dialog.showErrorBox(
+      'Initialization Error',
+      'Failed to initialize the application. Please try restarting.',
+    )
+    app.quit()
   }
 })
 
