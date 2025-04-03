@@ -207,6 +207,7 @@ function MainContent({
       <SiteTemplateDialog />
       <Main className={darkMode ? 'seed-app-dark' : 'seed-app-light'} />
       <ResetOnboardingButton />
+      <OnboardingDebugBox />
       <Toaster />
     </>
   )

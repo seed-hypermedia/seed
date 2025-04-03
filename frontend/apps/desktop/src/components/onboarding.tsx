@@ -337,6 +337,29 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     console.groupEnd()
   }, [currentStep, modal, localState])
 
+  async function handleSubscription(id: UnpackedHypermediaId) {
+    console.log('[Onboarding] Starting subscription for account:', {
+      uid: id.uid,
+      path: '/',
+      recursive: true,
+    })
+
+    try {
+      await grpcClient.subscriptions.subscribe({
+        account: id.uid,
+        path: '',
+        recursive: true,
+      })
+      invalidateQueries([queryKeys.SUBSCRIPTIONS])
+      console.log('[Onboarding] Successfully subscribed to account:', id.uid)
+    } catch (error) {
+      console.error('[Onboarding] Failed to subscribe to new account!', {
+        error,
+        accountId: id.uid,
+      })
+    }
+  }
+
   return (
     <YStack flex={1} backgroundColor="$background" className="window-drag">
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
@@ -355,6 +378,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
           onAccountCreate={(id) => {
             console.log('🔄 Setting account:', id)
             setAccount(id)
+            handleSubscription(id)
+            setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
           }}
         />
       )}
@@ -364,7 +389,10 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
           onPrev={handlePrev}
           onAccountCreate={(id) => {
             console.log('🔄 Setting account:', id)
+
             setAccount(id)
+            handleSubscription(id)
+            setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
           }}
         />
       )}
@@ -1447,7 +1475,11 @@ export function ResetOnboardingButton() {
 export function CreateAccountBanner() {
   const [show, setShow] = useState(() => {
     const obState = getOnboardingState()
-    return obState.initialAccountIdCount === 0
+    return (
+      !obState.hasCompletedOnboarding &&
+      !obState.hasSkippedOnboarding &&
+      obState.initialAccountIdCount === 0
+    )
   })
   if (!show) return null
 
