@@ -1,3 +1,4 @@
+import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {
   HMDocumentMetadataSchema,
   HMDraft,
@@ -14,6 +15,7 @@ import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
+import {grpcClient} from './grpc-client'
 import {error} from './logger'
 
 /**
@@ -65,43 +67,75 @@ export async function initDrafts() {
       .filter((item) => item.match('.json'))
       .map(draftFileNameToId)
     console.log('Will migrate drafts', allDraftIds)
-
     for (const draftId of allDraftIds) {
       const oldDraftPath = join(
         draftsDir,
         `${Buffer.from(draftId).toString('base64')}.json`,
       )
-      const draftContentJSON = await fs.readFile(oldDraftPath, 'utf-8')
+      const draftDataJSON = await fs.readFile(oldDraftPath, 'utf-8')
+      const draftData = JSON.parse(draftDataJSON)
       // legacy draft ids might start with hm:// or nothing
       const draftHmId = unpackHmId(draftId) || hmId('d', draftId)
       const lastPathTerm = draftHmId.path?.at(-1)
       const isNewChild = !!lastPathTerm?.startsWith('_')
-      const draftPath = isNewChild
-        ? draftHmId?.path?.slice(0, -1)
-        : draftHmId?.path
-      console.log('Will Migrate Draft', draftId, draftHmId.id, {
-        hasDraft: !!draftContentJSON,
-        isNewChild,
-        draftPath,
-      })
       const newDraftId = nanoid(10)
-      console.log('New Draft ID', newDraftId)
-      await fs.rename(oldDraftPath, join(draftsDir, `${newDraftId}.json`))
-      newDraftIndex.push({
+      const {metadata, previousId, lastUpdateTime, members, ...restDraft} =
+        draftData
+
+      let deps: string[] = []
+      let editPath: string[] | undefined = undefined
+      let editUid: string | undefined = undefined
+
+      if (previousId && !isNewChild) {
+        editUid = previousId.uid
+        editPath = previousId.path || []
+      }
+      if (!editUid && !isNewChild) {
+        editUid = draftHmId.uid
+        editPath = draftHmId.path || []
+      }
+      if (editUid && !deps?.length) {
+        try {
+          const doc = await grpcClient.documents.getDocument({
+            account: editUid,
+            path: hmIdPathToEntityQueryPath(editPath || []),
+          })
+          deps = doc.version.split('.')
+        } catch (e) {
+          if (e.message.match('document not found')) {
+            console.error('deps edit doc not found')
+            editUid = undefined
+            editPath = undefined
+          } else {
+            console.error('Error getting deps edit doc', e)
+            throw e
+          }
+        }
+      }
+      const indexedDraft: HMListedDraft = {
         id: newDraftId,
-        locationUid: isNewChild ? undefined : draftHmId.uid,
+        locationUid: isNewChild ? draftHmId.uid : undefined,
         locationPath: isNewChild
-          ? draftHmId.path?.slice(0, -1)
-          : draftPath || undefined,
-        editUid: isNewChild ? undefined : draftHmId.uid,
-        editPath: isNewChild ? undefined : draftHmId.path || undefined,
-        // TODO: read the draft and get the metadata
-        metadata: {},
-        // TODO: add this properly
-        lastUpdateTime: 0,
-      })
+          ? draftHmId.path?.slice(0, -1) || []
+          : undefined,
+        editUid,
+        editPath,
+        metadata,
+        lastUpdateTime,
+      }
+      const newDraft = {
+        ...restDraft,
+        deps,
+      }
+      await fs.unlink(oldDraftPath)
+      await fs.writeFile(
+        join(draftsDir, `${newDraftId}.json`),
+        JSON.stringify(newDraft, null, 2),
+      )
+
+      newDraftIndex.push(indexedDraft)
     }
-    console.log('Writing Draft Index', newDraftIndex)
+    console.log('Migrating Draft Index', newDraftIndex)
     draftIndex = newDraftIndex
     await saveDraftIndex()
   } else {

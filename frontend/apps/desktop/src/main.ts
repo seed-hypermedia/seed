@@ -139,14 +139,14 @@ app.whenReady().then(() => {
     performance.mark('app-ready-start')
   }
 
-  Promise.all([
-    initDrafts().then(() => {
-      logger.info('Drafts ready')
-    }),
-    startMainDaemon().then(() => {
+  startMainDaemon()
+    .then(() => {
       logger.info('DaemonStarted')
-    }),
-  ])
+      return initDrafts()
+    })
+    .then(() => {
+      logger.info('Drafts ready')
+    })
     .then(() => {
       // Initialize IPC handlers after the app is ready
       initializeIpcHandlers()
