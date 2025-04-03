@@ -41,8 +41,11 @@ const daemonArguments = [
   '-syncing.no-sync-back=true',
 
   lndhubFlags,
-  `SENTRY_DSN=${__SENTRY_DSN__}`,
 ]
+
+if (!process.env.DISABLE_SENTRY) {
+  daemonArguments.push(`SENTRY_DSN=${__SENTRY_DSN__}`)
+}
 
 type ReadyState = {t: 'ready'}
 type ErrorState = {t: 'error'; message: string}

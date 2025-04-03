@@ -81,14 +81,15 @@ export default defineConfig(({command, mode}) => {
             tsConfigPaths({
               root: '../../',
             }),
-            sentryVitePlugin({
-              authToken: process.env.SENTRY_AUTH_TOKEN,
-              org: 'mintter',
-              project: 'electron',
-              telemetry: false,
-            }),
+            !process.env.DISABLE_SENTRY &&
+              sentryVitePlugin({
+                authToken: process.env.SENTRY_AUTH_TOKEN,
+                org: 'mintter',
+                project: 'electron',
+                telemetry: false,
+              }),
             _tamaguiPlugin,
-          ]
+          ].filter(Boolean)
         : [
             tsConfigPaths({
               root: '../../',

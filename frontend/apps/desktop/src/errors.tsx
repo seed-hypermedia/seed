@@ -3,8 +3,9 @@ import {toast} from '@shm/ui/toast'
 
 export default function appError(message: string, metadata?: any) {
   toast.error(message)
-  // TODO: check that I can send metadata this way
 
-  Sentry.captureException(metadata.error || new Error(message, metadata))
+  if (!import.meta.env.VITE_DISABLE_SENTRY) {
+    Sentry.captureException(metadata?.error || new Error(message, metadata))
+  }
   console.error('📣 🚨', message, metadata)
 }

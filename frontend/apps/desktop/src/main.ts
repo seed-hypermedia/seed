@@ -95,19 +95,21 @@ if (IS_PROD_DESKTOP) {
     app.setAsDefaultProtocolClient(OS_REGISTER_SCHEME)
   }
 
-  Sentry.init({
-    debug: false,
-    release: VERSION,
-    environment: process.env.NODE_ENV || 'development',
-    dsn: process.env.SENTRY_DESKTOP_DSN,
-    transportOptions: {
-      maxQueueAgeDays: 30,
-      maxQueueCount: 30,
-      queuedLengthChanged: (length: number) => {
-        logger.debug('[MAIN]: Sentry queue changed ' + length)
+  if (!process.env.DISABLE_SENTRY) {
+    Sentry.init({
+      debug: false,
+      release: VERSION,
+      environment: process.env.NODE_ENV || 'development',
+      dsn: process.env.SENTRY_DESKTOP_DSN,
+      transportOptions: {
+        maxQueueAgeDays: 30,
+        maxQueueCount: 30,
+        queuedLengthChanged: (length: number) => {
+          logger.debug('[MAIN]: Sentry queue changed ' + length)
+        },
       },
-    },
-  })
+    })
+  }
 }
 
 const gotTheLock = app.requestSingleInstanceLock()

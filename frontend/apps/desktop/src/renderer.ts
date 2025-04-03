@@ -30,7 +30,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 
 import './root.tsx'
 
-if (IS_PROD_DESKTOP) {
+if (IS_PROD_DESKTOP && !import.meta.env.VITE_DISABLE_SENTRY) {
   Sentry.init({
     dsn: import.meta.env.VITE_DESKTOP_SENTRY_DSN,
     release: import.meta.env.VITE_VERSION,
