@@ -360,7 +360,7 @@ function CommentDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
-      disableEmbedClick={true}
+      disableEmbedClick
       // entityId={id}
       // supportDocuments={supportDocuments}
       // supportQueries={supportQueries}
