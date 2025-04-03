@@ -11,6 +11,7 @@ import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigation} from '@/components/site-navigation'
+import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
@@ -157,6 +158,7 @@ export default function DocumentPage() {
   //   })
   // }
   const mainPanelRef = useRef<HTMLDivElement>(null)
+  const templateDialogContent = useTemplateDialog(route)
   return (
     <>
       <XStack flex={1} height="100%">
@@ -184,6 +186,7 @@ export default function DocumentPage() {
           />
         </AccessoryLayout>
       </XStack>
+      {templateDialogContent}
     </>
   )
 }

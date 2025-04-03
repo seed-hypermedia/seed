@@ -207,7 +207,7 @@ export function useAppDialog<DialogInput>(
       content: (
         <Component.Root
           modal
-          onOpenChange={(isOpen) => {
+          onOpenChange={(isOpen: boolean) => {
             if (isOpen) throw new Error('Cannot open app dialog')
             close()
           }}

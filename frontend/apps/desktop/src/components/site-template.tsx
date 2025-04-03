@@ -1,16 +1,13 @@
 import {grpcClient} from '@/grpc-client'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
 import {cloneSiteFromTemplate} from '@shm/shared/utils/fork'
-import {eventStream} from '@shm/shared/utils/stream'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {
   Button,
   ButtonProps,
-  Dialog,
   SizableText,
   Spinner,
   View,
@@ -28,36 +25,37 @@ import documentationDark from '@/images/template-documentation-dark.png'
 import documentationLight from '@/images/template-documentation-light.png'
 import {useSubscribedEntity} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
-export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
-  eventStream<boolean>()
+import {useAppDialog} from './dialog'
 
-export function SiteTemplate() {
+export function SiteTemplate({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: DocumentRoute
+}) {
   const isOnline = useIsOnline()
   const [selectedTemplate, setSelectedTemplate] = useState<
     'blog' | 'documentation' | 'blank' | null
   >(null)
-  const route = useNavRoute()
+  const route = input
   const navigate = useNavigate('push')
   const openWindow = useNavigate('spawn')
   const blogTemplate = useSubscribedEntity(hmId('d', templates.blog))
   const documentationTemplate = useSubscribedEntity(
     hmId('d', templates.documentation),
   )
-  const targetId = useMemo(() => {
-    if (route.key === 'document') {
-      return route.id.uid
-    }
-    return ''
-  }, [route])
-
-  function handleCloning() {
+  function confirmTemplate() {
+    const targetId = route.id?.uid
     if (!targetId) return
+
+    onClose()
+
     setTimeout(() => {
       invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
     }, 500)
     if (selectedTemplate === 'blank') {
-      dispatchSiteTemplateEvent(false)
       navigate({
         key: 'draft',
         id: (route as DocumentRoute).id,
@@ -71,11 +69,9 @@ export function SiteTemplate() {
         targetId,
         templateId: templates[selectedTemplate],
       }).then((targetVersion) => {
-        dispatchSiteTemplateEvent(false)
-
         setTimeout(() => {
           dispatchEditPopover(true)
-        }, 500)
+        }, 2500)
       })
       return
     }
@@ -171,7 +167,7 @@ export function SiteTemplate() {
       <Button
         opacity={selectedTemplate == null ? 0.5 : 1}
         disabled={selectedTemplate == null}
-        onPress={handleCloning}
+        onPress={confirmTemplate}
         bg="$brand5"
         color="white"
         justifyContent="center"
@@ -194,57 +190,24 @@ export function SiteTemplate() {
   )
 }
 
-export function SiteTemplateDialog() {
-  const [open, setOpen] = useState(false)
-
+export function useTemplateDialog(route: DocumentRoute) {
+  const dialog = useAppDialog(SiteTemplate, {
+    contentProps: {
+      maxWidth: null,
+      width: null,
+    },
+  })
+  const navigate = useNavigate('replace')
   useEffect(() => {
-    siteTemplateEvents.subscribe((val) => {
-      if (!val) {
-        // reset template process
-      }
-      setOpen(val)
-    })
-  }, [])
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(val: boolean) => {
-        dispatchSiteTemplateEvent(val)
-        if (!val) {
-          // reset template process
-        }
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay
-          height="100vh"
-          bg={'#00000088'}
-          width="100vw"
-          animation="fast"
-          opacity={0.8}
-          enterStyle={{opacity: 0}}
-          exitStyle={{opacity: 0}}
-        />
-        <Dialog.Content
-          overflow="hidden"
-          backgroundColor={'$background'}
-          animation={[
-            'fast',
-            {
-              opacity: {
-                overshootClamping: true,
-              },
-            },
-          ]}
-          enterStyle={{y: -10, opacity: 0}}
-          exitStyle={{y: -10, opacity: 0}}
-        >
-          <SiteTemplate />
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog>
-  )
+    if (route.immediatelyPromptTemplate) {
+      dialog.open(route)
+      navigate({
+        ...route,
+        immediatelyPromptTemplate: false,
+      })
+    }
+  }, [route.immediatelyPromptTemplate])
+  return dialog.content
 }
 
 function TemplateImage({name}: {name: 'blog' | 'documentation'}) {

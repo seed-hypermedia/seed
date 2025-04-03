@@ -56,7 +56,6 @@ import {
   FullLogoIcon,
   PublishIcon,
 } from './onboarding-icons'
-import {dispatchSiteTemplateEvent} from './site-template'
 
 interface OnboardingProps {
   onComplete: () => void
@@ -78,7 +77,6 @@ export function OnboardingDialog() {
 
   useEffect(() => {
     onboardingDialogEvents.subscribe((open) => {
-      console.log('== ~ useEffect ~ open:', open)
       setOpen(open)
     })
   }, [])
@@ -125,11 +123,6 @@ export function OnboardingDialog() {
             modal={true}
             onComplete={() => {
               handleOpenChange(false)
-              setTimeout(() => {
-                if (getOnboardingState().hasCompletedOnboarding) {
-                  dispatchSiteTemplateEvent(true)
-                }
-              }, 100)
             }}
           />
         </Dialog.Content>
@@ -263,19 +256,16 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setLocalState((prev) => ({...prev, hasCompletedOnboarding: true}))
         // Update initialAccountIdCount in modal mode
         setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
-        setTimeout(() => {
-          dispatchSiteTemplateEvent(true)
-        }, 1000)
       } else {
         setHasCompletedOnboarding(true)
         // Clean up form data but keep the completed flag
         cleanupOnboardingFormData()
       }
       if (account) {
-        console.log('Dispatching site template event')
         navigate({
           key: 'document',
           id: account,
+          immediatelyPromptTemplate: true,
         })
       }
       onComplete()
@@ -1447,16 +1437,6 @@ export function ResetOnboardingButton() {
         hoverStyle={{opacity: 1, bg: '$brand4'}}
       >
         show Edit Dialog
-      </Button>
-      <Button
-        size="$2"
-        opacity={0.7}
-        onPress={() => dispatchSiteTemplateEvent(true)}
-        bg="$brand5"
-        color="white"
-        hoverStyle={{opacity: 1, bg: '$brand4'}}
-      >
-        show template dialog
       </Button>
       <Button
         size="$2"

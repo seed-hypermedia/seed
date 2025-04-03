@@ -1,8 +1,4 @@
 import {AppContextProvider} from '@/app-context-provider'
-import {
-  dispatchSiteTemplateEvent,
-  SiteTemplateDialog,
-} from '@/components/site-template'
 import {useListenAppEvent} from '@/utils/window-events'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {SpinnerWithText} from '@shm/ui/spinner'
@@ -206,7 +202,6 @@ function MainContent({
   return (
     <>
       <OnboardingDialog />
-      <SiteTemplateDialog />
       <Main className={darkMode ? 'seed-app-dark' : 'seed-app-light'} />
       <ResetOnboardingButton />
       {ONBOARDING_DEBUG_ENABLED && <OnboardingDebugBox />}
@@ -245,11 +240,6 @@ function MainApp() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
-    setTimeout(() => {
-      if (getOnboardingState().hasCompletedOnboarding) {
-        dispatchSiteTemplateEvent(true)
-      }
-    }, 1000)
   }
 
   if (daemonState?.t === 'error') {
