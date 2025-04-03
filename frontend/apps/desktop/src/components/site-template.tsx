@@ -22,12 +22,12 @@ import {dispatchEditPopover} from './onboarding'
 
 // Import template images
 
+import blogDark from '@/images/template-blog-dark.png'
+import blogLight from '@/images/template-blog-light.png'
+import documentationDark from '@/images/template-documentation-dark.png'
+import documentationLight from '@/images/template-documentation-light.png'
 import {useSubscribedEntity} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
-import blogDark from '/template-blog-dark.png'
-import blogLight from '/template-blog-light.png'
-import documentationDark from '/template-documentation-dark.png'
-import documentationLight from '/template-documentation-light.png'
 export const [dispatchSiteTemplateEvent, siteTemplateEvents] =
   eventStream<boolean>()
 
