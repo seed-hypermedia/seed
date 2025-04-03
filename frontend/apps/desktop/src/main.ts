@@ -234,41 +234,67 @@ app.on('open-url', (_event, url) => handleUrlOpen(url))
 
 async function initAccountSubscriptions() {
   logger.info('InitAccountSubscriptions')
-  const keys = await grpcClient.daemon.listKeys({})
-  const subs = await grpcClient.subscriptions.listSubscriptions({
-    pageSize: BIG_INT,
-  })
-  const recursiveSubs = new Set(
-    subs.subscriptions
-      .map((sub) => {
-        if (sub.path !== '/' || !sub.recursive) return null
-        return sub.account
-      })
-      .filter((s) => !!s),
-  )
-  const keysToSubscribeTo = keys.keys.filter((key) => {
-    if (recursiveSubs.has(key.accountId)) return false
-    return true
-  })
+  try {
+    const [keys, subs] = await Promise.all([
+      grpcClient.daemon.listKeys({}),
+      grpcClient.subscriptions.listSubscriptions({
+        pageSize: BIG_INT,
+      }),
+    ])
 
-  // add templates to keys to subscribe to
+    const recursiveSubs = new Set(
+      subs.subscriptions
+        .map((sub) => {
+          if (sub.path !== '/' || !sub.recursive) return null
+          return sub.account
+        })
+        .filter((s) => !!s),
+    )
 
-  for (const key of keysToSubscribeTo) {
-    logger.debug('WillInitAccountSubscriptions')
-    await grpcClient.subscriptions.subscribe({
-      account: key.accountId,
-      recursive: true,
-      path: '',
+    const keysToSubscribeTo = keys.keys.filter((key) => {
+      if (recursiveSubs.has(key.accountId)) return false
+      return true
     })
-  }
 
-  // subscribe to templates too
-  for (const template of Object.values(templates)) {
-    await grpcClient.subscriptions.subscribe({
-      account: template,
-      recursive: true,
-      path: '',
-    })
+    // Subscribe to all keys concurrently with timeout
+    const subscribeWithTimeout = async (accountId: string) => {
+      try {
+        await Promise.race([
+          grpcClient.subscriptions.subscribe({
+            account: accountId,
+            recursive: true,
+            path: '',
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Subscription timeout for ${accountId}`)),
+              10000,
+            ),
+          ),
+        ])
+        logger.debug('Subscription successful', {accountId})
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error'
+        logger.error('Subscription failed', {accountId, error: errorMessage})
+      }
+    }
+
+    // Subscribe to keys and templates concurrently
+    const subscriptionPromises = [
+      ...keysToSubscribeTo.map((key) => subscribeWithTimeout(key.accountId)),
+      ...Object.values(templates).map((template) =>
+        subscribeWithTimeout(template),
+      ),
+    ]
+
+    await Promise.allSettled(subscriptionPromises)
+    logger.info('All subscription attempts completed')
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    logger.error('Failed to initialize subscriptions', {error: errorMessage})
+    throw error // Re-throw to be caught by the caller
   }
 }
 
