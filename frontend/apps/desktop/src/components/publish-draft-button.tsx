@@ -56,6 +56,8 @@ export default function PublishDraftButton() {
   const pushOnPublish = usePushOnPublish()
   const prevId = draftRoute.editUid
     ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
+    : draft.data?.editId
+    ? draft.data?.editId
     : null
   // const prevEntity = useEntity(prevId)
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(

@@ -12,6 +12,7 @@ export const draftMachine = setup({
       locationPath?: string[]
       editUid?: string
       editPath?: string[]
+      deps?: string[]
     },
     context: {} as {
       nameRef: null | HTMLTextAreaElement

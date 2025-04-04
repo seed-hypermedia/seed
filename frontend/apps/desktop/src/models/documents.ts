@@ -442,11 +442,16 @@ export function useDraftEditor() {
   const locationEntity = useEntity(locationId)
 
   const editId = useMemo(() => {
-    if (!route.editUid) return undefined
-    return hmId('d', route.editUid, {
-      path: route.editPath,
-    })
-  }, [route])
+    if (data?.editUid)
+      return hmId('d', data.editUid, {
+        path: data.editPath,
+      })
+    if (route.editUid)
+      return hmId('d', route.editUid, {
+        path: route.editPath,
+      })
+    return undefined
+  }, [route, data])
 
   const editEntity = useEntity(editId)
 
@@ -529,16 +534,20 @@ export function useDraftEditor() {
     console.log('=== DRAFT UPDATE start')
     console.log('=== DRAFT UPDATE input: ', input)
     console.log('=== DRAFT UPDATE editor: ', editor.topLevelBlocks)
+    const locationUid = route.locationUid || data?.locationUid
+    const locationPath = route.locationPath || data?.locationPath
+    const editUid = route.editUid || data?.editUid
+    const editPath = route.editPath || data?.editPath
     const updatedDraft = await saveDraft.mutateAsync({
       id: route.id,
       metadata: input.metadata,
       signingAccount: input.signingAccount,
       content: editor.topLevelBlocks,
       deps: input.deps,
-      locationUid: route.locationUid,
-      locationPath: route.locationPath,
-      editUid: route.editUid,
-      editPath: route.editPath,
+      locationUid,
+      locationPath,
+      editUid,
+      editPath,
     })
     console.log('=== DRAFT UPDATE end')
     return updatedDraft
@@ -555,15 +564,19 @@ export function useDraftEditor() {
     // Implementation will be provided in documents.ts
     try {
       console.log('=== DRAFT CREATE start')
+      const locationUid = route.locationUid || data?.locationUid
+      const locationPath = route.locationPath || data?.locationPath
+      const editUid = route.editUid || data?.editUid
+      const editPath = route.editPath || data?.editPath
       const newDraft = await saveDraft.mutateAsync({
         metadata: input.metadata,
         signingAccount: input.signingAccount,
         content: editor.topLevelBlocks,
         deps: input.deps,
-        locationUid: route.locationUid,
-        locationPath: route.locationPath,
-        editUid: route.editUid,
-        editPath: route.editPath,
+        locationUid,
+        locationPath,
+        editUid,
+        editPath,
       })
       console.log('=== DRAFT CREATE newDraft: ', newDraft)
       console.log('=== DRAFT CREATE end')
@@ -579,7 +592,7 @@ export function useDraftEditor() {
     draftMachine.provide({
       actions: {
         focusContent: ({context, event}) => {
-          if (route.editUid) {
+          if (route.editUid || data?.editUid) {
             const tiptap = editor?._tiptapEditor
             if (tiptap && !tiptap.isFocused) {
               editor._tiptapEditor.commands.focus()
@@ -633,8 +646,9 @@ export function useDraftEditor() {
         }),
         replaceRoute: assign((_, {id}) => {
           replace({
-            ...route,
+            key: 'draft',
             id,
+            deps: route.deps,
           })
           return {}
         }),
@@ -651,10 +665,12 @@ export function useDraftEditor() {
 
   // send events to machine when fetch do draft or other documents
   useEffect(() => {
+    let locationUid = route.locationUid || data?.locationUid
+    let editUid = route.editUid || data?.editUid
     if (
       typeof route.id === 'undefined' &&
-      typeof route.locationUid === 'undefined' &&
-      typeof route.editUid === 'undefined'
+      typeof locationUid === 'undefined' &&
+      typeof editUid === 'undefined'
     ) {
       send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
