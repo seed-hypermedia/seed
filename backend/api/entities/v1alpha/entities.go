@@ -3,10 +3,14 @@ package entities
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/hlc"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"sort"
@@ -14,9 +18,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ipfs/go-cid"
+
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -305,7 +312,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // 	return &emptypb.Empty{}, err
 // }
 
-// UndeleteEntity implements the corresponding gRPC method.
+// // UndeleteEntity implements the corresponding gRPC method.
 // func (api *Server) UndeleteEntity(ctx context.Context, in *entities.UndeleteEntityRequest) (*emptypb.Empty, error) {
 // 	if in.Id == "" {
 // 		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to restore")
@@ -318,7 +325,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // 	})
 // }
 
-// ListDeletedEntities implements the corresponding gRPC method.
+// // ListDeletedEntities implements the corresponding gRPC method.
 // func (api *Server) ListDeletedEntities(ctx context.Context, _ *entities.ListDeletedEntitiesRequest) (*entities.ListDeletedEntitiesResponse, error) {
 // 	resp := &entities.ListDeletedEntitiesResponse{
 // 		DeletedEntities: make([]*entities.DeletedEntity, 0),
@@ -344,171 +351,179 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // }
 
 // ListEntityMentions implements listing mentions of an entity in other resources.
-// func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
-// 	if in.Id == "" {
-// 		return nil, errutil.MissingArgument("id")
-// 	}
+func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
+	if in.Id == "" {
+		return nil, errutil.MissingArgument("id")
+	}
 
-// 	var cursor mentionsCursor
-// 	if in.PageToken != "" {
-// 		if err := cursor.FromString(in.PageToken); err != nil {
-// 			return nil, status.Errorf(codes.InvalidArgument, "failed to decode page token: %v", err)
-// 		}
-// 	}
+	var cursor mentionsCursor
+	if in.PageToken != "" {
+		if err := cursor.FromString(in.PageToken); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to decode page token: %v", err)
+		}
+	}
 
-// 	// Without this querying in reverse order wouldn't ever return any results.
-// 	if in.ReverseOrder && in.PageToken == "" {
-// 		cursor.BlobID = math.MaxInt64
-// 		cursor.LinkID = math.MaxInt64
-// 	}
+	// Without this querying in reverse order wouldn't ever return any results.
+	if in.ReverseOrder && in.PageToken == "" {
+		cursor.BlobID = math.MaxInt64
+		cursor.LinkID = math.MaxInt64
+	}
 
-// 	// Arbitrary default page size.
-// 	if in.PageSize == 0 {
-// 		in.PageSize = 10
-// 	}
+	// Arbitrary default page size.
+	if in.PageSize == 0 {
+		in.PageSize = 10
+	}
 
-// 	resp := &entities.ListEntityMentionsResponse{}
+	resp := &entities.ListEntityMentionsResponse{}
 
-// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-// 		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if edb.ResourcesID == 0 {
-// 			return status.Errorf(codes.NotFound, "entity '%s' is not found", in.Id)
-// 		}
+	if err := api.idx.Query(ctx, func(conn *sqlite.Conn) error {
+		var eid int64
+		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+			eid = stmt.ColumnInt64(0)
+			return nil
 
-// 		var lastCursor mentionsCursor
+		}, in.Id); err != nil {
+			return err
+		}
 
-// 		var count int32
-// 		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
-// 			// We query for pageSize + 1 items to know if there's more items on the next page,
-// 			// because if not we don't need to return the page token in the response.
-// 			if count == in.PageSize {
-// 				resp.NextPageToken = lastCursor.String()
-// 				return nil
-// 			}
+		if eid == 0 {
+			return status.Errorf(codes.NotFound, "entity '%s' is not found", in.Id)
+		}
 
-// 			count++
+		var lastCursor mentionsCursor
 
-// 			var (
-// 				source        = stmt.ColumnText(0)
-// 				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
-// 				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-// 				ts            = hlc.Timestamp(stmt.ColumnInt64(4)).Time()
-// 				blobType      = hyper.BlobType(stmt.ColumnText(5))
-// 				isDraft       = stmt.ColumnInt(6) > 0
-// 				isPinned      = stmt.ColumnInt(7) > 0
-// 				anchor        = stmt.ColumnText(8)
-// 				targetVersion = stmt.ColumnText(9)
-// 				fragment      = stmt.ColumnText(10)
-// 			)
+		var count int32
+		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
+			// We query for pageSize + 1 items to know if there's more items on the next page,
+			// because if not we don't need to return the page token in the response.
+			if count == in.PageSize {
+				resp.NextPageToken = lastCursor.String()
+				return nil
+			}
 
-// 			lastCursor.BlobID = stmt.ColumnInt64(11)
-// 			lastCursor.LinkID = stmt.ColumnInt64(12)
+			count++
 
-// 			if source == "" && blobType != hyper.TypeComment {
-// 				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
-// 			}
+			var (
+				source        = stmt.ColumnText(0)
+				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
+				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
+				ts            = hlc.Timestamp(stmt.ColumnInt64(4)).Time()
+				blobType      = stmt.ColumnText(5)
+				isPinned      = stmt.ColumnInt(6) > 0
+				anchor        = stmt.ColumnText(7)
+				targetVersion = stmt.ColumnText(8)
+				fragment      = stmt.ColumnText(9)
+			)
 
-// 			if blobType == hyper.TypeComment {
-// 				source = "hm://c/" + sourceBlob
-// 			}
+			lastCursor.BlobID = stmt.ColumnInt64(10)
+			lastCursor.LinkID = stmt.ColumnInt64(11)
 
-// 			resp.Mentions = append(resp.Mentions, &entities.Mention{
-// 				Source:        source,
-// 				SourceContext: anchor,
-// 				SourceBlob: &entities.Mention_BlobInfo{
-// 					Cid:        sourceBlob,
-// 					Author:     author,
-// 					CreateTime: timestamppb.New(ts),
-// 					IsDraft:    isDraft,
-// 				},
-// 				TargetVersion:  targetVersion,
-// 				IsExactVersion: isPinned,
-// 				TargetFragment: fragment,
-// 			})
+			if source == "" && blobType != "Comment" {
+				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
+			}
 
-// 			return nil
-// 		}, edb.ResourcesID, cursor.BlobID, cursor.BlobID, in.PageSize); err != nil {
-// 			return err
-// 		}
+			if blobType == "Comment" {
+				source = "hm://c/" + sourceBlob
+			}
 
-// 		return nil
-// 	}); err != nil {
-// 		return nil, err
-// 	}
+			resp.Mentions = append(resp.Mentions, &entities.Mention{
+				Source:        source,
+				SourceContext: anchor,
+				SourceBlob: &entities.Mention_BlobInfo{
+					Cid:        sourceBlob,
+					Author:     author,
+					CreateTime: timestamppb.New(ts),
+				},
+				TargetVersion:  targetVersion,
+				IsExactVersion: isPinned,
+				TargetFragment: fragment,
+			})
 
-// 	return resp, nil
-// }
+			return nil
+		}, eid, cursor.BlobID, cursor.BlobID, in.PageSize); err != nil {
+			return err
+		}
 
-// const qListMentionsTpl = `
-// 	SELECT
-// 		resources.iri,
-// 		blobs.codec,
-// 		blobs.multihash,
-// 		public_keys.principal AS author,
-// 		structural_blobs.ts,
-// 		structural_blobs.type AS blob_type,
-// 		drafts.blob IS NOT NULL AS is_draft,
-// 		resource_links.is_pinned,
-// 		resource_links.meta->>'a' AS anchor,
-// 		resource_links.meta->>'v' AS target_version,
-// 		resource_links.meta->>'f' AS target_fragment,
-// 		blobs.id AS blob_id,
-// 		resource_links.id AS link_id
-// 	FROM resource_links
-// 	JOIN structural_blobs ON structural_blobs.id = resource_links.source
-// 	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-// 	LEFT JOIN drafts ON drafts.blob = structural_blobs.id
-// 	JOIN public_keys ON public_keys.id = structural_blobs.author
-// 	LEFT JOIN resources ON resources.id = structural_blobs.resource
-// 	WHERE resource_links.target = :target
-// 	AND (resource_links.source, resource_links.id) %s (:blob_id, :link_id)
-// 	AND structural_blobs.type IN ('Change', 'Comment')
-// 	ORDER BY resource_links.source %s, resource_links.id %s
-// 	LIMIT :page_size + 1;
-// `
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 
-// func qListMentions(desc bool) string {
-// 	if desc {
-// 		return qListMentionsDesc()
-// 	}
+	return resp, nil
+}
 
-// 	return qListMentionsAsc()
-// }
+var qEntitiesLookupID = dqb.Str(`
+	SELECT resources.id
+	FROM resources
+	WHERE resources.iri = :entities_eid
+	LIMIT 1
+`)
 
-// var qListMentionsAsc = dqb.Q(func() string {
-// 	return fmt.Sprintf(qListMentionsTpl, ">", "ASC", "ASC")
-// })
+const qListMentionsTpl = `
+	SELECT
+		resources.iri,
+		blobs.codec,
+		blobs.multihash,
+		public_keys.principal AS author,
+		structural_blobs.ts,
+		structural_blobs.type AS blob_type,
+		resource_links.is_pinned,
+		resource_links.extra_attrs->>'a' AS anchor,
+		resource_links.extra_attrs->>'v' AS target_version,
+		resource_links.extra_attrs->>'f' AS target_fragment,
+		blobs.id AS blob_id,
+		resource_links.id AS link_id
+	FROM resource_links
+	JOIN structural_blobs ON structural_blobs.id = resource_links.source
+	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+	JOIN public_keys ON public_keys.id = structural_blobs.author
+	JOIN resources ON resources.id = structural_blobs.resource
+	WHERE resource_links.target = :target
+	AND (resource_links.source, resource_links.id) %s (:blob_id, :link_id)
+	AND structural_blobs.type IN ('Change', 'Comment')
+	ORDER BY resource_links.source %s, resource_links.id %s
+	LIMIT :page_size + 1;
+`
 
-// var qListMentionsDesc = dqb.Q(func() string {
-// 	return fmt.Sprintf(qListMentionsTpl, "<", "DESC", "DESC")
-// })
+func qListMentions(desc bool) string {
+	if desc {
+		return qListMentionsDesc()
+	}
 
-// type mentionsCursor struct {
-// 	BlobID int64 `json:"b"`
-// 	LinkID int64 `json:"l"`
-// }
+	return qListMentionsAsc()
+}
 
-// func (mc *mentionsCursor) FromString(s string) error {
-// 	data, err := base64.RawURLEncoding.DecodeString(s)
-// 	if err != nil {
-// 		return err
-// 	}
+var qListMentionsAsc = dqb.Q(func() string {
+	return fmt.Sprintf(qListMentionsTpl, ">", "ASC", "ASC")
+})
 
-// 	return json.Unmarshal(data, mc)
-// }
+var qListMentionsDesc = dqb.Q(func() string {
+	return fmt.Sprintf(qListMentionsTpl, "<", "DESC", "DESC")
+})
 
-// func (mc mentionsCursor) String() string {
-// 	if mc.BlobID == 0 && mc.LinkID == 0 {
-// 		return ""
-// 	}
+type mentionsCursor struct {
+	BlobID int64 `json:"b"`
+	LinkID int64 `json:"l"`
+}
 
-// 	data, err := json.Marshal(mc)
-// 	if err != nil {
-// 		panic(err)
-// 	}
+func (mc *mentionsCursor) FromString(s string) error {
+	data, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
 
-// 	return base64.RawURLEncoding.EncodeToString(data)
-// }
+	return json.Unmarshal(data, mc)
+}
+
+func (mc mentionsCursor) String() string {
+	if mc.BlobID == 0 && mc.LinkID == 0 {
+		return ""
+	}
+
+	data, err := json.Marshal(mc)
+	if err != nil {
+		panic(err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(data)
+}

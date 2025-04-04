@@ -274,9 +274,6 @@ message Mention {
 
     // The timestamp of the blob.
     google.protobuf.Timestamp create_time = 3;
-
-    // Specifies whether the blob is a draft.
-    bool is_draft = 4;
   }
 
   // Required. The ID of the source where the mention was found.

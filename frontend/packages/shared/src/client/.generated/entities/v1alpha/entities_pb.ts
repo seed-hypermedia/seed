@@ -1098,13 +1098,6 @@ export class Mention_BlobInfo extends Message<Mention_BlobInfo> {
    */
   createTime?: Timestamp;
 
-  /**
-   * Specifies whether the blob is a draft.
-   *
-   * @generated from field: bool is_draft = 4;
-   */
-  isDraft = false;
-
   constructor(data?: PartialMessage<Mention_BlobInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1116,7 +1109,6 @@ export class Mention_BlobInfo extends Message<Mention_BlobInfo> {
     { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "create_time", kind: "message", T: Timestamp },
-    { no: 4, name: "is_draft", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention_BlobInfo {
