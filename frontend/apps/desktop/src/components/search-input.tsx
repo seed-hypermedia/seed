@@ -129,7 +129,7 @@ export function SearchInput({
         // console.log(item)
         return {
           title: item.title || item.id.uid,
-          key: item.id.uid,
+          key: item.id.id,
           path: item.id.path,
           onFocus: () => {},
           onMouseEnter: () => {},
