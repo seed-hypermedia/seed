@@ -347,7 +347,6 @@ function EditDocButton() {
   const capability = useMyCapability(route.id)
   const navigate = useNavigate()
 
-  // TODO: correctly check for drafts here (horacio)
   const existingDraft = useExistingDraft(route)
 
   console.log(`== ~ EditDocButton ~ existingDraft:`, existingDraft)
