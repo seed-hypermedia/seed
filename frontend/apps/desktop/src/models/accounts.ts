@@ -73,7 +73,7 @@ export function useSetProfile_deprecated() {
   throw new Error('useSetProfile_deprecated not supported anymore')
 }
 
-export function useDraft(id?: string) {
+export function useDraft(id: string) {
   return trpc.drafts.get.useQuery(id, {
     enabled: !!id,
   })

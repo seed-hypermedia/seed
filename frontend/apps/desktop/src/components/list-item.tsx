@@ -185,8 +185,7 @@ export function LibraryListItem({
       paddingVertical="$1"
       onPress={() => {
         if (!exportMode) {
-          if (isUnpublished) navigate({key: 'draft', id: entry.id})
-          else navigate({key: 'document', id: entry.id})
+          navigate({key: 'document', id: entry.id})
         }
         // else {
         //   toggleDocumentSelection(entry.id.id)

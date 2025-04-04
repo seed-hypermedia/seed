@@ -456,8 +456,6 @@ export function useDraftEditor() {
     return undefined
   }, [route, data])
 
-  console.log('~~~ draft EDIT ID: ', editId)
-
   const editEntity = useEntity(editId)
 
   // editor props
@@ -528,37 +526,7 @@ export function useDraftEditor() {
     },
   })
 
-  const updateDraft = fromPromise<
-    {id: string},
-    {
-      metadata: HMDraft['metadata']
-      deps: HMDraft['deps']
-      signingAccount: HMDraft['signingAccount']
-    }
-  >(async ({input}) => {
-    console.log('=== DRAFT UPDATE start')
-    console.log('=== DRAFT UPDATE input: ', input)
-    console.log('=== DRAFT UPDATE editor: ', editor.topLevelBlocks)
-    const locationUid = route.locationUid || data?.locationUid
-    const locationPath = route.locationPath || data?.locationPath
-    const editUid = route.editUid || data?.editUid
-    const editPath = route.editPath || data?.editPath
-    const updatedDraft = await saveDraft.mutateAsync({
-      id: route.id,
-      metadata: input.metadata,
-      signingAccount: input.signingAccount,
-      content: editor.topLevelBlocks,
-      deps: input.deps,
-      locationUid,
-      locationPath,
-      editUid,
-      editPath,
-    })
-    console.log('=== DRAFT UPDATE end')
-    return updatedDraft
-  })
-
-  const createDraft = fromPromise<
+  const writeDraft = fromPromise<
     {id: string},
     {
       metadata: HMDraft['metadata']
@@ -574,6 +542,7 @@ export function useDraftEditor() {
       const editUid = route.editUid || data?.editUid
       const editPath = route.editPath || data?.editPath
       const newDraft = await saveDraft.mutateAsync({
+        id: route.id,
         metadata: input.metadata,
         signingAccount: input.signingAccount,
         content: editor.topLevelBlocks,
@@ -660,8 +629,7 @@ export function useDraftEditor() {
         },
       },
       actors: {
-        create: createDraft,
-        update: updateDraft,
+        writeDraft,
       },
     }),
     {
@@ -677,13 +645,13 @@ export function useDraftEditor() {
     let locationUid = route.locationUid || data?.locationUid
     let editUid = route.editUid || data?.editUid
     if (
-      typeof route.id === 'undefined' &&
       typeof locationUid === 'undefined' &&
-      typeof editUid === 'undefined'
+      typeof editUid === 'undefined' &&
+      data === null // drafts can return null if they don't exist
     ) {
       send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
-    if (draftStatus === 'success' && data) {
+    if (draftStatus === 'success' && data !== null) {
       console.log(`== ~ useDraftEditor ~ data:`, data)
       send({type: 'fetch.success', payload: {type: 'draft', data}})
     } else if (locationEntity.status === 'success' && locationEntity.data) {
