@@ -68,8 +68,11 @@ export default function DraftPage() {
   const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
     undefined,
   )
+  console.log(`== ~ DraftPage ~ ROUTE:`, route)
 
   const {data, editor, send, state, actor} = useDraftEditor()
+
+  console.log(`== ~ DraftPage ~ CONTENT:`, data?.content)
 
   const isNewspaperLayout =
     data?.metadata?.layout === 'Seed/Experimental/Newspaper'
@@ -102,7 +105,7 @@ export default function DraftPage() {
         isHomeDoc={isEditingHomeDoc}
         isNewspaperLayout={isNewspaperLayout}
         onMetadata={(metadata) => {
-          if (!data.metadata) return
+          if (!metadata) return
           actor.send({type: 'change', metadata})
         }}
         onClose={() => setAccessory(undefined)}

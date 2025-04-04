@@ -43,7 +43,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const document = entity.data?.document
   const createDraft = useCreateDraft({
     locationUid: id.uid,
-    locationPath: id.path,
+    locationPath: id.path || undefined,
   })
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
@@ -80,6 +80,8 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
     )
   }
   const drafts = useAccountDraftList(id?.uid)
+
+  console.log(`== ~ SiteNavigationLoader ~ drafts:`, drafts)
 
   if (!document || !siteListQuery) return null
 
@@ -125,6 +127,7 @@ export function SiteNavigationDraftLoader({
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('SiteNavigationDraftLoader only supports draft route')
+  // TODO: refactor this to the new draft id route
   const {id} = route
   const entity = useEntity(id)
   const draftQuery = useDraft(id)
