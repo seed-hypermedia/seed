@@ -69,8 +69,7 @@ export default function DraftPage() {
     undefined,
   )
 
-  const {data, editor, send, state, actor, locationEntity, editEntity} =
-    useDraftEditor()
+  const {data, editor, send, state, actor} = useDraftEditor()
 
   const isNewspaperLayout =
     data?.metadata?.layout === 'Seed/Experimental/Newspaper'
@@ -841,7 +840,13 @@ function DraftMetadataEditor({
     return s.context.metadata.icon
   })
 
+  const stateEditUid = useSelector(draftActor, (s) => {
+    return s.context.editUid
+  })
+
   const input = useRef<HTMLTextAreaElement | null>(null)
+
+  const editUid = route.editUid || stateEditUid
 
   useShowTitleObserver(input.current)
 
@@ -913,7 +918,7 @@ function DraftMetadataEditor({
                 }
                 marginTop={showCover ? -80 : 0}
                 size={100}
-                id={route.editUid ? route.editUid : 'document-avatar'}
+                id={editUid ?? 'document-avatar'}
                 label={name}
                 url={icon ? getDaemonFileUrl(icon) : ''}
                 onIconUpload={(icon) => {
