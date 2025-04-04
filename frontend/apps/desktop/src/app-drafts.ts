@@ -170,21 +170,25 @@ function draftFileNameToId(filename: string) {
 }
 
 export const draftsApi = t.router({
-  list: t.procedure.query(async () => {
-    return draftIndex?.map((d) => ({
-      ...d,
-      locationId: d.locationUid
-        ? hmId('d', d.locationUid, {path: d.locationPath})
-        : undefined,
-      editId: d.editUid ? hmId('d', d.editUid, {path: d.editPath}) : undefined,
-    }))
+  list: t.procedure.query((): HMListedDraft[] => {
+    return (
+      draftIndex?.map((d) => ({
+        ...d,
+        locationId: d.locationUid
+          ? hmId('d', d.locationUid, {path: d.locationPath})
+          : undefined,
+        editId: d.editUid
+          ? hmId('d', d.editUid, {path: d.editPath})
+          : undefined,
+      })) || []
+    )
   }),
   listAccount: t.procedure
     .input(z.string().optional())
-    .query(async ({input}) => {
+    .query(({input}): HMListedDraft[] => {
       if (!input) return []
       // TODO: do we need to add editUid and editPath to the filter??
-      const drafts = await Promise.all(
+      return (
         draftIndex
           ?.filter(
             (d) =>
@@ -200,9 +204,8 @@ export const draftsApi = t.router({
             editId: d.editUid
               ? hmId('d', d.editUid, {path: d.editPath})
               : undefined,
-          })) || [],
+          })) || []
       )
-      return drafts satisfies HMListedDraft[]
     }),
   get: t.procedure
     .input(z.string().optional())
