@@ -207,35 +207,38 @@ export const draftsApi = t.router({
           })) || []
       )
     }),
-  get: t.procedure.input(z.string()).query(async ({input: draftId}) => {
-    const draftPath = join(draftsDir, `${draftId}.json`)
+  get: t.procedure
+    .input(z.string().optional())
+    .query(async ({input: draftId}) => {
+      if (!draftId) return null
+      const draftPath = join(draftsDir, `${draftId}.json`)
 
-    try {
-      const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
-      if (!draftIndexEntry) return null
-      const fileContent = await fs.readFile(draftPath, 'utf-8')
+      try {
+        const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
+        if (!draftIndexEntry) return null
+        const fileContent = await fs.readFile(draftPath, 'utf-8')
 
-      const draft = JSON.parse(fileContent)
-      const resultDraft: HMDraft = {
-        ...draftIndexEntry,
-        ...draft,
-        editId: draftIndexEntry.editUid
-          ? hmId('d', draftIndexEntry.editUid, {
-              path: draftIndexEntry.editPath,
-            })
-          : undefined,
-        locationId: draftIndexEntry.locationUid
-          ? hmId('d', draftIndexEntry.locationUid, {
-              path: draftIndexEntry.locationPath,
-            })
-          : undefined,
+        const draft = JSON.parse(fileContent)
+        const resultDraft: HMDraft = {
+          ...draftIndexEntry,
+          ...draft,
+          editId: draftIndexEntry.editUid
+            ? hmId('d', draftIndexEntry.editUid, {
+                path: draftIndexEntry.editPath,
+              })
+            : undefined,
+          locationId: draftIndexEntry.locationUid
+            ? hmId('d', draftIndexEntry.locationUid, {
+                path: draftIndexEntry.locationPath,
+              })
+            : undefined,
+        }
+        return resultDraft
+      } catch (e) {
+        error('[DRAFT]: Error when getting draft', {draftId, error: e})
+        return null
       }
-      return resultDraft
-    } catch (e) {
-      error('[DRAFT]: Error when getting draft', {draftId, error: e})
-      return null
-    }
-  }),
+    }),
   write: t.procedure
     .input(
       z.object({
