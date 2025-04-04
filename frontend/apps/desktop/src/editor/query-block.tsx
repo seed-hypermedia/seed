@@ -330,7 +330,6 @@ function ListView({
           return {
             id: item.data?.id,
             document: item.data?.document,
-            hasDraft: false,
             location: [],
             authors: [],
             isFavorite: false,

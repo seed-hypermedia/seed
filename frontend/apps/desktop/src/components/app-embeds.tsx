@@ -575,7 +575,6 @@ function QueryStyleList({
         return {
           id,
           document: item,
-          hasDraft: false,
           location: [],
           authors: [],
           account: item.account,
