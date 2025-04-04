@@ -9,7 +9,7 @@ export default function DiscardDraftButton() {
   const dispatch = useNavigationDispatch()
   const draftId = route.key == 'draft' ? route.id : null
   const deleteDialog = useDeleteDraftDialog()
-  if (route.key != 'draft' || !draftId) return null
+  if (route.key != 'draft') return null
   return (
     <>
       {deleteDialog.content}
@@ -17,14 +17,18 @@ export default function DiscardDraftButton() {
         <Button
           size="$2"
           theme="red"
-          onPress={() =>
-            deleteDialog.open({
-              draftId: draftId,
-              onSuccess: () => {
-                dispatch({type: 'closeBack'})
-              },
-            })
-          }
+          onPress={() => {
+            if (draftId) {
+              deleteDialog.open({
+                draftId: draftId,
+                onSuccess: () => {
+                  dispatch({type: 'closeBack'})
+                },
+              })
+            } else {
+              dispatch({type: 'closeBack'})
+            }
+          }}
           icon={Trash}
         />
       </Tooltip>
