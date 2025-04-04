@@ -48,6 +48,25 @@ export function SearchInput({
   const recents = useRecents()
   const searchResults = useSearch(search, {})
 
+  // const [entities, setEntities] = useState([])
+
+  // useEffect(() => {
+  //   if (searchResults.data) {
+  //     // @ts-ignore
+  //     setEntities(
+  //       useEntities(searchResults.data.entities.map((item) => item.id)),
+  //     )
+  //   }
+  // }, [searchResults])
+
+  // const entities = searchResults.data?.entities.length
+  //   ? useEntities(searchResults?.data?.entities.map((item) => item.id))
+  //   : []
+
+  // useEffect(() => {
+  //   console.log(entities)
+  // }, [entities])
+
   let queryItem: null | SearchResult = useMemo(() => {
     if (
       isHypermediaScheme(search) ||
@@ -195,6 +214,7 @@ export function SearchInput({
         </XStack>
       ) : null}
       {activeItems?.map((item, itemIndex) => {
+        // console.log(item)
         return (
           <>
             <SearchResultItem
