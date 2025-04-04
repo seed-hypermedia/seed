@@ -1398,18 +1398,14 @@ export function useCreateDraft(
     deps?: HMDraftContent['deps']
   } = {},
 ) {
-  const route = useNavRoute()
   const navigate = useNavigate('push')
-  // const saveDraft = trpc.drafts.write.useMutation()
   return () => {
-    if (route.key != 'draft') {
-      navigate({
-        key: 'draft',
-        ...draftParams,
-      })
-    } else {
-      // TODO: Focus the draft editor??
-    }
+    const id = nanoid(10)
+    navigate({
+      key: 'draft',
+      id,
+      ...draftParams,
+    })
   }
 }
 
