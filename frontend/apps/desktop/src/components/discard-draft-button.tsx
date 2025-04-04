@@ -10,6 +10,7 @@ export default function DiscardDraftButton() {
   const draftId = route.key == 'draft' ? route.id : null
   const deleteDialog = useDeleteDraftDialog()
   if (route.key != 'draft') return null
+
   return (
     <>
       {deleteDialog.content}
