@@ -629,7 +629,8 @@ const EmbedLauncherInput = ({
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.uid,
+          key: item.id.id,
+          path: item.id.path,
           onSelect: () => {
             assign({props: {url: item.id.id}} as MediaType)
           },
@@ -671,42 +672,41 @@ const EmbedLauncherInput = ({
       opacity={1}
       paddingVertical="$3"
       paddingHorizontal="$3"
-      backgroundColor={'$backgroundHover'}
+      backgroundColor="$backgroundHover"
       borderTopStartRadius={0}
       borderTopEndRadius={0}
       borderBottomLeftRadius={6}
       borderBottomRightRadius={6}
       position="absolute"
-      width="100%"
-      top={fileName.color ? '$11' : '$8'}
+      top="100%"
       left={0}
+      width="100%"
       zIndex={999}
+      maxHeight={300} // TODO, dynamically update based on window height?
+      overflow="scroll"
     >
-      {isDisplayingRecents ? (
+      {isDisplayingRecents && (
         <SizableText color="$color10" marginHorizontal="$4">
           Recent Resources
         </SizableText>
-      ) : null}
-      {activeItems?.map((item, itemIndex) => {
-        return (
+      )}
+      {activeItems.map((item, itemIndex) => (
+        <>
           <LauncherItem
             item={item}
             key={item.key}
             selected={focusedIndex === itemIndex}
-            onFocus={() => {
-              setFocusedIndex(itemIndex)
-            }}
-            onMouseEnter={() => {
-              setFocusedIndex(itemIndex)
-            }}
+            onFocus={() => setFocusedIndex(itemIndex)}
+            onMouseEnter={() => setFocusedIndex(itemIndex)}
           />
-        )
-      })}
+          {itemIndex === activeItems.length - 1 ? undefined : <Separator />}
+        </>
+      ))}
     </YStack>
   )
 
   return (
-    <YStack flex={1} gap="$4">
+    <YStack position="relative" flex={1}>
       <Input
         unstyled
         backgroundColor={comment ? '$color6' : '$color4'}
@@ -718,49 +718,31 @@ const EmbedLauncherInput = ({
         paddingLeft="$3"
         height="$3"
         width="100%"
-        hoverStyle={{
-          borderColor: '$color11',
-        }}
-        focusStyle={{
-          borderColor: '$color11',
-        }}
-        onFocus={() => {
-          setFocused(true)
-        }}
-        onBlur={() => {
-          setTimeout(() => {
-            setFocused(false)
-          }, 150)
-        }}
+        hoverStyle={{borderColor: '$color11'}}
+        focusStyle={{borderColor: '$color11'}}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
         autoFocus={false}
         value={search}
         onChangeText={(text: string) => {
           setSearch(text)
           setUrl(text)
-          if (fileName.color)
-            setFileName({
-              name: 'Upload File',
-              color: undefined,
-            })
+          if (fileName.color) {
+            setFileName({name: 'Upload File', color: undefined})
+          }
         }}
         placeholder="Query or input Embed URL..."
-        // disabled={!!actionPromise}
         onKeyPress={(e: any) => {
+          if (!activeItems.length) return
+
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)
-            return
-          }
-          if (e.nativeEvent.key === 'Enter') {
-            const item = activeItems[focusedIndex]
-            if (item) {
-              item.onSelect()
-            }
-          }
-          if (e.nativeEvent.key === 'ArrowDown') {
+          } else if (e.nativeEvent.key === 'Enter') {
+            activeItems[focusedIndex]?.onSelect()
+          } else if (e.nativeEvent.key === 'ArrowDown') {
             e.preventDefault()
             setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-          }
-          if (e.nativeEvent.key === 'ArrowUp') {
+          } else if (e.nativeEvent.key === 'ArrowUp') {
             e.preventDefault()
             setFocusedIndex(
               (prev) => (prev - 1 + activeItems.length) % activeItems.length,
