@@ -25,6 +25,7 @@ import documentationDark from '@/images/template-documentation-dark.png'
 import documentationLight from '@/images/template-documentation-light.png'
 import {useSubscribedEntity} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
+import {nanoid} from 'nanoid'
 import {useAppDialog} from './dialog'
 
 export function SiteTemplate({
@@ -58,8 +59,10 @@ export function SiteTemplate({
     if (selectedTemplate === 'blank') {
       navigate({
         key: 'draft',
+        id: nanoid(10),
         editUid: (route as DocumentRoute).id.uid,
         editPath: (route as DocumentRoute).id.path || [],
+        // @ts-expect-error version is always a string
         deps:
           typeof (route as DocumentRoute).id.version === 'string'
             ? [(route as DocumentRoute).id.version]

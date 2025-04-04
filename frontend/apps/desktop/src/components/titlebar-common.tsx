@@ -57,6 +57,7 @@ import {
   GitFork,
   Import,
 } from '@tamagui/lucide-icons'
+import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useState} from 'react'
 import {
   Button,
@@ -372,6 +373,7 @@ function EditDocButton() {
         } else {
           navigate({
             key: 'draft',
+            id: nanoid(10),
             editUid: route.id.uid,
             editPath: route.id.path || [],
             deps: route.id.version ? [route.id.version] : undefined,

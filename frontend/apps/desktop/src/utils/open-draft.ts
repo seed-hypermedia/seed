@@ -4,10 +4,10 @@ import {useNavigate} from './useNavigate'
 
 export function useOpenDraft(navigateMode: NavMode = 'spawn') {
   const navigate = useNavigate(navigateMode)
-  function openDraft(opts?: {id?: string}) {
+  function openDraft(opts: {id: string}) {
     const draftRoute: DraftRoute = {
       key: 'draft',
-      id: opts?.id || undefined,
+      id: opts.id,
     }
     navigate(draftRoute)
   }

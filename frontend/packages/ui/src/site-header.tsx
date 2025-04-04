@@ -284,14 +284,10 @@ function HeaderLinkItem({
   isPublished?: boolean
 }) {
   // TODO: change this to use the draft id
-  const linkProps = useRouteLink(
-    isDraft
-      ? {key: 'draft', id}
-      : {
-          key: 'document',
-          id,
-        },
-  )
+  const linkProps = useRouteLink({
+    key: 'document',
+    id,
+  })
   const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
     <SizableText

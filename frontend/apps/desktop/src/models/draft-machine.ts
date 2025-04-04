@@ -7,7 +7,7 @@ export type DraftMachineState = StateFrom<typeof draftMachine>
 export const draftMachine = setup({
   types: {
     input: {} as {
-      id?: string
+      id: string
       locationUid?: string
       locationPath?: string[]
       editUid?: string
@@ -16,7 +16,7 @@ export const draftMachine = setup({
     },
     context: {} as {
       nameRef: null | HTMLTextAreaElement
-      id?: string
+      id: string
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
       locationUid: HMDraft['locationUid']
@@ -276,8 +276,8 @@ export const draftMachine = setup({
             },
           },
           invoke: {
-            id: 'create',
-            src: 'create',
+            id: 'writeDraft',
+            src: 'writeDraft',
             input: ({context}) => ({
               metadata: context.metadata,
               deps: context.deps,
@@ -350,9 +350,10 @@ export const draftMachine = setup({
             },
           },
           invoke: {
-            id: 'update',
-            src: 'update',
+            id: 'writeDraft',
+            src: 'writeDraft',
             input: ({context}) => ({
+              id: context.id,
               metadata: context.metadata,
               deps: context.deps,
               signingAccount: context.signingAccount,
