@@ -695,8 +695,9 @@ export function useDraftEditor() {
   // this updates the draft with the correct signing account
   useEffect(() => {
     draftEvents.subscribe(
-      (value: {type: 'change'; signingAccount: string} | null) => {
+      (value: {type: 'change'; signingAccount?: string} | null) => {
         if (value) {
+          console.log('~~ signingAccount EVENT FROM STREAM change: ', value)
           send(value)
         }
       },
