@@ -7,7 +7,6 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
-  HMDraft,
   HMLibraryDocument,
   HMMetadata,
   HMMetadataPayload,
@@ -46,8 +45,6 @@ export type LibraryData = {
   items: Array<{
     id: UnpackedHypermediaId
     document?: HMDocument
-    hasDraft: boolean
-    draft?: HMDraft
     location: LibraryDependentData[]
     authors: LibraryDependentData[]
     isFavorite: boolean
