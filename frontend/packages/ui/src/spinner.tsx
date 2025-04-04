@@ -5,9 +5,7 @@ import {themeable, useTheme, variableToString} from '@tamagui/core'
 import type {YStackProps} from '@tamagui/stacks'
 import {YStack} from '@tamagui/stacks'
 import * as React from 'react'
-import {useEffect, useState} from 'react'
-import {ActivityIndicator} from 'react-native'
-import {SizableText} from 'tamagui'
+import {ActivityIndicator} from 'react-native-web'
 
 export type SpinnerProps = Omit<YStackProps, 'children'> & {
   size?: 'small' | 'large'
@@ -36,42 +34,3 @@ export const Spinner: React.ForwardRefExoticComponent<
     },
   ),
 ) as any
-
-export interface SpinnerWithTextProps {
-  message: string
-  delay?: number
-}
-
-export function SpinnerWithText({message, delay}: SpinnerWithTextProps) {
-  const [displayMessage, setDisplayMessage] = useState('')
-
-  useEffect(() => {
-    if (!delay) {
-      setDisplayMessage(message)
-      return
-    }
-
-    const timer = setTimeout(() => {
-      setDisplayMessage(message)
-    }, delay)
-
-    return () => clearTimeout(timer)
-  }, [message, delay])
-
-  return (
-    <YStack fullscreen ai="center" jc="center" gap="$4" className="window-drag">
-      <Spinner />
-      <SizableText
-        opacity={displayMessage ? 1 : 0}
-        animation="slow"
-        size="$5"
-        color="$color9"
-        fontWeight="300"
-        textAlign="center"
-        minHeight="$4"
-      >
-        {displayMessage}
-      </SizableText>
-    </YStack>
-  )
-}

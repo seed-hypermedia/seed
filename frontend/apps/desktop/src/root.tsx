@@ -1,7 +1,11 @@
-import {AppContextProvider} from '@/app-context-provider'
+import {AppContextProvider, StyleProvider} from '@/app-context-provider'
+import {AppIPC} from '@/app-ipc'
+import {WindowUtils} from '@/models/window-utils'
+import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
+import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
-import {SpinnerWithText} from '@shm/ui/spinner'
+import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
@@ -9,10 +13,14 @@ import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
 import {onlineManager, QueryKey} from '@tanstack/react-query'
 import copyTextToClipboard from 'copy-text-to-clipboard'
-import React, {useEffect, useState} from 'react'
+import {ipcLink} from 'electron-trpc/renderer'
+import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
+import {ErrorBoundary} from 'react-error-boundary'
+import superjson from 'superjson'
+import {SizableText, YStack} from 'tamagui'
 import {getOnboardingState} from './app-onboarding'
-import {AppErrorContent} from './components/app-error'
+import {AppErrorContent, RootAppError} from './components/app-error'
 import {
   Onboarding,
   OnboardingDebugBox,
@@ -25,19 +33,13 @@ import {ipc} from './ipc'
 import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
-import {trpc} from './trpc'
+import {client, trpc} from './trpc'
 
-import {AppIPC} from '@/app-ipc'
-import {WindowUtils} from '@/models/window-utils'
 import {
   onQueryCacheError,
   onQueryInvalidation,
-  queryClient,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
-import {QueryClientProvider} from '@tanstack/react-query'
-import {ipcLink} from 'electron-trpc/renderer'
-import superjson from 'superjson'
 import * as entities from './models/entities'
 import * as search from './models/search'
 
@@ -45,184 +47,182 @@ import * as search from './models/search'
 search
 entities
 
-// @ts-expect-error
-const daemonState: StateStream<GoDaemonState> = window.daemonState
-// @ts-expect-error
-const appInfo: AppInfoType = window.appInfo
-
-// Custom hook to initialize query client settings
-function useInitializeQueryClient() {
-  useEffect(() => {
-    // Initialize query client settings
-    onQueryInvalidation((queryKey: QueryKey) => {
-      // First invalidate locally
-      queryClient.invalidateQueries(queryKey)
-      // Then notify other windows through IPC
-      ipc.send?.('invalidate_queries', queryKey)
-    })
-
-    onlineManager.setOnline(true)
-
-    onQueryCacheError((error, query) => {
-      const queryKey = query.queryKey as string[]
-      const errorMessage = ((error as any)?.message || null) as string | null
-      toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}`, {
-        onClick: () => {
-          const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
-          copyTextToClipboard(detailString)
-          toast.success(`📋 Copied details to clipboard`)
-        },
-      })
-    })
-  }, [])
+const logger = {
+  log: wrapLogger(console.log),
+  error: wrapLogger(console.error),
 }
 
-// Custom hooks for app functionality
-function useGoDaemonState(): GoDaemonState | undefined {
-  const [state, setState] = useState<GoDaemonState | undefined>(
-    daemonState.get(),
-  )
-
-  useEffect(() => {
-    const updateHandler = (value: GoDaemonState) => setState(value)
-    if (daemonState.get() !== state) {
-      setState(daemonState.get())
-    }
-    const sub = daemonState.subscribe(updateHandler)
-    return () => sub()
-  }, [])
-
-  return state
+function wrapLogger(logFn: (...args: any[]) => void) {
+  return (...input: any[]) => {
+    logFn(
+      ...input.map((item) => {
+        if (typeof item === 'string') return item
+        try {
+          return JSON.stringify(item, null, 2)
+        } catch {}
+        return item // on main thread this will likely be rendered as [object Object]
+      }),
+    )
+  }
 }
 
-// Window utilities hook
+const securitySensitiveMethods = new Set([
+  'Daemon.Register',
+  'Daemon.GenMnemonic',
+])
+const enabledLogMessages = new Set<string>([
+  // 'Accounts.ListAccounts',
+  // 'Comments.ListComments',
+  // etc.. add the messages you need to see here, please comment out before committing!
+])
+const hiddenLogMessages = new Set<string>([
+  'Daemon.GetInfo',
+  'Networking.GetPeerInfo',
+])
+// const loggingInterceptor: Interceptor = (next) => async (req) => {
+//   const serviceLabel = req.service.typeName.split('.').at(-1)
+//   const methodFullname = `${serviceLabel}.${req.method.name}`
+//   const isSensitive = securitySensitiveMethods.has(methodFullname)
+//   try {
+//     const result = await next(req)
+//     if (
+//       enabledLogMessages.has(methodFullname) &&
+//       !hiddenLogMessages.has(methodFullname)
+//     ) {
+//       const request = req.message
+//       const response = result?.message
+//       logger.log(`🔃 to ${methodFullname}`, request, response)
+//     } else if (!hiddenLogMessages.has(methodFullname)) {
+//       logger.log(`🔃 to ${methodFullname}`)
+//     }
+//     return result
+//   } catch (e) {
+//     let error = e
+//     if (e.message.match('stream.getReader is not a function')) {
+//       error = new Error('RPC broken, try running yarn and ./dev gen')
+//     }
+//     if (isSensitive) {
+//       logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
+//       throw error
+//     }
+//     logger.error(`🚨 to ${methodFullname} `, req.message, error)
+//     throw error
+//   }
+// }
+
 function useWindowUtils(ipc: AppIPC): WindowUtils {
+  // const win = getCurrent()
   const [isMaximized, setIsMaximized] = useState<boolean | undefined>(false)
-
-  return {
+  const windowUtils = {
     maximize: () => {
+      // toast.error('Not implemented maximize')
       setIsMaximized(true)
       ipc.send('maximize_window')
+      // win.maximize()
     },
     unmaximize: () => {
+      // toast.error('Not implemented')
       setIsMaximized(false)
       ipc.send('maximize_window')
+      // win.unmaximize()
     },
     close: () => {
+      // toast.error('Not implemented')
       ipc.send('close_window')
+      // win.close()
     },
     minimize: () => {
+      // toast.error('Not implemented')
       ipc.send('minimize_window')
+      // win.minimize()
     },
     hide: () => {
       toast.error('Not implemented')
+      // win.hide()
     },
     isMaximized,
     quit: () => {
       ipc.send('quit_app')
     },
   }
+  return windowUtils
 }
 
-function useInitialOnboardingState() {
-  return useState(() => {
+// @ts-expect-error
+const daemonState: StateStream<GoDaemonState> = window.daemonState
+// @ts-expect-error
+const appInfo: AppInfoType = window.appInfo
+
+function useGoDaemonState(): GoDaemonState | undefined {
+  const [state, setState] = useState<GoDaemonState | undefined>(
+    daemonState.get(),
+  )
+
+  useEffect(() => {
+    const updateHandler = (value: GoDaemonState) => {
+      setState(value)
+    }
+    if (daemonState.get() !== state) {
+      // this is hacky and shouldn't be needed but this fixes some race where daemonState has changed already
+      setState(daemonState.get())
+    }
+    const sub = daemonState.subscribe(updateHandler)
+
+    return () => {
+      sub()
+    }
+  }, [])
+
+  return state
+}
+
+// on desktop we handle query invalidation by sending it through IPC so it is sent to all windows
+onQueryInvalidation((queryKey: QueryKey) => {
+  ipc.send?.('invalidate_queries', queryKey)
+})
+
+// RQ will refuse to run mutations if !isOnline
+onlineManager.setOnline(true)
+
+// toast when a query error happens. we set this up here because web doesn't have this feature yet
+onQueryCacheError((error, query) => {
+  const queryKey = query.queryKey as string[]
+  const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
+  toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}`, {
+    onClick: () => {
+      const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
+      copyTextToClipboard(detailString)
+      toast.success(`📋 Copied details to clipboard`)
+    },
+  })
+})
+
+function MainApp({}: {}) {
+  // Make window visible immediately - this should be the very first thing
+  useEffect(() => {
+    console.log('Making window visible immediately')
+    // @ts-expect-error
+    window.windowIsReady()
+  }, [])
+
+  const darkMode = useStream<boolean>(window.darkMode)
+  const daemonState = useGoDaemonState()
+  const windowUtils = useWindowUtils(ipc)
+  const utils = trpc.useUtils()
+
+  // Initialize showOnboarding state with all checks to avoid flashing
+  const [showOnboarding, setShowOnboarding] = useState(() => {
     const {
       hasCompletedOnboarding,
       hasSkippedOnboarding,
       initialAccountIdCount,
     } = getOnboardingState()
+    // Don't show onboarding if it's already completed, skipped, or if there are accounts
     const hasInitialAccountIds = initialAccountIdCount > 0
-    return (
+    const shouldShowOnboarding =
       !hasCompletedOnboarding && !hasSkippedOnboarding && !hasInitialAccountIds
-    )
+    return shouldShowOnboarding
   })
-}
-
-// MainContent component
-function MainContent({
-  showOnboarding,
-  onOnboardingComplete,
-}: {
-  showOnboarding: boolean
-  onOnboardingComplete: () => void
-}) {
-  const darkMode = useStream<boolean>(window.darkMode)
-  const utils = trpc.useUtils()
-
-  // Handle query invalidation through TRPC subscription
-  trpc.queryInvalidation.useSubscription(undefined, {
-    enabled: !showOnboarding,
-    onData: (value: unknown) => {
-      if (!value || !Array.isArray(value)) return
-
-      const invalidationMap: Record<string, () => void> = {
-        'trpc.experiments.get': () => utils.experiments.get.invalidate(),
-        'trpc.favorites.get': () => utils.favorites.get.invalidate(),
-        'trpc.host.get': () => utils.host.get.invalidate(),
-        'trpc.recentSigners.get': () => utils.recentSigners.get.invalidate(),
-        'trpc.comments.getCommentDraft': () =>
-          utils.comments.getCommentDraft.invalidate(),
-        'trpc.gatewaySettings.getGatewayUrl': () =>
-          utils.gatewaySettings.getGatewayUrl.invalidate(),
-        'trpc.gatewaySettings.getPushOnCopy': () =>
-          utils.gatewaySettings.getPushOnCopy.invalidate(),
-        'trpc.gatewaySettings.getPushOnPublish': () =>
-          utils.gatewaySettings.getPushOnPublish.invalidate(),
-        'trpc.recents.getRecents': () => utils.recents.getRecents.invalidate(),
-        'trpc.appSettings.getAutoUpdatePreference': () =>
-          utils.appSettings.getAutoUpdatePreference.invalidate(),
-        'trpc.drafts.get': () =>
-          utils.drafts.get.invalidate(value[1] as string | undefined),
-        'trpc.drafts.list': () => utils.drafts.list.invalidate(),
-        'trpc.drafts.listAccount': () => utils.drafts.listAccount.invalidate(),
-        'trpc.secureStorage.get': () => {
-          utils.secureStorage.invalidate()
-          utils.secureStorage.read.invalidate()
-        },
-      }
-
-      const invalidateAction = invalidationMap[value[0] as string]
-      if (invalidateAction) {
-        invalidateAction()
-      }
-    },
-  })
-
-  if (showOnboarding) {
-    return (
-      <>
-        <Onboarding onComplete={onOnboardingComplete} />
-        {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <OnboardingDialog />
-      <Main className={darkMode ? 'seed-app-dark' : 'seed-app-light'} />
-      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
-      <Toaster />
-    </>
-  )
-}
-
-// MainApp component
-function MainApp() {
-  useInitializeQueryClient()
-
-  useEffect(() => {
-    // Make window visible immediately
-
-    window.windowIsReady()
-  }, [])
-
-  const [showOnboarding, setShowOnboarding] = useInitialOnboardingState()
-  const daemonState = useGoDaemonState()
-  const windowUtils = useWindowUtils(ipc)
-
-  const darkMode = useStream<boolean>(window.darkMode)
 
   useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
@@ -239,143 +239,239 @@ function MainApp() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
   }
+  useEffect(() => {
+    const sub = client.queryInvalidation.subscribe(undefined, {
+      // called when invalidation happens in any window (including this one), here we are performing the local invalidation
+      onData: (value: unknown[]) => {
+        if (!value) return
+        if (value[0] === 'trpc.experiments.get') {
+          utils.experiments.get.invalidate()
+        } else if (value[0] === 'trpc.favorites.get') {
+          utils.favorites.get.invalidate()
+        } else if (value[0] === 'trpc.host.get') {
+          utils.host.get.invalidate()
+        } else if (value[0] === 'trpc.recentSigners.get') {
+          utils.recentSigners.get.invalidate()
+        } else if (value[0] === 'trpc.comments.getCommentDraft') {
+          utils.comments.getCommentDraft.invalidate()
+        } else if (value[0] === 'trpc.gatewaySettings.getGatewayUrl') {
+          utils.gatewaySettings.getGatewayUrl.invalidate()
+        } else if (value[0] === 'trpc.gatewaySettings.getPushOnCopy') {
+          utils.gatewaySettings.getPushOnCopy.invalidate()
+        } else if (value[0] === 'trpc.gatewaySettings.getPushOnPublish') {
+          utils.gatewaySettings.getPushOnPublish.invalidate()
+        } else if (value[0] === 'trpc.recents.getRecents') {
+          utils.recents.getRecents.invalidate()
+        } else if (value[0] === 'trpc.appSettings.getAutoUpdatePreference') {
+          utils.appSettings.getAutoUpdatePreference.invalidate()
+        } else if (value[0] == 'trpc.drafts.get') {
+          utils.drafts.get.invalidate(value[1] as string | undefined)
+        } else if (value[0] == 'trpc.drafts.list') {
+          utils.drafts.list.invalidate()
+        } else if (value[0] == 'trpc.drafts.listAccount') {
+          utils.drafts.listAccount.invalidate()
+        } else if (value[0] == 'trpc.secureStorage.get') {
+          utils.secureStorage.invalidate()
 
-  if (daemonState?.t === 'error') {
-    return <AppErrorContent message={daemonState?.message} />
-  }
+          utils.secureStorage.read.invalidate()
+        } else {
+          queryClient.invalidateQueries(value)
+        }
+      },
+    })
+    return () => {
+      sub.unsubscribe()
+    }
+  }, [utils, showOnboarding])
 
-  if (daemonState?.t !== 'ready') {
-    return (
-      <SpinnerWithText
-        message={'We are doing some housekeeping.\nDo not close this window!'}
-        delay={1000}
+  let mainContent = showOnboarding ? (
+    <>
+      <Onboarding onComplete={handleOnboardingComplete} />
+      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
+    </>
+  ) : (
+    <>
+      <OnboardingDialog />
+      <Main
+        className={
+          // this is used by editor.css which doesn't know tamagui styles, boooo!
+          darkMode ? 'seed-app-dark' : 'seed-app-light'
+        }
       />
+      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
+      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
+      <Toaster />
+    </>
+  )
+
+  // const openMarkdownFiles = () => {
+  //   // @ts-ignore
+  //   return window.docImport.openMarkdownFiles()
+  // }
+  // const openMarkdownDirectories = () => {
+  //   // @ts-ignore
+  //   return window.docImport.openMarkdownDirectories()
+  // }
+
+  // const readMediaFile = (filePath: string) => {
+  //   // @ts-ignore
+  //   return window.docImport.readMediaFile(filePath)
+  // }
+
+  if (daemonState?.t == 'ready') {
+    return (
+      <AppContextProvider
+        grpcClient={grpcClient}
+        platform={appInfo.platform()}
+        ipc={ipc}
+        externalOpen={async (url: string) => {
+          ipc.send?.('open-external-link', url)
+        }}
+        openDirectory={async (directory: string) => {
+          ipc.send?.('open-directory', directory)
+        }}
+        saveCidAsFile={async (cid: string, name: string) => {
+          ipc.send?.('save-file', {cid, name})
+        }}
+        openMarkdownFiles={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownFiles(accountId)
+        }}
+        openMarkdownDirectories={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownDirectories(accountId)
+        }}
+        readMediaFile={(filePath: string) => {
+          // @ts-ignore
+          return window.docImport.readMediaFile(filePath)
+        }}
+        exportDocument={async (
+          title: string,
+          markdownContent: string,
+          mediaFiles: {url: string; filename: string; placeholder: string}[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocument(
+            title,
+            markdownContent,
+            mediaFiles,
+          )
+        }}
+        exportDocuments={async (
+          documents: {
+            title: string
+            markdown: {
+              markdownContent: string
+              mediaFiles: {
+                url: string
+                filename: string
+                placeholder: string
+              }[]
+            }
+          }[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocuments(documents)
+        }}
+        windowUtils={windowUtils}
+        darkMode={darkMode!}
+      >
+        <Suspense fallback={<SpinnerWithText message="" />}>
+          <ErrorBoundary
+            FallbackComponent={RootAppError}
+            onReset={() => {
+              window.location.reload()
+            }}
+          >
+            <NavigationContainer
+              initialNav={
+                // @ts-expect-error
+                window.initNavState
+              }
+            >
+              {mainContent}
+              <ResetOnboardingButton />
+            </NavigationContainer>
+            <Toaster
+            // position="bottom-center"
+            // toastOptions={{className: 'toaster'}}
+            />
+          </ErrorBoundary>
+        </Suspense>
+      </AppContextProvider>
+    )
+  } else if (daemonState?.t == 'error') {
+    console.error('Daemon error', daemonState?.message)
+    return (
+      <StyleProvider darkMode={darkMode!}>
+        <AppErrorContent message={daemonState?.message} />
+      </StyleProvider>
+    )
+  } else {
+    return (
+      <StyleProvider darkMode={darkMode!}>
+        <SpinnerWithText
+          message={'We are doing some housekeeping.\nDo not close this window!'}
+          delay={1000}
+        />
+      </StyleProvider>
     )
   }
+}
+
+function SpinnerWithText(props: {message: string; delay?: number}) {
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (!props.delay) {
+      setMessage(props.message)
+      return () => {}
+    }
+
+    const timer = setTimeout(() => {
+      setMessage(props.message)
+    }, props.delay)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
-    <AppContextProvider
-      grpcClient={grpcClient}
-      platform={appInfo.platform()}
-      ipc={ipc}
-      externalOpen={async (url: string) => {
-        ipc.send?.('open-external-link', url)
-      }}
-      openDirectory={async (directory: string) => {
-        ipc.send?.('open-directory', directory)
-      }}
-      saveCidAsFile={async (cid: string, name: string) => {
-        ipc.send?.('save-file', {cid, name})
-      }}
-      openMarkdownFiles={(accountId: string) => {
-        // @ts-ignore
-        return window.docImport.openMarkdownFiles(accountId)
-      }}
-      openMarkdownDirectories={(accountId: string) => {
-        // @ts-ignore
-        return window.docImport.openMarkdownDirectories(accountId)
-      }}
-      readMediaFile={(filePath: string) => {
-        // @ts-ignore
-        return window.docImport.readMediaFile(filePath)
-      }}
-      exportDocument={async (
-        title: string,
-        markdownContent: string,
-        mediaFiles: {url: string; filename: string; placeholder: string}[],
-      ) => {
-        // @ts-ignore
-        return window.docExport.exportDocument(
-          title,
-          markdownContent,
-          mediaFiles,
-        )
-      }}
-      exportDocuments={async (
-        documents: {
-          title: string
-          markdown: {
-            markdownContent: string
-            mediaFiles: {url: string; filename: string; placeholder: string}[]
-          }
-        }[],
-      ) => {
-        // @ts-ignore
-        return window.docExport.exportDocuments(documents)
-      }}
-      windowUtils={windowUtils}
-      darkMode={darkMode!}
-      initialNav={window.initNavState}
-    >
-      <MainContent
-        showOnboarding={showOnboarding}
-        onOnboardingComplete={handleOnboardingComplete}
-      />
-    </AppContextProvider>
+    <YStack fullscreen ai="center" jc="center" gap="$4" className="window-drag">
+      <Spinner />
+      <SizableText
+        opacity={message ? 1 : 0}
+        animation="slow"
+        size="$5"
+        color="$color9"
+        fontWeight="300"
+        textAlign="center"
+        minHeight="$4"
+      >
+        {message}
+      </SizableText>
+    </YStack>
   )
 }
 
-// Create TRPC client
-const trpcClient = trpc.createClient({
-  links: [ipcLink()],
-  transformer: superjson,
-})
+function ElectronApp() {
+  const trpcClient = useMemo(
+    () =>
+      trpc.createClient({
+        links: [ipcLink()],
+        transformer: superjson,
+      }),
+    [],
+  )
 
-// Render app
+  return (
+    <trpc.Provider queryClient={queryClient} client={trpcClient}>
+      <MainApp />
+    </trpc.Provider>
+  )
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <MainApp />
-      </trpc.Provider>
-    </QueryClientProvider>
+    <ElectronApp />
   </React.StrictMode>,
 )
-
-declare global {
-  interface Window {
-    darkMode: import('@shm/shared/utils/stream').StateStream<boolean>
-    windowIsReady: () => void
-    initNavState: any
-    docImport: {
-      openMarkdownFiles: (accountId: string) => Promise<{
-        documents: {
-          markdownContent: string
-          title: string
-          directoryPath: string
-        }[]
-        docMap: Map<string, {name: string; path: string}>
-      }>
-      openMarkdownDirectories: (accountId: string) => Promise<{
-        documents: {
-          markdownContent: string
-          title: string
-          directoryPath: string
-        }[]
-        docMap: Map<string, {name: string; path: string}>
-      }>
-      readMediaFile: (filePath: string) => Promise<{
-        filePath: string
-        content: string
-        mimeType: string
-        fileName: string
-      }>
-    }
-    docExport: {
-      exportDocument: (
-        title: string,
-        markdownContent: string,
-        mediaFiles: {url: string; filename: string; placeholder: string}[],
-      ) => Promise<void>
-      exportDocuments: (
-        documents: {
-          title: string
-          markdown: {
-            markdownContent: string
-            mediaFiles: {url: string; filename: string; placeholder: string}[]
-          }
-        }[],
-      ) => Promise<string>
-    }
-  }
-}
