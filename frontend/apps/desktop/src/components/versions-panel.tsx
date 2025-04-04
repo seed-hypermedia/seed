@@ -1,15 +1,17 @@
 import {useSubscribedEntity} from '@/models/entities'
 import {useDocumentChanges, useVersionChanges} from '@/models/versions'
 import {useNavigate} from '@/utils/useNavigate'
+import {PlainMessage} from '@bufbuild/protobuf'
+import {DocumentChangeInfo} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {getAccountName} from '@shm/shared/content'
-import {HMChangeInfo} from '@shm/shared/hm-types'
+import {HMChangeInfo, HMDraftChange} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Draft, Version} from '@shm/ui/icons'
+import {Version} from '@shm/ui/icons'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 
@@ -21,10 +23,11 @@ export function VersionsPanel({
   onClose: () => void
 }) {
   const navigate = useNavigate()
-  if (!route.id) throw new Error('VersionsPanel must have document id')
+  if (route.key !== 'document')
+    throw new Error('VersionsPanel must have document id')
   const activeChangeIds = useVersionChanges(route.id)
   const currentEntity = useSubscribedEntity({...route.id, version: null})
-  const changes = useDocumentChanges(route.id, route.key == 'draft')
+  const changes = useDocumentChanges(route.id, false)
   return (
     <AccessoryContainer title="Versions" onClose={onClose}>
       <YStack>
@@ -36,7 +39,7 @@ export function VersionsPanel({
               change={change}
               isActive={isActive}
               onPress={() => {
-                route.id
+                route.id && typeof route.id === 'object'
                   ? navigate({
                       ...route,
                       key: 'document',
@@ -69,6 +72,15 @@ export function ChangeItem({
 }) {
   const iconSize = 20
   const authorEntity = useEntity(hmId('d', change.author))
+  const authorId = authorEntity.data?.id
+
+  const isDraft = (c: HMChangeInfo): c is HMDraftChange =>
+    'type' in c && c.type === 'draftChange'
+  const getChangeTime = (c: HMChangeInfo) => {
+    if (isDraft(c))
+      return c.lastUpdateTime ? new Date(c.lastUpdateTime * 1000) : new Date()
+    return (c as PlainMessage<DocumentChangeInfo>).createTime
+  }
 
   return (
     <Button
@@ -105,24 +117,22 @@ export function ChangeItem({
         h={20}
         zi="$zIndex.2"
         ai="center"
-        bg={change.isDraft ? '$brand7' : '#2C2C2C'}
+        bg="#2C2C2C"
         jc="center"
         borderRadius={10}
         p={1}
       >
-        {change.isDraft ? (
-          <Draft size={10} color="white" />
-        ) : (
-          <Version size={16} color="white" />
-        )}
+        <Version size={16} color="white" />
       </XStack>
-      <HMIcon
-        flexGrow={0}
-        flexShrink={0}
-        size={iconSize}
-        id={authorEntity.data?.id}
-        metadata={authorEntity.data?.document?.metadata}
-      />
+      {authorId && (
+        <HMIcon
+          flexGrow={0}
+          flexShrink={0}
+          size={iconSize}
+          id={authorId}
+          metadata={authorEntity.data?.document?.metadata}
+        />
+      )}
       <YStack f={1}>
         <XStack
           h={iconSize}
@@ -140,15 +150,9 @@ export function ChangeItem({
           >
             {getAccountName(authorEntity.data?.document)}
           </SizableText>
-          {change.isDraft ? (
-            <SizableText size="$2" fontWeight={700} flexShrink={0}>
-              DRAFT
-            </SizableText>
-          ) : (
-            <SizableText size="$2" fontWeight={700} flexShrink={0}>
-              {isCurrent ? 'current version' : 'version'}
-            </SizableText>
-          )}
+          <SizableText size="$2" fontWeight={700} flexShrink={0}>
+            {isCurrent ? 'current version' : 'version'}
+          </SizableText>
         </XStack>
         <SizableText
           size="$1"
@@ -158,7 +162,7 @@ export function ChangeItem({
           overflow="hidden"
           whiteSpace="nowrap"
         >
-          {formattedDateMedium(change.createTime)}
+          {formattedDateMedium(getChangeTime(change))}
         </SizableText>
       </YStack>
     </Button>

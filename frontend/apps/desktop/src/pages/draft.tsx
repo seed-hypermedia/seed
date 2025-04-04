@@ -31,8 +31,8 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
+import {hmId} from '@shm/shared/utils'
 import {Container} from '@shm/ui/container'
 import {
   useDocContentContext,
@@ -46,7 +46,7 @@ import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {
@@ -77,7 +77,20 @@ export default function DraftPage() {
   const isNewspaperLayout =
     data?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
-  const isEditingHomeDoc = (route as DraftRoute).editPath?.length === 0
+  const parentEntityId = useMemo(() => {
+    if (route.key != 'draft') return undefined
+    if (route.locationUid)
+      return hmId('d', route.locationUid, {path: route.locationPath})
+    if (data?.locationUid)
+      return hmId('d', data.locationUid, {
+        path: data.locationPath,
+      })
+    if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
+    if (data?.editUid) return hmId('d', data.editUid, {path: data.editPath})
+    return undefined
+  }, [route, data])
+
+  const isEditingHomeDoc = parentEntityId && parentEntityId.path?.length === 0
 
   const accessoryOptions: {
     key: 'options'
@@ -102,7 +115,7 @@ export default function DraftPage() {
       <OptionsPanel
         draftId={'UPDATE ME'}
         metadata={state.context.metadata}
-        isHomeDoc={isEditingHomeDoc}
+        isHomeDoc={false}
         isNewspaperLayout={isNewspaperLayout}
         onMetadata={(metadata) => {
           if (!metadata) return

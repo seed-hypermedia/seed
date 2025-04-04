@@ -78,39 +78,49 @@ export default function PublishDraftButton() {
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
-  const publish = usePublishDraft(draft.data?.editId, {
-    onSuccess: (resultDoc, input) => {
-      if (pushOnPublish.data === 'never') return
-      const {draft} = input
-      const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
-      const {close} = toast.custom(
-        <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
-        {waitForClose: true, duration: 4000},
-      )
-      if (draft.id && resultDoc.version) {
-        const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
-        publishToSite(
-          hmId('d', resultDoc.account, {
-            path: resultPath,
-            version: resultDoc.version,
-          }),
-          publishSiteUrl,
+  const publish = usePublishDraft(
+    draft.data?.editId
+      ? {
+          ...draft.data?.editId,
+          version: draft.data?.deps[0] || null,
+        }
+      : undefined,
+    {
+      onSuccess: (resultDoc, input) => {
+        if (pushOnPublish.data === 'never') return
+        const {draft} = input
+        const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(
+          null,
         )
-          .then(() => {
-            setIsPushed(true)
-          })
-          .catch((e) => {
-            setIsPushed(false)
-          })
-          .finally(() => {
-            close()
-          })
-      } else {
-        setIsPushed(false)
-        close()
-      }
+        const {close} = toast.custom(
+          <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
+          {waitForClose: true, duration: 4000},
+        )
+        if (draft.id && resultDoc.version) {
+          const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
+          publishToSite(
+            hmId('d', resultDoc.account, {
+              path: resultPath,
+              version: resultDoc.version,
+            }),
+            publishSiteUrl,
+          )
+            .then(() => {
+              setIsPushed(true)
+            })
+            .catch((e) => {
+              setIsPushed(false)
+            })
+            .finally(() => {
+              close()
+            })
+        } else {
+          setIsPushed(false)
+          close()
+        }
+      },
     },
-  })
+  )
 
   useEffect(() => {
     if (signingAccount && signingAccount.id.uid) {
