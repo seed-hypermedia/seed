@@ -186,7 +186,12 @@ export const draftsApi = t.router({
       // TODO: do we need to add editUid and editPath to the filter??
       const drafts = await Promise.all(
         draftIndex
-          ?.filter((d) => !!input && d.locationUid && d.locationUid === input)
+          ?.filter(
+            (d) =>
+              !!input &&
+              ((d.locationUid && d.locationUid === input) ||
+                (d.editUid && d.editUid === input)),
+          )
           .map((d) => ({
             ...d,
             locationId: d.locationUid
