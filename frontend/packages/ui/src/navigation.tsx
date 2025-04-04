@@ -114,35 +114,16 @@ export function getSiteNavDirectory({
       query.in.uid === id.uid &&
       (query.in.path || []).join('/') === (id.path || []).join('/'),
   )
-  const directoryDrafts = drafts?.filter((draft) => {
-    if (!draft.targetId) return false
-    if (draft.targetId.uid !== id.uid) return false
-    if (draft.isNewChild) {
-      return (
-        draft.targetId.path?.length === id?.path?.length &&
-        (draft.targetId.path
-          ? draft.targetId.path.every((p, i) => p === id.path?.[i])
-          : true)
-      )
-    } else {
-      return (
-        draft.targetId.path?.length === (id?.path?.length || 0) + 1 &&
-        (draft.targetId.path
-          ? draft.targetId.path.every((p, i) => p === id.path?.[i])
-          : true)
-      )
-    }
-  })
   const idPath = id.path || []
-  const publishedIds = new Set(
-    directory?.results.map(
-      (doc) => hmId('d', doc.account, {path: doc.path}).id,
-    ),
+  const editIds = new Set<string>(
+    drafts
+      ?.map((d) => d.editId)
+      .filter((id) => !!id)
+      .map((id) => id.id) || [],
   )
-  const draftIds = new Set(directoryDrafts?.map((draft) => draft.id))
   const unpublishedDraftItems: SiteNavigationDocument[] =
-    directoryDrafts
-      ?.filter((draft) => !publishedIds.has(draft.id))
+    drafts
+      ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
       .map(
         (draft) =>
           ({
@@ -169,7 +150,10 @@ export function getSiteNavDirectory({
           id,
           metadata: item.metadata,
           sortTime,
-          isDraft: draftIds.has(id.id),
+          // isDraft: editIds.has(id.id),
+          draftId: editIds.has(id.id)
+            ? drafts?.find((d) => d.editId?.id === id.id)?.id
+            : undefined,
           isPublished: true,
         }
       })
