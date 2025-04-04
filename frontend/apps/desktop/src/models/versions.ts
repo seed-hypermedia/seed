@@ -11,6 +11,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useDraft} from './accounts'
+import {useAccountDraftList} from './documents'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   const entity = useEntity({...id, version: null})
@@ -40,16 +41,20 @@ export function useDocumentChanges(
   isDraft: boolean = false,
 ) {
   const publishedChanges = useDocumentPublishedChanges(id)
-  const draft = useDraft(id)
+  const drafts = useAccountDraftList(id.uid)
+  const indexedDraft = drafts.data?.find((d) => {
+    return d.editId && d.editId?.id === id.id
+  })
+  const draft = useDraft(indexedDraft?.id)
   if (!publishedChanges.data) return publishedChanges
   return {
     ...publishedChanges,
     data: isDraft
       ? [
           {
-            author: id.uid,
+            author: draft.data?.signingAccount || indexedDraft?.editUid,
             id: `draft-${id.id}`,
-            deps: draft.data?.deps,
+            deps: draft?.data?.deps,
             isDraft: true,
             lastUpdateTime: draft.data?.lastUpdateTime,
             type: 'draftChange',

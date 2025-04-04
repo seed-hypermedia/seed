@@ -590,13 +590,9 @@ function QueryStyleList({
     <YStack gap="$3" w="100%">
       {entries.length ? (
         entries.map((item) => {
-          const id = hmId('d', item.account, {
-            path: item.path,
-            latest: true,
-          })
           return (
             <LibraryListItem
-              key={item.id}
+              key={item.id.id}
               entry={item}
               exportMode={false}
               selected={false}

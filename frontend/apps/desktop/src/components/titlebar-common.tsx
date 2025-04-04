@@ -323,14 +323,9 @@ export function DocOptionsButton({
 
 function useExistingDraft(route: DocumentRoute) {
   const drafts = useAccountDraftList(route.id.uid)
-  console.log(`== ~ EditDocButton useExistingDraft ~ drafts:`, drafts.data)
   const existingDraft = drafts.data?.find((d) => {
     const id = d.editId
     if (!id) return false
-    console.log(`== ~ EditDocButton useExistingDraft ~ id:`, {
-      draftId: id,
-      routeId: route.id,
-    })
     return (
       id.type === route.id.type &&
       id.uid === route.id.uid &&
@@ -349,8 +344,6 @@ function EditDocButton() {
   const navigate = useNavigate()
 
   const existingDraft = useExistingDraft(route)
-
-  console.log(`== ~ EditDocButton ~ existingDraft:`, existingDraft)
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
