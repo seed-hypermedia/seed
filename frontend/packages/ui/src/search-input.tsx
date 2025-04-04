@@ -106,27 +106,38 @@ export function SearchResultItem({
   }, [selected])
 
   return (
-    <Button
-      ref={elm}
-      key={item.key}
-      onPress={() => {
-        item.onSelect()
-      }}
-      backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: selected ? '$brand12' : undefined,
-      }}
-      onFocus={item.onFocus}
-      onMouseEnter={item.onMouseEnter}
-      gap="$4"
-    >
-      {item.icon ? (
-        <UIAvatar label={item.title} size={20} url={item.icon} />
-      ) : null}
-      <XStack f={1} justifyContent="space-between">
-        <SizableText numberOfLines={1}>{item.title}</SizableText>
-        <SizableText color="$color10">{item.subtitle}</SizableText>
-      </XStack>
-    </Button>
+    <YStack paddingVertical="$1">
+      <Button
+        ref={elm}
+        key={item.key}
+        onPress={() => {
+          item.onSelect()
+        }}
+        backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
+        hoverStyle={{
+          backgroundColor: selected ? '$brand12' : undefined,
+        }}
+        onFocus={item.onFocus}
+        onMouseEnter={item.onMouseEnter}
+        gap="$4"
+        size="$5"
+        // height="$"
+      >
+        {item.icon ? (
+          <UIAvatar label={item.title} size={20} url={item.icon} />
+        ) : null}
+        <YStack f={1} justifyContent="space-between">
+          <SizableText numberOfLines={1} fontWeight={600}>
+            {item.title}
+          </SizableText>
+          {!!item.path ? (
+            <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+              {item.path?.slice(0, -1).join(' / ')}
+            </SizableText>
+          ) : null}
+          {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
+        </YStack>
+      </Button>
+    </YStack>
   )
 }

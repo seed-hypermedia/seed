@@ -77,6 +77,8 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         borderRadius={6}
         h={260}
         padding="$2"
+        overflow="hidden"
+        marginTop="$3"
       >
         <SearchInput
           onClose={onClose}
