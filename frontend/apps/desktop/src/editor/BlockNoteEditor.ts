@@ -50,7 +50,6 @@ import {LinkMenuProsemirrorPlugin} from '@shm/editor/blocknote/core/extensions/L
 import {SideMenuProsemirrorPlugin} from '@shm/editor/blocknote/core/extensions/SideMenu/SideMenuPlugin'
 import {BaseSlashMenuItem} from '@shm/editor/blocknote/core/extensions/SlashMenu/BaseSlashMenuItem'
 import {SlashMenuProsemirrorPlugin} from '@shm/editor/blocknote/core/extensions/SlashMenu/SlashMenuPlugin'
-import {getDefaultSlashMenuItems} from '@shm/editor/blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {UniqueID} from '@shm/editor/blocknote/core/extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from '@shm/editor/blocknote/core/shared/utils'
 import {HMBlockSchema, hmBlockSchema} from '@shm/editor/schema'
@@ -66,7 +65,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
    *
    * @default defaultSlashMenuItems from `./extensions/SlashMenu`
    */
-  slashMenuItems: BaseSlashMenuItem<any>[]
+  getSlashMenuItems: () => BaseSlashMenuItem<any>[]
 
   /**
    * The HTML element that should be used as the parent element for the editor.
@@ -198,8 +197,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(
       this,
-      newOptions.slashMenuItems ||
-        getDefaultSlashMenuItems(newOptions.blockSchema),
+      newOptions.getSlashMenuItems,
     )
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)

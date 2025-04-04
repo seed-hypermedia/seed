@@ -64,7 +64,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
    *
    * @default defaultSlashMenuItems from `./extensions/SlashMenu`
    */
-  slashMenuItems: BaseSlashMenuItem<any>[]
+  getSlashMenuItems: () => BaseSlashMenuItem<any>[]
 
   /**
    * The HTML element that should be used as the parent element for the editor.
