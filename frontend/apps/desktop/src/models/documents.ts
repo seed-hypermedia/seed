@@ -279,7 +279,9 @@ export function usePublishDraft(
                 changes: allChanges,
                 capability: capabilityId,
               })
-            const resultDoc: HMDocument = HMDocumentSchema.parse(publishedDoc)
+            const resultDoc: HMDocument = HMDocumentSchema.parse(
+              publishedDoc.toJson(),
+            )
             return resultDoc
           } else {
             throw Error('PUBLISH ERROR: Please select an account to sign first')
