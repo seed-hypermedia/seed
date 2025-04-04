@@ -205,6 +205,7 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
+  // TODO: if there's a draft at the first level of the site, this will remove the home document item from the breadcrumbs
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]

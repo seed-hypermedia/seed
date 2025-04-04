@@ -328,7 +328,7 @@ function ListView({
         .filter((item) => !!item.data)
         .map((item) => {
           return {
-            id: item.data.id,
+            id: item.data?.id,
             document: item.data?.document,
             hasDraft: false,
             location: [],

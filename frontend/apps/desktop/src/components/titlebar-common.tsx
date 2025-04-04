@@ -7,7 +7,7 @@ import {
   useMyCapability,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
-import {useCreateDraft} from '@/models/documents'
+import {useAccountDraftList, useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -25,7 +25,12 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
-import {displayHostname, hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {
+  displayHostname,
+  hmId,
+  latestId,
+  pathMatches,
+} from '@shm/shared/utils/entity-id-url'
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -315,6 +320,25 @@ export function DocOptionsButton({
   )
 }
 
+function useExistingDraft(route: DocumentRoute) {
+  const drafts = useAccountDraftList(route.id.uid)
+  console.log(`== ~ EditDocButton useExistingDraft ~ drafts:`, drafts.data)
+  const existingDraft = drafts.data?.find((d) => {
+    const id = d.editId || d.locationId
+    if (!id) return false
+    console.log(`== ~ EditDocButton useExistingDraft ~ id:`, {
+      draftId: id,
+      routeId: route.id,
+    })
+    return (
+      id.type === route.id.type &&
+      id.uid === route.id.uid &&
+      pathMatches(id.path, route.id.path)
+    )
+  })
+  return existingDraft
+}
+
 function EditDocButton() {
   const route = useNavRoute()
 
@@ -322,8 +346,11 @@ function EditDocButton() {
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id)
   const navigate = useNavigate()
+
   // TODO: correctly check for drafts here (horacio)
-  const existingDraft = undefined
+  const existingDraft = useExistingDraft(route)
+
+  console.log(`== ~ EditDocButton ~ existingDraft:`, existingDraft)
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
@@ -338,12 +365,19 @@ function EditDocButton() {
       size="$2"
       theme={existingDraft ? 'yellow' : undefined}
       onPress={() => {
-        navigate({
-          key: 'draft',
-          editUid: route.id.uid,
-          editPath: route.id.path || [],
-          deps: route.id.version ? [route.id.version] : undefined,
-        })
+        if (existingDraft) {
+          navigate({
+            key: 'draft',
+            id: existingDraft.id,
+          })
+        } else {
+          navigate({
+            key: 'draft',
+            editUid: route.id.uid,
+            editPath: route.id.path || [],
+            deps: route.id.version ? [route.id.version] : undefined,
+          })
+        }
       }}
       icon={Pencil}
     >

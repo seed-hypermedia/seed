@@ -194,16 +194,20 @@ export function usePublishDraft(
         ? createBlocksMap(editEntity.data?.document?.content || [], '')
         : {}
       const newContent = removeTrailingBlocks(draft.content || [])
+
+      console.log(`=== PUBLISH DRAFT newContent:`, newContent)
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
+      console.log(`=== PUBLISH DRAFT changes:`, changes)
+      console.log(`=== PUBLISH DRAFT deleteChanges:`, deleteChanges)
       if (accts.data?.length == 0) {
-        console.log('~~~ t0.5')
+        console.log('=== PUBLISH DRAFT t0.5')
         dispatchOnboardingDialog(true)
       } else {
         try {
-          console.log('~~~ t0')
+          console.log('=== PUBLISH DRAFT t0')
           if (accountId && draft.id) {
-            console.log('~~~ t1')
+            console.log('=== PUBLISH DRAFT t1')
             const allChanges = [
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
@@ -430,8 +434,6 @@ export function useDraftEditor() {
 
   const {data, status: draftStatus} = useDraft(route.id)
 
-  console.log(`== ~ DRAFT data:`, JSON.stringify(data, null, 2))
-
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
     return hmId('d', route.locationUid, {
@@ -617,6 +619,7 @@ export function useDraftEditor() {
                 content: event.payload.data.content,
                 metadata: event.payload.data.metadata,
                 signingAccount: event.payload.data.signingAccount,
+                deps: event.payload.data.deps,
               }
             } else if (event.payload.type == 'edit') {
               if (context.editUid && editEntity.data?.document?.content) {
@@ -644,14 +647,14 @@ export function useDraftEditor() {
 
           return context
         }),
-        replaceRoute: assign((_, {id}) => {
+        replaceRoute: (_, {id}) => {
           replace({
             key: 'draft',
             id,
-            deps: route.deps,
+            deps: route.deps || undefined,
           })
           return {}
-        }),
+        },
       },
       actors: {
         create: createDraft,
@@ -659,7 +662,10 @@ export function useDraftEditor() {
       },
     }),
     {
-      input: route,
+      input: {
+        ...route,
+        deps: data?.deps || undefined,
+      },
     },
   )
 

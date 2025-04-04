@@ -94,10 +94,10 @@ export const draftRouteSchema = z.object({
   key: z.literal('draft'),
   id: z.string().optional(),
   locationUid: z.string().optional(),
-  locationPath: z.string().array().optional(),
+  locationPath: z.array(z.string()).optional(),
   editUid: z.string().optional(),
-  editPath: z.string().array().optional(),
-  deps: z.array(z.string().min(1)).optional().default([]),
+  editPath: z.array(z.string()).optional(),
+  deps: z.array(z.string()).optional(),
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
