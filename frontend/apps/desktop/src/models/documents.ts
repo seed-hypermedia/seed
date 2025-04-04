@@ -59,6 +59,7 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
@@ -455,6 +456,8 @@ export function useDraftEditor() {
     return undefined
   }, [route, data])
 
+  console.log('~~~ draft EDIT ID: ', editId)
+
   const editEntity = useEntity(editId)
 
   // editor props
@@ -512,7 +515,7 @@ export function useDraftEditor() {
     },
     onMentionsQuery,
     blockSchema: hmBlockSchema,
-    slashMenuItems: getSlashMenuItems({showNostr}),
+    getSlashMenuItems: () => getSlashMenuItems({showNostr, docId: editId}),
     _tiptapOptions: {
       extensions: [
         Extension.create({
