@@ -272,7 +272,6 @@ const ImportDocumentsWithFeedback = (
             icon: icon,
             cover: cover,
           },
-          members: {},
           lastUpdateTime: Date.now(),
           signingAccount: signingAccount?.document?.account || undefined,
         }

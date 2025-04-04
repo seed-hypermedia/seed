@@ -241,7 +241,7 @@ export const draftsApi = t.router({
         editPath: z.string().array().optional(),
         metadata: HMDocumentMetadataSchema,
         content: z.any(),
-        signingAccount: z.string(),
+        signingAccount: z.string().optional(),
         deps: z.array(z.string().min(1)).default([]),
       }),
     )
