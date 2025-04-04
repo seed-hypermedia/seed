@@ -5,7 +5,6 @@ import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
-import {nanoid} from 'nanoid'
 import {createContext, useContext} from 'react'
 
 global.Buffer = global.Buffer || Buffer
@@ -39,20 +38,8 @@ export type NavigationContext = {
 
 export function getRouteKey(route: NavRoute): string {
   if (route.key == 'draft') {
-    if (route.id) {
-      return `draft:${route.id}`
-    }
-    if (route.editUid) {
-      return `draft:${route.editUid}:${route.editPath?.join(':')}`
-    }
-
-    if (route.locationUid) {
-      return `draft:${route.locationUid}:${route.locationPath?.join(':')}`
-    }
-
-    return `draft:${nanoid(10)}`
+    return `draft:${route.id}`
   }
-
   if (route.key == 'document')
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key

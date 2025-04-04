@@ -92,7 +92,7 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
-  id: z.string().optional(),
+  id: z.string(),
   locationUid: z.string().optional(),
   locationPath: z.array(z.string()).optional(),
   editUid: z.string().optional(),
