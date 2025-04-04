@@ -668,11 +668,19 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const parentEntityId = useMemo(() => {
     if (route.locationUid)
       return hmId('d', route.locationUid, {path: route.locationPath})
+    if (draft.data?.locationUid)
+      return hmId('d', draft.data.locationUid, {
+        path: draft.data.locationPath,
+      })
     if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
+    if (draft.data?.editUid)
+      return hmId('d', draft.data.editUid, {path: draft.data.editPath})
     return undefined
-  }, [route])
+  }, [route, draft.data])
 
   const parentEntity = useEntity(parentEntityId)
+
+  console.log(`== ~ DraftTitle ~ parentEntity:`, parentEntity)
 
   // TODO: get the name from the draft
   const name = useMemo(() => {
