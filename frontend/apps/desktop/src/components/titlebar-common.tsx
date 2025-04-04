@@ -325,7 +325,7 @@ function useExistingDraft(route: DocumentRoute) {
   const drafts = useAccountDraftList(route.id.uid)
   console.log(`== ~ EditDocButton useExistingDraft ~ drafts:`, drafts.data)
   const existingDraft = drafts.data?.find((d) => {
-    const id = d.editId || d.locationId
+    const id = d.editId
     if (!id) return false
     console.log(`== ~ EditDocButton useExistingDraft ~ id:`, {
       draftId: id,

@@ -149,13 +149,13 @@ export function SiteHeader({
                     return (
                       <HeaderLinkItem
                         id={item.id}
-                        key={item.id.id}
+                        key={item.id?.id || item.draftId || '?'}
                         metadata={item.metadata}
-                        isDraft={item.isDraft}
+                        draftId={item.draftId}
                         isPublished={item.isPublished}
                         active={
                           !!docId?.path &&
-                          !!item.id.path &&
+                          !!item.id?.path &&
                           item.id.path?.[0] === docId.path[0]
                         }
                       />
@@ -261,7 +261,7 @@ function NavItems({
               metadata={doc.metadata}
               id={doc.id}
               indented={0}
-              isDraft={doc.isDraft}
+              draftId={doc.draftId}
               isPublished={doc.isPublished}
             />
           ))
@@ -274,27 +274,36 @@ function HeaderLinkItem({
   id,
   metadata,
   active,
-  isDraft,
+  draftId,
   isPublished,
 }: {
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId
+  draftId?: string | null
   metadata: HMMetadata
   active: boolean
-  isDraft?: boolean
   isPublished?: boolean
 }) {
   // TODO: change this to use the draft id
-  const linkProps = useRouteLink({
-    key: 'document',
-    id,
-  })
+  const linkProps = useRouteLink(
+    draftId
+      ? {
+          key: 'draft',
+          id: draftId,
+        }
+      : id
+      ? {
+          key: 'document',
+          id,
+        }
+      : null,
+  )
   const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
     <SizableText
       numberOfLines={1}
       userSelect="none"
       fontWeight="bold"
-      backgroundColor={isDraft ? '$yellow4' : undefined}
+      backgroundColor={draftId ? '$yellow4' : undefined}
       color={active ? '$color' : baseColor}
       paddingHorizontal="$1"
       hoverStyle={{cursor: 'pointer', color: active ? '$color' : '$color11'}}

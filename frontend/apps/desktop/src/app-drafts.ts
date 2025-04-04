@@ -288,6 +288,7 @@ export const draftsApi = t.router({
         await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
 
         appInvalidateQueries(['trpc.drafts.list'])
+        appInvalidateQueries(['trpc.drafts.listAccount'])
         return {id: draftId}
       } catch (error) {
         throw Error(
@@ -302,6 +303,7 @@ export const draftsApi = t.router({
     try {
       await fs.unlink(draftPath)
       appInvalidateQueries(['trpc.drafts.list'])
+      appInvalidateQueries(['trpc.drafts.listAccount'])
     } catch (e) {
       error('[DRAFT]: Error deleting draft', {input: input, error: e})
     }
