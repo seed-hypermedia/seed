@@ -298,17 +298,35 @@ export const setupSuggestionsMenu = <
 
           // Shows the menu if the default trigger character was pressed and the menu isn't active.
           if (event.key === defaultTriggerCharacter && !menuIsActive) {
-            view.dispatch(
-              view.state.tr
-                .insertText(defaultTriggerCharacter)
-                .scrollIntoView()
-                .setMeta(pluginKey, {
-                  activate: true,
-                  triggerCharacter: defaultTriggerCharacter,
-                }),
+            const {state} = view
+            const {selection} = state
+
+            const posBefore = selection.$from.pos - 1
+            const charBefore = state.doc.textBetween(
+              posBefore,
+              posBefore + 1,
+              undefined,
+              '\ufffc',
             )
 
-            return true
+            // Only dispatch if the character before is a space
+            if (
+              charBefore === ' ' ||
+              !selection.$from.parent.textContent.length
+            ) {
+              view.dispatch(
+                state.tr
+                  .insertText(defaultTriggerCharacter)
+                  .scrollIntoView()
+                  .setMeta(pluginKey, {
+                    activate: true,
+                    triggerCharacter: defaultTriggerCharacter,
+                  }),
+              )
+
+              return true
+            }
+            return false
           }
 
           // Doesn't handle other keystrokes if the menu isn't active.
