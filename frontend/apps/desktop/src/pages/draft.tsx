@@ -5,6 +5,7 @@ import {IconForm} from '@/components/icon-form'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
+import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {
   useAccountDraftList,
@@ -263,6 +264,7 @@ function DocumentEditor({
   const {
     showSidebars,
     elementRef,
+    showCollapsed,
     mainContentProps,
     sidebarProps,
     wrapperProps,
@@ -324,7 +326,7 @@ function DocumentEditor({
                   onPress={(e) => e.stopPropagation()}
                   {...sidebarProps}
                 >
-                  {/* <SiteNavigationDraftLoader showCollapsed={showCollapsed} /> */}
+                  <SiteNavigationDraftLoader showCollapsed={showCollapsed} />
                 </YStack>
               ) : null}
               <YStack {...mainContentProps}>

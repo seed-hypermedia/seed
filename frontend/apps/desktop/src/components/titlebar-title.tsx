@@ -132,7 +132,6 @@ type CrumbDetails = {
   crumbKey: string
 }
 
-// TODO: add a prop to show the draft as last item
 function BreadcrumbTitle({
   entityId,
   hideControls = false,

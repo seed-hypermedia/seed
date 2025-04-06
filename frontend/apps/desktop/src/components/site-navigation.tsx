@@ -21,7 +21,7 @@ import {
   SiteNavigationWrapper,
 } from '@shm/ui/navigation'
 import {Plus as Add, MoreHorizontal} from '@tamagui/lucide-icons'
-import {ReactNode} from 'react'
+import {ReactNode, useMemo} from 'react'
 import {XStack} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
@@ -127,31 +127,39 @@ export function SiteNavigationDraftLoader({
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('SiteNavigationDraftLoader only supports draft route')
-  // TODO: refactor this to the new draft id route
-  const {id} = route
+  const draftQuery = useDraft(route.id)
+  const id = useMemo(() => {
+    let uId = route.editUid || draftQuery.data?.editUid
+    let path = route.editPath || draftQuery.data?.editPath
+    if (uId) {
+      return hmId('d', uId, {path})
+    }
+    return undefined
+  }, [route, draftQuery.data])
+
   const entity = useEntity(id)
-  const draftQuery = useDraft(id)
   const draft = draftQuery?.data
   const metadata = draftQuery?.data?.metadata || entity.data?.document?.metadata
 
   const document = entity.data?.document
 
   const siteList = useListSite(id)
-  const siteListQuery = siteList?.data
-    ? {in: hmId('d', id.uid), results: siteList.data}
-    : null
+  const siteListQuery =
+    siteList?.data && id
+      ? {in: hmId('d', id.uid), results: siteList.data}
+      : null
   const embeds = useDocumentEmbeds(document)
 
-  const drafts = useAccountDraftList(id)
+  const drafts = useAccountDraftList(id?.uid)
 
   if (!siteListQuery || !metadata) return null
 
   return (
     <SiteNavigationWrapper showCollapsed={showCollapsed}>
-      {draft ? (
+      {draft && id ? (
         <DraftOutline
           onActivateBlock={(blockId: string) => {
-            focusDraftBlock(id.id, blockId)
+            focusDraftBlock(id?.id, blockId)
           }}
           draft={draft}
           id={id}
@@ -159,11 +167,13 @@ export function SiteNavigationDraftLoader({
           onPress={() => {}}
         />
       ) : null}
-      <DocDirectory
-        id={id}
-        drafts={drafts.data}
-        supportQueries={[siteListQuery]}
-      />
+      {id ? (
+        <DocDirectory
+          id={id}
+          drafts={drafts.data}
+          supportQueries={[siteListQuery]}
+        />
+      ) : null}
     </SiteNavigationWrapper>
   )
 }

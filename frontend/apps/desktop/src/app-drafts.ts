@@ -187,7 +187,6 @@ export const draftsApi = t.router({
     .input(z.string().optional())
     .query(({input}): HMListedDraft[] => {
       if (!input) return []
-      // TODO: do we need to add editUid and editPath to the filter??
       return (
         draftIndex
           ?.filter(
