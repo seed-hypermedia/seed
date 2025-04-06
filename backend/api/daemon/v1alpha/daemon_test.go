@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	blocks "github.com/ipfs/go-block-format"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -89,4 +90,8 @@ func (m *mockedP2PNode) ProtocolID() protocol.ID {
 
 func (m *mockedP2PNode) ProtocolVersion() string {
 	return "1.0.0"
+}
+
+func (m *mockedP2PNode) AddrInfo() peer.AddrInfo {
+	return peer.AddrInfo{}
 }

@@ -466,6 +466,34 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 	return it, check
 }
 
+// IsValidWriter checks whether a key is allowed to write into a given space and path.
+func (idx *Index) IsValidWriter(ctx context.Context, space core.Principal, path string, writer core.Principal) (valid bool, err error) {
+	if space.Equal(writer) {
+		return true, nil
+	}
+
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+
+	defer sqlitex.Save(conn)(&err)
+
+	writerID, err := DbPublicKeysLookupID(conn, writer)
+	if err != nil {
+		return false, err
+	}
+
+	iri, err := NewIRI(space, path)
+	if err != nil {
+		return false, err
+	}
+
+	valid, err = isValidWriter(conn, writerID, iri)
+	return valid, err
+}
+
 func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) ([]int64, error) {
 	if len(heads) == 0 {
 		return nil, fmt.Errorf("BUG: heads must not be empty")

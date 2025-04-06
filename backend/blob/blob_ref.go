@@ -22,6 +22,8 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const blobTypeRef blobType = "Ref"
@@ -47,12 +49,7 @@ type Ref struct {
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
-	// TODO(burdiyan): we thought we wanted to attach caps to refs, then we figured out we were not doing it,
-	// then we wanted to fix it, then we realized we haven't, and then we decided that it was never needed anyway.
-	// So this should just go away, but we'll do it later.
-	_ = capc
-
+func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		baseBlob: baseBlob{
 			Type:   blobTypeRef,
@@ -167,6 +164,48 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		RedirectTarget string `json:"redirect,omitempty"`
 	}
 
+	// Special handling for home document refs.
+	// We don't allow tombstoning them without redirect with a proof of subkey.
+	if v.Path == "" {
+		if len(v.Heads) == 0 && v.Redirect == nil {
+			return fmt.Errorf("home document cannot be tombstoned without redirect")
+		}
+
+		if v.Redirect != nil {
+			if v.Redirect.Space.Equal(v.Signer) {
+				return fmt.Errorf("home documents can only be redirected to other spaces")
+			}
+
+			if v.Redirect.Path != "" {
+				return fmt.Errorf("home document cannot be redirected to a non-empty path")
+			}
+
+			// We want to check if the signer of this Ref is a valid subkey for the redirect target.
+			// Hence, there has to be a capability signed by the redirect target account for this Ref's signer.
+			// Because home documents are special, and they represent user accounts, we can't just allow them to redirect anywhere,
+			// to avoid impersonating users trivially. Hence, we require the reciprocal "binding" between both keys,
+			// which is expressed as a capability from one side, and tomstone redirect ref from the other side.
+			issuer, err := ictx.ensurePubKey(v.Redirect.Space)
+			if err != nil {
+				return err
+			}
+
+			delegate, err := ictx.ensurePubKey(v.Signer)
+			if err != nil {
+				return err
+			}
+
+			ok, err := isValidSubKey(ictx.conn, issuer, delegate)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				return status.Errorf(codes.PermissionDenied, "to redirect home document to a different space there must be a capability with subkey role")
+			}
+		}
+	}
+
 	space := v.Space()
 
 	iri, err := NewIRI(space, v.Path)
@@ -250,7 +289,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	// If we've got a Ref but this member is not valid yet/anymore, we don't want to populate our indexes.
-	ok, err := isValidMemberForResource(conn, memberID, iri)
+	ok, err := isValidWriter(conn, memberID, iri)
 	if err != nil {
 		return err
 	}
@@ -820,14 +859,28 @@ var qLoadChangeDeps = dqb.Str(`
 	AND type = 'change/dep';
 `)
 
-func isValidMemberForResource(conn *sqlite.Conn, memberID int64, resource IRI) (valid bool, err error) {
+func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
 	parentsJSON := strbytes.String(
 		must.Do2(
 			json.Marshal(resource.Breadcrumbs()),
 		),
 	)
 
-	rows, check := sqlitex.Query(conn, qIsValidMember(), memberID, resource, parentsJSON)
+	owner, _, err := resource.SpacePath()
+	if err != nil {
+		return false, err
+	}
+
+	ownerID, err := DbPublicKeysLookupID(conn, owner)
+	if err != nil {
+		return false, err
+	}
+
+	if ownerID == writerID {
+		return true, nil
+	}
+
+	rows, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON)
 	for range rows {
 		valid = true
 		break
@@ -837,24 +890,38 @@ func isValidMemberForResource(conn *sqlite.Conn, memberID int64, resource IRI) (
 	return valid, err
 }
 
-var qIsValidMember = dqb.Str(`
-	-- member_id, resource_iri, inherited_iri_json
-	WITH members AS (
-	    SELECT owner AS member
-	    FROM resources
-	    WHERE iri = ?2
-	    UNION
-	    SELECT extra_attrs->>'del' AS member
-	    FROM structural_blobs
-	    WHERE type = 'Capability'
-	    AND author = (SELECT owner FROM resources WHERE iri = ?2)
-	    AND resource IN (
-	        SELECT r.id
-	        FROM resources r
-	        JOIN json_each(?3) each ON each.value = r.iri
-	    )
-	)
-	SELECT *
-	FROM members
-	WHERE member = ?1
+var qIsValidWriter = dqb.Str(`
+	-- owner, writer, breadcrumbs
+	SELECT 1 AS valid
+	FROM structural_blobs
+	WHERE type = 'Capability'
+	AND author = ?1
+    AND extra_attrs->>'del' = ?2
+    AND extra_attrs->>'role' IN ('WRITER', 'SUBKEY')
+    AND resource IN (
+    	SELECT r.id
+     	FROM resources r
+      	JOIN json_each(?3) each ON each.value = r.iri
+    )
+`)
+
+func isValidSubKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
+	rows, check := sqlitex.Query(conn, qIsValidSubKey(), parentID, delegateID)
+	for range rows {
+		valid = true
+		break
+	}
+
+	err = errors.Join(err, check())
+	return valid, err
+}
+
+var qIsValidSubKey = dqb.Str(`
+	SELECT 1
+	FROM structural_blobs
+	WHERE type = 'Capability'
+	AND author = :issuer
+	AND extra_attrs->>'del' = :delegate
+	AND extra_attrs->>'role' = 'SUBKEY'
+	LIMIT 1
 `)

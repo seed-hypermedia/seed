@@ -18,6 +18,7 @@ import (
 
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -105,4 +106,8 @@ func (p *p2pNodeSubset) ProtocolID() protocol.ID {
 
 func (p *p2pNodeSubset) ProtocolVersion() string {
 	return p.node.ProtocolVersion()
+}
+
+func (p *p2pNodeSubset) AddrInfo() peer.AddrInfo {
+	return p.node.AddrInfo()
 }

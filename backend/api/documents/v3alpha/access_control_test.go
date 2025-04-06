@@ -53,17 +53,6 @@ func TestCapabilities_Smoke(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cpb)
 
-	// Bob creates a document under /cars.
-	{
-		jp, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars/jp", "", "bob").
-			SetCapability(cpb.Id).
-			SetMetadata("title", "Catalogue of Japanese cars").
-			Build(),
-		)
-		require.NoError(t, err, "bob must be allowed to sign for alice with the capability")
-		require.NotNil(t, jp)
-	}
-
 	// Listing caps for descendant path of /cars should return inherited ones.
 	list, err := alice.ListCapabilities(ctx, &pb.ListCapabilitiesRequest{
 		Account: alice.me.Account.String(),
@@ -80,5 +69,15 @@ func TestCapabilities_Smoke(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list.Capabilities, 1, "must return the capability")
 		testutil.StructsEqual(cpb, list.Capabilities[0]).Compare(t, "must return the capability")
+	}
+
+	// Bob creates a document under /cars.
+	{
+		jp, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars/jp", "", "bob").
+			SetMetadata("title", "Catalogue of Japanese cars").
+			Build(),
+		)
+		require.NoError(t, err, "bob must be allowed to sign for alice with the capability")
+		require.NotNil(t, jp)
 	}
 }
