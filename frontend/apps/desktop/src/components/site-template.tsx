@@ -1,7 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
-import {cloneSiteFromTemplate} from '@shm/shared/utils/fork'
+import {cloneSiteFromTemplate} from '@shm/shared/utils/clone'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
