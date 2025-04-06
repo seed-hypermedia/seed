@@ -78,6 +78,7 @@ import {
 
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import React from 'react'
+import {grpcClient} from '@/app-grpc'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -585,6 +586,10 @@ function AccountKeys() {
                 </AlertDialog.Content>
               </AlertDialog.Portal>
             </AlertDialog>
+            <Separator />
+            <SettingsSection title="Linked Devices">
+              <LinkedDevices />
+            </SettingsSection>
             <Separator />
             <SettingsSection title="Wallets">
               <AccountWallet
@@ -1303,5 +1308,16 @@ function SettingsSection({
         {children}
       </YStack>
     </YStack>
+  )
+}
+
+function LinkedDevices(props: {}) {
+  async function linkDevice() {
+    grpcClient.daemon.createDeviceLinkSession({})
+  }
+  return (
+    <>
+      <Button themeInverse>Link Device</Button>
+    </>
   )
 }

@@ -116,19 +116,11 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, err
 	}
 
-	var capc cid.Cid
-	if in.Capability != "" {
-		capc, err = cid.Decode(in.Capability)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp, capc); err != nil {
+	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
 		return nil, err
 	}
 
-	if in.Path == "" {
+	if in.Path == "" && ns.Equal(kp.Principal()) {
 		if err := srv.ensureProfileGenesis(ctx, kp); err != nil {
 			return nil, err
 		}
@@ -190,7 +182,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 	newBlobs = append(newBlobs, docChange)
 
-	ref, err := doc.Ref(kp, capc)
+	ref, err := doc.Ref(kp)
 	if err != nil {
 		return nil, err
 	}
@@ -200,11 +192,16 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, err
 	}
 
-	return srv.GetDocument(ctx, &documents.GetDocumentRequest{
+	out, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: in.Account,
 		Path:    in.Path,
 		Version: docChange.CID.String(),
 	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "can't load document after creating the change: %v", err)
+	}
+
+	return out, nil
 }
 
 // ListDirectory implements Documents API v3.
@@ -907,20 +904,8 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 		return nil, err
 	}
 
-	var capc cid.Cid
-	if in.Capability != "" {
-		capc, err = cid.Decode(in.Capability)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp, capc); err != nil {
+	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
 		return nil, err
-	}
-
-	if in.Path == "" {
-		return nil, status.Errorf(codes.Unimplemented, "TODO: creating Refs for root documents is not implemented yet")
 	}
 
 	var ts time.Time
@@ -960,12 +945,12 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			}
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, capc, ts)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts)
 		if err != nil {
 			return nil, err
 		}
 	case *documents.RefTarget_Tombstone_:
-		refBlob, err = blob.NewRef(kp, in.Generation, doc.Genesis(), ns, in.Path, nil, capc, ts)
+		refBlob, err = blob.NewRef(kp, in.Generation, doc.Genesis(), ns, in.Path, nil, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -1092,7 +1077,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) e
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, cid.Undef, blob.ZeroUnixTime())
+	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}
@@ -1198,49 +1183,14 @@ func getInterfaceValue(op *documents.DocumentChange_SetAttribute) any {
 	}
 }
 
-func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp *core.KeyPair, capc cid.Cid) error {
-	if account.Equal(kp.Principal()) {
-		return nil
-	}
-
-	if !capc.Defined() {
-		return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit account %s", kp.Principal(), account)
-	}
-
-	blk, err := srv.idx.Get(ctx, capc)
+func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp *core.KeyPair) error {
+	valid, err := srv.idx.IsValidWriter(ctx, account, path, kp.Principal())
 	if err != nil {
 		return err
 	}
 
-	cpb := &blob.Capability{}
-	if err := cbornode.DecodeInto(blk.RawData(), cpb); err != nil {
-		return err
-	}
-
-	if !cpb.Space().Equal(account) {
-		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
-	}
-
-	if !cpb.Delegate.Equal(kp.Principal()) {
-		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
-	}
-
-	grantedIRI, err := makeIRI(cpb.Space(), cpb.Path)
-	if err != nil {
-		return err
-	}
-
-	wantIRI, err := makeIRI(account, path)
-	if err != nil {
-		return err
-	}
-
-	if !(wantIRI >= grantedIRI && wantIRI < grantedIRI+"~~~~~~~") {
-		return status.Errorf(codes.PermissionDenied, "capability %s grants path '%s' which doesn't cover '%s'", capc, grantedIRI, wantIRI)
-	}
-
-	if documents.Role(documents.Role_value[cpb.Role]) != documents.Role_WRITER {
-		return status.Errorf(codes.PermissionDenied, "capability role %s is not allowed to write", cpb.Role)
+	if !valid {
+		return status.Errorf(codes.PermissionDenied, "key '%s' is not allowed to write to space '%s' in path '%s'", kp.Principal(), account, path)
 	}
 
 	return nil

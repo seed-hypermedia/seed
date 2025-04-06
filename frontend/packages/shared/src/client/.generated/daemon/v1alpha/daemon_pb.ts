@@ -532,6 +532,149 @@ export class StoreBlobsResponse extends Message<StoreBlobsResponse> {
 }
 
 /**
+ * Request to create a new device link session.
+ *
+ * @generated from message com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+ */
+export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSessionRequest> {
+  /**
+   * Required. Name of the signing key for which to create the delegation.
+   *
+   * @generated from field: string signing_key_name = 1;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<CreateDeviceLinkSessionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined, b: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined): boolean {
+    return proto3.util.equals(CreateDeviceLinkSessionRequest, a, b);
+  }
+}
+
+/**
+ * Information about the device link session.
+ *
+ * @generated from message com.seed.daemon.v1alpha.DeviceLinkSession
+ */
+export class DeviceLinkSession extends Message<DeviceLinkSession> {
+  /**
+   * Dial information for the node.
+   *
+   * @generated from field: com.seed.daemon.v1alpha.AddrInfo addr_info = 1;
+   */
+  addrInfo?: AddrInfo;
+
+  /**
+   * Secret token for the linking session.
+   *
+   * @generated from field: string secret_token = 2;
+   */
+  secretToken = "";
+
+  /**
+   * Account ID that wants to link the new device.
+   *
+   * @generated from field: string account_id = 3;
+   */
+  accountId = "";
+
+  constructor(data?: PartialMessage<DeviceLinkSession>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.DeviceLinkSession";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "addr_info", kind: "message", T: AddrInfo },
+    { no: 2, name: "secret_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeviceLinkSession {
+    return new DeviceLinkSession().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeviceLinkSession {
+    return new DeviceLinkSession().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeviceLinkSession {
+    return new DeviceLinkSession().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined, b: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined): boolean {
+    return proto3.util.equals(DeviceLinkSession, a, b);
+  }
+}
+
+/**
+ * Address information about a single peer.
+ *
+ * @generated from message com.seed.daemon.v1alpha.AddrInfo
+ */
+export class AddrInfo extends Message<AddrInfo> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: repeated string addrs = 2;
+   */
+  addrs: string[] = [];
+
+  constructor(data?: PartialMessage<AddrInfo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.AddrInfo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddrInfo {
+    return new AddrInfo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AddrInfo {
+    return new AddrInfo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AddrInfo {
+    return new AddrInfo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AddrInfo | PlainMessage<AddrInfo> | undefined, b: AddrInfo | PlainMessage<AddrInfo> | undefined): boolean {
+    return proto3.util.equals(AddrInfo, a, b);
+  }
+}
+
+/**
  * Raw blob to be stored.
  *
  * @generated from message com.seed.daemon.v1alpha.Blob

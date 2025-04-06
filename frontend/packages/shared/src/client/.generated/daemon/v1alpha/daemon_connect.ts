@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { DeleteAllKeysRequest, DeleteKeyRequest, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -115,6 +115,23 @@ export const Daemon = {
       name: "StoreBlobs",
       I: StoreBlobsRequest,
       O: StoreBlobsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Creates a new device link session.
+     * The session information has to be transferred to the other device,
+     * to establish a direct P2P connection between the devices, and complete the linking process.
+     *
+     * There can only be one active session at a time, and creating a new one will invalidate the previous one.
+     *
+     * After the session is redeemed, it becomes invalid.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession
+     */
+    createDeviceLinkSession: {
+      name: "CreateDeviceLinkSession",
+      I: CreateDeviceLinkSessionRequest,
+      O: DeviceLinkSession,
       kind: MethodKind.Unary,
     },
   }

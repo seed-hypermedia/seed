@@ -863,3 +863,96 @@ func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 }
+
+func TestKeyDelegation(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := t.Context()
+	alice := coretest.NewTester("alice").Account.Principal()
+	bob := coretest.NewTester("bob").Account.Principal()
+
+	// Alice creates her home document.
+	aliceHome, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Alice from the Wonderland",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bob, which in this key we treat as if it was alice's phone or other device,
+	// also creates his home document.
+	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", coretest.NewTester("bob").Account))
+	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "bob",
+		Account:        bob.String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Bobby Web Account",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Now Alice creates a subkey capability for bob's key.
+	cpb, err := dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.String(),
+		Account:        alice.String(),
+		Role:           documents.Role_SUBKEY,
+		Label:          "Phone web key",
+	})
+	require.NoError(t, err)
+	_ = cpb
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Bob redirects his home document to alice's home document.
+	redirect, err := dmn.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "bob",
+		Account:        bob.String(),
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account: alice.String(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = redirect
+
+	// Now Bob edits alice's home document.
+	aliceHome, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "bob",
+		Account:        alice.String(),
+		BaseVersion:    aliceHome.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Alice from the Wonderland (updated by a subkey)",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+}

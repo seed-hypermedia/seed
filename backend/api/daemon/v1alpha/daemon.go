@@ -4,16 +4,21 @@ package daemon
 
 import (
 	context "context"
+	"crypto/rand"
 	"fmt"
 	"seed/backend/core"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
+	"seed/backend/util/colx"
 	sync "sync"
 	"time"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multicodec"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -30,6 +35,7 @@ type Storage interface {
 
 // Node is a subset of the p2p node.
 type Node interface {
+	AddrInfo() peer.AddrInfo
 	ForceSync() error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
@@ -48,7 +54,17 @@ type Server struct {
 
 	p2p Node
 
-	mu sync.Mutex // we only want one register request at a time.
+	// Mainly to ensure there's only one registration request at a time,
+	// but also used for syncronizing other operations.
+	mu sync.Mutex
+
+	// Data for the current/last device link session.
+	deviceLinkSession struct {
+		keyName    string
+		account    core.Principal
+		secret     string
+		expireTime time.Time
+	}
 }
 
 // NewServer creates a new Server.
@@ -236,4 +252,51 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 	}
 
 	return resp, nil
+}
+
+// GetBlob implements the corresponding gRPC method.
+func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.CreateDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
+	}
+
+	kp, err := srv.store.KeyStore().GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to get signing key: %v", err)
+	}
+
+	account := kp.Principal()
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	rawToken := make([]byte, 16)
+	n, err := rand.Read(rawToken)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(rawToken) {
+		return nil, status.Errorf(codes.Internal, "failed to generate random token")
+	}
+
+	secret, err := multibase.Encode(multibase.Base64, rawToken)
+	if err != nil {
+		return nil, err
+	}
+
+	srv.deviceLinkSession.keyName = in.SigningKeyName
+	srv.deviceLinkSession.account = account
+	srv.deviceLinkSession.secret = secret
+	srv.deviceLinkSession.expireTime = time.Now().Add(2 * time.Minute)
+
+	pinfo := srv.p2p.AddrInfo()
+
+	return &daemon.DeviceLinkSession{
+		AddrInfo: &daemon.AddrInfo{
+			PeerId: pinfo.ID.String(),
+			Addrs:  colx.SliceMap(pinfo.Addrs, multiaddr.Multiaddr.String),
+		},
+		SecretToken: secret,
+		AccountId:   account.String(),
+	}, nil
 }

@@ -3,6 +3,8 @@ package blob
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -22,17 +24,33 @@ func init() {
 	cbornode.RegisterCborType(Capability{})
 }
 
+var labelPattern = regexp.MustCompile(`^[a-zA-Z0-9\s]+$`)
+
+// Role is a type for roles in capabilities.
+type Role string
+
+// Role values.
+//
+// We use ALL_CAPS notation for backward compatibility with the old code,
+// which was using string representations of the Protobuf enums.
+// Everywhere else in the permanent data we use PascalNotation for the string enum-like values.
+// Eventually we could probably do a migration to gain better consistency.
+const (
+	RoleWriter Role = "WRITER"
+	RoleSubkey Role = "SUBKEY"
+)
+
 // Capability is a blob that represents some granted rights from the issuer to the delegate key.
 type Capability struct {
 	baseBlob
 	Delegate core.Principal `refmt:"delegate"`
-	Space_   core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
 	Path     string         `refmt:"path,omitempty"`
-	Role     string         `refmt:"role,omitempty"`
+	Role     Role           `refmt:"role,omitempty"`
+	Label    string         `refmt:"label,omitempty"`
 }
 
 // NewCapability creates a new Capability blob.
-func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time) (eb Encoded[*Capability], err error) {
+func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role Role, label string, ts time.Time) (eb Encoded[*Capability], err error) {
 	cu := &Capability{
 		baseBlob: baseBlob{
 			Type:   blobTypeCapability,
@@ -42,10 +60,11 @@ func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path st
 		Delegate: delegate,
 		Path:     path,
 		Role:     role,
+		Label:    label,
 	}
 
 	if !issuer.Principal().Equal(space) {
-		cu.Space_ = space
+		return eb, fmt.Errorf("BUG: capabilities can only be signed by the space owner key")
 	}
 
 	if err := signBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
@@ -58,10 +77,7 @@ func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path st
 // Space returns the space of the capability.
 // Normally it's the same as the signer, but can be different in case of nested delegations.
 func (c *Capability) Space() core.Principal {
-	if len(c.Space_) == 0 {
-		return c.Signer
-	}
-	return c.Space_
+	return c.Signer
 }
 
 func init() {
@@ -103,6 +119,17 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 	del, err := ictx.ensurePubKey(v.Delegate)
 	if err != nil {
 		return err
+	}
+
+	// Ensuring reasonable limits on the label size, to avoid abuse.
+	// The limit is quite arbitrary though.
+	const labelLimit = 512
+	if len(v.Label) > labelLimit {
+		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", v.Label, labelLimit)
+	}
+
+	if v.Label != "" && !labelPattern.MatchString(v.Label) {
+		return fmt.Errorf("capability label '%s' contains invalid characters", v.Label)
 	}
 
 	sb.ExtraAttrs = map[string]any{
