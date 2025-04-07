@@ -1,10 +1,10 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {getDocumentTitle} from '@shm/shared/content'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {HMDocumentSchema} from '@shm/shared/hm-types'
 import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
+import {appInvalidateQueries} from './app-invalidation'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
@@ -33,12 +33,9 @@ const MAX_RECENTS = 20
 
 export function updateRecents(updater: (state: RecentsState) => RecentsState) {
   const newState = updater(recentsState)
-  const prevRecents = recentsState.recents
   recentsState = newState
   appStore.set(RECENTS_STORAGE_KEY, recentsState)
-  if (prevRecents !== recentsState.recents) {
-    invalidateQueries(['trpc.recents.getRecents'])
-  }
+  appInvalidateQueries(['trpc.recents.getRecents'])
 }
 
 export async function updateRecentRoute(route: NavRoute) {
@@ -47,21 +44,22 @@ export async function updateRecentRoute(route: NavRoute) {
   const time = Date.now()
   let title = '?'
   if (route.key === 'document') {
-    const document = await grpcClient.documents.getDocument({
+    const rawDocument = await grpcClient.documents.getDocument({
       account: route.id.uid,
       path: hmIdPathToEntityQueryPath(route.id.path),
       version: route.id.version || undefined,
     })
-    title = getDocumentTitle(toPlainMessage(document))
+    const doc = HMDocumentSchema.parse(rawDocument.toJson())
+    console.log('~~', route.id.id, title, doc)
+    title = getDocumentTitle(doc) ?? '?'
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {
     let recents = state.recents
+      .filter((recent) => recent.url !== url)
+      .slice(0, MAX_RECENTS - 1)
     return {
-      recents: [
-        ...recents.filter((recent) => recent.url !== url),
-        {type, url, title, time},
-      ],
+      recents: [{type, url, title, time}, ...recents],
     }
   })
 }
