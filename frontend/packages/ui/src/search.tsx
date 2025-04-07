@@ -2,27 +2,18 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   idToUrl,
   SearchResult,
-  UniversalAppContext,
   UnpackedHypermediaId,
   useRouteLink,
   useSearch,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {Popover} from '@shm/ui/TamaguiPopover'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Button} from '@tamagui/button'
-import {Input} from '@tamagui/input'
 import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {
-  Fragment,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {ScrollView, Separator, SizableText} from 'tamagui'
+import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
 
 export function MobileSearch({
   originHomeId,
@@ -61,13 +52,20 @@ export function MobileSearch({
           borderWidth={1}
           elevation="$4"
         >
-          {searchResults.data?.entities.map((entity: any) => {
+          {searchResults.data?.entities.map((entity: any, index: number) => {
             return (
-              <SearchResultItem
-                key={entity.id.id}
-                entity={entity}
-                originHomeId={originHomeId}
-              />
+              <Fragment key={entity.id.id}>
+                <SearchResultItem
+                  // key={entity.id.id}
+                  entity={entity}
+                  originHomeId={originHomeId}
+                  selected={false}
+                />
+                {index ===
+                searchResults.data?.entities.length - 1 ? undefined : (
+                  <Separator />
+                )}
+              </Fragment>
             )
           })}
         </YStack>
@@ -85,7 +83,7 @@ export function HeaderSearch({
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {enabled: !!searchValue})
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const universalAppContext = useContext(UniversalAppContext)
+  const universalAppContext = useUniversalAppContext()
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
@@ -140,7 +138,7 @@ export function HeaderSearch({
                 ) => {
                   setSearchValue(e.nativeEvent.target.value)
                 }}
-                onKeyDown={(e: any) => {
+                onKeyPress={(e: any) => {
                   if (e.key === 'Escape') {
                     e.preventDefault()
                     popoverState.onOpenChange(false)
