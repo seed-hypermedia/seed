@@ -230,13 +230,6 @@ function SearchResultItem({
     originHomeId,
   )
   return (
-    // <Button
-    //   backgroundColor="$colorTransparent"
-    //   {...linkProps}
-    //   justifyContent="flex-start"
-    // >
-    //   {entity.title}
-    // </Button>
     <Button
       ref={elm}
       {...linkProps}
