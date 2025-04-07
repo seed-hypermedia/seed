@@ -9,6 +9,7 @@ import (
 
 	"github.com/ipfs/boxo/bitswap"
 	"github.com/ipfs/boxo/bitswap/network"
+	"github.com/ipfs/boxo/bitswap/network/bsnet"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -83,9 +84,9 @@ type Bitswap struct {
 // NewBitswap creates a new Bitswap wrapper.
 // Users must call Close() for shutdown.
 func NewBitswap(host host.Host, rt routing.ContentRouting, bs blockstore.Blockstore) (*Bitswap, error) {
-	net := network.NewFromIpfsHost(host, rt)
+	net := bsnet.NewFromIpfsHost(host)
 	ctx, cancel := context.WithCancel(context.Background())
-	b := bitswap.New(ctx, net, bs, bitswap.ProvideEnabled(true))
+	b := bitswap.New(ctx, net, rt, bs)
 
 	return &Bitswap{
 		Bitswap:        b,

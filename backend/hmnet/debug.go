@@ -76,7 +76,6 @@ type debugInfo struct {
 type bitswapInfo struct {
 	BlocksReceived uint64
 	BlocksSent     uint64
-	ProvideBufLen  int
 	Peers          []string
 }
 type connManagerInfo struct {
@@ -102,7 +101,6 @@ func getBitswapInfo(bs *ipfs.Bitswap) *bitswapInfo {
 	}
 	ret.BlocksReceived = info.BlocksReceived
 	ret.BlocksSent = info.BlocksSent
-	ret.ProvideBufLen = info.ProvideBufLen
 	ret.Peers = info.Peers
 	return ret
 }
