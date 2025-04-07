@@ -33,6 +33,7 @@ import {ipc} from './ipc'
 import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
+import './styles/tailwind.css'
 import {client, trpc} from './trpc'
 
 import {
