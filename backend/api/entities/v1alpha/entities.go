@@ -13,14 +13,13 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
 
-	"github.com/lithammer/fuzzysearch/fuzzy"
+	"github.com/sahilm/fuzzy"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -189,22 +188,31 @@ var qGetMetadata = dqb.Str(`
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
 	var names []string
+	var icons []string
 	var iris []string
 	var owners []string
 	var limit = 30
 	type value struct {
 		Value string `json:"v"`
 	}
-	type meta struct {
+	type title struct {
 		Name value `json:"name"`
+	}
+	type icon struct {
+		Icon value `json:"icon"`
 	}
 	if err := srv.idx.Query(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
-			var attr meta
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &attr); err != nil {
+			var title title
+			var icon icon
+			if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
 				return nil
 			}
-			names = append(names, attr.Name.Value)
+			names = append(names, title.Name.Value)
+			if err := json.Unmarshal(stmt.ColumnBytes(0), &icon); err != nil {
+				return nil
+			}
+			icons = append(icons, icon.Icon.Value)
 			iris = append(iris, stmt.ColumnText(1))
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
@@ -213,23 +221,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}); err != nil {
 		return nil, err
 	}
-	ranks := fuzzy.RankFindNormalizedFold(in.Query, names)
-	sort.Slice(ranks, func(i, j int) bool {
-		return ranks[i].Distance < ranks[j].Distance
-	})
+	matches := fuzzy.Find(in.Query, names)
 	matchingEntities := []*entities.Entity{}
-	for i, rank := range ranks {
-		if rank.Distance > 20 {
+	for i, match := range matches {
+		if match.Score < 0 {
 			limit++
 			continue
 		}
 		if i >= limit {
 			break
 		}
+		fmt.Println(match.Str, "Score:", match.Score)
 		matchingEntities = append(matchingEntities, &entities.Entity{
-			Id:    iris[rank.OriginalIndex],
-			Title: rank.Target,
-			Owner: owners[rank.OriginalIndex]})
+			Id:    iris[match.Index],
+			Title: match.Str,
+			Owner: owners[match.Index]})
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
