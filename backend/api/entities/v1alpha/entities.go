@@ -191,7 +191,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var names []string
 	var iris []string
 	var owners []string
-	const limit = 30
+	var limit = 30
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -219,6 +219,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	})
 	matchingEntities := []*entities.Entity{}
 	for i, rank := range ranks {
+		if rank.Distance > 20 {
+			limit++
+			continue
+		}
 		if i >= limit {
 			break
 		}
