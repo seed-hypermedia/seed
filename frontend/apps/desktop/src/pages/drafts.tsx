@@ -65,7 +65,7 @@ export default function DraftsPage() {
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
-        <Container justifyContent="center" centered>
+        <Container justifyContent="center" centered gap="$2">
           {draftItems?.map((item) => {
             return (
               <DraftItem
@@ -99,28 +99,29 @@ export function DraftItem({
       }}
       bg="$backgroundStrong"
       // elevation="$1"
-      paddingHorizontal={16}
+      paddingHorizontal="$3"
       paddingVertical="$2"
       onPress={() => {
         navigate({key: 'draft', id: item.id})
       }}
-      h={null}
-      minHeight={41}
-      marginVertical={'$1'}
+      h="auto"
       ai="center"
     >
-      <XStack gap="$3" ai="center" f={1} jc="space-between">
-        <YStack>
-          <XStack>
+      <XStack gap="$4" ai="center" f={1}>
+        <YStack gap="$1" f={1}>
+          <XStack overflow="hidden">
             {breadcrumbs.map((breadcrumb, idx) => (
               <>
                 <Button
-                  color="$color10"
+                  color="$color9"
                   fontWeight="400"
                   size="$1"
                   textProps={{
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
                     hoverStyle: {
-                      color: '$color',
+                      color: '$color11',
                     },
                   }}
                   margin={0}
@@ -146,7 +147,7 @@ export function DraftItem({
                 {idx === breadcrumbs.length - 1 ? null : (
                   <SizableText
                     size="$1"
-                    color="$color10"
+                    color="$color9"
                     margin={0}
                     marginRight="$1"
                   >
@@ -157,8 +158,9 @@ export function DraftItem({
             ))}
           </XStack>
           <SizableText
+            size="$4"
             f={1}
-            fontWeight={'bold'}
+            fontWeight="bold"
             textOverflow="ellipsis"
             whiteSpace="nowrap"
             overflow="hidden"
@@ -170,7 +172,7 @@ export function DraftItem({
             item={item}
             accountsMetadata={accountsMetadata}
           /> */}
-        <SizableText size="$1">
+        <SizableText size="$1" color="$color9" flexShrink={0} flexGrow={0}>
           {formattedDateMedium(new Date(item.lastUpdateTime))}
         </SizableText>
       </XStack>
