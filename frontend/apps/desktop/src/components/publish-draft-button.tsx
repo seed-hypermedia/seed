@@ -228,6 +228,7 @@ export default function PublishDraftButton() {
         onSelectDestination: (location, account) => {
           handlePublish(location, account)
         },
+        defaultLocation: draft.data.locationId,
       })
     }
   }
@@ -302,6 +303,7 @@ function FirstPublishDialog({
 }: {
   input: {
     newDefaultName: string
+    defaultLocation: UnpackedHypermediaId | null | undefined
     onSelectDestination: (
       location: UnpackedHypermediaId,
       account: string,
@@ -311,7 +313,16 @@ function FirstPublishDialog({
 }) {
   const [account, setAccount] = useState<string | null>(null)
   // const navigate = useNavigate()
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(
+    input.defaultLocation
+      ? hmId('d', input.defaultLocation.uid, {
+          path: [
+            ...(input.defaultLocation.path || []),
+            pathNameify(input.newDefaultName),
+          ],
+        })
+      : null,
+  )
   const isAvailable = useRef(true)
   return (
     <YStack>
