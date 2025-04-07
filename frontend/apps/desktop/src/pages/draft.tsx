@@ -78,20 +78,30 @@ export default function DraftPage() {
   const isNewspaperLayout =
     data?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
-  const parentEntityId = useMemo(() => {
+  const locationId = useMemo(() => {
     if (route.key != 'draft') return undefined
+    if (data?.locationId) return data.locationId
     if (route.locationUid)
       return hmId('d', route.locationUid, {path: route.locationPath})
     if (data?.locationUid)
       return hmId('d', data.locationUid, {
         path: data.locationPath,
       })
+    return undefined
+  }, [route, data])
+
+  const editId = useMemo(() => {
+    if (route.key != 'draft') return undefined
+    if (data?.editId) return data.editId
     if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
     if (data?.editUid) return hmId('d', data.editUid, {path: data.editPath})
     return undefined
   }, [route, data])
 
-  const isEditingHomeDoc = parentEntityId && parentEntityId.path?.length === 0
+  const isEditingHomeDoc = useMemo(() => {
+    if (editId && editId.path?.length === 0) return true
+    return false
+  }, [locationId, editId])
 
   const accessoryOptions: {
     key: 'options'

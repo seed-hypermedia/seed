@@ -692,7 +692,10 @@ export function Title({size}: {size?: FontSizeTokens}) {
 
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
+
+  console.log(`== ~ DraftTitle ~ draft:`, draft)
   const locationId = useMemo(() => {
+    if (draft.data?.locationId) return draft.data.locationId
     let uId = draft.data?.locationUid || route.locationUid
     let path = draft.data?.locationPath || route.locationPath
     if (uId) {
@@ -702,9 +705,10 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     } else {
       return undefined
     }
-  }, [route.locationUid, route.locationPath])
+  }, [draft.data, route.locationUid, route.locationPath])
 
   const editId = useMemo(() => {
+    if (draft.data?.editId) return draft.data.editId
     let uId = draft.data?.editUid || route.editUid
     let path = draft.data?.editPath || route.editPath
     if (uId) {
@@ -713,7 +717,9 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
       })
     }
     return undefined
-  }, [route.editUid, route.editPath])
+  }, [draft.data, route.editUid, route.editPath])
+
+  console.log(`== ~ DraftTitle ~ draft locationId:`, locationId)
 
   if (locationId)
     return (

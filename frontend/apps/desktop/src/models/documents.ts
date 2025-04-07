@@ -196,27 +196,14 @@ export function usePublishDraft(
         : {}
       const newContent = removeTrailingBlocks(draft.content || [])
 
-      console.log('=== PUBLISH DRAFT start', {
-        draft,
-        destinationId,
-        accountId,
-        blocksMap,
-        newContent,
-      })
-
-      console.log(`=== PUBLISH DRAFT newContent:`, newContent)
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-      console.log(`=== PUBLISH DRAFT changes:`, changes)
-      console.log(`=== PUBLISH DRAFT deleteChanges:`, deleteChanges)
+
       if (accts.data?.length == 0) {
-        console.log('=== PUBLISH DRAFT t0.5')
         dispatchOnboardingDialog(true)
       } else {
         try {
-          console.log('=== PUBLISH DRAFT t0')
           if (accountId && draft.id) {
-            console.log('=== PUBLISH DRAFT t1')
             const allChanges = [
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
@@ -229,7 +216,7 @@ export function usePublishDraft(
                   account: destinationId.uid,
                   path: hmIdPathToEntityQueryPath(destinationId.path || []),
                 })
-              console.log('~~~ t2', capabilities)
+
               const capability = capabilities.capabilities.find(
                 (cap) => cap.delegate === accountId,
               )
@@ -239,7 +226,6 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            console.log('~~~ t3')
             writeRecentSigner.mutateAsync(accountId).then(() => {
               invalidateQueries(['trpc.recentSigners.get'])
             })
@@ -261,15 +247,6 @@ export function usePublishDraft(
             // if (invalid) {
             //   throw new Error(invalid.error)
             // }
-
-            console.log('~~~ createDocumentChange', {
-              signingKeyName: accountId,
-              account: destinationId.uid,
-              baseVersion: draft.deps?.join('.') || '',
-              path: hmIdPathToEntityQueryPath(destinationId.path || []),
-              changes: allChanges,
-              capability: capabilityId,
-            })
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: accountId,
@@ -439,7 +416,6 @@ export function useDraftEditor() {
    */
   const route = useNavRoute()
   const replace = useNavigate('replace')
-  console.log(`=== DRAFT route:`, route)
 
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
@@ -546,7 +522,6 @@ export function useDraftEditor() {
   >(async ({input}) => {
     // Implementation will be provided in documents.ts
     try {
-      console.log('=== DRAFT CREATE start')
       const locationUid = route.locationUid || data?.locationUid
       const locationPath = route.locationPath || data?.locationPath
       const editUid = route.editUid || data?.editUid
@@ -562,8 +537,7 @@ export function useDraftEditor() {
         editUid,
         editPath,
       })
-      console.log('=== DRAFT CREATE newDraft: ', newDraft)
-      console.log('=== DRAFT CREATE end')
+
       return newDraft
     } catch (error) {
       console.error('Error creating draft', error)
@@ -588,7 +562,6 @@ export function useDraftEditor() {
           }
         },
         populateData: assign(({context, event}) => {
-          console.log('=== DRAFT populateData: ', context, event)
           let content: Array<EditorBlock> = []
           if (event.type == 'fetch.success') {
             if (event.payload.type == 'draft') {
@@ -662,7 +635,6 @@ export function useDraftEditor() {
       send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
     }
     if (draftStatus === 'success' && data !== null) {
-      console.log(`== ~ useDraftEditor ~ data:`, data)
       send({type: 'fetch.success', payload: {type: 'draft', data}})
     } else if (locationEntity.status === 'success' && locationEntity.data) {
       send({
@@ -700,7 +672,6 @@ export function useDraftEditor() {
     draftEvents.subscribe(
       (value: {type: 'change'; signingAccount?: string} | null) => {
         if (value) {
-          console.log('~~ signingAccount EVENT FROM STREAM change: ', value)
           send(value)
         }
       },
@@ -1035,7 +1006,6 @@ export function compareBlocksWithMap(
 
     // compare replace
     let prevBlockState = blocksMap[block.id]
-    console.log(`== ~ blocks?.forEach ~ prevBlockState:`, prevBlockState)
 
     // const childGroup = getBlockGroup(editor, block.id) // TODO: do this with no editor
 
@@ -1486,11 +1456,6 @@ export function useForkDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      console.log({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
       const document = await grpcClient.documents.getDocument({
         account: from.uid,
         path: hmIdPathToEntityQueryPath(from.path),
