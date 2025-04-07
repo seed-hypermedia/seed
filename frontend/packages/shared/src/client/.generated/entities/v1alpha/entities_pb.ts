@@ -491,6 +491,13 @@ export class Entity extends Message<Entity> {
    */
   icon = "";
 
+  /**
+   * Parent document names
+   *
+   * @generated from field: repeated string parent_names = 5;
+   */
+  parentNames: string[] = [];
+
   constructor(data?: PartialMessage<Entity>) {
     super();
     proto3.util.initPartial(data, this);
@@ -503,6 +510,7 @@ export class Entity extends Message<Entity> {
     { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {

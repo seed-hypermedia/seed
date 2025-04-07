@@ -163,6 +163,9 @@ message Entity {
 
   // Icon of the document containing that entity
   string icon = 4;
+
+  // Parent document names
+  repeated string parent_names = 5;
 }
 
 // Publication that has been deleted

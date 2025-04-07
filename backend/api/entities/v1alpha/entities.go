@@ -185,6 +185,11 @@ var qGetMetadata = dqb.Str(`
 	INNER JOIN public_keys pk ON pk.id = r.owner
 	WHERE dg.is_deleted = False;`)
 
+var qGetParentsMetadata = dqb.Str(`
+	select dg.metadata, r.iri from document_generations dg 
+	INNER JOIN resources r ON r.id = dg.resource 
+	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
+
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
 	var names []string
@@ -231,11 +236,46 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if i >= limit {
 			break
 		}
+		parents := make(map[string]interface{})
+		breadcrum := strings.Split(strings.TrimPrefix(iris[match.Index], "hm://"), "/")
+		var root string
+		for i, _ := range breadcrum {
+			parents["hm://"+strings.Join(breadcrum[:i+1], "/")] = nil
+			if i == 0 {
+				root = "hm://" + strings.Join(breadcrum[:i+1], "") + "*"
+			}
+		}
+		var parentTitles []string
+		if err := srv.idx.Query(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
+				var title title
+				iri := stmt.ColumnText(1)
+				if _, ok := parents[iri]; !ok {
+					return nil
+				}
+				if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
+					return nil
+				}
+				if title.Name.Value == match.Str {
+					return nil
+				}
+				parentTitles = append(parentTitles, title.Name.Value)
+				iris = append(iris, iri)
+				ownerID := core.Principal(stmt.ColumnBytes(2)).String()
+				owners = append(owners, ownerID)
+				return nil
+			}, root)
+		}); err != nil {
+			return nil, err
+		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
-			Id:    iris[match.Index],
-			Title: match.Str,
-			Icon:  icons[match.Index],
-			Owner: owners[match.Index]})
+			Id:          iris[match.Index],
+			Title:       match.Str,
+			ParentNames: parentTitles,
+			Icon:        icons[match.Index],
+			Owner:       owners[match.Index]})
+		fmt.Println("Entity ID: ", iris[match.Index])
+
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
