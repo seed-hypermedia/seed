@@ -1424,6 +1424,8 @@ export function ResetOnboardingButton() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
 
+  if (IS_PROD_DESKTOP) return null
+
   return (
     <XStack
       className="no-window-drag"

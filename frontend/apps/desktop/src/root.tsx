@@ -390,7 +390,7 @@ function MainApp({}: {}) {
               }
             >
               {mainContent}
-              <ResetOnboardingButton />
+              {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
             </NavigationContainer>
             <Toaster
             // position="bottom-center"
