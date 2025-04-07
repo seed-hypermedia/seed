@@ -47,25 +47,6 @@ export function SearchInput({
   const recents = useRecents()
   const searchResults = useSearch(search, {})
 
-  // const [entities, setEntities] = useState([])
-
-  // useEffect(() => {
-  //   if (searchResults.data) {
-  //     // @ts-ignore
-  //     setEntities(
-  //       useEntities(searchResults.data.entities.map((item) => item.id)),
-  //     )
-  //   }
-  // }, [searchResults])
-
-  // const entities = searchResults.data?.entities.length
-  //   ? useEntities(searchResults?.data?.entities.map((item) => item.id))
-  //   : []
-
-  // useEffect(() => {
-  //   console.log(entities)
-  // }, [entities])
-
   let queryItem: null | SearchResult = useMemo(() => {
     if (
       isHypermediaScheme(search) ||
@@ -125,7 +106,6 @@ export function SearchInput({
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
-        // console.log(item)
         return {
           title: item.title || item.id.uid,
           key: item.id.id,
@@ -138,21 +118,9 @@ export function SearchInput({
       })
       .filter(Boolean) ?? []
 
-  // searchResults?.data?.entities?.forEach((item) => {
-  //   console.log(getParentPaths(item.id.path))
-  // })
-
-  // const smth = getParentPaths(entityId.path)
-  //   .slice(0, -1)
-  //   .forEach((path) => {
-  //     dependOnId(hmId('d', entityId.uid, {path}))
-  //   })
   const recentItems =
     recents.data?.map(({url, title, subtitle}, index) => {
-      // // console.log('RECENTS: ', url, title, subtitle)
       const id = unpackHmId(url)
-      // // console.log('ID???: ', id)
-      // const smth = resolveHmIdToAppRoute(id, grpcClient)
       return {
         key: url,
         title,
@@ -220,7 +188,6 @@ export function SearchInput({
         </XStack>
       ) : null}
       {activeItems?.map((item, itemIndex) => {
-        // console.log(item)
         return (
           <>
             <SearchResultItem
