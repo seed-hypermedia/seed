@@ -1,21 +1,79 @@
 import {MainWrapper} from '@/components/main-wrapper'
 import {useDraftList} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
-import {getMetadataName, HMListedDraft} from '@shm/shared'
+import {
+  formattedDateMedium,
+  getMetadataName,
+  getParentPaths,
+  hmId,
+  HMListedDraft,
+  HMMetadataPayload,
+  unpackHmId,
+} from '@shm/shared'
+import {useEntities} from '@shm/shared/models/entity'
 import {Container} from '@shm/ui/container'
+import {useMemo} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {Button, SizableText, XStack, YStack} from 'tamagui'
 
 export default function DraftsPage() {
   const drafts = useDraftList()
-
-  console.log(`== ~ DraftsPage ~ drafts:`, drafts)
-  // console.log(drafts.data)
+  const allLocationParents = useMemo(() => {
+    const allLocationParents = new Set<string>()
+    drafts.data?.forEach((draft) => {
+      const contextId = draft.editId || draft.locationId
+      if (contextId) {
+        const uid = contextId.uid
+        const parentPaths = getParentPaths(contextId.path)
+        parentPaths.forEach((path) => {
+          allLocationParents.add(hmId('d', uid, {path}).id)
+        })
+      }
+    })
+    return allLocationParents
+  }, [drafts.data])
+  const entities = useEntities(
+    Array.from(allLocationParents)
+      .map((id) => unpackHmId(id))
+      .filter((id) => !!id),
+  )
+  const draftItems = useMemo(() => {
+    return drafts.data?.map((item) => {
+      let breadcrumbs: HMMetadataPayload[] = []
+      const contextId = item.editId || item.locationId
+      if (contextId) {
+        const uid = contextId.uid
+        const parentPaths = getParentPaths(contextId.path)
+        breadcrumbs = (
+          contextId === item.editId ? parentPaths.slice(0, -1) : parentPaths
+        ).map((path) => {
+          const id = hmId('d', uid, {path})
+          return {
+            id,
+            metadata:
+              entities.find((e) => e.data?.id.id === id.id)?.data?.document
+                ?.metadata ?? null,
+          }
+        })
+      }
+      return {
+        ...item,
+        breadcrumbs,
+      }
+    })
+  }, [drafts.data, entities])
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          {drafts.data?.map((item) => {
-            return <DraftItem item={item} key={item.id} />
+          {draftItems?.map((item) => {
+            return (
+              <DraftItem
+                item={item}
+                key={item.id}
+                breadcrumbs={item.breadcrumbs}
+              />
+            )
           })}
         </Container>
       </MainWrapper>
@@ -23,7 +81,13 @@ export default function DraftsPage() {
   )
 }
 
-export function DraftItem({item}: {item: HMListedDraft}) {
+export function DraftItem({
+  item,
+  breadcrumbs,
+}: {
+  item: HMListedDraft
+  breadcrumbs: HMMetadataPayload[]
+}) {
   const navigate = useNavigate()
   const metadata = item?.metadata
   return (
@@ -40,17 +104,58 @@ export function DraftItem({item}: {item: HMListedDraft}) {
       onPress={() => {
         navigate({key: 'draft', id: item.id})
       }}
-      h="auto"
+      h={null}
+      minHeight={41}
       marginVertical={'$1'}
       ai="center"
     >
-      <YStack f={1}>
-        {/* <LibraryEntryBreadcrumbs
-          breadcrumbs={item.breadcrumbs}
-          onNavigate={navigate}
-          id={id}
-        /> */}
-        <XStack gap="$3" ai="center">
+      <XStack gap="$3" ai="center" f={1} jc="space-between">
+        <YStack>
+          <XStack>
+            {breadcrumbs.map((breadcrumb, idx) => (
+              <>
+                <Button
+                  color="$color10"
+                  fontWeight="400"
+                  size="$1"
+                  textProps={{
+                    hoverStyle: {
+                      color: '$color',
+                    },
+                  }}
+                  margin={0}
+                  marginRight="$1"
+                  paddingHorizontal={0}
+                  hoverStyle={{
+                    bg: '$colorTransparent',
+                  }}
+                  borderWidth={0}
+                  bg="$colorTransparent"
+                  onPress={(e: GestureResponderEvent) => {
+                    e.stopPropagation()
+                    navigate({
+                      key: 'document',
+                      id: breadcrumb.id,
+                    })
+                  }}
+                >
+                  {breadcrumb.metadata?.name ??
+                    breadcrumb.id?.path?.at(-1) ??
+                    '?'}
+                </Button>
+                {idx === breadcrumbs.length - 1 ? null : (
+                  <SizableText
+                    size="$1"
+                    color="$color10"
+                    margin={0}
+                    marginRight="$1"
+                  >
+                    /
+                  </SizableText>
+                )}
+              </>
+            ))}
+          </XStack>
           <SizableText
             f={1}
             fontWeight={'bold'}
@@ -60,12 +165,15 @@ export function DraftItem({item}: {item: HMListedDraft}) {
           >
             {getMetadataName(metadata)}
           </SizableText>
-          {/* <LibraryEntryAuthors
+        </YStack>
+        {/* <LibraryEntryAuthors
             item={item}
             accountsMetadata={accountsMetadata}
           /> */}
-        </XStack>
-      </YStack>
+        <SizableText size="$1">
+          {formattedDateMedium(new Date(item.lastUpdateTime))}
+        </SizableText>
+      </XStack>
     </Button>
   )
 }
