@@ -93,7 +93,7 @@ export function ChangeItem({
       borderRadius="$2"
       backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: isActive ? '$brand11' : '$color6',
+        backgroundColor: isActive ? '$brand12' : '$color6',
         borderColor: '$borderTransparent',
       }}
       ai="flex-start"

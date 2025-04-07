@@ -51,7 +51,7 @@ function EmbedWrapper({
     <YStack
       width="100%"
       borderRightWidth={hideBorder ? 0 : 3}
-      borderRightColor={hideBorder ? '$colorTransparent' : '$brand8'}
+      borderRightColor={hideBorder ? '$colorTransparent' : '$brand5'}
       onPress={
         !disableEmbedClick
           ? (e) => {

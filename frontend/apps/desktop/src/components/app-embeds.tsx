@@ -144,14 +144,14 @@ function EmbedWrapper({
       backgroundColor={
         isHighlight
           ? routeParams?.blockRef == id?.blockRef
-            ? '$yellow3'
+            ? '$brand12'
             : '$backgroundTransparent'
           : '$backgroundTransparent'
       }
       hoverStyle={{
         backgroundColor: isHighlight
           ? routeParams?.blockRef == id?.blockRef
-            ? '$brand11'
+            ? '$brand12'
             : '$backgroundTransparent'
           : '$backgroundTransparent',
         // borderRadius: '$2',
@@ -164,7 +164,7 @@ function EmbedWrapper({
       // overflow="hidden"
       borderRadius={0}
       borderRightWidth={hideBorder ? 0 : 3}
-      borderRightColor={hideBorder ? '$colorTransparent' : '$brand8'}
+      borderRightColor={hideBorder ? '$colorTransparent' : '$brand5'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={
