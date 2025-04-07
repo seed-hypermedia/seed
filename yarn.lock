@@ -10060,6 +10060,7 @@ __metadata:
     "@types/sharp": ^0.32.0
     better-sqlite3: ^11.8.1
     blockstore-core: ^5.0.2
+    fake-indexeddb: ^6.0.0
     ipfs-unixfs-importer: ^15.3.2
     isbot: 4
     mjml: ^4.15.3
@@ -20412,6 +20413,13 @@ __metadata:
   bin:
     extract-zip: cli.js
   checksum: 8cbda9debdd6d6980819cc69734d874ddd71051c9fe5bde1ef307ebcedfe949ba57b004894b585f758b7c9eeeea0e3d87f2dda89b7d25320459c2c9643ebb635
+  languageName: node
+  linkType: hard
+
+"fake-indexeddb@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "fake-indexeddb@npm:6.0.0"
+  checksum: c55bb1f54c1c910a6ca9e18b376ebecc51a29eceb829550d415aa34c2e246730a76dd35dc4fd6d8ae5c5790b9b4f180859e9457bcb73f2d167cc87aa04b6201e
   languageName: node
   linkType: hard
 
