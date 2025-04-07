@@ -231,10 +231,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if i >= limit {
 			break
 		}
-		fmt.Println(match.Str, "Score:", match.Score)
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:    iris[match.Index],
 			Title: match.Str,
+			Icon:  icons[match.Index],
 			Owner: owners[match.Index]})
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil

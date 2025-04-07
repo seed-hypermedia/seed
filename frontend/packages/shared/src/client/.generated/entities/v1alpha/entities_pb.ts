@@ -455,7 +455,7 @@ export class AuthorVersion extends Message<AuthorVersion> {
 }
 
 /**
- * A change to an entity.
+ * An entity record found
  *
  * @generated from message com.seed.entities.v1alpha.Entity
  */
@@ -484,6 +484,13 @@ export class Entity extends Message<Entity> {
    */
   owner = "";
 
+  /**
+   * Icon of the document containing that entity
+   *
+   * @generated from field: string icon = 4;
+   */
+  icon = "";
+
   constructor(data?: PartialMessage<Entity>) {
     super();
     proto3.util.initPartial(data, this);
@@ -495,6 +502,7 @@ export class Entity extends Message<Entity> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {

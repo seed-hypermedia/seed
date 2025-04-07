@@ -147,7 +147,7 @@ message AuthorVersion {
   google.protobuf.Timestamp version_time = 4;
 }
 
-// A change to an entity.
+// An entity record found
 message Entity {
   // EID of the entity.
   string id = 1;
@@ -160,6 +160,9 @@ message Entity {
 
   // The owner of the entity
   string owner = 3;
+
+  // Icon of the document containing that entity
+  string icon = 4;
 }
 
 // Publication that has been deleted
