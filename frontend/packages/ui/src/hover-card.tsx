@@ -10,6 +10,7 @@ export function HoverCard({
   content: React.ReactNode
   contentProps?: React.ComponentProps<typeof Popover.Content>
 }) {
+  if (!content) return children
   return (
     <Popover hoverable placement="bottom-start">
       <Popover.Trigger

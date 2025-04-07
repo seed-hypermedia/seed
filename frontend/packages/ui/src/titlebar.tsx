@@ -50,9 +50,12 @@ export const TitleText = styled(SizableText, {
   padding: 0,
   margin: 0,
   textTransform: 'none',
+  padding: '$1',
+  borderRadius: '$1',
 })
 
 export const TitleTextButton = styled(ButtonText, {
+  padding: '$1',
   whiteSpace: 'nowrap',
   flexShrink: 0,
   overflow: 'hidden',

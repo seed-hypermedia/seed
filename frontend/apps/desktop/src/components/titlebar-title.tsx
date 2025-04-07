@@ -137,11 +137,13 @@ function BreadcrumbTitle({
   hideControls = false,
   draftName,
   replaceLastItem = false,
+  draft = false,
 }: {
   entityId: UnpackedHypermediaId
   hideControls?: boolean
   draftName?: string
   replaceLastItem?: boolean
+  draft?: boolean
 }) {
   const latestDoc = useEntity({...entityId, version: null, latest: true})
   const isLatest =
@@ -278,6 +280,7 @@ function BreadcrumbTitle({
       details={activeItem}
       key={activeItem.crumbKey}
       isActive
+      draft={draft}
       onSize={({width}: DOMRect) => {
         if (width) {
           widthInfo.current[activeItem.crumbKey] = width
@@ -466,11 +469,13 @@ function BreadcrumbItem({
   isActive,
   onSize,
   homeMetadata,
+  draft = false,
 }: {
   details: CrumbDetails
   isActive?: boolean
   onSize: (rect: DOMRect) => void
   homeMetadata: HMMetadata | undefined
+  draft?: boolean
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
@@ -519,7 +524,11 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <TitleText ref={observerRef} fontWeight="bold">
+    <TitleText
+      ref={observerRef}
+      fontWeight="bold"
+      backgroundColor={draft ? '$yellow4' : undefined}
+    >
       {details.name}
     </TitleText>
   ) : (
@@ -545,7 +554,11 @@ function BreadcrumbItem({
       justifyContent="center"
     >
       <HoverCard
-        content={<PathItemCard details={details} homeMetadata={homeMetadata} />}
+        content={
+          draft ? null : (
+            <PathItemCard details={details} homeMetadata={homeMetadata} />
+          )
+        }
       >
         {content}
       </HoverCard>
@@ -708,6 +721,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
         entityId={locationId}
         hideControls
         draftName={draft.data?.metadata.name || 'New Draft'}
+        draft
       />
     )
 
@@ -718,6 +732,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
         hideControls
         draftName={draft.data?.metadata.name}
         replaceLastItem={!!draft.data?.metadata.name}
+        draft
       />
     )
 
@@ -744,7 +759,10 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
       >
         <TitleText>Drafts</TitleText>
         <BreadcrumbSeparator key={`draft-seperator`} />
-        <TitleText fontWeight="bold">
+        <TitleText
+          fontWeight="bold"
+          backgroundColor={draft ? '$yellow4' : undefined}
+        >
           {draft.data?.metadata.name || 'New Draft'}
         </TitleText>
       </XStack>
