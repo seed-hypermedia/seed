@@ -2,18 +2,25 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   idToUrl,
   SearchResult,
+  UniversalAppContext,
   UnpackedHypermediaId,
   useRouteLink,
   useSearch,
-  useUniversalAppContext,
 } from '@shm/shared'
 import {Popover} from '@shm/ui/TamaguiPopover'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {
+  Fragment,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
+import {ScrollView, Separator, SizableText} from 'tamagui'
 
 export function MobileSearch({
   originHomeId,
@@ -83,7 +90,7 @@ export function HeaderSearch({
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {enabled: !!searchValue})
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const universalAppContext = useUniversalAppContext()
+  const universalAppContext = useContext(UniversalAppContext)
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
@@ -138,7 +145,7 @@ export function HeaderSearch({
                 ) => {
                   setSearchValue(e.nativeEvent.target.value)
                 }}
-                onKeyPress={(e: any) => {
+                onKeyDown={(e: any) => {
                   if (e.key === 'Escape') {
                     e.preventDefault()
                     popoverState.onOpenChange(false)
@@ -230,6 +237,13 @@ function SearchResultItem({
     originHomeId,
   )
   return (
+    // <Button
+    //   backgroundColor="$colorTransparent"
+    //   {...linkProps}
+    //   justifyContent="flex-start"
+    // >
+    //   {entity.title}
+    // </Button>
     <Button
       ref={elm}
       {...linkProps}
