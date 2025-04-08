@@ -30,23 +30,30 @@ export function DocumentSmallListItem({
   items,
   active,
   onPress,
-  isDraft,
+  draftId,
   isPublished,
 }: {
   metadata?: HMMetadata
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId
   indented?: number
   items?: null | ReactNode
   active?: boolean
   onPress?: () => void
-  isDraft?: boolean
+  draftId?: string | null | undefined
   isPublished?: boolean
 }) {
-  const route: NavRoute = isDraft ? {key: 'draft', id} : {key: 'document', id}
+  const route: NavRoute | undefined = draftId
+    ? {key: 'draft', id: draftId}
+    : id && {key: 'document', id}
+  if (!route) {
+    throw new Error(
+      'No route for DocumentSmallListItem. Must provide either id or draftId',
+    )
+  }
   const linkProps = useRouteLink(route)
   const color = isPublished === false ? '$color11' : undefined
-  const backgroundColor = isDraft ? '$yellow3' : undefined
-  const hoverBackgroundColor = isDraft ? '$yellow4' : '$color4'
+  const backgroundColor = draftId ? '$yellow3' : undefined
+  const hoverBackgroundColor = draftId ? '$yellow4' : '$color4'
   if (items)
     return (
       <SmallCollapsableListItem
@@ -54,9 +61,9 @@ export function DocumentSmallListItem({
         color={color}
         backgroundColor={backgroundColor}
         hoverStyle={{backgroundColor: hoverBackgroundColor}}
-        key={id.id}
+        key={draftId || id?.id}
         title={getMetadataName(metadata)}
-        icon={<HMIcon id={id} metadata={metadata} size={20} />}
+        icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
         indented={indented}
         active={active}
         {...linkProps}
@@ -75,9 +82,9 @@ export function DocumentSmallListItem({
       color={color}
       backgroundColor={backgroundColor}
       hoverStyle={{backgroundColor: hoverBackgroundColor}}
-      key={id.id}
+      key={draftId || id?.id}
       title={getMetadataName(metadata)}
-      icon={<HMIcon id={id} metadata={metadata} size={20} />}
+      icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
       indented={indented}
       active={active}
       {...linkProps}
@@ -87,10 +94,10 @@ export function DocumentSmallListItem({
 
 export type SiteNavigationDocument = {
   metadata: HMMetadata
-  isDraft: boolean
   isPublished: boolean
   sortTime: Date
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId
+  draftId?: string | null | undefined
 }
 
 export function getSiteNavDirectory({
@@ -107,29 +114,26 @@ export function getSiteNavDirectory({
       query.in.uid === id.uid &&
       (query.in.path || []).join('/') === (id.path || []).join('/'),
   )
-  const directoryDrafts = drafts?.filter(
-    (draft) =>
-      !!draft.id.path &&
-      draft.id.path.join('/').startsWith(id.path ? id.path.join('/') : '') &&
-      draft.id.path.length === (id.path?.length || 0) + 1,
-  )
   const idPath = id.path || []
-  const publishedIds = new Set(
-    directory?.results.map(
-      (doc) => hmId('d', doc.account, {path: doc.path}).id,
-    ),
+  const editIds = new Set<string>(
+    drafts
+      ?.map((d) => d.editId)
+      .filter((id) => !!id)
+      .map((id) => id.id) || [],
   )
-  const draftIds = new Set(directoryDrafts?.map((draft) => draft.id.id))
   const unpublishedDraftItems: SiteNavigationDocument[] =
-    directoryDrafts
-      ?.filter((draft) => !publishedIds.has(draft.id.id))
-      .map((draft) => ({
-        id: draft.id,
-        metadata: draft.metadata,
-        sortTime: new Date(draft.lastUpdateTime),
-        isDraft: true,
-        isPublished: false,
-      })) || []
+    drafts
+      ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
+      .map(
+        (draft) =>
+          ({
+            id: undefined,
+            draftId: draft.id,
+            metadata: draft.metadata,
+            sortTime: new Date(draft.lastUpdateTime),
+            isPublished: false,
+          }) satisfies SiteNavigationDocument,
+      ) || []
   const publishedItems: SiteNavigationDocument[] =
     directory?.results
       ?.filter((doc) => {
@@ -146,7 +150,10 @@ export function getSiteNavDirectory({
           id,
           metadata: item.metadata,
           sortTime,
-          isDraft: draftIds.has(id.id),
+          // isDraft: editIds.has(id.id),
+          draftId: editIds.has(id.id)
+            ? drafts?.find((d) => d.editId?.id === id.id)?.id
+            : undefined,
           isPublished: true,
         }
       })
@@ -216,12 +223,12 @@ export function DocDirectory({
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
-              key={doc.id.path?.join('/') || doc.id.id}
+              key={doc.draftId || doc.id?.path?.join('/') || doc.id?.id}
               metadata={doc.metadata}
               id={doc.id}
               onPress={onPress}
               indented={0}
-              isDraft={doc.isDraft}
+              draftId={doc.draftId}
               isPublished={doc.isPublished}
             />
           ))

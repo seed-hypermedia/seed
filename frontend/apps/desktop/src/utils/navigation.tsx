@@ -37,9 +37,10 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
-  if (route.key === 'draft')
-    return `draft:${route.id?.uid}:${route.id?.path?.join(':')}`
-  if (route.key === 'document')
+  if (route.key == 'draft') {
+    return `draft:${route.id}`
+  }
+  if (route.key == 'document')
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }

@@ -5,7 +5,6 @@ import {StateStream} from './stream'
 export const HYPERMEDIA_ENTITY_TYPES = {
   d: 'Document', // the default type
   comment: 'Comment',
-  draft: 'Local Draft',
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
@@ -513,7 +512,12 @@ export function pathMatches(
   a: string[] | null,
   b: string[] | null | undefined,
 ) {
-  if (!a?.length || !b?.length) return a?.length || 0 === b?.length || 0
+  // Handle cases where either value is null/undefined and the other is empty array
+  if (!a && (!b || b.length === 0)) return true
+  if (!b && (!a || a.length === 0)) return true
+
+  // Handle regular array comparison
+  if (!a?.length || !b?.length) return a?.length === b?.length
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
 

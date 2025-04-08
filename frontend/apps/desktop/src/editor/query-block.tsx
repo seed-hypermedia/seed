@@ -105,6 +105,8 @@ function Render(
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
 
+  console.log(block.props.queryIncludes)
+
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
     return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
   }, [block.props.queryIncludes])
@@ -118,7 +120,7 @@ function Render(
   }, [block.props.banner])
 
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
-    if (queryIncludes?.[0].space) {
+    if (queryIncludes?.[0]?.space) {
       return hmId('d', queryIncludes[0].space, {
         path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
         latest: true,
@@ -130,7 +132,7 @@ function Render(
     enabled: !!queryId,
   })
   const directoryItems = useListDirectory(queryId, {
-    mode: queryIncludes[0].mode,
+    mode: queryIncludes[0]?.mode,
   })
 
   const sortedItems = useMemo(() => {
@@ -328,9 +330,8 @@ function ListView({
         .filter((item) => !!item.data)
         .map((item) => {
           return {
-            id: item.data.id,
+            id: item.data?.id,
             document: item.data?.document,
-            hasDraft: false,
             location: [],
             authors: [],
             isFavorite: false,
@@ -515,8 +516,8 @@ function QuerySettings({
               <SwitchField
                 label="Show all Children"
                 id="mode"
-                defaultChecked={queryIncludes[0].mode == 'AllDescendants'}
-                opacity={queryIncludes[0].mode == 'AllDescendants' ? 1 : 0.4}
+                defaultChecked={queryIncludes[0]?.mode == 'AllDescendants'}
+                opacity={queryIncludes[0]?.mode == 'AllDescendants' ? 1 : 0.4}
                 onCheckedChange={(value) => {
                   let newVal = [
                     {

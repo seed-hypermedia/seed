@@ -1,86 +1,94 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {
-  HMBlockNode,
-  HMDraft,
-  HMEntityContent,
-  HMMetadata,
-} from '@shm/shared/hm-types'
+import {HMDraft, HMEntityContent, invalidateQueries} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
 
 export const draftMachine = setup({
   types: {
+    input: {} as {
+      id: string
+      locationUid?: string
+      locationPath?: string[]
+      editUid?: string
+      editPath?: string[]
+      deps?: string[]
+    },
     context: {} as {
-      metadata: HMMetadata
-      signingAccount: null | string
-      draft: null | HMDraft
-      entity: null | HMEntityContent
-      errorMessage: string
-      restoreTries: number
+      nameRef: null | HTMLTextAreaElement
+      id: string
+      metadata: HMDraft['metadata']
+      deps: HMDraft['deps']
+      locationUid: HMDraft['locationUid']
+      locationPath: HMDraft['locationPath']
+      editUid: HMDraft['editUid']
+      editPath: HMDraft['editPath']
+      signingAccount: HMDraft['signingAccount']
+      error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
-      nameRef: null | HTMLTextAreaElement
+      draftCreated: boolean
     },
     events: {} as
       | {
-          type: 'CHANGE'
+          type: 'fetch.success'
+          payload:
+            | {type: 'load.new.draft'}
+            | {type: 'draft'; data: HMDraft}
+            | {type: 'location'; data: HMEntityContent}
+            | {type: 'edit'; data: HMEntityContent}
+        }
+      | {
+          type: 'fetch.error'
+          error: any
+        }
+      | {
+          type: 'change'
           metadata?: HMDraft['metadata']
           signingAccount?: string
         }
-      | {type: 'RESET.DRAFT'}
-      | {type: 'FINISH.REBASE'; entity: HMEntityContent}
-      | {type: 'SET.NAME.REF'; nameRef: HTMLTextAreaElement}
-      | {type: 'RESTORE.DRAFT'}
-      | {type: 'RESET.CORRUPT.DRAFT'}
-      | {type: 'GET.DRAFT.ERROR'; error: any}
-      | {type: 'GET.DRAFT.RETRY'}
       | {
-          type: 'GET.DRAFT.SUCCESS'
-          draft: HMDraft | null
-          entity: HMEntityContent | null
+          type: 'reset.content'
         }
-      | {type: 'SAVE.ON.EXIT'}
-      | {type: 'EMPTY.ID'}
-      | {type: 'RESET.CONTENT'; blockNodes: HMBlockNode[]},
+      | {
+          type: 'set.nameRef'
+          nameRef: HTMLTextAreaElement
+        },
   },
-
   actions: {
-    setDraft: assign({
-      draft: ({event}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          return event.draft
+    setErrorMessage: ({event}) => {
+      if (event.type === 'fetch.error') {
+        return {
+          error: event.error,
         }
-        return null
-      },
-    }),
-    setEntity: assign({
-      entity: ({event}) => {
-        if (
-          event.type == 'GET.DRAFT.SUCCESS' ||
-          event.type == 'FINISH.REBASE'
-        ) {
-          return event.entity
-        }
-        return null
-      },
+      }
+    },
+    onSaveSuccess: ({context, event}, params: {id: string}) => {
+      invalidateQueries(['trpc.drafts.get', params.id])
+    },
+    onCreatingSuccess: ({context}) => {},
+    populateData: ({context, event}) => {},
+    focusContent: ({context}) => {},
+    replaceRoute: ({context}, params: {id: string}) => {},
+    setDraftId: assign({
+      id: (_, params: {id: string}) => params.id,
     }),
     setAttributes: assign({
       metadata: ({context, event}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft) {
+        if (event.type == 'fetch.success') {
+          if (event.payload.type == 'draft') {
             return {
               ...context.metadata,
-              ...event.draft.metadata,
+              ...event.payload.data.metadata,
             }
-          } else if (event.entity?.document) {
+          } else if (event.payload.type != 'load.new.draft') {
             return {
               ...context.metadata,
-              ...event.entity.document.metadata,
+              ...event.payload.data.document?.metadata,
             }
           }
         }
-        if (event.type == 'CHANGE') {
+        if (event.type == 'change') {
           return {
             ...context.metadata,
             ...event.metadata,
@@ -91,195 +99,165 @@ export const draftMachine = setup({
     }),
     setSigningAccount: assign({
       signingAccount: ({event, context}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft && event.draft.signingAccount) {
-            return event.draft.signingAccount
+        if (event.type == 'fetch.success') {
+          if (
+            event.payload.type == 'draft' &&
+            event.payload.data.signingAccount
+          ) {
+            return event.payload.data.signingAccount
           } else {
             return context.signingAccount
           }
-        } else if (event.type == 'CHANGE' && event.signingAccount) {
+        } else if (event.type == 'change' && event.signingAccount) {
           return event.signingAccount
-        } else if (
-          // @ts-expect-error ignore this XState error
-          event.type == 'xstate.done.actor.createOrUpdateDraft' &&
-          // @ts-expect-error ignore this XState error
-          event.output.draft.signingAccount
-        ) {
-          // @ts-expect-error ignore this XState error
-          return event.output.draft.signingAccount
-        } else {
-          return context.signingAccount
         }
+        return context.signingAccount
       },
     }),
-    setErrorMessage: assign({
-      errorMessage: ({context, event}) => {
-        if (event.type == 'GET.DRAFT.ERROR') {
-          return JSON.stringify(event.error, null) || ''
-        }
-        return context.errorMessage
-      },
-    }),
-    setChanged: assign({
-      changed: ({context}) => {
-        if (!context.changed) {
-          return true
-        }
-        return false
-      },
-    }),
-    setHasChangedWhileSaving: assign({
-      hasChangedWhileSaving: true,
-    }),
-    resetChangeWhileSaving: assign({
-      hasChangedWhileSaving: false,
-    }),
+    resetContent: ({context}) => {
+      return context
+    },
     setDraftStatus: function (_, params: {status: DraftStatus}) {
       dispatchDraftStatus(params.status)
     },
     setNameRef: assign({
       nameRef: ({event}) => {
-        if (event.type == 'SET.NAME.REF') {
+        if (event.type == 'set.nameRef') {
           return event.nameRef
         }
         return null
       },
     }),
-    populateEditor: function () {},
-    replaceRouteifNeeded: function () {},
+    resetChangeWhileSaving: assign({
+      hasChangedWhileSaving: false,
+    }),
     focusEditor: function () {},
-    focusName: function () {},
-    onSaveSuccess: function ({context}) {},
-    resetContent: function () {},
+    setHasChangedWhileSaving: assign({
+      hasChangedWhileSaving: true,
+    }),
+    setDraftCreated: assign({
+      draftCreated: ({event}, params: {draftCreated: boolean}) => {
+        return params.draftCreated
+      },
+    }),
   },
   guards: {
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
   },
-  actors: {},
   delays: {
     autosaveTimeout: 500,
   },
 }).createMachine({
   id: 'Draft',
-  context: {
-    nameRef: null,
-    metadata: {},
-    draft: null,
-    signingAccount: null,
-    entity: null,
-    errorMessage: '',
-    restoreTries: 0,
-    changed: false,
-    hasChangedWhileSaving: false,
+  context: ({input}) => {
+    return {
+      id: input.id,
+      metadata: {},
+      deps: input.deps || [],
+      locationUid: input.locationUid ?? '',
+      locationPath: input.locationPath ?? [],
+      editUid: input.editUid ?? '',
+      editPath: input.editPath ?? [],
+      signingAccount: '',
+      nameRef: null,
+      changed: false,
+      hasChangedWhileSaving: false,
+      draftCreated: !!input.id,
+      error: '',
+    }
   },
-  initial: 'idle',
+  initial: 'fetching',
   on: {
-    'SET.NAME.REF': {
-      actions: [{type: 'setNameRef'}],
-    },
-    'FINISH.REBASE': {
-      actions: [{type: 'setEntity'}],
+    change: {
+      actions: [
+        {
+          type: 'setSigningAccount',
+        },
+      ],
     },
   },
   states: {
-    idle: {
+    fetching: {
       on: {
-        'EMPTY.ID': {
-          target: 'ready',
-        },
-        'GET.DRAFT.SUCCESS': [
+        'fetch.success': [
+          {
+            target: 'editing',
+            guard: ({event}) => event.payload.type === 'load.new.draft',
+          },
           {
             target: 'setupData',
-            actions: [
-              {type: 'setDraft'},
-              {type: 'setEntity'},
-              {type: 'setAttributes'},
-              {type: 'setSigningAccount'},
-            ],
           },
         ],
-        'GET.DRAFT.ERROR': {
+        'fetch.error': {
           target: 'error',
           actions: [{type: 'setErrorMessage'}],
-        },
-        CHANGE: {
-          actions: [{type: 'setSigningAccount'}],
         },
       },
     },
     setupData: {
-      always: {
-        target: 'ready',
-        actions: [{type: 'populateEditor'}],
+      entry: ['populateData'],
+      after: {
+        100: {
+          target: 'editing',
+        },
       },
     },
-    error: {},
-    ready: {
+    editing: {
       initial: 'idle',
       entry: [
         {
           type: 'setDraftStatus',
           params: {status: 'idle'},
         },
-        {
-          type: 'focusEditor',
-        },
       ],
       after: {
-        100: {
-          actions: [{type: 'focusName'}],
+        200: {
+          actions: [{type: 'focusContent'}],
         },
       },
       states: {
         idle: {
           on: {
-            CHANGE: {
+            change: {
               target: 'changed',
               actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
             },
-            'RESET.CONTENT': {
-              target: 'changed',
-              actions: [{type: 'resetContent'}],
-            },
+            'reset.content': {target: 'changed', actions: ['resetContent']},
           },
         },
         changed: {
-          entry: [
-            {
-              type: 'setDraftStatus',
-              params: {status: 'changed'},
-            },
-          ],
+          entry: [{type: 'setDraftStatus', params: {status: 'changed'}}],
           on: {
-            CHANGE: {
+            change: {
               target: 'changed',
               actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
               reenter: true,
             },
-            'RESET.CONTENT': {
+            'reset.content': {
               target: 'changed',
               actions: [{type: 'resetContent'}],
               reenter: true,
             },
           },
           after: {
-            autosaveTimeout: {
-              target: 'saving',
-            },
+            autosaveTimeout: [
+              {
+                target: 'saving',
+                guard: ({context}) => !!context.id,
+              },
+              {
+                target: 'creating',
+              },
+            ],
           },
         },
-        saving: {
+        creating: {
           entry: [
-            {
-              type: 'resetChangeWhileSaving',
-            },
-            {
-              type: 'setDraftStatus',
-              params: {status: 'saving'},
-            },
+            'resetChangeWhileSaving',
+            {type: 'setDraftStatus', params: {status: 'saving'}},
           ],
           on: {
-            CHANGE: {
+            change: {
               target: 'saving',
               actions: [
                 {type: 'setHasChangedWhileSaving'},
@@ -288,7 +266,7 @@ export const draftMachine = setup({
               ],
               reenter: false,
             },
-            'RESET.CONTENT': {
+            'reset.content': {
               target: 'saving',
               actions: [
                 {type: 'setHasChangedWhileSaving'},
@@ -298,20 +276,92 @@ export const draftMachine = setup({
             },
           },
           invoke: {
+            id: 'writeDraft',
+            src: 'writeDraft',
             input: ({context}) => ({
               metadata: context.metadata,
-              currentDraft: context.draft,
+              deps: context.deps,
               signingAccount: context.signingAccount,
-              entity: context.entity,
             }),
-            id: 'createOrUpdateDraft',
-            src: 'createOrUpdateDraft',
             onDone: [
               {
                 target: 'saving',
-                guard: {
-                  type: 'didChangeWhileSaving',
+                actions: [
+                  {type: 'setDraftCreated', params: {draftCreated: true}},
+                ],
+                guard: 'didChangeWhileSaving',
+                reenter: true,
+              },
+              {
+                target: 'idle',
+                actions: [
+                  {type: 'setDraftCreated', params: {draftCreated: true}},
+
+                  {
+                    type: 'setDraftStatus',
+                    params: {status: 'saved'},
+                  },
+                  {
+                    type: 'setDraftId',
+                    params: ({event}: {event: any}) => event.output,
+                  },
+                  {
+                    type: 'onCreatingSuccess',
+                    params: ({event}: {event: any}) => event.output,
+                  },
+                  {
+                    type: 'replaceRoute',
+                    params: ({event}: {event: any}) => event.output,
+                  },
+                ],
+              },
+            ],
+            onError: {
+              actions: [
+                () => {
+                  console.log('=== DRAFT onError: ')
                 },
+              ],
+            },
+          },
+        },
+        saving: {
+          entry: [
+            'resetChangeWhileSaving',
+            {type: 'setDraftStatus', params: {status: 'saving'}},
+          ],
+          on: {
+            change: {
+              target: 'saving',
+              actions: [
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'setAttributes'},
+                {type: 'setSigningAccount'},
+              ],
+              reenter: false,
+            },
+            'reset.content': {
+              target: 'saving',
+              actions: [
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'resetContent'},
+              ],
+              reenter: false,
+            },
+          },
+          invoke: {
+            id: 'writeDraft',
+            src: 'writeDraft',
+            input: ({context}) => ({
+              id: context.id,
+              metadata: context.metadata,
+              deps: context.deps,
+              signingAccount: context.signingAccount,
+            }),
+            onDone: [
+              {
+                target: 'saving',
+                guard: 'didChangeWhileSaving',
                 reenter: true,
               },
               {
@@ -319,11 +369,11 @@ export const draftMachine = setup({
                 actions: [
                   {
                     type: 'onSaveSuccess',
+                    params: ({event}) => event.output,
                   },
-                  {type: 'setDraft'},
+                  // {type: 'setDraft'},
                   {type: 'setAttributes'},
                   {type: 'setSigningAccount'},
-                  {type: 'replaceRouteifNeeded'},
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},
@@ -331,9 +381,17 @@ export const draftMachine = setup({
                 ],
               },
             ],
+            onError: {
+              actions: [
+                () => {
+                  console.log('=== DRAFT onError: ')
+                },
+              ],
+            },
           },
         },
       },
     },
+    error: {},
   },
 })

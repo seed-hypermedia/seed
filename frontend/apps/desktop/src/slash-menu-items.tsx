@@ -30,7 +30,7 @@ export function getSlashMenuItems({
 }: {
   showNostr?: boolean
   showQuery?: boolean
-  docId: UnpackedHypermediaId
+  docId?: UnpackedHypermediaId
 }) {
   const slashMenuItems = []
 
@@ -280,6 +280,7 @@ export function getSlashMenuItems({
       execute: (
         editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
       ) => {
+        console.log('~~~ QUERY in doc ID: ', docId)
         insertOrUpdateBlock(
           editor,
           {
@@ -288,13 +289,17 @@ export function getSlashMenuItems({
               style: 'Card',
               columnCount: '3',
               queryLimit: '',
-              queryIncludes: JSON.stringify([
-                {
-                  space: docId.uid,
-                  path: hmIdPathToEntityQueryPath(docId.path).slice(1),
-                  mode: 'Children',
-                },
-              ]),
+              queryIncludes: JSON.stringify(
+                docId
+                  ? [
+                      {
+                        space: docId.uid,
+                        path: hmIdPathToEntityQueryPath(docId.path).slice(1),
+                        mode: 'Children',
+                      },
+                    ]
+                  : [],
+              ),
               querySort: '[{"term": "UpdateTime", "reverse": false}]',
               defaultOpen: 'true',
             },

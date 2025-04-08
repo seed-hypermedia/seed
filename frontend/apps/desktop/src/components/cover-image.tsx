@@ -8,14 +8,12 @@ import appError from '../errors'
 export function CoverImage({
   url,
   label,
-  id,
   showOutline = true,
   show = true,
   onCoverUpload,
   onRemoveCover,
 }: {
   label?: string
-  id?: string
   url?: string
   showOutline?: boolean
   show: boolean
@@ -79,7 +77,7 @@ export function CoverImage({
           <YStack paddingHorizontal="$2">
             <XStack
               opacity={0}
-              jc="end"
+              jc="flex-end"
               paddingHorizontal="$4"
               paddingTop="$6"
               $group-cover-hover={{opacity: 1}}

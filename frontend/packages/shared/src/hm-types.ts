@@ -10,13 +10,12 @@ import {
   type Document,
   type DocumentChangeInfo,
   type DocumentInfo,
-  type EditorBlock,
 } from '@shm/shared'
 import * as z from 'zod'
 
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
-  type: z.union([z.literal('d'), z.literal('comment'), z.literal('draft')]),
+  type: z.union([z.literal('d'), z.literal('comment')]),
   uid: z.string(),
   path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
@@ -576,15 +575,15 @@ export const HMCommentDraftSchema = z.object({
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
-export type HMDraft = {
-  content: Array<EditorBlock>
-  metadata: HMMetadata
-  members: any //HMDocument['members']
-  deps: Array<string>
-  signingAccount: string
-  previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
-  lastUpdateTime: number // ms
-}
+export const HMDraftContentSchema = z.object({
+  content: z.array(z.any()), // EditorBlock validation is handled elsewhere
+  deps: z.array(z.string().min(1)).default([]),
+  signingAccount: z.string().optional(),
+})
+
+export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
+
+export type HMDraft = HMDraftContent & HMListedDraft
 
 export type HMComment = Omit<PlainMessage<Comment>, 'content'> & {
   content: HMBlockNode[]
@@ -653,11 +652,24 @@ export type HMQueryResult = {
 
 export type HMRole = 'owner' | 'writer' | 'none'
 
-export type HMListedDraft = {
-  id: UnpackedHypermediaId
-  metadata: HMMetadata
-  lastUpdateTime: number
-}
+export const HMDraftMetaSchema = z.object({
+  id: z.string(),
+  locationUid: z.string().optional(),
+  locationPath: z.array(z.string()).optional(),
+  editUid: z.string().optional(),
+  editPath: z.array(z.string()).optional(),
+  metadata: HMDocumentMetadataSchema,
+})
+
+export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
+
+export const HMListedDraftSchema = HMDraftMetaSchema.extend({
+  lastUpdateTime: z.number(),
+  locationId: unpackedHmIdSchema.optional(),
+  editId: unpackedHmIdSchema.optional(),
+})
+
+export type HMListedDraft = z.infer<typeof HMListedDraftSchema>
 
 export type HMInvoice = {
   payload: string

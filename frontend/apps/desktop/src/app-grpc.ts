@@ -16,8 +16,8 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
       error = new Error('RPC broken, try running yarn and ./dev gen')
     } else {
       console.error(`🚨 to ${req.method.name} `, req.message, error)
-      throw error
     }
+    throw error
   }
 }
 

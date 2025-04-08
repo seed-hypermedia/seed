@@ -61,7 +61,6 @@ import {
   ButtonText,
   SizableText,
   Spinner,
-  Tooltip,
   Separator as TSeparator,
   XStack,
   XStackProps,
@@ -396,14 +395,6 @@ function _AppDocSiteHeader({
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
-      afterLinksContent={
-        canEditDoc ? (
-          <NewNavigationDocumentButton
-            parentDocId={siteHomeEntity.id}
-            importDropdown={false}
-          />
-        ) : null
-      }
       supportQueries={supportQueries}
       children={children}
       onShowMobileMenu={(isShown) => {
@@ -413,37 +404,17 @@ function _AppDocSiteHeader({
   )
 }
 
-export function NewNavigationDocumentButton({
-  parentDocId,
-  importDropdown = true,
-}: {
-  parentDocId: UnpackedHypermediaId
-  importDropdown?: boolean
-}) {
-  const createDraft = useCreateDraft(parentDocId)
-  return (
-    <>
-      <Tooltip content="Create Document in Navigation">
-        <Button icon={Plus} color="$green9" onPress={createDraft} size="$2" />
-      </Tooltip>
-      {importDropdown && (
-        <ImportDropdownButton
-          id={parentDocId}
-          button={<Button size="$1" circular icon={MoreHorizontal} />}
-        />
-      )}
-    </>
-  )
-}
-
 export function NewSubDocumentButton({
-  parentDocId,
+  locationId,
   importDropdown = true,
 }: {
-  parentDocId: UnpackedHypermediaId
+  locationId: UnpackedHypermediaId
   importDropdown?: boolean
 }) {
-  const createDraft = useCreateDraft(parentDocId)
+  const createDraft = useCreateDraft({
+    locationUid: locationId.uid,
+    locationPath: locationId.path,
+  })
   return (
     <>
       <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
@@ -451,7 +422,7 @@ export function NewSubDocumentButton({
       </Button>
       {importDropdown && (
         <ImportDropdownButton
-          id={parentDocId}
+          id={locationId}
           button={<Button size="$1" circular icon={MoreHorizontal} />}
         />
       )}

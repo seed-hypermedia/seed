@@ -144,14 +144,14 @@ function EmbedWrapper({
       backgroundColor={
         isHighlight
           ? routeParams?.blockRef == id?.blockRef
-            ? '$yellow3'
+            ? '$brand12'
             : '$backgroundTransparent'
           : '$backgroundTransparent'
       }
       hoverStyle={{
         backgroundColor: isHighlight
           ? routeParams?.blockRef == id?.blockRef
-            ? '$brand11'
+            ? '$brand12'
             : '$backgroundTransparent'
           : '$backgroundTransparent',
         // borderRadius: '$2',
@@ -164,7 +164,7 @@ function EmbedWrapper({
       // overflow="hidden"
       borderRadius={0}
       borderRightWidth={hideBorder ? 0 : 3}
-      borderRightColor={hideBorder ? '$colorTransparent' : '$brand8'}
+      borderRightColor={hideBorder ? '$colorTransparent' : '$brand5'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={
@@ -575,7 +575,6 @@ function QueryStyleList({
         return {
           id,
           document: item,
-          hasDraft: false,
           location: [],
           authors: [],
           account: item.account,
@@ -591,13 +590,9 @@ function QueryStyleList({
     <YStack gap="$3" w="100%">
       {entries.length ? (
         entries.map((item) => {
-          const id = hmId('d', item.account, {
-            path: item.path,
-            latest: true,
-          })
           return (
             <LibraryListItem
-              key={item.id}
+              key={item.id.id}
               entry={item}
               exportMode={false}
               selected={false}

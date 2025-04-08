@@ -9,13 +9,8 @@ import {
   HMDraft,
   hmMetadataJsonCorrection,
 } from '@shm/shared/hm-types'
-import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  hmId,
-  packHmId,
-  UnpackedHypermediaId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 
 export function useAccount_deprecated() {
@@ -78,24 +73,10 @@ export function useSetProfile_deprecated() {
   throw new Error('useSetProfile_deprecated not supported anymore')
 }
 
-export function useDraft(id?: UnpackedHypermediaId) {
-  const draftId = id ? packHmId({...id, version: null}) : ''
-  return trpc.drafts.get.useQuery(draftId, {
+export function useDraft(id: string | undefined) {
+  return trpc.drafts.get.useQuery(id, {
     enabled: !!id,
   })
-}
-
-export function useWriteDraft(id?: UnpackedHypermediaId) {
-  const saveDraft = trpc.drafts.write.useMutation({
-    onSuccess: () => {
-      invalidateQueries(['trpc.drafts.get'])
-    },
-  })
-
-  return async (draft: HMDraft) => {
-    if (!id) return
-    await saveDraft.mutateAsync({id: id.id, draft})
-  }
 }
 
 export function useDrafts(draftIds: string[]) {

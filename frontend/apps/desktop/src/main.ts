@@ -56,6 +56,7 @@ import {saveMarkdownFile} from './save-markdown-file'
 
 import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
+import {initDrafts} from './app-drafts'
 import {
   getOnboardingState,
   setInitialAccountIdCount,
@@ -138,49 +139,52 @@ app.whenReady().then(() => {
     performance.mark('app-ready-start')
   }
 
-  // Register global shortcuts
+  startMainDaemon()
+    .then(() => {
+      logger.info('DaemonStarted')
+      return initDrafts()
+    })
+    .then(() => {
+      logger.info('Drafts ready')
+    })
+    .then(() => {
+      // Initialize IPC handlers after the app is ready
+      initializeIpcHandlers()
+      initAccountSubscriptions()
+        .then(() => {
+          logger.info('InitAccountSubscriptionsComplete')
+        })
+        .catch((e) => {
+          logger.error('InitAccountSubscriptionsError ' + e.message)
+        })
 
-  startMainDaemon(() => {
-    logger.info('DaemonStarted')
-
-    // Initialize IPC handlers after the app is ready
-    initializeIpcHandlers()
-    initAccountSubscriptions()
-      .then(() => {
-        logger.info('InitAccountSubscriptionsComplete')
-      })
-      .catch((e) => {
-        logger.error('InitAccountSubscriptionsError ' + e.message)
-      })
-
-    grpcClient.daemon
-      .listKeys({})
-      .then((response) => {
-        setInitialAccountIdCount(response.keys.length)
+      grpcClient.daemon.listKeys({}).then((response) => {
         const onboardingState = getOnboardingState()
+        setInitialAccountIdCount(response.keys.length)
         if (
-          !onboardingState.initialAccountIdCount &&
+          response.keys.length === 0 &&
           !onboardingState.hasCompletedOnboarding &&
           !onboardingState.hasSkippedOnboarding
         ) {
-          console.log('========= No keys found')
           deleteWindowsState().then(() => {
             trpc.createAppWindow({routes: [defaultRoute]})
           })
         } else {
-          console.log('========= Keys found', response.keys)
           openInitialWindows()
         }
       })
-      .finally(() => {
-        autoUpdate()
-      })
-  })
 
-  if (!IS_PROD_DESKTOP) {
-    performance.mark('app-ready-end')
-    performance.measure('app-ready', 'app-ready-start', 'app-ready-end')
-  }
+      autoUpdate()
+
+      if (!IS_PROD_DESKTOP) {
+        performance.mark('app-ready-end')
+        performance.measure('app-ready', 'app-ready-start', 'app-ready-end')
+      }
+    })
+    .catch((e) => {
+      logger.error('App startup error', {error: e.message})
+      app.quit()
+    })
 })
 
 app.on('activate', () => {

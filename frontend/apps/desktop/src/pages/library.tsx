@@ -572,6 +572,7 @@ function LibraryEntryBreadcrumbs({
       {displayCrumbs.map((breadcrumb, idx) => (
         <>
           <Button
+            key={breadcrumb.name}
             color="$color10"
             fontWeight="400"
             size="$1"
@@ -599,7 +600,13 @@ function LibraryEntryBreadcrumbs({
             {breadcrumb.name}
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
-            <SizableText size="$1" color="$color10" margin={0} marginRight="$1">
+            <SizableText
+              size="$1"
+              color="$color10"
+              margin={0}
+              marginRight="$1"
+              key={`separator-${idx}`}
+            >
               /
             </SizableText>
           )}

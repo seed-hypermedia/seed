@@ -1,11 +1,8 @@
 import {useSizeObserver} from '@/components/app-embeds'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
-import {
-  useAccountDraftList,
-  useDraftName,
-  useListDirectory,
-} from '@/models/documents'
-import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
+import {useDraft} from '@/models/accounts'
+import {useAccountDraftList, useListDirectory} from '@/models/documents'
+import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
@@ -13,6 +10,7 @@ import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  hmId,
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
@@ -20,12 +18,13 @@ import {
 } from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
-import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
+import {DraftRoute, NavRoute} from '@shm/shared/routes'
 import {HoverCard} from '@shm/ui/hover-card'
 import {
   AlertCircle,
   Contact,
   Copy,
+  File,
   Library,
   Sparkles,
   Star,
@@ -34,6 +33,7 @@ import {
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
@@ -45,7 +45,6 @@ import {
   Text,
   TextProps,
   Theme,
-  Tooltip,
   View,
   XStack,
   YStack,
@@ -106,9 +105,17 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
       </>
     )
   }
+  if (route.key === 'drafts') {
+    return (
+      <>
+        <File size={12} />
+        <TitleText {...titleProps}>Drafts</TitleText>
+      </>
+    )
+  }
 
   if (route.key === 'document') {
-    return <BreadcrumbTitle route={route} />
+    return <BreadcrumbTitle entityId={route.id} />
   }
   if (route.key === 'draft') {
     return <DraftTitle route={route} />
@@ -119,49 +126,66 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
 type CrumbDetails = {
   name?: string
   fallbackName?: string
-  route: NavRoute | null
+  id: UnpackedHypermediaId | null
   isError?: boolean
   isLoading?: boolean
   crumbKey: string
 }
 
 function BreadcrumbTitle({
-  route,
-  overwriteActiveTitle,
+  entityId,
+  hideControls = false,
+  draftName,
+  replaceLastItem = false,
+  draft = false,
 }: {
-  route: DocumentRoute
-  overwriteActiveTitle?: string
+  entityId: UnpackedHypermediaId
+  hideControls?: boolean
+  draftName?: string
+  replaceLastItem?: boolean
+  draft?: boolean
 }) {
-  const latestDoc = useEntity({...route.id, version: null, latest: true})
+  const latestDoc = useEntity({...entityId, version: null, latest: true})
   const isLatest =
-    route.id.latest || route.id.version === latestDoc.data?.document?.version
-  const entityRoutes = useRouteBreadcrumbRoutes(route)
-  const entityContents = useRouteEntities(entityRoutes)
+    entityId.latest || entityId.version === latestDoc.data?.document?.version
+  const entityIds = useItemsFromId(entityId)
+  const entityContents = useIdEntities(entityIds)
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const widthInfo = useRef({} as Record<string, number>)
-  const crumbDetails: (CrumbDetails | null)[] = useMemo(
-    () =>
-      entityRoutes.flatMap((route, routeIndex) => {
-        const contents = entityContents[routeIndex]
-        return [
-          {
-            name: getDocumentTitle(contents.entity?.document) || undefined,
-            fallbackName: route.id?.path?.at(-1),
-            isError: contents.entity && !contents.entity.document,
-            isLoading: !contents.entity,
-            route: {
-              ...route,
-              blockId: undefined,
-              isBlockFocused: undefined,
-              context: [...entityRoutes.slice(0, routeIndex)],
-            },
-            crumbKey: `r-${routeIndex}`,
-          },
-        ]
-      }),
-    [entityRoutes, entityContents],
-  )
+  const crumbDetails: (CrumbDetails | null)[] = useMemo(() => {
+    const crumbs: (CrumbDetails | null)[] = []
+    let items = entityIds.flatMap((id, idIndex) => {
+      const contents = entityContents[idIndex]
+      return [
+        {
+          name: getDocumentTitle(contents.entity?.document) || undefined,
+          fallbackName: id.path?.at(-1),
+          isError: contents.entity && !contents.entity.document,
+          isLoading: !contents.entity,
+          id,
+          crumbKey: `id-${idIndex}`,
+        },
+      ]
+    })
+
+    crumbs.push(...items)
+
+    if (draftName && replaceLastItem) {
+      crumbs.pop()
+    }
+
+    if (draftName) {
+      crumbs.push({
+        name: draftName,
+        fallbackName: draftName,
+        id: null,
+        crumbKey: `draft-${draftName}`,
+      })
+    }
+
+    return crumbs
+  }, [entityIds, entityContents])
   const isAllError = crumbDetails.every((details) => details?.isError)
 
   function updateWidths() {
@@ -202,6 +226,7 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
+
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
@@ -252,13 +277,10 @@ function BreadcrumbTitle({
   displayItems.push(
     <BreadcrumbItem
       homeMetadata={homeMetadata}
-      details={
-        overwriteActiveTitle
-          ? {...activeItem, isError: false, name: overwriteActiveTitle}
-          : activeItem
-      }
+      details={activeItem}
       key={activeItem.crumbKey}
       isActive
+      draft={draft}
       onSize={({width}: DOMRect) => {
         if (width) {
           widthInfo.current[activeItem.crumbKey] = width
@@ -267,6 +289,7 @@ function BreadcrumbTitle({
       }}
     />,
   )
+
   if (isAllError || !displayItems.length) return null
 
   return (
@@ -300,16 +323,18 @@ function BreadcrumbTitle({
             ) : null,
           ]
         })}
-        <XStack>
-          <PendingDomain id={route.id} />
-          <FavoriteButton id={route.id} />
-          <CopyReferenceButton
-            docId={route.id}
-            isBlockFocused={route.isBlockFocused || false}
-            latest={isLatest}
-            size="$2"
-          />
-        </XStack>
+        {!hideControls ? (
+          <XStack>
+            <PendingDomain id={entityId} />
+            <FavoriteButton id={entityId} />
+            <CopyReferenceButton
+              docId={entityId}
+              isBlockFocused={false} // TODO: learn why isBlockFocused is needed
+              latest={isLatest}
+              size="$2"
+            />
+          </XStack>
+        ) : null}
       </XStack>
     </XStack>
   )
@@ -414,7 +439,7 @@ function BreadcrumbEllipsis({
             return (
               <TitleTextButton
                 onPress={() => {
-                  if (crumb.route) navigate(crumb.route)
+                  if (crumb.id) navigate({key: 'document', id: crumb.id})
                 }}
               >
                 {crumb?.name}
@@ -444,11 +469,13 @@ function BreadcrumbItem({
   isActive,
   onSize,
   homeMetadata,
+  draft = false,
 }: {
   details: CrumbDetails
   isActive?: boolean
   onSize: (rect: DOMRect) => void
   homeMetadata: HMMetadata | undefined
+  draft?: boolean
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
@@ -464,7 +491,7 @@ function BreadcrumbItem({
             color="$red10"
             className="no-window-drag"
             onPress={() => {
-              if (details.route) navigate(details.route)
+              if (details.id) navigate({key: 'document', id: details.id})
             }}
           >
             {details.fallbackName}
@@ -472,8 +499,8 @@ function BreadcrumbItem({
         </Tooltip>
       )
     }
-    const {route} = details
-    if (route) {
+    const {id} = details
+    if (id) {
       return (
         <Tooltip content="Failed to Load">
           <Button
@@ -486,7 +513,7 @@ function BreadcrumbItem({
             className="no-window-drag"
             icon={AlertCircle}
             onPress={() => {
-              navigate(route)
+              navigate({key: 'document', id})
             }}
           />
         </Tooltip>
@@ -497,7 +524,11 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <TitleText ref={observerRef} fontWeight="bold">
+    <TitleText
+      ref={observerRef}
+      fontWeight="bold"
+      backgroundColor={draft ? '$yellow4' : undefined}
+    >
       {details.name}
     </TitleText>
   ) : (
@@ -507,7 +538,7 @@ function BreadcrumbItem({
       justifyContent="center"
       className="no-window-drag"
       onPress={() => {
-        if (details.route) navigate(details.route)
+        if (details.id) navigate({key: 'document', id: details.id})
       }}
       fontWeight={isActive ? 'bold' : 'normal'}
     >
@@ -523,7 +554,11 @@ function BreadcrumbItem({
       justifyContent="center"
     >
       <HoverCard
-        content={<PathItemCard details={details} homeMetadata={homeMetadata} />}
+        content={
+          draft ? null : (
+            <PathItemCard details={details} homeMetadata={homeMetadata} />
+          )
+        }
       >
         {content}
       </HoverCard>
@@ -538,7 +573,7 @@ function PathItemCard({
   details: CrumbDetails
   homeMetadata: HMMetadata | undefined
 }) {
-  const docId = details.route?.key === 'document' ? details.route.id : undefined
+  const docId = details.id ?? undefined
   const dir = useListDirectory(docId, {mode: 'Children'})
   const capability = useMyCapability(docId)
   const canEditDoc = roleCanWrite(capability?.role)
@@ -564,11 +599,11 @@ function PathItemCard({
           {directoryItems?.map((item) => {
             return (
               <DocumentSmallListItem
-                key={item.id.path?.join('/') || item.id.id}
+                key={item.id?.path?.join('/') || item.id?.id || item.draftId}
                 metadata={item.metadata}
                 id={item.id}
                 onPress={() => {}}
-                isDraft={item.isDraft}
+                draftId={item.draftId}
                 isPublished={item.isPublished}
               />
             )
@@ -577,7 +612,7 @@ function PathItemCard({
       </YStack>
       {canEditDoc ? (
         <XStack gap="$2" ai="center" paddingHorizontal="$2">
-          <NewSubDocumentButton parentDocId={docId} importDropdown={false} />
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
         </XStack>
       ) : null}
     </YStack>
@@ -591,8 +626,7 @@ function URLCardSection({
   homeMetadata: HMMetadata | undefined
   crumbDetails: CrumbDetails
 }) {
-  const docId =
-    crumbDetails.route?.key === 'document' ? crumbDetails.route.id : undefined
+  const docId = crumbDetails.id ?? undefined
   const gwUrlStream = useGatewayUrlStream()
   const gwUrl = useStream(gwUrlStream)
   const siteBaseUrlWithProtocol =
@@ -657,20 +691,88 @@ export function Title({size}: {size?: FontSizeTokens}) {
 }
 
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
-  const name = useDraftName({
-    id: route.id,
-  })
-  const entity = useEntity(route.id)
-  const realTitle = name ?? getDocumentTitle(entity.data?.document)
-  const fixedName = undefined
-  const displayTitle = fixedName || realTitle
-  useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
-  if (!route.id || route.id.type === 'draft') return null // todo: include location picker
+  const draft = useDraft(route.id)
+
+  console.log(`== ~ DraftTitle ~ draft:`, draft)
+  const locationId = useMemo(() => {
+    if (draft.data?.locationId) return draft.data.locationId
+    let uId = draft.data?.locationUid || route.locationUid
+    let path = draft.data?.locationPath || route.locationPath
+    if (uId) {
+      return hmId('d', uId, {
+        path,
+      })
+    } else {
+      return undefined
+    }
+  }, [draft.data, route.locationUid, route.locationPath])
+
+  const editId = useMemo(() => {
+    if (draft.data?.editId) return draft.data.editId
+    let uId = draft.data?.editUid || route.editUid
+    let path = draft.data?.editPath || route.editPath
+    if (uId) {
+      return hmId('d', uId, {
+        path,
+      })
+    }
+    return undefined
+  }, [draft.data, route.editUid, route.editPath])
+
+  console.log(`== ~ DraftTitle ~ draft locationId:`, locationId)
+
+  if (locationId)
+    return (
+      <BreadcrumbTitle
+        entityId={locationId}
+        hideControls
+        draftName={draft.data?.metadata.name || 'New Draft'}
+        draft
+      />
+    )
+
+  if (editId)
+    return (
+      <BreadcrumbTitle
+        entityId={editId}
+        hideControls
+        draftName={draft.data?.metadata.name}
+        replaceLastItem={!!draft.data?.metadata.name}
+        draft
+      />
+    )
+
   return (
-    <BreadcrumbTitle
-      route={{key: 'document', id: route.id}}
-      overwriteActiveTitle={realTitle || 'Untitled Document'}
-    />
+    <XStack
+      f={1}
+      marginRight={'$4'}
+      margin={0}
+      ai="stretch"
+      alignSelf="stretch"
+      overflow="hidden"
+      height="100%"
+      width="100%"
+    >
+      <XStack
+        position="absolute"
+        gap="$2"
+        f={1}
+        marginRight={'$4'}
+        ai="center"
+        width="100%"
+        // className="no-window-drag"
+        height="100%"
+      >
+        <TitleText>Drafts</TitleText>
+        <BreadcrumbSeparator key={`draft-seperator`} />
+        <TitleText
+          fontWeight="bold"
+          backgroundColor={draft ? '$yellow4' : undefined}
+        >
+          {draft.data?.metadata.name || 'New Draft'}
+        </TitleText>
+      </XStack>
+    </XStack>
   )
 }
 

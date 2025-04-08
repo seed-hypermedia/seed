@@ -1,4 +1,3 @@
-import {useAppContext} from '@/app-context'
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useBlockNote} from '@/editor/useBlockNote'
@@ -15,10 +14,7 @@ import {
   DocumentChange,
 } from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
-import {
-  hmBlocksToEditorContent,
-  hmBlockToEditorBlock,
-} from '@shm/shared/client/hmblock-to-editorblock'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs} from '@shm/shared/content'
 import {EditorBlock} from '@shm/shared/editor-types'
@@ -30,6 +26,8 @@ import {
   HMDocumentMetadataSchema,
   HMDocumentSchema,
   HMDraft,
+  HMDraftContent,
+  HMDraftMeta,
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -42,13 +40,12 @@ import {
   createBlocksMap,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {validatePath} from '@shm/shared/utils/document-path'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
-import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {eventStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -59,12 +56,12 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query'
 import {Extension, findParentNode} from '@tiptap/core'
-import {NodeSelection, Selection} from '@tiptap/pm/state'
+import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef} from 'react'
-import {ContextFrom, fromPromise, OutputFrom} from 'xstate'
+import {useEffect, useMemo} from 'react'
+import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
@@ -78,7 +75,7 @@ import {useGatewayUrlStream} from './gateway-settings'
 import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
-  type: 'CHANGE'
+  type: 'change'
   signingAccount: string
 }>()
 
@@ -94,8 +91,12 @@ export function useDocumentList(
 export function useDraftList() {
   return trpc.drafts.list.useQuery(undefined, {})
 }
+
 export function useAccountDraftList(accountUid?: string) {
-  return trpc.drafts.listAccount.useQuery(accountUid, {})
+  if (!accountUid) return {data: []}
+  return trpc.drafts.listAccount.useQuery(accountUid, {
+    enabled: !!accountUid,
+  })
 }
 
 export function useDeleteDraft(
@@ -166,57 +167,58 @@ function useDraftDiagnosis() {
   }
 }
 
+type PublishDraftInput = {
+  draft: HMDraft
+  destinationId: UnpackedHypermediaId
+  accountId: string
+}
 export function usePublishDraft(
-  opts?: UseMutationOptions<
-    HMDocument,
-    unknown,
-    {
-      draft: HMDraft
-      previous: HMDocument | undefined
-      id: UnpackedHypermediaId | undefined
-    }
-  >,
+  editId: UnpackedHypermediaId | undefined | null,
+  opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
+  const editEntity = useEntity(editId)
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
-  return useMutation<
-    HMDocument,
-    any,
-    {
-      draft: HMDraft
-      previous: HMDocument | undefined
-      id: UnpackedHypermediaId | undefined
-    }
-  >({
-    mutationFn: async ({draft, previous, id}) => {
-      const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
+  return useMutation<HMDocument, any, PublishDraftInput>({
+    mutationFn: async ({
+      draft,
+      destinationId,
+      accountId,
+    }: PublishDraftInput): Promise<HMDocument> => {
+      if (draft.editId?.id !== editId?.id) {
+        throw new Error(
+          'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
+        )
+      }
 
-      const content = removeTrailingBlocks(draft.content || [])
+      const blocksMap = editId
+        ? createBlocksMap(editEntity.data?.document?.content || [], '')
+        : {}
+      const newContent = removeTrailingBlocks(draft.content || [])
 
-      const changes = compareBlocksWithMap(blocksMap, content, '')
-
+      const changes = compareBlocksWithMap(blocksMap, newContent, '')
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-      // return null
+
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
       } else {
         try {
-          if (draft.signingAccount && id?.id) {
+          if (accountId && draft.id) {
             const allChanges = [
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
               ...deleteChanges,
             ]
-
             let capabilityId = ''
-            if (draft.signingAccount !== id.uid) {
+            if (accountId !== destinationId.uid) {
               const capabilities =
                 await grpcClient.accessControl.listCapabilities({
-                  account: id.uid,
-                  path: hmIdPathToEntityQueryPath(id.path),
+                  account: destinationId.uid,
+                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
                 })
+
               const capability = capabilities.capabilities.find(
-                (cap) => cap.delegate === draft.signingAccount,
+                (cap) => cap.delegate === accountId,
               )
               if (!capability)
                 throw new Error(
@@ -224,46 +226,41 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            writeRecentSigner.mutateAsync(draft.signingAccount).then(() => {
+            writeRecentSigner.mutateAsync(accountId).then(() => {
               invalidateQueries(['trpc.recentSigners.get'])
             })
-            const path = id.path?.length
-              ? `/${id.path
-                  .map((p, idx) =>
-                    idx == id.path!.length - 1
-                      ? p.startsWith('_') && draft.metadata.name
-                        ? pathNameify(draft.metadata.name)
-                        : p.replace('_', '')
-                      : p.replace('_', ''),
-                  )
-                  .join('/')}`
-              : ''
-            const invalid = validatePath(path)
 
-            if (invalid) {
-              throw new Error(invalid.error)
-            }
+            // // TODO: move this logic to the LocationPicker component
+            // const path = id.path?.length
+            //   ? `/${id.path
+            //       .map((p, idx) =>
+            //         idx == id.path!.length - 1
+            //           ? p.startsWith('_') && draft.metadata.name
+            //             ? pathNameify(draft.metadata.name)
+            //             : p.replace('_', '')
+            //           : p.replace('_', ''),
+            //       )
+            //       .join('/')}`
+            //   : ''
+            // const invalid = validatePath(path)
+
+            // if (invalid) {
+            //   throw new Error(invalid.error)
+            // }
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
-                signingKeyName: draft.signingAccount,
-                account: id.uid,
-                baseVersion: draft.previousId?.version || '',
-                path,
+                signingKeyName: accountId,
+                account: destinationId.uid,
+                baseVersion: draft.deps?.join('.') || '',
+                path: hmIdPathToEntityQueryPath(destinationId.path || []),
                 changes: allChanges,
                 capability: capabilityId,
               })
-
-            const resultDoc = {
-              ...toPlainMessage(publishedDoc),
-              metadata: HMDocumentMetadataSchema.parse(
-                publishedDoc.metadata?.toJson({emitDefaultValues: true}),
-              ),
-            }
-
+            const resultDoc: HMDocument = HMDocumentSchema.parse(
+              publishedDoc.toJson(),
+            )
             return resultDoc
           } else {
-            // dispatchWizardEvent(true)
-            // toast.error('PUBLISH ERROR: Please select an account to sign first')
             throw Error('PUBLISH ERROR: Please select an account to sign first')
           }
         } catch (error) {
@@ -279,15 +276,22 @@ export function usePublishDraft(
           throw Error(connectErr.rawMessage)
         }
       }
+      throw new Error('Unhandled publish')
     },
-    onSuccess: (result, variables, context) => {
-      const documentId = variables.id?.id
+    onSuccess: (
+      result: HMDocument,
+      variables: PublishDraftInput,
+      context: unknown,
+    ) => {
+      const resultDocId = hmId('d', result.account, {
+        path: entityQueryPathToHmIdPath(result.path),
+      })
       opts?.onSuccess?.(result, variables, context)
-      if (documentId) {
-        invalidateQueries([queryKeys.ENTITY, documentId])
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
+      if (resultDocId) {
+        invalidateQueries([queryKeys.ENTITY, resultDocId.id])
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        invalidateQueries([queryKeys.SITE_LIBRARY, variables.id?.uid])
+        invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }
     },
@@ -338,13 +342,6 @@ export type EditorDraftState = {
   changes: DraftChangesState
   webUrl: string
   updatedAt: any
-}
-
-export function useDraftName(
-  input: UseQueryOptions<EditorDraftState> & {id?: UnpackedHypermediaId},
-) {
-  const draft = useDraft(input.id)
-  return (draft.data?.metadata?.name || undefined) as string | undefined
 }
 
 type DraftChangesState = {
@@ -410,34 +407,66 @@ export function queryDraft({
   }
 }
 
-export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
-  const {grpcClient} = useAppContext()
-  const openUrl = useOpenUrl()
+export function useDraftEditor() {
+  /**
+   * fetch:
+   * - draft with draft ID (can be null)
+   * - home document with location UID (can be null)
+   * - edit document with edit UID + edit path (can be null)
+   */
   const route = useNavRoute()
-  const replaceRoute = useNavigate('replace')
+  const replace = useNavigate('replace')
+
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+
+  const {data, status: draftStatus} = useDraft(route.id)
+
+  const locationId = useMemo(() => {
+    if (!route.locationUid) return undefined
+    return hmId('d', route.locationUid, {
+      path: route.locationPath,
+    })
+  }, [route])
+
+  const locationEntity = useEntity(locationId)
+
+  const editId = useMemo(() => {
+    if (data?.editUid)
+      return hmId('d', data.editUid, {
+        path: data.editPath,
+      })
+    if (route.editUid)
+      return hmId('d', route.editUid, {
+        path: route.editPath,
+      })
+    return undefined
+  }, [route, data])
+
+  const editEntity = useEntity(editId)
+
+  // editor props
+  // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
+  const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const gotEdited = useRef(false)
-  const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const saveDraft = trpc.drafts.write.useMutation()
   const {onMentionsQuery} = useInlineMentions()
-  const isNewDraft = route.key == 'draft' && !!route.new
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      if (!gotEdited.current) {
-        gotEdited.current = true
-      }
+      // if (!gotEdited.current) {
+      //   gotEdited.current = true
+      // }
 
-      writeEditorStream(editor.topLevelBlocks)
+      // writeEditorStream(editor.topLevelBlocks)
       observeBlocks(
         editor,
         editor.topLevelBlocks,
         () => {},
         // send({type: 'CHANGE'}),
       )
-      send({type: 'CHANGE'})
+      send({type: 'change'})
     },
     onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       const {view} = editor._tiptapEditor
@@ -462,7 +491,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       return
     },
     linkExtensionOptions: {
-      openOnClick: false,
+      // openOnClick: false,
       grpcClient,
       gwUrl,
       openUrl,
@@ -470,7 +499,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     },
     onMentionsQuery,
     blockSchema: hmBlockSchema,
-    slashMenuItems: getSlashMenuItems({showNostr, docId: id}),
+    getSlashMenuItems: () => getSlashMenuItems({showNostr, docId: editId}),
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -483,184 +512,142 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     },
   })
 
-  const createOrUpdateDraft = fromPromise<
-    HMDraft & {id?: string},
-    ContextFrom<typeof draftMachine>
-  >(async ({input}) => {
-    const blocks = editor.topLevelBlocks
-    let inputData: Partial<HMDraft> = {}
-    const draftId = id.id || input.id
-
-    if (!draftId)
-      throw new Error('Draft Error: no id passed to update function')
-    if (!input.draft) {
-      inputData = {
-        content: blocks,
-        deps: [],
-        metadata: input.metadata,
-        members: {},
-        lastUpdateTime: Date.now(),
-        previousId: input.entity.id,
-        signingAccount: input.signingAccount || undefined,
-      } as HMDraft
-    } else {
-      inputData = {
-        ...input.draft,
-        content: blocks,
-        metadata: {
-          ...input.draft.metadata,
-          ...input.metadata,
-        },
-        signingAccount: input.signingAccount || undefined,
-      } as HMDraft
+  const writeDraft = fromPromise<
+    {id: string},
+    {
+      metadata: HMDraft['metadata']
+      deps: HMDraft['deps']
+      signingAccount: HMDraft['signingAccount']
     }
-    const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
+  >(async ({input}) => {
+    // Implementation will be provided in documents.ts
+    try {
+      const locationUid = route.locationUid || data?.locationUid
+      const locationPath = route.locationPath || data?.locationPath
+      const editUid = route.editUid || data?.editUid
+      const editPath = route.editPath || data?.editPath
+      const newDraft = await saveDraft.mutateAsync({
+        id: route.id,
+        metadata: input.metadata,
+        signingAccount: input.signingAccount,
+        content: editor.topLevelBlocks,
+        deps: input.deps,
+        locationUid,
+        locationPath,
+        editUid,
+        editPath,
+      })
 
-    if (!id) {
-      return {...res, id: draftId}
-    } else {
-      return res
+      return newDraft
+    } catch (error) {
+      console.error('Error creating draft', error)
+      throw error
     }
   })
 
+  // state machine
   const [state, send, actor] = useMachine(
     draftMachine.provide({
       actions: {
-        populateEditor: function ({context, event}) {
-          let content: Array<EditorBlock> = []
-          if (context.entity && !context.draft && context.entity.document) {
-            // populate draft from document
-            content = hmBlocksToEditorContent(context.entity.document.content, {
-              childrenType: 'Group',
-            })
-          } else if (
-            context.draft != null &&
-            context.draft.content.length != 0
-          ) {
-            content = context.draft.content
-          }
-          editor.replaceBlocks(editor.topLevelBlocks, content)
-          const tiptap = editor?._tiptapEditor
-          // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
-          setGroupTypes(tiptap, content)
-        },
-        focusEditor: () => {
-          if (!isNewDraft) {
+        focusContent: ({context, event}) => {
+          if (route.editUid || data?.editUid) {
             const tiptap = editor?._tiptapEditor
             if (tiptap && !tiptap.isFocused) {
               editor._tiptapEditor.commands.focus()
             }
+          } else {
+            if (context.nameRef) {
+              context.nameRef.focus()
+            }
           }
         },
-        focusName: ({context}) => {
-          if (context.nameRef && isNewDraft) {
-            context.nameRef.focus()
-            context.nameRef.setSelectionRange(
-              context.nameRef.value.length,
-              context.nameRef.value.length,
-            )
+        populateData: assign(({context, event}) => {
+          let content: Array<EditorBlock> = []
+          if (event.type == 'fetch.success') {
+            if (event.payload.type == 'draft') {
+              content = event.payload.data.content
+              editor.replaceBlocks(editor.topLevelBlocks, content as any)
+              const tiptap = editor?._tiptapEditor
+              // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
+              setGroupTypes(tiptap, content as any)
+              return {
+                content: event.payload.data.content,
+                metadata: event.payload.data.metadata,
+                signingAccount: event.payload.data.signingAccount,
+                deps: event.payload.data.deps,
+              }
+            } else if (event.payload.type == 'edit') {
+              if (context.editUid && editEntity.data?.document?.content) {
+                content = hmBlocksToEditorContent(
+                  editEntity.data.document.content || [],
+                  {
+                    childrenType: 'Group',
+                  },
+                )
+                editor.replaceBlocks(editor.topLevelBlocks, content as any)
+                const tiptap = editor?._tiptapEditor
+                // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
+                setGroupTypes(tiptap, content as any)
+              }
+              return {
+                metadata: event.payload.data.document?.metadata,
+                signingAccount: context.signingAccount,
+                content,
+                deps: event.payload.data.document?.version
+                  ? [event.payload.data.document?.version]
+                  : undefined,
+              }
+            }
           }
-        },
-        replaceRouteifNeeded: ({
-          event,
-        }: {
-          event: {output: OutputFrom<typeof createOrUpdateDraft>}
-        }) => {
-          if (event.output.id) {
-            const id = unpackHmId(event.output.id)
-            if (!id) throw new Error('Draft save resulted in invalid hm ID')
-            if (route.key !== 'draft')
-              throw new Error('Invalid route, draft expected.')
-            replaceRoute({...route, id, new: false})
-          }
-        },
-        onSaveSuccess: function () {
-          invalidateQueries([queryKeys.DRAFT, id?.id])
-          invalidateQueries(['trpc.drafts.get'])
-          invalidateQueries(['trpc.drafts.list'])
-          invalidateQueries(['trpc.drafts.listAccount'])
-          invalidateQueries([queryKeys.ENTITY, id?.id])
-        },
-        resetContent: function ({event}) {
-          if (event.type !== 'RESET.CONTENT') return
-          const content = hmBlocksToEditorContent(event.blockNodes, {
-            childrenType: 'Group',
+
+          return context
+        }),
+        replaceRoute: (_, {id}) => {
+          replace({
+            key: 'draft',
+            id,
+            deps: route.deps || undefined,
           })
-          editor.replaceBlocks(editor.topLevelBlocks, content)
-          const tiptap = editor?._tiptapEditor
-          setGroupTypes(tiptap, content)
+          return {}
         },
       },
       actors: {
-        createOrUpdateDraft,
+        writeDraft,
       },
     }),
+    {
+      input: {
+        ...route,
+        deps: data?.deps || undefined,
+      },
+    },
   )
 
-  const backendDraft = useDraft(id)
-  const backendDocument = useEntity(
-    backendDraft.status == 'success' && backendDraft.data?.previousId
-      ? backendDraft.data.previousId
-      : id,
-  )
-
-  async function handleRebase(newEntity: HMEntityContent) {
-    /**
-     * 1. get current version's blocks map
-     * 2. get new version's blocks map
-     * 3. get touched changes in draft
-     * 4. get touched changes in new version
-     * 5. compare touched blocks in draft vs touched blocks of new version
-     * 6. update blocks in editor
-     * 7. update previousId on draft (state machine)
-     */
-
-    const blocksMap1 = createBlocksMap(
-      backendDocument.data?.document?.content || [],
-      '',
-    )
-    const blocksMap2 = createBlocksMap(newEntity.document?.content || [], '')
-    const editorContent = removeTrailingBlocks(editor.topLevelBlocks)
-
-    const changes = compareBlocksWithMap(blocksMap1, editorContent, '')
-    const changes2 = compareDraftWithMap(
-      blocksMap1,
-      newEntity.document?.content,
-      '',
-    )
-
-    changes2.touchedBlocks.forEach((blockId) => {
-      const blockContent = blocksMap2[blockId]
-      if (blockContent) {
-        const editorBlock = hmBlockToEditorBlock(blockContent.block)
-        // this is updating the editor with the new version's block without comparing with the draft changes (destructive)
-        // TODO: fix types of editorBlock
-        editor.updateBlock(blockId, editorBlock as any)
-      }
-    })
-
-    send({type: 'FINISH.REBASE', entity: newEntity})
-  }
-
+  // send events to machine when fetch do draft or other documents
   useEffect(() => {
+    let locationUid = route.locationUid || data?.locationUid
+    let editUid = route.editUid || data?.editUid
     if (
-      backendDraft.status == 'success' &&
-      backendDocument.status != 'loading'
+      typeof locationUid === 'undefined' &&
+      typeof editUid === 'undefined' &&
+      data === null // drafts can return null if they don't exist
     ) {
+      send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
+    }
+    if (draftStatus === 'success' && data !== null) {
+      send({type: 'fetch.success', payload: {type: 'draft', data}})
+    } else if (locationEntity.status === 'success' && locationEntity.data) {
       send({
-        type: 'GET.DRAFT.SUCCESS',
-        draft: backendDraft.data,
-        entity:
-          backendDocument.status != 'error' && backendDocument.data
-            ? backendDocument.data
-            : null,
+        type: 'fetch.success',
+        payload: {type: 'location', data: locationEntity.data},
+      })
+    } else if (editEntity.status === 'success' && editEntity.data) {
+      send({
+        type: 'fetch.success',
+        payload: {type: 'edit', data: editEntity.data},
       })
     }
-    if (backendDraft.status == 'error') {
-      send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})
-    }
-    // }
-  }, [backendDraft.status, backendDocument.status])
+  }, [data, locationEntity.status, editEntity.status])
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -680,9 +667,10 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     }
   }, [])
 
+  // this updates the draft with the correct signing account
   useEffect(() => {
     draftEvents.subscribe(
-      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
+      (value: {type: 'change'; signingAccount?: string} | null) => {
         if (value) {
           send(value)
         }
@@ -690,63 +678,14 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     )
   }, [])
 
-  return {editor, handleFocusAtMousePos, state, send, actor, handleRebase}
-
-  // ==============
-
-  // TODO: fix types
-  function handleFocusAtMousePos(event: any) {
-    let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
-    let editorView = ttEditor.view
-    let editorRect = editorView.dom.getBoundingClientRect()
-    let centerEditor = editorRect.left + editorRect.width / 2
-
-    const pos = editorView.posAtCoords({
-      left: editorRect.left + 1,
-      top: event.clientY,
-    })
-
-    if (pos) {
-      let node = editorView.state.doc.nodeAt(pos.pos)
-      if (node) {
-        let resolvedPos = editorView.state.doc.resolve(pos.pos)
-        let lineStartPos = pos.pos
-        let selPos = lineStartPos
-
-        if (event.clientX >= centerEditor) {
-          let lineEndPos = lineStartPos
-
-          // Loop through the line to find its end based on next Y position
-          while (lineEndPos < resolvedPos.end()) {
-            const coords = editorView.coordsAtPos(lineEndPos)
-            if (coords && coords.top >= event.clientY) {
-              lineEndPos--
-              break
-            }
-            lineEndPos++
-          }
-          selPos = lineEndPos
-        }
-
-        const sel = Selection.near(editorView.state.doc.resolve(selPos))
-        ttEditor.commands.focus()
-        ttEditor.commands.setTextSelection(sel)
-      }
-    } else {
-      if (event.clientY > editorRect.bottom) {
-        // editorView.state.doc.descendants((node, pos) => {
-        //   console.log(node, pos)
-        // })
-        // From debugging positions, the last node is always resolved at position doc.content.size - 4, but it is possible to add exact position by calling doc.descendants
-        ttEditor.commands.setTextSelection(
-          editorView.state.doc.content.size - 4,
-        )
-        ttEditor.commands.focus()
-      } else
-        console.warn(
-          'No position found within the editor for the given mouse coordinates.',
-        )
-    }
+  return {
+    data,
+    state,
+    send,
+    actor,
+    locationEntity,
+    editEntity,
+    editor,
   }
 }
 
@@ -1272,35 +1211,122 @@ export function extractDeletes(
 }
 
 export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
-  let result =
-    // b1.id == b2.id &&
-    b1.text == b2.text &&
-    b1.link == b2.link &&
-    _.isEqual(b1.annotations, b2.annotations) &&
-    // TODO: how to correctly compare attributes???
-    isBlockAttributesEqual(b1, b2) &&
-    b1.type == b2.type
+  if (!b1 || !b2) {
+    console.log('Blocks not equal: One or both blocks are null/undefined', {
+      b1,
+      b2,
+    })
+    return false
+  }
+  if (b1 === b2) return true
+
+  // Helper function to compare annotations, treating undefined and empty arrays as equal
+  const areAnnotationsEqual = (a1?: any[], a2?: any[]) => {
+    if (!a1 && !a2) return true
+    if (!a1 && a2?.length === 0) return true
+    if (!a2 && a1?.length === 0) return true
+    return _.isEqual(a1, a2)
+  }
+
+  // Helper function to compare text, treating undefined and empty string as equal
+  const isTextEqual = (t1?: string, t2?: string) => {
+    if (!t1 && !t2) return true
+    if (!t1 && t2 === '') return true
+    if (!t2 && t1 === '') return true
+    return t1 === t2
+  }
+
+  const checks = {
+    id: b1.id === b2.id,
+    text: isTextEqual(b1.text, b2.text),
+    link: b1.link === b2.link,
+    type: b1.type === b2.type,
+    annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
+    attributes: isBlockAttributesEqual(b1, b2),
+  }
+
+  const result = Object.values(checks).every(Boolean)
+
+  if (!result) {
+    console.log('Blocks not equal. Differences found:', {
+      blockId: b1.id,
+      differences: Object.entries(checks)
+        .filter(([_, isEqual]) => !isEqual)
+        .map(([prop]) => ({
+          property: prop,
+          b1Value:
+            prop === 'annotations'
+              ? b1.annotations
+              : prop === 'attributes'
+              ? b1.attributes
+              : b1[prop],
+          b2Value:
+            prop === 'annotations'
+              ? b2.annotations
+              : prop === 'attributes'
+              ? b2.attributes
+              : b2[prop],
+        })),
+    })
+  }
+
   return result
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  let a1 = b1.attributes
-  let a2 = b2.attributes
+  const a1 = b1.attributes
+  const a2 = b2.attributes
+
   if (!a1 && !a2) return true
-  if (!a1 || !a2) return false
-  return (
-    a1.childrenType == a2.childrenType &&
-    a1.start == a2.start &&
-    a1.level == a2.level &&
-    a1.url == a2.url &&
-    a1.size == a2.size &&
-    a1.href == a2.href &&
-    a1.link == a2.link &&
-    a1.language == a2.language &&
-    a1.view == a2.view &&
-    a1.width == a2.width &&
-    a1.banner == a2.banner
+  if (!a1 || !a2) {
+    console.log('Block attributes not equal: One side is missing attributes', {
+      blockId: b1.id,
+      a1,
+      a2,
+    })
+    return false
+  }
+
+  const attributesToCompare = [
+    'childrenType',
+    'start',
+    'level',
+    'url',
+    'size',
+    'href',
+    'link',
+    'language',
+    'view',
+    'width',
+    'banner',
+  ]
+
+  const result = attributesToCompare.every(
+    (attr) =>
+      (a1[attr] === undefined && a2[attr] === undefined) ||
+      a1[attr] === a2[attr],
   )
+
+  if (!result) {
+    console.log('Block attributes not equal. Differences found:', {
+      blockId: b1.id,
+      differences: attributesToCompare
+        .filter(
+          (attr) =>
+            !(
+              (a1[attr] === undefined && a2[attr] === undefined) ||
+              a1[attr] === a2[attr]
+            ),
+        )
+        .map((attr) => ({
+          attribute: attr,
+          a1Value: a1[attr],
+          a2Value: a2[attr],
+        })),
+    })
+  }
+
+  return result
 }
 
 function observeBlocks(
@@ -1399,16 +1425,22 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   return trailedBlocks
 }
 
-export function useCreateDraft(parentDocId: UnpackedHypermediaId) {
+export function useCreateDraft(
+  draftParams: {
+    locationUid?: HMDraftMeta['locationUid']
+    locationPath?: HMDraftMeta['locationPath']
+    editUid?: HMDraftMeta['editUid']
+    editPath?: HMDraftMeta['editPath']
+    deps?: HMDraftContent['deps']
+  } = {},
+) {
   const navigate = useNavigate('push')
   return () => {
-    const id = hmId('d', parentDocId.uid, {
-      path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
-    })
+    const id = nanoid(10)
     navigate({
       key: 'draft',
       id,
-      new: true,
+      ...draftParams,
     })
   }
 }
@@ -1424,11 +1456,6 @@ export function useForkDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      console.log({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
       const document = await grpcClient.documents.getDocument({
         account: from.uid,
         path: hmIdPathToEntityQueryPath(from.path),
@@ -1502,4 +1529,23 @@ export function useMoveDocument() {
       })
     },
   })
+}
+
+export function getDraftEditId(
+  draftData?: {
+    destinationUid: string | undefined
+    destinationPath: string[] | undefined
+    isNewChild: boolean | undefined
+  } | null,
+): UnpackedHypermediaId | undefined {
+  if (!draftData) return undefined
+  if (draftData.isNewChild) {
+    return undefined
+  } else if (!draftData.destinationUid) {
+    return undefined
+  } else {
+    return hmId('d', draftData.destinationUid, {
+      path: draftData.destinationPath,
+    })
+  }
 }

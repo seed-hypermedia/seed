@@ -6,9 +6,8 @@ import {
   useMyCapabilities,
   useMyCapability,
 } from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useCreateDraft} from '@/models/documents'
+import {useAccountDraftList, useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -26,7 +25,12 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
-import {displayHostname, hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {
+  displayHostname,
+  hmId,
+  latestId,
+  pathMatches,
+} from '@shm/shared/utils/entity-id-url'
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -53,6 +57,7 @@ import {
   GitFork,
   Import,
 } from '@tamagui/lucide-icons'
+import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useState} from 'react'
 import {
   Button,
@@ -249,7 +254,10 @@ export function DocOptionsButton({
         },
       })
   }
-  const createDraft = useCreateDraft(route.id)
+  const createDraft = useCreateDraft({
+    locationUid: route.id.uid,
+    locationPath: route.id.path,
+  })
   const importDialog = useImportDialog()
   const importing = useImporting(route.id)
   if (canEditDoc) {
@@ -313,16 +321,29 @@ export function DocOptionsButton({
   )
 }
 
+function useExistingDraft(route: DocumentRoute) {
+  const drafts = useAccountDraftList(route.id.uid)
+  const existingDraft = drafts.data?.find((d) => {
+    const id = d.editId
+    if (!id) return false
+    return (
+      id.type === route.id.type &&
+      id.uid === route.id.uid &&
+      pathMatches(id.path, route.id.path)
+    )
+  })
+  return existingDraft
+}
+
 function EditDocButton() {
   const route = useNavRoute()
 
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id)
-  const {data: entity} = useEntity(route.id)
   const navigate = useNavigate()
-  const draft = useDraft(route.id)
-  const hasExistingDraft = !!draft.data
+
+  const existingDraft = useExistingDraft(route)
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
@@ -335,16 +356,26 @@ function EditDocButton() {
   const button = (
     <Button
       size="$2"
-      theme={hasExistingDraft ? 'yellow' : undefined}
+      theme={existingDraft ? 'yellow' : undefined}
       onPress={() => {
-        navigate({
-          key: 'draft',
-          id: entity?.id,
-        })
+        if (existingDraft) {
+          navigate({
+            key: 'draft',
+            id: existingDraft.id,
+          })
+        } else {
+          navigate({
+            key: 'draft',
+            id: nanoid(10),
+            editUid: route.id.uid,
+            editPath: route.id.path || [],
+            deps: route.id.version ? [route.id.version] : undefined,
+          })
+        }
       }}
       icon={Pencil}
     >
-      {hasExistingDraft ? 'Resume Editing' : 'Edit'}
+      {existingDraft ? 'Resume Editing' : 'Edit'}
     </Button>
   )
   if (!roleCanWrite(capability?.role)) return null
@@ -427,7 +458,7 @@ function EditDocButton() {
   }
   return (
     <>
-      <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>
+      <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
         {button}
       </Tooltip>
     </>

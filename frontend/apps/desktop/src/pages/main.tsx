@@ -26,6 +26,7 @@ var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
+var Drafts = lazy(() => import('./drafts'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
@@ -147,6 +148,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
+        Fallback: BaseLoading,
+      }
+    case 'drafts':
+      return {
+        PageComponent: Drafts,
         Fallback: BaseLoading,
       }
     default:

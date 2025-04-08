@@ -8,7 +8,7 @@ import {DocumentRoute} from '@shm/shared/routes'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Check, Link, Pencil} from '@shm/ui/icons'
+import {Check, Link} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps, ReactElement, useMemo, useState} from 'react'
@@ -185,8 +185,7 @@ export function LibraryListItem({
       paddingVertical="$1"
       onPress={() => {
         if (!exportMode) {
-          if (isUnpublished) navigate({key: 'draft', id: entry.id})
-          else navigate({key: 'document', id: entry.id})
+          navigate({key: 'document', id: entry.id})
         }
         // else {
         //   toggleDocumentSelection(entry.id.id)
@@ -262,21 +261,9 @@ export function LibraryListItem({
         {isUnpublished ? null : (
           <FavoriteButton id={entry.id} hideUntilItemHover />
         )}
-        {entry.hasDraft && !isUnpublished && !exportMode ? (
-          <Button
-            theme="yellow"
-            icon={Pencil}
-            size="$2"
-            onPress={(e: GestureResponderEvent) => {
-              e.stopPropagation()
-              navigate({key: 'draft', id: entry.id})
-            }}
-          >
-            Resume Editing
-          </Button>
-        ) : (
-          <LibraryEntryTime entry={entry} />
-        )}
+
+        <LibraryEntryTime entry={entry} />
+
         <XStack>
           {editors.map((author, idx) => (
             <XStack

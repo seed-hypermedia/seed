@@ -7,6 +7,7 @@ import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
 import {Tooltip} from './tooltip'
 
+// TODO: support new drafts now
 export const HMIcon = memo(_HMIcon)
 
 function _HMIcon({
