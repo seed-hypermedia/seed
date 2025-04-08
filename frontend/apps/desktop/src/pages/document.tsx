@@ -160,31 +160,30 @@ export default function DocumentPage() {
   const templateDialogContent = useTemplateDialog(route)
   return (
     <>
-      <XStack flex={1} height="100%">
-        <SidebarSpacer />
-        <AccessoryLayout
-          mainPanelRef={mainPanelRef}
-          accessory={accessory}
-          accessoryKey={accessoryKey}
-          onAccessorySelect={(key: typeof accessoryKey) => {
-            if (key === accessoryKey || key === undefined)
-              return replace({...route, accessory: null})
-            replace({...route, accessory: {key}})
+      <SidebarSpacer />
+      <AccessoryLayout
+        mainPanelRef={mainPanelRef}
+        accessory={accessory}
+        accessoryKey={accessoryKey}
+        onAccessorySelect={(key: typeof accessoryKey) => {
+          if (key === accessoryKey || key === undefined)
+            return replace({...route, accessory: null})
+          replace({...route, accessory: {key}})
+        }}
+        accessoryOptions={accessoryOptions}
+      >
+        <MainDocumentPage
+          id={route.id}
+          isBlockFocused={route.isBlockFocused || false}
+          onScrollParamSet={(isFrozen) => {
+            mainPanelRef.current?.style.setProperty(
+              'overflow',
+              isFrozen ? 'hidden' : 'auto',
+            )
           }}
-          accessoryOptions={accessoryOptions}
-        >
-          <MainDocumentPage
-            id={route.id}
-            isBlockFocused={route.isBlockFocused || false}
-            onScrollParamSet={(isFrozen) => {
-              mainPanelRef.current?.style.setProperty(
-                'overflow',
-                isFrozen ? 'hidden' : 'auto',
-              )
-            }}
-          />
-        </AccessoryLayout>
-      </XStack>
+        />
+      </AccessoryLayout>
+
       {templateDialogContent}
     </>
   )

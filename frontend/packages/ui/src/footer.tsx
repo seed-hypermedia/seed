@@ -6,7 +6,7 @@ export const FooterWrapper = styled(XStack, {
   paddingVertical: 0,
   width: '100%',
   borderColor: 'transparent',
-  borderTopColor: '$color5',
+  // borderTopColor: '$color5',
   borderWidth: '1px',
   alignItems: 'stretch',
   borderStyle: 'solid',

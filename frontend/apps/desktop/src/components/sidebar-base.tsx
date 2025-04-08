@@ -1,11 +1,12 @@
 import {useAppContext} from '@/app-context'
-import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
+import {useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {useStream} from '@shm/ui/use-stream'
 import {Hash, Settings} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
+import {Panel, PanelResizeHandle} from 'react-resizable-panels'
 import {Separator, Tooltip, XStack, YStack} from 'tamagui'
 
 const HoverRegionWidth = 30
@@ -33,8 +34,8 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         <YStack
           position="absolute"
           left={-20} // this -20 is to make sure the rounded radius is not visible on the edge
-          borderRadius={'$3'}
-          bg="$backgroundStrong"
+          borderRadius="$3"
+          bg="$backgroundTransparent"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
           top={top}
           zi="$zIndex.8"
@@ -48,52 +49,68 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onPress={ctx.onMenuHover}
         />
       ) : null}
-      <YStack
-        bg="$backgroundStrong"
-        borderRightWidth={1}
-        borderColor={'$color4'}
-        animation="fast"
-        position="absolute"
-        zi="$zIndex.8"
-        x={isVisible ? 0 : -SidebarWidth}
-        width="100%"
-        maxWidth={SidebarWidth}
-        elevation={!isLocked ? '$4' : undefined}
-        top={top}
-        bottom={bottom}
-        borderTopRightRadius={!isLocked ? '$3' : undefined}
-        borderBottomRightRadius={!isLocked ? '$3' : undefined}
-        onMouseEnter={ctx.onMenuHover}
-        onMouseLeave={ctx.onMenuHoverLeave}
-        opacity={isVisible ? 1 : 0}
+      <Panel
+        collapsible={true}
+        collapsedSize={0}
+        defaultSize={20}
+        minSize={15}
+        maxSize={20}
+        onCollapse={() => {
+          console.log('collapsed')
+        }}
+        onResize={(size) => {
+          console.log('resized', size)
+        }}
+        onExpand={() => {
+          console.log('expanded')
+        }}
+        id="left-sidebar"
       >
         <YStack
-          flex={1}
-          overflow="auto" // why does Tamagui/TS not agree that this is an acceptable value? IT WORKS!
-          // paddingVertical="$2"
-          p={10}
+          // bg="$background"
+          borderWidth={1}
+          borderColor={isLocked ? '$backgroundTransparent' : '$borderColor'}
+          animation="fast"
+          // position="absolute"
+          // zi="$zIndex.8"
+          // x={isVisible ? 0 : -SidebarWidth}
+
+          width="100%"
+          minHeight="100%"
+          // maxWidth={SidebarWidth}
+          elevation={!isLocked ? '$4' : undefined}
+          // top={top}
+          // bottom={bottom}
+          // borderTopRightRadius={!isLocked ? '$3' : undefined}
+          // borderBottomRightRadius={!isLocked ? '$3' : undefined}
+          onMouseEnter={ctx.onMenuHover}
+          onMouseLeave={ctx.onMenuHoverLeave}
+          opacity={isVisible ? 1 : 0}
         >
-          {children}
+          <YStack
+            flex={1}
+            overflow="auto" // why does Tamagui/TS not agree that this is an acceptable value? IT WORKS!
+            // paddingVertical="$2"
+            p={10}
+          >
+            {children}
+          </YStack>
+          <XStack padding="$2" jc="space-between">
+            <Tooltip content="App Settings">
+              <Button
+                size="$3"
+                backgroundColor="$colorTransparent"
+                chromeless
+                onPress={() => {
+                  navigate({key: 'settings'})
+                }}
+                icon={Settings}
+              />
+            </Tooltip>
+          </XStack>
         </YStack>
-        <XStack
-          padding="$2"
-          jc="space-between"
-          borderTopWidth={1}
-          borderColor="$borderColor"
-        >
-          <Tooltip content="App Settings">
-            <Button
-              size="$3"
-              backgroundColor={'$colorTransparent'}
-              chromeless
-              onPress={() => {
-                navigate({key: 'settings'})
-              }}
-              icon={Settings}
-            />
-          </Tooltip>
-        </XStack>
-      </YStack>
+      </Panel>
+      <PanelResizeHandle className="accessory-resize-handle" />
     </>
   )
 }

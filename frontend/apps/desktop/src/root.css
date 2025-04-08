@@ -11,12 +11,26 @@ body {
 }
 
 .accessory-resize-handle {
-  width: 1px;
-  background-color: var(--color7);
+  width: 2px;
+  /* background-color: var(--color7); */
+  position: relative;
+}
+
+.accessory-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 100%;
+  background: transparent;
+  z-index: 900;
+  pointer-events: auto;
+  cursor: col-resize !important;
 }
 
 .accessory-resize-handle:hover {
-  cursor: col-resize !important;
   background-color: var(--color8);
 }
 

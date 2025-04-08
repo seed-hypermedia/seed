@@ -104,11 +104,11 @@ export default function Main({className}: {className?: string}) {
         >
           {titlebar}
           <PanelGroup direction="horizontal" style={{flex: 1}}>
+            {sidebar}
             <Panel id="page" order={2}>
               <PageComponent />
             </Panel>
           </PanelGroup>
-          {sidebar}
           <Footer />
           <AutoUpdater />
         </ErrorBoundary>

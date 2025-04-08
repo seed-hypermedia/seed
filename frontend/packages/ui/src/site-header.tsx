@@ -103,7 +103,7 @@ export function SiteHeader({
         top={0}
         right={0}
         left={0}
-        backgroundColor="$background"
+        backgroundColor="$backgroundStrong"
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"

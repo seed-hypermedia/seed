@@ -1,6 +1,6 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {useStream} from '@shm/ui/use-stream'
-import {ScrollView, View, XStack, YStackProps} from 'tamagui'
+import {ScrollView, View, XStack, YStack, YStackProps} from 'tamagui'
 import {SidebarWidth, useSidebarContext} from '../sidebar-context'
 
 export function SidebarSpacer() {
@@ -10,21 +10,31 @@ export function SidebarSpacer() {
   return <View style={{maxWidth: sidebarSpacing, width: '100%'}} />
 }
 
-export function MainWrapper({children, ...props}: YStackProps & {}) {
+export function MainWrapper({
+  children,
+  scrollable = false,
+  ...props
+}: YStackProps & {scrollable?: boolean}) {
   return (
-    <XStack flex={1} {...props}>
-      <SidebarSpacer />
+    <XStack {...props} flex={1} height="100%">
+      {/* <SidebarSpacer /> */}
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollView
-        id="scroll-page-wrapper"
-        scrollEventThrottle={1000}
-        onScroll={() => {
-          dispatchScroll('scroll')
-        }}
-      >
-        {children}
-      </ScrollView>
+      <YStack flex={1}>
+        {scrollable ? (
+          <ScrollView
+            id="scroll-page-wrapper"
+            scrollEventThrottle={1000}
+            onScroll={() => {
+              dispatchScroll('scroll')
+            }}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          children
+        )}
+      </YStack>
     </XStack>
   )
 }

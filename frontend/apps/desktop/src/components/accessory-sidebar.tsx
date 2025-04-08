@@ -1,4 +1,5 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {defaultContainerStyle, PanelContainer} from '@shm/ui/container'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -25,15 +26,21 @@ export function AccessoryContainer({
   onClose?: () => void
 } & ComponentProps<typeof YStack>) {
   return (
-    <YStack height="100%" {...props} backgroundColor="$color4" gap="$4">
+    <PanelContainer
+      gap="$4"
+      width="100%"
+      $gtSm={{...defaultContainerStyle, marginHorizontal: 0, w: '100%'}}
+      margin={0}
+      {...props}
+    >
       <ScrollView f={1}>
-        <YStack paddingVertical="$3" paddingHorizontal="$4" gap="$4">
+        <YStack paddingVertical="$3" paddingHorizontal="$3" gap="$4">
           {title ? <AccessoryTitle title={title} /> : null}
           <YStack gap="$5">{children}</YStack>
           {footer}
         </YStack>
       </ScrollView>
-    </YStack>
+    </PanelContainer>
   )
 }
 
@@ -60,7 +67,7 @@ export function AccessorySection({
   )
 }
 
-const AccessoryButtonSize = 60
+const AccessoryButtonSize = 40
 
 export function AccessoryLayout<
   Options extends {
@@ -90,24 +97,33 @@ export function AccessoryLayout<
         <Panel
           minSize={50}
           style={{
-            borderRight: '1px solid var(--color7)',
             overflow: 'hidden',
           }}
         >
-          <View
-            style={{
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              flex: 1,
-              height: '100%',
-            }}
-            ref={mainPanelRef}
-            onScroll={() => {
-              dispatchScroll(true)
+          <PanelContainer
+            $gtSm={{
+              ...defaultContainerStyle,
+              w:
+                accessoryKey == undefined
+                  ? 'calc(100% - 8px)'
+                  : 'calc(100% - 12px)',
             }}
           >
-            {children}
-          </View>
+            <View
+              style={{
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                flex: 1,
+                height: '100%',
+              }}
+              ref={mainPanelRef}
+              onScroll={() => {
+                dispatchScroll(true)
+              }}
+            >
+              {children}
+            </View>
+          </PanelContainer>
         </Panel>
         {accessoryKey !== undefined ? (
           <PanelResizeHandle className="accessory-resize-handle" />
@@ -119,10 +135,7 @@ export function AccessoryLayout<
           defaultSize={20}
           style={{
             overflowY: 'auto',
-            borderRight:
-              accessoryKey === undefined
-                ? undefined
-                : '1px solid var(--color7)',
+            paddingLeft: 4,
           }}
         >
           {accessory}
@@ -134,12 +147,21 @@ export function AccessoryLayout<
           return (
             <Tooltip key={option.key} placement="left" content={option.label}>
               <Button
-                size="$4"
+                size="$3"
                 // hoverStyle={{
                 //   backgroundColor: isActive
                 //     ? theme.blue10.val
                 //     : theme.color2.val,
                 // }}
+                // bg="$backgroundTransparent"
+                hoverStyle={{
+                  backgroundColor: '$backgroundTransparent',
+                  borderColor: '$colorTransparent',
+                }}
+                focusStyle={{
+                  backgroundColor: '$backgroundTransparent',
+                  borderColor: '$colorTransparent',
+                }}
                 onPress={() => {
                   if (isActive) onAccessorySelect(undefined)
                   else onAccessorySelect(option.key)
@@ -149,13 +171,10 @@ export function AccessoryLayout<
                 padding={0}
                 outlineColor="$colorTransparent"
                 borderColor="$colorTransparent"
-                hoverStyle={{
-                  borderColor: '$colorTransparent',
-                }}
               >
                 {option.icon ? (
                   <option.icon
-                    size={28}
+                    size={20}
                     color={isActive ? theme.brand5.val : theme.color.val}
                   />
                 ) : null}

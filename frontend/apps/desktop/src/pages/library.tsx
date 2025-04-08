@@ -25,7 +25,7 @@ import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
-import {Container} from '@shm/ui/container'
+import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -96,8 +96,8 @@ export default function LibraryPage() {
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
 
   return (
-    <XStack flex={1} height="100%">
-      <MainWrapper>
+    <PanelContainer>
+      <MainWrapper scrollable>
         <Container justifyContent="center" centered>
           <CreateAccountBanner />
           <XStack marginBottom="$4">
@@ -227,7 +227,7 @@ export default function LibraryPage() {
           </librarySelectionContext.Provider>
         </Container>
       </MainWrapper>
-    </XStack>
+    </PanelContainer>
   )
 }
 
@@ -252,16 +252,17 @@ function DisplayModeTab({
       borderRadius={0}
       borderBottomWidth={borderWidth}
       borderBottomColor={activationColor}
+      chromeless
       hoverStyle={{
-        borderWidth: 0,
-        borderColor: '$colorTransparent',
+        // borderWidth: 0,
+        bg: '$colorTransparent',
+        borderColor: '$brand5',
         borderBottomWidth: borderWidth,
         borderBottomColor: activationColor,
       }}
       focusStyle={{
         bg: '$colorTransparent',
-        borderWidth: 0,
-        borderColor: '$colorTransparent',
+        borderColor: '$brand5',
         borderBottomWidth: borderWidth,
         borderBottomColor: activationColor,
       }}
