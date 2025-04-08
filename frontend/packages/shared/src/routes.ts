@@ -62,6 +62,7 @@ export type DocumentSuggestedChangesAccessory = z.infer<
 export const documentCommentsAccessorySchema = z.object({
   key: z.literal('comments'),
   width: z.number().optional(),
+  openComment: z.string().optional(),
 })
 export type DocumentCommentsAccessory = z.infer<
   typeof documentCommentsAccessorySchema

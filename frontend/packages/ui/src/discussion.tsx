@@ -8,16 +8,18 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
-import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronRight, Link} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {ReactNode, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
+import {toast} from './toast'
 import {Tooltip} from './tooltip'
 
 const Stack = View
@@ -137,7 +139,7 @@ function Comment({
   isLast?: boolean
   isNested?: boolean
   rootReplyCommentId: string | null
-  authorMetadata?: HMMetadata
+  authorMetadata?: HMMetadata | null
   renderCommentContent: (comment: HMComment) => ReactNode
   homeId?: UnpackedHypermediaId
   enableWebSigning: boolean
@@ -161,6 +163,7 @@ function Comment({
   siteHost?: string
   enableReplies?: boolean
 }) {
+  const {onCopyReference} = useUniversalAppContext()
   const [showReplies, setShowReplies] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
   const authorId = comment.author ? hmId('d', comment.author) : null
@@ -195,7 +198,7 @@ function Comment({
           borderBottomRightRadius={0}
         />
       ) : null}
-      <XStack gap="$2" padding="$2">
+      <XStack gap="$2" padding="$2" group="item">
         <Stack position="relative">
           <Stack
             position="absolute"
@@ -315,6 +318,32 @@ function Comment({
             ) : null}
           </XStack>
         </YStack>
+        {onCopyReference && (
+          <Tooltip content="Copy link to comment">
+            <Button
+              position="absolute"
+              right="$1"
+              top="$2"
+              size="$2"
+              chromeless
+              onPress={() => {
+                if (!onCopyReference) {
+                  toast.error('No onCopyReference function provided')
+                  return
+                }
+                onCopyReference(hmId('c', comment.id))
+              }}
+              opacity={0}
+              hoverStyle={{
+                backgroundColor: '$color5',
+              }}
+              $group-item-hover={{
+                opacity: 1,
+              }}
+              icon={Link}
+            ></Button>
+          </Tooltip>
+        )}
       </XStack>
       {RepliesEditor ? (
         <RepliesEditor

@@ -1,8 +1,6 @@
-import {useAccount_deprecated} from '@/models/accounts'
 import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
-import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
@@ -12,7 +10,6 @@ import {
 import {useEntities} from '@shm/shared/models/entity'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
-import {UIAvatar} from '@shm/ui/avatar'
 import {
   BlockContentUnknown,
   BlockNodeContent,
@@ -296,11 +293,12 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 }
 
 export function EmbedComment(props: EntityComponentProps) {
-  if (props?.type !== 'comment')
+  if (props?.type !== 'c')
     throw new Error('Invalid props as ref for EmbedComment')
-  const comment = useComment(hmId('comment', props.uid), {
+  const comment = useComment(hmId('c', props.uid), {
     enabled: !!props,
   })
+  console.log('~~~ comment', comment.data)
   let embedBlocks = useMemo(() => {
     const selectedBlock =
       props.blockRef && comment.data?.content
@@ -311,22 +309,21 @@ export function EmbedComment(props: EntityComponentProps) {
 
     return embedBlocks
   }, [props.blockRef, comment.data])
-  const account = useAccount_deprecated(comment.data?.author)
+  const account = useSubscribedEntity(
+    comment.data?.author ? hmId('d', comment.data?.author) : null,
+  )
   if (comment.isLoading) return null
   return (
     <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
       <XStack flexWrap="wrap" jc="space-between" p="$3">
         <XStack gap="$2">
-          <UIAvatar
-            label={account.data?.profile?.alias}
-            id={account.data?.id}
-            url={
-              account.data?.profile?.avatar
-                ? `${DAEMON_FILE_URL}/${account.data?.profile?.avatar}`
-                : undefined
-            }
-          />
-          <SizableText>{account.data?.profile?.alias}</SizableText>
+          {account.data?.id && (
+            <HMIcon
+              id={account.data.id}
+              metadata={account.data?.document?.metadata}
+            />
+          )}
+          <SizableText>{account.data?.document?.metadata?.name}</SizableText>
         </XStack>
         {comment.data?.createTime ? (
           <SizableText fontSize="$2" color="$color10">

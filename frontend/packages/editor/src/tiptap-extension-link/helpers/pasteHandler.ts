@@ -6,6 +6,7 @@ import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
+  HMDocumentSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
@@ -109,13 +110,24 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
-
+        console.log('~~~', {
+          textContent,
+          unpackedHmId,
+          gwUrl: options.gwUrl,
+        })
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
             : hasPastedLink
             ? pastedLinkMarks[0].attrs.href
             : link?.href || null
+          console.log('~~~ 0', {
+            pastedLink,
+            unpackedHmId,
+            hasPastedLink,
+            pastedLinkMarks,
+            link,
+          })
           if (pastedLink) {
             if (unpackedHmId) {
               options.editor
@@ -275,7 +287,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           )
 
           switch (mediaCase) {
-            case 1:
+            case 'image':
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
@@ -288,7 +300,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            case 2:
+            case 'file':
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
@@ -301,7 +313,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            case 3:
+            case 'video':
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
@@ -315,7 +327,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            case 4:
+            case 'twitter':
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
@@ -329,7 +341,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            case 0: {
+            case 'web': {
               const metaPromise = resolveHypermediaUrl(link.href)
                 .then((linkMetaResult) => {
                   if (!linkMetaResult) return
@@ -479,24 +491,26 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
     },
   })
 
-  function checkMediaUrl(url: string): [number, string] {
+  function checkMediaUrl(
+    url: string,
+  ): ['file' | 'image' | 'video' | 'web' | 'twitter', string] {
     const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/)
     if (matchResult) {
       const extensionArray = matchResult[0].split('.')
       const extension = extensionArray[extensionArray.length - 1]
       if (['png', 'jpg', 'jpeg'].includes(extension)) return [1, matchResult[0]]
       else if (['pdf', 'xml', 'csv'].includes(extension))
-        return [2, matchResult[0]]
+        return ['file', matchResult[0]]
       else if (['mp4', 'webm', 'ogg'].includes(extension))
-        return [3, matchResult[0]]
+        return ['video', matchResult[0]]
     } else if (
       ['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))
     ) {
-      return [3, '']
+      return ['video', '']
     } else if (['twitter', 'x.com'].some((value) => url.includes(value))) {
-      return [4, '']
+      return ['twitter', '']
     }
-    return [0, '']
+    return ['web', '']
   }
 
   return pastePlugin
@@ -521,21 +535,20 @@ async function fetchEntityTitle(
     return {
       title,
     }
-  } else if (hmId.type == 'comment') {
+  } else if (hmId.type == 'c') {
     try {
       const comment = await grpcClient.comments.getComment({
-        id: hmId.id,
+        id: hmId.uid,
       })
-
       if (comment) {
-        const profile = await grpcClient.documents.getProfileDocument({
-          accountId: comment.author,
+        const authorHomeDocRaw = await grpcClient.documents.getDocument({
+          account: comment.author,
         })
-
+        const authorHomeDoc = HMDocumentSchema.parse(authorHomeDocRaw.toJson())
         return {
           title: `Comment from ${
-            profile.metadata?.alias ||
-            `${profile.id.slice(0, 5)}...${profile.id.slice(-5)}`
+            authorHomeDoc.metadata?.name ||
+            `${comment.author.slice(0, 5)}...${comment.author.slice(-5)}`
           }`,
         }
       } else {

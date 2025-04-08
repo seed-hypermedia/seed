@@ -3,6 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
+import {CommentsPanel} from '@/components/comments-panel'
 import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
@@ -47,6 +48,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
   CollaboratorsIcon,
+  CommentsIcon,
   HistoryIcon,
   MoreHorizontal,
 } from '@shm/ui/icons'
@@ -98,7 +100,7 @@ export default function DocumentPage() {
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
     )
   } else if (accessoryKey === 'comments') {
-    accessory = <AccessoryContainer title="Comments" onClose={handleClose} />
+    accessory = <CommentsPanel onClose={handleClose} {...route.accessory} />
   } else if (accessoryKey === 'all-documents') {
     accessory = (
       <AccessoryContainer title="All Documents" onClose={handleClose} />
@@ -134,11 +136,11 @@ export default function DocumentPage() {
     //   icon: SuggestedChangesIcon,
     // })
   }
-  // accessoryOptions.push({
-  //   key: 'comments',
-  //   label: 'Comments',
-  //   icon: CommentsIcon,
-  // })
+  accessoryOptions.push({
+    key: 'comments',
+    label: 'Comments',
+    icon: CommentsIcon,
+  })
   // accessoryOptions.push({
   //   key: 'citations',
   //   label: 'Citations',

@@ -24,15 +24,18 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
+import {NavigationContext} from '../utils/navigation'
 import {DialogTitle, useAppDialog} from './dialog'
-
 type IsPublishedState = null | boolean // null: determined checked yet
 
 export function useCopyReferenceUrl(
   hostname: string,
   originHomeId?: UnpackedHypermediaId | undefined,
+  overrideNav?: NavigationContext,
 ) {
-  const dialog = useAppDialog(PushToGatewayDialog)
+  const dialog = useAppDialog(PushToGatewayDialog, {
+    overrideNavigation: overrideNav,
+  })
   const pushOnCopy = usePushOnCopy()
   const publishToSite = usePublishToSite()
   function onCopy(input: UnpackedHypermediaId) {
@@ -47,6 +50,10 @@ export function useCopyReferenceUrl(
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
+      return
+    }
+    if (input.type !== 'd') {
+      toast('Comment link copied to clipboard')
       return
     }
     const [setIsPublished, isPublished] =

@@ -1,5 +1,11 @@
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
-import {DAEMON_FILE_URL} from '@shm/shared'
+import {
+  DAEMON_FILE_URL,
+  DEFAULT_GATEWAY_URL,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {writeableStateStream} from '@shm/shared/utils/stream'
@@ -71,6 +77,13 @@ export function NavigationContainer({
     }
   }, [])
 
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const [copyRefContent, onCopyReference] = useCopyReferenceUrl(
+    gwUrl,
+    undefined,
+    navigation,
+  )
+
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
@@ -84,8 +97,14 @@ export function NavigationContainer({
       openUrl={(url: string) => {
         externalOpen(url)
       }}
+      onCopyReference={async (hmId: UnpackedHypermediaId) => {
+        onCopyReference(hmId)
+      }}
     >
-      <NavContextProvider value={navigation}>{children}</NavContextProvider>
+      <NavContextProvider value={navigation}>
+        {children}
+        {copyRefContent}
+      </NavContextProvider>
     </UniversalAppProvider>
   )
 }
