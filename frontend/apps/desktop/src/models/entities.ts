@@ -1,20 +1,20 @@
-import { grpcClient } from '@/grpc-client'
-import { toPlainMessage } from '@bufbuild/protobuf'
+import {grpcClient} from '@/grpc-client'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import { setEntityQuery, useEntities } from '@shm/shared/models/entity'
-import { invalidateQueries, queryClient } from '@shm/shared/models/query-client'
-import { queryKeys } from '@shm/shared/models/query-keys'
-import { useDeleteRecent } from '@shm/shared/models/recents'
-import { hmId, unpackHmId } from '@shm/shared/utils/entity-id-url'
-import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
-import { useMutation, UseMutationOptions, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
-import { queryListDirectory } from './documents'
+import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useDeleteRecent} from '@shm/shared/models/recents'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
+import {useEffect, useMemo} from 'react'
+import {queryListDirectory} from './documents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -111,11 +111,9 @@ export function getParentPaths(path?: string[] | null): string[][] {
   ]
 }
 
-function getIdsFromIds(
-  id: UnpackedHypermediaId,
-): Array<UnpackedHypermediaId> {
+function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
   if (id.type === 'd') {
-    return getParentPaths(id.path).map((path) => (hmId('d', id.uid, {path}),))
+    return getParentPaths(id.path).map((path) => hmId('d', id.uid, {path}))
   }
   return []
 }
