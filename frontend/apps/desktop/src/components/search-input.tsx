@@ -30,7 +30,7 @@ import {
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {Separator, SizableText, XStack, YStack} from 'tamagui'
 
 export function SearchInput({
   onClose,
@@ -46,6 +46,7 @@ export function SearchInput({
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const searchResults = useSearch(search, {})
+
   let queryItem: null | SearchResult = useMemo(() => {
     if (
       isHypermediaScheme(search) ||
@@ -107,7 +108,8 @@ export function SearchInput({
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.uid,
+          key: item.id.id,
+          path: item.id.path,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => onSelect({id: item.id}),
@@ -115,12 +117,15 @@ export function SearchInput({
         }
       })
       .filter(Boolean) ?? []
+
   const recentItems =
     recents.data?.map(({url, title, subtitle}, index) => {
+      const id = unpackHmId(url)
       return {
         key: url,
         title,
         subtitle,
+        path: id?.path,
         onFocus: () => {
           setFocusedIndex(index)
         },
@@ -184,11 +189,14 @@ export function SearchInput({
       ) : null}
       {activeItems?.map((item, itemIndex) => {
         return (
-          <SearchResultItem
-            item={item}
-            key={item.key}
-            selected={focusedIndex === itemIndex}
-          />
+          <>
+            <SearchResultItem
+              item={item}
+              key={item.key}
+              selected={focusedIndex === itemIndex}
+            />
+            {itemIndex === activeItems.length - 1 ? undefined : <Separator />}
+          </>
         )
       })}
     </>

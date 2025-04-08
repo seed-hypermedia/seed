@@ -175,6 +175,7 @@ export type SearchResult = {
   title: string
   subtitle?: string
   icon?: string
+  path?: string[] | null
   onSelect: () => void | Promise<void>
   onFocus: () => void
   onMouseEnter: () => void
