@@ -4,6 +4,7 @@ import {SizableText} from '@tamagui/text'
 import {PropsWithChildren, useLayoutEffect, useRef} from 'react'
 import {Button, Input, InputProps, ScrollView} from 'tamagui'
 import {UIAvatar} from './avatar'
+import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 
 export function SearchInput({
@@ -123,20 +124,29 @@ export function SearchResultItem({
         size="$5"
         // height="$"
       >
-        {item.icon ? (
-          <UIAvatar label={item.title} size={20} url={item.icon} />
-        ) : null}
-        <YStack f={1} justifyContent="space-between">
-          <SizableText numberOfLines={1} fontWeight={600}>
-            {item.title}
-          </SizableText>
-          {!!item.path ? (
-            <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
-              {item.path?.slice(0, -1).join(' / ')}
-            </SizableText>
+        <XStack flex={1} gap="$3" justifyContent="flex-start">
+          {item.icon ? (
+            <UIAvatar
+              label={item.title}
+              size={20}
+              id={item.key}
+              url={getDaemonFileUrl(item.icon)}
+            />
+          ) : item.path?.length === 1 ? (
+            <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
-          {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
-        </YStack>
+          <YStack f={1} justifyContent="space-between">
+            <SizableText numberOfLines={1} fontWeight={600}>
+              {item.title}
+            </SizableText>
+            {!!item.path ? (
+              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+                {item.path?.slice(0, -1).join(' / ')}
+              </SizableText>
+            ) : null}
+            {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
+          </YStack>
+        </XStack>
       </Button>
     </YStack>
   )

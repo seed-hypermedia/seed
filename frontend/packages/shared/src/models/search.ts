@@ -5,6 +5,8 @@ import {queryKeys} from './query-keys'
 export type SearchResultItem = {
   id: UnpackedHypermediaId
   title: string
+  icon: string
+  parentNames: string[]
 }
 
 export type SearchPayload = {

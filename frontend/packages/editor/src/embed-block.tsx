@@ -9,6 +9,7 @@ import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
 import {
@@ -49,6 +50,7 @@ import {
   YGroup,
   YStack,
 } from 'tamagui'
+import {toast} from '../../ui/src/toast'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -621,40 +623,49 @@ const EmbedLauncherInput = ({
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
   const {comment} = useDocContentContext()
-  // const recents = useRecents()
+  const recents = useRecents()
   const searchResults = useSearch(search, {})
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities
       ?.map((item) => {
+        const title = item.title || item.id.uid
         return {
-          title: item.title || item.id.uid,
           key: item.id.id,
-          path: item.id.path,
-          onSelect: () => {
-            assign({props: {url: item.id.id}} as MediaType)
-          },
+          title,
+          path: [...item.parentNames, title],
+          icon: item.icon,
+          onFocus: () => {},
+          onMouseEnter: () => {},
+          onSelect: () => assign({props: {url: item.id.id}} as MediaType),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
       .filter(Boolean) || []
-  // const recentItems =
-  //   recents.data?.map(({url, title, subtitle, type}) => {
-  //     return {
-  //       key: url,
-  //       title,
-  //       subtitle,
-  //       onSelect: () => {
-  //         const id = unpackHmId(url)
-  //         if (!id) {
-  //           toast.error('Failed to open recent: ' + url)
-  //           return
-  //         }
-  //         assign({props: {url: id.id}} as MediaType)
-  //       },
-  //     }
-  //   }) || []
-  const recentItems = []
+
+  const recentItems =
+    recents.data?.map(({id, name}, index) => {
+      return {
+        key: id.id,
+        title: name,
+        // path: id.path,
+        subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+        onFocus: () => {
+          setFocusedIndex(index)
+        },
+        onMouseEnter: () => {
+          setFocusedIndex(index)
+        },
+        onSelect: () => {
+          if (!id) {
+            toast.error('Failed to open recent: ' + id + name)
+            return
+          } else {
+            assign({props: {url: id.id}} as MediaType)
+          }
+        },
+      }
+    }) || []
   const isDisplayingRecents = !search.length
   const activeItems = isDisplayingRecents ? recentItems : searchItems
 

@@ -107,10 +107,12 @@ export function SearchInput({
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
+        const title = item.title || item.id.uid
         return {
-          title: item.title || item.id.uid,
           key: item.id.id,
-          path: item.id.path,
+          title,
+          path: [...item.parentNames, title],
+          icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => onSelect({id: item.id}),
@@ -130,7 +132,8 @@ export function SearchInput({
         return {
           key: id.id,
           title: name,
-          subtitle: undefined,
+          // path: id.path,
+          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
           onFocus: () => {
             setFocusedIndex(index)
           },
