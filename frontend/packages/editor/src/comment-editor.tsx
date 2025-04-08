@@ -14,7 +14,7 @@ import {HyperMediaEditorView} from './editor-view'
 import {EmbedToolbarProvider} from './embed-toolbar-context'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {hmBlockSchema} from './schema'
-import {slashMenuItems} from './slash-menu-items'
+import {getSlashMenuItems} from './slash-menu-items'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -326,9 +326,7 @@ export function useCommentEditor() {
     //   initDraft();
     // },
     blockSchema: hmBlockSchema,
-    slashMenuItems: slashMenuItems.filter(
-      (item) => !['Nostr', 'Query'].includes(item.name),
-    ),
+    getSlashMenuItems: () => getSlashMenuItems(),
     onMentionsQuery,
     _tiptapOptions: {
       extensions: [

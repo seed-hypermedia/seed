@@ -52,7 +52,6 @@ export async function getMetadata(
   id: UnpackedHypermediaId,
 ): Promise<HMMetadataPayload> {
   try {
-    console.log('~~~ getMetadata', id.id, id.uid, id.path, id.version)
     const rawDoc = await queryClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
@@ -87,7 +86,6 @@ export type WebDocumentPayload = WebBaseDocumentPayload & {
 export async function getHMDocument(entityId: UnpackedHypermediaId) {
   const {version, uid, latest} = entityId
   const path = hmIdPathToEntityQueryPath(entityId.path)
-  console.log('~~~ getHMDocument', entityId.id, uid, path, version, latest)
   const apiDoc = await queryClient.documents
     .getDocument({
       account: uid,

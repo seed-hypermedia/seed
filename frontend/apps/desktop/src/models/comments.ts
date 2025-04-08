@@ -1,12 +1,11 @@
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
-import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
 import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {type BlockSchema} from '@shm/editor/blocknote'
+import {useBlockNote, type BlockSchema} from '@shm/editor/blocknote'
 import {serverBlockNodesFromEditorBlocks} from '@shm/editor/utils'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -245,11 +244,12 @@ export function useCommentEditor(
       initDraft()
     },
     blockSchema: getCommentEditorSchema(hmBlockSchema),
-    slashMenuItems: getSlashMenuItems({
-      showNostr,
-      docId: targetDocId, // in theory this should be the comment ID but it doesn't really matter here
-      showQuery: false,
-    }),
+    getSlashMenuItems: () =>
+      getSlashMenuItems({
+        showNostr,
+        docId: targetDocId, // in theory this should be the comment ID but it doesn't really matter here
+        showQuery: false,
+      }),
     onMentionsQuery,
     _tiptapOptions: {
       extensions: [

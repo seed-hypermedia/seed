@@ -1,6 +1,5 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {createHypermediaDocLinkPlugin} from '@/editor'
-import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
@@ -8,6 +7,7 @@ import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
+import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {
   Block,

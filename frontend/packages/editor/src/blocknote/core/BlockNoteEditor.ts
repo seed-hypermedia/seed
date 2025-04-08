@@ -51,7 +51,6 @@ import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
 import {SideMenuProsemirrorPlugin} from './extensions/SideMenu/SideMenuPlugin'
 import {BaseSlashMenuItem} from './extensions/SlashMenu/BaseSlashMenuItem'
 import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin'
-import {getDefaultSlashMenuItems} from './extensions/SlashMenu/defaultSlashMenuItems'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
@@ -202,8 +201,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(
       this,
-      newOptions.slashMenuItems ||
-        getDefaultSlashMenuItems(newOptions.blockSchema),
+      newOptions.getSlashMenuItems || (() => []),
     )
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)

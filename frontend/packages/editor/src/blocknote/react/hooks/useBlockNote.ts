@@ -1,22 +1,14 @@
 import {
   BlockNoteEditor,
   BlockNoteEditorOptions,
-  defaultBlockSchema,
   DefaultBlockSchema,
 } from '@/blocknote/core'
 import {HMBlockSchema} from '@/schema'
 import {DependencyList, useMemo, useRef} from 'react'
-import {getDefaultReactSlashMenuItems} from '../SlashMenu/defaultReactSlashMenuItems'
 
 const initEditor = <BSchema extends HMBlockSchema>(
   options: Partial<BlockNoteEditorOptions<BSchema>>,
-) =>
-  new BlockNoteEditor<BSchema>({
-    slashMenuItems: getDefaultReactSlashMenuItems<BSchema | DefaultBlockSchema>(
-      options.blockSchema || defaultBlockSchema,
-    ),
-    ...options,
-  })
+) => new BlockNoteEditor<BSchema>(options)
 
 /**
  * Main hook for importing a BlockNote editor into a React project

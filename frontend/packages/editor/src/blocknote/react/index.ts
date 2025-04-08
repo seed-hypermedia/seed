@@ -27,11 +27,10 @@ export * from './SideMenu/components/DragHandleMenu/DefaultDragHandleMenu'
 export * from './SideMenu/components/DragHandleMenu/DragHandleMenu'
 export * from './SideMenu/components/DragHandleMenu/DragHandleMenuItem'
 
-export * from './SlashMenu/ReactSlashMenuItem'
 export * from './SlashMenu/components/DefaultSlashMenu'
 export * from './SlashMenu/components/SlashMenuItem'
 export * from './SlashMenu/components/SlashMenuPositioner'
-export * from './SlashMenu/defaultReactSlashMenuItems'
+export * from './SlashMenu/ReactSlashMenuItem'
 
 export * from './LinkMenu/components/DefaultLinkMenu'
 export * from './LinkMenu/components/LinkMenuItem'
