@@ -17,6 +17,8 @@ export async function querySearch(searchQuery: string): Promise<SearchPayload> {
           id && {
             id,
             title: entity.title,
+            parentNames: entity.parentNames,
+            icon: entity.icon,
           }
         )
       })
