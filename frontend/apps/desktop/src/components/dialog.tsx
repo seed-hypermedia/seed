@@ -12,7 +12,11 @@ import {
   YStackProps,
   styled,
 } from 'tamagui'
-import {NavContextProvider, useNavigation} from '../utils/navigation'
+import {
+  NavContextProvider,
+  NavigationContext,
+  useNavigation,
+} from '../utils/navigation'
 
 export function DialogOverlay(props: any) {
   // for somer reason this is required for the overlay to go behind the DialogContent. maybe because of the DialogContent position:fixed below
@@ -185,10 +189,11 @@ export function useAppDialog<DialogInput>(
     isAlert?: boolean
     onClose?: () => void
     contentProps?: YStackProps
+    overrideNavigation?: NavigationContext
   },
 ) {
   const [openState, setOpenState] = useState<null | DialogInput>(null)
-  const nav = useNavigation()
+  const nav = useNavigation(options?.overrideNavigation)
 
   const Component = getComponent(options?.isAlert)
   const onClose = options?.onClose

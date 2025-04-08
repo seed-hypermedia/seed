@@ -1,4 +1,5 @@
 import {
+  createWebHMUrl,
   DAEMON_FILE_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
@@ -10,7 +11,8 @@ import {
   WEB_IDENTITY_ENABLED,
   WEB_SIGNING_ISSUER,
 } from '@shm/shared'
-import {Toaster} from '@shm/ui/toast'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {toast, Toaster} from '@shm/ui/toast'
 import {TamaguiProvider} from '@tamagui/core'
 import {PortalProvider} from '@tamagui/portal'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -69,6 +71,14 @@ export function WebSiteProvider(props: {
         window.open(url, '_blank')
       }}
       openRoute={null}
+      onCopyReference={async (hmId: UnpackedHypermediaId) => {
+        const url = createWebHMUrl(hmId.type, hmId.uid, {
+          ...hmId,
+          hostname: SITE_BASE_URL,
+        })
+        copyTextToClipboard(url)
+        toast('Comment link copied to clipboard')
+      }}
     >
       <script
         dangerouslySetInnerHTML={{

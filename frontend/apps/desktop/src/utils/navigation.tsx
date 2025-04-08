@@ -146,8 +146,11 @@ export function dispatchAppNavigation(action: NavAction) {
   return appNavDispatch(action)
 }
 
-export function useNavigation() {
+export function useNavigation(overrideNav: NavigationContext | undefined) {
   const nav = useContext(NavContext)
+  if (overrideNav) {
+    return overrideNav
+  }
   if (!nav)
     throw new Error('useNavigation must be used within a NavigationProvider')
   return nav

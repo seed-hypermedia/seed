@@ -107,7 +107,9 @@ export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
-  return useQuery(queryComment(grpcClient, id?.id, opts))
+  return useQuery(
+    queryComment(grpcClient, id?.type == 'c' ? id.uid : undefined, opts),
+  )
 }
 
 export function useComments(commentIds: string[] = []) {

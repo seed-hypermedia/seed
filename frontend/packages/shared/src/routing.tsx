@@ -13,6 +13,7 @@ type UniversalAppContextValue = {
   originHomeId?: UnpackedHypermediaId | undefined
   origin?: string
   openUrl: (url: string) => void
+  onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -30,6 +31,7 @@ export function UniversalAppProvider(props: {
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
+  onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 }) {
   return (
     <UniversalAppContext.Provider
@@ -40,6 +42,7 @@ export function UniversalAppProvider(props: {
         getOptimizedImageUrl: props.getOptimizedImageUrl,
         openUrl: props.openUrl,
         openRoute: props.openRoute,
+        onCopyReference: props.onCopyReference,
       }}
     >
       {props.children}

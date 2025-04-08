@@ -1647,7 +1647,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (id?.type == 'd') {
     return <EmbedTypes.Document {...props} {...id} />
   }
-  if (id?.type == 'comment') {
+  if (id?.type == 'c') {
     return <EmbedTypes.Comment {...props} {...id} />
   }
   return <BlockContentUnknown {...props} />

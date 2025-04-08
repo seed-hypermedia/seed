@@ -4,7 +4,7 @@ import {StateStream} from './stream'
 
 export const HYPERMEDIA_ENTITY_TYPES = {
   d: 'Document', // the default type
-  comment: 'Comment',
+  c: 'Comment',
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
@@ -43,6 +43,7 @@ export function createSiteUrl({
 }
 
 export function createHMUrl({
+  type,
   uid,
   path,
   version,
@@ -50,7 +51,12 @@ export function createHMUrl({
   blockRef,
   blockRange,
 }: UnpackedHypermediaId) {
-  let res = `hm://${uid}`
+  let res = 'hm://'
+  if (type === 'd') {
+    res += `${uid}`
+  } else {
+    res += `${type}/${uid}`
+  }
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
