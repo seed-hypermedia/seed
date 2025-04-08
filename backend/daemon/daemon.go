@@ -8,7 +8,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -35,12 +34,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
-
-func init() {
-	// See https://github.com/libp2p/go-libp2p/issues/2968, and https://github.com/golang/go/issues/69312.
-	// At some point we won't need this.
-	os.Setenv("GODEBUG", "asynctimerchan=1")
-}
 
 // App is the main Seed Daemon application, holding all of its dependencies
 // which can be used for embedding the daemon in other apps or for testing.
