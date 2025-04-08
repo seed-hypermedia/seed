@@ -1,5 +1,7 @@
 import {
   HMWritableDocument,
+  roleCanWrite,
+  useAllDocumentCapabilities,
   useMyWritableDocuments,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
@@ -10,6 +12,7 @@ import {pathNameify} from '@/utils/path'
 import {
   createSiteUrl,
   createWebHMUrl,
+  getParent,
   hmId,
   HMMetadataPayload,
   isIdParentOfOrEqual,
@@ -55,7 +58,7 @@ export function LocationPicker({
   onAvailable?: (isAvailable: boolean) => void
   allowedAccounts?: string[]
 }) {
-  const defaultAccountId = useDefaultAccountId(allowedAccounts)
+  const defaultAccountId = useDefaultAccountId(allowedAccounts, location)
   const {data: myAccountIds} = useMyAccountIds()
   const accts = useEntities(myAccountIds?.map((id) => hmId('d', id)) || [])
   const filteredAccounts = useMemo(() => {
@@ -444,10 +447,16 @@ function URLPreview({
   )
 }
 
-function useDefaultAccountId(allowedAccounts?: string[]): string | null {
+function useDefaultAccountId(
+  allowedAccounts?: string[],
+  defaultLocation?: UnpackedHypermediaId | null,
+): string | null {
   const recentSigners = trpc.recentSigners.get.useQuery()
   const {data: myAccountIds} = useMyAccountIds()
-
+  const parentLocation = getParent(defaultLocation)
+  const allDocumentCapabilities = useAllDocumentCapabilities(
+    parentLocation || undefined,
+  )
   if (!myAccountIds?.length) return null
   const myAccounts = new Set(myAccountIds)
 
@@ -457,6 +466,21 @@ function useDefaultAccountId(allowedAccounts?: string[]): string | null {
   const filteredAccounts = myAccountIds.filter((account) =>
     allowedAccountsSet ? allowedAccountsSet.has(account) : true,
   )
+  if (!allDocumentCapabilities.data) return null
+  const writableCaps = allDocumentCapabilities.data?.filter((cap) =>
+    roleCanWrite(cap.role),
+  )
+  if (defaultLocation && writableCaps?.length) {
+    const acctsWithCapsOfLocation: Set<string> = new Set(
+      writableCaps.map((cap) => cap.accountUid),
+    )
+    if (acctsWithCapsOfLocation.size) {
+      const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
+        acctsWithCapsOfLocation.has(signer),
+      )
+      return recentSigner || writableCaps[0]?.accountUid
+    }
+  }
   const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
     filteredAccounts.includes(signer),
   )

@@ -546,3 +546,13 @@ export function latestId(id: UnpackedHypermediaId): UnpackedHypermediaId {
     latest: true,
   }
 }
+
+export function getParent(
+  id: UnpackedHypermediaId | null | undefined,
+): UnpackedHypermediaId | null {
+  if (!id) return null
+  const parentPath = id.path?.slice(0, -1) || []
+  return hmId(id.type, id.uid, {
+    path: parentPath,
+  })
+}

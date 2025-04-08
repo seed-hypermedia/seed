@@ -1,5 +1,6 @@
 import {
   getRoleName,
+  HMCapability,
   useAddCapabilities,
   useAllDocumentCapabilities,
   useMyCapability,
@@ -9,11 +10,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {useEntity} from '@shm/shared/models/entity'
-
 import {Capability, Role} from '@shm/shared/client/grpc-types'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {DocumentRoute} from '@shm/shared/routes'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -239,13 +239,16 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   let content = (
     <GrantedCollabs
       capabilities={
-        capabilities.data?.filter((cap) => !cap.isGrantedToParent) || []
+        capabilities.data?.filter(
+          (cap) => cap.grantId.id === id.id && cap.role !== 'owner',
+        ) || []
       }
+      id={id}
     />
   )
 
   const parentCapabilities =
-    capabilities.data?.filter((cap) => cap.isGrantedToParent) || []
+    capabilities.data?.filter((cap) => cap.grantId.id !== id.id) || []
 
   // if (tab == 'pending') {
   //   content = <PendingCollabs capabilities={capabilities.data || []} />
@@ -256,7 +259,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
       {parentCapabilities ? (
         <YStack marginBottom="$3">
           {parentCapabilities.map((cap) => (
-            <CollaboratorItem key={cap.account} capability={cap} />
+            <CollaboratorItem key={cap.accountUid} capability={cap} id={id} />
           ))}
         </YStack>
       ) : null}
@@ -280,14 +283,20 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
 
 function GrantedCollabs({
   capabilities = [],
+  id,
 }: {
-  capabilities: Array<PlainMessage<Capability>>
+  capabilities: Array<HMCapability>
+  id: UnpackedHypermediaId
 }) {
   return (
     <YStack marginHorizontal={-8}>
       {capabilities?.map((capability) => {
         return (
-          <CollaboratorItem key={capability.account} capability={capability} />
+          <CollaboratorItem
+            key={capability.accountUid}
+            capability={capability}
+            id={id}
+          />
         )
       })}
     </YStack>
@@ -313,12 +322,15 @@ function PendingCollabs({
 
 function CollaboratorItem({
   capability,
+  id,
 }: {
-  capability: PlainMessage<Capability> & {isGrantedToParent: boolean}
+  capability: HMCapability
+  id: UnpackedHypermediaId
 }) {
   const navigate = useNavigate('push')
-  const collaboratorId = hmId('d', capability.delegate)
+  const collaboratorId = hmId('d', capability.accountUid)
   const entity = useSubscribedEntity(collaboratorId)
+  if (capability.role === 'owner') return null
   return (
     <ListItem
       bg="$colorTransparent"
@@ -345,7 +357,7 @@ function CollaboratorItem({
         </SizableText>
         <SizableText size="$1" color="$color9">
           {getRoleName(capability.role)}{' '}
-          {capability.isGrantedToParent ? '(Parent Capability)' : ''}
+          {capability.grantId.id !== id.id ? '(Parent Capability)' : ''}
         </SizableText>
       </XStack>
     </ListItem>
@@ -575,7 +587,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
       >
         <XStack gap="$2" flex={1} jc="flex-start">
           {/* <Ariakit.SelectItemCheck /> */}
-          {entity.data?.document?.metadata ? (
+          {entity.data?.document?.metadata && props.member?.id ? (
             <HMIcon
               size={16}
               metadata={entity.data?.document?.metadata}

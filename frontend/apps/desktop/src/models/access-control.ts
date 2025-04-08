@@ -58,28 +58,30 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
   })
 }
 
-export function getRoleName(role: Role) {
-  if (role === Role.WRITER) return 'Writer'
-  if (role === Role.ROLE_UNSPECIFIED) return 'None'
+export function getRoleName(role: HMRole) {
+  if (role === 'writer') return 'Writer'
+  if (role === 'owner') return 'Owner'
+  if (role === 'none') return 'None'
   return 'None'
 }
 
-function getRoleCapabilityType(role: Role): HMRole | null {
+export function getRoleCapabilityType(role: Role): HMRole | null {
   if (role === Role.WRITER) return 'writer'
   return null
 }
 
-type HMCapability = {
+export type HMCapability = {
   accountUid: string
   role: HMRole
   capabilityId?: string
+  grantId: UnpackedHypermediaId
 }
 
 const CapabilityInheritance: Readonly<HMRole[]> =
   // used to determine when one capability can be used in place of another. all owners are writers, for example
   ['owner', 'writer', 'none']
 
-export function roleCanWrite(role?: HMRole | undefined) {
+export function roleCanWrite(role?: HMRole | null | undefined) {
   if (!role) return false
   const writeCapIndex = CapabilityInheritance.indexOf('writer')
   const roleIndex = CapabilityInheritance.indexOf(role)
@@ -194,31 +196,22 @@ export function useMyCapability(
   const capabilities = useAllDocumentCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     // owner is the highest role so we don't need to check for minimumRole
-    return {accountUid: id.uid, role: 'owner'}
+    return {accountUid: id.uid, role: 'owner', grantId: hmId('d', id.uid)}
   }
   const myCapability = [...(capabilities.data || [])]
     ?.sort(
       // sort by capability id for deterministic capability selection
-      (a, b) => a.id.localeCompare(b.id),
+      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
     )
     .filter((cap) => {
-      return isGreaterOrEqualRole(minimumRole, roleToHMRole(cap.role))
+      return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .find((cap) => {
       return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.delegate,
+        (myAccountUid) => myAccountUid === cap.accountUid,
       )
     })
-  if (myCapability) {
-    const role = getRoleCapabilityType(myCapability.role)
-    if (role)
-      return {
-        accountUid: myCapability.delegate,
-        role: 'writer',
-        capabilityId: myCapability.id,
-      }
-  }
-  return null
+  return myCapability || null
 }
 
 export function useMyCapabilities(
@@ -231,32 +224,27 @@ export function useMyCapabilities(
 
   const ownerCap: HMCapability[] =
     myAccounts.data && myAccounts.data.indexOf(id.uid) > -1
-      ? [{accountUid: id.uid, role: 'owner'}]
+      ? [
+          {
+            accountUid: id.uid,
+            role: 'owner',
+            grantId: hmId('d', id.uid),
+          } satisfies HMCapability,
+        ]
       : []
-  const myCapabilities = [...(capabilities.data || [])]
+  const myCapabilities: HMCapability[] = [...(capabilities.data || [])]
     ?.sort(
       // sort by capability id for deterministic capability selection
-      (a, b) => a.id.localeCompare(b.id),
+      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
     )
     .filter((cap) => {
-      return isGreaterOrEqualRole(minimumRole, roleToHMRole(cap.role))
+      return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .filter((cap) => {
       return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.delegate,
+        (myAccountUid) => myAccountUid === cap.accountUid,
       )
     })
-    .map((cap) => {
-      const role = getRoleCapabilityType(cap.role)
-      if (role)
-        return {
-          accountUid: cap.delegate,
-          role,
-          capabilityId: cap.id,
-        }
-      return null
-    })
-    .filter((cap) => cap !== null)
   return [...ownerCap, ...myCapabilities]
 }
 
@@ -267,7 +255,7 @@ export function useMyAccountsWithWriteAccess(
   const capabilities = useAllDocumentCapabilities(id)
 
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
-    return !!capabilities.data?.find((cap) => cap.delegate === accountUid)
+    return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
   })
   let accountsWithCapabilities =
     myAccountIdsWithCapability?.map((k) => hmId('d', k)) || []
@@ -278,7 +266,7 @@ export function useMyAccountsWithWriteAccess(
 }
 
 export function useAllDocumentCapabilities(
-  id: UnpackedHypermediaId | undefined,
+  id: UnpackedHypermediaId | undefined | null,
 ) {
   return useQuery({
     queryKey: [queryKeys.CAPABILITIES, id?.uid, ...(id?.path || [])],
@@ -298,10 +286,21 @@ export function useAllDocumentCapabilities(
         alreadyCapKeys.add(key)
         outputCaps.push(cap)
       }
-      return outputCaps.map((cap) => ({
-        ...cap,
-        isGrantedToParent: cap.path !== hmIdPathToEntityQueryPath(id.path),
-      }))
+      const grantedCaps = outputCaps.map((cap) => ({
+        accountUid: cap.delegate,
+        grantId: hmId('d', cap.account, {
+          path: entityQueryPathToHmIdPath(cap.path),
+        }),
+        role: roleToHMRole(cap.role),
+      })) satisfies HMCapability[]
+      return [
+        ...grantedCaps,
+        {
+          accountUid: id.uid,
+          grantId: hmId('d', id.uid),
+          role: 'owner',
+        },
+      ] satisfies HMCapability[]
     },
   })
 }

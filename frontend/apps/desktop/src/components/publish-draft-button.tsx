@@ -210,7 +210,7 @@ export default function PublishDraftButton() {
           }
         })
     }
-    if (draft.data.editId) {
+    if (draft.data.editId && draft.data.signingAccount) {
       handlePublish(draft.data.editId, draft.data.signingAccount)
     } else {
       firstPublishDialog.open({
@@ -221,6 +221,7 @@ export default function PublishDraftButton() {
           handlePublish(location, account)
         },
         defaultLocation: draft.data.locationId,
+        defaultAccount: draft.data.signingAccount,
       })
     }
   }
@@ -231,7 +232,11 @@ export default function PublishDraftButton() {
       <XGroup borderRadius="$2" overflow="hidden">
         <XGroup.Item>
           <Tooltip
-            content={`publish as ${signingAccount?.document?.metadata.name}`}
+            content={
+              signingAccount
+                ? `Publish as ${signingAccount?.document?.metadata.name}`
+                : 'Publish Document...'
+            }
           >
             <Button
               size="$2"
@@ -296,6 +301,7 @@ function FirstPublishDialog({
   input: {
     newDefaultName: string
     defaultLocation: UnpackedHypermediaId | null | undefined
+    defaultAccount: string | null | undefined
     onSelectDestination: (
       location: UnpackedHypermediaId,
       account: string,
@@ -303,8 +309,10 @@ function FirstPublishDialog({
   }
   onClose: () => void
 }) {
-  const [account, setAccount] = useState<string | null>(null)
-  // const navigate = useNavigate()
+  console.log('~~ FirstPublishDialog', input)
+  const [account, setAccount] = useState<string | null>(
+    input.defaultAccount || null,
+  )
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.defaultLocation
       ? hmId('d', input.defaultLocation.uid, {

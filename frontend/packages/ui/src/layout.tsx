@@ -64,10 +64,6 @@ export const useDocumentLayout = (
     // Always set initial width, even if element isn't available yet
     if (!element) {
       const initialWidth = getContentWidth(config.contentWidth) || 0
-      console.log(
-        'useDocumentLayout: no element, setting initial width:',
-        initialWidth,
-      )
       setWidthState(initialWidth)
     } else {
       const width = element.getBoundingClientRect().width

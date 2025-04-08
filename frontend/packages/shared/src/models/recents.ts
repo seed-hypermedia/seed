@@ -23,10 +23,8 @@ export function useRecents() {
   return useQuery({
     queryKey: [queryKeys.RECENTS],
     queryFn: async () => {
-      console.log('~~ FETCH useRecents', !!queryRecents)
       if (!queryRecents) throw new Error('queryRecents not injected')
       const r = await queryRecents()
-      console.log('~~ FETCH useRecents = ', r)
       if (Array.isArray(r)) {
         return r
       } else {
