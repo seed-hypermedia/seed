@@ -2,17 +2,18 @@ import appError from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
-import {useRecents} from '@/models/recents'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {trpc} from '@/trpc'
 import {
   isHttpUrl,
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
+  useNavRoute,
 } from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {NavRoute} from '@shm/shared/routes'
 import {
@@ -118,31 +119,34 @@ export function SearchInput({
       })
       .filter(Boolean) ?? []
 
+  const route = useNavRoute()
+  const docRoute = route?.key === 'document' ? route : null
   const recentItems =
-    recents.data?.map(({url, title, subtitle}, index) => {
-      const id = unpackHmId(url)
-      return {
-        key: url,
-        title,
-        subtitle,
-        path: id?.path,
-        onFocus: () => {
-          setFocusedIndex(index)
-        },
-        onMouseEnter: () => {
-          setFocusedIndex(index)
-        },
-        onSelect: () => {
-          const id = unpackHmId(url)
-          if (!id) {
-            toast.error('Failed to open recent: ' + url)
-            return
-          } else {
-            onSelect({id})
-          }
-        },
-      }
-    }) || []
+    recents.data
+      ?.filter(({id}) => {
+        return !docRoute || id.id !== docRoute.id.id
+      })
+      .map(({id, name}, index) => {
+        return {
+          key: id.id,
+          title: name,
+          subtitle: undefined,
+          onFocus: () => {
+            setFocusedIndex(index)
+          },
+          onMouseEnter: () => {
+            setFocusedIndex(index)
+          },
+          onSelect: () => {
+            if (!id) {
+              toast.error('Failed to open recent: ' + id.id)
+              return
+            } else {
+              onSelect({id})
+            }
+          },
+        }
+      }) || []
   const isDisplayingRecents = !search.length
   const activeItems = isDisplayingRecents
     ? recentItems

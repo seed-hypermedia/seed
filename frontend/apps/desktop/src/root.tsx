@@ -41,11 +41,13 @@ import {
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import * as entities from './models/entities'
+import * as recents from './models/recents'
 import * as search from './models/search'
 
 // reference this to ensure dependency injection happens before the injected queries are used
 search
 entities
+recents
 
 const logger = {
   log: wrapLogger(console.log),
@@ -260,8 +262,9 @@ function MainApp({}: {}) {
           utils.gatewaySettings.getPushOnCopy.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnPublish') {
           utils.gatewaySettings.getPushOnPublish.invalidate()
-        } else if (value[0] === 'trpc.recents.getRecents') {
-          utils.recents.getRecents.invalidate()
+          // } else if (value[0] === queryKeys.RECENTS) {
+          //   console.log('~~ invalidateRecents', value)
+          //   utils.recents.getRecents.invalidate()
         } else if (value[0] === 'trpc.appSettings.getAutoUpdatePreference') {
           utils.appSettings.getAutoUpdatePreference.invalidate()
         } else if (value[0] == 'trpc.drafts.get') {

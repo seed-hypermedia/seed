@@ -7,9 +7,11 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {setEntityQuery} from '@shm/shared/models/entity'
+import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect} from 'react'
+import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {DiscussionPayload} from './routes/hm.api.discussion'
@@ -100,4 +102,6 @@ export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
 export function injectModels() {
   setSearchQuery(searchQuery)
   setEntityQuery(entityQuery)
+  setRecentsQuery(getRecents)
+  setDeleteRecents(deleteRecent)
 }

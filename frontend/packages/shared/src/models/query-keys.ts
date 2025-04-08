@@ -83,6 +83,9 @@ export const queryKeys = {
   PAYMENT_RECIPIENTS: 'PAYMENT_RECIPIENTS', // string: "accountUid,accountUid"
   INVOICE_STATUS: 'INVOICE_STATUS', // invoiceId: string
 
+  // recents
+  RECENTS: 'RECENTS',
+
   // web stuff is queried differently...
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string

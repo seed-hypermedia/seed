@@ -69,15 +69,9 @@ export default function DraftPage() {
   const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
     undefined,
   )
-  console.log(`== ~ DraftPage ~ ROUTE:`, route)
-
   const {data, editor, send, state, actor} = useDraftEditor()
-
-  console.log(`== ~ DraftPage ~ CONTENT:`, data?.content)
-
   const isNewspaperLayout =
     data?.metadata?.layout === 'Seed/Experimental/Newspaper'
-
   const locationId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
@@ -264,7 +258,6 @@ function DocumentEditor({
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
-  console.log(`== ~ DocumentEditor ~ state:`, state.context)
   const showOutline =
     typeof state.context.metadata.showOutline == 'undefined' ||
     state.context.metadata.showOutline

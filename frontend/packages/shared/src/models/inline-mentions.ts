@@ -1,16 +1,19 @@
+import {useEffect, useRef} from 'react'
+import {useRecents} from './recents'
 import {searchQuery, SearchResultItem} from './search'
 
-// function useRecents() {
-//   return useQuery({
-//     queryKey: ['recents'],
-//     queryFn: () => {
-//       return []
-//     },
-//   })
-// }
-
 export function useInlineMentions() {
-  // const recents = useRecents()
+  const recents = useRecents()
+  const recentsRef = useRef<InlineSearchItem[]>([])
+  useEffect(() => {
+    recentsRef.current =
+      recents.data?.map((recent) => ({
+        title: recent.name,
+        subtitle: '',
+        value: recent.id.id,
+      })) ?? []
+  }, [recents])
+
   async function onMentionsQuery(query: string) {
     if (!searchQuery) throw new Error('searchQuery not injected')
     const resp = await searchQuery(query)
@@ -25,7 +28,7 @@ export function useInlineMentions() {
     const emptyRespose: InlineMentionsResult = {
       Sites: [],
       Documents: [],
-      Recents: [],
+      Recents: recentsRef.current,
     }
     if (!entities.length) return emptyRespose
     const response = entities.reduce((acc: InlineMentionsResult, entity) => {

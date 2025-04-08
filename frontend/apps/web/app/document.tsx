@@ -39,6 +39,7 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react'
 import {WebCommenting} from './client-lazy'
 import {getHref} from './href'
 import type {SiteDocumentPayload} from './loaders'
+import {addRecent, getRecents} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
 import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
@@ -124,6 +125,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
     enableSiteIdentity,
     origin,
   } = props
+  useEffect(() => {
+    if (!id) return
+    addRecent(id.id, document?.metadata?.name || '').then(() => {
+      getRecents().then((recents) => {
+        console.log('added to recents', recents)
+      })
+    })
+  }, [id, document?.metadata?.name])
   if (!id) return <NotFoundPage {...props} />
   if (!document)
     return (

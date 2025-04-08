@@ -283,12 +283,7 @@ export const draftsApi = t.router({
       HMDraftContentSchema.parse(draft)
 
       try {
-        console.log(
-          `=== DRAFT WRITE input: ${input.id}`,
-          JSON.stringify(draft, null, 2),
-        )
         await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
-
         appInvalidateQueries(['trpc.drafts.list'])
         appInvalidateQueries(['trpc.drafts.listAccount'])
         return {id: draftId}

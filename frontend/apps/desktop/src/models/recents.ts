@@ -1,24 +1,11 @@
-import {trpc} from '@/trpc'
-import {invalidateQueries} from '@shm/shared/models/query-client'
-import {getRecentsRouteEntityUrl} from '@shm/shared/routes'
-import {useNavRoute} from '../utils/navigation'
+import {client} from '@/trpc'
+import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 
-export function useRecents() {
-  const route = useNavRoute()
-  const currentRouteUrl = getRecentsRouteEntityUrl(route)
-  const recentsQuery = trpc.recents.getRecents.useQuery()
-  return {
-    ...recentsQuery,
-    data: recentsQuery.data?.filter((item) => {
-      return item.url !== currentRouteUrl
-    }),
-  }
-}
+setRecentsQuery(async () => {
+  const r = await client.recents.getRecents.query()
+  return r
+})
 
-export function useDeleteRecent() {
-  return trpc.recents.deleteRecent.useMutation({
-    onSuccess: () => {
-      invalidateQueries(['trpc.recents.getRecents'])
-    },
-  })
-}
+setDeleteRecents(async (id: string) => {
+  await client.recents.deleteRecent.mutate(id)
+})

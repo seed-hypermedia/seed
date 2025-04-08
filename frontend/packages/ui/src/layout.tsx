@@ -53,11 +53,6 @@ export const useDocumentLayout = (
   const [widthState, setWidthState] = useState(initialWidth)
 
   useIsomorphicLayoutEffect(() => {
-    console.log('useDocumentLayout effect running')
-    console.log(
-      'useDocumentLayout effect running, elementRef:',
-      elementRef.current,
-    )
     // Check if we're in a browser environment
     if (typeof window === 'undefined') {
       console.log('useDocumentLayout: window undefined, skipping effect')

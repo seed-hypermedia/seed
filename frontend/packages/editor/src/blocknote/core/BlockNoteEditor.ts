@@ -38,7 +38,7 @@ import {
 } from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import {UnpackedHypermediaId} from '@shm/shared'
-import {InlineMentionsResult} from '@shm/shared/src/models/inline-mentions'
+import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'

@@ -1,5 +1,5 @@
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
-import {InlineMentionsResult} from '@shm/shared/src/models/inline-mentions'
+import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/button'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
@@ -281,7 +281,6 @@ function AutocompletePopupInner(
     },
 ) {
   const {rect, text, onClose, range, onCreate, editor} = props
-
   const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>([
     'Recents',
     0,
@@ -291,16 +290,19 @@ function AutocompletePopupInner(
     Sites: [],
     Documents: [],
   })
+
   useEffect(() => {
-    if (text.length)
-      editor.options
-        .onMentionsQuery(text)
-        .then((results: InlineMentionsResult) => {
-          setSuggestions(results)
-          if (isOptionsEmpty(results) && text.length > 5) {
-            onClose()
-          }
-        })
+    editor.options
+      .onMentionsQuery(text)
+      .then((results: InlineMentionsResult) => {
+        setSuggestions((suggestions) => ({
+          ...suggestions,
+          ...results,
+        }))
+        if (isOptionsEmpty(results) && text.length > 5) {
+          onClose()
+        }
+      })
   }, [text])
 
   const groupsOrder = ['Recents', 'Sites', 'Documents'] as const

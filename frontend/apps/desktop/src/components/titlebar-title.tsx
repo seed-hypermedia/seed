@@ -693,7 +693,6 @@ export function Title({size}: {size?: FontSizeTokens}) {
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
 
-  console.log(`== ~ DraftTitle ~ draft:`, draft)
   const locationId = useMemo(() => {
     if (draft.data?.locationId) return draft.data.locationId
     let uId = draft.data?.locationUid || route.locationUid
@@ -718,8 +717,6 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     }
     return undefined
   }, [draft.data, route.editUid, route.editPath])
-
-  console.log(`== ~ DraftTitle ~ draft locationId:`, locationId)
 
   if (locationId)
     return (

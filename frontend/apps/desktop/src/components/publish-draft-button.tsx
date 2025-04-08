@@ -52,7 +52,6 @@ export default function PublishDraftButton() {
     throw new Error('DraftPublicationButtons requires draft route')
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
-  console.log('~~ draft', draft.data)
   const pushOnPublish = usePushOnPublish()
   const prevId = draftRoute.editUid
     ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
@@ -124,10 +123,6 @@ export default function PublishDraftButton() {
 
   useEffect(() => {
     if (signingAccount && signingAccount.id.uid) {
-      console.log(
-        '~~ signingAccount inside publish-draft-button',
-        signingAccount,
-      )
       draftDispatch({type: 'change', signingAccount: signingAccount.id.uid})
     }
   }, [signingAccount])
@@ -172,8 +167,6 @@ export default function PublishDraftButton() {
       throw new Error('Draft not loaded')
     }
 
-    console.log(draft.data)
-
     function handlePublish(
       destinationId: UnpackedHypermediaId,
       accountId: string,
@@ -217,7 +210,6 @@ export default function PublishDraftButton() {
           }
         })
     }
-    console.log('~~ draft editId', draft.data.editId)
     if (draft.data.editId) {
       handlePublish(draft.data.editId, draft.data.signingAccount)
     } else {

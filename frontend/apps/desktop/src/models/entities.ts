@@ -9,12 +9,12 @@ import {
 import { setEntityQuery, useEntities } from '@shm/shared/models/entity'
 import { invalidateQueries, queryClient } from '@shm/shared/models/query-client'
 import { queryKeys } from '@shm/shared/models/query-keys'
+import { useDeleteRecent } from '@shm/shared/models/recents'
 import { hmId, unpackHmId } from '@shm/shared/utils/entity-id-url'
 import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
 import { useMutation, UseMutationOptions, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { queryListDirectory } from './documents'
-import { useDeleteRecent } from './recents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
