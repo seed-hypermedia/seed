@@ -407,7 +407,6 @@ function EditDocButton() {
           placement="bottom"
         >
           <Popover.Trigger zIndex="$zIndex.9">{button}</Popover.Trigger>
-
           <Popover.Content
             borderWidth={1}
             borderColor="$borderColor"

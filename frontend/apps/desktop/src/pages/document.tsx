@@ -455,7 +455,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        bg="$background"
+        bg="$backgroundTransparent"
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">

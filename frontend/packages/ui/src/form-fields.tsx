@@ -93,7 +93,6 @@ export function SelectField({
       borderColor="$color5"
       borderRadius="$2"
       animation="fast"
-      bg="red"
     >
       <SelectDropdown
         width="100%"
