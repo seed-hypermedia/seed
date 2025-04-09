@@ -203,10 +203,18 @@ export function LocationPicker({
                         }),
                       )
                     }}
+                    h="auto"
+                    minHeight={40}
                   >
-                    <XStack jc="space-between" f={1}>
-                      <SizableText>{d.metadata.name}</SizableText>
-                      <SizableText color="$color8">
+                    <XStack jc="space-between" f={1} flexWrap="wrap">
+                      <SizableText numberOfLines={1}>
+                        {d.metadata.name}
+                      </SizableText>
+                      <SizableText
+                        numberOfLines={1}
+                        color="$color8"
+                        textAlign="right"
+                      >
                         {d.path?.at(-1)}
                       </SizableText>
                     </XStack>
