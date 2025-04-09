@@ -7,11 +7,11 @@ export function DraftBadge() {
       alignSelf="center"
       paddingVertical="0"
       paddingHorizontal="$1.5"
-      borderColor="$yellow10"
+      borderColor="$yellow9"
       borderRadius="$2"
       borderWidth={1}
     >
-      <SizableText size="$1" color="$yellow10">
+      <SizableText size="$1" color="$yellow9">
         Draft
       </SizableText>
     </XStack>
