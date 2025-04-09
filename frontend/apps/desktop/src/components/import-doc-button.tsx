@@ -4,18 +4,13 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {pathNameify} from '@/utils/path'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
   MarkdownToBlocks,
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
-import {
-  HMDraft,
-  HMEntityContent,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
 import {FileInput, FolderInput} from '@shm/ui/icons'
@@ -23,6 +18,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
+import {nanoid} from 'nanoid'
 import {ReactElement, useMemo} from 'react'
 import {XStack} from 'tamagui'
 import {
@@ -251,30 +247,20 @@ const ImportDocumentsWithFeedback = (
         const createdAt = frontmatter.created_at
           ? new Date(frontmatter.created_at)
           : new Date()
-        let path = frontmatter.path
-          ? frontmatter.path.slice(1)
-          : pathNameify(documentTitle)
 
-        // Handle duplicate paths by appending a counter number
-        if (pathCounter[path]) {
-          pathCounter[path] += 1
-          path = `${path}-${pathCounter[path] - 1}`
-        } else {
-          pathCounter[path] = 1
-        }
+        // let path = frontmatter.path
+        //   ? frontmatter.path.slice(1)
+        //   : pathNameify(documentTitle)
+
+        // // Handle duplicate paths by appending a counter number
+        // if (pathCounter[path]) {
+        //   pathCounter[path] += 1
+        //   path = `${path}-${pathCounter[path] - 1}`
+        // } else {
+        //   pathCounter[path] = 1
+        // }
 
         const blocks = await MarkdownToBlocks(markdown, editor)
-        let inputData: Partial<HMDraft> = {
-          content: blocks,
-          deps: [],
-          metadata: {
-            name: documentTitle,
-            icon: icon,
-            cover: cover,
-          },
-          lastUpdateTime: Date.now(),
-          signingAccount: signingAccount?.document?.account || undefined,
-        }
 
         // Commented code below is subdirectories import
 
@@ -327,16 +313,18 @@ const ImportDocumentsWithFeedback = (
 
         // const packedId = packHmId(newId)
 
-        // console.log(packedId)
-
-        // await createDraft.mutateAsync({
-        //   id: packedId,
-        //   draft: inputData,
-        // })
-
         await createDraft.mutateAsync({
-          id: id.id + '/' + path,
-          draft: inputData,
+          id: nanoid(10),
+          locationUid: id.uid,
+          locationPath: id.path ? id.path : [],
+          content: blocks,
+          deps: [],
+          metadata: {
+            name: documentTitle,
+            icon: icon ?? undefined,
+            cover: cover ?? undefined,
+          },
+          signingAccount: signingAccount?.document?.account || undefined,
         })
       }
       resolve(`Imported ${documents.length} documents.`)
