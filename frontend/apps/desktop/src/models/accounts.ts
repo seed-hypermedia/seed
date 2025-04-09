@@ -1,3 +1,4 @@
+import {templates} from '@/app-templates'
 import {grpcClient} from '@/grpc-client'
 import {useMyAccountIds} from '@/models/daemon'
 import {client, trpc} from '@/trpc'
@@ -22,7 +23,11 @@ export function useAccounts() {
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
       const res = await grpcClient.documents.listAccounts({})
-      const accounts = res.accounts.map((account) => ({
+      const totalAccounts = res.accounts?.filter((acc) => {
+        // filter out template accounts
+        return !Object.values(templates).includes(acc.id)
+      })
+      const accounts = totalAccounts.map((account) => ({
         ...toPlainMessage(account),
         metadata: HMDocumentMetadataSchema.parse(
           hmMetadataJsonCorrection(
