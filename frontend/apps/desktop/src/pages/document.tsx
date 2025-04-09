@@ -100,7 +100,13 @@ export default function DocumentPage() {
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
     )
   } else if (accessoryKey === 'comments') {
-    accessory = <CommentsPanel onClose={handleClose} {...route.accessory} />
+    accessory = (
+      <CommentsPanel
+        onClose={handleClose}
+        docId={route.id}
+        {...route.accessory}
+      />
+    )
   } else if (accessoryKey === 'all-documents') {
     accessory = (
       <AccessoryContainer title="All Documents" onClose={handleClose} />
@@ -724,6 +730,25 @@ function DocPageContent({
         blockRange: blockRange || undefined,
       }}
       docId={entity.id}
+      onBlockComment={(blockId, blockRange) => {
+        console.log('~~~ onBlockComment', {blockId, blockRange})
+        if (route.key !== 'document') return
+        if (!blockId) return
+        replace({
+          ...route,
+          id: {
+            ...route.id,
+            blockRef: blockId,
+            blockRange:
+              blockRange && 'start' in blockRange && 'end' in blockRange
+                ? blockRange
+                : null,
+          },
+          accessory: {
+            key: 'comments',
+          },
+        })
+      }}
       isBlockFocused={isBlockFocused}
     >
       <DocContent

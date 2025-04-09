@@ -47,7 +47,12 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
+import {
+  EmbedComment,
+  EmbedDocument,
+  EmbedInline,
+  QueryBlockWeb,
+} from './web-embeds'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -500,7 +505,7 @@ function WebDocContentProvider({
     <DocContentProvider
       entityComponents={{
         Document: EmbedDocument,
-        Comment: () => null,
+        Comment: EmbedComment,
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}

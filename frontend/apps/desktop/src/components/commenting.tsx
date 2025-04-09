@@ -151,14 +151,19 @@ export function RepliesEditor({
 }
 
 export const CommentDraft = memo(_CommentDraft)
-function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
+function _CommentDraft({
+  docId,
+  backgroundColor = '$color4',
+}: {
+  docId: UnpackedHypermediaId
+  backgroundColor?: string
+}) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, undefined)
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
-  const bgColor = '$color4'
   if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
@@ -186,9 +191,9 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         chromeless
         color="$color8"
         fontSize={17}
-        bg={bgColor}
-        hoverStyle={{bg: bgColor}}
-        focusStyle={{bg: bgColor, borderWidth: 0}}
+        bg={backgroundColor}
+        hoverStyle={{bg: backgroundColor}}
+        focusStyle={{bg: backgroundColor, borderWidth: 0}}
         borderWidth={0}
         // fontStyle="italic"
         h="auto"
@@ -207,16 +212,16 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
     )
   }
   return (
-    <XStack
+    <YStack
       borderRadius="$4"
       // borderWidth={2}
       // borderColor="$color8"
       minHeight={105}
       onPress={onPress}
-      bg={bgColor}
+      bg={backgroundColor}
     >
       {content}
-    </XStack>
+    </YStack>
   )
 }
 const CommentDraftEditor = memo(_CommentDraftEditor)
