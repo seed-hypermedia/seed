@@ -8,7 +8,6 @@ import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {useTemplateDialog} from '@/components/site-template'
@@ -160,30 +159,30 @@ export default function DocumentPage() {
   const templateDialogContent = useTemplateDialog(route)
   return (
     <>
-      <SidebarSpacer />
-      <AccessoryLayout
-        mainPanelRef={mainPanelRef}
-        accessory={accessory}
-        accessoryKey={accessoryKey}
-        onAccessorySelect={(key: typeof accessoryKey) => {
-          if (key === accessoryKey || key === undefined)
-            return replace({...route, accessory: null})
-          replace({...route, accessory: {key}})
-        }}
-        accessoryOptions={accessoryOptions}
-      >
-        <MainDocumentPage
-          id={route.id}
-          isBlockFocused={route.isBlockFocused || false}
-          onScrollParamSet={(isFrozen) => {
-            mainPanelRef.current?.style.setProperty(
-              'overflow',
-              isFrozen ? 'hidden' : 'auto',
-            )
+      <XStack flex={1} height="100%">
+        <AccessoryLayout
+          mainPanelRef={mainPanelRef}
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            if (key === accessoryKey || key === undefined)
+              return replace({...route, accessory: null})
+            replace({...route, accessory: {key}})
           }}
-        />
-      </AccessoryLayout>
-
+          accessoryOptions={accessoryOptions}
+        >
+          <MainDocumentPage
+            id={route.id}
+            isBlockFocused={route.isBlockFocused || false}
+            onScrollParamSet={(isFrozen) => {
+              mainPanelRef.current?.style.setProperty(
+                'overflow',
+                isFrozen ? 'hidden' : 'auto',
+              )
+            }}
+          />
+        </AccessoryLayout>
+      </XStack>
       {templateDialogContent}
     </>
   )

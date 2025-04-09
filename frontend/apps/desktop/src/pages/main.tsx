@@ -103,12 +103,14 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <PanelGroup direction="horizontal" style={{flex: 1}}>
+          <XStack flex={1} h="100%">
             {sidebar}
-            <Panel id="page" order={2}>
-              <PageComponent />
-            </Panel>
-          </PanelGroup>
+            <PanelGroup direction="horizontal" style={{flex: 1}}>
+              <Panel id="page" order={2}>
+                <PageComponent />
+              </Panel>
+            </PanelGroup>
+          </XStack>
           <Footer />
           <AutoUpdater />
         </ErrorBoundary>

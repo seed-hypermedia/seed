@@ -96,138 +96,140 @@ export default function LibraryPage() {
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
 
   return (
-    <PanelContainer>
-      <MainWrapper scrollable>
-        <Container justifyContent="center" centered>
-          <CreateAccountBanner />
-          <XStack marginBottom="$4">
-            <DisplayModeTab
-              label="Subscribed"
-              value="subscribed"
-              activeValue={displayMode}
-              onDisplayMode={setDisplayMode}
-            />
-            <DisplayModeTab
-              label="Favorites"
-              value="favorites"
-              activeValue={displayMode}
-              onDisplayMode={setDisplayMode}
-            />
-            <DisplayModeTab
-              label="All"
-              value="all"
-              activeValue={displayMode}
-              onDisplayMode={setDisplayMode}
-            />
-          </XStack>
-          <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
-            <XStack gap="$2">
-              <GroupingControl
-                grouping={grouping}
-                onGroupingChange={setGrouping}
+    <XStack flex={1} height="100%">
+      <PanelContainer>
+        <MainWrapper scrollable>
+          <Container justifyContent="center" centered>
+            <CreateAccountBanner />
+            <XStack marginBottom="$4">
+              <DisplayModeTab
+                label="Subscribed"
+                value="subscribed"
+                activeValue={displayMode}
+                onDisplayMode={setDisplayMode}
+              />
+              <DisplayModeTab
+                label="Favorites"
+                value="favorites"
+                activeValue={displayMode}
+                onDisplayMode={setDisplayMode}
+              />
+              <DisplayModeTab
+                label="All"
+                value="all"
+                activeValue={displayMode}
+                onDisplayMode={setDisplayMode}
               />
             </XStack>
-            {isLibraryEmpty ? null : (
-              <XStack gap="$3" ai="center">
-                <Button
-                  size="$2"
-                  onPress={() => {
-                    if (isSelecting) {
-                      exportDocuments(selectedDocIds).then((res) => {
-                        setIsSelecting(false)
-                        setSelectedDocIds([])
-                      })
-                    } else {
-                      setIsSelecting(true)
-                    }
-                  }}
-                  icon={FileOutput}
-                  bg="$brand5"
-                  borderColor="$brand5"
-                  color="white"
-                  hoverStyle={{
-                    bg: '$brand6',
-                    borderColor: '$brand6',
-                  }}
-                >
-                  Export
-                </Button>
-                {isSelecting ? (
-                  <Button
-                    size="$2"
-                    theme="red"
-                    onPress={() => {
-                      setIsSelecting(false)
-                      setSelectedDocIds([])
-                    }}
-                    iconAfter={X}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-                <OptionsDropdown
-                  menuItems={[
-                    {
-                      label: 'Mark all as read',
-                      key: 'mark-all-as-read',
-                      icon: CheckCheck,
-                      onPress: () => {
-                        markAsRead(
-                          library.items
-                            ?.map((item) => {
-                              if (item.type === 'site') {
-                                return hmId('d', item.id)
-                              }
-                              return hmId('d', item.account, {
-                                path: item.path,
-                              })
-                            })
-                            .filter(
-                              (id) => id !== null,
-                            ) as UnpackedHypermediaId[],
-                        )
-                      },
-                    },
-                  ]}
+            <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
+              <XStack gap="$2">
+                <GroupingControl
+                  grouping={grouping}
+                  onGroupingChange={setGrouping}
                 />
               </XStack>
-            )}
-          </XStack>
-          <librarySelectionContext.Provider
-            value={{
-              isSelecting,
-              selectedDocIds,
-              onSelect: (id, isSelected) => {
-                setSelectedDocIds(
-                  isSelected
-                    ? [...selectedDocIds, id]
-                    : selectedDocIds.filter((id) => id !== id),
-                )
-              },
-            }}
-          >
-            {filteredItems?.map((item: LibraryItem) => {
-              if (item.type === 'site') {
+              {isLibraryEmpty ? null : (
+                <XStack gap="$3" ai="center">
+                  <Button
+                    size="$2"
+                    onPress={() => {
+                      if (isSelecting) {
+                        exportDocuments(selectedDocIds).then((res) => {
+                          setIsSelecting(false)
+                          setSelectedDocIds([])
+                        })
+                      } else {
+                        setIsSelecting(true)
+                      }
+                    }}
+                    icon={FileOutput}
+                    bg="$brand5"
+                    borderColor="$brand5"
+                    color="white"
+                    hoverStyle={{
+                      bg: '$brand6',
+                      borderColor: '$brand6',
+                    }}
+                  >
+                    Export
+                  </Button>
+                  {isSelecting ? (
+                    <Button
+                      size="$2"
+                      theme="red"
+                      onPress={() => {
+                        setIsSelecting(false)
+                        setSelectedDocIds([])
+                      }}
+                      iconAfter={X}
+                    >
+                      Cancel
+                    </Button>
+                  ) : null}
+                  <OptionsDropdown
+                    menuItems={[
+                      {
+                        label: 'Mark all as read',
+                        key: 'mark-all-as-read',
+                        icon: CheckCheck,
+                        onPress: () => {
+                          markAsRead(
+                            library.items
+                              ?.map((item) => {
+                                if (item.type === 'site') {
+                                  return hmId('d', item.id)
+                                }
+                                return hmId('d', item.account, {
+                                  path: item.path,
+                                })
+                              })
+                              .filter(
+                                (id) => id !== null,
+                              ) as UnpackedHypermediaId[],
+                          )
+                        },
+                      },
+                    ]}
+                  />
+                </XStack>
+              )}
+            </XStack>
+            <librarySelectionContext.Provider
+              value={{
+                isSelecting,
+                selectedDocIds,
+                onSelect: (id, isSelected) => {
+                  setSelectedDocIds(
+                    isSelected
+                      ? [...selectedDocIds, id]
+                      : selectedDocIds.filter((id) => id !== id),
+                  )
+                },
+              }}
+            >
+              {filteredItems?.map((item: LibraryItem) => {
+                if (item.type === 'site') {
+                  return (
+                    <LibrarySiteItem
+                      key={item.id}
+                      site={item}
+                      accountsMetadata={library.accountsMetadata}
+                    />
+                  )
+                }
                 return (
-                  <LibrarySiteItem
-                    key={item.id}
-                    site={item}
-                    accountsMetadata={library.accountsMetadata}
+                  <LibraryDocumentItem
+                    key={`${item.account}-${item.path}`}
+                    item={item}
+                    accountsMetadata={library.accountsMetadata || {}}
                   />
                 )
-              }
-              return (
-                <LibraryDocumentItem
-                  key={`${item.account}-${item.path}`}
-                  item={item}
-                  accountsMetadata={library.accountsMetadata || {}}
-                />
-              )
-            })}
-          </librarySelectionContext.Provider>
-        </Container>
-      </MainWrapper>
-    </PanelContainer>
+              })}
+            </librarySelectionContext.Provider>
+          </Container>
+        </MainWrapper>
+      </PanelContainer>
+    </XStack>
   )
 }
 

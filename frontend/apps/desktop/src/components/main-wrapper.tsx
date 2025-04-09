@@ -7,7 +7,7 @@ export function SidebarSpacer() {
   const ctx = useSidebarContext()
   const isLocked = useStream(ctx.isLocked)
   const sidebarSpacing = isLocked ? SidebarWidth : 0
-  return <View style={{maxWidth: sidebarSpacing, width: '100%'}} />
+  return <View style={{maxWidth: sidebarSpacing, width: '100%', bg: 'red'}} />
 }
 
 export function MainWrapper({
@@ -16,11 +16,10 @@ export function MainWrapper({
   ...props
 }: YStackProps & {scrollable?: boolean}) {
   return (
-    <XStack {...props} flex={1} height="100%">
-      {/* <SidebarSpacer /> */}
+    <XStack {...props} flex={1} h="100%" w="100%">
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <YStack flex={1}>
+      <YStack flex={1} h="100%">
         {scrollable ? (
           <ScrollView
             id="scroll-page-wrapper"
@@ -60,7 +59,6 @@ export function MainWrapperStandalone({children, ...props}: YStackProps & {}) {
 export function MainWrapperNoScroll({children, ...props}: YStackProps & {}) {
   return (
     <XStack flex={1} {...props}>
-      <SidebarSpacer />
       {children}
     </XStack>
   )

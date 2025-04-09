@@ -4,7 +4,6 @@ import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {
@@ -191,7 +190,6 @@ export default function DraftPage() {
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <XStack flex={1} height="100%">
-        <SidebarSpacer />
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
@@ -925,7 +923,7 @@ function DraftMetadataEditor({
         animation="fast"
         marginTop={showCover ? -40 : 0}
         paddingTop={!showCover ? 60 : '$6'}
-        bg="$background"
+        // bg="$background"
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
@@ -998,12 +996,13 @@ function DraftMetadataEditor({
                 onEnter()
               }
             }}
+            style={{height: 38}}
             size="$9"
             borderRadius="$1"
             borderWidth={0}
             overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
             flex={1}
-            backgroundColor="$color2"
+            backgroundColor="transparent"
             fontWeight="bold"
             fontFamily="$body"
             onChange={(e: any) => {
@@ -1163,7 +1162,11 @@ function DraftRebaseBanner() {
 function applyTitleResize(target: HTMLTextAreaElement) {
   // without this, the scrollHeight doesn't shrink, so when the user deletes a long title it doesnt shrink back
   target.style.height = ''
-
+  console.log(
+    `== ~ applyTitleResize ~ target.scrollHeight:`,
+    target.scrollHeight,
+  )
   // here is the actual auto-resize
-  target.style.height = `${target.scrollHeight}px`
+  // target.style.height = `${target.scrollHeight}px`
+  target.style.height = 'auto'
 }

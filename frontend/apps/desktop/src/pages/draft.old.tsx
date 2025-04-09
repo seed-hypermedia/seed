@@ -3,7 +3,6 @@ import {CoverImage} from '@/components/cover-image'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
-import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
 import {useDraft} from '@/models/accounts'
 import {
@@ -179,7 +178,6 @@ export default function DraftPage() {
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <XStack flex={1} height="100%">
-        <SidebarSpacer />
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
