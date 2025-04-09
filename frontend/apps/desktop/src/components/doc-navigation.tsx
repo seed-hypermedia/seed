@@ -12,31 +12,28 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/button'
 import {SmallListItem} from '@shm/ui/list-item'
 import {
   DocDirectory,
+  DocNavigationWrapper,
   DocumentOutline,
   DraftOutline,
-  SiteNavigationWrapper,
 } from '@shm/ui/navigation'
-import {Plus as Add, MoreHorizontal} from '@tamagui/lucide-icons'
+import {Plus as Add} from '@tamagui/lucide-icons'
 import {ReactNode, useMemo} from 'react'
-import {XStack} from 'tamagui'
-import {ImportDropdownButton} from './import-doc-button'
 
-export function SiteNavigation({showCollapsed}: {showCollapsed: boolean}) {
+export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   return (
-    <SiteNavigationWrapper showCollapsed={showCollapsed}>
-      <SiteNavigationLoader />
-    </SiteNavigationWrapper>
+    <DocNavigationWrapper showCollapsed={showCollapsed}>
+      <DocNavigationLoader />
+    </DocNavigationWrapper>
   )
 }
 
-export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
+export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
   const route = useNavRoute()
   if (route.key !== 'document')
-    throw new Error('SiteNavigation only supports document route')
+    throw new Error('DocNavigation only supports document route')
   const {id} = route
   const entity = useSubscribedEntity(id, true) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
@@ -55,33 +52,16 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   let createDirItem: null | ((opts: {indented: number}) => ReactNode) = null
   if (roleCanWrite(capability?.role)) {
     createDirItem = ({indented}) => (
-      <XStack>
-        <SmallListItem
-          icon={Add}
-          title="Create"
-          onPress={createDraft}
-          color="$green10"
-          indented={indented}
-        />
-        <ImportDropdownButton
-          id={id}
-          button={
-            <Button
-              position="absolute"
-              top={6}
-              right={20}
-              size="$1"
-              circular
-              icon={MoreHorizontal}
-            />
-          }
-        />
-      </XStack>
+      <SmallListItem
+        icon={Add}
+        title="Create"
+        onPress={createDraft}
+        color="$green10"
+        indented={indented}
+      />
     )
   }
   const drafts = useAccountDraftList(id?.uid)
-
-  console.log(`== ~ SiteNavigationLoader ~ drafts:`, drafts)
 
   if (!document || !siteListQuery) return null
 
@@ -119,14 +99,14 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   )
 }
 
-export function SiteNavigationDraftLoader({
+export function DocNavigationDraftLoader({
   showCollapsed,
 }: {
   showCollapsed: boolean
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
-    throw new Error('SiteNavigationDraftLoader only supports draft route')
+    throw new Error('DocNavigationDraftLoader only supports draft route')
   const draftQuery = useDraft(route.id)
   const id = useMemo(() => {
     let uId = route.editUid || draftQuery.data?.editUid
@@ -155,7 +135,7 @@ export function SiteNavigationDraftLoader({
   if (!siteListQuery || !metadata) return null
 
   return (
-    <SiteNavigationWrapper showCollapsed={showCollapsed}>
+    <DocNavigationWrapper showCollapsed={showCollapsed}>
       {draft && id ? (
         <DraftOutline
           onActivateBlock={(blockId: string) => {
@@ -174,6 +154,6 @@ export function SiteNavigationDraftLoader({
           supportQueries={[siteListQuery]}
         />
       ) : null}
-    </SiteNavigationWrapper>
+    </DocNavigationWrapper>
   )
 }

@@ -1,3 +1,4 @@
+import {useAppContext} from '@/app-context'
 import {useSizeObserver} from '@/components/app-embeds'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
@@ -5,7 +6,6 @@ import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
-import {useOpenUrl} from '@/open-url'
 import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -592,7 +592,7 @@ function PathItemCard({
     drafts: drafts.data,
   })
   return (
-    <YStack>
+    <YStack maxWidth={600}>
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       <YStack paddingVertical="$2" gap="$3">
         <YStack gap="$1">
@@ -632,7 +632,7 @@ function URLCardSection({
   const siteBaseUrlWithProtocol =
     homeMetadata?.siteUrl || `${gwUrl || ''}/hm/${docId?.uid}`
   const siteBaseUrl = hostnameStripProtocol(siteBaseUrlWithProtocol)
-  const openUrl = useOpenUrl()
+  const {externalOpen} = useAppContext()
   const path = docId?.path || []
   const isHome = !path.length
   if (!docId) return null
@@ -642,13 +642,15 @@ function URLCardSection({
         <ButtonText
           cursor="pointer"
           onPress={() => {
-            openUrl(siteBaseUrlWithProtocol + '/' + path.join('/'))
+            const url = siteBaseUrlWithProtocol + '/' + path.join('/')
+            externalOpen(url)
           }}
           group="item"
         >
           <Text
             color={isHome ? '$brand5' : '$color8'}
             $group-item-hover={{color: '$blue9'}}
+            numberOfLines={1}
           >
             {siteBaseUrl}
           </Text>

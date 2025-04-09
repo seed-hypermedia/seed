@@ -3,6 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
+import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
@@ -10,7 +11,6 @@ import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
-import {SiteNavigation} from '@/components/site-navigation'
 import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
@@ -309,7 +309,7 @@ function _MainDocumentPage({
                   height="100%"
                   // paddingVertical="$4"
                 >
-                  <SiteNavigation showCollapsed={showCollapsed} />
+                  <DocNavigation showCollapsed={showCollapsed} />
                 </YStack>
               </YStack>
             ) : null}

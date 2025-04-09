@@ -28,8 +28,8 @@ import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocDirectory,
+  DocNavigationWrapper,
   DocumentOutline,
-  SiteNavigationWrapper,
 } from '@shm/ui/navigation'
 import {ActivitySection} from '@shm/ui/page-components'
 import {ChevronUp} from '@tamagui/lucide-icons'
@@ -240,7 +240,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     // paddingTop={32}
                     paddingBottom={32}
                   >
-                    <SiteNavigationWrapper showCollapsed={showCollapsed}>
+                    <DocNavigationWrapper showCollapsed={showCollapsed}>
                       <DocumentOutline
                         onActivateBlock={onActivateBlock}
                         document={document}
@@ -255,7 +255,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         // documentMetadata={document.metadata}
                         id={id}
                       />
-                    </SiteNavigationWrapper>
+                    </DocNavigationWrapper>
                   </YStack>
                 </YStack>
               ) : null}

@@ -93,7 +93,7 @@ export function DocumentSmallListItem({
   )
 }
 
-export type SiteNavigationDocument = {
+export type DocNavigationDocument = {
   metadata: HMMetadata
   isPublished: boolean
   sortTime: Date
@@ -109,7 +109,7 @@ export function getSiteNavDirectory({
   id: UnpackedHypermediaId
   supportQueries?: HMQueryResult[]
   drafts?: HMListedDraft[]
-}): SiteNavigationDocument[] {
+}): DocNavigationDocument[] {
   const directory = supportQueries?.find(
     (query) =>
       query.in.uid === id.uid &&
@@ -122,7 +122,7 @@ export function getSiteNavDirectory({
       .filter((id) => !!id)
       .map((id) => id.id) || [],
   )
-  const unpublishedDraftItems: SiteNavigationDocument[] =
+  const unpublishedDraftItems: DocNavigationDocument[] =
     drafts
       ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
       .map(
@@ -133,9 +133,9 @@ export function getSiteNavDirectory({
             metadata: draft.metadata,
             sortTime: new Date(draft.lastUpdateTime),
             isPublished: false,
-          }) satisfies SiteNavigationDocument,
+          }) satisfies DocNavigationDocument,
       ) || []
-  const publishedItems: SiteNavigationDocument[] =
+  const publishedItems: DocNavigationDocument[] =
     directory?.results
       ?.filter((doc) => {
         return (
@@ -165,14 +165,14 @@ export function getSiteNavDirectory({
   publishedItems
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse()
-  const directoryItems: SiteNavigationDocument[] = [
+  const directoryItems: DocNavigationDocument[] = [
     ...publishedItems,
     ...unpublishedDraftItems,
   ]
   return directoryItems
 }
 
-// export function SiteNavigationContent({
+// export function DocNavigationContent({
 //   homeId,
 //   supportQueries,
 //   onPress,
@@ -398,7 +398,7 @@ function OutlineNode({
   )
 }
 
-export function SiteNavigationWrapper({
+export function DocNavigationWrapper({
   children,
   showCollapsed,
 }: {
@@ -439,6 +439,7 @@ export function SiteNavigationWrapper({
         </Popover.Trigger>
         <Popover.Content
           minWidth={280}
+          maxWidth={600}
           y={50}
           enterStyle={{x: -10, y: 50, opacity: 0}}
           exitStyle={{x: -10, y: 50, opacity: 0}}

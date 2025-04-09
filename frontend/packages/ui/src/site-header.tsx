@@ -16,10 +16,10 @@ import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {Close, Menu, X} from './icons'
 import {
+  DocNavigationDocument,
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
-  SiteNavigationDocument,
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
@@ -42,7 +42,7 @@ export function SiteHeader({
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
   afterLinksContent?: React.ReactNode
-  items?: SiteNavigationDocument[]
+  items?: DocNavigationDocument[]
   isCenterLayout?: boolean
   children?: React.ReactNode
   document?: HMDocument

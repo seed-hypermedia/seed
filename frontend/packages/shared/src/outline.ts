@@ -1,5 +1,11 @@
-import {getMetadataName, HMBlockNode, HMDraft, HMEntityContent} from '.'
-import {UnpackedHypermediaId, unpackHmId} from './utils'
+import {
+  getMetadataName,
+  HMBlockNode,
+  HMDraft,
+  HMEntityContent,
+  UnpackedHypermediaId,
+} from '.'
+import {unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>
 

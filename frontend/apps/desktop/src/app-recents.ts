@@ -36,7 +36,6 @@ export function updateRecents(updater: (state: RecentsState) => RecentsState) {
   const newState = updater(recentsState)
   recentsState = newState
   appStore.set(RECENTS_STORAGE_KEY, recentsState)
-  console.log('~~ updateRecents', recentsState)
   appInvalidateQueries([queryKeys.RECENTS])
 }
 

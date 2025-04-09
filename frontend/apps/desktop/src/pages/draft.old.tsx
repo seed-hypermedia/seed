@@ -1,10 +1,10 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
+import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
-import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {useDraft} from '@/models/accounts'
 import {
   getDraftEditId,
@@ -368,7 +368,7 @@ function DocumentEditor({
                   onPress={(e) => e.stopPropagation()}
                   {...sidebarProps}
                 >
-                  <SiteNavigationDraftLoader showCollapsed={showCollapsed} />
+                  <DocNavigationDraftLoader showCollapsed={showCollapsed} />
                 </YStack>
               ) : null}
               <YStack {...mainContentProps}>
