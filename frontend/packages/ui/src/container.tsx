@@ -1,6 +1,7 @@
 import {styled, View} from '@tamagui/core'
 import {YStack} from '@tamagui/stacks'
-import {ComponentProps} from 'react'
+import {ComponentProps, useMemo} from 'react'
+import {useThemeName} from 'tamagui'
 
 const variants = {
   hide: {
@@ -33,11 +34,14 @@ export function PanelContainer({
   children,
   ...props
 }: ComponentProps<typeof YStack>) {
+  const themeName = useThemeName()
+  const isDark = useMemo(() => themeName === 'dark', [themeName])
+
   return (
     <View
       className="page-container"
       h="100%"
-      bg="$backgroundStrong"
+      bg={isDark ? '$background' : '$backgroundStrong'}
       overflow="hidden"
       w="100%"
       $gtSm={{

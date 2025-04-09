@@ -20,12 +20,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
   const {platform} = useAppContext()
-  let top = platform === 'darwin' ? 40 : 64
-  let bottom = 24
-  if (!isLocked) {
-    top += 8
-    bottom += 8
-  }
+
   const navigate = useNavigate()
   return (
     <>
@@ -36,22 +31,22 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           borderRadius={'$3'}
           bg="$backgroundStrong"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
-          top={top}
-          zi="$zIndex.8"
+          top={8}
+          zi="$zIndex.9"
           opacity={0}
           hoverStyle={{
             opacity: 0.1,
           }}
-          bottom={bottom}
+          bottom={0}
           onMouseEnter={ctx.onMenuHoverDelayed}
           onMouseLeave={ctx.onMenuHoverLeave}
           onPress={ctx.onMenuHover}
         />
       ) : null}
       <YStack
-        bg="$background"
-        borderRightWidth={1}
-        borderColor={'$color4'}
+        bg="$backgroundTransparent"
+        borderRightWidth={isLocked ? undefined : 1}
+        borderColor={isLocked ? undefined : '$color4'}
         animation="fast"
         position={isLocked ? 'relative' : 'absolute'}
         // position="absolute"
@@ -61,9 +56,9 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         maxWidth={SidebarWidth}
         elevation={!isLocked ? '$4' : undefined}
         // top={isLocked ? undefined : top}
-        bottom={isLocked ? undefined : bottom}
-        top={0}
-        // bottom={bottom}
+
+        top={8}
+        bottom={0}
         borderTopRightRadius={!isLocked ? '$3' : undefined}
         borderBottomRightRadius={!isLocked ? '$3' : undefined}
         onMouseEnter={ctx.onMenuHover}
