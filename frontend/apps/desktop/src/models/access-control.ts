@@ -257,11 +257,8 @@ export function useMyAccountsWithWriteAccess(
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
     return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
   })
-  let accountsWithCapabilities =
-    myAccountIdsWithCapability?.map((k) => hmId('d', k)) || []
-  if (id && myAccounts.data?.includes(id.uid)) {
-    accountsWithCapabilities = [...accountsWithCapabilities, hmId('d', id.uid)]
-  }
+  const accountsWithCapabilities =
+    myAccountIdsWithCapability?.map((uid) => hmId('d', uid)) || []
   return useEntities(accountsWithCapabilities)
 }
 
