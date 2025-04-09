@@ -1,14 +1,14 @@
 import {HyperlinkToolbarProps} from '@/blocknote'
+import {HMEntityType} from '@shm/shared/utils/entity-id-url'
 import {useEffect, useState} from 'react'
 import {SizableText, SizeTokens, YStack} from 'tamagui'
 import {HypermediaLinkForm} from './hm-link-form'
-
 export function HypermediaLinkToolbar(
   props: HyperlinkToolbarProps & {
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
     onClose: (bool: boolean) => void
     type: string
-    isSeedDocument?: boolean
+    seedEntityType?: HMEntityType
     isFocused: boolean
     setIsFocused: (focused: boolean) => void
   },
@@ -70,7 +70,7 @@ export function HypermediaLinkToolbar(
         type={props.type}
         hasName={props.type !== 'mention'}
         hasSearch={props.type === 'mention'}
-        isSeedDocument={props.isSeedDocument}
+        seedEntityType={props.seedEntityType}
       />
     </YStack>
   )

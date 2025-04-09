@@ -37,9 +37,9 @@ export function AccessoryContainer({
         <YStack paddingVertical="$3" paddingHorizontal="$3" gap="$4">
           {title ? <AccessoryTitle title={title} /> : null}
           <YStack gap="$5">{children}</YStack>
-          {footer}
         </YStack>
       </ScrollView>
+      {footer}
     </PanelContainer>
   )
 }

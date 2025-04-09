@@ -1,13 +1,11 @@
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryClient} from '@shm/shared/models/query-client'
 import {QueryClientProvider} from '@tanstack/react-query'
-import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode, useMemo} from 'react'
-import {TamaguiProvider, TamaguiProviderProps, View} from 'tamagui'
+import {TamaguiProvider, TamaguiProviderProps} from 'tamagui'
 import tamaguiConfig from '../tamagui.config'
 import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
-import {useExperiments} from './models/experiments'
 import {WindowUtils} from './models/window-utils'
 
 export function AppContextProvider({
@@ -94,19 +92,9 @@ export function AppContextProvider({
     <AppContext.Provider value={appCtx}>
       <QueryClientProvider client={queryClient}>
         <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
-        <ReactQueryTools />
       </QueryClientProvider>
     </AppContext.Provider>
   )
-}
-
-function ReactQueryTools() {
-  const {data: experiments} = useExperiments()
-  return experiments?.developerTools ? (
-    <View userSelect="none">
-      <ReactQueryDevtools />
-    </View>
-  ) : null
 }
 
 export function StyleProvider({

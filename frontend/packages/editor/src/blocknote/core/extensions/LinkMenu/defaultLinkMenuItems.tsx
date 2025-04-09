@@ -44,6 +44,7 @@ export function getLinkMenuItems({
   let linkMenuItems: LinkMenuItem[] = []
 
   if (sourceUrl && !isHypermediaScheme(sourceUrl)) {
+    console.log('sourceUrl', sourceUrl, isHypermediaScheme(sourceUrl))
     linkMenuItems = [
       {
         key: 'link',

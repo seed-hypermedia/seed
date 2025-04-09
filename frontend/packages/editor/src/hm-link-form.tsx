@@ -1,6 +1,9 @@
 import {LauncherItem, SwitcherItem} from '@/launcher-item'
 import {useSearch} from '@shm/shared/models/search'
-import {HYPERMEDIA_ENTITY_TYPES} from '@shm/shared/utils/entity-id-url'
+import {
+  HMEntityType,
+  HYPERMEDIA_ENTITY_TYPES,
+} from '@shm/shared/utils/entity-id-url'
 import {Link as LinkIcon, Search} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -15,7 +18,7 @@ export type HypermediaLinkFormProps = {
   type: string
   updateLink: (url: string, text: string) => void
   editLink: (url: string, text: string) => void
-  isSeedDocument?: boolean
+  seedEntityType?: HMEntityType
   hasName?: boolean
   hasSearch?: boolean
 }
@@ -119,7 +122,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       )}
 
       <SizableText fontSize="$2" color="$brand5">
-        {!!props.isSeedDocument ? 'Seed Document' : 'Web Address'}
+        {!!props.seedEntityType
+          ? `Seed ${HYPERMEDIA_ENTITY_TYPES[props.seedEntityType]}`
+          : 'Web Address'}
       </SizableText>
 
       {props.children}
