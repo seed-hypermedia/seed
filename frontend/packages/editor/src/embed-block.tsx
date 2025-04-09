@@ -7,8 +7,10 @@ import {resolveHypermediaUrl} from '@/link-utils'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
+import {getDocumentTitle} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
@@ -643,12 +645,31 @@ const EmbedLauncherInput = ({
       })
       .filter(Boolean) || []
 
+  // const enrichedRecents = (recents.data ?? []).map((item) => {
+  //   const homeId = `hm://${item.id.uid}`
+  //   const unpacked = unpackHmId(homeId)
+  //   const homeEntity = useEntity(unpacked!)
+  //   console.log(homeEntity)
+
+  //   return {
+  //     ...item,
+  //     homeTitle: getDocumentTitle(homeEntity.data?.document),
+  //   }
+  // })
+
+  // console.log(enrichedRecents)
+  // {recents.data?.map((item) => (
+  //   <RecentItem key={item.id.id} item={item} onSelect={onSelect} />
+  // ))}
+
   const recentItems =
     recents.data?.map(({id, name}, index) => {
+      // console.log(id, name)
       return {
         key: id.id,
         title: name,
-        // path: id.path,
+        id,
+        path: id.path,
         subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
         onFocus: () => {
           setFocusedIndex(index)
@@ -694,14 +715,18 @@ const EmbedLauncherInput = ({
       width="100%"
       zIndex={999}
       maxHeight={300} // TODO, dynamically update based on window height?
-      overflow="scroll"
+      overflow="auto" // instead of "scroll"
+      style={{
+        overflowX: 'hidden', // this hides horizontal scrollbar
+        scrollbarWidth: 'none', // Firefox
+      }}
     >
       {isDisplayingRecents && (
         <SizableText color="$color10" marginHorizontal="$4">
           Recent Resources
         </SizableText>
       )}
-      {activeItems.map((item, itemIndex) => (
+      {/* {activeItems.map((item, itemIndex) => (
         <>
           <LauncherItem
             item={item}
@@ -712,7 +737,29 @@ const EmbedLauncherInput = ({
           />
           {itemIndex === activeItems.length - 1 ? undefined : <Separator />}
         </>
-      ))}
+      ))} */}
+      {activeItems.map((item, itemIndex) => {
+        const isSelected = focusedIndex === itemIndex
+        const sharedProps = {
+          selected: isSelected,
+          onFocus: () => setFocusedIndex(itemIndex),
+          onMouseEnter: () => setFocusedIndex(itemIndex),
+        }
+
+        return (
+          <>
+            {isDisplayingRecents ? (
+              <RecentItemWithTitle
+                item={{...item, id: item.id}} // type cast if needed
+                {...sharedProps}
+              />
+            ) : (
+              <LauncherItem item={item} {...sharedProps} />
+            )}
+            {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
+          </>
+        )
+      })}
     </YStack>
   )
 
@@ -764,5 +811,45 @@ const EmbedLauncherInput = ({
 
       {content}
     </YStack>
+  )
+}
+
+function RecentItemWithTitle({
+  item,
+  selected,
+  onFocus,
+  onMouseEnter,
+}: {
+  item: {
+    key: string
+    title: string
+    subtitle?: string
+    path: string[]
+    id: UnpackedHypermediaId
+    onSelect: () => void
+    onFocus?: () => void
+    onMouseEnter?: () => void
+  }
+  selected: boolean
+  onFocus: () => void
+  onMouseEnter: () => void
+}) {
+  const homeId = `hm://${item.id.uid}`
+  const unpacked = unpackHmId(homeId)
+  const homeEntity = useEntity(unpacked!)
+  const homeTitle = getDocumentTitle(homeEntity.data?.document)
+
+  // console.log(homeEntity.data, homeTitle)
+
+  return (
+    <LauncherItem
+      item={{
+        ...item,
+        path: homeTitle ? [homeTitle, ...item.path] : item.path,
+      }}
+      selected={selected}
+      onFocus={onFocus}
+      onMouseEnter={onMouseEnter}
+    />
   )
 }
