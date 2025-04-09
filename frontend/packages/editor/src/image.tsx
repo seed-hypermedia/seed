@@ -58,6 +58,7 @@ export const ImageBlock = createReactBlockSpec({
         const width = element.getAttribute('width') || element.style.width
         const alt = element.getAttribute('alt')
         return {
+          url: element.getAttribute('src'),
           src: element.getAttribute('src'),
           name,
           width,
@@ -159,6 +160,28 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
+  const {importWebFile} = useDocContentContext()
+  useEffect(() => {
+    if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
+      const url = block.props.url
+      if (isValidUrl(url)) {
+        timeoutPromise(importWebFile.mutateAsync(url), 5000, {
+          reason: 'Error fetching the image.',
+        })
+          .then((imageData) => {
+            if (imageData?.cid) {
+              if (!imageData.type.includes('image')) {
+                return
+              }
+              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+            }
+          })
+          .catch((e) => {
+            console.error(e)
+          })
+      }
+    }
+  }, [])
   const imageSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64

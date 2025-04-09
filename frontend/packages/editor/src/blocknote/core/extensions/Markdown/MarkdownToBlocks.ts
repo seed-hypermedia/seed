@@ -143,7 +143,7 @@ export const processMediaMarkdown = async (
   directoryPath: string,
 ) => {
   const filePattern = /\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "size=(\d+)"\)/g
-  const videoPattern = /!\\\[([^\]]*)\]\\\(([^\s]+) "width=(\d*)"\)/g
+  const videoPattern = /!\\\[([^\]]*)\]\\\(([^\s]+) "width=(\d*|undefined)"\)/g
   const imagePattern = /!\[([^\]]*)\]\(([^\s]+\.[^\s]+)(?: "([^"]*)")?\)/g
 
   const mediaMatches = []
