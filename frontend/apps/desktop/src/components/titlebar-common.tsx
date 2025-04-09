@@ -291,7 +291,7 @@ export function DocOptionsButton({
     })
   }
 
-  if (canEditDoc && myAccountIds.data?.length) {
+  if (canEditDoc && myAccountIds.data?.length && route.id.path?.length) {
     menuItems.push({
       key: 'move',
       label: 'Move Document',
