@@ -443,6 +443,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		var lastCursor mentionsCursor
 
 		var count int32
+
 		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
 			// We query for pageSize + 1 items to know if there's more items on the next page,
 			// because if not we don't need to return the page token in the response.
@@ -472,12 +473,13 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
 			}
 
-			if blobType == "Comment" {
-				source = "hm://c/" + sourceBlob
-			}
+			//if blobType == "Comment" {
+			//	source = "hm://c/" + sourceBlob
+			//}
 
 			resp.Mentions = append(resp.Mentions, &entities.Mention{
 				Source:        source,
+				SourceType:    blobType,
 				SourceContext: anchor,
 				SourceBlob: &entities.Mention_BlobInfo{
 					Cid:        sourceBlob,
@@ -490,7 +492,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 			})
 
 			return nil
-		}, eid, cursor.BlobID, cursor.BlobID, in.PageSize); err != nil {
+		}, eid, cursor.BlobID, in.PageSize); err != nil {
 			return err
 		}
 
@@ -510,29 +512,70 @@ var qEntitiesLookupID = dqb.Str(`
 `)
 
 const qListMentionsTpl = `
-	SELECT
-		resources.iri,
-		blobs.codec,
-		blobs.multihash,
-		public_keys.principal AS author,
-		structural_blobs.ts,
-		structural_blobs.type AS blob_type,
-		resource_links.is_pinned,
-		resource_links.extra_attrs->>'a' AS anchor,
-		resource_links.extra_attrs->>'v' AS target_version,
-		resource_links.extra_attrs->>'f' AS target_fragment,
-		blobs.id AS blob_id,
-		resource_links.id AS link_id
-	FROM resource_links
-	JOIN structural_blobs ON structural_blobs.id = resource_links.source
-	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-	JOIN public_keys ON public_keys.id = structural_blobs.author
-	JOIN resources ON resources.id = structural_blobs.resource
-	WHERE resource_links.target = :target
-	AND (resource_links.source, resource_links.id) %s (:blob_id, :link_id)
-	AND structural_blobs.type IN ('Change', 'Comment')
-	ORDER BY resource_links.source %s, resource_links.id %s
-	LIMIT :page_size + 1;
+WITH ts_changes AS (
+SELECT
+    structural_blobs.ts,
+    resource_links.id AS link_id,
+    resource_links.is_pinned,
+    blobs.codec,
+    blobs.multihash,
+	public_keys.principal AS author,
+    resource_links.extra_attrs->>'a' AS anchor,
+	resource_links.extra_attrs->>'v' AS target_version,
+	resource_links.extra_attrs->>'f' AS target_fragment
+FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resource_links.target = 7
+AND structural_blobs.type IN ('Change')
+)
+SELECT
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+	public_keys.principal AS author,
+    structural_blobs.ts,
+    structural_blobs.type AS blob_type,
+    resource_links.is_pinned,
+    resource_links.extra_attrs->>'a' AS anchor,
+	resource_links.extra_attrs->>'v' AS target_version,
+	resource_links.extra_attrs->>'f' AS target_fragment,
+    blobs.id AS blob_id,
+    resource_links.id AS link_id
+FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resource_links.target = :target
+AND blobs.id %s :blob_id
+AND structural_blobs.type IN ('Comment')
+
+UNION ALL
+SELECT
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+    public_keys.principal AS author,
+    structural_blobs.ts,
+    'Ref' AS blob_type,
+    ts_changes.is_pinned,
+    ts_changes.anchor,
+	ts_changes.target_version,
+	ts_changes.target_fragment,
+    blobs.id AS blob_id,
+    ts_changes.link_id
+FROM structural_blobs
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+JOIN ts_changes on ts_changes.ts = structural_blobs.ts
+AND structural_blobs.type IN ('Ref')
+AND blobs.id %s :blob_id
+ORDER BY blobs.id %s
+LIMIT :page_size + 1;
 `
 
 func qListMentions(desc bool) string {
@@ -544,11 +587,11 @@ func qListMentions(desc bool) string {
 }
 
 var qListMentionsAsc = dqb.Q(func() string {
-	return fmt.Sprintf(qListMentionsTpl, ">", "ASC", "ASC")
+	return fmt.Sprintf(qListMentionsTpl, ">", ">", "ASC")
 })
 
 var qListMentionsDesc = dqb.Q(func() string {
-	return fmt.Sprintf(qListMentionsTpl, "<", "DESC", "DESC")
+	return fmt.Sprintf(qListMentionsTpl, "<", "<", "DESC")
 })
 
 type mentionsCursor struct {

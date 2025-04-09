@@ -282,26 +282,28 @@ message Mention {
     google.protobuf.Timestamp create_time = 3;
   }
 
-  // Required. The ID of the source where the mention was found.
+  // Required. The IRI of the source where the mention was found.
   string source = 1;
 
-  // Optional. Context can mean different things depending on the type of the source:
-  // it can be the block ID when source is a Document or Comment,
-  // it can be a pretty-path when source is a Group that mentions a Document,
-  // it can also be empty.
-  string source_context = 2;
+  // Required. The Type of the source where the mention was found.
+  string source_type = 2;
+
+  // Required. Context can mean different things depending on the type of the source:
+  // it can be the block ID when source type is a Document or Comment,
+  // it can be a pretty-path when source type is a Group that mentions a Document.
+  string source_context = 3;
 
   // Required. Information about the blob where the mention was found.
-  BlobInfo source_blob = 3;
+  BlobInfo source_blob = 4;
 
   // Optional. The version of the target Entity the link points to,
   // if one is specified in the link.
-  string target_version = 4;
+  string target_version = 5;
 
   // Required. Specifies whether the link points to the exact/pinned version of the target document,
   // or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
-  bool is_exact_version = 5;
+  bool is_exact_version = 6;
 
   // Optional. The fragment portion of the link.
-  string target_fragment = 6;
+  string target_fragment = 7;
 }

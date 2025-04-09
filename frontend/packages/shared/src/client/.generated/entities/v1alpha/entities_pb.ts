@@ -1008,26 +1008,32 @@ export class ListEntityMentionsResponse extends Message<ListEntityMentionsRespon
  */
 export class Mention extends Message<Mention> {
   /**
-   * Required. The ID of the source where the mention was found.
+   * Required. The IRI of the source where the mention was found.
    *
    * @generated from field: string source = 1;
    */
   source = "";
 
   /**
-   * Optional. Context can mean different things depending on the type of the source:
-   * it can be the block ID when source is a Document or Comment,
-   * it can be a pretty-path when source is a Group that mentions a Document,
-   * it can also be empty.
+   * Required. The Type of the source where the mention was found.
    *
-   * @generated from field: string source_context = 2;
+   * @generated from field: string source_type = 2;
+   */
+  sourceType = "";
+
+  /**
+   * Required. Context can mean different things depending on the type of the source:
+   * it can be the block ID when source type is a Document or Comment,
+   * it can be a pretty-path when source type is a Group that mentions a Document.
+   *
+   * @generated from field: string source_context = 3;
    */
   sourceContext = "";
 
   /**
    * Required. Information about the blob where the mention was found.
    *
-   * @generated from field: com.seed.entities.v1alpha.Mention.BlobInfo source_blob = 3;
+   * @generated from field: com.seed.entities.v1alpha.Mention.BlobInfo source_blob = 4;
    */
   sourceBlob?: Mention_BlobInfo;
 
@@ -1035,7 +1041,7 @@ export class Mention extends Message<Mention> {
    * Optional. The version of the target Entity the link points to,
    * if one is specified in the link.
    *
-   * @generated from field: string target_version = 4;
+   * @generated from field: string target_version = 5;
    */
   targetVersion = "";
 
@@ -1043,14 +1049,14 @@ export class Mention extends Message<Mention> {
    * Required. Specifies whether the link points to the exact/pinned version of the target document,
    * or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
    *
-   * @generated from field: bool is_exact_version = 5;
+   * @generated from field: bool is_exact_version = 6;
    */
   isExactVersion = false;
 
   /**
    * Optional. The fragment portion of the link.
    *
-   * @generated from field: string target_fragment = 6;
+   * @generated from field: string target_fragment = 7;
    */
   targetFragment = "";
 
@@ -1063,11 +1069,12 @@ export class Mention extends Message<Mention> {
   static readonly typeName = "com.seed.entities.v1alpha.Mention";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "source_context", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "source_blob", kind: "message", T: Mention_BlobInfo },
-    { no: 4, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "source_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "source_context", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "source_blob", kind: "message", T: Mention_BlobInfo },
+    { no: 5, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention {
