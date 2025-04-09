@@ -110,7 +110,13 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return (
       <>
         <File size={12} />
-        <TitleText {...titleProps}>Drafts</TitleText>
+        <TitleTextButton
+          fontWeight={'bold'}
+          className="no-window-drag"
+          hoverStyle={{textDecorationLine: 'none'}}
+        >
+          Drafts
+        </TitleTextButton>
       </>
     )
   }
@@ -525,7 +531,7 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <XStack ai="center" gap="$2">
+    <XStack ai="center" gap="$1">
       <TitleText ref={observerRef} fontWeight="bold">
         {details.name}
       </TitleText>
@@ -694,7 +700,7 @@ export function Title({size}: {size?: FontSizeTokens}) {
 
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
-
+  const navigate = useNavigate()
   const locationId = useMemo(() => {
     if (draft.data?.locationId) return draft.data.locationId
     let uId = draft.data?.locationUid || route.locationUid
@@ -762,9 +768,18 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
         // className="no-window-drag"
         height="100%"
       >
-        <TitleText>Drafts</TitleText>
+        <File size={12} />
+        <TitleTextButton
+          fontWeight={'bold'}
+          className="no-window-drag"
+          onPress={() => {
+            navigate({key: 'drafts'})
+          }}
+        >
+          Drafts
+        </TitleTextButton>
         <BreadcrumbSeparator key={`draft-seperator`} />
-        <XStack ai="center" gap="$2">
+        <XStack ai="center" gap="$1">
           <TitleText fontWeight="bold">
             {draft.data?.metadata.name || 'New Draft'}
           </TitleText>

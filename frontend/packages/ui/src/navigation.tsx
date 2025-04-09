@@ -18,7 +18,6 @@ import {
 import {GestureReponderEvent, useMedia} from '@tamagui/web'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
 import {XStack, YStack} from 'tamagui'
-import {DraftBadge} from './draft-badge'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {Popover} from './TamaguiPopover'
@@ -73,7 +72,7 @@ export function DocumentSmallListItem({
         isDraft={!!draftId}
       >
         {items}
-        {draftId ? <DraftBadge /> : null}
+        {/* {draftId ? <DraftBadge /> : null} */}
       </SmallCollapsableListItem>
     )
   return (

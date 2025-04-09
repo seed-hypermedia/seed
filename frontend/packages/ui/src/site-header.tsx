@@ -300,7 +300,12 @@ function HeaderLinkItem({
   )
   const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
-    <XStack ai="center" gap="$2" hoverStyle={{bg: '$backgroundHover'}}>
+    <XStack
+      ai="center"
+      gap="$1"
+      hoverStyle={{bg: '$backgroundHover'}}
+      paddingHorizontal="$1"
+    >
       <SizableText
         numberOfLines={1}
         userSelect="none"

@@ -146,25 +146,27 @@ export function SmallListItem({
           </View>
         ) : null}
         {children}
-        <SizableText
-          f={isDraft ? 0 : 1}
-          {...(multiline
-            ? {numberOfLines: 2}
-            : {
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-              })}
-          width="100%"
-          size="$2"
-          color={color || '$gray12'}
-          fontWeight={bold ? 'bold' : undefined}
-          userSelect="none"
-          className="mobile-menu-item-label"
-        >
-          {title}
-        </SizableText>
-        {isDraft ? <DraftBadge /> : null}
+        <XStack f={1} ai="center" gap="$1">
+          <SizableText
+            f={isDraft ? 0 : 1}
+            {...(multiline
+              ? {numberOfLines: 2}
+              : {
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                })}
+            width="100%"
+            size="$2"
+            color={color || '$gray12'}
+            fontWeight={bold ? 'bold' : undefined}
+            userSelect="none"
+            className="mobile-menu-item-label"
+          >
+            {title}
+          </SizableText>
+          {isDraft ? <DraftBadge /> : null}
+        </XStack>
         {isCollapsed != null ? (
           <Button
             position="absolute"
