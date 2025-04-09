@@ -19,6 +19,7 @@ import {
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {DraftRoute, NavRoute} from '@shm/shared/routes'
+import {DraftBadge} from '@shm/ui/draft-badge'
 import {HoverCard} from '@shm/ui/hover-card'
 import {
   AlertCircle,
@@ -524,13 +525,12 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <TitleText
-      ref={observerRef}
-      fontWeight="bold"
-      backgroundColor={draft ? '$yellow4' : undefined}
-    >
-      {details.name}
-    </TitleText>
+    <XStack ai="center" gap="$2">
+      <TitleText ref={observerRef} fontWeight="bold">
+        {details.name}
+      </TitleText>
+      {draft ? <DraftBadge /> : null}
+    </XStack>
   ) : (
     <TitleTextButton
       ref={observerRef}
@@ -762,12 +762,12 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
       >
         <TitleText>Drafts</TitleText>
         <BreadcrumbSeparator key={`draft-seperator`} />
-        <TitleText
-          fontWeight="bold"
-          backgroundColor={draft ? '$yellow4' : undefined}
-        >
-          {draft.data?.metadata.name || 'New Draft'}
-        </TitleText>
+        <XStack ai="center" gap="$2">
+          <TitleText fontWeight="bold">
+            {draft.data?.metadata.name || 'New Draft'}
+          </TitleText>
+          <DraftBadge />
+        </XStack>
       </XStack>
     </XStack>
   )

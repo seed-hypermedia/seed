@@ -18,6 +18,7 @@ import {
 import {GestureReponderEvent, useMedia} from '@tamagui/web'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
 import {XStack, YStack} from 'tamagui'
+import {DraftBadge} from './draft-badge'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {Popover} from './TamaguiPopover'
@@ -52,15 +53,13 @@ export function DocumentSmallListItem({
   }
   const linkProps = useRouteLink(route)
   const color = isPublished === false ? '$color11' : undefined
-  const backgroundColor = draftId ? '$yellow3' : undefined
-  const hoverBackgroundColor = draftId ? '$yellow4' : '$color4'
+
   if (items)
     return (
       <SmallCollapsableListItem
         bold
         color={color}
-        backgroundColor={backgroundColor}
-        hoverStyle={{backgroundColor: hoverBackgroundColor}}
+        hoverStyle={{backgroundColor: '$backgroundHover'}}
         key={draftId || id?.id}
         title={getMetadataName(metadata)}
         icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
@@ -71,8 +70,10 @@ export function DocumentSmallListItem({
           onPress?.()
           linkProps.onPress?.(e)
         }}
+        isDraft={!!draftId}
       >
         {items}
+        {draftId ? <DraftBadge /> : null}
       </SmallCollapsableListItem>
     )
   return (
@@ -80,13 +81,13 @@ export function DocumentSmallListItem({
       multiline
       bold
       color={color}
-      backgroundColor={backgroundColor}
-      hoverStyle={{backgroundColor: hoverBackgroundColor}}
+      hoverStyle={{backgroundColor: '$backgroundHover'}}
       key={draftId || id?.id}
       title={getMetadataName(metadata)}
       icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
       indented={indented}
       active={active}
+      isDraft={!!draftId}
       {...linkProps}
     />
   )

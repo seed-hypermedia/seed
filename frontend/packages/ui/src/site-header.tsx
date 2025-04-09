@@ -13,6 +13,7 @@ import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useMemo, useState} from 'react'
 import {Button} from './button'
+import {DraftBadge} from './draft-badge'
 import {Close, Menu, X} from './icons'
 import {
   DocumentOutline,
@@ -299,18 +300,20 @@ function HeaderLinkItem({
   )
   const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
-    <SizableText
-      numberOfLines={1}
-      userSelect="none"
-      fontWeight="bold"
-      backgroundColor={draftId ? '$yellow4' : undefined}
-      color={active ? '$color' : baseColor}
-      paddingHorizontal="$1"
-      hoverStyle={{cursor: 'pointer', color: active ? '$color' : '$color11'}}
-      {...linkProps}
-    >
-      {getMetadataName(metadata)}
-    </SizableText>
+    <XStack ai="center" gap="$2" hoverStyle={{bg: '$backgroundHover'}}>
+      <SizableText
+        numberOfLines={1}
+        userSelect="none"
+        fontWeight="bold"
+        color={active ? '$color' : baseColor}
+        paddingHorizontal="$1"
+        hoverStyle={{cursor: 'pointer', color: active ? '$color' : '$color11'}}
+        {...linkProps}
+      >
+        {getMetadataName(metadata)}
+      </SizableText>
+      {draftId ? <DraftBadge /> : null}
+    </XStack>
   )
 }
 

@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 import {type GestureResponderEvent} from 'react-native'
+import {DraftBadge} from './draft-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Tooltip} from './tooltip'
 
@@ -73,6 +74,7 @@ export function SmallListItem({
   menuItems,
   isCollapsed,
   onSetCollapsed,
+  isDraft,
   multiline = false,
   ...props
 }: ListItemProps & {
@@ -84,6 +86,7 @@ export function SmallListItem({
   menuItems?: MenuItemType[]
   isCollapsed?: boolean | null
   onSetCollapsed?: (collapsed: boolean) => void
+  isDraft?: boolean
   multiline?: boolean
 }) {
   const theme = useTheme()
@@ -144,7 +147,7 @@ export function SmallListItem({
         ) : null}
         {children}
         <SizableText
-          f={1}
+          f={isDraft ? 0 : 1}
           {...(multiline
             ? {numberOfLines: 2}
             : {
@@ -161,6 +164,7 @@ export function SmallListItem({
         >
           {title}
         </SizableText>
+        {isDraft ? <DraftBadge /> : null}
         {isCollapsed != null ? (
           <Button
             position="absolute"
