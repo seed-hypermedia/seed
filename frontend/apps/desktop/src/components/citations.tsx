@@ -1,6 +1,7 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {EntityLinkIcon} from '@/components/account-link-icon'
 import {useAccount_deprecated} from '@/models/accounts'
+import {useEntityCitations} from '@/models/citations'
 import {useComment} from '@/models/comments'
 import {useEntityMentions} from '@/models/content-graph'
 import {useDocTextContent} from '@/models/documents'
@@ -244,12 +245,13 @@ export function EntityCitationsAccessory({
   entityId?: UnpackedHypermediaId
   onClose: () => void
 }) {
-  const mentions = useEntityMentions(entityId)
+  const citations = useEntityCitations(entityId)
+  console.log('~~~ citations', citations.data)
   if (!entityId) return null
-  const count = mentions?.data?.mentions?.length || 0
+  const count = citations?.data?.length || 0
 
   const citationSet = new Set()
-  const distinctMentions = mentions?.data?.mentions?.filter((item) => {
+  const distinctMentions = citations?.data?.filter((item) => {
     if (!citationSet.has(item?.source)) {
       citationSet.add(item?.source)
       return true
@@ -262,12 +264,12 @@ export function EntityCitationsAccessory({
       title={`${count} ${pluralS(count, 'Citation')}`}
       onClose={onClose}
     >
-      {distinctMentions?.map((mention, index) => (
+      {/* {distinctMentions?.map((mention, index) => (
         <CitationItem
           key={`${mention.source}${mention.targetVersion}${mention.targetFragment}`}
           mention={mention}
         />
-      ))}
+      ))} */}
     </AccessoryContainer>
   )
 }
