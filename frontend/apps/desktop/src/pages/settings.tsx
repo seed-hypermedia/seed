@@ -77,10 +77,12 @@ import {
 } from 'tamagui'
 
 import {dispatchOnboardingDialog} from '@/components/onboarding'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import React from 'react'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
+  const isDark = useIsDark()
   return (
     <Tabs
       flex={1}
@@ -89,6 +91,7 @@ export default function Settings() {
       flexDirection="column"
       borderWidth="$0.25"
       overflow="hidden"
+      bg={isDark ? '$backgroundStrong' : '$background'}
       borderColor="$backgroundStrong"
     >
       <Tabs.List
@@ -315,6 +318,7 @@ export function ProfileForm({
 }
 
 function AccountKeys() {
+  const isDark = useIsDark()
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
   const deleteWords = trpc.secureStorage.delete.useMutation()
@@ -369,9 +373,15 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1}} gap="$4" overflow="hidden">
+    <XStack style={{flex: 1}} gap="$3" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
-        <YStack f={1} borderColor="$color7" borderWidth={1}>
+        <YStack
+          f={1}
+          borderColor="$borderColor"
+          borderWidth={1}
+          borderRadius="$3"
+          bg={isDark ? '$background' : '$backgroundStrong'}
+        >
           <ScrollView>
             {keys.data?.map((key) => (
               <KeyItem
@@ -388,14 +398,33 @@ function AccountKeys() {
             icon={Plus}
             size="$2"
             onPress={() => dispatchOnboardingDialog(true)}
-            theme="brand"
-            color="$color11"
+            color="white"
+            bg="$brand5"
+            borderColor="$colorTransparent"
+            hoverStyle={{
+              backgroundColor: '$brand4',
+              borderColor: '$colorTransparent',
+            }}
+            activeStyle={{
+              backgroundColor: '$brand4',
+              borderColor: '$colorTransparent',
+            }}
+            focusStyle={{
+              backgroundColor: '$brand4',
+              borderColor: '$colorTransparent',
+            }}
           >
             Add Account
           </Button>
         </XStack>
       </YStack>
-      <YStack f={3} borderColor="$color7" borderWidth={1}>
+      <YStack
+        f={3}
+        borderColor="$borderColor"
+        borderWidth={1}
+        borderRadius="$3"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+      >
         <ScrollView>
           <YStack p="$4" gap="$4">
             <XStack marginBottom="$4" gap="$4">
@@ -699,15 +728,17 @@ export function ExperimentSection({
   onValue: (v: boolean) => void
   value: boolean
 }) {
+  const isDark = useIsDark()
   return (
     <XStack
       alignItems="center"
-      space="$6"
+      gap="$6"
       paddingHorizontal="$6"
       borderWidth={1}
-      borderRadius={'$4'}
+      borderRadius="$3"
       borderColor="$borderColor"
       padding="$3"
+      bg={isDark ? '$background' : '$backgroundStrong'}
     >
       <Heading fontSize={42}>{experiment.emoji}</Heading>
       <YStack gap="$3" flex={1}>
@@ -1280,12 +1311,12 @@ function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
       paddingBottom="$3"
       height="auto"
       gap="$2"
-      bg={active ? '$color5' : '$colorTransparent'}
+      bg="$colorTransparent"
       hoverStyle={{cursor: 'default', bg: '$color6'}}
       {...rest}
     >
-      <Icon size={20} />
-      <SizableText flex={1} size="$1">
+      <Icon size={20} color={active ? '$brand5' : '$color'} />
+      <SizableText flex={1} size="$1" color={active ? '$brand5' : '$color'}>
         {label}
       </SizableText>
     </Tabs.Tab>
@@ -1296,12 +1327,16 @@ function SettingsSection({
   title,
   children,
 }: React.PropsWithChildren<{title: string}>) {
+  const isDark = useIsDark()
   return (
-    <YStack gap="$3">
-      <YStack gap="$4">
-        <Heading size="$7">{title}</Heading>
-        {children}
-      </YStack>
+    <YStack
+      gap="$3"
+      p="$3"
+      borderRadius="$3"
+      bg={isDark ? '$background' : '$backgroundStrong'}
+    >
+      <Heading size="$7">{title}</Heading>
+      {children}
     </YStack>
   )
 }

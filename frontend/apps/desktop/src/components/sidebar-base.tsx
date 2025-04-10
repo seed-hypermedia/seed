@@ -44,15 +44,9 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         />
       ) : null}
       <YStack
-        bg={
-          isLocked
-            ? 'transparent'
-            : isDark
-            ? '$background'
-            : '$backgroundStrong'
-        }
-        borderRightWidth={isLocked ? undefined : 1}
-        borderColor={isLocked ? undefined : '$color4'}
+        bg={isDark ? '$backgroundStrong' : '$background'}
+        borderWidth={isLocked ? undefined : 1}
+        borderColor={isLocked ? undefined : '$color7'}
         animation="fast"
         position={isLocked ? 'relative' : 'absolute'}
         zi={isLocked ? undefined : '$zIndex.9'}
@@ -61,7 +55,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         maxWidth={SidebarWidth}
         elevation={isLocked ? undefined : '$4'}
         top={isLocked ? undefined : 8}
-        bottom={isLocked ? undefined : 0}
+        bottom={isLocked ? undefined : 8}
         borderTopRightRadius={!isLocked ? '$3' : undefined}
         borderBottomRightRadius={!isLocked ? '$3' : undefined}
         onMouseEnter={ctx.onMenuHover}

@@ -148,12 +148,7 @@ export function AccessoryLayout<
             <Tooltip key={option.key} placement="left" content={option.label}>
               <Button
                 size="$3"
-                // hoverStyle={{
-                //   backgroundColor: isActive
-                //     ? theme.blue10.val
-                //     : theme.color2.val,
-                // }}
-                // bg="$backgroundTransparent"
+                bg="$backgroundTransparent"
                 hoverStyle={{
                   backgroundColor: '$backgroundTransparent',
                   borderColor: '$colorTransparent',

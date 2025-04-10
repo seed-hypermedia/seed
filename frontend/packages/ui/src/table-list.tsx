@@ -17,6 +17,7 @@ import {
 } from 'tamagui'
 import {Copy, ExternalLink} from './icons'
 import {Tooltip} from './tooltip'
+import {useIsDark} from './use-is-dark'
 
 function useHover() {
   const [hover, setHover] = useState(false)
@@ -38,6 +39,7 @@ export function TableList({
   children,
   ...props
 }: {children: ReactNode} & ComponentProps<typeof YStack>) {
+  const isDark = useIsDark()
   return (
     <YStack
       userSelect="none"
@@ -46,6 +48,7 @@ export function TableList({
       }}
       borderWidth={1}
       borderColor="$borderColor"
+      bg={isDark ? '$background' : '$backgroundStrong'}
       f={1}
       // aria-label={}
       // aria-labelledby={ariaLabelledBy}
@@ -80,8 +83,9 @@ function TableHeader({children, ...props}: PropsWithChildren<XStackProps>) {
 }
 
 function TableItem({children, ...props}: PropsWithChildren<ListItemProps>) {
+  const isDark = useIsDark()
   return (
-    <ListItem {...props}>
+    <ListItem {...props} bg={isDark ? '$background' : '$backgroundStrong'}>
       <XStack alignItems="flex-start" width="100%">
         {children}
       </XStack>

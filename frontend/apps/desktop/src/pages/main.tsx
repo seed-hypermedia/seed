@@ -11,7 +11,7 @@ import {useIsDark} from '@shm/ui/use-is-dark'
 import {ReactElement, lazy, useMemo, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Panel, PanelGroup} from 'react-resizable-panels'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {SizableText, View, XStack, YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -58,6 +58,7 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         ai="center"
         jc="center"
+        bg={isDark ? '$backgroundStrong' : '$background'}
         clean
         cleanTitle="Settings"
       />
@@ -110,11 +111,16 @@ export default function Main({className}: {className?: string}) {
           {titlebar}
           <XStack flex={1} h="100%">
             {sidebar}
-            <PanelGroup direction="horizontal" style={{flex: 1}}>
-              <Panel id="page" order={2}>
-                <PageComponent />
-              </Panel>
-            </PanelGroup>
+            <View f={1} animation="fast">
+              <PanelGroup
+                direction="horizontal"
+                style={{flex: 1, animation: '0.5s ease-in-out'}}
+              >
+                <Panel id="page" order={2}>
+                  <PageComponent />
+                </Panel>
+              </PanelGroup>
+            </View>
           </XStack>
           <Footer />
           <AutoUpdater />

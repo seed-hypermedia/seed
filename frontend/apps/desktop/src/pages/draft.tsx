@@ -44,6 +44,7 @@ import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
@@ -851,20 +852,17 @@ function DraftMetadataEditor({
   const {textUnit} = useDocContentContext()
   const [showIcon, setShowIcon] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
+  const isDark = useIsDark()
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
   })
-
   const icon = useSelector(draftActor, (s) => {
     return s.context.metadata.icon
   })
-
   const stateEditUid = useSelector(draftActor, (s) => {
     return s.context.editUid
   })
-
   const input = useRef<HTMLTextAreaElement | null>(null)
-
   const editUid = route.editUid || stateEditUid
 
   useShowTitleObserver(input.current)
@@ -924,6 +922,7 @@ function DraftMetadataEditor({
         marginTop={showCover ? -40 : 0}
         paddingTop={!showCover ? 60 : '$6'}
         // bg="$background"
+        bg={isDark ? '$background' : '$backgroundStrong'}
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
