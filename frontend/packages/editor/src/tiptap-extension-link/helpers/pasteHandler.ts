@@ -176,7 +176,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               path: unpackedHmId.path,
             }),
           )
-
+          console.log(
+            '~~~ normalizedHmUrl',
+            normalizedHmUrl,
+            !!options.grpcClient,
+          )
           if (options.grpcClient) {
             fetchEntityTitle(unpackedHmId, options.grpcClient)
               .then(({title}) => {
@@ -257,6 +261,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }
         }
 
+        console.log('~~~ link', link, selection.empty)
         if (link && selection.empty) {
           let tr = view.state.tr
           if (!tr.selection.empty) tr.deleteSelection()
