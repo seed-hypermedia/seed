@@ -13,6 +13,23 @@ import {
 } from '@shm/shared'
 import * as z from 'zod'
 
+export const ExactBlockRangeSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+})
+export type ExactBlockRange = z.infer<typeof ExactBlockRangeSchema>
+
+export const ExpandedBlockRangeSchema = z.object({
+  expanded: z.boolean(),
+})
+export type ExpandedBlockRange = z.infer<typeof ExpandedBlockRangeSchema>
+
+export const BlockRangeSchema = z.union([
+  ExactBlockRangeSchema,
+  ExpandedBlockRangeSchema,
+])
+export type BlockRange = z.infer<typeof BlockRangeSchema>
+
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
   type: z.union([z.literal('d'), z.literal('c')]),
@@ -20,14 +37,7 @@ export const unpackedHmIdSchema = z.object({
   path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
-  blockRange: z
-    .object({start: z.number(), end: z.number()})
-    .or(
-      z.object({
-        expanded: z.boolean(),
-      }),
-    )
-    .nullable(),
+  blockRange: BlockRangeSchema.nullable(),
   hostname: z.string().nullable(),
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
@@ -998,3 +1008,22 @@ export const DeviceLinkSessionSchema = z.object({
 })
 
 export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>
+
+export const ParsedFragmentSchema = z.discriminatedUnion('type', [
+  ExpandedBlockRangeSchema.extend({
+    type: z.literal('block'),
+    blockId: z.string(),
+  }),
+  ExactBlockRangeSchema.extend({
+    type: z.literal('block-range'),
+    blockId: z.string(),
+  }),
+])
+export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
+
+export const HMCitationSchema = z.object({
+  source: unpackedHmIdSchema,
+  isExactVersion: z.boolean(),
+  targetFragment: ParsedFragmentSchema.nullable(),
+})
+export type HMCitation = z.infer<typeof HMCitationSchema>

@@ -115,7 +115,7 @@ export function CommentGroup({
   )
 }
 
-function Comment({
+export function Comment({
   docId,
   comment,
   replyCount,

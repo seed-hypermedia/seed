@@ -99,12 +99,15 @@ export default function DocumentPage() {
     accessory = (
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
     )
-  } else if (accessoryKey === 'comments') {
+  } else if (route.accessory?.key === 'comments') {
     accessory = (
       <CommentsPanel
         onClose={handleClose}
         docId={route.id}
-        {...route.accessory}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
       />
     )
   } else if (accessoryKey === 'all-documents') {
@@ -730,22 +733,28 @@ function DocPageContent({
         blockRange: blockRange || undefined,
       }}
       docId={entity.id}
-      onBlockComment={(blockId, blockRange) => {
-        console.log('~~~ onBlockComment', {blockId, blockRange})
+      onBlockComment={(blockId, blockRangeInput) => {
+        console.log('~~~ onBlockComment', {blockId, blockRangeInput})
         if (route.key !== 'document') return
         if (!blockId) return
+        const blockRange =
+          blockRangeInput &&
+          'start' in blockRangeInput &&
+          'end' in blockRangeInput
+            ? blockRangeInput
+            : null
         replace({
           ...route,
           id: {
             ...route.id,
             blockRef: blockId,
-            blockRange:
-              blockRange && 'start' in blockRange && 'end' in blockRange
-                ? blockRange
-                : null,
+            blockRange,
           },
           accessory: {
             key: 'comments',
+            openBlockId: blockId,
+            blockRange,
+            autoFocus: true,
           },
         })
       }}
