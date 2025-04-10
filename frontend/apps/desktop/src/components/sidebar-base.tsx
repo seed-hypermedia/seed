@@ -1,8 +1,8 @@
-import {useAppContext} from '@/app-context'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {Hash, Settings} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
@@ -19,7 +19,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const isLocked = useStream(ctx.isLocked)
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
-  const {platform} = useAppContext()
+  const isDark = useIsDark()
 
   const navigate = useNavigate()
   return (
@@ -44,19 +44,16 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         />
       ) : null}
       <YStack
-        bg="$backgroundTransparent"
+        bg={isDark ? '$background' : '$backgroundStrong'}
         borderRightWidth={isLocked ? undefined : 1}
         borderColor={isLocked ? undefined : '$color4'}
         animation="fast"
         position={isLocked ? 'relative' : 'absolute'}
-        // position="absolute"
         zi="$zIndex.9"
         x={isVisible ? 0 : -SidebarWidth}
         width="100%"
         maxWidth={SidebarWidth}
-        elevation={!isLocked ? '$4' : undefined}
-        // top={isLocked ? undefined : top}
-
+        elevation={isLocked ? undefined : '$4'}
         top={8}
         bottom={0}
         borderTopRightRadius={!isLocked ? '$3' : undefined}

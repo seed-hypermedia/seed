@@ -54,6 +54,7 @@ import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {
@@ -429,6 +430,7 @@ export function NewSubDocumentButton({
 }
 
 function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
+  const isDark = useIsDark()
   const entity = useEntity(docId)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -453,7 +455,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        bg="$backgroundTransparent"
+        bg={isDark ? '$background' : '$backgroundStrong'}
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
