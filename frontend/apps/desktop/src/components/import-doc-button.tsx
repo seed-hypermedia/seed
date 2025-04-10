@@ -1,5 +1,5 @@
 import {useAppContext} from '@/app-context'
-import {createHypermediaDocLinkPlugin, hmBlockSchema} from '@/editor'
+import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
@@ -10,6 +10,7 @@ import {
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
+import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
