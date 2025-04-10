@@ -440,8 +440,9 @@ function CommentCitation({
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
       replyCount={
-        9 // todo
-        // isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
+        // 9 // todo
+        // // isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
+        0
       }
       enableWebSigning={true}
       RepliesEditor={RepliesEditor}
