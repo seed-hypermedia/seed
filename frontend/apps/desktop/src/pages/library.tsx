@@ -29,6 +29,7 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   Check,
@@ -407,6 +408,7 @@ function LibrarySiteItem({
         : [...expandedIds, site.id],
     })
   }
+  const isDark = useIsDark()
   const navigate = useNavigate()
   const metadata = site?.metadata
   const id = hmId('d', site.id)
@@ -420,6 +422,7 @@ function LibrarySiteItem({
     ? site.latestComment
     : homeDocument?.latestComment
   const isRead = !siteDisplayActivitySummary?.isUnread
+  const readBackground = isDark ? '$backgroundStrong' : '$background'
   return (
     <>
       <Button
@@ -428,7 +431,7 @@ function LibrarySiteItem({
         hoverStyle={{
           bg: '$color5',
         }}
-        bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+        bg={isRead ? '$colorTransparent' : readBackground}
         paddingHorizontal={16}
         paddingVertical="$2"
         onPress={() => {
@@ -498,6 +501,8 @@ export function LibraryDocumentItem({
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
+  const isDark = useIsDark()
+  const readBackground = isDark ? '$backgroundStrong' : '$background'
   const id = hmId('d', item.account, {
     path: item.path,
   })
@@ -509,7 +514,7 @@ export function LibraryDocumentItem({
       hoverStyle={{
         bg: '$color5',
       }}
-      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+      bg={isRead ? '$colorTransparent' : readBackground}
       // elevation="$1"
       paddingHorizontal={16}
       paddingVertical="$2"
