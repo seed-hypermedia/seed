@@ -458,7 +458,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				source        = stmt.ColumnText(0)
 				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-				ts            = hlc.Timestamp(stmt.ColumnInt64(4)).Time()
+				ts            = hlc.Timestamp(stmt.ColumnInt64(4) * 1000).Time()
 				blobType      = stmt.ColumnText(5)
 				isPinned      = stmt.ColumnInt(6) > 0
 				anchor        = stmt.ColumnText(7)
