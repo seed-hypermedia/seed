@@ -154,9 +154,11 @@ export const CommentDraft = memo(_CommentDraft)
 function _CommentDraft({
   docId,
   backgroundColor = '$color4',
+  quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
+  quotingBlockId?: string
 }) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
@@ -173,6 +175,7 @@ function _CommentDraft({
         accounts={accounts}
         autoFocus={isStartingComment}
         initCommentDraft={draft.data}
+        quotingBlockId={quotingBlockId}
         onDiscardDraft={() => {
           setIsStartingComment(false)
         }}
@@ -233,6 +236,7 @@ function _CommentDraftEditor({
   replyCommentId,
   initCommentDraft,
   onReplied,
+  quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
   accounts: HMEntityContent[]
@@ -241,6 +245,7 @@ function _CommentDraftEditor({
   replyCommentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
   onReplied?: () => void
+  quotingBlockId?: string
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
@@ -248,6 +253,7 @@ function _CommentDraftEditor({
       replyCommentId,
       initCommentDraft,
       onReplied,
+      quotingBlockId,
     })
   const openUrl = useOpenUrl()
   useEffect(() => {
@@ -364,7 +370,6 @@ function SelectAccountDropdown({
   if (!options || !currentAccount) return null
   return (
     <SelectDropdown
-      width={240}
       size="$2"
       options={options}
       value={currentAccount}

@@ -30,6 +30,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowUpRightSquare} from '@shm/ui/icons'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -168,6 +169,27 @@ function EmbedWrapper({
         !disableEmbedClick
           ? () => {
               if (!id) return
+              if (id.type === 'c') {
+                if (!id.targetDocUid) {
+                  toast.error(
+                    'Comment embeds must have a target document to open',
+                  )
+                  return
+                }
+                console.log('~~~ onPress', id)
+                toast('lol')
+                navigate({
+                  key: 'document',
+                  id: hmId('d', id.targetDocUid, {
+                    path: id.targetDocPath,
+                  }),
+                  accessory: {
+                    key: 'comments',
+                    openComment: id.uid,
+                  },
+                })
+                return
+              }
               navigate({
                 key: 'document',
                 id,
@@ -298,7 +320,6 @@ export function EmbedComment(props: EntityComponentProps) {
   const comment = useComment(hmId('c', props.uid), {
     enabled: !!props,
   })
-  console.log('~~~ comment', comment.data)
   let embedBlocks = useMemo(() => {
     const selectedBlock =
       props.blockRef && comment.data?.content
@@ -316,14 +337,17 @@ export function EmbedComment(props: EntityComponentProps) {
   return (
     <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
       <XStack flexWrap="wrap" jc="space-between" p="$3">
-        <XStack gap="$2">
+        <XStack gap="$2" ai="center">
           {account.data?.id && (
             <HMIcon
+              size={24}
               id={account.data.id}
               metadata={account.data?.document?.metadata}
             />
           )}
-          <SizableText>{account.data?.document?.metadata?.name}</SizableText>
+          <SizableText fontWeight="bold">
+            {account.data?.document?.metadata?.name}
+          </SizableText>
         </XStack>
         {comment.data?.createTime ? (
           <SizableText fontSize="$2" color="$color10">

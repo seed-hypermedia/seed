@@ -168,13 +168,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
           let pos = tr.selection.from
           const normalizedHmUrl = packHmId(
-            hmId(unpackedHmId.type, unpackedHmId.uid, {
-              blockRef: unpackedHmId.blockRef,
-              blockRange: unpackedHmId.blockRange,
-              version: unpackedHmId.version,
-              latest: unpackedHmId.latest,
-              path: unpackedHmId.path,
-            }),
+            hmId(unpackedHmId.type, unpackedHmId.uid, unpackedHmId),
           )
           console.log(
             '~~~ normalizedHmUrl',

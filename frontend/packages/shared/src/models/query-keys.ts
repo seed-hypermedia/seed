@@ -51,9 +51,6 @@ export const queryKeys = {
   COMMENT: 'COMMENT', //, commentId: string
   DOCUMENT_COMMENTS: 'DOCUMENT_COMMENTS', //, docUid: string
 
-  // content-graph
-  ENTITY_CITATIONS: 'ENTITY_CITATIONS', //, entityId: string
-
   // web-links
   GET_URL: 'GET_URL',
 
@@ -137,16 +134,20 @@ export function labelOfQueryKey(key: QueryKey) {
       return `Editor Draft ${abbreviateCid(arg1)}`
     case queryKeys.ENTITY:
       return `Entity`
+    case queryKeys.ENTITY_CHANGES:
+      return `Entity Changes`
+
+    // capabilities
+    case queryKeys.CAPABILITIES:
+      return `Capabilities`
+    case queryKeys.ACCOUNT_CAPABILITIES:
+      return `Account Capabilities`
 
     // comments
     case queryKeys.COMMENT:
       return 'Comment'
     case queryKeys.DOCUMENT_COMMENTS:
       return 'Document Comments'
-
-    // content-graph
-    case queryKeys.ENTITY_CITATIONS:
-      return `Citations of ${abbreviateCid(arg1)}`
 
     // web-links
     case queryKeys.GET_URL:
@@ -181,6 +182,14 @@ export function labelOfQueryKey(key: QueryKey) {
       return 'Payment Recipients'
     case queryKeys.INVOICE_STATUS:
       return 'Invoice Status'
+
+    // recents
+    case queryKeys.RECENTS:
+      return 'Recents'
+
+    // citations
+    case queryKeys.DOC_CITATIONS:
+      return `Citations`
 
     default:
       // return 'unknown'

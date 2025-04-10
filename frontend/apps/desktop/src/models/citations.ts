@@ -31,7 +31,6 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
               isExactVersion,
             } satisfies HMCitation
           } else if (sourceId.type === 'd') {
-            console.log('~~~ handling doc citation', sourceId, mention)
             return {
               source: {
                 id: sourceId,
