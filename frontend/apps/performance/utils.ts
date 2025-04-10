@@ -6,6 +6,12 @@ import {parseElectronApp} from "../desktop/test/utils";
 interface BuildInfo {
   name: string;
   time: number;
+  fullPath: string;
+}
+
+interface BuildItem {
+  name: string;
+  fullPath: string;
 }
 
 // Override the findLatestBuild function to point to the correct location
@@ -34,7 +40,7 @@ export function findLatestBuild(): string {
     console.log(`Also looking in: ${makeDir}`);
   }
 
-  let allBuilds = [];
+  let allBuilds: BuildItem[] = [];
 
   // Search in all directories
   for (const dir of searchDirs) {
@@ -43,7 +49,7 @@ export function findLatestBuild(): string {
 
     // Add items with full path
     allBuilds = allBuilds.concat(
-      items.map((item) => ({
+      items.map((item: string) => ({
         name: item,
         fullPath: path.join(dir, item),
       }))
@@ -66,7 +72,7 @@ export function findLatestBuild(): string {
   console.log(`Processing ${allBuilds.length} potential builds`);
 
   const latestBuild = allBuilds
-    .map((item) => {
+    .map((item): BuildInfo | null => {
       // Make sure it's a directory with platform in its name
       const stats = fs.statSync(item.fullPath);
       const nameLower = item.name.toLowerCase();
@@ -84,7 +90,7 @@ export function findLatestBuild(): string {
       }
       return null;
     })
-    .filter(Boolean)
+    .filter((build): build is BuildInfo => build !== null)
     .sort((a, b) => b.time - a.time)[0];
 
   if (!latestBuild) {
@@ -120,8 +126,11 @@ export async function startApp() {
     executablePath: appInfo.executable,
   });
 
-  const windows = electronApp.windows();
-  const appWindow = windows[0];
+  // Wait for the first window to be ready
+  const appWindow = await electronApp.firstWindow();
+
+  // Ensure window is loaded
+  await appWindow.waitForLoadState("domcontentloaded");
 
   return {
     getWindow: async () => await electronApp.firstWindow(),
