@@ -11,7 +11,7 @@ export const TitlebarWrapper = styled(YStack, {
   paddingHorizontal: 0,
   width: '100%',
   minHeight: 40,
-  backgroundColor: '$backgroundStrong',
+  backgroundColor: '$backgroundTransparent',
   borderWidth: 0,
   borderBottomColor: '$color5',
   alignItems: 'stretch',

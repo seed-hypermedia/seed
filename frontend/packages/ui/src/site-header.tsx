@@ -23,6 +23,7 @@ import {
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
+import {useIsDark} from './use-is-dark'
 
 export function SiteHeader({
   originHomeId,
@@ -53,6 +54,7 @@ export function SiteHeader({
   origin?: string
   onScroll?: () => void
 }) {
+  const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)
@@ -103,7 +105,7 @@ export function SiteHeader({
         top={0}
         right={0}
         left={0}
-        backgroundColor="$background"
+        backgroundColor={isDark ? '$background' : '$backgroundStrong'}
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"

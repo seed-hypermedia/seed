@@ -11,7 +11,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
-import {Container} from '@shm/ui/container'
+import {Container, PanelContainer} from '@shm/ui/container'
 import {useMemo} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {Button, SizableText, XStack, YStack} from 'tamagui'
@@ -63,8 +63,8 @@ export default function DraftsPage() {
     })
   }, [drafts.data, entities])
   return (
-    <XStack flex={1} height="100%">
-      <MainWrapper>
+    <PanelContainer>
+      <MainWrapper scrollable>
         <Container justifyContent="center" centered gap="$2">
           {draftItems?.map((item) => {
             return (
@@ -77,7 +77,7 @@ export default function DraftsPage() {
           })}
         </Container>
       </MainWrapper>
-    </XStack>
+    </PanelContainer>
   )
 }
 

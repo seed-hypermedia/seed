@@ -15,7 +15,7 @@ type SidebarContextValue = {
 
 export const SidebarContext = createContext<SidebarContextValue | null>(null)
 
-export const SidebarWidth = 300
+export const SidebarWidth = 220
 
 export function SidebarContextProvider(props: PropsWithChildren<{}>) {
   const state = useNavigationState()

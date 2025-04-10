@@ -26,11 +26,12 @@ export function SiteLogo({
         $gtSm={{
           flex: 0,
         }}
+        style={{height: '60px'}}
       >
         <img
           src={imageUrl(metadata.seedExperimentalLogo, 'M')}
           height={60}
-          style={{objectFit: 'contain'}}
+          style={{objectFit: 'contain', height: '100%'}}
         />
       </XStack>
     )

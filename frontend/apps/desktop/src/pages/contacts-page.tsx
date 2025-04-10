@@ -6,7 +6,7 @@ import {getMetadataName} from '@shm/shared/content'
 import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
-import {Container} from '@shm/ui/container'
+import {Container, PanelContainer} from '@shm/ui/container'
 import {ListItemSkeleton} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
@@ -17,13 +17,15 @@ import {useShowTitleObserver} from './app-title'
 function ErrorPage({}: {error: any}) {
   // todo, this!
   return (
-    <MainWrapper>
-      <Container centered>
-        <Text fontFamily="$body" fontSize="$3">
-          Error
-        </Text>
-      </Container>
-    </MainWrapper>
+    <PanelContainer>
+      <MainWrapper scrollable>
+        <Container centered>
+          <Text fontFamily="$body" fontSize="$3">
+            Error
+          </Text>
+        </Container>
+      </MainWrapper>
+    </PanelContainer>
   )
 }
 
@@ -33,13 +35,13 @@ export default function ContactsPage() {
   useShowTitleObserver(ref.current)
   if (accounts.isLoading) {
     return (
-      <>
-        <MainWrapper>
+      <PanelContainer>
+        <MainWrapper scrollable>
           <Container centered>
             <Spinner />
           </Container>
         </MainWrapper>
-      </>
+      </PanelContainer>
     )
   }
   if (accounts.error) {
@@ -47,8 +49,8 @@ export default function ContactsPage() {
   }
 
   return (
-    <>
-      <MainWrapper height="100%">
+    <PanelContainer>
+      <MainWrapper scrollable>
         <Container centered>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
             {accounts.data?.accounts.length ? (
@@ -73,7 +75,7 @@ export default function ContactsPage() {
           </YStack>
         </Container>
       </MainWrapper>
-    </>
+    </PanelContainer>
   )
 }
 

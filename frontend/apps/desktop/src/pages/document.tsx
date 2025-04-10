@@ -8,7 +8,6 @@ import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {useTemplateDialog} from '@/components/site-template'
@@ -161,7 +160,6 @@ export default function DocumentPage() {
   return (
     <>
       <XStack flex={1} height="100%">
-        <SidebarSpacer />
         <AccessoryLayout
           mainPanelRef={mainPanelRef}
           accessory={accessory}

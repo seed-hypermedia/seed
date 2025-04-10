@@ -1,6 +1,7 @@
-import {styled} from '@tamagui/core'
-import {XStack, YStack} from '@tamagui/stacks'
-import {ComponentProps} from 'react'
+import {styled, View} from '@tamagui/core'
+import {YStack} from '@tamagui/stacks'
+import {ComponentProps, useMemo} from 'react'
+import {useThemeName} from 'tamagui'
 
 const variants = {
   hide: {
@@ -21,16 +22,39 @@ const variants = {
   },
 } as const
 
-export function PageContainer({
+export const defaultContainerStyle = {
+  w: 'calc(100% - 16px)',
+  marginHorizontal: 8,
+  borderColor: '$borderColor',
+  borderWidth: 1,
+  borderRadius: '$4',
+}
+
+export function PanelContainer({
   children,
   ...props
 }: ComponentProps<typeof YStack>) {
+  const themeName = useThemeName()
+  const isDark = useMemo(() => themeName === 'dark', [themeName])
+
   return (
-    <XStack jc="center" f={1}>
-      <YStack f={1} paddingHorizontal="$4" alignSelf="center" {...props}>
-        {children}
-      </YStack>
-    </XStack>
+    <View
+      className="page-container"
+      h="100%"
+      bg={isDark ? '$background' : '$backgroundStrong'}
+      overflow="hidden"
+      w="100%"
+      $gtSm={{
+        w: 'calc(100% - 16px)',
+        marginHorizontal: 8,
+        borderColor: '$borderColor',
+        borderWidth: 1,
+        borderRadius: '$4',
+      }}
+      {...props}
+    >
+      {children}
+    </View>
   )
 }
 

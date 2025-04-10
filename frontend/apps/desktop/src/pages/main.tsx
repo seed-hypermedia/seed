@@ -7,6 +7,7 @@ import {getWindowType} from '@/utils/window-types'
 import {HMMetadata} from '@shm/shared'
 import {NavRoute} from '@shm/shared/routes'
 import {useDocumentLayout} from '@shm/ui/layout'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {ReactElement, lazy, useMemo, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Panel, PanelGroup} from 'react-resizable-panels'
@@ -19,7 +20,6 @@ import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
-
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
@@ -31,6 +31,7 @@ var Drafts = lazy(() => import('./drafts'))
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
+  const isDark = useIsDark()
   const {PageComponent, Fallback} = useMemo(
     () => getPageComponent(navR),
     [navR],
@@ -93,7 +94,11 @@ export default function Main({className}: {className?: string}) {
   }
 
   return (
-    <YStack fullscreen className={className}>
+    <YStack
+      fullscreen
+      className={className}
+      bg={isDark ? '$backgroundStrong' : '$background'}
+    >
       <SidebarContextProvider>
         <ErrorBoundary
           key={routeKey}
@@ -103,12 +108,14 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <PanelGroup direction="horizontal" style={{flex: 1}}>
-            <Panel id="page" order={2}>
-              <PageComponent />
-            </Panel>
-          </PanelGroup>
-          {sidebar}
+          <XStack flex={1} h="100%">
+            {sidebar}
+            <PanelGroup direction="horizontal" style={{flex: 1}}>
+              <Panel id="page" order={2}>
+                <PageComponent />
+              </Panel>
+            </PanelGroup>
+          </XStack>
           <Footer />
           <AutoUpdater />
         </ErrorBoundary>
