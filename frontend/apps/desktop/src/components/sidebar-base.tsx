@@ -31,7 +31,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           borderRadius={'$3'}
           bg="$backgroundStrong"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
-          top={8}
+          top={0}
           zi="$zIndex.9"
           opacity={0}
           hoverStyle={{
@@ -44,18 +44,24 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         />
       ) : null}
       <YStack
-        bg={isDark ? '$background' : '$backgroundStrong'}
+        bg={
+          isLocked
+            ? 'transparent'
+            : isDark
+            ? '$background'
+            : '$backgroundStrong'
+        }
         borderRightWidth={isLocked ? undefined : 1}
         borderColor={isLocked ? undefined : '$color4'}
         animation="fast"
         position={isLocked ? 'relative' : 'absolute'}
-        zi="$zIndex.9"
+        zi={isLocked ? undefined : '$zIndex.9'}
         x={isVisible ? 0 : -SidebarWidth}
         width="100%"
         maxWidth={SidebarWidth}
         elevation={isLocked ? undefined : '$4'}
-        top={8}
-        bottom={0}
+        top={isLocked ? undefined : 8}
+        bottom={isLocked ? undefined : 0}
         borderTopRightRadius={!isLocked ? '$3' : undefined}
         borderBottomRightRadius={!isLocked ? '$3' : undefined}
         onMouseEnter={ctx.onMenuHover}
