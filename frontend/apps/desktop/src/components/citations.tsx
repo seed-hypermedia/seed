@@ -7,6 +7,7 @@ import {entityQueryPathToHmIdPath, formattedDateShort} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMCitation,
+  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -305,26 +306,46 @@ function DocumentCitation({
   if (!author) return null
   console.log('~~~ doc citation author', author)
   return (
-    <XStack gap="$2" ai="center" flexWrap="wrap">
-      <HMIcon size={20} id={author.id} metadata={author.metadata} />
-      <SizableText fontWeight="bold">{author.metadata?.name}</SizableText>
+    <XStack gap="$1" ai="center" flexWrap="wrap">
+      <HMAuthor author={author} />
       <CitationDateText>
         {formattedDateShort(citation.source.time)}
       </CitationDateText>
-      <SizableText>cited on</SizableText>
-      <DocumentCitationButton
-        onPress={() => {
-          doc.data && navigate({key: 'document', id: doc.data.id})
-        }}
-      >
-        {doc.data?.document?.metadata?.name}
-      </DocumentCitationButton>
+      <XStack gap="$2" ai="center">
+        <SizableText>cited on</SizableText>
+        <DocumentCitationButton
+          onPress={() => {
+            doc.data && navigate({key: 'document', id: doc.data.id})
+          }}
+        >
+          {doc.data?.document?.metadata?.name}
+        </DocumentCitationButton>
+      </XStack>
     </XStack>
+  )
+}
+
+function HMAuthor({author}: {author: HMMetadataPayload}) {
+  const navigate = useNavigate()
+  return (
+    <Button
+      size="$2"
+      chromeless
+      onPress={() => {
+        navigate({key: 'document', id: author.id})
+      }}
+    >
+      <XStack gap="$2" ai="center">
+        <HMIcon size={20} id={author.id} metadata={author.metadata} />
+        <SizableText fontWeight="bold">{author.metadata?.name}</SizableText>
+      </XStack>
+    </Button>
   )
 }
 
 const CitationDateText = styled(SizableText, {
   color: '$color8',
+  marginRight: '$2',
 })
 
 const DocumentCitationButton = styled(Button, {
