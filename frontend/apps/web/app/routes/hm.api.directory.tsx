@@ -2,6 +2,7 @@ import {queryClient} from '@/client'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
+  HMAccountsMetadata,
   HMDocumentMetadataSchema,
   hmId,
   HMMetadata,
@@ -10,7 +11,6 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {AccountsMetadata} from '@shm/ui/face-pile'
 
 export type HMDirectory = PlainMessage<ListDocumentsResponse>
 
@@ -22,7 +22,7 @@ export type DirectoryPayload = {
     id: UnpackedHypermediaId
     authors: string[]
   }[]
-  accountsMetadata?: AccountsMetadata
+  accountsMetadata?: HMAccountsMetadata
   error?: string
 }
 

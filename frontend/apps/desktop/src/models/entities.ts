@@ -1,6 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  HMAccountsMetadata,
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
@@ -318,4 +319,19 @@ export function useIdEntities(
   ).map((result, i) => {
     return {id: ids[i], entity: result.data || undefined}
   })
+}
+
+export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
+  const accounts = useEntities(ids.map((id) => hmId('d', id)))
+  return Object.fromEntries(
+    accounts
+      .map((account) => {
+        if (!account.data) return null
+        return [
+          account.data.id.uid,
+          {id: account.data.id, metadata: account.data.document?.metadata},
+        ]
+      })
+      .filter((entry) => !!entry),
+  )
 }

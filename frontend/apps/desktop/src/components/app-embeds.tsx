@@ -473,7 +473,7 @@ function QueryStyleCard({
   items: any[]
   block: HMBlockQuery
   getEntity: any
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
 }) {
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {

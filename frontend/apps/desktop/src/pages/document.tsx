@@ -70,7 +70,7 @@ import {
   YStack,
   YStackProps,
 } from 'tamagui'
-import {EntityCitationsAccessory} from '../components/citations'
+import {CitationsPanel} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -87,9 +87,7 @@ export default function DocumentPage() {
   }
   let accessory: ReactNode = null
   if (accessoryKey === 'citations') {
-    accessory = (
-      <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
-    )
+    accessory = <CitationsPanel entityId={docId} onClose={handleClose} />
   } else if (accessoryKey === 'options') {
     accessory = <OptionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'versions') {
