@@ -1,5 +1,6 @@
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
+import {useCollapsedPath} from '@shm/ui/search-input'
 import {useLayoutEffect, useRef} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
@@ -25,6 +26,7 @@ export function LauncherItem({
   onMouseEnter: any
 }) {
   const elm = useRef<HTMLDivElement>(null)
+  const collapsedPath = useCollapsedPath(item.path ?? [], elm)
 
   useLayoutEffect(() => {
     if (selected) {
@@ -33,42 +35,45 @@ export function LauncherItem({
   }, [selected])
 
   return (
-    <Button
-      ref={elm}
-      key={item.key}
-      onPress={() => {
-        item.onSelect()
-      }}
-      backgroundColor={selected ? '$brand4' : undefined}
-      hoverStyle={{
-        backgroundColor: selected ? '$brand4' : undefined,
-      }}
-      onFocus={onFocus}
-      onMouseEnter={onMouseEnter}
-    >
-      <XStack flex={1} gap="$3" justifyContent="flex-start">
-        {item.icon ? (
-          <UIAvatar
-            label={item.title}
-            size={20}
-            id={item.key}
-            url={getDaemonFileUrl(item.icon)}
-          />
-        ) : item.path?.length === 1 ? (
-          <UIAvatar label={item.title} size={20} id={item.key} />
-        ) : null}
-        <YStack flex={1} justifyContent="space-between">
-          <SizableText numberOfLines={1} fontWeight={600}>
-            {item.title}
-          </SizableText>
-          {!!item.path ? (
-            <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
-              {item.path?.slice(0, -1).join(' / ')}
-            </SizableText>
+    <YStack paddingVertical="$1" ref={elm}>
+      <Button
+        // ref={elm}
+        key={item.key}
+        onPress={() => {
+          item.onSelect()
+        }}
+        backgroundColor={selected ? '$brand4' : undefined}
+        hoverStyle={{
+          backgroundColor: selected ? '$brand4' : undefined,
+        }}
+        onFocus={onFocus}
+        onMouseEnter={onMouseEnter}
+      >
+        <XStack flex={1} gap="$3" justifyContent="flex-start">
+          {item.icon ? (
+            <UIAvatar
+              label={item.title}
+              size={20}
+              id={item.key}
+              url={getDaemonFileUrl(item.icon)}
+            />
+          ) : item.path?.length === 1 ? (
+            <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
-          {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
-        </YStack>
-      </XStack>
-    </Button>
+          <YStack flex={1} justifyContent="space-between">
+            <SizableText numberOfLines={1} fontWeight={600}>
+              {item.title}
+            </SizableText>
+            {!!item.path ? (
+              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+                {/* {item.path?.slice(0, -1).join(' / ')} */}
+                {collapsedPath.join(' / ')}
+              </SizableText>
+            ) : null}
+            {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
+          </YStack>
+        </XStack>
+      </Button>
+    </YStack>
   )
 }
