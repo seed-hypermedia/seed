@@ -13,7 +13,7 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
         // type: docId.type,
         pageSize: BIG_INT,
       })
-      console.log('~~~ raw results', results)
+      console.log('~~~ raw results', docId.id, results)
       return results.mentions
         .map((m) => {
           const source = unpackHmId(m.source)
