@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {unpackedHmIdSchema} from '.'
+import {BlockRangeSchema, unpackedHmIdSchema} from '.'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -63,6 +63,9 @@ export const documentCommentsAccessorySchema = z.object({
   key: z.literal('comments'),
   width: z.number().optional(),
   openComment: z.string().optional(),
+  openBlockId: z.string().optional(),
+  blockRange: BlockRangeSchema.nullable().optional(),
+  autoFocus: z.boolean().optional(),
 })
 export type DocumentCommentsAccessory = z.infer<
   typeof documentCommentsAccessorySchema

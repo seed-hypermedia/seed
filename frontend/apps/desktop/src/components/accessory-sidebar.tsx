@@ -17,7 +17,6 @@ export function AccessoryContainer({
   children,
   footer,
   title,
-  onClose,
   ...props
 }: {
   children?: React.ReactNode

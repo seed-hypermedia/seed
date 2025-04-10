@@ -86,6 +86,9 @@ export const queryKeys = {
   // recents
   RECENTS: 'RECENTS',
 
+  // citations
+  DOC_CITATIONS: 'DOC_CITATIONS', //, docId: string id.id
+
   // web stuff is queried differently...
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
