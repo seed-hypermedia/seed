@@ -9,11 +9,11 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
+  HMCitation,
   HMDocument,
   HMEntityContent,
   HMInlineContent,
   HMQueryResult,
-  Mention,
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
@@ -110,7 +110,7 @@ export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
-  citations?: Mention[]
+  citations?: HMCitation[]
 
   onCitationClick?: () => void
   disableEmbedClick?: boolean
@@ -2524,9 +2524,11 @@ export function useBlockCitations(blockId?: string) {
   const context = useDocContentContext()
 
   let citations = useMemo(() => {
+    console.log('~~~ citations', blockId, context.citations)
     if (!context.citations?.length) return []
     return context.citations.filter((c) => {
-      return c.targetFragment == blockId
+      if (c.source.id.type !== 'd') return false
+      return c.targetFragment && c.targetFragment.blockId == blockId
     })
   }, [blockId, context.citations])
 

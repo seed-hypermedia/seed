@@ -15,6 +15,7 @@ import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {useEntityCitations} from '@/models/citations'
 import {
   useAccountDraftList,
   useCreateDraft,
@@ -719,6 +720,7 @@ function DocPageContent({
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
+  const citations = useEntityCitations(entity.id)
 
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
@@ -730,6 +732,16 @@ function DocPageContent({
       routeParams={{
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
+      }}
+      citations={citations.data || []}
+      onCitationClick={() => {
+        // console.log('~~~ onCitationClick', citations.data)
+        replace({
+          ...route,
+          accessory: {
+            key: 'citations',
+          },
+        })
       }}
       docId={entity.id}
       onBlockComment={(blockId, blockRangeInput) => {
