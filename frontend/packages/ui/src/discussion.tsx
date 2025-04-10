@@ -331,7 +331,12 @@ export function Comment({
                   toast.error('No onCopyReference function provided')
                   return
                 }
-                onCopyReference(hmId('c', comment.id))
+                onCopyReference(
+                  hmId('c', comment.id, {
+                    targetDocUid: docId.uid,
+                    targetDocPath: docId.path,
+                  }),
+                )
               }}
               opacity={0}
               hoverStyle={{

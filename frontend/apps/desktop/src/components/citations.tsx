@@ -2,11 +2,13 @@ import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {useEntityCitations} from '@/models/citations'
 import {useComment} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
+import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavigate} from '@/utils/useNavigate'
 import {entityQueryPathToHmIdPath, formattedDateShort} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMCitation,
+  HMMetadata,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -14,8 +16,10 @@ import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
 import {Comment} from '@shm/ui/discussion'
+import {BlocksContent} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button, SizableText, styled, XStack} from 'tamagui'
+import {HoverCard} from '@shm/ui/hover-card'
+import {Button, SizableText, Spinner, styled, XStack, YStack} from 'tamagui'
 import {CommentReplies, renderCommentContent, RepliesEditor} from './commenting'
 
 // function CitationItem({mention}: {mention: Mention}) {
@@ -237,17 +241,18 @@ export function CitationsPanel({
   onClose: () => void
 }) {
   const citations = useEntityCitations(entityId)
-  console.log('~~~ citations', citations.data)
   if (!entityId) return null
 
   const citationSet = new Set()
-  const distinctCitations = citations?.data?.filter((item) => {
-    if (!citationSet.has(item?.source)) {
-      citationSet.add(item?.source)
-      return true
-    }
-    return false
-  })
+  const distinctCitations = citations?.data
+    ?.filter((item) => {
+      if (!citationSet.has(item?.source)) {
+        citationSet.add(item?.source)
+        return true
+      }
+      return false
+    })
+    .filter((item) => item.source.type === 'd')
   const distinctCount = distinctCitations?.length || 0
   const accountsToLoad = new Set<string>()
   distinctCitations?.forEach((citation) => {
@@ -256,19 +261,20 @@ export function CitationsPanel({
     }
   })
   const accounts = useAccountsMetadata(Array.from(accountsToLoad))
-  console.log('~~~ accounts', accounts)
   return (
     <AccessoryContainer
       title={`${distinctCount} ${pluralS(distinctCount, 'Citation')}`}
       onClose={onClose}
     >
-      {distinctCitations?.map((citation, index) => (
-        <CitationEntry
-          key={`${citation.source}${citation.targetFragment}`}
-          citation={citation}
-          accounts={accounts}
-        />
-      ))}
+      {distinctCitations?.map((citation, index) => {
+        return (
+          <CitationEntry
+            key={`${citation.source}${citation.targetFragment}`}
+            citation={citation}
+            accounts={accounts}
+          />
+        )
+      })}
     </AccessoryContainer>
   )
 }
@@ -299,12 +305,10 @@ function DocumentCitation({
   const doc = useEntity(citation.source.id)
   const navigate = useNavigate()
   if (!doc.data) return null
-  console.log('~~~ doc citation', citation, doc.data)
   const author = citation.source.author
     ? accounts[citation.source.author]
     : null
   if (!author) return null
-  console.log('~~~ doc citation author', author)
   return (
     <XStack gap="$1" ai="center" flexWrap="wrap">
       <HMAuthor author={author} />
@@ -313,15 +317,69 @@ function DocumentCitation({
       </CitationDateText>
       <XStack gap="$2" ai="center">
         <SizableText>cited on</SizableText>
-        <DocumentCitationButton
+        <DocumentCitationItem
+          docId={doc.data.id}
+          metadata={doc.data?.document?.metadata}
           onPress={() => {
             doc.data && navigate({key: 'document', id: doc.data.id})
           }}
-        >
-          {doc.data?.document?.metadata?.name}
-        </DocumentCitationButton>
+        />
       </XStack>
     </XStack>
+  )
+}
+
+function DocumentCitationItem({
+  docId,
+  onPress,
+  metadata,
+}: {
+  docId: UnpackedHypermediaId
+  onPress: () => void
+  metadata?: HMMetadata | null
+}) {
+  return (
+    <HoverCard
+      placement="left"
+      content={<HMDocumentPreview metadata={metadata} docId={docId} />}
+    >
+      <DocumentCitationButton onPress={onPress}>
+        {metadata?.name}
+      </DocumentCitationButton>
+    </HoverCard>
+  )
+}
+
+function HMDocumentPreview({
+  metadata,
+  docId,
+}: {
+  metadata?: HMMetadata | null
+  docId: UnpackedHypermediaId
+}) {
+  const doc = useEntity(docId)
+  if (doc.isInitialLoading) {
+    return <Spinner />
+  }
+  if (!doc.data) return null
+
+  return (
+    <YStack maxHeight="50vh" maxWidth={600} overflowY="auto">
+      <SizableText
+        fontSize="$9"
+        fontWeight="bold"
+        marginHorizontal="$2"
+        marginVertical="$5"
+      >
+        {metadata?.name}
+      </SizableText>
+      <AppDocContentProvider>
+        <BlocksContent
+          blocks={doc.data.document?.content}
+          parentBlockId={null}
+        />
+      </AppDocContentProvider>
+    </YStack>
   )
 }
 

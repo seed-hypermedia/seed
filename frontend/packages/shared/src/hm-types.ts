@@ -41,6 +41,8 @@ export const unpackedHmIdSchema = z.object({
   hostname: z.string().nullable(),
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
+  targetDocUid: z.string().nullable(),
+  targetDocPath: z.array(z.string()).nullable(),
 })
 
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>

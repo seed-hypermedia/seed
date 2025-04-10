@@ -1,14 +1,18 @@
 import {useEntityCitations} from '@/models/citations'
-import {useDocumentCommentGroups} from '@/models/comments'
-import {DocumentCommentsAccessory, pluralS} from '@shm/shared'
+import {useComment, useDocumentCommentGroups} from '@/models/comments'
+import {useAccountsMetadata} from '@/models/entities'
+import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {DocumentCommentsAccessory, hmId, pluralS} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
-import {CommentGroup} from '@shm/ui/discussion'
-import {ArrowLeft} from '@tamagui/lucide-icons'
+import {Comment, CommentGroup} from '@shm/ui/discussion'
+import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
+import {CitationsIcon} from '@shm/ui/icons'
+import {ChevronLeft} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
-import {memo} from 'react'
-import {View} from 'tamagui'
+import {memo, useMemo} from 'react'
+import {Spinner, styled, View, XStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CitationEntry} from './citations'
 import {
@@ -54,20 +58,35 @@ function _CommentsPanel({
   return <AllComments docId={docId} />
 }
 
-function AccessoryBackButton({onPress}: {onPress: () => void}) {
+function AccessoryBackButton({
+  onPress,
+  label,
+}: {
+  onPress: () => void
+  label?: string
+}) {
   return (
-    <Button onPress={onPress}>
-      <ArrowLeft />
-      <SizableText>All Comments</SizableText>
-    </Button>
+    <AccessoryBackButtonButton icon={ChevronLeft} onPress={onPress}>
+      {label || 'All Comments'}
+    </AccessoryBackButtonButton>
   )
 }
+
+const AccessoryBackButtonButton = styled(Button, {
+  chromeless: true,
+  size: '$3',
+  name: 'AccessoryBackButtonButton',
+  color: '$color10',
+  borderRadius: '$4',
+  paddingHorizontal: '$2',
+  paddingVertical: 0,
+  justifyContent: 'flex-start',
+})
 
 function AllComments({docId}: {docId: UnpackedHypermediaId}) {
   const commentGroups = useDocumentCommentGroups(docId)
 
   const authors = useCommentGroupAuthors(commentGroups.data)
-  console.log('~~~ AllComments', {comments: commentGroups.data, authors, docId})
 
   return (
     <AccessoryContainer
@@ -122,20 +141,63 @@ function CommentBlockAccessory({
       citation.source.type === 'c'
     )
   })
+  const accountIds = new Set<string>()
+  citationsForBlock?.forEach((citation) => {
+    citation.source.author && accountIds.add(citation.source.author)
+  })
+  const accounts = useAccountsMetadata(Array.from(accountIds))
   return (
     <AccessoryContainer
-      title={`Comment on Block ${blockId}`}
+      title={`Comments`}
       footer={
         <View padding="$3">
-          <CommentDraft docId={docId} backgroundColor="$color1" />
+          <CommentDraft
+            docId={docId}
+            backgroundColor="$color1"
+            quotingBlockId={blockId}
+          />
         </View>
       }
     >
-      <AccessoryBackButton onPress={onBack} />
+      <AccessoryBackButton onPress={onBack} label="Block Comments" />
+      <QuotedDocBlock docId={docId} blockId={blockId} />
       {citationsForBlock?.map((citation) => {
-        return <CitationEntry citation={citation} key={citation.source.id} />
+        return (
+          <CitationEntry
+            citation={citation}
+            key={citation.source.id.id}
+            accounts={accounts}
+          />
+        )
       })}
     </AccessoryContainer>
+  )
+}
+
+function QuotedDocBlock({
+  docId,
+  blockId,
+}: {
+  docId: UnpackedHypermediaId
+  blockId: string
+}) {
+  const doc = useEntity(docId)
+  const blockContent = useMemo(() => {
+    if (!doc.data?.document?.content) return null
+    return getBlockNodeById(doc.data?.document?.content, blockId)
+  }, [doc.data?.document?.content, blockId])
+  if (doc.isInitialLoading) {
+    return <Spinner />
+  }
+  return (
+    <XStack backgroundColor="$green3" borderRadius="$4" padding="$2">
+      <CitationsIcon color="#000" size={40} />
+      {blockContent && (
+        <AppDocContentProvider>
+          <BlocksContent blocks={[blockContent]} parentBlockId={blockId} />
+        </AppDocContentProvider>
+      )}
+    </XStack>
   )
 }
 
@@ -148,10 +210,26 @@ function CommentReplyAccessory({
   onBack: () => void
   commentId: string
 }) {
+  const comment = useComment(hmId('c', commentId))
+  const commentAuthor = useEntity(
+    comment.data?.author ? hmId('d', comment.data?.author) : null,
+  )
   return (
-    <AccessoryContainer title="Reply to Comment">
+    <AccessoryContainer title="Comment">
       <AccessoryBackButton onPress={onBack} />
-      <SizableText>{commentId}</SizableText>
+      {comment.data ? (
+        <Comment
+          comment={comment.data}
+          renderCommentContent={renderCommentContent}
+          docId={docId}
+          authorMetadata={commentAuthor.data?.document?.metadata}
+          rootReplyCommentId={null}
+          enableWebSigning={false}
+          CommentReplies={CommentReplies}
+        />
+      ) : (
+        <Spinner />
+      )}
     </AccessoryContainer>
   )
 }

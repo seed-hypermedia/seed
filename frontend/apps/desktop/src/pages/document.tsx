@@ -733,7 +733,6 @@ function DocPageContent({
       }}
       docId={entity.id}
       onBlockComment={(blockId, blockRangeInput) => {
-        console.log('~~~ onBlockComment', {blockId, blockRangeInput})
         if (route.key !== 'document') return
         if (!blockId) return
         const blockRange =
