@@ -128,14 +128,7 @@ jobs:
 
           # Run performance tests with all features enabled
           xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
-            cd frontend/apps/desktop && yarn test:performance \
-            --output performance-results \
-            --trace \
-            --lighthouse \
-            --url http://localhost:3000 \
-            --best-practices \
-            --budget \
-            $SCENARIOS_ARG
+            cd frontend/apps/desktop && test:performance:full
         env:
           NODE_ENV: production
 
