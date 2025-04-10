@@ -1,20 +1,16 @@
 import {useEntityCitations} from '@/models/citations'
-import {useComment, useDocumentCommentGroups} from '@/models/comments'
-import {
-  DocumentCommentsAccessory,
-  entityQueryPathToHmIdPath,
-  hmId,
-  pluralS,
-} from '@shm/shared'
-import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useDocumentCommentGroups} from '@/models/comments'
+import {DocumentCommentsAccessory, pluralS} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
-import {Comment, CommentGroup} from '@shm/ui/discussion'
+import {CommentGroup} from '@shm/ui/discussion'
 import {ArrowLeft} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {memo} from 'react'
 import {View} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
+import {CitationEntry} from './citations'
 import {
   CommentDraft,
   CommentReplies,
@@ -140,45 +136,6 @@ function CommentBlockAccessory({
         return <CitationEntry citation={citation} key={citation.source.id} />
       })}
     </AccessoryContainer>
-  )
-}
-
-function CitationEntry({citation}: {citation: HMCitation}) {
-  if (citation.source.type === 'c') {
-    return <CommentCitation citation={citation} />
-  }
-  return <SizableText>Unsupported Citation Type</SizableText>
-}
-
-function CommentCitation({citation}: {citation: HMCitation}) {
-  const comment = useComment(citation.source)
-  if (!comment.data) return null
-  const docId = hmId('d', comment.data.targetAccount, {
-    path: entityQueryPathToHmIdPath(comment.data.targetPath),
-    version: comment.data.targetVersion,
-  })
-  return (
-    <Comment
-      isFirst={false}
-      isLast={false}
-      isNested={false}
-      key={comment.data.id}
-      docId={docId}
-      comment={comment.data}
-      rootReplyCommentId={comment.data.threadRoot}
-      authorMetadata={{}}
-      renderCommentContent={renderCommentContent}
-      replyCount={
-        9 // todo
-        // isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
-      }
-      enableWebSigning={true}
-      RepliesEditor={RepliesEditor}
-      CommentReplies={CommentReplies}
-      // enableReplies={enableReplies}
-      // homeId={homeId}
-      // siteHost={siteHost}
-    />
   )
 }
 

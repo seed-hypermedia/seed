@@ -1021,8 +1021,24 @@ export const ParsedFragmentSchema = z.discriminatedUnion('type', [
 ])
 export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
 
+const HMCitationCommentSourceSchema = z.object({
+  type: z.literal('c'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+const HMCitationDocumentSourceSchema = z.object({
+  type: z.literal('d'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+
 export const HMCitationSchema = z.object({
-  source: unpackedHmIdSchema,
+  source: z.discriminatedUnion('type', [
+    HMCitationCommentSourceSchema,
+    HMCitationDocumentSourceSchema,
+  ]),
   isExactVersion: z.boolean(),
   targetFragment: ParsedFragmentSchema.nullable(),
 })

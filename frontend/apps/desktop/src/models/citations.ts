@@ -13,17 +13,37 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
         // type: docId.type,
         pageSize: BIG_INT,
       })
-      console.log('~~~ raw results', docId.id, results)
+      // console.log('~~~ raw results', docId.id, results)
       return results.mentions
-        .map((m) => {
-          const source = unpackHmId(m.source)
-          const targetFragment = parseFragment(m.targetFragment)
-          if (!source) return null
-          return {
-            source,
-            targetFragment,
-            isExactVersion: m.isExactVersion,
+        .map(({source, isExactVersion, ...mention}) => {
+          const sourceId = unpackHmId(source)
+          if (!sourceId) return null
+          const targetFragment = parseFragment(mention.targetFragment)
+          if (sourceId.type === 'c') {
+            return {
+              source: {
+                id: sourceId,
+                type: 'c',
+                author: mention.sourceBlob?.author,
+                time: mention.sourceBlob?.createTime,
+              },
+              targetFragment,
+              isExactVersion,
+            } satisfies HMCitation
+          } else if (sourceId.type === 'd') {
+            console.log('~~~ handling doc citation', sourceId, mention)
+            return {
+              source: {
+                id: sourceId,
+                type: 'd',
+                author: mention.sourceBlob?.author,
+                time: mention.sourceBlob?.createTime,
+              },
+              targetFragment,
+              isExactVersion,
+            } satisfies HMCitation
           }
+          return null
         })
         .filter((citation) => !!citation)
     },

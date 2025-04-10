@@ -9,7 +9,6 @@ import {
   HMDocumentMetadataSchema,
   HMLibraryDocument,
   HMMetadata,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {documentMetadataParseAdjustments} from '@shm/shared/models/entity'
@@ -72,8 +71,6 @@ export type ClassicLibrarySite = {
   items: HMDocumentInfo[]
   homeItem: HMDocumentInfo | null
 }
-
-export type AccountsMetadata = Record<string, HMMetadataPayload>
 
 export type LibrarySite = HMAccount & {
   type: 'site'
