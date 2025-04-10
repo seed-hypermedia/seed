@@ -114,23 +114,56 @@ export function findLatestBuild(): string {
 export async function startApp() {
   // Import needed modules
   const _electron = require("@playwright/test")._electron;
+  const fs = require("fs");
 
   // Find the latest build
   const latestBuild = findLatestBuild();
   // Parse the app info
   const appInfo = parseElectronApp(latestBuild);
 
-  // Launch the app
+  // Add debug logging
+  console.log("Attempting to launch app with:");
+  console.log("- Main:", appInfo.main);
+  console.log("- Executable:", appInfo.executable);
+
+  // Check if files exist
+  console.log("Checking file existence:");
+  console.log("- Main exists:", fs.existsSync(appInfo.main));
+  console.log("- Executable exists:", fs.existsSync(appInfo.executable));
+
+  // Check file permissions
+  try {
+    const execStats = fs.statSync(appInfo.executable);
+    console.log(
+      "Executable permissions:",
+      (execStats.mode & 0o777).toString(8)
+    );
+    // Ensure the file is executable
+    fs.chmodSync(appInfo.executable, 0o755);
+  } catch (error) {
+    console.error("Error checking/setting executable permissions:", error);
+  }
+
+  // Launch the app with additional options for debugging
   const electronApp = await _electron.launch({
     args: [appInfo.main],
     executablePath: appInfo.executable,
+    timeout: 30000, // Increase timeout to 30 seconds
+    env: {
+      ...process.env,
+      ELECTRON_ENABLE_LOGGING: "true",
+      DEBUG: "*",
+    },
   });
 
   // Wait for the first window to be ready
+  console.log("Waiting for first window...");
   const appWindow = await electronApp.firstWindow();
 
   // Ensure window is loaded
+  console.log("Waiting for window to load...");
   await appWindow.waitForLoadState("domcontentloaded");
+  console.log("Window loaded successfully");
 
   return {
     getWindow: async () => await electronApp.firstWindow(),

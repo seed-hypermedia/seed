@@ -116,6 +116,10 @@ jobs:
 
       - name: Run performance tests
         run: |
+          # Install required system dependencies for Electron
+          sudo apt-get update
+          sudo apt-get install -y libasound2 libgbm-dev libgtk-3-0 libnss3 libxss1 libxtst6 xvfb
+
           # Create output directory
           mkdir -p performance-results
 
@@ -126,11 +130,21 @@ jobs:
             SCENARIOS_ARG="--scenarios $SCENARIOS"
           fi
 
-          # Run performance tests with all features enabled
-          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
-            cd frontend/apps/desktop && yarn test:performance:full
+          # Debug: List build directory contents
+          echo "Build directory contents:"
+          ls -la frontend/apps/desktop/out
+          ls -la frontend/apps/desktop/out/make || true
+
+          # Ensure correct permissions on the build
+          chmod -R 755 frontend/apps/desktop/out
+
+          # Run performance tests with all features enabled and debug output
+          ELECTRON_ENABLE_LOGGING=true DEBUG=electron-*,playwright* xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            bash -c "cd frontend/apps/desktop && yarn test:performance:full"
         env:
           NODE_ENV: production
+          DISPLAY: ":99.0"
+          DEBUG: "electron-*,playwright*"
 
       # Set up AWS credentials for S3 uploads
       - name: Configure AWS credentials
