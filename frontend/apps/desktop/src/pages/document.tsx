@@ -47,6 +47,7 @@ import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
+  CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
   HistoryIcon,
@@ -150,11 +151,11 @@ export default function DocumentPage() {
     label: 'Comments',
     icon: CommentsIcon,
   })
-  // accessoryOptions.push({
-  //   key: 'citations',
-  //   label: 'Citations',
-  //   icon: CitationsIcon,
-  // })
+  accessoryOptions.push({
+    key: 'citations',
+    label: 'Citations',
+    icon: CitationsIcon,
+  })
   // if (docId.type === 'd' && !docId.path?.length) {
   //   accessoryOptions.push({
   //     key: 'all-documents',
