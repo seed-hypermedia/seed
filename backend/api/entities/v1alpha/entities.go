@@ -473,9 +473,9 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
 			}
 
-			//if blobType == "Comment" {
-			//	source = "hm://c/" + sourceBlob
-			//}
+			if blobType == "Comment" {
+				source = "hm://c/" + sourceBlob
+			}
 
 			resp.Mentions = append(resp.Mentions, &entities.Mention{
 				Source:        source,
