@@ -528,7 +528,7 @@ JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE resource_links.target = 7
+WHERE resource_links.target = :target
 AND structural_blobs.type IN ('Change')
 )
 SELECT
