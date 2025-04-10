@@ -1,7 +1,13 @@
 import {SearchResult} from '@shm/shared'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {PropsWithChildren, useLayoutEffect, useRef} from 'react'
+import {
+  PropsWithChildren,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import {Button, Input, InputProps, ScrollView} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
@@ -99,6 +105,7 @@ export function SearchResultItem({
   selected: boolean
 }) {
   const elm = useRef<HTMLDivElement>(null)
+  const collapsedPath = useCollapsedPath(item.path ?? [], elm)
 
   useLayoutEffect(() => {
     if (selected) {
@@ -107,9 +114,8 @@ export function SearchResultItem({
   }, [selected])
 
   return (
-    <YStack paddingVertical="$1">
+    <YStack paddingVertical="$1" ref={elm}>
       <Button
-        ref={elm}
         key={item.key}
         onPress={() => {
           item.onSelect()
@@ -141,7 +147,7 @@ export function SearchResultItem({
             </SizableText>
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
-                {item.path?.slice(0, -1).join(' / ')}
+                {collapsedPath.join(' / ')}
               </SizableText>
             ) : null}
             {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
@@ -150,4 +156,38 @@ export function SearchResultItem({
       </Button>
     </YStack>
   )
+}
+
+export function useCollapsedPath(
+  path: string[],
+  containerRef: React.RefObject<HTMLElement>,
+  fontSize = 12,
+  maxWidth = 200, // fallback width if ref not ready
+) {
+  const [collapsedPath, setCollapsedPath] = useState<string[]>(path)
+
+  useEffect(() => {
+    if (!containerRef.current || path.length <= 3) {
+      setCollapsedPath(path)
+      return
+    }
+
+    const containerWidth = containerRef.current.offsetWidth || maxWidth
+    const spacer = 10
+    const charWidth = fontSize * 0.6 // approx width of each character
+
+    // Estimate full breadcrumb width
+    const fullWidth = path.reduce(
+      (acc, item) => acc + item.length * charWidth + spacer,
+      0,
+    )
+
+    if (fullWidth <= containerWidth) {
+      setCollapsedPath(path)
+    } else {
+      setCollapsedPath([path[0], '…', path[path.length - 1]])
+    }
+  }, [path, containerRef])
+
+  return collapsedPath
 }

@@ -14,6 +14,7 @@ import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
 import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
+import {useCollapsedPath} from './search-input'
 
 export function MobileSearch({
   originHomeId,
@@ -96,6 +97,17 @@ export function HeaderSearch({
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
+        // const title = item.title || item.id.uid
+        // return {
+        //   key: item.id.id,
+        //   title,
+        //   path: [...item.parentNames, title],
+        //   icon: item.icon,
+        //   onFocus: () => {},
+        //   onMouseEnter: () => {},
+        //   onSelect: () => {},
+        //   subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+        // }
       })
       .filter(Boolean) ?? []
 
@@ -126,7 +138,11 @@ export function HeaderSearch({
             padding="$2"
             backgroundColor="$color4"
             borderRadius="$4"
-            maxHeight={500}
+            height="auto"
+            maxHeight="80vh"
+            minWidth="100%"
+            alignSelf="stretch"
+            overflow="hidden"
           >
             <XStack gap="$2" alignItems="center">
               <Search size="$1" margin="$2" />
@@ -178,26 +194,31 @@ export function HeaderSearch({
                 }}
               />
             </XStack>
-            <ScrollView flex={1} overflow="scroll">
-              {searchResults.data?.entities.map(
-                (entity: {id: UnpackedHypermediaId; title: string}, index) => {
-                  return (
-                    <Fragment key={entity.id.id}>
-                      <SearchResultItem
-                        // key={entity.id.id}
-                        entity={entity}
-                        originHomeId={originHomeId}
-                        selected={focusedIndex === index}
-                      />
-                      {index ===
-                      searchResults.data?.entities.length - 1 ? undefined : (
-                        <Separator />
-                      )}
-                    </Fragment>
-                  )
-                },
-              )}
-            </ScrollView>
+            <YStack width="100%" overflow="hidden">
+              <ScrollView overflow="scroll">
+                {searchResults.data?.entities.map(
+                  (
+                    entity: {id: UnpackedHypermediaId; title: string},
+                    index,
+                  ) => {
+                    return (
+                      <Fragment key={entity.id.id}>
+                        <SearchResultItem
+                          // key={entity.id.id}
+                          entity={entity}
+                          originHomeId={originHomeId}
+                          selected={focusedIndex === index}
+                        />
+                        {index ===
+                        searchResults.data?.entities.length - 1 ? undefined : (
+                          <Separator />
+                        )}
+                      </Fragment>
+                    )
+                  },
+                )}
+              </ScrollView>
+            </YStack>
           </YStack>
         </Popover.Content>
       </Popover>
@@ -215,6 +236,7 @@ function SearchResultItem({
   selected: boolean
 }) {
   const elm = useRef<HTMLDivElement>(null)
+  const collapsedPath = useCollapsedPath(entity.id.path ?? [], elm)
 
   useLayoutEffect(() => {
     if (selected) {
@@ -230,26 +252,34 @@ function SearchResultItem({
     originHomeId,
   )
   return (
-    <Button
-      ref={elm}
-      {...linkProps}
-      justifyContent="flex-start"
-      backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: selected ? '$brand12' : undefined,
-      }}
-    >
-      <YStack f={1} justifyContent="space-between">
-        <SizableText numberOfLines={1} fontWeight={600}>
-          {entity.title}
-        </SizableText>
-        {!!entity.id.path ? (
-          <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
-            {entity.id.path?.slice(0, -1).join(' / ')}
+    <YStack paddingVertical="$1" ref={elm}>
+      <Button
+        {...linkProps}
+        justifyContent="flex-start"
+        backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
+        hoverStyle={{
+          backgroundColor: selected ? '$brand12' : undefined,
+        }}
+      >
+        <YStack flex={1} justifyContent="space-between">
+          <SizableText numberOfLines={1} fontWeight={600}>
+            {entity.title}
           </SizableText>
-        ) : null}
-        {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
-      </YStack>
-    </Button>
+          {!!entity.id.path && (
+            <SizableText
+              numberOfLines={1}
+              fontWeight={300}
+              fontSize="$3"
+              maxWidth="100%"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+            >
+              {collapsedPath.join(' / ')}
+            </SizableText>
+          )}
+        </YStack>
+      </Button>
+    </YStack>
   )
 }
