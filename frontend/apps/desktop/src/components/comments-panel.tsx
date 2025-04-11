@@ -215,7 +215,18 @@ function CommentReplyAccessory({
     comment.data?.author ? hmId('d', comment.data?.author) : null,
   )
   return (
-    <AccessoryContainer title="Comment">
+    <AccessoryContainer
+      title="Comment"
+      footer={
+        <View padding="$3">
+          <CommentDraft
+            docId={docId}
+            backgroundColor="$color1"
+            replyCommentId={commentId}
+          />
+        </View>
+      }
+    >
       <AccessoryBackButton onPress={onBack} />
       {comment.data ? (
         <Comment
