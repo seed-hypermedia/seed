@@ -22,6 +22,7 @@ export type DocumentVersionsAccessory = z.infer<
 export const documentCitationsAccessorySchema = z.object({
   key: z.literal('citations'),
   width: z.number().optional(),
+  openBlockId: z.string().nullable().optional(),
 })
 export type DocumentCitationsAccessory = z.infer<
   typeof documentCitationsAccessorySchema
