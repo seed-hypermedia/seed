@@ -7,7 +7,7 @@ export default function ErrorBarWindowsLinux() {
   return (
     <WindowsLinuxTitleBar
       left={
-        <XStack paddingHorizontal={0} paddingVertical="$2" space="$2">
+        <XStack paddingHorizontal={0} paddingVertical="$2" gap="$2">
           <NavMenuButton />
           <NavigationButtons />
         </XStack>

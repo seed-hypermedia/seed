@@ -1,14 +1,5 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
-import {useStream} from '@shm/ui/use-stream'
-import {ScrollView, View, XStack, YStack, YStackProps} from 'tamagui'
-import {SidebarWidth, useSidebarContext} from '../sidebar-context'
-
-export function SidebarSpacer() {
-  const ctx = useSidebarContext()
-  const isLocked = useStream(ctx.isLocked)
-  const sidebarSpacing = isLocked ? SidebarWidth : 0
-  return <View style={{maxWidth: sidebarSpacing, width: '100%', bg: 'red'}} />
-}
+import {ScrollView, XStack, YStack, YStackProps} from 'tamagui'
 
 export function MainWrapper({
   children,

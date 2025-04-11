@@ -2,7 +2,7 @@ import appError from '@/errors'
 import type {NavState} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
-import {NavRoute, defaultRoute} from '@shm/shared/routes'
+import {defaultRoute} from '@shm/shared/routes'
 import {
   BrowserWindow,
   WebContentsView,
@@ -11,6 +11,7 @@ import {
   nativeTheme,
 } from 'electron'
 import path from 'node:path'
+import {z} from 'zod'
 import {updateRecentRoute} from './app-recents'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
@@ -40,6 +41,7 @@ export function closeAppWindow(windowId: string) {
       routes: [defaultRoute],
       routeIndex: 0,
       sidebarLocked: true,
+      sidebarWidth: 15,
     })
   }
 }
@@ -72,12 +74,23 @@ nativeTheme.addListener('updated', () => {
   })
 })
 
-type AppWindow = {
-  routes: NavRoute[]
-  routeIndex: number
-  bounds: any
-  sidebarLocked: boolean
-}
+const appWindowSchema = z.object({
+  routes: z.array(z.any()),
+  routeIndex: z.number(),
+  bounds: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+    })
+    .nullable()
+    .optional(),
+  sidebarLocked: z.boolean(),
+  sidebarWidth: z.number(),
+})
+
+type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
 
@@ -86,6 +99,7 @@ let windowsState =
   ({} as Record<string, AppWindow>)
 
 export function getWindowsState() {
+  console.log(`== ~ STORAGE: ~ getWindowsState:`, windowsState)
   return windowsState || {}
 }
 
@@ -97,10 +111,7 @@ function getAWindow() {
   return window
 }
 
-const windowNavState: Record<
-  string,
-  {routes: any[]; routeIndex: number; sidebarLocked: boolean}
-> = {}
+const windowNavState: Record<string, Omit<AppWindow, 'bounds'>> = {}
 
 let isExpectingQuit = false
 app.addListener('before-quit', () => {
@@ -154,18 +165,9 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
     focusedWindow.webContents.send('appWindowEvent', event)
   }
 }
-export function createAppWindow(input: {
-  routes: NavRoute[]
-  routeIndex: number
-  sidebarLocked: boolean
-  id?: string | undefined
-  bounds?: null | {
-    x: number
-    y: number
-    width: number
-    height: number
-  }
-}): BrowserWindow {
+export function createAppWindow(
+  input: Partial<AppWindow> & {id?: string},
+): BrowserWindow {
   if (!app.isReady()) {
     throw new Error('Cannot create BrowserWindow before app is ready')
   }
@@ -185,14 +187,14 @@ export function createAppWindow(input: {
           windowType.minWidth,
           Math.min(
             prevWindowBounds.width,
-            windowType.maxWidth || windowType.initWidth,
+            windowType.maxWidth || windowType.initWidth || 1024,
           ),
         ),
         height: Math.max(
           windowType.minHeight,
           Math.min(
             prevWindowBounds.height,
-            windowType.maxHeight || windowType.initHeight,
+            windowType.maxHeight || windowType.initHeight || 768,
           ),
         ),
         x: prevWindowBounds.x + 60,
@@ -226,7 +228,7 @@ export function createAppWindow(input: {
 
   createFindView(browserWindow)
 
-  debug('Window created')
+  debug('Window created', {windowId})
 
   const windowLogger = childLogger(`seed/${windowId}`)
   browserWindow.webContents.on(
@@ -239,11 +241,16 @@ export function createAppWindow(input: {
     },
   )
 
-  windowNavState[windowId] = {
+  const windValue = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
-    sidebarLocked: input.sidebarLocked || false,
+    sidebarLocked:
+      typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
+    sidebarWidth: input.sidebarWidth || 15,
   }
+  console.log('=== NEW windowNavState', windowId, windValue)
+
+  windowNavState[windowId] = windValue
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
     e.returnValue = {
@@ -292,8 +299,10 @@ export function createAppWindow(input: {
 
   setWindowState(windowId, {
     routes: initRoutes,
-    routeIndex: input.routeIndex,
-    sidebarLocked: input.sidebarLocked || false,
+    routeIndex: input.routeIndex || 0,
+    sidebarLocked:
+      typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
+    sidebarWidth: input.sidebarWidth || 15,
     bounds: null,
   })
 
@@ -305,17 +314,21 @@ export function createAppWindow(input: {
   })
   browserWindow.webContents.ipc.addListener(
     'windowNavState',
-    (info, {routes, routeIndex, sidebarLocked}: NavState) => {
+    (info, {routes, routeIndex, sidebarLocked, sidebarWidth}: NavState) => {
       windowNavState[windowId] = {
         routes,
         routeIndex,
-        sidebarLocked: sidebarLocked || false,
+        sidebarLocked:
+          typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+        sidebarWidth: sidebarWidth || 15,
       }
       updateWindowState(windowId, (window) => ({
         ...window,
         routes,
         routeIndex,
-        sidebarLocked: sidebarLocked || false,
+        sidebarLocked:
+          typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+        sidebarWidth: sidebarWidth || 15,
       }))
       updateRecentRoute(routes[routeIndex])
     },

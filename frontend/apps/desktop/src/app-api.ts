@@ -103,6 +103,8 @@ log.info('App User Data', {path: userDataPath})
 
 export function openInitialWindows() {
   const windowsState = getWindowsState()
+
+  console.log(`== ~ openInitialWindows ~ windowsState:`, windowsState)
   const validWindowEntries = Object.entries(windowsState).filter(
     ([windowId, window]) => {
       if (!window || !Array.isArray(window.routes)) return false
@@ -118,10 +120,12 @@ export function openInitialWindows() {
   }
   try {
     validWindowEntries.forEach(([windowId, window]) => {
+      console.log(`== ~ openInitialWindows ~ window:`, window)
       trpc.createAppWindow({
         routes: window.routes,
         routeIndex: window.routeIndex,
         sidebarLocked: window.sidebarLocked,
+        sidebarWidth: window.sidebarWidth,
         bounds: window.bounds,
         id: windowId,
       })
@@ -220,7 +224,8 @@ export const router = t.router({
         routes: z.array(z.any()), // todo, zodify NavRoute type
         routeIndex: z.number().default(0),
         id: z.string().optional(),
-        sidebarLocked: z.boolean().default(false),
+        sidebarLocked: z.boolean().default(true),
+        sidebarWidth: z.number().default(15),
         bounds: z
           .object({
             x: z.number(),
@@ -269,7 +274,6 @@ export const router = t.router({
       }
       const browserWindow = createAppWindow(input)
 
-      log.info(`== ~ .mutation ~ browserWindow: {browserWindow.id}`)
       trpcHandlers.attachWindow(browserWindow)
       browserWindow.on('close', () => {
         trpcHandlers.detachWindow(browserWindow)

@@ -1,6 +1,6 @@
 import {useListen} from '@/app-context'
 
-import {SidebarContextProvider} from '@/sidebar-context'
+import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getWindowType} from '@/utils/window-types'
@@ -8,10 +8,23 @@ import {HMMetadata} from '@shm/shared'
 import {NavRoute} from '@shm/shared/routes'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {ReactElement, lazy, useMemo, useState} from 'react'
+import {useStream} from '@shm/ui/use-stream'
+import {
+  ReactElement,
+  ReactNode,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Panel, PanelGroup} from 'react-resizable-panels'
-import {SizableText, View, XStack, YStack} from 'tamagui'
+import {
+  ImperativePanelGroupHandle,
+  Panel,
+  PanelGroup,
+} from 'react-resizable-panels'
+import {SizableText, XStack, YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -110,23 +123,51 @@ export default function Main({className}: {className?: string}) {
         >
           {titlebar}
           <XStack flex={1} h="100%">
-            {sidebar}
-            <View f={1} animation="fast">
-              <PanelGroup
-                direction="horizontal"
-                style={{flex: 1, animation: '0.5s ease-in-out'}}
-              >
-                <Panel id="page" order={2}>
-                  <PageComponent />
-                </Panel>
-              </PanelGroup>
-            </View>
+            <PanelContent>
+              {sidebar}
+              <Panel id="page" order={2}>
+                <PageComponent />
+              </Panel>
+            </PanelContent>
           </XStack>
           <Footer />
           <AutoUpdater />
         </ErrorBoundary>
       </SidebarContextProvider>
     </YStack>
+  )
+}
+
+function PanelContent({children}: {children: ReactNode}) {
+  const ctx = useSidebarContext()
+  const isLocked = useStream(ctx.isLocked)
+  const sidebarWidth = useStream(ctx.sidebarWidth)
+  const ref = useRef<ImperativePanelGroupHandle>(null)
+
+  useEffect(() => {
+    const panelGroup = ref.current
+    if (panelGroup) {
+      if (isLocked && sidebarWidth && sidebarWidth > 0) {
+        panelGroup.setLayout([sidebarWidth, 100 - sidebarWidth])
+      } else {
+        if (isLocked && sidebarWidth && sidebarWidth === 0) {
+          panelGroup.setLayout([15, 85])
+        } else {
+          panelGroup.setLayout([0, 100])
+        }
+      }
+    }
+  }, [sidebarWidth])
+  return (
+    <PanelGroup
+      ref={ref}
+      direction="horizontal"
+      style={{flex: 1}}
+      autoSaveId="main"
+      storage={ctx.widthStorage}
+    >
+      {children}
+    </PanelGroup>
   )
 }
 

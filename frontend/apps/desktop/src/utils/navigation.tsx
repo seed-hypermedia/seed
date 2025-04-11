@@ -16,6 +16,7 @@ export type CloseBackAction = {type: 'closeBack'}
 export type PopAction = {type: 'pop'}
 export type ForwardAction = {type: 'forward'}
 export type SetSidebarLockedAction = {type: 'sidebarLocked'; value: boolean}
+export type SetSidebarWidthAction = {type: 'sidebarWidth'; value: number}
 export type NavAction =
   | PushAction
   | ReplaceAction
@@ -24,9 +25,11 @@ export type NavAction =
   | PopAction
   | ForwardAction
   | SetSidebarLockedAction
+  | SetSidebarWidthAction
 
 export type NavState = {
   sidebarLocked?: boolean
+  sidebarWidth?: number
   routes: NavRoute[]
   routeIndex: number
   lastAction: NavAction['type']
@@ -103,6 +106,11 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
       return {
         ...state,
         sidebarLocked: action.value,
+      }
+    case 'sidebarWidth':
+      return {
+        ...state,
+        sidebarWidth: action.value,
       }
     default:
       return state

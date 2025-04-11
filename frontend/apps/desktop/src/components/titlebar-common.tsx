@@ -11,7 +11,7 @@ import {useAccountDraftList, useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
-import {SidebarContext, SidebarWidth} from '@/sidebar-context'
+import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
@@ -32,9 +32,7 @@ import {
   pathMatches,
 } from '@shm/shared/utils/entity-id-url'
 import {
-  ArrowLeftFromLine,
   ArrowRight,
-  ArrowRightFromLine,
   Back,
   CloudOff,
   Download,
@@ -56,6 +54,7 @@ import {
   Forward as ForwardIcon,
   GitFork,
   Import,
+  PanelLeft,
 } from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useState} from 'react'
@@ -575,21 +574,18 @@ export function DraftPublicationButtons() {
 export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
-  const isHoverVisible = useStream(ctx?.isHoverVisible)
   let icon = Menu
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
   let color: undefined | ColorProp = undefined
-  if (isLocked) {
-    icon = ArrowLeftFromLine
-    tooltip = 'Close Sidebar'
-    onPress = ctx?.onCloseSidebar
-    key = 'close'
-    color = '$color9'
-  }
-  if (!isLocked && isHoverVisible) {
-    icon = ArrowRightFromLine
+
+  if (!isLocked) {
+    icon = PanelLeft
+    tooltip = 'Open Sidebar'
+    onPress = ctx?.onLockSidebarOpen
+    key = 'lock'
+    color = '$color'
   }
 
   return (
@@ -598,14 +594,10 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
       // intention here is to hide the "close sidebar" button when the sidebar is locked, but the group="item" causes layout issues
       // group="item"
       justifyContent="space-between"
-      width={
-        isLocked
-          ? SidebarWidth - 9 // not sure why this -9 is needed, but it makes the "close sidebar" button properly aligned with the sidebar width
-          : 'auto'
-      }
+      width="auto"
     >
       {left || <View />}
-      {ctx && (
+      {ctx && !isLocked && (
         <XStack
           position="relative"
           zIndex="$zIndex.1"
@@ -620,12 +612,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
               size="$2"
               key={key}
               icon={icon}
-              color={color}
-              // intention here is to hide the button when the sidebar is locked, but the group="item" causes layout issues
-              // {...(key === 'close'
-              //   ? {opacity: 0, '$group-item-hover': {opacity: 1}}
-              //   : {})}
-              chromeless={isLocked}
+              chromeless
               onMouseEnter={ctx.onMenuHover}
               onMouseLeave={ctx.onMenuHoverLeave}
               onPress={onPress}

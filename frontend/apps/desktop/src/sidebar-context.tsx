@@ -11,6 +11,12 @@ type SidebarContextValue = {
   onCloseSidebar: () => void
   isHoverVisible: StateStream<boolean>
   isLocked: StateStream<boolean>
+  sidebarWidth: StateStream<number>
+  onSidebarResize: (width: number) => void
+  widthStorage: {
+    getItem: (name: string) => string
+    setItem: (name: string, value: string) => void
+  }
 }
 
 export const SidebarContext = createContext<SidebarContextValue | null>(null)
@@ -20,13 +26,20 @@ export const SidebarWidth = 220
 export function SidebarContextProvider(props: PropsWithChildren<{}>) {
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
+
+  console.log('STORAGE: SidebarContextProvider', state?.sidebarLocked)
   return (
     <SidebarContext.Provider
       value={useMemo(() => {
         const [setIsHoverVisible, isHoverVisible] =
           writeableStateStream<boolean>(false)
         const [setIsLocked, isLocked] = writeableStateStream<boolean>(
-          state.sidebarLocked || false,
+          typeof state?.sidebarLocked === 'boolean'
+            ? state.sidebarLocked
+            : true,
+        )
+        const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(
+          state?.sidebarWidth || 15,
         )
         let closeTimeout: null | NodeJS.Timeout = null
         let hoverOpenTimeout: null | NodeJS.Timeout = null
@@ -60,19 +73,59 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           setIsLocked(true)
         }
         function onCloseSidebar() {
+          console.log('STORAGE: onCloseSidebar')
           dispatch({type: 'sidebarLocked', value: false})
           setIsLocked(false)
           setIsHoverVisible(false)
         }
+        function onSidebarResize(width: number) {
+          dispatch({type: 'sidebarWidth', value: width})
+          setSidebarWidth(width)
+        }
+
+        const widthStorage = {
+          getItem(name: string) {
+            console.log('STORAGE: getItem', name, state)
+            try {
+              if (state?.sidebarLocked) {
+                return '0'
+              }
+              return String(state?.sidebarWidth || 0)
+            } catch (e) {
+              console.error('Error getting sidebar width from storage', {e})
+              return '0'
+            }
+          },
+          setItem(name: string, value: string) {
+            console.log('STORAGE: setItem', name, value)
+            try {
+              const data = JSON.parse(value)
+              // Extract the first value from the layout array which represents the sidebar width percentage
+              const sidebarWidth = data['page,sidebar']?.layout[0]
+
+              if (typeof sidebarWidth === 'number') {
+                console.log(`STORAGE: setItem ~ sidebarWidth:`, sidebarWidth)
+                dispatch({type: 'sidebarWidth', value: sidebarWidth})
+                setSidebarWidth(sidebarWidth)
+              }
+            } catch (e) {
+              console.error('Error setting sidebar width in storage', {e})
+            }
+          },
+        }
+
         return {
           isHoverVisible,
           isLocked,
+          sidebarWidth,
           onMenuHover,
           onMenuHoverDelayed,
           onMenuHoverLeave,
           onToggleMenuLock,
           onLockSidebarOpen,
           onCloseSidebar,
+          onSidebarResize,
+          widthStorage,
         }
       }, [])}
     >

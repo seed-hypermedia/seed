@@ -1,18 +1,13 @@
 import {TitlebarWrapper} from '@shm/ui/titlebar'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {XStack} from 'tamagui'
-import {ErrorBarProps} from './error-bar'
 import {NavMenuButton, NavigationButtons} from './titlebar-common'
 
-export default function ErrorBar({isSidebarLocked}: ErrorBarProps) {
+export default function ErrorBar() {
   return (
     <TitlebarWrapper>
       <XStack jc="space-between">
-        <XStack
-          paddingLeft={isSidebarLocked ? 0 : 72}
-          gap="$2"
-          alignItems="center"
-        >
+        <XStack gap="$2" alignItems="center">
           <NavMenuButton />
           <NavigationButtons />
         </XStack>
