@@ -311,7 +311,7 @@ function _MainDocumentPage({
       >
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <YStack w="100%" ref={elementRef} f={1}>
+        <YStack w="100%" ref={elementRef} f={1} position="relative">
           <XStack {...wrapperProps}>
             {showSidebars ? (
               <YStack
@@ -348,25 +348,27 @@ function _MainDocumentPage({
             </DocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
           </XStack>
+          <DocInteractionsSummary docId={id} />
         </YStack>
       </AppDocSiteHeader>
-      <DocInteractionsSummary docId={id} />
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 
-const DocInteractionsSummary = React.memo(DocInteractionsSummary_)
-function DocInteractionsSummary_({docId}: {docId: UnpackedHypermediaId}) {
+const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
+
+function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   const {docCitations, commentCitations} = useSortedCitations(docId)
   const changes = useDocumentChanges(docId)
   const route = useNavRoute()
   const docRoute = route.key === 'document' ? route : null
   const replace = useNavigate('replace')
   if (!docRoute) return null
+  if (docRoute.accessory) return null
   return (
-    <XStack position="absolute" top={60} right={0} padding="$4" gap="$2">
+    <XStack position="absolute" top={0} right={8} padding="$4" gap="$1.5">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -375,6 +377,7 @@ function DocInteractionsSummary_({docId}: {docId: UnpackedHypermediaId}) {
         }}
         icon={BlockQuote}
       />
+      <Separator />
       <InteractionSummaryItem
         label="comment"
         count={commentCitations.length || 0}
@@ -383,6 +386,7 @@ function DocInteractionsSummary_({docId}: {docId: UnpackedHypermediaId}) {
         }}
         icon={MessageSquare}
       />
+      <Separator />
       <InteractionSummaryItem
         label="version"
         count={changes.data?.length || 0}
@@ -408,11 +412,8 @@ function InteractionSummaryItem({
 }) {
   return (
     <Tooltip content={`${count} ${pluralS(count, label)}`}>
-      <Button onPress={onPress}>
-        <XStack gap="$2" ai="center">
-          <Icon size={18} />
-          <SizableText>{count}</SizableText>
-        </XStack>
+      <Button onPress={onPress} size="$1" chromeless icon={Icon}>
+        <SizableText size="$1">{count}</SizableText>
       </Button>
     </Tooltip>
   )
