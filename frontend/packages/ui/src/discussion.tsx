@@ -81,7 +81,7 @@ export function CommentGroup({
           top={8}
           bottom={-10}
           left={-8}
-          bg="$background"
+          bg="$backgroundStrong"
         />
       ) : null}
       {commentGroup.comments.map((comment, idx) => {
@@ -131,6 +131,7 @@ export function Comment({
   siteHost,
   enableReplies = true,
   enableWebSigning = false,
+  defaultExpandReplies = false,
 }: {
   docId: UnpackedHypermediaId
   comment: HMComment
@@ -162,9 +163,10 @@ export function Comment({
   }>
   siteHost?: string
   enableReplies?: boolean
+  defaultExpandReplies?: boolean
 }) {
   const {onCopyReference} = useUniversalAppContext()
-  const [showReplies, setShowReplies] = useState(false)
+  const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isReplying, setIsReplying] = useState(false)
   const authorId = comment.author ? hmId('d', comment.author) : null
   const authorLink = useRouteLink(
