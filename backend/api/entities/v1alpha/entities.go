@@ -455,6 +455,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 			count++
 
 			var (
+				sourceDoc     string
 				source        = stmt.ColumnText(0)
 				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
@@ -474,7 +475,9 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 			}
 
 			if blobType == "Comment" {
+				sourceDoc = source
 				source = "hm://c/" + sourceBlob
+
 			}
 
 			resp.Mentions = append(resp.Mentions, &entities.Mention{
@@ -486,6 +489,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 					Author:     author,
 					CreateTime: timestamppb.New(ts),
 				},
+				SourceDocument: sourceDoc,
 				TargetVersion:  targetVersion,
 				IsExactVersion: isPinned,
 				TargetFragment: fragment,

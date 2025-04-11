@@ -1137,7 +1137,7 @@ func (x *ListEntityMentionsResponse) GetNextPageToken() string {
 // Target means the entity being mentioned.
 type Mention struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. The IRI of the source where the mention was found.
+	// Required. The source blob where the mention was found.
 	Source string `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
 	// Required. The Type of the source where the mention was found.
 	SourceType string `protobuf:"bytes,2,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
@@ -1147,14 +1147,16 @@ type Mention struct {
 	SourceContext string `protobuf:"bytes,3,opt,name=source_context,json=sourceContext,proto3" json:"source_context,omitempty"`
 	// Required. Information about the blob where the mention was found.
 	SourceBlob *Mention_BlobInfo `protobuf:"bytes,4,opt,name=source_blob,json=sourceBlob,proto3" json:"source_blob,omitempty"`
-	// Optional. The version of the target Entity the link points to,
-	// if one is specified in the link.
-	TargetVersion string `protobuf:"bytes,5,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// Required. Specifies whether the link points to the exact/pinned version of the target document,
 	// or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
-	IsExactVersion bool `protobuf:"varint,6,opt,name=is_exact_version,json=isExactVersion,proto3" json:"is_exact_version,omitempty"`
+	IsExactVersion bool `protobuf:"varint,5,opt,name=is_exact_version,json=isExactVersion,proto3" json:"is_exact_version,omitempty"`
+	// Optional. Specifies the document where the mention was found. Relevant for comments.
+	SourceDocument string `protobuf:"bytes,6,opt,name=source_document,json=sourceDocument,proto3" json:"source_document,omitempty"`
+	// Optional. The version of the target Entity the link points to,
+	// if one is specified in the link.
+	TargetVersion string `protobuf:"bytes,7,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// Optional. The fragment portion of the link.
-	TargetFragment string `protobuf:"bytes,7,opt,name=target_fragment,json=targetFragment,proto3" json:"target_fragment,omitempty"`
+	TargetFragment string `protobuf:"bytes,8,opt,name=target_fragment,json=targetFragment,proto3" json:"target_fragment,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1217,18 +1219,25 @@ func (x *Mention) GetSourceBlob() *Mention_BlobInfo {
 	return nil
 }
 
-func (x *Mention) GetTargetVersion() string {
-	if x != nil {
-		return x.TargetVersion
-	}
-	return ""
-}
-
 func (x *Mention) GetIsExactVersion() bool {
 	if x != nil {
 		return x.IsExactVersion
 	}
 	return false
+}
+
+func (x *Mention) GetSourceDocument() string {
+	if x != nil {
+		return x.SourceDocument
+	}
+	return ""
+}
+
+func (x *Mention) GetTargetVersion() string {
+	if x != nil {
+		return x.TargetVersion
+	}
+	return ""
 }
 
 func (x *Mention) GetTargetFragment() string {
@@ -1382,17 +1391,18 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\rreverse_order\x18\x04 \x01(\bR\freverseOrder\"\x84\x01\n" +
 	"\x1aListEntityMentionsResponse\x12>\n" +
 	"\bmentions\x18\x01 \x03(\v2\".com.seed.entities.v1alpha.MentionR\bmentions\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xa4\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcd\x03\n" +
 	"\aMention\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
 	"\vsource_type\x18\x02 \x01(\tR\n" +
 	"sourceType\x12%\n" +
 	"\x0esource_context\x18\x03 \x01(\tR\rsourceContext\x12L\n" +
 	"\vsource_blob\x18\x04 \x01(\v2+.com.seed.entities.v1alpha.Mention.BlobInfoR\n" +
-	"sourceBlob\x12%\n" +
-	"\x0etarget_version\x18\x05 \x01(\tR\rtargetVersion\x12(\n" +
-	"\x10is_exact_version\x18\x06 \x01(\bR\x0eisExactVersion\x12'\n" +
-	"\x0ftarget_fragment\x18\a \x01(\tR\x0etargetFragment\x1aq\n" +
+	"sourceBlob\x12(\n" +
+	"\x10is_exact_version\x18\x05 \x01(\bR\x0eisExactVersion\x12'\n" +
+	"\x0fsource_document\x18\x06 \x01(\tR\x0esourceDocument\x12%\n" +
+	"\x0etarget_version\x18\a \x01(\tR\rtargetVersion\x12'\n" +
+	"\x0ftarget_fragment\x18\b \x01(\tR\x0etargetFragment\x1aq\n" +
 	"\bBlobInfo\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12;\n" +

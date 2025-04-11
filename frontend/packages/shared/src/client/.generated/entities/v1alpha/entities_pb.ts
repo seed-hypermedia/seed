@@ -1008,7 +1008,7 @@ export class ListEntityMentionsResponse extends Message<ListEntityMentionsRespon
  */
 export class Mention extends Message<Mention> {
   /**
-   * Required. The IRI of the source where the mention was found.
+   * Required. The source blob where the mention was found.
    *
    * @generated from field: string source = 1;
    */
@@ -1038,25 +1038,32 @@ export class Mention extends Message<Mention> {
   sourceBlob?: Mention_BlobInfo;
 
   /**
-   * Optional. The version of the target Entity the link points to,
-   * if one is specified in the link.
-   *
-   * @generated from field: string target_version = 5;
-   */
-  targetVersion = "";
-
-  /**
    * Required. Specifies whether the link points to the exact/pinned version of the target document,
    * or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
    *
-   * @generated from field: bool is_exact_version = 6;
+   * @generated from field: bool is_exact_version = 5;
    */
   isExactVersion = false;
 
   /**
+   * Optional. Specifies the document where the mention was found. Relevant for comments. 
+   *
+   * @generated from field: string source_document = 6;
+   */
+  sourceDocument = "";
+
+  /**
+   * Optional. The version of the target Entity the link points to,
+   * if one is specified in the link.
+   *
+   * @generated from field: string target_version = 7;
+   */
+  targetVersion = "";
+
+  /**
    * Optional. The fragment portion of the link.
    *
-   * @generated from field: string target_fragment = 7;
+   * @generated from field: string target_fragment = 8;
    */
   targetFragment = "";
 
@@ -1072,9 +1079,10 @@ export class Mention extends Message<Mention> {
     { no: 2, name: "source_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "source_context", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "source_blob", kind: "message", T: Mention_BlobInfo },
-    { no: 5, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 7, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "source_document", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention {
