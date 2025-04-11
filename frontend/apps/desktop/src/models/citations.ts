@@ -48,3 +48,17 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
     },
   })
 }
+
+export function useSortedCitations(docId?: UnpackedHypermediaId | null) {
+  const citations = useEntityCitations(docId)
+  const docCitations: HMCitation[] = []
+  const commentCitations: HMCitation[] = []
+  citations.data?.forEach((citation) => {
+    if (citation.source.id.type === 'd') {
+      docCitations.push(citation)
+    } else if (citation.source.id.type === 'c') {
+      commentCitations.push(citation)
+    }
+  })
+  return {docCitations, commentCitations}
+}

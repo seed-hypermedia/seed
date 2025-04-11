@@ -15,7 +15,7 @@ import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
-import {useEntityCitations} from '@/models/citations'
+import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
   useAccountDraftList,
   useCreateDraft,
@@ -23,6 +23,7 @@ import {
   useListDirectory,
 } from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
+import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -35,6 +36,7 @@ import {
   hmId,
   HMMetadata,
   HMQueryResult,
+  pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
@@ -48,18 +50,21 @@ import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
+  BlockQuote,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
   HistoryIcon,
+  IconComponent,
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {Plus} from '@tamagui/lucide-icons'
+import {MessageSquare, Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {
   ButtonText,
@@ -345,11 +350,73 @@ function _MainDocumentPage({
           </XStack>
         </YStack>
       </AppDocSiteHeader>
+      <DocInteractionsSummary docId={id} />
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
+
+const DocInteractionsSummary = React.memo(DocInteractionsSummary_)
+function DocInteractionsSummary_({docId}: {docId: UnpackedHypermediaId}) {
+  const {docCitations, commentCitations} = useSortedCitations(docId)
+  const changes = useDocumentChanges(docId)
+  const route = useNavRoute()
+  const docRoute = route.key === 'document' ? route : null
+  const replace = useNavigate('replace')
+  if (!docRoute) return null
+  return (
+    <XStack position="absolute" top={60} right={0} padding="$4" gap="$2">
+      <InteractionSummaryItem
+        label="citation"
+        count={docCitations.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'citations'}})
+        }}
+        icon={BlockQuote}
+      />
+      <InteractionSummaryItem
+        label="comment"
+        count={commentCitations.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'comments'}})
+        }}
+        icon={MessageSquare}
+      />
+      <InteractionSummaryItem
+        label="version"
+        count={changes.data?.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'versions'}})
+        }}
+        icon={HistoryIcon}
+      />
+    </XStack>
+  )
+}
+
+function InteractionSummaryItem({
+  label,
+  count,
+  onPress,
+  icon: Icon,
+}: {
+  label: string
+  count: number
+  onPress: () => void
+  icon: IconComponent
+}) {
+  return (
+    <Tooltip content={`${count} ${pluralS(count, label)}`}>
+      <Button onPress={onPress}>
+        <XStack gap="$2" ai="center">
+          <Icon size={18} />
+          <SizableText>{count}</SizableText>
+        </XStack>
+      </Button>
+    </Tooltip>
+  )
+}
 
 function _AppDocSiteHeader({
   siteHomeEntity,
@@ -721,7 +788,7 @@ function DocPageContent({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const citations = useEntityCitations(entity.id)
-
+  const docRoute = route.key === 'document' ? route : null
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
@@ -734,12 +801,18 @@ function DocPageContent({
         blockRange: blockRange || undefined,
       }}
       citations={citations.data || []}
-      onCitationClick={() => {
-        // console.log('~~~ onCitationClick', citations.data)
+      onCitationClick={(blockId) => {
+        if (!docRoute) return
         replace({
-          ...route,
+          ...docRoute,
+          id: {
+            ...docRoute.id,
+            blockRef: blockId || null,
+            blockRange: null,
+          },
           accessory: {
             key: 'citations',
+            openBlockId: blockId || null,
           },
         })
       }}
