@@ -1,5 +1,9 @@
 import {useEntityCitations} from '@/models/citations'
-import {useComment, useDocumentCommentGroups} from '@/models/comments'
+import {
+  useAllDocumentComments,
+  useComment,
+  useDocumentCommentGroups,
+} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentCommentsAccessory, hmId, pluralS} from '@shm/shared'
@@ -214,6 +218,10 @@ function CommentReplyAccessory({
   const commentAuthor = useEntity(
     comment.data?.author ? hmId('d', comment.data?.author) : null,
   )
+  const allComments = useAllDocumentComments(docId)
+  const replyCount = useMemo(() => {
+    return allComments.data?.filter((c) => c.replyParent === commentId).length
+  }, [allComments.data, commentId])
   return (
     <AccessoryContainer
       title="Comment"
@@ -235,8 +243,13 @@ function CommentReplyAccessory({
           docId={docId}
           authorMetadata={commentAuthor.data?.document?.metadata}
           rootReplyCommentId={null}
+          isLast
           enableWebSigning={false}
           CommentReplies={CommentReplies}
+          RepliesEditor={RepliesEditor}
+          enableReplies
+          replyCount={replyCount}
+          defaultExpandReplies
         />
       ) : (
         <Spinner />
