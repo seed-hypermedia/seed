@@ -87,8 +87,9 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	} else {
 		ret, err := srv.syncer.SyncSubscribedContent(ctx, subscriptionReq)
 		if err != nil {
-			srv.log.Debug("Blocking Sync failed", zap.Error(err))
-			return nil, err
+			const errMsg = "Blocking sync failed"
+			srv.log.Debug(errMsg, zap.Error(err))
+			return nil, fmt.Errorf("%s: %s", errMsg, err.Error())
 		}
 		if ret.NumSyncOK == 0 {
 			const errMsg = "Could not sync subscribed content from any known peer"
