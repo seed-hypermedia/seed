@@ -176,8 +176,6 @@ function EmbedWrapper({
                   )
                   return
                 }
-                console.log('~~~ onPress', id)
-                toast('lol')
                 navigate({
                   key: 'document',
                   id: hmId('d', id.targetDocUid, {
