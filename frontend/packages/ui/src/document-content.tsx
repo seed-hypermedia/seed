@@ -2536,7 +2536,6 @@ export function useBlockCitations(blockId?: string) {
   const context = useDocContentContext()
 
   let citations = useMemo(() => {
-    console.log('~~~ citations', blockId, context.citations)
     if (!context.citations?.length) return []
     return context.citations.filter((c) => {
       // if (c.source.id.type !== 'd') return false

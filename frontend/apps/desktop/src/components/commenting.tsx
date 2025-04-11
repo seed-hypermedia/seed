@@ -155,10 +155,12 @@ function _CommentDraft({
   docId,
   backgroundColor = '$color4',
   quotingBlockId,
+  replyCommentId,
 }: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
+  replyCommentId?: string
 }) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
@@ -176,6 +178,7 @@ function _CommentDraft({
         autoFocus={isStartingComment}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
+        replyCommentId={replyCommentId}
         onDiscardDraft={() => {
           setIsStartingComment(false)
         }}
