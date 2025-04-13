@@ -1,14 +1,9 @@
 import {queryClient} from '@/client'
 import {
-  DAEMON_FILE_URL,
-  HMBlock,
-  HMBlockChildrenType,
-  HMBlockImage,
-  HMBlockNode,
   HMDocument,
   HMDocumentMetadataSchema,
   HMDocumentSchema,
-  HMMetadata,
+  HMMetadataPayload,
   UnpackedHypermediaId,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
@@ -16,181 +11,65 @@ import {
   getParentPaths,
   hmId,
   hmIdPathToEntityQueryPath,
+  hostnameStripProtocol,
 } from '@shm/shared'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {readFileSync} from 'fs'
 import {join} from 'path'
 import satori from 'satori'
 import svg2img from 'svg2img'
+import {processImage} from '../utils/image-processor'
 
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {InlineContent} from '@shm/desktop/src/editor'
 
 export const OG_IMAGE_SIZE = {
   width: 1200,
   height: 630,
 }
 
+const PERCENTAGE_COVER_WIDTH = 59 // from the designs
+const COVER_WIDTH = Math.round(
+  OG_IMAGE_SIZE.width * (PERCENTAGE_COVER_WIDTH / 100),
+)
 function loadFont(fileName: string) {
   const path = join(process.cwd(), 'font', fileName)
   return readFileSync(path)
 }
 
 const AVATAR_SIZE = 100
+
+const MAIN_ICON_SIZE = 200
+
 const IPFS_RESOURCE_PREFIX = `${process.env.GRPC_HOST}/ipfs/`
 
 const avatarLayout: React.CSSProperties = {
   margin: 10,
 }
 
-function InlineContentView({
-  content,
-  fontWeight = 'normal',
-  fontSize = 38,
-}: {
-  content: InlineContent[]
-  fontWeight?: 'bold' | 'normal'
-  fontSize?: number
-}) {
-  return (
-    <span style={{fontSize, fontWeight}}>
-      {content.map((item, index) => {
-        if (item.type === 'link')
-          return (
-            <span key={index} style={{color: '#000055', marginLeft: 4}}>
-              <InlineContentView content={item.content} />
-            </span>
-          )
-        if (item.type === 'text') {
-          let content: any = <>{item.text}</>
-          if (item.styles.bold) content = <b>{content}</b>
-          if (item.styles.italic) content = <i>{content}</i>
-          return content
-        }
-        return
-      })}
-    </span>
-  )
-}
-
-function ParagraphBlockDisplay({
-  block,
-  childrenType,
-}: {
-  block: HMBlock
-  childrenType: HMBlockChildrenType | undefined
-}) {
-  return null
-  const inlineContent = toHMInlineContent(block)
-  return (
-    <div
-      style={{
-        display: 'flex',
-        marginTop: 8,
-      }}
-    >
-      <InlineContentView content={inlineContent} fontSize={32} />
-    </div>
-  )
-}
-
-function HeadingBlockDisplay({
-  block,
-  childrenType,
-}: {
-  block: HMBlock
-  childrenType: HMBlockChildrenType | undefined
-}) {
-  return null
-  const inlineContent = toHMInlineContent(block)
-  return (
-    <div
-      style={{
-        display: 'flex',
-        marginTop: 8,
-      }}
-    >
-      <InlineContentView
-        content={inlineContent}
-        fontSize={48}
-        fontWeight="bold"
-      />
-    </div>
-  )
-}
-function ImageBlockDisplay({block}: {block: HMBlockImage}) {
-  return (
-    <img
-      style={{borderRadius: 8}}
-      src={`${IPFS_RESOURCE_PREFIX}${extractIpfsUrlCid(block.link)}`}
-    />
-  )
-}
-function BlockDisplay({
-  block,
-  childrenType,
-}: {
-  block: HMBlock
-  childrenType: HMBlockChildrenType | undefined
-}) {
-  console.log('hello', childrenType, block.type)
-  if (block.type === 'Paragraph')
-    return <ParagraphBlockDisplay block={block} childrenType={childrenType} />
-  if (block.type === 'Heading')
-    return <HeadingBlockDisplay block={block} childrenType={childrenType} />
-
-  if (block.type === 'Image') return <ImageBlockDisplay block={block} />
-
-  return null
-}
-
-function BlockNodeDisplay({
-  index,
-  blockNode,
-}: {
-  index: number
-  blockNode: HMBlockNode
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {blockNode.block && (
-        <BlockDisplay
-          block={blockNode.block}
-          childrenType={blockNode.block.attributes?.childrenType}
-        />
-      )}
-      <div style={{display: 'flex', marginLeft: 20, flexDirection: 'column'}}>
-        {blockNode.children?.map((child, index) => {
-          if (!child.block) return null
-          return (
-            <BlockNodeDisplay
-              index={index}
-              key={child.block.id}
-              blockNode={child}
-            />
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 const BG_COLOR = '#f5f5f5'
 
-function TitleMembersCard({
-  title,
+function DocumentCard({
+  document,
   authors,
-  children,
+  breadcrumbs,
+  icon,
+  cover,
 }: {
-  title: string
-  authors: HMDocument[]
-  children: React.ReactNode
+  document: HMDocument
+  authors: {
+    document: HMDocument
+    icon: string | null
+    id: UnpackedHypermediaId
+  }[]
+  breadcrumbs: HMMetadataPayload[]
+  icon: string | null
+  cover: string | null
 }) {
+  const clippedContent = clipContentBlocks(
+    document.content,
+    8, // render a maximum of 8 blocks in the OG image
+  )
+  const title = getDocumentTitle(document)
+
   return (
     <div
       style={{
@@ -201,13 +80,89 @@ function TitleMembersCard({
         backgroundColor: BG_COLOR,
       }}
     >
-      <div style={{padding: 60, display: 'flex', flexDirection: 'column'}}>
-        {title && (
-          <div style={{display: 'flex', marginBottom: 20}}>
-            <span style={{fontSize: 72, fontWeight: 'bold'}}>{title}</span>
+      <div
+        style={{
+          padding: 60,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: cover ? OG_IMAGE_SIZE.width - COVER_WIDTH : '100%',
+          gap: 16,
+        }}
+      >
+        {icon && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <img
+              src={icon}
+              width={MAIN_ICON_SIZE}
+              height={MAIN_ICON_SIZE}
+              style={{borderRadius: MAIN_ICON_SIZE / 2}}
+            />
           </div>
         )}
-        {children}
+        {title && (
+          <div
+            style={{
+              display: 'flex',
+              marginBottom: 20,
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 48,
+                fontWeight: 'bold',
+                textAlign: 'center',
+                fontFamily: 'Inter',
+              }}
+            >
+              {title || 'Untitled Document'}
+            </span>
+          </div>
+        )}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          {breadcrumbs.map((breadcrumb, index) => (
+            <span
+              key={breadcrumb.id.id}
+              style={{
+                fontSize: 20,
+                fontWeight: 'bold',
+                textAlign: 'center',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'Inter',
+                color: index === breadcrumbs.length - 1 ? '$111111' : '#333333',
+              }}
+            >
+              {breadcrumb.metadata?.name || '?'}
+            </span>
+          ))}
+        </div>
+        {document.metadata.siteUrl && (
+          <div
+            style={{
+              textAlign: 'center',
+              fontSize: 22,
+              fontWeight: 'bold',
+              color: '#333333',
+              fontFamily: 'Inter',
+            }}
+          >
+            {hostnameStripProtocol(document.metadata.siteUrl)}
+          </div>
+        )}
       </div>
       <div
         style={{
@@ -219,7 +174,6 @@ function TitleMembersCard({
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
-          background: `linear-gradient(#ffffff11, #ffffff11, ${BG_COLOR})`,
         }}
       >
         <div
@@ -230,12 +184,13 @@ function TitleMembersCard({
           }}
         >
           {authors.map((author) => {
-            const accountLetter = '?'
-            if (!author.metadata.icon)
+            const accountLetter =
+              author.document.metadata?.name?.slice(0, 1) || '?'
+            if (!author.document.metadata.icon || !author.icon)
               return (
                 <div
                   style={{
-                    backgroundColor: '#aac2bd', // mintty, yum!
+                    backgroundColor: '#aac2bd',
                     display: 'flex',
                     width: AVATAR_SIZE,
                     height: AVATAR_SIZE,
@@ -245,65 +200,59 @@ function TitleMembersCard({
                     ...avatarLayout,
                   }}
                 >
-                  <span style={{fontSize: 50, position: 'relative', bottom: 6}}>
+                  <span
+                    style={{
+                      fontSize: 50,
+                      position: 'relative',
+                      bottom: 6,
+                      fontWeight: 'bold',
+                      fontFamily: 'Inter',
+                    }}
+                  >
                     {accountLetter}
                   </span>
                 </div>
               )
-            const src = `${DAEMON_FILE_URL}/${extractIpfsUrlCid(
-              author.metadata.icon,
-            )}`
             return (
-              /* eslint-disable */
               <img
-                key={author.account}
-                src={src}
+                key={author.id.id}
+                src={author.icon}
                 width={AVATAR_SIZE}
                 height={AVATAR_SIZE}
                 style={{
+                  fontSize: 1,
                   backgroundColor: 'black',
                   borderRadius: AVATAR_SIZE / 2,
-                  ...avatarLayout,
+                  objectFit: 'cover',
                 }}
               />
             )
           })}
         </div>
       </div>
-    </div>
-  )
-}
-
-function DocumentCard({
-  document,
-  authors,
-  breadcrumbs,
-}: {
-  document: HMDocument
-  authors: HMDocument[]
-  breadcrumbs: {
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }[]
-}) {
-  const clippedContent = clipContentBlocks(
-    document.content,
-    8, // render a maximum of 8 blocks in the OG image
-  )
-  const title = getDocumentTitle(document)
-  return (
-    <TitleMembersCard title={title || 'Untitled Document'} authors={authors}>
-      {null}
-      {/* {clippedContent?.map((child, index) => {
-        return (
-          <BlockNodeDisplay
-            key={child.block.id}
-            blockNode={child}
-            index={index}
+      {cover && (
+        <div
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: COVER_WIDTH,
+            bottom: 0,
+            backgroundColor: 'red',
+          }}
+        >
+          <img
+            src={cover}
+            width={COVER_WIDTH}
+            height={OG_IMAGE_SIZE.height}
+            style={{
+              objectFit: 'cover',
+            }}
           />
-        );
-      })} */}
-    </TitleMembersCard>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -316,15 +265,15 @@ export const loader = async ({request}: {request: Request}) => {
   // if (path) throw new Error("Missing path");
   if (!version) throw new Error('Missing version')
   let content: null | JSX.Element = null
+  const docId = hmId('d', space, {path: entityQueryPathToHmIdPath(path || '')})
   const rawDoc = await queryClient.documents.getDocument({
     account: space,
     version,
     path: path || '',
   })
-  const crumbs = getParentPaths(entityQueryPathToHmIdPath(path || '')).slice(
-    0,
-    -1,
-  )
+  const crumbs = getParentPaths(entityQueryPathToHmIdPath(path || ''))
+    .slice(0, -1)
+    .reverse()
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
       const document = await queryClient.documents.getDocument({
@@ -333,12 +282,14 @@ export const loader = async ({request}: {request: Request}) => {
       })
       return {
         id: hmId('d', space, {path: crumbPath}),
-        metadata: document.metadata?.toJson(),
+        metadata: HMDocumentMetadataSchema.parse(
+          document.metadata?.toJson({emitDefaultValues: true}) || {},
+        ),
       }
     }),
   )
 
-  const document = HMDocumentSchema.parse(toPlainMessage(rawDoc))
+  const document = HMDocumentSchema.parse(rawDoc.toJson())
   if (!document) throw new Error('Document not found')
   const authors = await Promise.all(
     (document?.authors || []).map(async (authorUid) => {
@@ -355,11 +306,67 @@ export const loader = async ({request}: {request: Request}) => {
       return document
     }),
   )
+
+  let processedAuthors = await Promise.all(
+    authors.map(async (author) => {
+      const id = hmId('d', author.account)
+      if (author.metadata.icon) {
+        try {
+          const processedImage = await processImage(author.metadata.icon)
+          return {
+            document: author,
+            icon: processedImage,
+            id,
+          }
+        } catch (error) {
+          console.error(
+            `Failed to process image for author ${author.account}:`,
+            error,
+          )
+          return {document: author, icon: null, id}
+        }
+      }
+      return {document: author, icon: null, id}
+    }),
+  )
+
+  let iconId: string | null = null
+  let iconValue: string | null = null
+  if (document.metadata.icon) {
+    iconId = docId.id
+    iconValue = await processImage(document.metadata.icon)
+  } else if (breadcrumbs.length > 0) {
+    const breadcrumb = breadcrumbs.at(0)
+    if (breadcrumb?.metadata?.icon) {
+      iconId = breadcrumb.id.id
+      iconValue = await processImage(breadcrumb.metadata.icon)
+    }
+  }
+
+  if (iconId) {
+    // remove the author from the face pile if the id matches
+    processedAuthors = processedAuthors.filter(
+      (author) => author.id.id !== iconId,
+    )
+  }
+
+  let cover = null
+  if (document.metadata.cover) {
+    cover = await processImage(document.metadata.cover)
+  } else if (breadcrumbs.length > 0) {
+    const breadcrumb = breadcrumbs.at(0)
+    if (breadcrumb?.metadata?.cover) {
+      cover = await processImage(breadcrumb.metadata.cover)
+    }
+  }
+
   content = (
     <DocumentCard
       document={document}
-      authors={authors}
+      icon={iconValue}
+      authors={processedAuthors}
       breadcrumbs={breadcrumbs}
+      cover={cover}
     />
   )
 
@@ -391,6 +398,30 @@ export const loader = async ({request}: {request: Request}) => {
         weight: 700,
         style: 'italic',
       },
+      {
+        name: 'Inter',
+        data: loadFont('Inter_28pt-Medium.ttf'),
+        weight: 400,
+        style: 'normal',
+      },
+      {
+        name: 'Inter',
+        data: loadFont('Inter_28pt-MediumItalic.ttf'),
+        weight: 400,
+        style: 'italic',
+      },
+      {
+        name: 'Inter',
+        data: loadFont('Inter_28pt-Bold.ttf'),
+        weight: 700,
+        style: 'normal',
+      },
+      {
+        name: 'Inter',
+        data: loadFont('Inter_28pt-BoldItalic.ttf'),
+        weight: 700,
+        style: 'italic',
+      },
     ],
   })
   const png = await new Promise<Buffer>((resolve, reject) =>
@@ -406,6 +437,4 @@ export const loader = async ({request}: {request: Request}) => {
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   })
-  // setAllowAnyHostGetCORS(res)
-  // res.status(200).setHeader('Content-Type', 'image/png').send(png)
 }

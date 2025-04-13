@@ -10236,6 +10236,7 @@ __metadata:
     "@types/better-sqlite3": ^7.6.12
     "@types/mjml": ^4.7.4
     "@types/mjml-core": ^4.15.1
+    "@types/node-fetch": ^2.6.12
     "@types/nodemailer": ^6.4.17
     "@types/react": 18.2.64
     "@types/react-dom": 18.2.21
@@ -13772,6 +13773,16 @@ __metadata:
   dependencies:
     "@types/node": "*"
   checksum: c43395643aca3565492a12f7bb7168cea7f5fa1b6539caabc99e657bbbea3ef330d65e8d8fc873fedfbbbed48a01ac8c1ce0d31c7989cd44a4845b32253daf6c
+  languageName: node
+  linkType: hard
+
+"@types/node-fetch@npm:^2.6.12":
+  version: 2.6.12
+  resolution: "@types/node-fetch@npm:2.6.12"
+  dependencies:
+    "@types/node": "*"
+    form-data: ^4.0.0
+  checksum: 9647e68f9a125a090220c38d77b3c8e669c488658ae7506f1b4f9568214beba087624b1705bba1dc76649a65281ce3fd5b400e15266cbef8088027fb88777557
   languageName: node
   linkType: hard
 
@@ -32245,9 +32256,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"satori@npm:0.11.2":
-  version: 0.11.2
-  resolution: "satori@npm:0.11.2"
+"satori@npm:0.12.2":
+  version: 0.12.2
+  resolution: "satori@npm:0.12.2"
   dependencies:
     "@shuding/opentype.js": 1.4.0-beta.0
     css-background-parser: ^0.1.0
@@ -32260,7 +32271,7 @@ __metadata:
     parse-css-color: ^0.2.1
     postcss-value-parser: ^4.2.0
     yoga-wasm-web: ^0.3.3
-  checksum: 52b82282a9624c2c0baa0965752014661a5e29f6875103666cb711639684fb05d75d61e2a533192e14e11ece98710f31d39796d3120b6ac7c7c08222632ec717
+  checksum: aa5d1c8ae5d391baa97d8f25ca89b4a97776265e3ccbb97fc18a00b9caa25ac93c75ad544d31f935e55eadcb0cc1bad95b980deab1151819c7a36c48f456181b
   languageName: node
   linkType: hard
 
@@ -32379,7 +32390,7 @@ __metadata:
     prettier: 3.0.2
     react-native: 0.75.2
     react-native-svg: 15.6.0
-    satori: 0.11.2
+    satori: 0.12.2
     svg2img: 1.0.0-beta.2
     ts-node: 10.9.1
     typescript: 5.5.2

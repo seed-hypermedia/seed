@@ -240,7 +240,12 @@ export default async function handleRequest(
     return await handleOptionsRequest(request)
   }
   const parsedRequest = parseRequest(request)
-  const {url, hostname} = parsedRequest
+  const {url, hostname, pathParts} = parsedRequest
+  if (pathParts.length === 1 && pathParts[0] === 'favicon.ico') {
+    return new Response('Not Found', {
+      status: 404,
+    })
+  }
   if (url.pathname.startsWith('/hm/embed/')) {
     // allowed to embed anywhere
   } else {

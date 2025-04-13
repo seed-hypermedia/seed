@@ -82,6 +82,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/mjml": "^4.7.4",
     "@types/mjml-core": "^4.15.1",
+    "@types/node-fetch": "^2.6.12",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
