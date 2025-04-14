@@ -104,7 +104,6 @@ log.info('App User Data', {path: userDataPath})
 export function openInitialWindows() {
   const windowsState = getWindowsState()
 
-  console.log(`== ~ openInitialWindows ~ windowsState:`, windowsState)
   const validWindowEntries = Object.entries(windowsState).filter(
     ([windowId, window]) => {
       if (!window || !Array.isArray(window.routes)) return false
@@ -120,7 +119,6 @@ export function openInitialWindows() {
   }
   try {
     validWindowEntries.forEach(([windowId, window]) => {
-      console.log(`== ~ openInitialWindows ~ window:`, window)
       trpc.createAppWindow({
         routes: window.routes,
         routeIndex: window.routeIndex,

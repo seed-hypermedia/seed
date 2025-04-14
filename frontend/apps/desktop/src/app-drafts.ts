@@ -154,8 +154,6 @@ export async function initDrafts() {
         }
       }),
     )
-
-    console.log('Loaded Draft Index', draftIndex)
   }
 }
 
