@@ -11,6 +11,7 @@ import {
   hmIdPathToEntityQueryPath,
   HMMetadata,
   HMQueryResult,
+  hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/models/activity'
@@ -82,7 +83,70 @@ export const documentPageMeta: MetaFunction = ({
       content: siteDocument.id.id,
     })
   if (siteDocument.document) {
-    meta.push({title: getDocumentTitle(siteDocument.document)})
+    const documentTitle = getDocumentTitle(siteDocument.document)
+    const documentDescription = ''
+    const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
+      siteDocument.id.uid
+    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
+      siteDocument.id.version
+    }`
+    const currentUrl = `${siteDocument.origin}${
+      siteDocument.id.path?.length ? '/' + siteDocument.id.path.join('/') : ''
+    }`
+    const domain = hostnameStripProtocol(siteDocument.origin)
+
+    meta.push({title: documentTitle})
+    meta.push({
+      name: 'description',
+      content: documentDescription,
+    })
+
+    meta.push({
+      property: 'og:url',
+      content: currentUrl,
+    })
+    meta.push({
+      property: 'og:type',
+      content: 'website',
+    })
+    meta.push({
+      property: 'og:title',
+      content: documentTitle,
+    })
+    meta.push({
+      property: 'og:description',
+      content: documentDescription,
+    })
+    meta.push({
+      property: 'og:image',
+      content: imageUrl,
+    })
+
+    // Twitter Meta Tags
+    meta.push({
+      name: 'twitter:card',
+      content: 'summary_large_image',
+    })
+    meta.push({
+      property: 'twitter:domain',
+      content: domain,
+    })
+    meta.push({
+      property: 'twitter:url',
+      content: currentUrl,
+    })
+    meta.push({
+      name: 'twitter:title',
+      content: documentTitle,
+    })
+    meta.push({
+      name: 'twitter:description',
+      content: documentDescription,
+    })
+    meta.push({
+      name: 'twitter:image',
+      content: imageUrl,
+    })
 
     meta.push({
       name: 'hypermedia_version',
@@ -90,25 +154,8 @@ export const documentPageMeta: MetaFunction = ({
     })
     meta.push({
       name: 'hypermedia_title',
-      content: getDocumentTitle(siteDocument.document),
+      content: documentTitle,
     })
-
-    meta.push({
-      property: 'og:image',
-      content: `${siteDocument.origin}/hm/api/content-image?space=${
-        siteDocument.id.uid
-      }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
-        siteDocument.id.version
-      }`,
-    })
-    meta.push({
-      property: 'twitter:card',
-      content: 'summary_large_image',
-    })
-    // meta.push({ // TODO
-    //   property: "og:image:alt",
-    //   content: "Description of the image for accessibility.",
-    // });
   } else {
     meta.push({title: 'Not Found'})
   }
