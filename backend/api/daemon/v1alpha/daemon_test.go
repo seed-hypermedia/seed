@@ -67,7 +67,7 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	return NewServer(store, &mockedP2PNode{}, &mockedBlockstore{})
+	return NewServer(store, &mockedP2PNode{}, &mockedBlockstore{}, nil)
 }
 
 type mockedBlockstore struct{}

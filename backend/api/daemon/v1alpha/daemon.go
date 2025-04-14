@@ -4,9 +4,9 @@ package daemon
 
 import (
 	context "context"
-	"crypto/rand"
 	"fmt"
 	"seed/backend/core"
+	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/colx"
@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multicodec"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -65,10 +64,12 @@ type Server struct {
 		secret     string
 		expireTime time.Time
 	}
+
+	dlink *devicelink.Service
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, n Node, bs Blockstore) *Server {
+func NewServer(store Storage, n Node, bs Blockstore, dlink *devicelink.Service) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -79,6 +80,7 @@ func NewServer(store Storage, n Node, bs Blockstore) *Server {
 		// wallet:        w, // TODO(hm24): Put the wallet back.
 		p2p:    n,
 		blocks: bs,
+		dlink:  dlink,
 	}
 }
 
@@ -260,34 +262,10 @@ func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
 	}
 
-	kp, err := srv.store.KeyStore().GetKey(ctx, in.SigningKeyName)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to get signing key: %v", err)
-	}
-
-	account := kp.Principal()
-
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-
-	rawToken := make([]byte, 16)
-	n, err := rand.Read(rawToken)
+	sess, err := srv.dlink.NewSession(ctx, in.SigningKeyName)
 	if err != nil {
 		return nil, err
 	}
-	if n != len(rawToken) {
-		return nil, status.Errorf(codes.Internal, "failed to generate random token")
-	}
-
-	secret, err := multibase.Encode(multibase.Base64, rawToken)
-	if err != nil {
-		return nil, err
-	}
-
-	srv.deviceLinkSession.keyName = in.SigningKeyName
-	srv.deviceLinkSession.account = account
-	srv.deviceLinkSession.secret = secret
-	srv.deviceLinkSession.expireTime = time.Now().Add(2 * time.Minute)
 
 	pinfo := srv.p2p.AddrInfo()
 
@@ -296,7 +274,7 @@ func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.Creat
 			PeerId: pinfo.ID.String(),
 			Addrs:  colx.SliceMap(pinfo.Addrs, multiaddr.Multiaddr.String),
 		},
-		SecretToken: secret,
-		AccountId:   account.String(),
+		SecretToken: sess.Secret,
+		AccountId:   sess.Account.String(),
 	}, nil
 }

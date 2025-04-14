@@ -11,6 +11,7 @@ import (
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
@@ -57,12 +58,13 @@ func New(
 	activity *activity.Server,
 	LogLevel string,
 	isMainnet bool,
+	dlink *devicelink.Service,
 ) Server {
 	db := repo.DB()
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}, idx),
+		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}, idx, dlink),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(db, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),

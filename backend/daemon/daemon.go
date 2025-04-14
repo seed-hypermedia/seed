@@ -17,6 +17,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
+	"seed/backend/devicelink"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
@@ -169,10 +170,10 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	}
 	activitySrv.SetSyncer(a.Syncing)
 
+	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), logging.New("seed/devicelink", cfg.LogLevel))
+
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing,
-		activitySrv,
-		cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink)
 	if err != nil {
 		return nil, err
 	}
@@ -374,6 +375,7 @@ func initGRPC(
 	LogLevel string,
 	isMainnet bool,
 	opts grpcOpts,
+	dlink *devicelink.Service,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
@@ -381,7 +383,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet)
+	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet, dlink)
 	apis.Register(srv)
 
 	for _, extra := range opts.extraServices {
