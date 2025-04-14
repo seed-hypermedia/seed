@@ -101,6 +101,10 @@ export const documentPageMeta: MetaFunction = ({
         siteDocument.id.version
       }`,
     })
+    meta.push({
+      property: 'twitter:card',
+      content: 'summary_large_image',
+    })
     // meta.push({ // TODO
     //   property: "og:image:alt",
     //   content: "Description of the image for accessibility.",
