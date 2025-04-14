@@ -39,7 +39,7 @@ type Discoverer interface {
 type Server struct {
 	entities.UnimplementedEntitiesServer
 
-	idx  *blob.Index
+	db   *sqlitex.Pool
 	disc Discoverer
 
 	mu             sync.Mutex
@@ -47,9 +47,9 @@ type Server struct {
 }
 
 // NewServer creates a new entities server.
-func NewServer(idx *blob.Index, disc Discoverer) *Server {
+func NewServer(db *sqlitex.Pool, disc Discoverer) *Server {
 	return &Server{
-		idx:            idx,
+		db:             db,
 		disc:           disc,
 		discoveryTasks: make(map[discoveryTaskKey]*discoveryTask),
 	}
@@ -206,7 +206,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	type icon struct {
 		Icon value `json:"icon"`
 	}
-	if err := srv.idx.Query(ctx, func(conn *sqlite.Conn) error {
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var title title
 			var icon icon
@@ -246,7 +246,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 		}
 		var parentTitles []string
-		if err := srv.idx.Query(ctx, func(conn *sqlite.Conn) error {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
 				var title title
 				iri := stmt.ColumnText(1)
@@ -426,7 +426,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 
 	resp := &entities.ListEntityMentionsResponse{}
 
-	if err := api.idx.Query(ctx, func(conn *sqlite.Conn) error {
+	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
 		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
 			eid = stmt.ColumnInt64(0)
