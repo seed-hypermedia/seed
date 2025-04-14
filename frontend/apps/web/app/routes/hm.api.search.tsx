@@ -18,6 +18,8 @@ export const loader = async ({request}: {request: Request}) => {
           id && {
             id,
             title: entity.title,
+            icon: entity.icon,
+            parentNames: entity.parentNames,
           }
         )
       })
