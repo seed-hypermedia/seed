@@ -14,14 +14,14 @@ permissions:
 
 on:
   workflow_dispatch:
-  schedule:
-    # Run daily at 10:00 UTC to pick up new performance results
-    - cron: "0 10 * * *"
-  push:
-    branches: [main]
-    paths:
-      - "frontend/apps/performance-dashboard/**"
-      - ".github/workflows/build-performance-dashboard.yml"
+  # schedule:
+  #   # Run daily at 10:00 UTC to pick up new performance results
+  #   - cron: "0 10 * * *"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "frontend/apps/performance-dashboard/**"
+  #     - ".github/workflows/build-performance-dashboard.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

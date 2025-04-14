@@ -4,9 +4,9 @@ permissions:
   contents: write
 
 on:
-  schedule:
-    # Run at 8:00 AM UTC on every weekday (Monday through Friday)
-    - cron: "0 8 * * 1-5"
+  # schedule:
+  # Run at 8:00 AM UTC on every weekday (Monday through Friday)
+  # - cron: "0 8 * * 1-5"
   workflow_dispatch:
     # Manual trigger with options
     inputs:
@@ -14,14 +14,14 @@ on:
         description: "Specific scenarios to run (comma-separated, leave empty for all)"
         required: false
         default: ""
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "frontend/apps/desktop/**"
-      - "frontend/apps/performance/**"
-      - "frontend/apps/performance-dashboard/**"
-      - "frontend/packages/**"
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - "frontend/apps/desktop/**"
+  #     - "frontend/apps/performance/**"
+  #     - "frontend/apps/performance-dashboard/**"
+  #     - "frontend/packages/**"
 
 env:
   AWS_REGION: us-east-1
