@@ -118,6 +118,7 @@ export const WEB_SIGNING_ISSUER =
   WEB_ENV.WEB_SIGNING_ISSUER || process.env.SEED_SIGNING_ISSUER
 
 export const WEB_SIGNING_ENABLED = process.env.SEED_SIGNING_ENABLED === 'true'
+console.log('~ WEB_SIGNING_ENABLED', WEB_SIGNING_ENABLED)
 
 export const NOTIFY_SMTP_HOST = process.env.NOTIFY_SMTP_HOST
 export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT

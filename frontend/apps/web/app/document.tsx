@@ -1,16 +1,13 @@
-import {useActivity, useDiscussion} from '@/models'
+import {useActivity} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
-  BlockRange,
   formattedDateMedium,
   getDocumentTitle,
   HMComment,
   HMDocument,
-  HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
-  HMQueryResult,
   hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -20,11 +17,7 @@ import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
 import {CommentGroup} from '@shm/ui/discussion'
-import {
-  BlocksContent,
-  DocContent,
-  DocContentProvider,
-} from '@shm/ui/document-content'
+import {BlocksContent, DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
@@ -36,9 +29,11 @@ import {ActivitySection} from '@shm/ui/page-components'
 import {ChevronUp} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import React, {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {WebCommenting} from './client-lazy'
-import {getHref} from './href'
+import {OpenCommentPanel} from './comment-panel'
+import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
+import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent, getRecents} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
@@ -47,12 +42,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-import {
-  EmbedComment,
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockWeb,
-} from './web-embeds'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -180,6 +169,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     enableWebSigning,
     enableSiteIdentity,
     origin,
+    comment,
   } = props
   useEffect(() => {
     if (!id) return
@@ -264,6 +254,21 @@ export function DocumentPage(props: SiteDocumentPayload) {
     contentWidth: document?.metadata?.contentWidth,
     showSidebars: showSidebarOutlineDirectory,
   })
+
+  let panel = null
+
+  if (comment) {
+    panel = (
+      <OpenCommentPanel
+        comment={comment}
+        docId={id}
+        siteHost={siteHost}
+        enableWebSigning={enableWebSigning}
+      />
+    )
+    // } else if (blockRef) {
+    //   panel = <BlockCommentsPanel blockRef={blockRef} docId={id} />
+  }
 
   return (
     <WebSiteProvider
@@ -369,6 +374,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               {showSidebars ? <YStack {...sidebarProps} /> : null}
             </XStack>
           </YStack>
+          {panel}
         </WebSiteHeader>
       </YStack>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
@@ -476,78 +482,6 @@ function DocumentDiscoveryPage({
   )
 }
 
-function WebDocContentProvider({
-  children,
-  id,
-  originHomeId,
-  siteHost,
-  supportDocuments,
-  supportQueries,
-  routeParams,
-  comment,
-}: {
-  siteHost: string | undefined
-  id: UnpackedHypermediaId
-  originHomeId: UnpackedHypermediaId
-  children: React.ReactNode | JSX.Element
-  supportDocuments?: HMEntityContent[]
-  supportQueries?: HMQueryResult[]
-  routeParams?: {
-    documentId?: string
-    version?: string
-    blockRef?: string
-    blockRange?: BlockRange
-  }
-  comment?: boolean
-}) {
-  const navigate = useNavigate()
-  return (
-    <DocContentProvider
-      entityComponents={{
-        Document: EmbedDocument,
-        Comment: EmbedComment,
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-      }}
-      entityId={id}
-      supportDocuments={supportDocuments}
-      supportQueries={supportQueries}
-      onCopyBlock={(blockId, blockRange) => {
-        const blockHref = getHref(
-          originHomeId,
-          {
-            ...id,
-            hostname: siteHost || null,
-            blockRange: blockRange || null,
-            blockRef: blockId,
-          },
-          id.version || undefined,
-        )
-        window.navigator.clipboard.writeText(blockHref)
-        navigate(
-          window.location.pathname +
-            window.location.search +
-            `#${blockId}${
-              blockRange
-                ? 'start' in blockRange && 'end' in blockRange
-                  ? `[${blockRange.start}:${blockRange.end}]`
-                  : ''
-                : ''
-            }`,
-          {replace: true, preventScrollReset: true},
-        )
-      }}
-      routeParams={routeParams}
-      textUnit={18}
-      layoutUnit={24}
-      debug={false}
-      comment={comment}
-    >
-      {children}
-    </DocContentProvider>
-  )
-}
-
 function DocumentAppendix({
   id,
   document,
@@ -567,6 +501,7 @@ function DocumentAppendix({
     ...id,
     version: document.version,
   }
+  console.log('~ DocumentAppendix', {enableWebSigning, enableSiteIdentity})
   return (
     <Container>
       <ActivitySection>
@@ -698,100 +633,5 @@ function DocumentActivity({
         return null
       })}
     </>
-  )
-}
-
-function CommentReplies({
-  docId,
-  homeId,
-  siteHost,
-  replyCommentId,
-  rootReplyCommentId,
-  enableReplies = true,
-  enableWebSigning = false,
-}: {
-  docId: UnpackedHypermediaId
-  homeId?: UnpackedHypermediaId
-  siteHost?: string | undefined
-  replyCommentId: string
-  rootReplyCommentId: string | null
-  enableReplies?: boolean
-  enableWebSigning?: boolean
-}) {
-  const discussion = useDiscussion(docId, replyCommentId)
-  const renderCommentContent = useCallback(
-    (comment: HMComment) => {
-      return (
-        homeId && (
-          <WebDocContentProvider
-            key={comment.id}
-            originHomeId={homeId}
-            id={docId}
-            siteHost={siteHost}
-            comment={true}
-          >
-            <BlocksContent blocks={comment.content} parentBlockId={null} />
-          </WebDocContentProvider>
-        )
-      )
-    },
-    [homeId],
-  )
-  if (!discussion.data) return null
-  const {commentGroups, commentAuthors} = discussion.data
-  if (!commentGroups) return null
-  return (
-    <YStack paddingLeft={22}>
-      {commentGroups.map((commentGroup) => {
-        return (
-          <CommentGroup
-            isNested
-            key={commentGroup.id}
-            docId={docId}
-            authors={commentAuthors}
-            renderCommentContent={renderCommentContent}
-            commentGroup={commentGroup}
-            isLastGroup={commentGroup === commentGroups.at(-1)}
-            CommentReplies={CommentReplies}
-            homeId={homeId}
-            siteHost={siteHost}
-            enableReplies={enableReplies}
-            RepliesEditor={enableReplies ? CommentRepliesEditor : undefined}
-            rootReplyCommentId={rootReplyCommentId}
-            enableWebSigning={enableWebSigning}
-          />
-        )
-      })}
-    </YStack>
-  )
-}
-
-function CommentRepliesEditor({
-  isReplying,
-  docId,
-  replyCommentId,
-  rootReplyCommentId,
-  onDiscardDraft,
-  onReplied,
-  enableWebSigning,
-}: {
-  isReplying: boolean
-  docId: UnpackedHypermediaId
-  replyCommentId: string
-  rootReplyCommentId: string
-  onDiscardDraft: () => void
-  onReplied: () => void
-  enableWebSigning: boolean
-}) {
-  if (!isReplying) return null
-  return (
-    <WebCommenting
-      docId={docId}
-      replyCommentId={replyCommentId}
-      rootReplyCommentId={rootReplyCommentId}
-      onDiscardDraft={onDiscardDraft}
-      onReplied={onReplied}
-      enableWebSigning={enableWebSigning}
-    />
   )
 }

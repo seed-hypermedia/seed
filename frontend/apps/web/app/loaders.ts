@@ -31,7 +31,7 @@ import {
   WEB_IDENTITY_ENABLED,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
-import {HMAccountsMetadata} from '@shm/shared/hm-types'
+import {HMAccountsMetadata, HMComment} from '@shm/shared/hm-types'
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
@@ -239,6 +239,13 @@ export async function getBaseDocument(
   )
   const enableWebSigning =
     WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
+  console.log('~ enableWebSigning', {
+    enableWebSigning,
+    parsedRequest,
+    WEB_SIGNING_ENABLED,
+    SITE_BASE_URL,
+    WEB_IDENTITY_ENABLED,
+  })
   return {
     document,
     supportDocuments,
@@ -544,6 +551,7 @@ export type SiteDocumentPayload = WebDocumentPayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
+  comment?: HMComment
 }
 
 export async function loadSiteDocument<T>(
@@ -614,4 +622,14 @@ export async function loadSiteDocument<T>(
     {homeMetadata, origin, originHomeId, ...(extraData || {})},
     {status: id ? 200 : 404},
   )
+}
+
+export async function loadComment(
+  id: UnpackedHypermediaId,
+): Promise<HMComment> {
+  const c = await queryClient.comments.getComment({
+    id: id.uid,
+  })
+  const comment = c.toJson() as unknown as HMComment
+  return comment
 }

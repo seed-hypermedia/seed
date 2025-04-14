@@ -74,17 +74,18 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
 let db: Promise<IDBDatabase> | null = null
 
 export async function resetDB(idb: IDBFactory) {
+  console.log('~ resetDB', idb)
   if (db) {
-    ;(await getDB()).close()
+    ;(await getDB(window.indexedDB)).close()
     console.log('~ db closed')
   }
   db = initDB(idb)
   return await db
 }
 
-function getDB(idb = window.indexedDB): Promise<IDBDatabase> {
+function getDB(idb?: IDBFactory): Promise<IDBDatabase> {
   if (!db) {
-    db = initDB(idb)
+    db = initDB(idb || window.indexedDB)
   }
   return db
 }

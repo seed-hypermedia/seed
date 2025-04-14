@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {
   ExactBlockRange,
   ExpandedBlockRange,
@@ -13,6 +14,8 @@ export const HYPERMEDIA_ENTITY_TYPES = {
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
+
+export const HMIDTypeSchema = z.union([z.literal('d'), z.literal('c')])
 
 export function createSiteUrl({
   path,
