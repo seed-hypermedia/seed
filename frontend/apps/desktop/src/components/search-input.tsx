@@ -145,7 +145,9 @@ export function SearchInput({
               toast.error('Failed to open recent: ' + id.id)
               return
             } else {
-              onSelect({id})
+              onSelect({id: id})
+              setTimeout(() => onClose?.(), 100)
+              return
             }
           },
         }
