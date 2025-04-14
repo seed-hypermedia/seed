@@ -27,7 +27,7 @@ type Profile struct {
 	Alias core.Principal `refmt:"alias,omitempty"`
 }
 
-// NewProfile creates a new alias Profile blob.
+// NewProfileAlias creates a new alias Profile blob.
 func NewProfileAlias(issuer *core.KeyPair, alias core.Principal, ts time.Time) (eb Encoded[*Profile], err error) {
 	p := &Profile{
 		baseBlob: baseBlob{
@@ -69,7 +69,7 @@ func init() {
 	)
 }
 
-func indexProfile(ictx *indexingCtx, id int64, c cid.Cid, v *Profile) error {
+func indexProfile(ictx *indexingCtx, _ int64, c cid.Cid, v *Profile) error {
 	iri, err := NewIRI(v.Signer, "")
 	if err != nil {
 		return err

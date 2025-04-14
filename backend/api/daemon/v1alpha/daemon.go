@@ -254,7 +254,7 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 	return resp, nil
 }
 
-// GetBlob implements the corresponding gRPC method.
+// CreateDeviceLinkSession implements the corresponding gRPC method.
 func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.CreateDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
 	if in.SigningKeyName == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")

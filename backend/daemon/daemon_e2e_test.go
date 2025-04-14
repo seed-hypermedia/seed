@@ -931,7 +931,7 @@ func TestKeyDelegation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now Bob edits alice's home document.
-	aliceHome, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "bob",
 		Account:        alice.String(),
 		BaseVersion:    aliceHome.Version,
