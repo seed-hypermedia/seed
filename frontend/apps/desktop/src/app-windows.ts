@@ -99,7 +99,6 @@ let windowsState =
   ({} as Record<string, AppWindow>)
 
 export function getWindowsState() {
-  console.log(`== ~ STORAGE: ~ getWindowsState:`, windowsState)
   return windowsState || {}
 }
 
@@ -248,8 +247,6 @@ export function createAppWindow(
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
   }
-  console.log('=== NEW windowNavState', windowId, windValue)
-
   windowNavState[windowId] = windValue
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {

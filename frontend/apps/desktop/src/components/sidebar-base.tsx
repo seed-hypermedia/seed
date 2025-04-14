@@ -24,7 +24,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const isWindowTooNarrowForHoverSidebar = useIsWindowNarrowForHoverSidebar()
   const isLocked = useStream(ctx.isLocked)
 
-  console.log(`== ~ STORAGE: ~ isLocked:`, isLocked)
   const sidebarWidth = useStream(ctx.sidebarWidth)
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
@@ -35,8 +34,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const [wasLocked, setWasLocked] = useState(isLocked)
 
   const navigate = useNavigate()
-
-  console.log(`== ~ STORAGE: ~ isLocked:`, isLocked)
 
   useEffect(() => {
     // this is needed to sync the panel size with the isLocked state

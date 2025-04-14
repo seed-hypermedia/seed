@@ -27,7 +27,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
 
-  console.log('STORAGE: SidebarContextProvider', state?.sidebarLocked)
   return (
     <SidebarContext.Provider
       value={useMemo(() => {
@@ -73,7 +72,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           setIsLocked(true)
         }
         function onCloseSidebar() {
-          console.log('STORAGE: onCloseSidebar')
           dispatch({type: 'sidebarLocked', value: false})
           setIsLocked(false)
           setIsHoverVisible(false)
@@ -85,7 +83,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
 
         const widthStorage = {
           getItem(name: string) {
-            console.log('STORAGE: getItem', name, state)
             try {
               if (state?.sidebarLocked) {
                 return '0'
@@ -97,14 +94,12 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
             }
           },
           setItem(name: string, value: string) {
-            console.log('STORAGE: setItem', name, value)
             try {
               const data = JSON.parse(value)
               // Extract the first value from the layout array which represents the sidebar width percentage
               const sidebarWidth = data['page,sidebar']?.layout[0]
 
               if (typeof sidebarWidth === 'number') {
-                console.log(`STORAGE: setItem ~ sidebarWidth:`, sidebarWidth)
                 dispatch({type: 'sidebarWidth', value: sidebarWidth})
                 setSidebarWidth(sidebarWidth)
               }
