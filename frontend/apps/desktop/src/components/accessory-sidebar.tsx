@@ -26,19 +26,20 @@ export function AccessoryContainer({
 } & ComponentProps<typeof YStack>) {
   return (
     <PanelContainer
-      gap="$4"
       width="100%"
       $gtSm={{...defaultContainerStyle, marginHorizontal: 0, w: '100%'}}
       margin={0}
       {...props}
     >
       <ScrollView f={1}>
-        <YStack paddingVertical="$3" paddingHorizontal="$3" gap="$4">
+        <YStack paddingVertical="$3" paddingHorizontal="$3" gap="$3">
           {title ? <AccessoryTitle title={title} /> : null}
           <YStack gap="$5">{children}</YStack>
         </YStack>
       </ScrollView>
-      {footer}
+      <YStack borderTopWidth={1} borderColor="$color6">
+        {footer}
+      </YStack>
     </PanelContainer>
   )
 }

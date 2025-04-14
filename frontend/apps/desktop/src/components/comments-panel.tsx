@@ -99,7 +99,7 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
         'Comment',
       )}`}
       footer={
-        <View padding="$3">
+        <View paddingVertical="$2">
           <CommentDraft docId={docId} backgroundColor="$color1" />
         </View>
       }

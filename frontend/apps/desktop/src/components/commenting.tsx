@@ -24,6 +24,7 @@ import {BlocksContent} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
@@ -123,6 +124,7 @@ export function RepliesEditor({
   onDiscardDraft: () => void
   onReplied: () => void
 }) {
+  const isDark = useIsDark()
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, replyCommentId)
@@ -135,7 +137,7 @@ export function RepliesEditor({
       borderWidth={2}
       borderColor="$color8"
       minHeight={120}
-      bg="$background"
+      bg={isDark ? '$background' : '$backgroundStrong'}
     >
       <CommentDraftEditor
         docId={docId}
