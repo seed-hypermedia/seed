@@ -3,6 +3,7 @@ import {
   idToUrl,
   SearchResult,
   UnpackedHypermediaId,
+  unpackHmId,
   useRouteLink,
   useSearch,
   useUniversalAppContext,
@@ -14,6 +15,8 @@ import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
 import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
+import {UIAvatar} from './avatar'
+import {getDaemonFileUrl} from './get-file-url'
 import {useCollapsedPath} from './search-input'
 
 export function MobileSearch({
@@ -23,6 +26,23 @@ export function MobileSearch({
 }) {
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {enabled: !!searchValue})
+  const searchItems: SearchResult[] =
+    searchResults?.data?.entities
+      ?.map((item) => {
+        const title = item.title || item.id.uid
+        return {
+          id: item.id,
+          key: item.id.id,
+          title,
+          path: [...item.parentNames, title],
+          icon: item.icon,
+          onFocus: () => {},
+          onMouseEnter: () => {},
+          onSelect: () => {},
+          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+        }
+      })
+      .filter(Boolean) ?? []
   return (
     <YStack
       gap="$2"
@@ -53,19 +73,15 @@ export function MobileSearch({
           borderWidth={1}
           elevation="$4"
         >
-          {searchResults.data?.entities.map((entity: any, index: number) => {
+          {searchItems.map((item: SearchResult, index: number) => {
             return (
-              <Fragment key={entity.id.id}>
+              <Fragment key={item.key}>
                 <SearchResultItem
-                  // key={entity.id.id}
-                  entity={entity}
+                  item={item}
                   originHomeId={originHomeId}
                   selected={false}
                 />
-                {index ===
-                searchResults.data?.entities.length - 1 ? undefined : (
-                  <Separator />
-                )}
+                {index === searchItems.length - 1 ? undefined : <Separator />}
               </Fragment>
             )
           })}
@@ -97,26 +113,18 @@ export function HeaderSearch({
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
+        const title = item.title || item.id.uid
         return {
-          title: item.title || item.id.uid,
+          id: item.id,
           key: item.id.id,
-          path: item.id.path,
+          title,
+          path: [...item.parentNames, title],
+          icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
-        // const title = item.title || item.id.uid
-        // return {
-        //   key: item.id.id,
-        //   title,
-        //   path: [...item.parentNames, title],
-        //   icon: item.icon,
-        //   onFocus: () => {},
-        //   onMouseEnter: () => {},
-        //   onSelect: () => {},
-        //   subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
-        // }
       })
       .filter(Boolean) ?? []
 
@@ -206,28 +214,20 @@ export function HeaderSearch({
               </XStack>
               <YStack width="100%" overflow="hidden">
                 <ScrollView overflow="scroll">
-                  {searchResults.data?.entities.map(
-                    (
-                      entity: {id: UnpackedHypermediaId; title: string},
-                      index,
-                    ) => {
-                      return (
-                        <Fragment key={entity.id.id}>
-                          <SearchResultItem
-                            // key={entity.id.id}
-                            entity={entity}
-                            originHomeId={originHomeId}
-                            selected={focusedIndex === index}
-                          />
-                          {index ===
-                          searchResults.data?.entities.length -
-                            1 ? undefined : (
-                            <Separator />
-                          )}
-                        </Fragment>
-                      )
-                    },
-                  )}
+                  {searchItems.map((item: SearchResult, index: number) => {
+                    return (
+                      <Fragment key={item.key}>
+                        <SearchResultItem
+                          item={item}
+                          originHomeId={originHomeId}
+                          selected={focusedIndex === index}
+                        />
+                        {index === searchItems.length - 1 ? undefined : (
+                          <Separator />
+                        )}
+                      </Fragment>
+                    )
+                  })}
                 </ScrollView>
               </YStack>
             </YStack>
@@ -239,16 +239,17 @@ export function HeaderSearch({
 }
 
 function SearchResultItem({
-  entity,
+  item,
   originHomeId,
   selected = false,
 }: {
-  entity: {id: UnpackedHypermediaId; title: string}
+  item: SearchResult
   originHomeId: UnpackedHypermediaId | null
   selected: boolean
 }) {
   const elm = useRef<HTMLDivElement>(null)
-  const collapsedPath = useCollapsedPath(entity.id.path ?? [], elm)
+  const collapsedPath = useCollapsedPath(item.path ?? [], elm)
+  const unpackedId = unpackHmId(item.key)
 
   useLayoutEffect(() => {
     if (selected) {
@@ -257,10 +258,12 @@ function SearchResultItem({
   }, [selected])
 
   const linkProps = useRouteLink(
-    {
-      key: 'document',
-      id: entity.id,
-    },
+    unpackedId
+      ? {
+          key: 'document',
+          id: unpackedId,
+        }
+      : null,
     originHomeId,
   )
   return (
@@ -273,24 +276,34 @@ function SearchResultItem({
           backgroundColor: selected ? '$brand12' : undefined,
         }}
       >
-        <YStack flex={1} justifyContent="space-between">
-          <SizableText numberOfLines={1} fontWeight={600}>
-            {entity.title}
-          </SizableText>
-          {!!entity.id.path && (
-            <SizableText
-              numberOfLines={1}
-              fontWeight={300}
-              fontSize="$3"
-              maxWidth="100%"
-              overflow="hidden"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-            >
-              {collapsedPath.join(' / ')}
+        <XStack
+          flex={1}
+          gap="$3"
+          justifyContent="flex-start"
+          alignItems="center"
+        >
+          {item.icon ? (
+            <UIAvatar
+              label={item.title}
+              size={20}
+              id={item.key}
+              url={getDaemonFileUrl(item.icon)}
+            />
+          ) : item.path?.length === 1 ? (
+            <UIAvatar label={item.title} size={20} id={item.key} />
+          ) : null}
+          <YStack f={1} justifyContent="space-between">
+            <SizableText numberOfLines={1} fontWeight={600}>
+              {item.title}
             </SizableText>
-          )}
-        </YStack>
+            {!!item.path ? (
+              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+                {collapsedPath.join(' / ')}
+              </SizableText>
+            ) : null}
+            {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
+          </YStack>
+        </XStack>
       </Button>
     </YStack>
   )
