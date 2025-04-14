@@ -1,7 +1,7 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {forwardRef, useMemo, useRef, useState} from 'react'
-import {ScrollView, XStackProps, YStack, YStackProps} from 'tamagui'
+import {ScrollView, useMedia, XStackProps, YStack, YStackProps} from 'tamagui'
 
 export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
   function MainWrapper({children, noScroll = false, ...props}, ref) {
@@ -40,6 +40,7 @@ export const useDocumentLayout = (
 ) => {
   // Always call hooks in the same order
   const elementRef = useRef<HTMLDivElement>(null)
+  const media = useMedia()
 
   // Initialize with default content width instead of 0
   const initialWidth = useMemo(() => {
@@ -131,7 +132,7 @@ export const useDocumentLayout = (
   )
 
   // Get default value for fallbacks to avoid TypeScript errors
-  const defaultMaxWidth = useMemo(() => contentMaxWidth.M, [])
+  const defaultMaxWidth = useMemo(() => contentMaxWidth, [])
 
   return {
     elementRef,
@@ -154,7 +155,17 @@ export const useDocumentLayout = (
     wrapperProps: {
       maxWidth:
         (contentMaxWidth || defaultMaxWidth) +
-        (showSidebars && config.showSidebars ? (showCollapsed ? 100 : 700) : 0),
+        (showSidebars && config.showSidebars
+          ? showCollapsed
+            ? 100
+            : 700
+          : 0) +
+        /**
+         * this is added because we are showing the comment and citations button
+         * on the right of each block. in the future we might expand
+         * the block content to also have more space so we can render marginalia.
+         **/
+        (media.gtSm ? 44 : 0),
       marginHorizontal: 'auto',
       width: '100%',
       justifyContent: 'space-between',

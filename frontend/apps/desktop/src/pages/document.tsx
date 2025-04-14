@@ -329,7 +329,10 @@ function _MainDocumentPage({
               </YStack>
             ) : null}
 
-            <DocContainer {...mainContentProps}>
+            <DocContainer
+              {...mainContentProps}
+              $gtSm={{marginRight: 40, marginLeft: 0}}
+            >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
               <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
                 <DocPageContent

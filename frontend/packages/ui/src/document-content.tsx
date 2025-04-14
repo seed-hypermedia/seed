@@ -94,6 +94,7 @@ import {SeedHeading} from './heading'
 import {BlockQuote, Comment} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
+import {useIsDark} from './use-is-dark'
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
 
 export type EntityComponentsRecord = {
@@ -538,6 +539,7 @@ export function BlockNodeContent({
     debug,
     comment,
   } = useDocContentContext()
+  const isDark = useIsDark()
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,
@@ -787,39 +789,18 @@ export function BlockNodeContent({
             />
           </Tooltip>
         ) : null}
-        <XStack
-          position={isMediablock ? 'absolute' : 'relative'}
-          right={isMediablock ? 8 : undefined}
-          top={isMediablock ? 8 : undefined}
+        <YStack
+          position={'absolute'}
+          right={0}
+          top={12}
+          $gtSm={{
+            right: -44,
+            // background: '$backgroundTransparent',
+          }}
           pl="$2"
           borderRadius={layoutUnit / 4}
-          gap="$2"
+          gap="$1"
         >
-          {onCopyBlock ? (
-            <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
-              <Button
-                userSelect="none"
-                size="$2"
-                // opacity={hover ? 1 : 0}
-                opacity={0}
-                $group-blocknode-hover={{
-                  opacity: 1,
-                }}
-                padding={layoutUnit / 4}
-                borderRadius={layoutUnit / 4}
-                chromeless
-                icon={Link}
-                bg="$background"
-                onPress={() => {
-                  if (blockNode.block?.id) {
-                    onCopyBlock(blockNode.block.id, {expanded: true})
-                  } else {
-                    console.error('onCopyBlock Error: no blockId available')
-                  }
-                }}
-              />
-            </Tooltip>
-          ) : null}
           {docCitations?.length ? (
             <Tooltip
               content={`${docCitations.length} ${pluralS(
@@ -830,19 +811,16 @@ export function BlockNodeContent({
             >
               <Button
                 userSelect="none"
-                size="$2"
-                chromeless
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
                 onPress={() => onCitationClick?.(blockNode.block?.id)}
-                bg="$background"
+                icon={<BlockQuote size={12} color="$color9" />}
               >
-                <XStack gap="$2" ai="center">
-                  <BlockQuote size={layoutUnit / 2} color={'$blue11'} />
-                  <SizableText color="$blue11" size="$2">
-                    {String(docCitations.length)}
-                  </SizableText>
-                </XStack>
+                <SizableText color="$color9" size="$1">
+                  {String(docCitations.length)}
+                </SizableText>
               </Button>
             </Tooltip>
           ) : null}
@@ -851,16 +829,15 @@ export function BlockNodeContent({
             <Tooltip content="Reply to block" delay={800}>
               <Button
                 userSelect="none"
-                size="$2"
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
                 opacity={0}
                 $group-blocknode-hover={{
                   opacity: 1,
                 }}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                chromeless
                 icon={Reply}
-                bg="$background"
                 onPress={() => {
                   if (blockNode.block?.id) {
                     onReplyBlock(blockNode.block.id)
@@ -885,15 +862,14 @@ export function BlockNodeContent({
             >
               <Button
                 userSelect="none"
-                size="$2"
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
                 opacity={commentCitations.length ? 1 : 0}
                 $group-blocknode-hover={{
                   opacity: 1,
                 }}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                chromeless
-                bg="$background"
                 onPress={() => {
                   if (blockNode.block?.id) {
                     onBlockComment(blockNode.block.id)
@@ -901,22 +877,40 @@ export function BlockNodeContent({
                     console.error('onBlockComment Error: no blockId available')
                   }
                 }}
+                icon={<MessageSquare size={12} color="$color9" />}
               >
-                <XStack gap="$2" ai="center">
-                  <MessageSquare
-                    size={layoutUnit / 2}
-                    color={commentCitations.length ? '$blue11' : undefined}
-                  />
-                  {commentCitations.length ? (
-                    <SizableText color="$blue11" size="$2">
-                      {String(commentCitations.length)}
-                    </SizableText>
-                  ) : null}
-                </XStack>
+                {commentCitations.length ? (
+                  <SizableText color="$color9" size="$1">
+                    {String(commentCitations.length)}
+                  </SizableText>
+                ) : null}
               </Button>
             </Tooltip>
           ) : null}
-        </XStack>
+          {onCopyBlock ? (
+            <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
+              <Button
+                userSelect="none"
+                size="$1"
+                opacity={0}
+                $group-blocknode-hover={{
+                  opacity: 1,
+                }}
+                padding={layoutUnit / 4}
+                borderRadius={layoutUnit / 4}
+                chromeless
+                icon={<Link size={12} color="$color9" />}
+                onPress={() => {
+                  if (blockNode.block?.id) {
+                    onCopyBlock(blockNode.block.id, {expanded: true})
+                  } else {
+                    console.error('onCopyBlock Error: no blockId available')
+                  }
+                }}
+              />
+            </Tooltip>
+          ) : null}
+        </YStack>
       </XStack>
       {bnChildren && _expanded ? (
         <BlockNodeList
