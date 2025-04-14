@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, CreateAliasRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -61,6 +61,28 @@ export const Documents = {
       name: "ListAccounts",
       I: ListAccountsRequest,
       O: ListAccountsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets a single account by ID.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.GetAccount
+     */
+    getAccount: {
+      name: "GetAccount",
+      I: GetAccountRequest,
+      O: Account,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets multiple accounts by IDs.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.BatchGetAccounts
+     */
+    batchGetAccounts: {
+      name: "BatchGetAccounts",
+      I: BatchGetAccountsRequest,
+      O: BatchGetAccountsResponse,
       kind: MethodKind.Unary,
     },
     /**
@@ -138,6 +160,17 @@ export const Documents = {
       name: "GetRef",
       I: GetRefRequest,
       O: Ref,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Creates alias for an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.CreateAlias
+     */
+    createAlias: {
+      name: "CreateAlias",
+      I: CreateAliasRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
   }

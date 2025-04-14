@@ -889,7 +889,7 @@ func TestKeyDelegation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Bob, which in this key we treat as if it was alice's phone or other device,
+	// Bob, whom in this case we treat as if it was Alice's phone or other device,
 	// also creates his home document.
 	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", coretest.NewTester("bob").Account))
 	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -910,12 +910,12 @@ func TestKeyDelegation(t *testing.T) {
 
 	time.Sleep(30 * time.Millisecond)
 
-	// Now Alice creates a subkey capability for bob's key.
+	// Now Alice creates an agent capability for bob's key.
 	cpb, err := dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
 		SigningKeyName: "main",
 		Delegate:       bob.String(),
 		Account:        alice.String(),
-		Role:           documents.Role_SUBKEY,
+		Role:           documents.Role_AGENT,
 		Label:          "Phone web key",
 	})
 	require.NoError(t, err)
@@ -923,20 +923,12 @@ func TestKeyDelegation(t *testing.T) {
 
 	time.Sleep(30 * time.Millisecond)
 
-	// Bob redirects his home document to alice's home document.
-	redirect, err := dmn.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+	// Bob claims Alice as alias.
+	_, err = dmn.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
 		SigningKeyName: "bob",
-		Account:        bob.String(),
-		Target: &documents.RefTarget{
-			Target: &documents.RefTarget_Redirect_{
-				Redirect: &documents.RefTarget_Redirect{
-					Account: alice.String(),
-				},
-			},
-		},
+		AliasAccount:   alice.String(),
 	})
 	require.NoError(t, err)
-	_ = redirect
 
 	// Now Bob edits alice's home document.
 	aliceHome, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -948,11 +940,36 @@ func TestKeyDelegation(t *testing.T) {
 				SetAttribute: &documents.DocumentChange_SetAttribute{
 					Key: []string{"name"},
 					Value: &documents.DocumentChange_SetAttribute_StringValue{
-						StringValue: "Alice from the Wonderland (updated by a subkey)",
+						StringValue: "Alice from the Wonderland (updated by an agent key)",
 					},
 				},
 			}},
 		},
 	})
 	require.NoError(t, err)
+
+	list, err := dmn.RPC.DocumentsV3.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	require.Len(t, list.Accounts, 2, "must have bob and alice accounts")
+
+	var ids []string
+	for _, x := range list.Accounts {
+		item, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+			Id: x.Id,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(x, item).Compare(t, "account must match")
+		ids = append(ids, item.Id)
+	}
+
+	batch, err := dmn.RPC.DocumentsV3.BatchGetAccounts(ctx, &documents.BatchGetAccountsRequest{
+		Ids: ids,
+	})
+	require.NoError(t, err)
+	require.Len(t, batch.Accounts, 2, "must have bob and alice accounts")
+	require.Nil(t, batch.Errors, "must not have errors")
+
+	for _, x := range list.Accounts {
+		testutil.StructsEqual(x, batch.Accounts[x.Id]).Compare(t, "account must match")
+	}
 }

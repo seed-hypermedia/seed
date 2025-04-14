@@ -20,7 +20,7 @@ import (
 var (
 	roleFromProto = map[documents.Role]blob.Role{
 		documents.Role_WRITER: blob.RoleWriter,
-		documents.Role_SUBKEY: blob.RoleSubkey,
+		documents.Role_AGENT:  blob.RoleAgent,
 	}
 
 	roleToProto = colx.TransposeMap(roleFromProto)

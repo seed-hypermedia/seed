@@ -11,6 +11,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -37,7 +38,7 @@ type Role string
 // Eventually we could probably do a migration to gain better consistency.
 const (
 	RoleWriter Role = "WRITER"
-	RoleSubkey Role = "SUBKEY"
+	RoleAgent  Role = "AGENT"
 )
 
 // Capability is a blob that represents some granted rights from the issuer to the delegate key.
@@ -110,7 +111,7 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 		return err
 	}
 
-	sb := newStructuralBlob(c, string(blobTypeCapability), v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+	sb := newStructuralBlob(c, blobTypeCapability, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 
 	if _, err := ictx.ensurePubKey(v.Signer); err != nil {
 		return err
@@ -121,11 +122,21 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 		return err
 	}
 
+	if v.Role == RoleAgent {
+		if v.Path != "" {
+			return fmt.Errorf("agent capabilities cannot be tied to a specific path")
+		}
+	}
+
 	// Ensuring reasonable limits on the label size, to avoid abuse.
 	// The limit is quite arbitrary though.
 	const labelLimit = 512
 	if len(v.Label) > labelLimit {
 		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", v.Label, labelLimit)
+	}
+
+	if strings.TrimSpace(v.Label) != v.Label {
+		return fmt.Errorf("capability label '%s' must not contain leading or trailing spaces", v.Label)
 	}
 
 	if v.Label != "" && !labelPattern.MatchString(v.Label) {

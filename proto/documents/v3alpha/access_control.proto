@@ -146,7 +146,7 @@ enum Role {
   // Has write access to the document
   WRITER = 2;
 
-  // Has full authority over the account,
-  // i.e. acts on behalf of the parent account.
-  SUBKEY = 3;
+  // Grants full authority over the key,
+  // including the idea to act on behalf of the issuing key.
+  AGENT = 3;
 }

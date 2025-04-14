@@ -24,6 +24,8 @@ const (
 	Documents_CreateDocumentChange_FullMethodName     = "/com.seed.documents.v3alpha.Documents/CreateDocumentChange"
 	Documents_DeleteDocument_FullMethodName           = "/com.seed.documents.v3alpha.Documents/DeleteDocument"
 	Documents_ListAccounts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListAccounts"
+	Documents_GetAccount_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetAccount"
+	Documents_BatchGetAccounts_FullMethodName         = "/com.seed.documents.v3alpha.Documents/BatchGetAccounts"
 	Documents_ListDirectory_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDirectory"
 	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
 	Documents_ListRootDocuments_FullMethodName        = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
@@ -31,6 +33,7 @@ const (
 	Documents_UpdateDocumentReadStatus_FullMethodName = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
 	Documents_CreateRef_FullMethodName                = "/com.seed.documents.v3alpha.Documents/CreateRef"
 	Documents_GetRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/GetRef"
+	Documents_CreateAlias_FullMethodName              = "/com.seed.documents.v3alpha.Documents/CreateAlias"
 )
 
 // DocumentsClient is the client API for Documents service.
@@ -52,6 +55,10 @@ type DocumentsClient interface {
 	//
 	// TODO(burdiyan): rename to spaces or sites.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
+	// Gets a single account by ID.
+	GetAccount(ctx context.Context, in *GetAccountRequest, opts ...grpc.CallOption) (*Account, error)
+	// Gets multiple accounts by IDs.
+	BatchGetAccounts(ctx context.Context, in *BatchGetAccountsRequest, opts ...grpc.CallOption) (*BatchGetAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -66,6 +73,8 @@ type DocumentsClient interface {
 	CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(ctx context.Context, in *GetRefRequest, opts ...grpc.CallOption) (*Ref, error)
+	// Creates alias for an account.
+	CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type documentsClient struct {
@@ -111,6 +120,26 @@ func (c *documentsClient) ListAccounts(ctx context.Context, in *ListAccountsRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAccountsResponse)
 	err := c.cc.Invoke(ctx, Documents_ListAccounts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) GetAccount(ctx context.Context, in *GetAccountRequest, opts ...grpc.CallOption) (*Account, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Account)
+	err := c.cc.Invoke(ctx, Documents_GetAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) BatchGetAccounts(ctx context.Context, in *BatchGetAccountsRequest, opts ...grpc.CallOption) (*BatchGetAccountsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetAccountsResponse)
+	err := c.cc.Invoke(ctx, Documents_BatchGetAccounts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +216,16 @@ func (c *documentsClient) GetRef(ctx context.Context, in *GetRefRequest, opts ..
 	return out, nil
 }
 
+func (c *documentsClient) CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Documents_CreateAlias_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DocumentsServer is the server API for Documents service.
 // All implementations should embed UnimplementedDocumentsServer
 // for forward compatibility.
@@ -206,6 +245,10 @@ type DocumentsServer interface {
 	//
 	// TODO(burdiyan): rename to spaces or sites.
 	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
+	// Gets a single account by ID.
+	GetAccount(context.Context, *GetAccountRequest) (*Account, error)
+	// Gets multiple accounts by IDs.
+	BatchGetAccounts(context.Context, *BatchGetAccountsRequest) (*BatchGetAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -220,6 +263,8 @@ type DocumentsServer interface {
 	CreateRef(context.Context, *CreateRefRequest) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(context.Context, *GetRefRequest) (*Ref, error)
+	// Creates alias for an account.
+	CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedDocumentsServer should be embedded to have
@@ -241,6 +286,12 @@ func (UnimplementedDocumentsServer) DeleteDocument(context.Context, *DeleteDocum
 func (UnimplementedDocumentsServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
 }
+func (UnimplementedDocumentsServer) GetAccount(context.Context, *GetAccountRequest) (*Account, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccount not implemented")
+}
+func (UnimplementedDocumentsServer) BatchGetAccounts(context.Context, *BatchGetAccountsRequest) (*BatchGetAccountsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetAccounts not implemented")
+}
 func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDirectory not implemented")
 }
@@ -261,6 +312,9 @@ func (UnimplementedDocumentsServer) CreateRef(context.Context, *CreateRefRequest
 }
 func (UnimplementedDocumentsServer) GetRef(context.Context, *GetRefRequest) (*Ref, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRef not implemented")
+}
+func (UnimplementedDocumentsServer) CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAlias not implemented")
 }
 func (UnimplementedDocumentsServer) testEmbeddedByValue() {}
 
@@ -350,6 +404,42 @@ func _Documents_ListAccounts_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentsServer).ListAccounts(ctx, req.(*ListAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).GetAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_GetAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).GetAccount(ctx, req.(*GetAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_BatchGetAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetAccountsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).BatchGetAccounts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_BatchGetAccounts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).BatchGetAccounts(ctx, req.(*BatchGetAccountsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -480,6 +570,24 @@ func _Documents_GetRef_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_CreateAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAliasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).CreateAlias(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_CreateAlias_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).CreateAlias(ctx, req.(*CreateAliasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Documents_ServiceDesc is the grpc.ServiceDesc for Documents service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -502,6 +610,14 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _Documents_ListAccounts_Handler,
+		},
+		{
+			MethodName: "GetAccount",
+			Handler:    _Documents_GetAccount_Handler,
+		},
+		{
+			MethodName: "BatchGetAccounts",
+			Handler:    _Documents_BatchGetAccounts_Handler,
 		},
 		{
 			MethodName: "ListDirectory",
@@ -530,6 +646,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRef",
 			Handler:    _Documents_GetRef_Handler,
+		},
+		{
+			MethodName: "CreateAlias",
+			Handler:    _Documents_CreateAlias_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

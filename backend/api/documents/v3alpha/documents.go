@@ -19,6 +19,7 @@ import (
 	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -341,7 +343,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 }
 
 // ListAccounts implements Documents API v3.
-func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsRequest) (*documents.ListAccountsResponse, error) {
+func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsRequest) (out *documents.ListAccountsResponse, err error) {
 	var cursor = struct {
 		ID           string `json:"i"`
 		ActivityTime int64  `json:"t"`
@@ -367,7 +369,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		}
 	}
 
-	out := &documents.ListAccountsResponse{
+	out = &documents.ListAccountsResponse{
 		Accounts: make([]*documents.Account, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
@@ -376,20 +378,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		args  colx.Slice[any]
 	)
 	{
-		qb := dqb.
-			Select(
-				"spaces.id",
-				"spaces.last_comment",
-				"spaces.last_comment_time",
-				"spaces.comment_count",
-				"spaces.last_change_time",
-				"MAX(last_comment_time, last_change_time) AS last_activity_time",
-				"subs.id IS NOT NULL AS is_subscribed",
-				"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
-				"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
-			).
-			From("spaces").
-			LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id").
+		qb := srv.baseAccountQuery().
 			Limit("? + 1")
 
 		var (
@@ -432,6 +421,8 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 	}
 	defer release()
 
+	defer sqlitex.Save(conn)(&err)
+
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
@@ -443,66 +434,15 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		}
 		count++
 
-		seq := sqlite.NewIncrementor(0)
-		var (
-			spaceID          = row.ColumnText(seq())
-			lastCommentID    = row.ColumnInt64(seq())
-			lastCommentTime  = row.ColumnInt64(seq())
-			commentCount     = row.ColumnInt64(seq())
-			lastChangeTime   = row.ColumnInt64(seq())
-			lastActivityTime = row.ColumnInt64(seq())
-			isSubscribed     = row.ColumnInt(seq()) != 0
-			isUnread         = row.ColumnInt64(seq()) > 0
-			metadataJSON     = row.ColumnBytesUnsafe(seq())
-		)
-
-		var attrs blob.DocIndexedAttrs
-		if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
-			srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
-		}
-		metadata := make(map[string]any, len(attrs))
-		for k, v := range attrs {
-			if v.Value != nil {
-				colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
-			}
-		}
-
-		var (
-			latestCommentID   string
-			latestCommentTime *timestamppb.Timestamp
-		)
-		if lastCommentID != 0 {
-			lc, err := lookup.CID(lastCommentID)
-			if err != nil {
-				return nil, err
-			}
-
-			latestCommentID = lc.String()
-			latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
-		}
-
-		metastruct, err := structpb.NewStruct(metadata)
+		item, err := srv.accountFromRow(row, lookup)
 		if err != nil {
-			return nil, fmt.Errorf("failed to collect struct metadata: %w", err)
+			return nil, err
 		}
 
-		item := &documents.Account{
-			Id:       spaceID,
-			Metadata: metastruct,
-			ActivitySummary: &documents.ActivitySummary{
-				CommentCount:      int32(commentCount), //nolint:gosec
-				LatestCommentId:   latestCommentID,
-				LatestCommentTime: latestCommentTime,
-				LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
-				IsUnread:          isUnread,
-			},
-			IsSubscribed: isSubscribed,
-		}
+		out.Accounts = append(out.Accounts, item.Proto)
 
-		cursor.ActivityTime = lastActivityTime
-		cursor.ID = spaceID
-
-		out.Accounts = append(out.Accounts, item)
+		cursor.ActivityTime = item.LastActivityTime
+		cursor.ID = item.SpaceID
 	}
 
 	err = errors.Join(err, check())
@@ -511,6 +451,245 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 	}
 
 	return out, nil
+}
+
+// GetAccount implements Documents API v3.
+func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountRequest) (out *documents.Account, err error) {
+	{
+		if in.Id == "" {
+			return nil, errutil.MissingArgument("account")
+		}
+	}
+
+	if _, err := core.DecodePrincipal(in.Id); err != nil {
+		return nil, err
+	}
+
+	var (
+		query string
+		args  colx.Slice[any]
+	)
+	{
+		qb := srv.baseAccountQuery()
+		qb = qb.Where("spaces.id = ?")
+
+		args.Append(in.Id)
+
+		query = qb.String()
+	}
+
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	defer sqlitex.Save(conn)(&err)
+
+	lookup := blob.NewLookupCache(conn)
+
+	rows, check := sqlitex.Query(conn, query, args...)
+	for row := range rows {
+		item, err := srv.accountFromRow(row, lookup)
+		if err != nil {
+			return nil, err
+		}
+
+		out = item.Proto
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
+	}
+
+	if out == nil {
+		return nil, status.Errorf(codes.NotFound, "account %s is not found", in.Id)
+	}
+
+	return out, nil
+}
+
+// BatchGetAccounts implements Documents API v3.
+func (srv *Server) BatchGetAccounts(ctx context.Context, in *documents.BatchGetAccountsRequest) (out *documents.BatchGetAccountsResponse, err error) {
+	{
+		if len(in.Ids) == 0 {
+			return &documents.BatchGetAccountsResponse{}, nil
+		}
+	}
+
+	out = &documents.BatchGetAccountsResponse{
+		Accounts: make(map[string]*documents.Account, len(in.Ids)),
+	}
+
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	defer sqlitex.Save(conn)(&err)
+
+	lookup := blob.NewLookupCache(conn)
+
+	slices.Sort(in.Ids)
+	in.Ids = slices.Compact(in.Ids)
+
+	getAccount := func(id string) (out *documents.Account, err error) {
+		if _, err := core.DecodePrincipal(id); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", id, err)
+		}
+
+		qb := srv.baseAccountQuery()
+		qb = qb.Where("spaces.id = ?")
+
+		rows, check := sqlitex.Query(conn, qb.String(), id)
+		for row := range rows {
+			item, err := srv.accountFromRow(row, lookup)
+			if err != nil {
+				return nil, err
+			}
+			out = item.Proto
+		}
+
+		err = errors.Join(err, check())
+		if err != nil {
+			return nil, err
+		}
+
+		if out == nil {
+			return nil, status.Errorf(codes.NotFound, "account %s is not found", id)
+		}
+
+		return out, nil
+	}
+
+	for _, id := range in.Ids {
+		acc, err := getAccount(id)
+		if err != nil {
+			if out.Errors == nil {
+				out.Errors = make(map[string][]byte, len(in.Ids))
+			}
+
+			sterr, ok := status.FromError(err)
+			if !ok {
+				sterr = status.New(codes.Internal, err.Error())
+			}
+
+			data, err := proto.Marshal(sterr.Proto())
+			if err != nil {
+				return nil, err
+			}
+
+			out.Errors[id] = data
+		}
+
+		out.Accounts[id] = acc
+	}
+
+	return out, nil
+}
+
+type dbAccount struct {
+	Proto *documents.Account
+
+	// Data for pagination.
+	SpaceID          string
+	LastActivityTime int64
+}
+
+func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
+	return dqb.
+		Select(
+			"spaces.id",
+			"spaces.last_comment",
+			"spaces.last_comment_time",
+			"spaces.comment_count",
+			"spaces.last_change_time",
+			"MAX(last_comment_time, last_change_time) AS last_activity_time",
+			"subs.id IS NOT NULL AS is_subscribed",
+			"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
+			"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
+			"(SELECT extra_attrs->>'alias' FROM structural_blobs WHERE author = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) AND type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL) AS alias",
+		).
+		From("spaces").
+		LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id")
+}
+
+func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*dbAccount, error) {
+	seq := sqlite.NewIncrementor(0)
+	var (
+		spaceID          = row.ColumnText(seq())
+		lastCommentID    = row.ColumnInt64(seq())
+		lastCommentTime  = row.ColumnInt64(seq())
+		commentCount     = row.ColumnInt64(seq())
+		lastChangeTime   = row.ColumnInt64(seq())
+		lastActivityTime = row.ColumnInt64(seq())
+		isSubscribed     = row.ColumnInt(seq()) != 0
+		isUnread         = row.ColumnInt64(seq()) > 0
+		metadataJSON     = row.ColumnBytesUnsafe(seq())
+		aliasID          = row.ColumnInt64(seq())
+	)
+
+	var attrs blob.DocIndexedAttrs
+	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
+		srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
+	}
+	metadata := make(map[string]any, len(attrs))
+	for k, v := range attrs {
+		if v.Value != nil {
+			colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
+		}
+	}
+
+	var (
+		latestCommentID   string
+		latestCommentTime *timestamppb.Timestamp
+	)
+	if lastCommentID != 0 {
+		lc, err := lookup.CID(lastCommentID)
+		if err != nil {
+			return nil, err
+		}
+
+		latestCommentID = lc.String()
+		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
+	}
+
+	metastruct, err := structpb.NewStruct(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect struct metadata: %w", err)
+	}
+
+	var alias string
+	if aliasID != 0 {
+		aliasKey, err := lookup.PublicKey(aliasID)
+		if err != nil {
+			return nil, err
+		}
+
+		alias = aliasKey.String()
+	}
+
+	item := &documents.Account{
+		Id:       spaceID,
+		Metadata: metastruct,
+		ActivitySummary: &documents.ActivitySummary{
+			CommentCount:      int32(commentCount), //nolint:gosec
+			LatestCommentId:   latestCommentID,
+			LatestCommentTime: latestCommentTime,
+			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+			IsUnread:          isUnread,
+		},
+		IsSubscribed: isSubscribed,
+		AliasAccount: alias,
+	}
+
+	return &dbAccount{
+		Proto:            item,
+		SpaceID:          spaceID,
+		LastActivityTime: lastActivityTime,
+	}, nil
 }
 
 // ListRootDocuments implements Documents API v3.
@@ -1006,6 +1185,50 @@ func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*do
 	}
 
 	return refToProto(ref.CID, ref.Value)
+}
+
+// CreateAlias implements Documents API v3.
+func (srv *Server) CreateAlias(ctx context.Context, in *documents.CreateAliasRequest) (*emptypb.Empty, error) {
+	{
+		if in.SigningKeyName == "" {
+			return nil, errutil.MissingArgument("signing_key_name")
+		}
+
+		if in.AliasAccount == "" {
+			return nil, errutil.MissingArgument("alias_account")
+		}
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	targetAccount, err := core.DecodePrincipal(in.AliasAccount)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode target account: %v", err)
+	}
+
+	// Check if the signing key has agent capability for the target account
+	valid, err := srv.idx.IsValidAgent(ctx, targetAccount, kp.Principal())
+	if err != nil {
+		return nil, err
+	}
+
+	if !valid {
+		return nil, status.Errorf(codes.PermissionDenied, "key '%s' is not allowed to create an alias for account '%s'", kp.Principal(), targetAccount)
+	}
+
+	sb, err := blob.NewProfileAlias(kp, targetAccount, cclock.New().MustNow())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srv.idx.Put(ctx, sb); err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {

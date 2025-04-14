@@ -25,18 +25,18 @@ export enum Role {
   WRITER = 2,
 
   /**
-   * Has full authority over the account,
-   * i.e. acts on behalf of the parent account.
+   * Grants full authority over the key,
+   * including the idea to act on behalf of the issuing key.
    *
-   * @generated from enum value: SUBKEY = 3;
+   * @generated from enum value: AGENT = 3;
    */
-  SUBKEY = 3,
+  AGENT = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(Role)
 proto3.util.setEnumType(Role, "com.seed.documents.v3alpha.Role", [
   { no: 0, name: "ROLE_UNSPECIFIED" },
   { no: 2, name: "WRITER" },
-  { no: 3, name: "SUBKEY" },
+  { no: 3, name: "AGENT" },
 ]);
 
 /**

@@ -22,8 +22,6 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const blobTypeRef blobType = "Ref"
@@ -164,46 +162,9 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		RedirectTarget string `json:"redirect,omitempty"`
 	}
 
-	// Special handling for home document refs.
-	// We don't allow tombstoning them without redirect with a proof of subkey.
-	if v.Path == "" {
-		if len(v.Heads) == 0 && v.Redirect == nil {
-			return fmt.Errorf("home document cannot be tombstoned without redirect")
-		}
-
-		if v.Redirect != nil {
-			if v.Redirect.Space.Equal(v.Signer) {
-				return fmt.Errorf("home documents can only be redirected to other spaces")
-			}
-
-			if v.Redirect.Path != "" {
-				return fmt.Errorf("home document cannot be redirected to a non-empty path")
-			}
-
-			// We want to check if the signer of this Ref is a valid subkey for the redirect target.
-			// Hence, there has to be a capability signed by the redirect target account for this Ref's signer.
-			// Because home documents are special, and they represent user accounts, we can't just allow them to redirect anywhere,
-			// to avoid impersonating users trivially. Hence, we require the reciprocal "binding" between both keys,
-			// which is expressed as a capability from one side, and tomstone redirect ref from the other side.
-			issuer, err := ictx.ensurePubKey(v.Redirect.Space)
-			if err != nil {
-				return err
-			}
-
-			delegate, err := ictx.ensurePubKey(v.Signer)
-			if err != nil {
-				return err
-			}
-
-			ok, err := isValidSubKey(ictx.conn, issuer, delegate)
-			if err != nil {
-				return err
-			}
-
-			if !ok {
-				return status.Errorf(codes.PermissionDenied, "to redirect home document to a different space there must be a capability with subkey role")
-			}
-		}
+	// We decided not to allow redirects or tombstones for home documents for now.
+	if v.Path == "" && (v.Redirect != nil || len(v.Heads) == 0) {
+		return fmt.Errorf("redirects or tombstones on home documents are not allowed")
 	}
 
 	space := v.Space()
@@ -215,9 +176,9 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 
 	var sb structuralBlob
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
+		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
 	} else {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
+		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
 	}
 
 	if v.GenesisBlob.Defined() {
@@ -857,71 +818,4 @@ var qLoadChangeDeps = dqb.Str(`
 	FROM blob_links
 	WHERE source = ?1
 	AND type = 'change/dep';
-`)
-
-func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
-	parentsJSON := strbytes.String(
-		must.Do2(
-			json.Marshal(resource.Breadcrumbs()),
-		),
-	)
-
-	owner, _, err := resource.SpacePath()
-	if err != nil {
-		return false, err
-	}
-
-	ownerID, err := DbPublicKeysLookupID(conn, owner)
-	if err != nil {
-		return false, err
-	}
-
-	if ownerID == writerID {
-		return true, nil
-	}
-
-	rows, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON)
-	for range rows {
-		valid = true
-		break
-	}
-
-	err = errors.Join(err, check())
-	return valid, err
-}
-
-var qIsValidWriter = dqb.Str(`
-	-- owner, writer, breadcrumbs
-	SELECT 1 AS valid
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND author = ?1
-    AND extra_attrs->>'del' = ?2
-    AND extra_attrs->>'role' IN ('WRITER', 'SUBKEY')
-    AND resource IN (
-    	SELECT r.id
-     	FROM resources r
-      	JOIN json_each(?3) each ON each.value = r.iri
-    )
-`)
-
-func isValidSubKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
-	rows, check := sqlitex.Query(conn, qIsValidSubKey(), parentID, delegateID)
-	for range rows {
-		valid = true
-		break
-	}
-
-	err = errors.Join(err, check())
-	return valid, err
-}
-
-var qIsValidSubKey = dqb.Str(`
-	SELECT 1
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND author = :issuer
-	AND extra_attrs->>'del' = :delegate
-	AND extra_attrs->>'role' = 'SUBKEY'
-	LIMIT 1
 `)
