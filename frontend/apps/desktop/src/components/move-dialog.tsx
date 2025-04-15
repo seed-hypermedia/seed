@@ -1,14 +1,14 @@
 import {useMoveDocument} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
-import {useRef, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 import {Spinner, XStack, YStack} from 'tamagui'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
-
 export function MoveDialog({
   onClose,
   input,
@@ -27,6 +27,10 @@ export function MoveDialog({
     input.id,
   )
   const isAvailable = useRef(true)
+  const pathInvalid = useMemo(
+    () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
+    [location?.path],
+  )
   if (!entity) return <Spinner />
   return (
     <YStack>
@@ -55,6 +59,10 @@ export function MoveDialog({
                     toast.error(
                       'This location is unavailable. Create a new path name.',
                     )
+                    return
+                  }
+                  if (pathInvalid) {
+                    toast.error(pathInvalid.error)
                     return
                   }
                   moveDoc

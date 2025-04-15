@@ -10,8 +10,12 @@ import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
+import {
+  entityQueryPathToHmIdPath,
+  hmIdPathToEntityQueryPath,
+} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -26,7 +30,14 @@ import {
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
-import {PropsWithChildren, ReactNode, useEffect, useRef, useState} from 'react'
+import {
+  PropsWithChildren,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   SizableText,
   Spinner,
@@ -309,7 +320,6 @@ function FirstPublishDialog({
   }
   onClose: () => void
 }) {
-  console.log('~~ FirstPublishDialog', input)
   const [account, setAccount] = useState<string | null>(
     input.defaultAccount || null,
   )
@@ -324,6 +334,11 @@ function FirstPublishDialog({
       : null,
   )
   const isAvailable = useRef(true)
+  const pathInvalid = useMemo(
+    () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
+    [location?.path],
+  )
+  console.log('~~ pathInvalid', pathInvalid)
   return (
     <YStack>
       <DialogTitle>Publish Document</DialogTitle>
@@ -342,6 +357,10 @@ function FirstPublishDialog({
         onPress={() => {
           if (!isAvailable.current) {
             toast.error('This location is unavailable. Create a new path name.')
+            return
+          }
+          if (pathInvalid) {
+            toast.error(pathInvalid.error)
             return
           }
           if (location && account) {

@@ -14,12 +14,14 @@ import {
   createWebHMUrl,
   getParent,
   hmId,
+  hmIdPathToEntityQueryPath,
   HMMetadataPayload,
   isIdParentOfOrEqual,
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -77,10 +79,13 @@ export function LocationPicker({
       account &&
       allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
     if (thisAccountWithWrite) {
+      console.log('write location', location)
       setLocation(location)
     } else {
       if (allAcctsWithWrite.length) {
         setAccount(allAcctsWithWrite[0].accountsWithWrite[0])
+        console.log('write location2', location)
+
         setLocation(location)
       } else {
         toast.error('No account has write access to this location')
@@ -233,7 +238,10 @@ export function LocationPicker({
             if (!location) return
             handleSetLocation(
               hmId('d', location?.uid, {
-                path: [...(location?.path?.slice(0, -1) || []), text],
+                path: [
+                  ...(location?.path?.slice(0, -1) || []),
+                  pathNameify(text),
+                ],
               }),
             )
           }}
@@ -428,26 +436,37 @@ function URLPreview({
   actionLabel: string
 }) {
   const url = useDocumentUrl(location)
+  const pathInvalid = useMemo(
+    () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
+    [location?.path],
+  )
+  let tooltipContent = `This will be the URL after you ${actionLabel}`
+  if (isUnavailable) {
+    tooltipContent = 'This location is unavailable'
+  } else if (pathInvalid) {
+    tooltipContent = pathInvalid.error
+  }
+  let extraLabel = ''
+  if (isUnavailable) {
+    extraLabel = ' (Unavailable)'
+  } else if (pathInvalid) {
+    extraLabel = ` (Not Allowed)`
+  }
+  const isError = isUnavailable || pathInvalid
   return (
-    <Tooltip
-      content={
-        isUnavailable
-          ? 'This location is unavailable'
-          : `This will be the URL after you ${actionLabel}`
-      }
-    >
+    <Tooltip content={tooltipContent}>
       <YStack>
         <XStack ai="center" gap="$2">
           <SizableText
-            color={isUnavailable ? '$red11' : '$color10'}
-            fontWeight={isUnavailable ? 'bold' : 'normal'}
+            color={isError ? '$red11' : '$color10'}
+            fontWeight={isError ? 'bold' : 'normal'}
             size="$2"
           >
-            Branch Destination URL{isUnavailable ? ' (Unavailable)' : ''}
+            Branch Destination URL{extraLabel}
           </SizableText>
-          {isUnavailable ? <AlertCircle color="$red11" size="$1" /> : null}
+          {isError ? <AlertCircle color="$red11" size="$1" /> : null}
         </XStack>
-        <SizableText color={isUnavailable ? '$red11' : '$blue11'} size="$3">
+        <SizableText color={isError ? '$red11' : '$blue11'} size="$3">
           {url}
         </SizableText>
       </YStack>
