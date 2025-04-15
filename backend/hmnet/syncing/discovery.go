@@ -259,7 +259,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			FROM structural_blobs sb
 			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 			WHERE resource IN rbsr_iris
-			AND sb.type IN ('Capability', 'Comment')`
+			AND sb.type IN ('Capability', 'Comment', 'Profile')`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
