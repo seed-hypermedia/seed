@@ -7,6 +7,7 @@ import {
 } from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {getHref} from './href'
+import {CitationsPayload} from './routes/hm.api.citations'
 import {
   EmbedComment,
   EmbedDocument,
@@ -23,6 +24,7 @@ export function WebDocContentProvider({
   supportQueries,
   routeParams,
   comment,
+  citations,
 }: {
   siteHost: string | undefined
   id: UnpackedHypermediaId
@@ -37,6 +39,7 @@ export function WebDocContentProvider({
     blockRange?: BlockRange
   }
   comment?: boolean
+  citations?: CitationsPayload
 }) {
   const navigate = useNavigate()
   return (
@@ -80,6 +83,7 @@ export function WebDocContentProvider({
       layoutUnit={24}
       debug={false}
       comment={comment}
+      citations={citations}
     >
       {children}
     </DocContentProvider>

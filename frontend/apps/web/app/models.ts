@@ -14,6 +14,7 @@ import {useEffect} from 'react'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
+import {CitationsPayload} from './routes/hm.api.citations'
 import {DiscussionPayload} from './routes/hm.api.discussion'
 import {unwrap} from './wrapping'
 
@@ -86,6 +87,11 @@ export function useActivity(
 
 export function searchQuery(input: string) {
   return queryAPI<SearchPayload>(`/hm/api/search?q=${input}`)
+}
+
+export function useCitations(id: UnpackedHypermediaId) {
+  const response = useAPI<CitationsPayload>(`/hm/api/citations?id=${id.id}`)
+  return response
 }
 
 export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {

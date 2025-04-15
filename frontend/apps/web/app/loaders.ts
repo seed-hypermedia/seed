@@ -101,7 +101,6 @@ export async function getHMDocument(entityId: UnpackedHypermediaId) {
       throw e
     })
   if (apiDoc instanceof HMRedirectError) {
-    console.log('DO REDIRECT?!!', apiDoc)
     throw apiDoc
   }
   const docJSON = apiDoc.toJson() as any
@@ -246,6 +245,7 @@ export async function getBaseDocument(
     SITE_BASE_URL,
     WEB_IDENTITY_ENABLED,
   })
+
   return {
     document,
     supportDocuments,

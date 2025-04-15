@@ -1,4 +1,4 @@
-import {useActivity} from '@/models'
+import {useActivity, useCitations} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
@@ -255,6 +255,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
+  const citations = useCitations(id)
+
+  console.log('~~~ citations', citations.data)
+
   let panel = null
 
   if (comment) {
@@ -343,6 +347,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     blockRef: blockRef,
                     blockRange: blockRange,
                   }}
+                  citations={citations.data}
                 >
                   <DocContent
                     document={document}
@@ -501,7 +506,6 @@ function DocumentAppendix({
     ...id,
     version: document.version,
   }
-  console.log('~ DocumentAppendix', {enableWebSigning, enableSiteIdentity})
   return (
     <Container>
       <ActivitySection>
