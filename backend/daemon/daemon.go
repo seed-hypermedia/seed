@@ -170,7 +170,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	}
 	activitySrv.SetSyncer(a.Syncing)
 
-	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), logging.New("seed/devicelink", cfg.LogLevel))
+	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink)

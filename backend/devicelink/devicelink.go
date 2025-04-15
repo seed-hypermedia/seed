@@ -8,15 +8,18 @@ import (
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/ipfs"
 	"seed/backend/util/cclock"
 	"sync"
 	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-msgio"
 	"github.com/multiformats/go-multibase"
+	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,24 +28,35 @@ import (
 // ProtocolID is the libp2p protocol ID for device linking.
 const ProtocolID = "/hypermedia/devicelink/0.1.0"
 
-const defaultExpireTime = 2 * time.Minute
+const (
+	defaultExpireTime = 2 * time.Minute
+	exchangeTimeout   = 1 * time.Minute
+)
+
+// Blockstore is a subset of the common blockstore interface.
+type Blockstore interface {
+	Put(context.Context, blocks.Block) error
+	PutMany(context.Context, []blocks.Block) error
+}
 
 // Service is a devicelink service.
 type Service struct {
-	host host.Host
-	keys core.KeyStore
-	log  *zap.Logger
+	host   host.Host
+	keys   core.KeyStore
+	log    *zap.Logger
+	blocks Blockstore
 
 	mu      sync.Mutex
 	session *Session
 }
 
 // NewService creates a devicelink service.
-func NewService(h host.Host, keys core.KeyStore, log *zap.Logger) *Service {
+func NewService(h host.Host, keys core.KeyStore, bs Blockstore, log *zap.Logger) *Service {
 	svc := &Service{
-		host: h,
-		keys: keys,
-		log:  log,
+		host:   h,
+		keys:   keys,
+		log:    log,
+		blocks: bs,
 	}
 
 	svc.host.SetStreamHandler(ProtocolID, svc.HandleLibp2pStream)
@@ -91,6 +105,11 @@ func (svc *Service) NewSession(ctx context.Context, keyName string) (*Session, e
 
 // HandleLibp2pStream implements the libp2p handler for devicelink protocol.
 func (svc *Service) HandleLibp2pStream(s network.Stream) {
+	deadline := time.Now().Add(exchangeTimeout)
+	s.SetDeadline(deadline)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
 	svc.log.Info("DeviceLinkStarted")
 
 	defer s.Close()
@@ -105,7 +124,7 @@ func (svc *Service) HandleLibp2pStream(s network.Stream) {
 	r := msgio.NewVarintReader(s)
 	w := msgio.NewVarintWriter(s)
 
-	err := svc.handleLibp2pStream(r, w)
+	err := svc.handleLibp2pStream(ctx, r, w)
 	svc.session = nil
 	log := svc.log.Info
 	log("DeviceLinkEnded", zap.Error(err))
@@ -116,7 +135,7 @@ func (svc *Service) HandleLibp2pStream(s network.Stream) {
 	}
 }
 
-func (svc *Service) handleLibp2pStream(r msgio.Reader, w msgio.Writer) error {
+func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w msgio.Writer) error {
 	if svc.session == nil {
 		return status.Errorf(codes.FailedPrecondition, "no active session")
 	}
@@ -139,14 +158,10 @@ func (svc *Service) handleLibp2pStream(r msgio.Reader, w msgio.Writer) error {
 		return status.Errorf(codes.Aborted, "session expired")
 	}
 
-	r.ReleaseMsg(secretRaw)
-
 	remoteKey, err := core.DecodePrincipal(pkRaw)
 	if err != nil {
 		return err
 	}
-
-	r.ReleaseMsg(pkRaw)
 
 	me, err := svc.keys.GetKey(context.Background(), svc.session.KeyName)
 	if err != nil {
@@ -173,7 +188,6 @@ func (svc *Service) handleLibp2pStream(r msgio.Reader, w msgio.Writer) error {
 	if err := cbornode.DecodeInto(rcapRaw, rcap); err != nil {
 		return err
 	}
-	r.ReleaseMsg(rcapRaw)
 
 	if !rcap.Signer.Equal(remoteKey) {
 		return status.Errorf(codes.Aborted, "reverse capability signer mismatch")
@@ -189,7 +203,6 @@ func (svc *Service) handleLibp2pStream(r msgio.Reader, w msgio.Writer) error {
 	if err := cbornode.DecodeInto(profileRaw, profile); err != nil {
 		return err
 	}
-	r.Read(profileRaw)
 
 	if !profile.Signer.Equal(remoteKey) {
 		return status.Errorf(codes.Aborted, "profile signer mismatch")
@@ -199,7 +212,11 @@ func (svc *Service) handleLibp2pStream(r msgio.Reader, w msgio.Writer) error {
 		return status.Errorf(codes.Aborted, "profile alias mismatch")
 	}
 
-	return nil
+	return svc.blocks.PutMany(ctx, []blocks.Block{
+		fcap,
+		ipfs.NewBlock(multicodec.DagCbor, rcapRaw),
+		ipfs.NewBlock(multicodec.DagCbor, profileRaw),
+	})
 }
 
 // Session for the devicelink exchange.
