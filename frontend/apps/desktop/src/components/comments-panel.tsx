@@ -18,7 +18,7 @@ import {YStack} from '@tamagui/stacks'
 import {memo, useMemo} from 'react'
 import {Spinner, styled, View, XStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
-import {CitationEntry} from './citations'
+import {CommentCitationEntry} from './citations-panel'
 import {
   CommentDraft,
   CommentReplies,
@@ -167,7 +167,7 @@ function CommentBlockAccessory({
       <QuotedDocBlock docId={docId} blockId={blockId} />
       {citationsForBlock?.map((citation) => {
         return (
-          <CitationEntry
+          <CommentCitationEntry
             citation={citation}
             key={citation.source.id.id}
             accounts={accounts}

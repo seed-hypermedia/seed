@@ -5,36 +5,32 @@ import {
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Button, SizableText, styled, XStack} from 'tamagui'
 
-export function WebCitationEntry({citation}: {citation: HMDocumentCitation}) {
-  if (citation.source.type === 'c') {
-    return null
-  }
-  if (citation.source.type === 'd') {
-    return <DocumentCitationEntry citation={citation} />
-  }
-  return <SizableText>Unsupported Citation Type</SizableText>
-}
-
-function DocumentCitationEntry({citation}: {citation: HMDocumentCitation}) {
-  const doc = useEntity(citation.source.id)
-  if (!doc.data) return null
-  const author = citation.author
-  if (!author) return null
+export function DocumentCitationEntry({
+  citation,
+  DocPreview,
+}: {
+  citation: HMDocumentCitation
+  DocPreview?: React.ComponentType<{
+    metadata?: HMMetadata | null
+    docId: UnpackedHypermediaId
+  }>
+}) {
+  if (!citation.author || !citation.document) return null
   return (
     <XStack gap="$1" ai="center" flexWrap="wrap">
-      <HMAuthor author={author} />
+      <HMAuthor author={citation.author} />
       <CitationDateText>
         {formattedDateShort(citation.source.time)}
       </CitationDateText>
       <XStack gap="$2" ai="center">
         <SizableText>cited on</SizableText>
         <DocumentCitationToken
-          docId={doc.data.id}
-          metadata={doc.data?.document?.metadata}
+          docId={citation.source.id}
+          metadata={citation.document.metadata}
+          DocPreview={DocPreview}
         />
       </XStack>
     </XStack>
@@ -44,11 +40,23 @@ function DocumentCitationEntry({citation}: {citation: HMDocumentCitation}) {
 function DocumentCitationToken({
   docId,
   metadata,
+  DocPreview,
 }: {
   docId: UnpackedHypermediaId
   metadata?: HMMetadata | null
+  DocPreview?: React.ComponentType<{
+    metadata?: HMMetadata | null
+    docId: UnpackedHypermediaId
+  }>
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
+  if (DocPreview) {
+    return (
+      <DocumentCitationButton {...linkProps}>
+        {metadata?.name}
+      </DocumentCitationButton>
+    )
+  }
   return (
     <DocumentCitationButton {...linkProps}>
       {metadata?.name}

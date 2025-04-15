@@ -289,6 +289,7 @@ export function usePublishDraft(
       opts?.onSuccess?.(result, variables, context)
       if (resultDocId) {
         invalidateQueries([queryKeys.ENTITY, resultDocId.id])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, resultDocId.id])
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])

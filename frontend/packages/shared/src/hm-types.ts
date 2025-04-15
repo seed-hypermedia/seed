@@ -1047,7 +1047,7 @@ export const HMCitationSchema = z.object({
 export type HMCitation = z.infer<typeof HMCitationSchema>
 
 export type HMDocumentCitation = HMCitation & {
-  document: HMDocument
+  document: HMDocument | null
   author: HMMetadataPayload | null
 }
 

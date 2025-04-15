@@ -17,7 +17,7 @@ import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
-import {WebCitationEntry} from '@shm/ui/citations'
+import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Container} from '@shm/ui/container'
 import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, DocContent} from '@shm/ui/document-content'
@@ -30,6 +30,7 @@ import {
   DocumentOutline,
 } from '@shm/ui/navigation'
 import {ActivitySection} from '@shm/ui/page-components'
+import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
@@ -49,7 +50,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-import {CitationsPayload} from './routes/hm.api.citations'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -731,11 +731,13 @@ function _DocInteractionsSummary({
   citations,
   onCitationsOpen,
   onCommentsOpen,
+  onVersionOpen,
 }: {
   docId: UnpackedHypermediaId
-  citations: CitationsPayload
+  citations: HMCitationsPayload
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
+  onVersionOpen?: () => void
 }) {
   const changes = useDocumentChanges(docId)
 
@@ -748,29 +750,38 @@ function _DocInteractionsSummary({
       gap="$1.5"
       zIndex="$zIndex.7"
     >
-      <InteractionSummaryItem
-        label="citation"
-        count={citations?.length || 0}
-        onPress={() => {
-          console.log('~ onCitationsOpen')
-          onCitationsOpen()
-        }}
-        icon={BlockQuote}
-      />
+      {onCitationsOpen && (
+        <InteractionSummaryItem
+          label="citation"
+          count={citations?.length || 0}
+          onPress={() => {
+            console.log('~ onCitationsOpen')
+            onCitationsOpen()
+          }}
+          icon={BlockQuote}
+        />
+      )}
       <Separator />
-      <InteractionSummaryItem
-        label="comment"
-        count={0} // TODO: add comments citations
-        onPress={onCommentsOpen}
-        icon={MessageSquare}
-      />
+      {onCommentsOpen && (
+        <InteractionSummaryItem
+          label="comment"
+          count={0} // TODO: add comments citations
+          onPress={onCommentsOpen}
+          icon={MessageSquare}
+        />
+      )}
       <Separator />
-      <InteractionSummaryItem
-        label="version"
-        count={changes.data?.length || 0}
-        onPress={() => {}}
-        icon={HistoryIcon}
-      />
+      {onVersionOpen && (
+        <InteractionSummaryItem
+          label="version"
+          count={changes.data?.length || 0}
+          onPress={() => {
+            console.log('~ onVersionOpen')
+            onVersionOpen()
+          }}
+          icon={HistoryIcon}
+        />
+      )}
     </XStack>
   )
 }
@@ -795,7 +806,7 @@ function InteractionSummaryItem({
   )
 }
 
-function WebCitationsPanel({citations}: {citations: HMCitationsPayload}) {
+function WebCitationsPanel({citations}: {citations?: HMCitationsPayload}) {
   return (
     <YStack>
       <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
@@ -803,9 +814,13 @@ function WebCitationsPanel({citations}: {citations: HMCitationsPayload}) {
           Citations
         </SizableText>
       </XStack>
-      {citations.map((citation) => {
-        return <WebCitationEntry citation={citation} />
-      })}
+      {citations ? (
+        citations.map((citation) => {
+          return <DocumentCitationEntry citation={citation} />
+        })
+      ) : (
+        <Spinner />
+      )}
     </YStack>
   )
 }

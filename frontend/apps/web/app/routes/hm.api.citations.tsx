@@ -1,5 +1,5 @@
 import {queryClient} from '@/client'
-import {getHMDocument, getMetadata} from '@/loaders'
+import {getMetadata, resolveHMDocument} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {BIG_INT, hmId, parseFragment, unpackHmId} from '@shm/shared'
@@ -18,7 +18,6 @@ export const loader = async ({
 }): Promise<WrappedResponse<HMCitationsPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
-
   if (!id) throw new Error('id is required')
   let result: HMCitationsPayload | {error: string}
   try {
@@ -32,7 +31,6 @@ export const loader = async ({
     for (const mention of res.mentions) {
       const sourceId = unpackHmId(mention.source)
       if (!sourceId) continue
-
       if (sourceId.type !== 'd') continue
 
       const targetFragment = parseFragment(mention.targetFragment)
@@ -47,12 +45,10 @@ export const loader = async ({
         targetFragment,
         isExactVersion: mention.isExactVersion,
       }
-
-      const document = await getHMDocument(sourceId)
+      const document = await resolveHMDocument(sourceId)
       const author = citation.source.author
         ? await getMetadata(hmId('d', citation.source.author))
         : null
-
       const documentCitation: HMDocumentCitation = {
         ...citation,
         document,

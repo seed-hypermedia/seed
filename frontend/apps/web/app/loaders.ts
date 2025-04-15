@@ -109,6 +109,18 @@ export async function getHMDocument(entityId: UnpackedHypermediaId) {
   return document
 }
 
+export async function resolveHMDocument(entityId: UnpackedHypermediaId) {
+  try {
+    const document = await getHMDocument(entityId)
+    return document
+  } catch (e) {
+    if (e instanceof HMRedirectError) {
+      return await resolveHMDocument(e.target)
+    }
+    throw e
+  }
+}
+
 const getDirectory = getDiretoryWithClient(queryClient)
 const getQueryResults = getQueryResultsWithClient(queryClient)
 
@@ -238,13 +250,6 @@ export async function getBaseDocument(
   )
   const enableWebSigning =
     WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
-  console.log('~ enableWebSigning', {
-    enableWebSigning,
-    parsedRequest,
-    WEB_SIGNING_ENABLED,
-    SITE_BASE_URL,
-    WEB_IDENTITY_ENABLED,
-  })
 
   return {
     document,
@@ -612,7 +617,6 @@ export async function loadSiteDocument<T>(
         originHomeId,
         hostname: null,
       })
-      console.log('REDIRECT TO:', destRedirectUrl)
       return redirect(destRedirectUrl)
     }
     console.error('Error Loading Site Document', id, e)

@@ -3,23 +3,19 @@ import {useEntityCitations} from '@/models/citations'
 import {useComment} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {useNavigate} from '@/utils/useNavigate'
-import {entityQueryPathToHmIdPath, formattedDateShort} from '@shm/shared'
+import {entityQueryPathToHmIdPath, hmId} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMCitation,
   HMMetadata,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useEntity, useResolvedEntities} from '@shm/shared/models/entity'
 import {pluralS} from '@shm/shared/utils/language'
+import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {HoverCard} from '@shm/ui/hover-card'
-import {Button, SizableText, Spinner, styled, XStack, YStack} from 'tamagui'
+import {SizableText, Spinner, YStack} from 'tamagui'
 import {CommentReplies, renderCommentContent, RepliesEditor} from './commenting'
 
 export function CitationsPanel({
@@ -49,6 +45,14 @@ export function CitationsPanel({
       accountsToLoad.add(citation.source.author)
     }
   })
+  const documents = useResolvedEntities(
+    (distinctCitations
+      ?.map((citation) =>
+        citation.source.type === 'd' ? citation.source.id : null,
+      )
+      .filter((id) => id !== null) as UnpackedHypermediaId[]) || [],
+  )
+  console.log('~~ documents', documents)
   const accounts = useAccountsMetadata(Array.from(accountsToLoad))
   return (
     <AccessoryContainer
@@ -57,10 +61,16 @@ export function CitationsPanel({
     >
       {distinctCitations?.map((citation, index) => {
         return (
-          <CitationEntry
+          <DocumentCitationEntry
             key={`${citation.source}${citation.targetFragment}`}
-            citation={citation}
-            accounts={accounts}
+            citation={{
+              ...citation,
+              document: documents.at(index)?.data?.document || null,
+              author: citation.source.author
+                ? accounts[citation.source.author]
+                : null,
+            }}
+            DocPreview={DocumentPreview}
           />
         )
       })}
@@ -68,78 +78,7 @@ export function CitationsPanel({
   )
 }
 
-export function CitationEntry({
-  citation,
-  accounts,
-}: {
-  citation: HMCitation
-  accounts: HMAccountsMetadata
-}) {
-  if (citation.source.type === 'c') {
-    return <CommentCitation citation={citation} accounts={accounts} />
-  }
-  if (citation.source.type === 'd') {
-    return <DocumentCitationEntry citation={citation} accounts={accounts} />
-  }
-  return <SizableText>Unsupported Citation Type</SizableText>
-}
-
-function DocumentCitationEntry({
-  citation,
-  accounts,
-}: {
-  citation: HMCitation
-  accounts: HMAccountsMetadata
-}) {
-  const doc = useEntity(citation.source.id)
-  const navigate = useNavigate()
-  if (!doc.data) return null
-  const author = citation.source.author
-    ? accounts[citation.source.author]
-    : null
-  if (!author) return null
-  return (
-    <XStack gap="$1" ai="center" flexWrap="wrap">
-      <HMAuthor author={author} />
-      <CitationDateText>
-        {formattedDateShort(citation.source.time)}
-      </CitationDateText>
-      <XStack gap="$2" ai="center">
-        <SizableText>cited on</SizableText>
-        <DocumentCitationToken
-          docId={doc.data.id}
-          metadata={doc.data?.document?.metadata}
-          onPress={() => {
-            doc.data && navigate({key: 'document', id: doc.data.id})
-          }}
-        />
-      </XStack>
-    </XStack>
-  )
-}
-
-function DocumentCitationToken({
-  docId,
-  onPress,
-  metadata,
-}: {
-  docId: UnpackedHypermediaId
-  onPress: () => void
-  metadata?: HMMetadata | null
-}) {
-  return (
-    <HoverCard
-      placement="left"
-      content={<HMDocumentPreview metadata={metadata} docId={docId} />}
-    >
-      <DocumentCitationButton onPress={onPress}>
-        {metadata?.name}
-      </DocumentCitationButton>
-    </HoverCard>
-  )
-}
-
-function HMDocumentPreview({
+function DocumentPreview({
   metadata,
   docId,
 }: {
@@ -172,39 +111,7 @@ function HMDocumentPreview({
   )
 }
 
-function HMAuthor({author}: {author: HMMetadataPayload}) {
-  const navigate = useNavigate()
-  return (
-    <Button
-      size="$2"
-      chromeless
-      onPress={() => {
-        navigate({key: 'document', id: author.id})
-      }}
-    >
-      <XStack gap="$2" ai="center">
-        <HMIcon size={20} id={author.id} metadata={author.metadata} />
-        <SizableText fontWeight="bold">{author.metadata?.name}</SizableText>
-      </XStack>
-    </Button>
-  )
-}
-
-const CitationDateText = styled(SizableText, {
-  color: '$color8',
-  marginRight: '$2',
-})
-
-const DocumentCitationButton = styled(Button, {
-  backgroundColor: '$color6',
-  size: '$1',
-  fontSize: '$4',
-  hoverStyle: {
-    backgroundColor: '$color2',
-  },
-})
-
-function CommentCitation({
+export function CommentCitationEntry({
   citation,
   accounts,
 }: {

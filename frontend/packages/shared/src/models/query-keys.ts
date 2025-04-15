@@ -41,7 +41,9 @@ export const queryKeys = {
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
 
+  // entity
   ENTITY: 'ENTITY', // , id.id: string, version: string
+  RESOLVED_ENTITY: 'RESOLVED_ENTITY', // , id.id: string, version: string
   ENTITY_CHANGES: 'ENTITY_CHANGES',
 
   CAPABILITIES: 'CAPABILITIES', //, id.uid: string, ...id.path
@@ -133,6 +135,7 @@ export function labelOfQueryKey(key: QueryKey) {
     case queryKeys.DRAFT:
       return `Editor Draft ${abbreviateCid(arg1)}`
     case queryKeys.ENTITY:
+    case queryKeys.RESOLVED_ENTITY:
       return `Entity`
     case queryKeys.ENTITY_CHANGES:
       return `Entity Changes`

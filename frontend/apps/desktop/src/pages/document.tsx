@@ -76,7 +76,7 @@ import {
   YStack,
   YStackProps,
 } from 'tamagui'
-import {CitationsPanel} from '../components/citations'
+import {CitationsPanel} from '../components/citations-panel'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {

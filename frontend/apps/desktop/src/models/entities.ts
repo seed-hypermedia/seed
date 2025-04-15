@@ -81,10 +81,11 @@ export function useUndeleteEntity(
       const hmId = unpackHmId(variables.id)
       if (hmId?.type === 'd') {
         invalidateQueries([queryKeys.ENTITY, variables.id])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-      } else if (hmId?.type === 'comment') {
+      } else if (hmId?.type === 'c') {
         invalidateQueries([queryKeys.COMMENT, variables.id])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       }
@@ -164,6 +165,7 @@ function invalidateEntityWithVersion(id: string, version?: string) {
   if (lastEntity && lastEntity.document?.version !== version) {
     // console.log('[sync] new version discovered for entity', id, version)
     invalidateQueries([queryKeys.ENTITY, id])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, id])
   }
 }
 
