@@ -20,15 +20,12 @@ export const loader = async ({
   const parsedRequest = parseRequest(request)
   if (!useFullRender(parsedRequest)) return null
   const {url, hostname, pathParts} = parsedRequest
-  // console.log('~~~ pathParts', pathParts)
   const version = url.searchParams.get('v')
   const commentTarget = url.searchParams.get('target')?.split('/')
   const targetDocUid = !!commentTarget?.[0] ? commentTarget?.[0] : undefined
   const targetDocPath = targetDocUid ? commentTarget?.slice(1) : undefined
   const latest = url.searchParams.get('l') === ''
-  const [_hm, type, uid, ...restPath] = pathParts
-  const id = hmId(HMIDTypeSchema.parse(type), uid, {
-    path: restPath,
+  const id = produceHmId(pathParts, {
     version,
     latest,
     targetDocUid,
@@ -44,8 +41,34 @@ export const loader = async ({
     if (!docId) throw new Error('Document not found')
     return await loadSiteDocument(parsedRequest, docId, {comment})
   }
-  // console.log('~~~ id', id)
   return await loadSiteDocument(parsedRequest, id)
+}
+
+function produceHmId(
+  pathParts: string[],
+  options: {
+    version?: string | null
+    latest?: boolean
+    targetDocUid?: string
+    targetDocPath?: string[]
+  },
+) {
+  const typeParsed = HMIDTypeSchema.safeParse(pathParts[1])
+  if (typeParsed.success) {
+    return hmId(typeParsed.data, pathParts[2], {
+      path: pathParts.slice(3),
+      version: options.version,
+      latest: options.latest,
+      targetDocUid: options.targetDocUid,
+      targetDocPath: options.targetDocPath,
+    })
+  }
+  return hmId('d', pathParts[1], {
+    path: pathParts.slice(2),
+    version: options.version,
+    latest: options.latest,
+    targetDocUid: options.targetDocUid,
+  })
 }
 
 export default function HypermediaDocument() {
