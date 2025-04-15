@@ -47,12 +47,7 @@ type Ref struct {
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
-	// TODO(burdiyan): we thought we wanted to attach caps to refs, then we figured out we were not doing it,
-	// then we wanted to fix it, then we realized we haven't, and then we decided that it was never needed anyway.
-	// So this should just go away, but we'll do it later.
-	_ = capc
-
+func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		baseBlob: baseBlob{
 			Type:   blobTypeRef,
@@ -167,6 +162,11 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		RedirectTarget string `json:"redirect,omitempty"`
 	}
 
+	// We decided not to allow redirects or tombstones for home documents for now.
+	if v.Path == "" && (v.Redirect != nil || len(v.Heads) == 0) {
+		return fmt.Errorf("redirects or tombstones on home documents are not allowed")
+	}
+
 	space := v.Space()
 
 	iri, err := NewIRI(space, v.Path)
@@ -176,9 +176,9 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 
 	var sb structuralBlob
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
+		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
 	} else {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
+		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
 	}
 
 	if v.GenesisBlob.Defined() {
@@ -250,7 +250,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	// If we've got a Ref but this member is not valid yet/anymore, we don't want to populate our indexes.
-	ok, err := isValidMemberForResource(conn, memberID, iri)
+	ok, err := isValidWriter(conn, memberID, iri)
 	if err != nil {
 		return err
 	}
@@ -818,43 +818,4 @@ var qLoadChangeDeps = dqb.Str(`
 	FROM blob_links
 	WHERE source = ?1
 	AND type = 'change/dep';
-`)
-
-func isValidMemberForResource(conn *sqlite.Conn, memberID int64, resource IRI) (valid bool, err error) {
-	parentsJSON := strbytes.String(
-		must.Do2(
-			json.Marshal(resource.Breadcrumbs()),
-		),
-	)
-
-	rows, check := sqlitex.Query(conn, qIsValidMember(), memberID, resource, parentsJSON)
-	for range rows {
-		valid = true
-		break
-	}
-
-	err = errors.Join(err, check())
-	return valid, err
-}
-
-var qIsValidMember = dqb.Str(`
-	-- member_id, resource_iri, inherited_iri_json
-	WITH members AS (
-	    SELECT owner AS member
-	    FROM resources
-	    WHERE iri = ?2
-	    UNION
-	    SELECT extra_attrs->>'del' AS member
-	    FROM structural_blobs
-	    WHERE type = 'Capability'
-	    AND author = (SELECT owner FROM resources WHERE iri = ?2)
-	    AND resource IN (
-	        SELECT r.id
-	        FROM resources r
-	        JOIN json_each(?3) each ON each.value = r.iri
-	    )
-	)
-	SELECT *
-	FROM members
-	WHERE member = ?1
 `)

@@ -370,7 +370,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		if len(v.Deps) == 0 {
 			resourceTime = v.Ts
 		}
-		sb = newStructuralBlob(c, string(blobTypeChange), author, v.Ts, "", v.Genesis, author, resourceTime)
+		sb = newStructuralBlob(c, blobTypeChange, author, v.Ts, "", v.Genesis, author, resourceTime)
 	}
 
 	if v.Genesis.Defined() {

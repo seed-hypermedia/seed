@@ -515,6 +515,144 @@ export class ListAccountsResponse extends Message<ListAccountsResponse> {
 }
 
 /**
+ * Request to get a single account by ID.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetAccountRequest
+ */
+export class GetAccountRequest extends Message<GetAccountRequest> {
+  /**
+   * Required. ID of the account to retrieve.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetAccountRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetAccountRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAccountRequest {
+    return new GetAccountRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAccountRequest {
+    return new GetAccountRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAccountRequest {
+    return new GetAccountRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined, b: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined): boolean {
+    return proto3.util.equals(GetAccountRequest, a, b);
+  }
+}
+
+/**
+ * Request to get multiple accounts by IDs.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetAccountsRequest
+ */
+export class BatchGetAccountsRequest extends Message<BatchGetAccountsRequest> {
+  /**
+   * Required. List of account IDs to retrieve.
+   *
+   * @generated from field: repeated string ids = 1;
+   */
+  ids: string[] = [];
+
+  constructor(data?: PartialMessage<BatchGetAccountsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetAccountsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetAccountsRequest | PlainMessage<BatchGetAccountsRequest> | undefined, b: BatchGetAccountsRequest | PlainMessage<BatchGetAccountsRequest> | undefined): boolean {
+    return proto3.util.equals(BatchGetAccountsRequest, a, b);
+  }
+}
+
+/**
+ * Response to get multiple accounts by IDs.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetAccountsResponse
+ */
+export class BatchGetAccountsResponse extends Message<BatchGetAccountsResponse> {
+  /**
+   * Accounts that were successfully retrieved,
+   * keyed by account ID.
+   *
+   * @generated from field: map<string, com.seed.documents.v3alpha.Account> accounts = 1;
+   */
+  accounts: { [key: string]: Account } = {};
+
+  /**
+   * Errors (if any) that occurred while retrieving accounts,
+   * keyed by account ID.
+   * The value of the map is a serialized gRPC Status message.
+   * It's not used as a concrete type here because it's exposed in a very accessible way,
+   * but every gRPC client library has a defined type for the Status message.
+   * See https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto,
+   * and https://grpc.io/docs/guides/status-codes.
+   *
+   * @generated from field: map<string, bytes> errors = 2;
+   */
+  errors: { [key: string]: Uint8Array } = {};
+
+  constructor(data?: PartialMessage<BatchGetAccountsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetAccountsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "accounts", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "message", T: Account} },
+    { no: 2, name: "errors", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 12 /* ScalarType.BYTES */} },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetAccountsResponse | PlainMessage<BatchGetAccountsResponse> | undefined, b: BatchGetAccountsResponse | PlainMessage<BatchGetAccountsResponse> | undefined): boolean {
+    return proto3.util.equals(BatchGetAccountsResponse, a, b);
+  }
+}
+
+/**
  * Aggregated information about an account.
  * Some of this information comes from the accounts' root document,
  * some is aggregated from the other documents inside of the account.
@@ -551,6 +689,15 @@ export class Account extends Message<Account> {
    */
   isSubscribed = false;
 
+  /**
+   * Optional. ID of another Account this account claims to act on behalf of.
+   * If this is present all the other fields should be ignored.
+   * It's up to the caller to follow the alias and get the actual account data.
+   *
+   * @generated from field: string alias_account = 5;
+   */
+  aliasAccount = "";
+
   constructor(data?: PartialMessage<Account>) {
     super();
     proto3.util.initPartial(data, this);
@@ -563,6 +710,7 @@ export class Account extends Message<Account> {
     { no: 2, name: "metadata", kind: "message", T: Struct },
     { no: 3, name: "activity_summary", kind: "message", T: ActivitySummary },
     { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Account {
@@ -1200,6 +1348,56 @@ export class GetRefRequest extends Message<GetRefRequest> {
 
   static equals(a: GetRefRequest | PlainMessage<GetRefRequest> | undefined, b: GetRefRequest | PlainMessage<GetRefRequest> | undefined): boolean {
     return proto3.util.equals(GetRefRequest, a, b);
+  }
+}
+
+/**
+ * Request to create an alias for a key.
+ * There must be an agent capability granted to the signer of the alias.
+ *
+ * @generated from message com.seed.documents.v3alpha.CreateAliasRequest
+ */
+export class CreateAliasRequest extends Message<CreateAliasRequest> {
+  /**
+   * Required. Key to use for signing the alias.
+   *
+   * @generated from field: string signing_key_name = 1;
+   */
+  signingKeyName = "";
+
+  /**
+   * Required. ID of the target (alias) account.
+   *
+   * @generated from field: string alias_account = 2;
+   */
+  aliasAccount = "";
+
+  constructor(data?: PartialMessage<CreateAliasRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.CreateAliasRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined, b: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined): boolean {
+    return proto3.util.equals(CreateAliasRequest, a, b);
   }
 }
 

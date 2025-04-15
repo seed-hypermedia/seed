@@ -36,7 +36,7 @@ func init() {
 }
 
 func indexDagPB(ictx *indexingCtx, id int64, c cid.Cid, v datamodel.Node) error {
-	sb := newSimpleStructuralBlob(c, string(blobTypeDagPB))
+	sb := newSimpleStructuralBlob(c, blobTypeDagPB)
 
 	if err := traversal.WalkLocal(v, func(_ traversal.Progress, n ipld.Node) error {
 		pblink, ok := n.(dagpb.PBLink)

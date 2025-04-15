@@ -90,6 +90,10 @@ message CreateCapabilityRequest {
   // Optional. By default capabilities give access to the path recursively.
   // This flag can be used to restrict the capability only to specific path.
   bool no_recursive = 6;
+
+  // Optional. Short, user-provided label for the capability for user's convenience to identify them later.
+  // The label is public and cannot be changed.
+  string label = 7;
 }
 
 // Request to get a single capability.
@@ -126,6 +130,9 @@ message Capability {
 
   // Timestamp when this capability was issued.
   google.protobuf.Timestamp create_time = 8;
+
+  // Optional. Short, user-provided label for the capability for user's convenience to identify different capabilities.
+  string label = 9;
 }
 
 enum Role {
@@ -139,7 +146,7 @@ enum Role {
   // Has write access to the document
   WRITER = 2;
 
-  // TODO: implement the collaborator role.
-  //
-  // COLLABORATOR = 3;
+  // Grants full authority over the key,
+  // including the idea to act on behalf of the issuing key.
+  AGENT = 3;
 }

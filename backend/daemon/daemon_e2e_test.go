@@ -863,3 +863,113 @@ func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 }
+
+func TestKeyDelegation(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := t.Context()
+	alice := coretest.NewTester("alice").Account.Principal()
+	bob := coretest.NewTester("bob").Account.Principal()
+
+	// Alice creates her home document.
+	aliceHome, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Alice from the Wonderland",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bob, whom in this case we treat as if it was Alice's phone or other device,
+	// also creates his home document.
+	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", coretest.NewTester("bob").Account))
+	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "bob",
+		Account:        bob.String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Bobby Web Account",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Now Alice creates an agent capability for bob's key.
+	cpb, err := dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.String(),
+		Account:        alice.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Phone web key",
+	})
+	require.NoError(t, err)
+	_ = cpb
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Bob claims Alice as alias.
+	_, err = dmn.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "bob",
+		AliasAccount:   alice.String(),
+	})
+	require.NoError(t, err)
+
+	// Now Bob edits alice's home document.
+	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "bob",
+		Account:        alice.String(),
+		BaseVersion:    aliceHome.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetAttribute_{
+				SetAttribute: &documents.DocumentChange_SetAttribute{
+					Key: []string{"name"},
+					Value: &documents.DocumentChange_SetAttribute_StringValue{
+						StringValue: "Alice from the Wonderland (updated by an agent key)",
+					},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	list, err := dmn.RPC.DocumentsV3.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	require.Len(t, list.Accounts, 2, "must have bob and alice accounts")
+
+	var ids []string
+	for _, x := range list.Accounts {
+		item, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+			Id: x.Id,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(x, item).Compare(t, "account must match")
+		ids = append(ids, item.Id)
+	}
+
+	batch, err := dmn.RPC.DocumentsV3.BatchGetAccounts(ctx, &documents.BatchGetAccountsRequest{
+		Ids: ids,
+	})
+	require.NoError(t, err)
+	require.Len(t, batch.Accounts, 2, "must have bob and alice accounts")
+	require.Nil(t, batch.Errors, "must not have errors")
+
+	for _, x := range list.Accounts {
+		testutil.StructsEqual(x, batch.Accounts[x.Id]).Compare(t, "account must match")
+	}
+}

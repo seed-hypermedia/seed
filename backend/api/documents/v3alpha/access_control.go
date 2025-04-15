@@ -7,6 +7,7 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
+	"seed/backend/util/colx"
 	"seed/backend/util/errutil"
 
 	"github.com/ipfs/go-cid"
@@ -14,6 +15,15 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+var (
+	roleFromProto = map[documents.Role]blob.Role{
+		documents.Role_WRITER: blob.RoleWriter,
+		documents.Role_AGENT:  blob.RoleAgent,
+	}
+
+	roleToProto = colx.TransposeMap(roleFromProto)
 )
 
 // CreateCapability implements Access Control API.
@@ -53,7 +63,7 @@ func (srv *Server) CreateCapability(ctx context.Context, in *documents.CreateCap
 
 	// TODO(burdiyan): Implement nested capability delegations when we have roles which allow that.
 	if !acc.Equal(kp.Principal()) {
-		return nil, status.Errorf(codes.PermissionDenied, "signing key %s cannot create capabilities for account %s", kp.Principal(), acc)
+		return nil, status.Errorf(codes.PermissionDenied, "signing key '%s' cannot create capabilities for account '%s'", kp.Principal(), acc)
 	}
 
 	// TODO(burdiyan): Get rid of this IRI stuff probably, and just make it a validation function.
@@ -62,10 +72,12 @@ func (srv *Server) CreateCapability(ctx context.Context, in *documents.CreateCap
 		return nil, err
 	}
 
-	// TODO(burdiyan): Validate role according to the chain of capabilities.
-	role := in.Role.String()
+	role, ok := roleFromProto[in.Role]
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported role '%s'", in.Role)
+	}
 
-	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, cclock.New().MustNow())
+	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, in.Label, cclock.New().MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +177,7 @@ func (srv *Server) ListCapabilitiesForDelegate(ctx context.Context, in *document
 }
 
 func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) {
-	role, ok := documents.Role_value[cpb.Role]
+	role, ok := roleToProto[cpb.Role]
 	if !ok {
 		return nil, fmt.Errorf("unknown role '%s'", cpb.Role)
 	}
@@ -179,6 +191,7 @@ func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) 
 		Role:       documents.Role(role),
 		IsExact:    false,
 		CreateTime: timestamppb.New(cpb.Ts),
+		Label:      cpb.Label,
 	}
 
 	return pb, nil

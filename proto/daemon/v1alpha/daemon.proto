@@ -39,6 +39,15 @@ service Daemon {
   // Receives raw blobs to be stored.
   // The request may fail if blobs can't be recognized by the daemon.
   rpc StoreBlobs(StoreBlobsRequest) returns (StoreBlobsResponse);
+
+  // Creates a new device link session.
+  // The session information has to be transferred to the other device,
+  // to establish a direct P2P connection between the devices, and complete the linking process.
+  //
+  // There can only be one active session at a time, and creating a new one will invalidate the previous one.
+  //
+  // After the session is redeemed, it becomes invalid.
+  rpc CreateDeviceLinkSession(CreateDeviceLinkSessionRequest) returns (DeviceLinkSession);
 }
 
 // Request to generate mnemonic words.
@@ -114,6 +123,31 @@ message StoreBlobsResponse {
   // List of CIDs for the stored blobs.
   // The order is the same as in the request.
   repeated string cids = 1;
+}
+
+// Request to create a new device link session.
+message CreateDeviceLinkSessionRequest {
+  // Required. Name of the signing key for which to create the delegation.
+  string signing_key_name = 1;
+}
+
+// Information about the device link session.
+message DeviceLinkSession {
+  // Dial information for the node.
+  AddrInfo addr_info = 1;
+
+  // Secret token for the linking session.
+  string secret_token = 2;
+
+  // Account ID that wants to link the new device.
+  string account_id = 3;
+}
+
+// Address information about a single peer.
+message AddrInfo {
+  string peer_id = 1;
+
+  repeated string addrs = 2;
 }
 
 // Raw blob to be stored.

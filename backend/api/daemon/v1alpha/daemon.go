@@ -6,14 +6,18 @@ import (
 	context "context"
 	"fmt"
 	"seed/backend/core"
+	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
+	"seed/backend/util/colx"
 	sync "sync"
 	"time"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -30,6 +34,7 @@ type Storage interface {
 
 // Node is a subset of the p2p node.
 type Node interface {
+	AddrInfo() peer.AddrInfo
 	ForceSync() error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
@@ -46,13 +51,15 @@ type Server struct {
 	startTime time.Time
 	blocks    Blockstore
 
-	p2p Node
+	p2p   Node
+	dlink *devicelink.Service
 
-	mu sync.Mutex // we only want one register request at a time.
+	// Mainly to ensure there's only one registration request at a time.
+	mu sync.Mutex
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, n Node, bs Blockstore) *Server {
+func NewServer(store Storage, n Node, bs Blockstore, dlink *devicelink.Service) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -63,6 +70,7 @@ func NewServer(store Storage, n Node, bs Blockstore) *Server {
 		// wallet:        w, // TODO(hm24): Put the wallet back.
 		p2p:    n,
 		blocks: bs,
+		dlink:  dlink,
 	}
 }
 
@@ -236,4 +244,27 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 	}
 
 	return resp, nil
+}
+
+// CreateDeviceLinkSession implements the corresponding gRPC method.
+func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.CreateDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
+	}
+
+	sess, err := srv.dlink.NewSession(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	pinfo := srv.p2p.AddrInfo()
+
+	return &daemon.DeviceLinkSession{
+		AddrInfo: &daemon.AddrInfo{
+			PeerId: pinfo.ID.String(),
+			Addrs:  colx.SliceMap(pinfo.Addrs, multiaddr.Multiaddr.String),
+		},
+		SecretToken: sess.Secret,
+		AccountId:   sess.Account.String(),
+	}, nil
 }

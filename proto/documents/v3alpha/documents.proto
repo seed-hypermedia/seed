@@ -30,6 +30,12 @@ service Documents {
   // TODO(burdiyan): rename to spaces or sites.
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
 
+  // Gets a single account by ID.
+  rpc GetAccount(GetAccountRequest) returns (Account);
+
+  // Gets multiple accounts by IDs.
+  rpc BatchGetAccounts(BatchGetAccountsRequest) returns (BatchGetAccountsResponse);
+
   // Lists documents in a directory of an account.
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
@@ -50,6 +56,9 @@ service Documents {
 
   // Returns details about a Ref.
   rpc GetRef(GetRefRequest) returns (Ref);
+
+  // Creates alias for an account.
+  rpc CreateAlias(CreateAliasRequest) returns (google.protobuf.Empty);
 }
 
 // Request for getting a single document.
@@ -163,6 +172,34 @@ message ListAccountsResponse {
   string next_page_token = 2;
 }
 
+// Request to get a single account by ID.
+message GetAccountRequest {
+  // Required. ID of the account to retrieve.
+  string id = 1;
+}
+
+// Request to get multiple accounts by IDs.
+message BatchGetAccountsRequest {
+  // Required. List of account IDs to retrieve.
+  repeated string ids = 1;
+}
+
+// Response to get multiple accounts by IDs.
+message BatchGetAccountsResponse {
+  // Accounts that were successfully retrieved,
+  // keyed by account ID.
+  map<string, Account> accounts = 1;
+
+  // Errors (if any) that occurred while retrieving accounts,
+  // keyed by account ID.
+  // The value of the map is a serialized gRPC Status message.
+  // It's not used as a concrete type here because it's exposed in a very accessible way,
+  // but every gRPC client library has a defined type for the Status message.
+  // See https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto,
+  // and https://grpc.io/docs/guides/status-codes.
+  map<string, bytes> errors = 2;
+}
+
 // Aggregated information about an account.
 // Some of this information comes from the accounts' root document,
 // some is aggregated from the other documents inside of the account.
@@ -179,6 +216,11 @@ message Account {
   // Whether the user is subscribed to this account.
   // If at least one document in the account has a subscription, then the account is considered subscribed.
   bool is_subscribed = 4;
+
+  // Optional. ID of another Account this account claims to act on behalf of.
+  // If this is present all the other fields should be ignored.
+  // It's up to the caller to follow the alias and get the actual account data.
+  string alias_account = 5;
 }
 
 // Request to list a directory.
@@ -341,6 +383,16 @@ message CreateRefRequest {
 message GetRefRequest {
   // Required. ID of the Ref blob to retrieve.
   string id = 1;
+}
+
+// Request to create an alias for a key.
+// There must be an agent capability granted to the signer of the alias.
+message CreateAliasRequest {
+  // Required. Key to use for signing the alias.
+  string signing_key_name = 1;
+
+  // Required. ID of the target (alias) account.
+  string alias_account = 2;
 }
 
 // Information about a particular document version.

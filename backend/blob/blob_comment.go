@@ -186,7 +186,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		// - This comment must have a timestamp greater than any other predecessor comment.
 	}
 
-	sb := newStructuralBlob(c, string(v.Type), v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 
 	targetURI, err := url.Parse(string(iri))
 	if err != nil {

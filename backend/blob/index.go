@@ -466,6 +466,63 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 	return it, check
 }
 
+// IsValidAgent checks whether a key is allowed to act as an agent for a given space.
+// For convenience this function returns true if both principals are the same.
+func (idx *Index) IsValidAgent(ctx context.Context, space, agent core.Principal) (valid bool, err error) {
+	if space.Equal(agent) {
+		return true, nil
+	}
+
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+
+	defer sqlitex.Save(conn)(&err)
+
+	spaceID, err := DbPublicKeysLookupID(conn, space)
+	if err != nil {
+		return false, err
+	}
+
+	agentID, err := DbPublicKeysLookupID(conn, agent)
+	if err != nil {
+		return false, err
+	}
+
+	valid, err = isValidAgentKey(conn, spaceID, agentID)
+	return valid, err
+}
+
+// IsValidWriter checks whether a key is allowed to write into a given space and path.
+func (idx *Index) IsValidWriter(ctx context.Context, space core.Principal, path string, writer core.Principal) (valid bool, err error) {
+	if space.Equal(writer) {
+		return true, nil
+	}
+
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+
+	defer sqlitex.Save(conn)(&err)
+
+	writerID, err := DbPublicKeysLookupID(conn, writer)
+	if err != nil {
+		return false, err
+	}
+
+	iri, err := NewIRI(space, path)
+	if err != nil {
+		return false, err
+	}
+
+	valid, err = isValidWriter(conn, writerID, iri)
+	return valid, err
+}
+
 func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) ([]int64, error) {
 	if len(heads) == 0 {
 		return nil, fmt.Errorf("BUG: heads must not be empty")
@@ -564,6 +621,73 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 
 	return out, nil
 }
+
+func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
+	parentsJSON := strbytes.String(
+		must.Do2(
+			json.Marshal(resource.Breadcrumbs()),
+		),
+	)
+
+	owner, _, err := resource.SpacePath()
+	if err != nil {
+		return false, err
+	}
+
+	ownerID, err := DbPublicKeysLookupID(conn, owner)
+	if err != nil {
+		return false, err
+	}
+
+	if ownerID == writerID {
+		return true, nil
+	}
+
+	rows, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON)
+	for range rows {
+		valid = true
+		break
+	}
+
+	err = errors.Join(err, check())
+	return valid, err
+}
+
+var qIsValidWriter = dqb.Str(`
+	-- owner, writer, breadcrumbs
+	SELECT 1 AS valid
+	FROM structural_blobs
+	WHERE type = 'Capability'
+	AND author = ?1
+    AND extra_attrs->>'del' = ?2
+    AND extra_attrs->>'role' IN ('WRITER', 'AGENT')
+    AND resource IN (
+    	SELECT r.id
+     	FROM resources r
+      	JOIN json_each(?3) each ON each.value = r.iri
+    )
+`)
+
+func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
+	rows, check := sqlitex.Query(conn, qIsValidAgentKey(), parentID, delegateID)
+	for range rows {
+		valid = true
+		break
+	}
+
+	err = errors.Join(err, check())
+	return valid, err
+}
+
+var qIsValidAgentKey = dqb.Str(`
+	SELECT 1
+	FROM structural_blobs
+	WHERE type = 'Capability'
+	AND author = :issuer
+	AND extra_attrs->>'del' = :delegate
+	AND extra_attrs->>'role' = 'AGENT'
+	LIMIT 1
+`)
 
 type generation struct {
 	RefID          int64
@@ -969,7 +1093,7 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 		blobTime = maybe.New(b.Ts.UnixMilli())
 	}
 
-	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, b.Type, blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
+	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, string(b.Type), blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
 		return err
 	}
 

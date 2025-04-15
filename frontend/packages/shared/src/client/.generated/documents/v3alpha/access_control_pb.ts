@@ -23,11 +23,20 @@ export enum Role {
    * @generated from enum value: WRITER = 2;
    */
   WRITER = 2,
+
+  /**
+   * Grants full authority over the key,
+   * including the idea to act on behalf of the issuing key.
+   *
+   * @generated from enum value: AGENT = 3;
+   */
+  AGENT = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(Role)
 proto3.util.setEnumType(Role, "com.seed.documents.v3alpha.Role", [
   { no: 0, name: "ROLE_UNSPECIFIED" },
   { no: 2, name: "WRITER" },
+  { no: 3, name: "AGENT" },
 ]);
 
 /**
@@ -264,6 +273,14 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    */
   noRecursive = false;
 
+  /**
+   * Optional. Short, user-provided label for the capability for user's convenience to identify them later.
+   * The label is public and cannot be changed.
+   *
+   * @generated from field: string label = 7;
+   */
+  label = "";
+
   constructor(data?: PartialMessage<CreateCapabilityRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -278,6 +295,7 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
     { no: 4, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
     { no: 6, name: "no_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateCapabilityRequest {
@@ -403,6 +421,13 @@ export class Capability extends Message<Capability> {
    */
   createTime?: Timestamp;
 
+  /**
+   * Optional. Short, user-provided label for the capability for user's convenience to identify different capabilities.
+   *
+   * @generated from field: string label = 9;
+   */
+  label = "";
+
   constructor(data?: PartialMessage<Capability>) {
     super();
     proto3.util.initPartial(data, this);
@@ -419,6 +444,7 @@ export class Capability extends Message<Capability> {
     { no: 6, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
     { no: 7, name: "is_exact", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 8, name: "create_time", kind: "message", T: Timestamp },
+    { no: 9, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Capability {
