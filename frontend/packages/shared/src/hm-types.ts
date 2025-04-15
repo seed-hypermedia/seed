@@ -987,3 +987,14 @@ export const HMDocumentSchema = z.object({
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>
+
+export const DeviceLinkSessionSchema = z.object({
+  accountId: z.string(),
+  secretToken: z.string(),
+  addrInfo: z.object({
+    peerId: z.string(),
+    addrs: z.array(z.string()),
+  }),
+})
+
+export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>

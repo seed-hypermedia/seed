@@ -9,9 +9,10 @@ import {
 import {TitlebarTitleSearch} from './titlebar-search'
 
 export default function TitleBarMacos(props: TitleBarProps) {
-  if (props.clean) {
+  const {clean, cleanTitle, ...restProps} = props
+  if (clean) {
     return (
-      <TitlebarWrapper {...props}>
+      <TitlebarWrapper {...restProps}>
         <XStack className="window-drag" ai="center" jc="center" w="100%">
           <TitleText
             marginHorizontal="$4"
@@ -19,7 +20,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
             f={1}
             textAlign="center"
           >
-            {props.cleanTitle}
+            {cleanTitle}
           </TitleText>
         </XStack>
       </TitlebarWrapper>
@@ -27,7 +28,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
   }
 
   return (
-    <TitlebarWrapper {...props}>
+    <TitlebarWrapper {...restProps}>
       <XStack
         paddingRight="$2"
         justifyContent="space-between"
@@ -67,7 +68,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
           flexBasis={0}
           alignItems="center"
         >
-          <PageActionButtons {...props} />
+          <PageActionButtons {...restProps} />
         </XStack>
       </XStack>
     </TitlebarWrapper>

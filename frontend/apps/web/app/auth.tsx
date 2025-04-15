@@ -95,9 +95,6 @@ function updateKeyPair() {
     })
 }
 
-updateKeyPair()
-setInterval(updateKeyPair, 200)
-
 export function logout() {
   Promise.all([
     deleteLocalKeys(),
@@ -140,14 +137,7 @@ export async function createAccount({
   if (existingKeyPair) {
     throw new Error('Account already exists')
   }
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256',
-    },
-    false, // non-extractable
-    ['sign', 'verify'],
-  )
+  const keyPair = await generateAndStoreKeyPair()
   const genesisChange = await createDocumentGenesisChange({
     keyPair,
   })
@@ -201,11 +191,27 @@ export async function createAccount({
   }
   const createAccountData = cborEncode(createAccountPayload)
   await postCBOR('/hm/api/create-account', createAccountData)
-  await writeLocalKeys(keyPair)
   keyPairStore.set({
     ...keyPair,
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
   })
+  return keyPair
+}
+
+/**
+ * Generates a new key pair and stores it locally
+ * @returns The generated key pair
+ */
+export async function generateAndStoreKeyPair() {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: 'ECDSA',
+      namedCurve: 'P-256',
+    },
+    false, // non-extractable
+    ['sign', 'verify'],
+  )
+  await writeLocalKeys(keyPair)
   return keyPair
 }
 
@@ -643,8 +649,12 @@ function updateAbilities() {
   })
 }
 
-updateAbilities()
-setInterval(updateAbilities, 200)
+if (typeof window !== 'undefined') {
+  updateAbilities()
+  setInterval(updateAbilities, 200)
+  updateKeyPair()
+  setInterval(updateKeyPair, 200)
+}
 
 export function useDeleteAbility() {
   return useMutation({

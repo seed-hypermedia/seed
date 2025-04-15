@@ -77,7 +77,11 @@ export default function Main({className}: {className?: string}) {
       />
     )
     return (
-      <YStack fullscreen className={className}>
+      <YStack
+        fullscreen
+        className={className}
+        bg={isDark ? '$backgroundStrong' : '$background'}
+      >
         <ErrorBoundary
           key={routeKey}
           FallbackComponent={AppErrorPage}

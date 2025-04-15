@@ -1,7 +1,9 @@
 import {useIPC} from '@/app-context'
+import {DialogTitle} from '@/components/dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
+import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -19,9 +21,12 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
+import {useLinkDevice} from '@/models/linked-devices'
 import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {zodResolver} from '@hookform/resolvers/zod'
+import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
   COMMIT_HASH,
   LIGHTNING_API_URL,
@@ -33,11 +38,15 @@ import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Field} from '@shm/ui/form-fields'
+import {FormInput} from '@shm/ui/form-input'
+import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {
   AtSign,
   Check,
@@ -51,11 +60,14 @@ import {
   UserRoundPlus,
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
-import {useEffect, useId, useMemo, useState} from 'react'
+import {base58btc} from 'multiformats/bases/base58'
+import React, {useEffect, useId, useMemo, useState} from 'react'
+import {useForm} from 'react-hook-form'
 import {
   AlertDialog,
   Button,
   Checkbox,
+  Form,
   Heading,
   Input,
   Label,
@@ -75,10 +87,7 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-
-import {dispatchOnboardingDialog} from '@/components/onboarding'
-import {useIsDark} from '@shm/ui/use-is-dark'
-import React from 'react'
+import {z} from 'zod'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -621,6 +630,9 @@ function AccountKeys() {
                 onOpenWallet={(walletId) => setWalletId(walletId)}
               />
             </SettingsSection>
+            <SettingsSection title="Linked Devices">
+              <LinkedDevices accountUid={selectedAccount} />
+            </SettingsSection>
           </YStack>
         </ScrollView>
       </YStack>
@@ -659,6 +671,91 @@ function AccountKeys() {
         Create a new Profile
       </Button>
     </YStack>
+  )
+}
+
+function LinkedDevices({accountUid}: {accountUid: string}) {
+  const linkDevice = useAppDialog(LinkDeviceDialog)
+  return (
+    <YStack>
+      <Paragraph>No linked devices found</Paragraph>
+      <Button onPress={() => linkDevice.open({accountUid})}>
+        Link Web Session
+      </Button>
+      {linkDevice.content}
+    </YStack>
+  )
+}
+
+function LinkDeviceDialog({
+  input,
+  onClose,
+}: {
+  input: {accountUid: string}
+  onClose: () => void
+}) {
+  const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
+  const linkDevice = useLinkDevice()
+  const gatewayUrl = useGatewayUrl()
+  return (
+    <>
+      <DialogTitle>Link Web Session</DialogTitle>
+      {linkDeviceUrl ? (
+        <Paragraph>Your URL: {linkDeviceUrl}</Paragraph>
+      ) : (
+        <DeviceLabelForm
+          onSubmit={async (label) => {
+            console.log('new device with label', label)
+            const linkSession = await linkDevice.mutateAsync({
+              label,
+              accountUid: input.accountUid,
+            })
+            setLinkDeviceUrl(
+              `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
+                cborEncode(linkSession),
+              )}`,
+            )
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+function DeviceLabelForm({
+  onSubmit,
+}: {
+  onSubmit: (label: string) => Promise<void>
+}) {
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<{label: string}>({
+    resolver: zodResolver(
+      z.object({label: z.string().min(1, 'Device label is required')}),
+    ),
+    defaultValues: {
+      label: '',
+    },
+  })
+
+  useEffect(() => {
+    setFocus('label')
+  }, [setFocus])
+
+  return (
+    <Form onSubmit={handleSubmit((data) => onSubmit(data.label))}>
+      <YStack gap="$4">
+        <FormField name="label" label="Device Label" errors={errors}>
+          <FormInput control={control} name="label" placeholder="My Device" />
+        </FormField>
+        <Form.Trigger asChild>
+          <Button>Link Device</Button>
+        </Form.Trigger>
+      </YStack>
+    </Form>
   )
 }
 

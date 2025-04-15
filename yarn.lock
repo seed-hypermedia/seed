@@ -10385,6 +10385,7 @@ __metadata:
     "@emotion/serialize": 1.1.2
     "@emotion/utils": 1.2.1
     "@hookform/resolvers": 3.3.1
+    "@ipld/dag-cbor": ^9.2.2
     "@juggle/resize-observer": 3.4.0
     "@mantine/core": 6.0.13
     "@mantine/hooks": 6.0.13
@@ -10451,6 +10452,7 @@ __metadata:
     lz-string: 1.5.0
     match-sorter: 6.3.1
     mime: 4.0.4
+    multiformats: ^13.3.2
     nanoid: 4.0.2
     nostr-tools: 1.16.0
     prettier: 3.0.2
