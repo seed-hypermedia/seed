@@ -215,6 +215,102 @@ export async function generateAndStoreKeyPair() {
   return keyPair
 }
 
+export type PublicKey = Uint8Array
+
+export type AgentCapability = {
+  type: 'Capability'
+  role: 'AGENT'
+  delegate: PublicKey
+  signer: PublicKey
+  sig: Uint8Array
+  ts: bigint
+}
+
+export type Profile = {
+  type: 'Profile'
+  alias: PublicKey
+  signer: PublicKey
+  sig: Uint8Array
+  ts: bigint
+}
+
+/**
+ * Signs an agent capability for device linking
+ * @param kp The key pair to use for signing
+ * @param delegate The delegate public key
+ * @param ts The timestamp
+ * @returns The signed agent capability
+ */
+export async function signAgentCapability(
+  kp: CryptoKeyPair,
+  delegate: PublicKey,
+  ts: bigint,
+): Promise<AgentCapability> {
+  const pubKey = await preparePublicKey(kp.publicKey)
+
+  const unsigned: AgentCapability = {
+    type: 'Capability',
+    role: 'AGENT',
+    delegate,
+    ts,
+    signer: pubKey,
+    sig: new Uint8Array(64),
+  }
+
+  const unsignedData = cborEncode(unsigned)
+  const sig = await crypto.subtle.sign(
+    {
+      ...kp.privateKey.algorithm,
+      hash: {name: 'SHA-256'},
+    },
+    kp.privateKey,
+    unsignedData,
+  )
+
+  return {
+    ...unsigned,
+    sig: new Uint8Array(sig),
+  }
+}
+
+/**
+ * Signs a profile alias for device linking
+ * @param kp The key pair to use for signing
+ * @param alias The alias public key
+ * @param ts The timestamp
+ * @returns The signed profile
+ */
+export async function signProfileAlias(
+  kp: CryptoKeyPair,
+  alias: PublicKey,
+  ts: bigint,
+): Promise<Profile> {
+  const pubKey = await preparePublicKey(kp.publicKey)
+
+  const unsigned: Profile = {
+    type: 'Profile',
+    alias,
+    ts,
+    signer: pubKey,
+    sig: new Uint8Array(64),
+  }
+
+  const unsignedData = cborEncode(unsigned)
+  const sig = await crypto.subtle.sign(
+    {
+      ...kp.privateKey.algorithm,
+      hash: {name: 'SHA-256'},
+    },
+    kp.privateKey,
+    unsignedData,
+  )
+
+  return {
+    ...unsigned,
+    sig: new Uint8Array(sig),
+  }
+}
+
 export const siteMetaSchema = z.object({
   name: z.string(),
   icon: z.string().or(z.instanceof(Blob)).nullable(),

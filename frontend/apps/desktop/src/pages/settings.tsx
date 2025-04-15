@@ -1,4 +1,4 @@
-import {useIPC} from '@/app-context'
+import {useAppContext, useIPC} from '@/app-context'
 import {DialogTitle} from '@/components/dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
@@ -697,11 +697,29 @@ function LinkDeviceDialog({
   const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
   const linkDevice = useLinkDevice()
   const gatewayUrl = useGatewayUrl()
+  const testGatewayUrl = 'http://localhost:3000'
+  const externalOpen = useAppContext().externalOpen
   return (
     <>
       <DialogTitle>Link Web Session</DialogTitle>
       {linkDeviceUrl ? (
-        <Paragraph>Your URL: {linkDeviceUrl}</Paragraph>
+        <XStack>
+          <Button
+            onPress={() => {
+              copyTextToClipboard(linkDeviceUrl)
+              toast.success('Device Link URL copied to clipboard')
+            }}
+          >
+            Copy URL
+          </Button>
+          <Button
+            onPress={() => {
+              externalOpen(linkDeviceUrl)
+            }}
+          >
+            Open
+          </Button>
+        </XStack>
       ) : (
         <DeviceLabelForm
           onSubmit={async (label) => {
@@ -711,9 +729,9 @@ function LinkDeviceDialog({
               accountUid: input.accountUid,
             })
             setLinkDeviceUrl(
-              `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
-                cborEncode(linkSession),
-              )}`,
+              `${
+                testGatewayUrl || gatewayUrl.data
+              }/hm/device-link#${base58btc.encode(cborEncode(linkSession))}`,
             )
           }}
         />
