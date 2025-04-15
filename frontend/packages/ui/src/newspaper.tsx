@@ -1,5 +1,5 @@
 import {
-  formattedDate,
+  formattedDateDayOnly,
   HMAccountsMetadata,
   HMDocument,
   HMDocumentInfo,
@@ -135,9 +135,21 @@ function NewspaperCardFooter({
       paddingVertical="$2"
       alignItems="center"
     >
-      {entity?.document?.updateTime && (
-        <SizableText size="$1">
-          {formattedDate(entity?.document?.updateTime)}
+      {(entity?.document?.metadata?.displayPublishTime ||
+        entity?.document?.updateTime) && (
+        <SizableText
+          size="$1"
+          // color={
+          //   entity?.document?.metadata?.displayPublishTime
+          //     ? '$blue10'
+          //     : undefined
+          // }
+        >
+          {entity?.document?.metadata?.displayPublishTime
+            ? formattedDateDayOnly(
+                new Date(entity.document.metadata.displayPublishTime),
+              )
+            : formattedDateDayOnly(entity.document.updateTime)}
         </SizableText>
       )}
       <XStack>
