@@ -46,9 +46,9 @@ export function WebSiteHeader(
 
   return (
     <SiteHeader
+      {...props}
       isCenterLayout={isCenterLayout}
       items={items}
-      {...props}
       origin={props.origin}
       onBlockFocus={(blockId) => {
         window.location.hash = blockId

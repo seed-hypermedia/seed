@@ -126,7 +126,7 @@ export function AccessoryLayout<
           </PanelContainer>
         </Panel>
         {accessoryKey !== undefined ? (
-          <PanelResizeHandle className="accessory-resize-handle" />
+          <PanelResizeHandle className="panel-resize-handle" />
         ) : null}
         <Panel
           hidden={accessoryKey === undefined}

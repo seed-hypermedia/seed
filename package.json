@@ -6,7 +6,7 @@
     "shared:test": "yarn workspace @shm/shared test",
     "format:check": "yarn workspaces foreach -pt run format:check",
     "format:write": "yarn workspaces foreach -pt run format:write",
-    "web": "yarn workspace @shm/web dev",
+    "web": "SEED_SIGNING_ENABLED=true && yarn workspace @shm/web dev",
     "web:dev": "yarn web:prod && SEED_SIGNING_ENABLED=true SEED_BASE_URL=http://localhost:3000 yarn web:start",
     "web:prod": "yarn build && yarn workspace @shm/web build",
     "web:start": "yarn workspace @shm/web start",

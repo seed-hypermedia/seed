@@ -32,3 +32,27 @@ body {
     margin-top: 0 !important;
   }
 } */
+
+.panel-resize-handle {
+  width: 2px;
+  /* background-color: var(--color7); */
+  position: relative;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 100%;
+  background: transparent;
+  z-index: 900;
+  pointer-events: auto;
+  cursor: col-resize !important;
+}
+
+.panel-resize-handle:hover {
+  background-color: var(--color8);
+}

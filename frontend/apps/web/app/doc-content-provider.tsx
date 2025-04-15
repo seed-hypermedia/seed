@@ -25,6 +25,7 @@ export function WebDocContentProvider({
   routeParams,
   comment,
   citations,
+  onCitationClick,
 }: {
   siteHost: string | undefined
   id: UnpackedHypermediaId
@@ -40,6 +41,7 @@ export function WebDocContentProvider({
   }
   comment?: boolean
   citations?: CitationsPayload
+  onCitationClick?: (blockId: string) => void
 }) {
   const navigate = useNavigate()
   return (

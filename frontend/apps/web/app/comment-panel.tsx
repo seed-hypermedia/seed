@@ -43,16 +43,7 @@ export function OpenCommentPanel({
     [originHomeId],
   )
   return (
-    <YStack
-      f={1}
-      borderLeftWidth={1}
-      borderLeftColor="$border"
-      minWidth={300}
-      position="absolute"
-      right={0}
-      top={80}
-      bottom={0}
-    >
+    <YStack f={1} borderLeftWidth={1} borderLeftColor="$border">
       <Comment
         comment={comment}
         renderCommentContent={renderCommentContent}

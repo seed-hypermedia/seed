@@ -153,7 +153,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           </XStack>
         </YStack>
       </Panel>
-      <PanelResizeHandle className="accessory-resize-handle" />
+      <PanelResizeHandle className="panel-resize-handle" />
     </>
   )
 }

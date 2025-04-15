@@ -10,13 +10,13 @@ body {
   cursor: default !important;
 }
 
-.accessory-resize-handle {
+.panel-resize-handle {
   width: 2px;
   /* background-color: var(--color7); */
   position: relative;
 }
 
-.accessory-resize-handle::after {
+.panel-resize-handle::after {
   content: '';
   position: absolute;
   top: 0;
@@ -30,7 +30,7 @@ body {
   cursor: col-resize !important;
 }
 
-.accessory-resize-handle:hover {
+.panel-resize-handle:hover {
   background-color: var(--color8);
 }
 
