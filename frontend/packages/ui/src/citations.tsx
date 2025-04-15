@@ -7,6 +7,7 @@ import {
 } from '@shm/shared/hm-types'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Button, SizableText, styled, XStack} from 'tamagui'
+import {HoverCard} from './hover-card'
 
 export function DocumentCitationEntry({
   citation,
@@ -52,9 +53,11 @@ function DocumentCitationToken({
   const linkProps = useRouteLink({key: 'document', id: docId})
   if (DocPreview) {
     return (
-      <DocumentCitationButton {...linkProps}>
-        {metadata?.name}
-      </DocumentCitationButton>
+      <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
+        <DocumentCitationButton {...linkProps}>
+          {metadata?.name}
+        </DocumentCitationButton>
+      </HoverCard>
     )
   }
   return (

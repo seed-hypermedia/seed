@@ -294,6 +294,7 @@ export function usePublishDraft(
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
+        invalidateQueries([queryKeys.DOC_CITATIONS])
       }
     },
   })

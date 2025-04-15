@@ -15,6 +15,7 @@ import {
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
+import {AccessoryBackButton} from '@shm/ui/accessories'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {DocumentCitationEntry} from '@shm/ui/citations'
@@ -164,6 +165,15 @@ export const documentPageMeta: MetaFunction = ({
   return meta
 }
 
+type WebAccessory =
+  | {
+      type: 'citations'
+      blockId: string | null
+    }
+  | {
+      type: 'comments'
+    }
+
 export function DocumentPage(props: SiteDocumentPayload) {
   const isDark = useIsDark()
   const {
@@ -240,15 +250,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
     return {blockRef, blockRange}
   }, [location.hash])
 
-  const [activePanel, setActivePanel] = useState<
-    'comments' | 'citations' | null
-  >(() => {
-    if (comment) return 'comments'
+  const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
+    if (comment) return {type: 'comments'}
     return null
   })
 
   useEffect(() => {
-    if (comment) setActivePanel('comments')
+    if (comment) setActivePanel({type: 'comments'})
   }, [comment])
 
   const onActivateBlock = useCallback((blockId: string) => {
@@ -280,11 +288,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   let panel = null
 
-  const onCitationClick = useCallback((blockId: string) => {
+  const onCitationClick = (blockId?: string | null) => {
     console.log('~ onCitationClick', blockId)
-  }, [])
+    setActivePanel({type: 'citations', blockId: blockId || null})
+  }
 
-  if (activePanel == 'comments') {
+  if (activePanel?.type == 'comments' && comment) {
     panel = (
       <OpenCommentPanel
         comment={comment}
@@ -297,8 +306,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
     //   panel = <BlockCommentsPanel blockRef={blockRef} docId={id} />
   }
 
-  if (activePanel == 'citations') {
-    panel = <WebCitationsPanel citations={citations.data} />
+  if (activePanel?.type == 'citations') {
+    panel = (
+      <WebCitationsPanel
+        citations={citations.data}
+        blockId={activePanel.blockId}
+        setBlockId={(blockId) => setActivePanel({type: 'citations', blockId})}
+      />
+    )
   }
 
   return (
@@ -321,10 +336,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
             <DocInteractionsSummary
               docId={id}
               citations={citations.data}
-              onCitationsOpen={() => setActivePanel('citations')}
-              onCommentsOpen={
-                comment ? () => setActivePanel('comments') : undefined
+              onCitationsOpen={() =>
+                setActivePanel({type: 'citations', blockId: null})
               }
+              onCommentsOpen={
+                comment ? () => setActivePanel({type: 'comments'}) : undefined
+              }
+              // onVersionOpen={() => {}}
             />
             <DocumentCover cover={document.metadata.cover} id={id} />
             <YStack w="100%" ref={elementRef} f={1}>
@@ -380,6 +398,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     siteHost={siteHost}
                     supportDocuments={supportDocuments}
                     supportQueries={supportQueries}
+                    citations={citations.data}
                     routeParams={{
                       blockRef: blockRef,
                       blockRange: blockRange,
@@ -734,7 +753,7 @@ function _DocInteractionsSummary({
   onVersionOpen,
 }: {
   docId: UnpackedHypermediaId
-  citations: HMCitationsPayload
+  citations?: HMCitationsPayload
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
   onVersionOpen?: () => void
@@ -806,7 +825,22 @@ function InteractionSummaryItem({
   )
 }
 
-function WebCitationsPanel({citations}: {citations?: HMCitationsPayload}) {
+function WebCitationsPanel({
+  citations,
+  blockId,
+  setBlockId,
+}: {
+  citations?: HMCitationsPayload
+  blockId: string | null
+  setBlockId: (blockId: string | null) => void
+}) {
+  const filteredCitations = useMemo(() => {
+    if (!blockId || !citations) return citations
+    return citations?.filter(
+      (citation) =>
+        citation.targetFragment && citation.targetFragment?.blockId === blockId,
+    )
+  }, [citations, blockId])
   return (
     <YStack>
       <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
@@ -814,8 +848,14 @@ function WebCitationsPanel({citations}: {citations?: HMCitationsPayload}) {
           Citations
         </SizableText>
       </XStack>
-      {citations ? (
-        citations.map((citation) => {
+      {blockId ? (
+        <AccessoryBackButton
+          onPress={() => setBlockId(null)}
+          label={`Block Citations`}
+        />
+      ) : null}
+      {filteredCitations ? (
+        filteredCitations.map((citation) => {
           return <DocumentCitationEntry citation={citation} />
         })
       ) : (

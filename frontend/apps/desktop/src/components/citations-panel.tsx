@@ -3,7 +3,11 @@ import {useEntityCitations} from '@/models/citations'
 import {useComment} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {entityQueryPathToHmIdPath, hmId} from '@shm/shared'
+import {
+  DocumentCitationsAccessory,
+  entityQueryPathToHmIdPath,
+  hmId,
+} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMCitation,
@@ -12,6 +16,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useEntity, useResolvedEntities} from '@shm/shared/models/entity'
 import {pluralS} from '@shm/shared/utils/language'
+import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
@@ -21,15 +26,24 @@ import {CommentReplies, renderCommentContent, RepliesEditor} from './commenting'
 export function CitationsPanel({
   entityId,
   onClose,
+  accessory,
+  onAccessory,
 }: {
   entityId?: UnpackedHypermediaId
   onClose: () => void
+  accessory: DocumentCitationsAccessory
+  onAccessory: (accessory: DocumentCitationsAccessory) => void
 }) {
   const citations = useEntityCitations(entityId)
   if (!entityId) return null
 
   const citationSet = new Set()
   const distinctCitations = citations?.data
+    ?.filter(
+      (item) =>
+        !accessory.openBlockId ||
+        item.targetFragment?.blockId === accessory.openBlockId,
+    )
     ?.filter((item) => {
       if (!citationSet.has(item?.source)) {
         citationSet.add(item?.source)
@@ -52,13 +66,18 @@ export function CitationsPanel({
       )
       .filter((id) => id !== null) as UnpackedHypermediaId[]) || [],
   )
-  console.log('~~ documents', documents)
   const accounts = useAccountsMetadata(Array.from(accountsToLoad))
   return (
     <AccessoryContainer
       title={`${distinctCount} ${pluralS(distinctCount, 'Citation')}`}
       onClose={onClose}
     >
+      {accessory.openBlockId ? (
+        <AccessoryBackButton
+          label={`Block Citations`}
+          onPress={() => onAccessory({...accessory, openBlockId: null})}
+        />
+      ) : null}
       {distinctCitations?.map((citation, index) => {
         return (
           <DocumentCitationEntry

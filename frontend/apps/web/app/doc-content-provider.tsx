@@ -41,7 +41,7 @@ export function WebDocContentProvider({
   }
   comment?: boolean
   citations?: HMCitationsPayload
-  onCitationClick?: (blockId: string) => void
+  onCitationClick?: (blockId?: string | null) => void
 }) {
   const navigate = useNavigate()
   return (
@@ -80,6 +80,7 @@ export function WebDocContentProvider({
           {replace: true, preventScrollReset: true},
         )
       }}
+      onCitationClick={onCitationClick}
       routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}

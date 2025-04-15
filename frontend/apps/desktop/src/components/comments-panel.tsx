@@ -9,14 +9,13 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentCommentsAccessory, hmId, pluralS} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
+import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Comment, CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {CitationsIcon} from '@shm/ui/icons'
-import {ChevronLeft} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useMemo} from 'react'
-import {Spinner, styled, View, XStack} from 'tamagui'
+import {Spinner, View, XStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -61,31 +60,6 @@ function _CommentsPanel({
   }
   return <AllComments docId={docId} />
 }
-
-function AccessoryBackButton({
-  onPress,
-  label,
-}: {
-  onPress: () => void
-  label?: string
-}) {
-  return (
-    <AccessoryBackButtonButton icon={ChevronLeft} onPress={onPress}>
-      {label || 'All Comments'}
-    </AccessoryBackButtonButton>
-  )
-}
-
-const AccessoryBackButtonButton = styled(Button, {
-  chromeless: true,
-  size: '$3',
-  name: 'AccessoryBackButtonButton',
-  color: '$color10',
-  borderRadius: '$4',
-  paddingHorizontal: '$2',
-  paddingVertical: 0,
-  justifyContent: 'flex-start',
-})
 
 function AllComments({docId}: {docId: UnpackedHypermediaId}) {
   const commentGroups = useDocumentCommentGroups(docId)

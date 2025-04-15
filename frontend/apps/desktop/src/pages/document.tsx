@@ -92,8 +92,17 @@ export default function DocumentPage() {
     replace({...route, accessory: null})
   }
   let accessory: ReactNode = null
-  if (accessoryKey === 'citations') {
-    accessory = <CitationsPanel entityId={docId} onClose={handleClose} />
+  if (route.accessory?.key === 'citations') {
+    accessory = (
+      <CitationsPanel
+        entityId={docId}
+        onClose={handleClose}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
   } else if (accessoryKey === 'options') {
     accessory = <OptionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'versions') {
