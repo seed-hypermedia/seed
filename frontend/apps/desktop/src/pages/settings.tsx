@@ -697,7 +697,6 @@ function LinkDeviceDialog({
   const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
   const linkDevice = useLinkDevice()
   const gatewayUrl = useGatewayUrl()
-  const testGatewayUrl = 'http://localhost:3000'
   const externalOpen = useAppContext().externalOpen
   return (
     <>
@@ -729,9 +728,9 @@ function LinkDeviceDialog({
               accountUid: input.accountUid,
             })
             setLinkDeviceUrl(
-              `${
-                testGatewayUrl || gatewayUrl.data
-              }/hm/device-link#${base58btc.encode(cborEncode(linkSession))}`,
+              `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
+                cborEncode(linkSession),
+              )}`,
             )
           }}
         />
