@@ -1,13 +1,13 @@
 import {useNavigate} from '@remix-run/react'
 import {
   BlockRange,
+  HMCitationsPayload,
   HMEntityContent,
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {getHref} from './href'
-import {CitationsPayload} from './routes/hm.api.citations'
 import {
   EmbedComment,
   EmbedDocument,
@@ -40,7 +40,7 @@ export function WebDocContentProvider({
     blockRange?: BlockRange
   }
   comment?: boolean
-  citations?: CitationsPayload
+  citations?: HMCitationsPayload
   onCitationClick?: (blockId: string) => void
 }) {
   const navigate = useNavigate()

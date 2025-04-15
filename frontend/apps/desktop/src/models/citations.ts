@@ -10,10 +10,8 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
       if (!docId) return []
       const results = await grpcClient.entities.listEntityMentions({
         id: docId.id,
-        // type: docId.type,
         pageSize: BIG_INT,
       })
-      // console.log('~~~ raw results', docId.id, results)
       return results.mentions
         .map(({source, isExactVersion, ...mention}) => {
           const sourceId = unpackHmId(source)

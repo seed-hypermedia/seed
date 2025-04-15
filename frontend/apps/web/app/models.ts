@@ -1,5 +1,6 @@
 import {useFetcher} from '@remix-run/react'
 import {
+  HMCitationsPayload,
   HMDocument,
   packHmId,
   queryKeys,
@@ -14,7 +15,6 @@ import {useEffect} from 'react'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
-import {CitationsPayload} from './routes/hm.api.citations'
 import {DiscussionPayload} from './routes/hm.api.discussion'
 import {unwrap} from './wrapping'
 
@@ -90,7 +90,7 @@ export function searchQuery(input: string) {
 }
 
 export function useCitations(id: UnpackedHypermediaId) {
-  const response = useAPI<CitationsPayload>(`/hm/api/citations?id=${id.id}`)
+  const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
   return response
 }
 

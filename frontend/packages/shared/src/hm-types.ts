@@ -1045,3 +1045,10 @@ export const HMCitationSchema = z.object({
   targetFragment: ParsedFragmentSchema.nullable(),
 })
 export type HMCitation = z.infer<typeof HMCitationSchema>
+
+export type HMDocumentCitation = HMCitation & {
+  document: HMDocument
+  author: HMMetadataPayload | null
+}
+
+export type HMCitationsPayload = Array<HMDocumentCitation>

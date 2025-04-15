@@ -2,21 +2,12 @@ import {queryClient} from '@/client'
 import {getHMDocument, getMetadata} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
+import {BIG_INT, hmId, parseFragment, unpackHmId} from '@shm/shared'
 import {
-  BIG_INT,
-  HMDocument,
-  hmId,
-  HMMetadataPayload,
-  unpackHmId,
-} from '@shm/shared'
-import {HMCitation} from '@shm/shared/hm-types'
-
-export type HMDocumentCitation = HMCitation & {
-  document: HMDocument
-  author: HMMetadataPayload | null
-}
-
-export type CitationsPayload = Array<HMDocumentCitation>
+  HMCitation,
+  HMCitationsPayload,
+  HMDocumentCitation,
+} from '@shm/shared/hm-types'
 
 export const loader = async ({
   request,
@@ -24,36 +15,54 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<CitationsPayload>> => {
+}): Promise<WrappedResponse<HMCitationsPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
 
   if (!id) throw new Error('id is required')
-  let result // TODO type this
+  let result: HMCitationsPayload | {error: string}
   try {
     const res = await queryClient.entities.listEntityMentions({
       id: id.id,
       pageSize: BIG_INT,
     })
-    result = (
-      await Promise.all(
-        res.mentions.map(async (mention) => {
-          const sourceId = unpackHmId(mention.source)
-          if (!sourceId) return null
-          const sourceDocId = sourceId.type === 'd' ? sourceId : null
-          if (!sourceDocId) return null
-          const document = await getHMDocument(sourceDocId)
-          const author = mention.sourceBlob?.author
-            ? await getMetadata(hmId('d', mention.sourceBlob?.author))
-            : null
-          return {
-            ...mention,
-            author,
-            document,
-          }
-        }),
-      )
-    ).filter((m) => !!m)
+
+    const documentCitations: HMDocumentCitation[] = []
+
+    for (const mention of res.mentions) {
+      const sourceId = unpackHmId(mention.source)
+      if (!sourceId) continue
+
+      if (sourceId.type !== 'd') continue
+
+      const targetFragment = parseFragment(mention.targetFragment)
+
+      const citation: HMCitation = {
+        source: {
+          id: sourceId,
+          type: 'd',
+          author: mention.sourceBlob?.author,
+          time: mention.sourceBlob?.createTime,
+        },
+        targetFragment,
+        isExactVersion: mention.isExactVersion,
+      }
+
+      const document = await getHMDocument(sourceId)
+      const author = citation.source.author
+        ? await getMetadata(hmId('d', citation.source.author))
+        : null
+
+      const documentCitation: HMDocumentCitation = {
+        ...citation,
+        document,
+        author,
+      }
+
+      documentCitations.push(documentCitation)
+    }
+
+    result = documentCitations
   } catch (e: any) {
     result = {error: e.message}
   }

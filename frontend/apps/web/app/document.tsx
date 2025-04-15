@@ -4,6 +4,7 @@ import {useLocation, useNavigate} from '@remix-run/react'
 import {
   formattedDateMedium,
   getDocumentTitle,
+  HMCitationsPayload,
   HMComment,
   HMDocument,
   hmIdPathToEntityQueryPath,
@@ -16,6 +17,7 @@ import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
+import {WebCitationEntry} from '@shm/ui/citations'
 import {Container} from '@shm/ui/container'
 import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, DocContent} from '@shm/ui/document-content'
@@ -793,7 +795,7 @@ function InteractionSummaryItem({
   )
 }
 
-function WebCitationsPanel({citations}: {citations: CitationsPayload}) {
+function WebCitationsPanel({citations}: {citations: HMCitationsPayload}) {
   return (
     <YStack>
       <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
@@ -801,6 +803,9 @@ function WebCitationsPanel({citations}: {citations: CitationsPayload}) {
           Citations
         </SizableText>
       </XStack>
+      {citations.map((citation) => {
+        return <WebCitationEntry citation={citation} />
+      })}
     </YStack>
   )
 }
