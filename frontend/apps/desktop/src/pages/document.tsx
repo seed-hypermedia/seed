@@ -516,7 +516,11 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                   </>
                 ) : null}
                 {entity.data?.document ? (
-                  <DocumentDate document={entity.data.document} />
+                  <DocumentDate
+                    metadata={entity.data.document.metadata}
+                    updateTime={entity.data.document.updateTime}
+                    disableTooltip={false}
+                  />
                 ) : null}
               </XStack>
               {entity.data?.document && (

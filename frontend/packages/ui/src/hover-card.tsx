@@ -5,14 +5,20 @@ export function HoverCard({
   children,
   content,
   contentProps,
+  disabled = false,
 }: {
   children: React.ReactNode
   content: React.ReactNode
   contentProps?: React.ComponentProps<typeof Popover.Content>
+  disabled?: boolean
 }) {
   if (!content) return children
   return (
-    <Popover hoverable placement="bottom-start">
+    <Popover
+      hoverable
+      placement="bottom-start"
+      open={disabled ? false : undefined}
+    >
       <Popover.Trigger
         className="no-window-drag"
         height="100%"

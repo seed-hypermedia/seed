@@ -1,6 +1,5 @@
 import {useDocumentChanges} from '@/models'
 import {
-  formattedDateMedium,
   getMetadataName,
   HMDocument,
   HMMetadata,
@@ -9,6 +8,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {Container} from '@shm/ui/container'
+import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover} from '@shm/ui/TamaguiPopover'
@@ -119,6 +119,7 @@ export function PageHeader({
               <VersionsModal
                 originHomeId={originHomeId}
                 docId={docId}
+                docMetadata={docMetadata}
                 updateTime={updateTime}
               />
             ) : null}
@@ -134,10 +135,12 @@ export function PageHeader({
 function VersionsModal({
   originHomeId,
   docId,
+  docMetadata,
   updateTime,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId
+  docMetadata: HMMetadata | null
   updateTime: HMDocument['updateTime'] | null
 }) {
   const popoverState = usePopoverState()
@@ -151,15 +154,22 @@ function VersionsModal({
         cursor="pointer"
         hoverStyle={{color: '$color12'}}
       >
-        <SizableText
+        {/* <SizableText
           userSelect="none"
           flexShrink={0}
           flexGrow={0}
           size="$1"
           color="inherit"
         >
-          {formattedDateMedium(updateTime)}
-        </SizableText>
+          {docMetadata?.displayPublishTime
+            ? formattedDateDayOnly(new Date(docMetadata.displayPublishTime))
+            : formattedDateMedium(updateTime)}
+        </SizableText> */}
+        <DocumentDate
+          metadata={docMetadata || undefined}
+          updateTime={updateTime}
+          disableTooltip={popoverState.open}
+        />
         {changes.data && changes.data.length > 1 ? (
           <SizableText
             size="$1"
