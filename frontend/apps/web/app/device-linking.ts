@@ -84,6 +84,7 @@ export async function linkDevice(
     const ma = multiaddr(a + '/p2p/' + session.addrInfo.peerId)
     try {
       stream = await node.dialProtocol(ma, protocolId)
+      break
     } catch (e) {
       console.error('Failed to dial multiaddr', ma.toString(), e)
     }
