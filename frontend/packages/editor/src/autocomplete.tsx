@@ -15,6 +15,8 @@ import React, {
 import {ButtonProps, SizableText, XStack, YStack} from 'tamagui'
 import {keyboardStack, useKeyboard} from './keyboard-helpers'
 
+export const autocompletePluginKey = new PluginKey('inline-embed')
+
 export function createAutoCompletePlugin<N extends string, T>(args: {
   nodeName: N
   triggerCharacter: string
@@ -24,7 +26,6 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
   ) => void
 }): {plugins: Array<Plugin>; nodes: {[key in N]: NodeSpec}} {
   const {nodeName, triggerCharacter, renderPopup} = args
-  const pluginKey = new PluginKey(nodeName)
   const dataAttr = `data-${nodeName}`
 
   // this is the node that will be rendered in the editor
@@ -56,14 +57,15 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
 
   const autocompleteTokenPlugin = new Plugin<AutocompleteTokenPluginState<T>>({
     priority: 1000,
-    key: pluginKey,
+    key: autocompletePluginKey,
     state: {
       init() {
         return {active: false}
       },
       apply(tr, state) {
-        const action: AutocompleteTokenPluginAction | undefined =
-          tr.getMeta(pluginKey)
+        const action: AutocompleteTokenPluginAction | undefined = tr.getMeta(
+          autocompletePluginKey,
+        )
 
         if (action) {
           // this controls if we need to open the suggestions popup or not
@@ -108,14 +110,15 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
     },
     props: {
       handleKeyDown(view, e) {
-        const state = pluginKey.getState(view.state)
+        const state = autocompletePluginKey.getState(view.state)
 
         if (state.active && keyboardStack.handleKeyDown(e)) {
+          e.preventDefault()
           return true
         }
 
         const dispatch = (action: AutocompleteTokenPluginAction) => {
-          view.dispatch(view.state.tr.setMeta(pluginKey, action))
+          view.dispatch(view.state.tr.setMeta(autocompletePluginKey, action))
         }
 
         // if key is #, check that the previous position is blank and the next position is blank.
@@ -155,15 +158,17 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
         return false
       },
       handleClick(view) {
-        const state = pluginKey.getState(view.state)
+        const state = autocompletePluginKey.getState(view.state)
 
         if (state.active) {
-          view.dispatch(view.state.tr.setMeta(pluginKey, {type: 'close'}))
+          view.dispatch(
+            view.state.tr.setMeta(autocompletePluginKey, {type: 'close'}),
+          )
         }
       },
       decorations(editorState) {
         const state: AutocompleteTokenPluginState<T> =
-          pluginKey.getState(editorState)
+          autocompletePluginKey.getState(editorState)
         if (!state.active) {
           return null
         }
@@ -179,9 +184,8 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
     view() {
       return {
         update(view) {
-          var state: AutocompleteTokenPluginState<T> = pluginKey.getState(
-            view.state,
-          )
+          var state: AutocompleteTokenPluginState<T> =
+            autocompletePluginKey.getState(view.state)
 
           const onCreate = (
             link: string,
@@ -200,7 +204,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
           }
 
           const dispatch = (action: AutocompleteTokenPluginAction) => {
-            view.dispatch(view.state.tr.setMeta(pluginKey, action))
+            view.dispatch(view.state.tr.setMeta(autocompletePluginKey, action))
           }
           const onClose = () => dispatch({type: 'close'})
 
@@ -313,7 +317,8 @@ function AutocompletePopupInner(
   }, [suggestions])
 
   useKeyboard({
-    ArrowUp: () => {
+    ArrowUp: (e) => {
+      e.preventDefault()
       let [group, idx] = index
       if (idx == 0) {
         if (groups.indexOf(group) == 0) {
@@ -335,7 +340,8 @@ function AutocompletePopupInner(
       return true
       // }
     },
-    ArrowDown: () => {
+    ArrowDown: (e) => {
+      e.preventDefault()
       let [group, idx] = index
       if (
         groups.indexOf(group) == groups.length - 1 &&
@@ -354,7 +360,8 @@ function AutocompletePopupInner(
       }
       return true
     },
-    Enter: () => {
+    Enter: (e) => {
+      e.preventDefault()
       let [group, idx] = index
 
       if (
@@ -368,7 +375,8 @@ function AutocompletePopupInner(
       }
       return true
     },
-    Escape: () => {
+    Escape: (e) => {
+      e.preventDefault()
       onClose()
       return true
     },

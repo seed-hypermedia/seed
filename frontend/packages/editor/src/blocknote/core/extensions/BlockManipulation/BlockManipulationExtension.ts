@@ -1,3 +1,4 @@
+import {autocompletePluginKey} from '@/autocomplete'
 import {Extension} from '@tiptap/core'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
@@ -102,6 +103,8 @@ export const BlockManipulationExtension = Extension.create({
         key: new PluginKey('KeyboardShortcutsSelectPlugin'),
         props: {
           handleKeyDown(view, event) {
+            const autoCompleteState = autocompletePluginKey.getState(view.state)
+            if (autoCompleteState?.active) return false
             const {state} = view
             if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
               let hasHardBreak = false
