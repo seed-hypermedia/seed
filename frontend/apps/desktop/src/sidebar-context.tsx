@@ -1,4 +1,5 @@
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {useStream} from '@shm/ui/use-stream'
 import {PropsWithChildren, createContext, useContext, useMemo} from 'react'
 import {useNavigationDispatch, useNavigationState} from './utils/navigation'
 
@@ -136,4 +137,15 @@ export function useSidebarContext() {
       'useSidebarContext must be used within SidebarContextProvider',
     )
   return ctx
+}
+
+export function useSidebarWidth() {
+  const sidebarContext = useSidebarContext()
+  const sidebarWidth = useStream(sidebarContext.sidebarWidth)
+
+  const minWidth = useMemo(() => {
+    return `calc(${sidebarWidth}vw - 36px)`
+  }, [sidebarWidth])
+
+  return minWidth
 }

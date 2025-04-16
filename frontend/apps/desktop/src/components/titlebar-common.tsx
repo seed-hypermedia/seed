@@ -38,7 +38,6 @@ import {
   Download,
   Forward,
   Link,
-  Menu,
   Pencil,
   Trash,
   UploadCloud,
@@ -50,6 +49,8 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
 import {
+  ArrowLeftFromLine,
+  ArrowRightFromLine,
   FilePlus,
   Forward as ForwardIcon,
   GitFork,
@@ -547,6 +548,9 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'pop'})}
             chromeless
+            hoverStyle={{
+              bg: '$color6',
+            }}
             disabled={state.routeIndex <= 0}
             opacity={state.routeIndex <= 0 ? 0.5 : 1}
             icon={Back}
@@ -557,6 +561,9 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'forward'})}
             chromeless
+            hoverStyle={{
+              bg: '$color6',
+            }}
             disabled={state.routeIndex >= state.routes.length - 1}
             opacity={state.routeIndex >= state.routes.length - 1 ? 0.5 : 1}
             icon={Forward}
@@ -574,30 +581,28 @@ export function DraftPublicationButtons() {
 export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
-  let icon = Menu
+  const isHoverVisible = useStream(ctx?.isHoverVisible)
+  let icon = PanelLeft
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
   let color: undefined | ColorProp = undefined
 
-  if (!isLocked) {
-    icon = PanelLeft
-    tooltip = 'Open Sidebar'
-    onPress = ctx?.onLockSidebarOpen
-    key = 'lock'
-    color = '$color'
+  if (isLocked) {
+    tooltip = 'Close Sidebar'
+    onPress = ctx?.onCloseSidebar
+    key = 'close'
+    color = '$color9'
+  }
+
+  if (isHoverVisible) {
+    icon = !isLocked ? ArrowRightFromLine : ArrowLeftFromLine
   }
 
   return (
-    <XStack
-      marginLeft="$2"
-      // intention here is to hide the "close sidebar" button when the sidebar is locked, but the group="item" causes layout issues
-      // group="item"
-      justifyContent="space-between"
-      width="auto"
-    >
+    <XStack marginLeft="$2" flex={1} ai="center" jc="space-between">
       {left || <View />}
-      {ctx && !isLocked && (
+      {ctx && (
         <XStack
           position="relative"
           zIndex="$zIndex.1"
@@ -613,6 +618,9 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
               key={key}
               icon={icon}
               chromeless
+              hoverStyle={{
+                bg: '$color6',
+              }}
               onMouseEnter={ctx.onMenuHover}
               onMouseLeave={ctx.onMenuHoverLeave}
               onPress={onPress}

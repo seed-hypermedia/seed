@@ -1,3 +1,4 @@
+import {useSidebarWidth} from '@/sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {View, XStack} from 'tamagui'
 import {TitleBarProps} from './titlebar'
@@ -10,6 +11,7 @@ import {TitlebarTitleSearch} from './titlebar-search'
 
 export default function TitleBarMacos(props: TitleBarProps) {
   const {clean, cleanTitle, ...restProps} = props
+  const sidebarWidth = useSidebarWidth()
   if (clean) {
     return (
       <TitlebarWrapper {...restProps}>
@@ -47,6 +49,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
             alignItems="flex-start"
             className="window-drag"
             gap="$2"
+            minWidth={sidebarWidth}
           >
             <NavMenuButton
               left={

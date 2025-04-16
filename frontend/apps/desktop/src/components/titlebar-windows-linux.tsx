@@ -2,7 +2,9 @@ import {
   CloseButton,
   WindowsLinuxWindowControls,
 } from '@/components/window-controls'
+import {useSidebarWidth} from '@/sidebar-context'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {XStack, YStack} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
@@ -15,6 +17,8 @@ import './titlebar-windows-linux.css'
 import {SystemMenu} from './windows-linux-titlebar'
 
 export default function TitleBarWindows(props: TitleBarProps) {
+  const sidebarWidth = useSidebarWidth()
+
   if (props.clean) {
     return (
       <TitlebarWrapper>
@@ -46,8 +50,8 @@ export default function TitleBarWindows(props: TitleBarProps) {
           paddingHorizontal={0}
           alignItems="flex-start"
           className="window-drag"
-          alignSelf="stretch"
           gap="$2"
+          minWidth={sidebarWidth}
         >
           <NavMenuButton />
           <NavigationButtons />
@@ -69,9 +73,16 @@ export function WindowsLinuxTitleBar({
   right?: React.ReactNode
   platform?: string
 }) {
+  const isDark = useIsDark()
   return (
     <YStack>
-      <XStack height={24} ai="center">
+      <XStack
+        height={24}
+        ai="center"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+        borderBottomWidth={1}
+        borderBottomColor={'$borderColor'}
+      >
         <SystemMenu />
         <XStack flex={1} className="window-drag" height="100%" />
         <WindowsLinuxWindowControls />

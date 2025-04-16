@@ -26,6 +26,9 @@ export function TitlebarTitleSearch() {
         size="$2"
         className="no-window-drag"
         icon={Search}
+        hoverStyle={{
+          bg: '$color6',
+        }}
         // hoverStyle={{
         //   cursor: 'text !important',
         // }}

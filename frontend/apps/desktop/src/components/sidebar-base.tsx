@@ -102,6 +102,9 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           console.log('=== Sidebar onCollapse call')
           ctx.onCloseSidebar()
         }}
+        onResize={(size) => {
+          ctx.onSidebarResize(size)
+        }}
         onExpand={() => {
           console.log('=== Sidebar onExpand call')
 
