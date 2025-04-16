@@ -53,7 +53,6 @@ import {
   BlockQuote,
   CitationsIcon,
   CollaboratorsIcon,
-  CommentsIcon,
   HistoryIcon,
   IconComponent,
   MoreHorizontal,
@@ -64,7 +63,7 @@ import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {MessageSquare, Plus} from '@tamagui/lucide-icons'
+import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {
   ButtonText,
@@ -159,11 +158,12 @@ export default function DocumentPage() {
     //   icon: SuggestedChangesIcon,
     // })
   }
-  accessoryOptions.push({
-    key: 'comments',
-    label: 'Comments',
-    icon: CommentsIcon,
-  })
+  // WIP COMMENT PANEL
+  // accessoryOptions.push({
+  //   key: 'comments',
+  //   label: 'Comments',
+  //   icon: CommentsIcon,
+  // })
   accessoryOptions.push({
     key: 'citations',
     label: 'Citations',
@@ -389,6 +389,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
         }}
         icon={BlockQuote}
       />
+      {/* COMMENTING INTERACTIONS DISABLED
       <Separator />
       <InteractionSummaryItem
         label="comment"
@@ -397,7 +398,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
           replace({...docRoute, accessory: {key: 'comments'}})
         }}
         icon={MessageSquare}
-      />
+      /> */}
       <Separator />
       <InteractionSummaryItem
         label="version"
@@ -830,30 +831,30 @@ function DocPageContent({
         })
       }}
       docId={entity.id}
-      onBlockComment={(blockId, blockRangeInput) => {
-        if (route.key !== 'document') return
-        if (!blockId) return
-        const blockRange =
-          blockRangeInput &&
-          'start' in blockRangeInput &&
-          'end' in blockRangeInput
-            ? blockRangeInput
-            : null
-        replace({
-          ...route,
-          id: {
-            ...route.id,
-            blockRef: blockId,
-            blockRange,
-          },
-          accessory: {
-            key: 'comments',
-            openBlockId: blockId,
-            blockRange,
-            autoFocus: true,
-          },
-        })
-      }}
+      // onBlockComment={(blockId, blockRangeInput) => {
+      //   if (route.key !== 'document') return
+      //   if (!blockId) return
+      //   const blockRange =
+      //     blockRangeInput &&
+      //     'start' in blockRangeInput &&
+      //     'end' in blockRangeInput
+      //       ? blockRangeInput
+      //       : null
+      //   replace({
+      //     ...route,
+      //     id: {
+      //       ...route.id,
+      //       blockRef: blockId,
+      //       blockRange,
+      //     },
+      //     accessory: {
+      //       key: 'comments',
+      //       openBlockId: blockId,
+      //       blockRange,
+      //       autoFocus: true,
+      //     },
+      //   })
+      // }}
       isBlockFocused={isBlockFocused}
     >
       <DocContent
