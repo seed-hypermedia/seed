@@ -12,6 +12,7 @@ import {
   hostnameStripProtocol,
   pluralS,
   UnpackedHypermediaId,
+  WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
@@ -186,7 +187,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     supportQueries,
     accountsMetadata,
     enableWebSigning,
-    enableSiteIdentity,
     origin,
     comment,
   } = props
@@ -427,7 +427,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       originHomeId={originHomeId}
                       siteHost={siteHost}
                       enableWebSigning={enableWebSigning}
-                      enableSiteIdentity={enableSiteIdentity}
                     />
                   )}
                 </YStack>
@@ -511,13 +510,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   />
                 </Tooltip>
               </XStack>
-
               {panel}
             </YStack>
           ) : null}
         </XStack>
       </WebSiteHeader>
-
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </WebSiteProvider>
   )
@@ -629,14 +626,12 @@ function DocumentAppendix({
   originHomeId,
   siteHost,
   enableWebSigning,
-  enableSiteIdentity,
 }: {
   id: UnpackedHypermediaId
   document: HMDocument
   originHomeId: UnpackedHypermediaId
   siteHost: string | undefined
   enableWebSigning?: boolean
-  enableSiteIdentity?: boolean
 }) {
   const docIdWithVersion: UnpackedHypermediaId = {
     ...id,
@@ -650,11 +645,11 @@ function DocumentAppendix({
           document={document}
           originHomeId={originHomeId}
           siteHost={siteHost}
-          enableReplies={enableWebSigning || enableSiteIdentity}
+          enableReplies={enableWebSigning || WEB_IDENTITY_ENABLED}
           enableWebSigning={enableWebSigning || false}
         />
 
-        {enableWebSigning || enableSiteIdentity ? (
+        {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             docId={docIdWithVersion}
             replyCommentId={null}

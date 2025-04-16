@@ -28,7 +28,6 @@ import {
   SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
-  WEB_IDENTITY_ENABLED,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
 import {HMAccountsMetadata, HMComment} from '@shm/shared/hm-types'
@@ -76,7 +75,6 @@ export type WebBaseDocumentPayload = {
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
   supportQueries?: HMQueryResult[]
   enableWebSigning?: boolean
-  enableSiteIdentity?: boolean
 }
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
@@ -261,7 +259,6 @@ export async function getBaseDocument(
     siteHost: parsedRequest.origin,
     id: {...entityId, version: document.version},
     enableWebSigning,
-    enableSiteIdentity: WEB_IDENTITY_ENABLED,
   }
 }
 

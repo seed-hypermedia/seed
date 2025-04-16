@@ -19,7 +19,6 @@ import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
@@ -28,12 +27,7 @@ import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {SizableText, Spinner, XStack, YStack} from 'tamagui'
 import {getValidAbility} from './auth-abilities'
-import {
-  createDelegatedComment,
-  delegatedIdentityOriginStore,
-  useDelegatedAbilities,
-} from './auth-delegation'
-import type {AuthFragmentOptions} from './auth-page'
+import {useDelegatedAbilities} from './auth-delegation'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
 import {
@@ -112,7 +106,9 @@ export default function WebCommenting({
     ? 'Create Account'
     : validAbility
     ? `Submit Comment`
-    : `Sign in with ${hostnameStripProtocol(SITE_IDENTITY_DEFAULT_ORIGIN)}`
+    : `Comment with ${hostnameStripProtocol(
+        SITE_IDENTITY_DEFAULT_ORIGIN,
+      )} Identity`
 
   const {
     content: emailNotificationsPromptContent,
@@ -142,42 +138,8 @@ export default function WebCommenting({
     reset: () => void,
   ) => {
     if (!enableWebSigning) {
-      if (validAbility) {
-        try {
-          const signedComment = await createDelegatedComment({
-            ability: validAbility,
-            content: await getContent(prepareAttachments),
-            docId,
-            docVersion,
-            replyCommentId,
-            rootReplyCommentId,
-          })
-          if (signedComment) {
-            await postComment.mutateAsync(signedComment)
-            reset()
-            onDiscardDraft?.()
-          } else {
-            toast.error('Signing identity provider failed. Please try again.')
-          }
-        } catch (error: any) {
-          toast.error(
-            `Failed to sign and publish your comment. (${error.message})`,
-          )
-        }
-        return
-      } else {
-        delegatedIdentityOriginStore.add(SITE_IDENTITY_DEFAULT_ORIGIN)
-        const params = {
-          requestOrigin: window.location.origin,
-          targetUid: docId.uid,
-        } satisfies AuthFragmentOptions
-        const encodedParams = new URLSearchParams(params).toString()
-        window.open(
-          `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
-          '_blank',
-        )
-        return
-      }
+      console.log('Do Redirect! to ' + SITE_IDENTITY_DEFAULT_ORIGIN)
+      return
     }
 
     if (canCreateAccount || !userKeyPair) {
