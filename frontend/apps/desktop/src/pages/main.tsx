@@ -7,12 +7,13 @@ import {getWindowType} from '@/utils/window-types'
 import {HMMetadata} from '@shm/shared'
 import {NavRoute} from '@shm/shared/routes'
 import {useDocumentLayout} from '@shm/ui/layout'
+import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {
+  lazy,
   ReactElement,
   ReactNode,
-  lazy,
   useEffect,
   useMemo,
   useRef,
@@ -66,15 +67,22 @@ export default function Main({className}: {className?: string}) {
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
-      <TitleBar
+      <TitlebarWrapper
         height={26}
         minHeight={26}
-        ai="center"
-        jc="center"
-        bg={isDark ? '$backgroundStrong' : '$background'}
-        clean
-        cleanTitle="Settings"
-      />
+        bg={isDark ? '$background' : '$backgroundStrong'}
+      >
+        <XStack className="window-drag" ai="center" jc="center" w="100%">
+          <TitleText
+            marginHorizontal="$4"
+            fontWeight="bold"
+            f={1}
+            textAlign="center"
+          >
+            Settings
+          </TitleText>
+        </XStack>
+      </TitlebarWrapper>
     )
     return (
       <YStack
@@ -94,21 +102,25 @@ export default function Main({className}: {className?: string}) {
         </ErrorBoundary>
       </YStack>
     )
-    // titlebar = (
-    //   <XStack
-    //     bg="$transparent"
-    //     h={26}
-    //     ai="center"
-    //     jc="center"
-    //     className="window-drag"
-    //   >
-    //     <SizableText size="$1.5" fontWeight="bold">
-    //       Settings
-    //     </SizableText>
-    //   </XStack>
-    // )
   } else if (windowType === 'deleted-content') {
-    titlebar = <TitleBar clean cleanTitle="Review Deleted Content" />
+    titlebar = (
+      <TitlebarWrapper
+        height={26}
+        minHeight={26}
+        bg={isDark ? '$background' : '$backgroundStrong'}
+      >
+        <XStack className="window-drag" ai="center" jc="center" w="100%">
+          <TitleText
+            marginHorizontal="$4"
+            fontWeight="bold"
+            f={1}
+            textAlign="center"
+          >
+            Review Deleted Content
+          </TitleText>
+        </XStack>
+      </TitlebarWrapper>
+    )
   }
 
   return (
