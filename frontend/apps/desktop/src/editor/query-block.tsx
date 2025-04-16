@@ -296,7 +296,7 @@ function CardView({
           {restItems
             .filter((item) => !!item.data)
             .map((item) => (
-              <XStack {...columnProps} p="$3">
+              <XStack {...columnProps} p="$3" key={item.data?.id.id}>
                 <NewspaperCard
                   id={item.data?.id}
                   entity={item.data}

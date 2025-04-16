@@ -130,7 +130,12 @@ export function SearchResultItem({
         size="$5"
         // height="$"
       >
-        <XStack flex={1} gap="$3" justifyContent="flex-start">
+        <XStack
+          flex={1}
+          gap="$3"
+          justifyContent="flex-start"
+          alignItems="center"
+        >
           {item.icon ? (
             <UIAvatar
               label={item.title}

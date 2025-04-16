@@ -415,7 +415,7 @@ function AutocompletePopupInner(
         {/* <div>Query: "{text}"</div> */}
         {isOptionsEmpty(suggestions) && (
           <XStack
-            bg="$backgroundStrong"
+            background="$backgroundStrong"
             paddingHorizontal="$4"
             paddingVertical="$2"
             gap="$2"
@@ -430,13 +430,13 @@ function AutocompletePopupInner(
             return (
               <YStack
                 key={group}
-                bg="$backgroundFocus"
+                background="$backgroundFocus"
                 borderWidth={1}
                 borderColor="$borderColor"
                 elevate
               >
                 <XStack
-                  bg="$backgroundStrong"
+                  background="$backgroundStrong"
                   paddingHorizontal="$4"
                   paddingVertical="$2"
                   gap="$2"

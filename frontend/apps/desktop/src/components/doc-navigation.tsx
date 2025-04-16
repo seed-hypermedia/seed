@@ -10,6 +10,7 @@ import {
 import {useSubscribedEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {SmallListItem} from '@shm/ui/list-item'
@@ -20,7 +21,7 @@ import {
   DraftOutline,
 } from '@shm/ui/navigation'
 import {Plus as Add} from '@tamagui/lucide-icons'
-import {ReactNode, useMemo} from 'react'
+import {ReactNode} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   return (
@@ -101,21 +102,30 @@ export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
 
 export function DocNavigationDraftLoader({
   showCollapsed,
+  id,
 }: {
   showCollapsed: boolean
+  id?: UnpackedHypermediaId
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('DocNavigationDraftLoader only supports draft route')
   const draftQuery = useDraft(route.id)
-  const id = useMemo(() => {
-    let uId = route.editUid || draftQuery.data?.editUid
-    let path = route.editPath || draftQuery.data?.editPath
-    if (uId) {
-      return hmId('d', uId, {path})
-    }
-    return undefined
-  }, [route, draftQuery.data])
+  // const id = useMemo(() => {
+  //   let uId = route.editUid || draftQuery.data?.editUid
+  //   let path = route.editPath || draftQuery.data?.editPath
+  //   if (!uId) {
+  //     const locationPath = route.locationPath || draftQuery.data?.locationPath
+  //     if (locationPath) {
+  //       uId = route.locationUid || draftQuery.data?.locationUid
+  //       path = locationPath
+  //     }
+  //   }
+  //   if (uId) {
+  //     return hmId('d', uId, {path})
+  //   }
+  //   return undefined
+  // }, [route, draftQuery.data])
 
   const entity = useEntity(id)
   const draft = draftQuery?.data
@@ -147,7 +157,7 @@ export function DocNavigationDraftLoader({
           onPress={() => {}}
         />
       ) : null}
-      {id ? (
+      {id && (route.editUid || draftQuery.data?.editUid) && siteListQuery ? (
         <DocDirectory
           id={id}
           drafts={drafts.data}

@@ -5,7 +5,9 @@ import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {OptionsPanel} from '@/components/options-panel'
+import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
+import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
   useCreateDraft,
@@ -261,6 +263,24 @@ function DocumentEditor({
     typeof state.context.metadata.showOutline == 'undefined' ||
     state.context.metadata.showOutline
 
+  const draftQuery = useDraft(route.id)
+
+  const id = useMemo(() => {
+    let uId = route.editUid || draftQuery.data?.editUid
+    let path = route.editPath || draftQuery.data?.editPath
+    if (!uId) {
+      const locationPath = route.locationPath || draftQuery.data?.locationPath
+      if (locationPath) {
+        uId = route.locationUid || draftQuery.data?.locationUid
+        path = locationPath
+      }
+    }
+    if (uId) {
+      return hmId('d', uId, {path})
+    }
+    return undefined
+  }, [route, draftQuery.data])
+
   const cover = useSelector(actor, (s) => s.context.metadata.cover)
 
   const {
@@ -282,15 +302,15 @@ function DocumentEditor({
     }
   }, [cover])
 
-  // useEffect(() => {
-  //   if () return
-  //   return subscribeDraftFocus(id?.id, (blockId: string) => {
-  //     if (editor) {
-  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
-  //       editor.setTextCursorPosition(blockId, 'end')
-  //     }
-  //   })
-  // }, [id?.id, editor])
+  useEffect(() => {
+    if (!id?.id) return
+    return subscribeDraftFocus(id.id, (blockId: string) => {
+      if (editor) {
+        editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
+        editor.setTextCursorPosition(blockId, 'end')
+      }
+    })
+  }, [id])
 
   if (state.matches('editing'))
     return (
@@ -328,7 +348,10 @@ function DocumentEditor({
                   onPress={(e) => e.stopPropagation()}
                   {...sidebarProps}
                 >
-                  <DocNavigationDraftLoader showCollapsed={showCollapsed} />
+                  <DocNavigationDraftLoader
+                    showCollapsed={showCollapsed}
+                    id={id}
+                  />
                 </YStack>
               ) : null}
               <YStack {...mainContentProps}>
@@ -1161,10 +1184,10 @@ function DraftRebaseBanner() {
 function applyTitleResize(target: HTMLTextAreaElement) {
   // without this, the scrollHeight doesn't shrink, so when the user deletes a long title it doesnt shrink back
   target.style.height = ''
-  console.log(
-    `== ~ applyTitleResize ~ target.scrollHeight:`,
-    target.scrollHeight,
-  )
+  // console.log(
+  //   `== ~ applyTitleResize ~ target.scrollHeight:`,
+  //   target.scrollHeight,
+  // )
   // here is the actual auto-resize
   // target.style.height = `${target.scrollHeight}px`
   target.style.height = 'auto'

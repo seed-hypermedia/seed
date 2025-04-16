@@ -694,7 +694,11 @@ const EmbedLauncherInput = ({
       width="100%"
       zIndex={999}
       maxHeight={300} // TODO, dynamically update based on window height?
-      overflow="scroll"
+      overflow="auto"
+      style={{
+        overflowX: 'hidden',
+        scrollbarWidth: 'none',
+      }}
     >
       {isDisplayingRecents && (
         <SizableText color="$color10" marginHorizontal="$4">
