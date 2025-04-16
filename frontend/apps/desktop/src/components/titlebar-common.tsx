@@ -600,7 +600,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   }
 
   return (
-    <XStack marginLeft="$2" flex={1} ai="center" jc="space-between">
+    <XStack marginLeft="$2" flex={1} ai="center">
       {left || <View />}
       {ctx && (
         <XStack
