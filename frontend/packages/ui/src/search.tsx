@@ -212,7 +212,7 @@ export function HeaderSearch({
                   }}
                 />
               </XStack>
-              <YStack width="100%" overflow="hidden">
+              <YStack width="100%" maxHeight="60vh">
                 <ScrollView overflow="scroll">
                   {searchItems.map((item: SearchResult, index: number) => {
                     return (
