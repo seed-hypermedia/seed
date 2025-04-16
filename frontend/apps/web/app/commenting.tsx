@@ -7,6 +7,7 @@ import {
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
+  hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
   idToUrl,
   queryKeys,
@@ -19,6 +20,7 @@ import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
@@ -47,7 +49,30 @@ export type WebCommentingProps = {
   enableWebSigning: boolean
 }
 
-export default function WebCommenting({
+export default function WebCommenting(props: WebCommentingProps) {
+  if (!props.enableWebSigning) {
+    return (
+      <Button
+        onPress={() => {
+          const url = `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment?target=${
+            props.docId.uid
+          }${hmIdPathToEntityQueryPath(props.docId.path)}&reply=${
+            props.replyCommentId || ''
+          }&rootReply=${props.rootReplyCommentId || ''}`
+          console.log('Redirect to ' + SITE_IDENTITY_DEFAULT_ORIGIN, url)
+          window.open(url, '_blank')
+        }}
+      >
+        {`Comment with ${hostnameStripProtocol(
+          SITE_IDENTITY_DEFAULT_ORIGIN,
+        )} Identity`}
+      </Button>
+    )
+  }
+  return <LocalWebCommenting {...props} />
+}
+
+export function LocalWebCommenting({
   docId,
   replyCommentId,
   rootReplyCommentId,
@@ -104,11 +129,7 @@ export default function WebCommenting({
 
   const unauthenticatedActionMessage = enableWebSigning
     ? 'Create Account'
-    : validAbility
-    ? `Submit Comment`
-    : `Comment with ${hostnameStripProtocol(
-        SITE_IDENTITY_DEFAULT_ORIGIN,
-      )} Identity`
+    : `Submit Comment`
 
   const {
     content: emailNotificationsPromptContent,
@@ -138,7 +159,7 @@ export default function WebCommenting({
     reset: () => void,
   ) => {
     if (!enableWebSigning) {
-      console.log('Do Redirect! to ' + SITE_IDENTITY_DEFAULT_ORIGIN)
+      toast.error('Cannot sign comments on this domain.')
       return
     }
 
