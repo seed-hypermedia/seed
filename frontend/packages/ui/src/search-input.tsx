@@ -1,4 +1,10 @@
-import {SearchResult} from '@shm/shared'
+import {
+  getDocumentTitle,
+  SearchResult,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {
@@ -143,7 +149,7 @@ export function SearchResultItem({
               id={item.key}
               url={getDaemonFileUrl(item.icon)}
             />
-          ) : item.path?.length === 1 ? (
+          ) : item.path?.length === 0 ? (
             <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
           <YStack f={1} justifyContent="space-between">
@@ -161,6 +167,52 @@ export function SearchResultItem({
       </Button>
     </YStack>
   )
+}
+
+export function RecentSearchResultItem({
+  item,
+  selected,
+}: {
+  item: {
+    key: string
+    title: string
+    subtitle?: string
+    path: string[]
+    id?: UnpackedHypermediaId
+    onSelect: () => void
+    onFocus: () => void
+    onMouseEnter: () => void
+  }
+  selected: boolean
+}) {
+  let path = normalizePath(item.path.slice(0, -1))
+  if (item.id) {
+    const homeId = `hm://${item.id.uid}`
+    const unpacked = unpackHmId(homeId)
+    const homeEntity = useEntity(unpacked!)
+    const homeTitle = getDocumentTitle(homeEntity.data?.document)
+
+    if (homeTitle && homeTitle !== item.title) {
+      path = [homeTitle, ...path]
+    }
+  }
+
+  return (
+    <SearchResultItem
+      item={{
+        ...item,
+        path,
+      }}
+      selected={selected}
+    />
+  )
+}
+
+function normalizePath(path: string[]): string[] {
+  return path.map((segment) => {
+    const [first, ...rest] = segment.split('-')
+    return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
+  })
 }
 
 export function useCollapsedPath(

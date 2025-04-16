@@ -25,6 +25,7 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
+  RecentSearchResultItem,
   SearchInput as SearchInputUI,
   SearchResultItem,
 } from '@shm/ui/search-input'
@@ -111,7 +112,7 @@ export function SearchInput({
         return {
           key: item.id.id,
           title,
-          path: [...item.parentNames, title],
+          path: item.parentNames,
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
@@ -132,7 +133,8 @@ export function SearchInput({
         return {
           key: id.id,
           title: name,
-          // path: id.path,
+          id,
+          path: id.path || [],
           subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
           onFocus: () => {
             setFocusedIndex(index)
@@ -142,7 +144,7 @@ export function SearchInput({
           },
           onSelect: () => {
             if (!id) {
-              toast.error('Failed to open recent: ' + id.id)
+              toast.error('Failed to open recent: ' + id + ' ' + name)
               return
             } else {
               onSelect({id: id})
@@ -196,15 +198,26 @@ export function SearchInput({
           </SizableText>
         </XStack>
       ) : null}
-      {activeItems?.map((item, itemIndex) => {
+      {activeItems.map((item, itemIndex) => {
+        const isSelected = focusedIndex === itemIndex
+        const sharedProps = {
+          selected: isSelected,
+          onFocus: () => setFocusedIndex(itemIndex),
+          onMouseEnter: () => setFocusedIndex(itemIndex),
+        }
+
         return (
           <>
-            <SearchResultItem
-              item={item}
-              key={item.key}
-              selected={focusedIndex === itemIndex}
-            />
-            {itemIndex === activeItems.length - 1 ? undefined : <Separator />}
+            {isDisplayingRecents ? (
+              <RecentSearchResultItem
+                item={{...item, id: item.id}}
+                {...sharedProps}
+              />
+            ) : (
+              <SearchResultItem item={item} {...sharedProps} />
+            )}
+
+            {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
           </>
         )
       })}

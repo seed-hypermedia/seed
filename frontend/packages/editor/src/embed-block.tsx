@@ -2,7 +2,7 @@ import {Block, BlockNoteEditor} from '@/blocknote'
 import {createReactBlockSpec} from '@/blocknote/react'
 import {useEmbedToolbarContext} from '@/embed-toolbar-context'
 import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
-import {LauncherItem, SwitcherItem} from '@/launcher-item'
+import {LauncherItem, RecentLauncherItem, SwitcherItem} from '@/launcher-item'
 import {resolveHypermediaUrl} from '@/link-utils'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
@@ -633,7 +633,7 @@ const EmbedLauncherInput = ({
         return {
           key: item.id.id,
           title,
-          path: [...item.parentNames, title],
+          path: item.parentNames,
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
@@ -648,7 +648,8 @@ const EmbedLauncherInput = ({
       return {
         key: id.id,
         title: name,
-        // path: id.path,
+        id,
+        path: id.path || [],
         subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
         onFocus: () => {
           setFocusedIndex(index)
@@ -658,7 +659,7 @@ const EmbedLauncherInput = ({
         },
         onSelect: () => {
           if (!id) {
-            toast.error('Failed to open recent: ' + id + name)
+            toast.error('Failed to open recent: ' + id + ' ' + name)
             return
           } else {
             assign({props: {url: id.id}} as MediaType)
@@ -705,18 +706,29 @@ const EmbedLauncherInput = ({
           Recent Resources
         </SizableText>
       )}
-      {activeItems.map((item, itemIndex) => (
-        <>
-          <LauncherItem
-            item={item}
-            key={item.key}
-            selected={focusedIndex === itemIndex}
-            onFocus={() => setFocusedIndex(itemIndex)}
-            onMouseEnter={() => setFocusedIndex(itemIndex)}
-          />
-          {itemIndex === activeItems.length - 1 ? undefined : <Separator />}
-        </>
-      ))}
+      {activeItems.map((item, itemIndex) => {
+        const isSelected = focusedIndex === itemIndex
+        const sharedProps = {
+          selected: isSelected,
+          onFocus: () => setFocusedIndex(itemIndex),
+          onMouseEnter: () => setFocusedIndex(itemIndex),
+        }
+
+        return (
+          <>
+            {isDisplayingRecents ? (
+              <RecentLauncherItem
+                item={{...item, id: item.id}}
+                {...sharedProps}
+              />
+            ) : (
+              <LauncherItem item={item} {...sharedProps} />
+            )}
+
+            {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
+          </>
+        )
+      })}
     </YStack>
   )
 
