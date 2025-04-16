@@ -2,7 +2,6 @@ import {yamux} from '@chainsafe/libp2p-yamux'
 import * as cbor from '@ipld/dag-cbor'
 import {circuitRelayTransport} from '@libp2p/circuit-relay-v2'
 import {identify} from '@libp2p/identify'
-import {peerIdFromString} from '@libp2p/peer-id'
 import {ping} from '@libp2p/ping'
 import {webRTC, webRTCDirect} from '@libp2p/webrtc'
 import {multiaddr} from '@multiformats/multiaddr'
@@ -10,6 +9,7 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {lpStream} from 'it-length-prefixed-stream'
 import {createLibp2p} from 'libp2p'
 import {base58btc} from 'multiformats/bases/base58'
+
 import {
   AgentCapability,
   generateAndStoreKeyPair,
@@ -18,6 +18,7 @@ import {
 } from './auth'
 import {preparePublicKey} from './auth-utils'
 import {getStoredLocalKeys} from './local-db'
+import {Stream} from '@libp2p/interface'
 
 export type DeviceLinkCompletion = {
   browserAccountId: string
@@ -50,31 +51,49 @@ export async function linkDevice(
       identify: identify(),
     },
     streamMuxers: [yamux()],
+    connectionGater: {
+      // Allow all dials to prevent blocking dials to localhost.
+      denyDialMultiaddr(multiaddr) {
+        return false
+      },
+    },
   })
 
   console.log('node =', node)
 
-  const pid = peerIdFromString(session.addrInfo.peerId)
-  console.log('pid =', pid)
+  const addrs = session.addrInfo.addrs
+    // We can only dial webrtc-direct addresses, so we filter out the rest.
+    .filter((a) => a.includes('webrtc-direct'))
+    // For simplicity we prioritize localhost addresses first,
+    // because this is our common use case.
+    // The other addresses are still available for dialing.
+    .sort((a, b) => {
+      if (a.includes('127.0.0.1') && !b.includes('127.0.0.1')) {
+        return -1
+      }
+      return +1
+    })
 
-  // Log all addresses for debugging
-  console.log('Attempting to connect to addresses:', session.addrInfo.addrs)
+  let stream: Stream | undefined
 
-  // Add addresses to peer store
-  await node.peerStore.merge(pid, {
-    multiaddrs: session.addrInfo.addrs.map((v) => multiaddr(v)),
-  })
+  // Instead of absorbing all addresses into the peerstore,
+  // we manually attempt to dial each addresses for better control.
+  // Otherwise it's unclear how libp2p prioritizes the addresses,
+  // and it often times out on the first few addresses.
+  for (const a of addrs) {
+    const ma = multiaddr(a + '/p2p/' + session.addrInfo.peerId)
+    try {
+      stream = await node.dialProtocol(ma, protocolId)
+    } catch (e) {
+      console.error('Failed to dial multiaddr', ma.toString(), e)
+    }
+  }
 
-  console.log('node.peerStore merged addrs', session.addrInfo.addrs)
+  if (!stream) {
+    throw new Error('All dials failed. No stream.')
+  }
 
   try {
-    // Dial the peer and establish a connection
-    console.log('protocolId =', protocolId)
-
-    // Try to dial the protocol directly
-    console.log('Attempting to dial protocol...')
-    const stream = await node.dialProtocol(pid, protocolId)
-    console.log('libp2p node dialed to peer', pid)
     const lp = lpStream(stream)
 
     // Send the secret token and public key
