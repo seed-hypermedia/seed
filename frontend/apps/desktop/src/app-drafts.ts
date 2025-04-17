@@ -6,6 +6,7 @@ import {
   HMDraftContentSchema,
   HMListedDraft,
   HMListedDraftSchema,
+  HMMetadata,
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
@@ -145,6 +146,7 @@ export async function initDrafts() {
       JSON.parse(draftIndexJSON).map((item: any) => {
         return {
           ...item,
+          metadata: fixDraftMetadata(item.metadata || {}),
           locationId: item.locationUid
             ? hmId('d', item.locationUid, {path: item.locationPath})
             : undefined,
@@ -154,6 +156,16 @@ export async function initDrafts() {
         }
       }),
     )
+  }
+}
+
+function fixDraftMetadata(metadata: any): HMMetadata {
+  if (!metadata) return {}
+  return {
+    ...metadata,
+    // a user had an error where icon and cover are null, which was failing validation and breaking app launch
+    icon: metadata.icon || undefined,
+    cover: metadata.cover || undefined,
   }
 }
 
