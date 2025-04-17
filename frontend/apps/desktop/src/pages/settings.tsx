@@ -630,9 +630,9 @@ function AccountKeys() {
                 onOpenWallet={(walletId) => setWalletId(walletId)}
               />
             </SettingsSection>
-            <SettingsSection title="Linked Devices">
+            {/* <SettingsSection title="Linked Devices"> // disable during development of this feature
               <LinkedDevices accountUid={selectedAccount} />
-            </SettingsSection>
+            </SettingsSection> */}
           </YStack>
         </ScrollView>
       </YStack>
