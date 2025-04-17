@@ -201,7 +201,10 @@ export default function WebCommenting({
 
   return (
     <>
-      <CommentDocContentProvider handleFileAttachment={handleFileAttachment}>
+      <CommentDocContentProvider
+        handleFileAttachment={handleFileAttachment}
+        importWebFile={importWebFile}
+      >
         <CommentEditor
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
@@ -296,12 +299,37 @@ async function prepareComment(
   return {comment: cborEncode(signedComment), blobs}
 }
 
-async function handleFileAttachment(file: File) {
+async function handleFileAttachment(file: Blob) {
   const fileBuffer = await file.arrayBuffer()
   const fileBinary = new Uint8Array(fileBuffer)
   return {
     displaySrc: URL.createObjectURL(file),
     fileBinary,
+  }
+}
+
+async function importWebFile(url: string) {
+  try {
+    const res = await fetch(url, {method: 'GET', mode: 'cors'})
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`)
+    }
+
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream'
+    const blob = await res.blob()
+
+    const {displaySrc, fileBinary} = await handleFileAttachment(blob)
+
+    return {
+      displaySrc,
+      fileBinary,
+      type: contentType,
+      size: blob.size,
+    }
+  } catch (err: any) {
+    throw new Error(err?.message || 'Could not download file.')
   }
 }
 
@@ -329,13 +357,15 @@ export function useOpenUrlWeb() {
 
 function CommentDocContentProvider({
   handleFileAttachment,
+  importWebFile,
   children,
 }: {
   children: React.ReactNode | JSX.Element
   // TODO: specify return type
   handleFileAttachment: (
-    file: File,
+    file: Blob,
   ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
+  importWebFile: any
   comment?: boolean
   // siteHost: string | undefined
   // id: UnpackedHypermediaId
@@ -360,6 +390,7 @@ function CommentDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
+      importWebFile={importWebFile}
       disableEmbedClick
       // entityId={id}
       // supportDocuments={supportDocuments}
