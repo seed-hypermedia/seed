@@ -141,7 +141,7 @@ export function SearchInput({
               toast.error('Failed to open recent: ' + id + ' ' + name)
               return
             } else {
-              onSelect({id: id})
+              onSelect({id: id, route: appRouteOfId(id)})
               setTimeout(() => onClose?.(), 100)
               return
             }
