@@ -32,7 +32,6 @@ export function CommentReplies({
           <WebDocContentProvider
             key={comment.id}
             originHomeId={homeId}
-            id={docId}
             siteHost={siteHost}
             comment={true}
           >

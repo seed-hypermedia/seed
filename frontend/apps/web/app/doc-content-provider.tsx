@@ -28,7 +28,7 @@ export function WebDocContentProvider({
   onCitationClick,
 }: {
   siteHost: string | undefined
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId | undefined
   originHomeId: UnpackedHypermediaId
   children: React.ReactNode | JSX.Element
   supportDocuments?: HMEntityContent[]
@@ -55,31 +55,35 @@ export function WebDocContentProvider({
       entityId={id}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
-      onCopyBlock={(blockId, blockRange) => {
-        const blockHref = getHref(
-          originHomeId,
-          {
-            ...id,
-            hostname: siteHost || null,
-            blockRange: blockRange || null,
-            blockRef: blockId,
-          },
-          id.version || undefined,
-        )
-        window.navigator.clipboard.writeText(blockHref)
-        navigate(
-          window.location.pathname +
-            window.location.search +
-            `#${blockId}${
-              blockRange
-                ? 'start' in blockRange && 'end' in blockRange
-                  ? `[${blockRange.start}:${blockRange.end}]`
-                  : ''
-                : ''
-            }`,
-          {replace: true, preventScrollReset: true},
-        )
-      }}
+      onCopyBlock={
+        id
+          ? (blockId, blockRange) => {
+              const blockHref = getHref(
+                originHomeId,
+                {
+                  ...id,
+                  hostname: siteHost || null,
+                  blockRange: blockRange || null,
+                  blockRef: blockId,
+                },
+                id.version || undefined,
+              )
+              window.navigator.clipboard.writeText(blockHref)
+              navigate(
+                window.location.pathname +
+                  window.location.search +
+                  `#${blockId}${
+                    blockRange
+                      ? 'start' in blockRange && 'end' in blockRange
+                        ? `[${blockRange.start}:${blockRange.end}]`
+                        : ''
+                      : ''
+                  }`,
+                {replace: true, preventScrollReset: true},
+              )
+            }
+          : null
+      }
       onCitationClick={onCitationClick}
       routeParams={routeParams}
       textUnit={18}
