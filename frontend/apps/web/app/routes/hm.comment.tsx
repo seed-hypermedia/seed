@@ -16,7 +16,16 @@ export default function CreateComment() {
   const {enableWebSigning} = useLoaderData<typeof loader>()
   const [params] = useSearchParams()
   const targetStr = params.get('target')
-  const targetDocId = targetStr ? unpackHmId(`hm://${targetStr}`) : undefined
+  const targetVersion = params.get('targetVersion')
+  const targetDocIdBare = targetStr
+    ? unpackHmId(`hm://${targetStr}`)
+    : undefined
+  const targetDocId = targetDocIdBare
+    ? {
+        ...targetDocIdBare,
+        version: targetVersion,
+      }
+    : undefined
   const replyCommentId = params.get('reply')
   const rootReplyCommentId = params.get('rootReply')
   console.log({replyCommentId, rootReplyCommentId, targetDocId})

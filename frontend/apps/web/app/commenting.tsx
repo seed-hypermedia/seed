@@ -50,15 +50,18 @@ export type WebCommentingProps = {
 }
 
 export default function WebCommenting(props: WebCommentingProps) {
+  console.log('WebCommenting', props)
   if (!props.enableWebSigning) {
     return (
       <Button
         onPress={() => {
           const url = `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment?target=${
             props.docId.uid
-          }${hmIdPathToEntityQueryPath(props.docId.path)}&reply=${
-            props.replyCommentId || ''
-          }&rootReply=${props.rootReplyCommentId || ''}`
+          }${hmIdPathToEntityQueryPath(props.docId.path)}&targetVersion=${
+            props.docId.version
+          }&reply=${props.replyCommentId || ''}&rootReply=${
+            props.rootReplyCommentId || ''
+          }`
           console.log('Redirect to ' + SITE_IDENTITY_DEFAULT_ORIGIN, url)
           window.open(url, '_blank')
         }}
