@@ -38,7 +38,7 @@ import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useState} from 'react'
-import {ScrollView, Separator, View} from 'tamagui'
+import {Separator, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {OpenCommentPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
@@ -437,25 +437,52 @@ export function DocumentPage(props: SiteDocumentPayload) {
           </YStack>
           {panel ? (
             <YStack
-              position="absolute"
-              right={0}
-              top={0}
-              bottom={0}
-              left={0}
-              zIndex="$zIndex.7"
-              f={1}
-              w="100%"
-              h="100vh"
+              $sm={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                left: 0,
+                zIndex: '$zIndex.7',
+              }}
+              $md={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                left: 0,
+                zIndex: '$zIndex.7',
+              }}
+              // position="absolute"
+              // right={0}
+              // top={0}
+              // bottom={0}
+              // left={0}
+              // zIndex="$zIndex.7"
+              // f={1}
+              // w="100%"
+              // h="100%"
               bg={isDark ? '$background' : '$backgroundStrong'}
               $gtMd={{
-                borderLeftWidth: 1,
-                borderLeftColor: '$color7',
-                position: 'relative',
-                right: 'auto',
-                top: 'auto',
-                bottom: 'auto',
-                left: 'auto',
                 maxWidth: '25vw',
+                borderLeftWidth: 1,
+                borderBottomWidth: 1,
+                borderLeftColor: '$color7',
+                borderBottomColor: '$color7',
+                borderBottomLeftRadius: '$2',
+                position: 'relative',
+                minHeight: '100%',
+                top: 'unset',
+                bottom: 'unset',
+                left: 'unset',
+                right: 'unset',
+
+                // position: 'sticky',
+                // height: 'calc(100vh - 56px)',
+                // right: 0,
+                // top: 56,
+                // bottom: 0,
+                // left: undefined,
               }}
             >
               <XStack
@@ -464,7 +491,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 alignItems="center"
                 position="absolute"
                 top={0}
-                right={0}
+                right={12}
+                $gtMd={{
+                  right: 0,
+                }}
                 zIndex="$zIndex.2"
               >
                 <View flex={1} />
@@ -479,7 +509,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   />
                 </Tooltip>
               </XStack>
-              <ScrollView f={1}>{panel}</ScrollView>
+
+              {panel}
             </YStack>
           ) : null}
         </XStack>
@@ -848,19 +879,21 @@ function WebCitationsPanel({
           Citations
         </SizableText>
       </XStack>
-      {blockId ? (
-        <AccessoryBackButton
-          onPress={() => setBlockId(null)}
-          label={`Block Citations`}
-        />
-      ) : null}
-      {filteredCitations ? (
-        filteredCitations.map((citation) => {
-          return <DocumentCitationEntry citation={citation} />
-        })
-      ) : (
-        <Spinner />
-      )}
+      <YStack gap="$2" padding="$3">
+        {blockId ? (
+          <AccessoryBackButton
+            onPress={() => setBlockId(null)}
+            label={`Block Citations`}
+          />
+        ) : null}
+        {filteredCitations ? (
+          filteredCitations.map((citation) => {
+            return <DocumentCitationEntry citation={citation} />
+          })
+        ) : (
+          <Spinner />
+        )}
+      </YStack>
     </YStack>
   )
 }

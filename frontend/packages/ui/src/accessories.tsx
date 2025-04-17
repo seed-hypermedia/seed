@@ -11,16 +11,16 @@ export function AccessoryBackButton({
   label?: string
 }) {
   return (
-    <AccessoryBackButtonButton icon={ChevronLeft} onPress={onPress}>
+    <StyledAccessoryBackButton icon={ChevronLeft} onPress={onPress}>
       {label || 'All Comments'}
-    </AccessoryBackButtonButton>
+    </StyledAccessoryBackButton>
   )
 }
 
-const AccessoryBackButtonButton = styled(Button, {
+const StyledAccessoryBackButton = styled(Button, {
   chromeless: true,
   size: '$3',
-  name: 'AccessoryBackButtonButton',
+  name: 'StyledAccessoryBackButton',
   color: '$color10',
   borderRadius: '$4',
   paddingHorizontal: '$2',

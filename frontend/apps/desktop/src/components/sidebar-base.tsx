@@ -129,6 +129,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onMouseEnter={ctx.onMenuHover}
           onMouseLeave={ctx.onMenuHoverLeave}
           opacity={isVisible ? 1 : 0}
+          h="100%"
         >
           <YStack
             flex={1}
