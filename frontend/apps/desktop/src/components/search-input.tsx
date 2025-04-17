@@ -9,6 +9,7 @@ import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {NavRoute} from '@shm/shared/routes'
 import {
   hmId,
@@ -274,8 +275,10 @@ function useURLHandler() {
     if (experiments.data?.webImporting) {
       const webResult = await webQuery.mutateAsync({webUrl: httpSearch})
       if (webResult.hypermedia) {
-        const unpacked = await resolveHmUrl(webResult.hypermedia.url)
-        if (unpacked?.navRoute) return unpacked.navRoute
+        const res = await resolveHypermediaUrl(webResult.hypermedia.url)
+        const resId = res?.id ? unpackHmId(res.id) : null
+        const navRoute = resId ? appRouteOfId(resId) : null
+        if (navRoute) return navRoute
         console.log(
           'Failed to open this hypermedia content',
           webResult.hypermedia,
@@ -308,10 +311,11 @@ function useURLHandler() {
           blockRef: fragment?.blockId,
         })
       if (!fullHmId) throw new Error('Failed to fetch web link')
-      const queried = await resolveHmUrl(fullHmId)
-      if (queried?.navRoute) {
-        return queried?.navRoute
-      }
+      const navRoute = appRouteOfId(fullHmId)
+      if (navRoute) return navRoute
+      console.log('Failed to open this hypermedia content', fullHmId)
+      toast.error('Failed to open this hypermedia content')
+      return null
     }
     throw new Error('Failed to fetch web link')
   }

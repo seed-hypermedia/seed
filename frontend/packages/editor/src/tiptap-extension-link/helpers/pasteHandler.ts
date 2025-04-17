@@ -1,6 +1,5 @@
 import {getLinkMenuItems} from '@/blocknote/core/extensions/LinkMenu/defaultLinkMenuItems'
 import {linkMenuPluginKey} from '@/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
-import {resolveHypermediaUrl} from '@/link-utils'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
@@ -9,6 +8,7 @@ import {
   HMDocumentSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
   extractBlockRefOfUrl,
   hmId,
