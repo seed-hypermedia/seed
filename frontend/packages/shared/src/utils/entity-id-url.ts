@@ -1,13 +1,21 @@
-import {UnpackedHypermediaId} from '..'
+import {z} from 'zod'
+import {
+  ExactBlockRange,
+  ExpandedBlockRange,
+  ParsedFragment,
+  UnpackedHypermediaId,
+} from '..'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
 import {StateStream} from './stream'
 
 export const HYPERMEDIA_ENTITY_TYPES = {
   d: 'Document', // the default type
-  comment: 'Comment',
+  c: 'Comment',
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
+
+export const HMIDTypeSchema = z.union([z.literal('d'), z.literal('c')])
 
 export function createSiteUrl({
   path,
@@ -16,26 +24,23 @@ export function createSiteUrl({
   latest,
   blockRef,
   blockRange,
+  targetDocUid,
+  targetDocPath,
 }: {
   path: string[] | null | undefined
   hostname: string
   version?: string | null | undefined
   latest?: boolean
   blockRef?: string | null | undefined
-  blockRange?: BlockRange | ExpandedBlockRange | null
+  blockRange?: ExactBlockRange | ExpandedBlockRange | null
+  targetDocUid?: string | null
+  targetDocPath?: string[] | null
 }) {
   let res = `${hostname}/`
   if (path && path.length) {
     res += path.join('/')
   }
-  const query: Record<string, string | null> = {}
-  if (version) {
-    query.v = version
-  }
-  if (latest) {
-    query.l = null
-  }
-  res += serializeQueryString(query)
+  res += getHMQueryString({latest, version, targetDocUid, targetDocPath})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -43,25 +48,26 @@ export function createSiteUrl({
 }
 
 export function createHMUrl({
+  type,
   uid,
   path,
   version,
   latest,
   blockRef,
   blockRange,
+  targetDocUid,
+  targetDocPath,
 }: UnpackedHypermediaId) {
-  let res = `hm://${uid}`
+  let res = 'hm://'
+  if (type === 'd') {
+    res += `${uid}`
+  } else {
+    res += `${type}/${uid}`
+  }
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  const query: Record<string, string | null> = {}
-  if (version) {
-    query.v = version
-  }
-  if (latest) {
-    query.l = null
-  }
-  res += serializeQueryString(query)
+  res += getHMQueryString({version, latest, targetDocUid, targetDocPath})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -80,16 +86,18 @@ export function createWebHMUrl(
     latest,
     path,
     originHomeId,
-    params,
+    targetDocUid,
+    targetDocPath,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
-    blockRange?: BlockRange | ExpandedBlockRange | null
+    blockRange?: ExactBlockRange | ExpandedBlockRange | null
     hostname?: string | null | undefined
     latest?: boolean | null
     path?: string[] | null
     originHomeId?: UnpackedHypermediaId
-    params?: Record<string, string | null>
+    targetDocUid?: string | null
+    targetDocPath?: string[] | null
   } = {},
 ) {
   let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
@@ -106,6 +114,24 @@ export function createWebHMUrl(
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
+  res += getHMQueryString({latest, version, targetDocUid, targetDocPath})
+  if (blockRef) {
+    res += `#${blockRef}${serializeBlockRange(blockRange)}`
+  }
+  return res
+}
+
+function getHMQueryString({
+  version,
+  latest,
+  targetDocUid,
+  targetDocPath,
+}: {
+  version?: string | null
+  latest?: boolean | null
+  targetDocUid?: string | null
+  targetDocPath?: string[] | null
+}) {
   const query: Record<string, string | null> = {}
   if (version) {
     query.v = version
@@ -113,16 +139,15 @@ export function createWebHMUrl(
   if (latest) {
     query.l = null
   }
-  if (params) {
-    Object.entries(params).forEach(([paramKey, paramVal]) => {
-      query[paramKey] = paramVal
-    })
+  if (targetDocUid) {
+    query.target = targetDocUid
+    if (targetDocPath) {
+      targetDocPath.forEach((pathTerm) => {
+        query.target += `/${pathTerm}`
+      })
+    }
   }
-  res += serializeQueryString(query)
-  if (blockRef) {
-    res += `#${blockRef}${serializeBlockRange(blockRange)}`
-  }
-  return res
+  return serializeQueryString(query)
 }
 
 function packBaseId(
@@ -136,17 +161,25 @@ function packBaseId(
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {type, path, version, latest, blockRef, blockRange, uid} = hmId
+  const {
+    type,
+    path,
+    version,
+    latest,
+    blockRef,
+    blockRange,
+    uid,
+    targetDocUid,
+    targetDocPath,
+  } = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(type, uid, path)
-  const query: Record<string, string | null> = {}
-  if (version) {
-    query.v = version
-  }
-  if (latest) {
-    query.l = null
-  }
-  responseUrl += serializeQueryString(query)
+  responseUrl += getHMQueryString({
+    version,
+    latest,
+    targetDocUid,
+    targetDocPath,
+  })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -162,6 +195,8 @@ type ParsedURL = {
   path: string[]
   query: Record<string, string>
   fragment: string | null
+  targetDocUid: string | null
+  targetDocPath: string[] | null
 }
 
 export function parseCustomURL(url: string): ParsedURL | null {
@@ -172,11 +207,22 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [path, queryString] = pathAndQuery.split('?')
   const query = new URLSearchParams(queryString)
   const queryObject = Object.fromEntries(query.entries())
+  let targetDocUid = null
+  let targetDocPath = null
+  if (queryObject.target) {
+    const target = queryObject.target.split('/')
+    if (target[0]) {
+      targetDocUid = target[0]
+      targetDocPath = target.slice(1)
+    }
+  }
   return {
     scheme,
     path: path.split('/'),
     query: queryObject,
     fragment,
+    targetDocUid,
+    targetDocPath,
   }
 }
 
@@ -203,6 +249,8 @@ export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
     hostname: id.hostname,
     scheme: id.scheme,
     latest: id.latest,
+    targetDocUid: id.targetDocUid,
+    targetDocPath: id.targetDocPath,
   }
 }
 
@@ -212,10 +260,12 @@ export function hmId(
   opts: {
     version?: string | null
     blockRef?: string | null
-    blockRange?: BlockRange | ExpandedBlockRange | null
+    blockRange?: ExactBlockRange | ExpandedBlockRange | null
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
+    targetDocUid?: string | null
+    targetDocPath?: string[] | null
   } = {},
 ): UnpackedHypermediaId {
   if (!uid) throw new Error('uid is required')
@@ -230,6 +280,8 @@ export function hmId(
     blockRange: opts.blockRange || null,
     hostname: opts.hostname || null,
     scheme: null,
+    targetDocUid: opts.targetDocUid || null,
+    targetDocPath: opts.targetDocPath || null,
   }
 }
 
@@ -290,6 +342,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     hostname,
     latest,
     scheme: parsed.scheme,
+    targetDocUid: parsed.targetDocUid || null,
+    targetDocPath: parsed.targetDocPath || null,
   }
 }
 
@@ -336,6 +390,8 @@ export function normalizeHmId(
           blockRange: unpacked.blockRange,
           blockRef: unpacked.blockRef,
           version: unpacked.version,
+          targetDocUid: unpacked.targetDocUid,
+          targetDocPath: unpacked.targetDocPath,
         }),
       )
     }
@@ -350,22 +406,19 @@ export function createHmDocLink_DEPRECATED({
   blockRef,
   blockRange,
   latest,
+  targetDocUid,
+  targetDocPath,
 }: {
   documentId: string
   version?: string | null
   blockRef?: string | null
-  blockRange?: BlockRange | ExpandedBlockRange | null
+  blockRange?: ExactBlockRange | ExpandedBlockRange | null
   latest?: boolean
+  targetDocUid?: string | null
+  targetDocPath?: string[] | null
 }): string {
   let res = documentId
-  const query: Record<string, string | null> = {}
-  if (version) {
-    query.v = version
-  }
-  if (latest) {
-    query.l = null
-  }
-  res += serializeQueryString(query)
+  res += getHMQueryString({version, latest, targetDocUid, targetDocPath})
   if (blockRef) {
     res += `${
       !blockRef.startsWith('#') ? '#' : ''
@@ -390,7 +443,7 @@ export function hmIdWithVersion(
   id: string | null | undefined,
   version: string | null | undefined,
   blockRef?: string | null | undefined,
-  blockRange?: BlockRange | ExpandedBlockRange | null,
+  blockRange?: ExactBlockRange | ExpandedBlockRange | null,
 ) {
   if (!id) return null
   const unpacked = unpackHmId(id)
@@ -419,7 +472,7 @@ export function extractBlockRefOfUrl(
 
 export function extractBlockRangeOfUrl(
   url: string | null | undefined,
-): BlockRange | ExpandedBlockRange | null {
+): ExactBlockRange | ExpandedBlockRange | null {
   const fragment = url?.match(/#(.*)$/)?.[1] || null
 
   if (fragment) {
@@ -435,19 +488,6 @@ export function extractBlockRangeOfUrl(
   }
 }
 
-export type ParsedFragment =
-  | {blockId: string}
-  | (BlockRange & {blockId: string})
-  | (ExpandedBlockRange & {blockId: string})
-
-export type BlockRange = {
-  start: number
-  end: number
-}
-export type ExpandedBlockRange = {
-  expanded: boolean
-}
-
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
   const regex =
@@ -456,6 +496,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
   if (match && match.groups) {
     if (match.groups.expanded == '+') {
       return {
+        type: 'block',
         blockId: match.groups.blockId,
         expanded: true,
       }
@@ -464,24 +505,29 @@ export function parseFragment(input: string | null): ParsedFragment | null {
       typeof match.groups.rangeEnd != 'undefined'
     ) {
       return {
+        type: 'block-range',
         blockId: match.groups.blockId,
         start: parseInt(match.groups.rangeStart || '0'),
         end: parseInt(match.groups.rangeEnd || '0'),
       }
     } else {
       return {
+        type: 'block',
         blockId: match.groups.blockId,
+        expanded: false,
       }
     }
   } else {
     return {
+      type: 'block',
       blockId: input,
+      expanded: false,
     }
   }
 }
 
 export function serializeBlockRange(
-  range: BlockRange | ExpandedBlockRange | null | undefined,
+  range: ExactBlockRange | ExpandedBlockRange | null | undefined,
 ): string {
   let res = ''
   if (range) {

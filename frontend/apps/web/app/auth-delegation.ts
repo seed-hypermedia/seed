@@ -17,7 +17,8 @@ let delegatedIdentityOriginsState: string[] = []
 const delegatedIdentityOriginHandlers = new Set<() => void>()
 
 export const delegatedIdentityOriginStore = {
-  get: () => delegatedIdentityOriginsState,
+  // get: () => delegatedIdentityOriginsState,
+  get: () => [],
   add: async (origin: string) => {
     await addDelegatedIdentityOrigin(origin)
     delegatedIdentityOriginsState.push(origin)

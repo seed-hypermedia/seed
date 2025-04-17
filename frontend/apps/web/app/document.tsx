@@ -1,31 +1,29 @@
-import {useActivity, useDiscussion} from '@/models'
+import {useActivity, useCitations, useDocumentChanges} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
-  BlockRange,
   formattedDateMedium,
   getDocumentTitle,
+  HMCitationsPayload,
   HMComment,
   HMDocument,
-  HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
-  HMQueryResult,
   hostnameStripProtocol,
+  pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
+import {AccessoryBackButton} from '@shm/ui/accessories'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
+import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Container} from '@shm/ui/container'
 import {CommentGroup} from '@shm/ui/discussion'
-import {
-  BlocksContent,
-  DocContent,
-  DocContentProvider,
-} from '@shm/ui/document-content'
+import {BlocksContent, DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
+import {BlockQuote, HistoryIcon, IconComponent} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocDirectory,
@@ -33,12 +31,18 @@ import {
   DocumentOutline,
 } from '@shm/ui/navigation'
 import {ActivitySection} from '@shm/ui/page-components'
-import {ChevronUp} from '@tamagui/lucide-icons'
+import {Spinner} from '@shm/ui/spinner'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useIsDark} from '@shm/ui/use-is-dark'
+import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useState} from 'react'
+import {Separator, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
-import {getHref} from './href'
+import {OpenCommentPanel} from './comment-panel'
+import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
+import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent, getRecents} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
@@ -47,7 +51,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -162,7 +165,17 @@ export const documentPageMeta: MetaFunction = ({
   return meta
 }
 
+type WebAccessory =
+  | {
+      type: 'citations'
+      blockId: string | null
+    }
+  | {
+      type: 'comments'
+    }
+
 export function DocumentPage(props: SiteDocumentPayload) {
+  const isDark = useIsDark()
   const {
     document,
     originHomeId,
@@ -175,7 +188,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
     enableWebSigning,
     enableSiteIdentity,
     origin,
+    comment,
   } = props
+
   useEffect(() => {
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '').then(() => {
@@ -184,6 +199,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       })
     })
   }, [id, document?.metadata?.name])
+
   if (!id) return <NotFoundPage {...props} />
   if (!document)
     return (
@@ -234,6 +250,15 @@ export function DocumentPage(props: SiteDocumentPayload) {
     return {blockRef, blockRange}
   }, [location.hash])
 
+  const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
+    if (comment) return {type: 'comments'}
+    return null
+  })
+
+  useEffect(() => {
+    if (comment) setActivePanel({type: 'comments'})
+  }, [comment])
+
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
       replace: true,
@@ -251,7 +276,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars,
     elementRef,
     showCollapsed,
-    contentMaxWidth,
     wrapperProps,
     sidebarProps,
     mainContentProps,
@@ -260,112 +284,238 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
+  const citations = useCitations(id)
+
+  let panel = null
+
+  const onCitationClick = (blockId?: string | null) => {
+    console.log('~ onCitationClick', blockId)
+    setActivePanel({type: 'citations', blockId: blockId || null})
+  }
+
+  if (activePanel?.type == 'comments' && comment) {
+    panel = (
+      <OpenCommentPanel
+        comment={comment}
+        docId={id}
+        siteHost={siteHost}
+        enableWebSigning={enableWebSigning}
+      />
+    )
+    // } else if (blockRef) {
+    //   panel = <BlockCommentsPanel blockRef={blockRef} docId={id} />
+  }
+
+  if (activePanel?.type == 'citations') {
+    panel = (
+      <WebCitationsPanel
+        citations={citations.data}
+        blockId={activePanel.blockId}
+        setBlockId={(blockId) => setActivePanel({type: 'citations', blockId})}
+      />
+    )
+  }
+
   return (
     <WebSiteProvider
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
     >
-      <YStack>
-        <WebSiteHeader
-          homeMetadata={homeMetadata}
-          originHomeId={originHomeId}
-          docId={id}
-          document={document}
-          supportDocuments={supportDocuments}
-          supportQueries={supportQueries}
-          origin={origin}
-        >
-          <DocumentCover cover={document.metadata.cover} id={id} />
-          <YStack w="100%" ref={elementRef} f={1}>
-            <XStack {...wrapperProps}>
-              {showSidebars ? (
-                <YStack
-                  marginTop={document.metadata?.cover ? 152 : 220}
-                  {...sidebarProps}
-                >
+      <WebSiteHeader
+        homeMetadata={homeMetadata}
+        originHomeId={originHomeId}
+        docId={id}
+        document={document}
+        supportDocuments={supportDocuments}
+        supportQueries={supportQueries}
+        origin={origin}
+      >
+        <XStack w="100%">
+          <YStack f={1}>
+            <DocInteractionsSummary
+              docId={id}
+              citations={citations.data}
+              onCitationsOpen={() =>
+                setActivePanel({type: 'citations', blockId: null})
+              }
+              onCommentsOpen={
+                comment ? () => setActivePanel({type: 'comments'}) : undefined
+              }
+              // onVersionOpen={() => {}}
+            />
+            <DocumentCover cover={document.metadata.cover} id={id} />
+            <YStack w="100%" ref={elementRef} f={1}>
+              <XStack {...wrapperProps}>
+                {showSidebars ? (
                   <YStack
-                    className="hide-scrollbar"
-                    overflow="scroll"
-                    height="100%"
-                    // paddingTop={32}
-                    paddingBottom={32}
+                    marginTop={document.metadata?.cover ? 152 : 220}
+                    {...sidebarProps}
                   >
-                    <DocNavigationWrapper showCollapsed={showCollapsed}>
-                      <DocumentOutline
-                        onActivateBlock={onActivateBlock}
-                        document={document}
-                        id={id}
-                        // onCloseNav={() => {}}
-                        supportDocuments={props.supportDocuments}
-                        activeBlockId={id.blockRef}
-                      />
-                      <DocDirectory
-                        // supportDocuments={props.supportDocuments}
-                        supportQueries={props.supportQueries}
-                        // documentMetadata={document.metadata}
-                        id={id}
-                      />
-                    </DocNavigationWrapper>
+                    <YStack
+                      className="hide-scrollbar"
+                      overflow="scroll"
+                      height="100%"
+                      // paddingTop={32}
+                      paddingBottom={32}
+                    >
+                      <DocNavigationWrapper showCollapsed={showCollapsed}>
+                        <DocumentOutline
+                          onActivateBlock={onActivateBlock}
+                          document={document}
+                          id={id}
+                          // onCloseNav={() => {}}
+                          supportDocuments={props.supportDocuments}
+                          activeBlockId={id.blockRef}
+                        />
+                        <DocDirectory
+                          // supportDocuments={props.supportDocuments}
+                          supportQueries={props.supportQueries}
+                          // documentMetadata={document.metadata}
+                          id={id}
+                        />
+                      </DocNavigationWrapper>
+                    </YStack>
                   </YStack>
-                </YStack>
-              ) : null}
-              <YStack {...mainContentProps}>
-                {isHomeDoc ? null : (
-                  <PageHeader
+                ) : null}
+                <YStack {...mainContentProps}>
+                  {isHomeDoc ? null : (
+                    <PageHeader
+                      originHomeId={originHomeId}
+                      breadcrumbs={props.breadcrumbs}
+                      docMetadata={document.metadata}
+                      docId={id}
+                      authors={document.authors.map(
+                        (author) => accountsMetadata[author],
+                      )}
+                      updateTime={document.updateTime}
+                    />
+                  )}
+                  <WebDocContentProvider
+                    onCitationClick={onCitationClick}
                     originHomeId={originHomeId}
-                    breadcrumbs={props.breadcrumbs}
-                    docMetadata={document.metadata}
-                    docId={id}
-                    authors={document.authors.map(
-                      (author) => accountsMetadata[author],
-                    )}
-                    updateTime={document.updateTime}
-                  />
-                )}
-                <WebDocContentProvider
-                  originHomeId={originHomeId}
-                  id={{...id, version: document.version}}
-                  siteHost={siteHost}
-                  supportDocuments={supportDocuments}
-                  supportQueries={supportQueries}
-                  routeParams={{
-                    blockRef: blockRef,
-                    blockRange: blockRange,
-                  }}
-                >
-                  <DocContent
-                    document={document}
-                    handleBlockReplace={() => {
-                      // Replace the URL to not include fragment.
-                      replace(
-                        window.location.pathname + window.location.search,
-                        {
-                          replace: true,
-                          preventScrollReset: true,
-                        },
-                      )
-                      return true
+                    id={{...id, version: document.version}}
+                    siteHost={siteHost}
+                    supportDocuments={supportDocuments}
+                    supportQueries={supportQueries}
+                    citations={citations.data}
+                    routeParams={{
+                      blockRef: blockRef,
+                      blockRange: blockRange,
+                    }}
+                  >
+                    <DocContent
+                      document={document}
+                      handleBlockReplace={() => {
+                        // Replace the URL to not include fragment.
+                        replace(
+                          window.location.pathname + window.location.search,
+                          {
+                            replace: true,
+                            preventScrollReset: true,
+                          },
+                        )
+                        return true
+                      }}
+                    />
+                  </WebDocContentProvider>
+                  {document.metadata &&
+                  document.metadata.showActivity === false ? null : (
+                    <DocumentAppendix
+                      id={id}
+                      document={document}
+                      originHomeId={originHomeId}
+                      siteHost={siteHost}
+                      enableWebSigning={enableWebSigning}
+                      enableSiteIdentity={enableSiteIdentity}
+                    />
+                  )}
+                </YStack>
+                {showSidebars ? <YStack {...sidebarProps} /> : null}
+              </XStack>
+            </YStack>
+          </YStack>
+          {panel ? (
+            <YStack
+              $sm={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                left: 0,
+                zIndex: '$zIndex.7',
+              }}
+              $md={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                bottom: 0,
+                left: 0,
+                zIndex: '$zIndex.7',
+              }}
+              // position="absolute"
+              // right={0}
+              // top={0}
+              // bottom={0}
+              // left={0}
+              // zIndex="$zIndex.7"
+              // f={1}
+              // w="100%"
+              // h="100%"
+              bg={isDark ? '$background' : '$backgroundStrong'}
+              $gtMd={{
+                maxWidth: '25vw',
+                borderLeftWidth: 1,
+                borderBottomWidth: 1,
+                borderLeftColor: '$color7',
+                borderBottomColor: '$color7',
+                borderBottomLeftRadius: '$2',
+                position: 'relative',
+                minHeight: '100%',
+                top: 'unset',
+                bottom: 'unset',
+                left: 'unset',
+                right: 'unset',
+
+                // position: 'sticky',
+                // height: 'calc(100vh - 56px)',
+                // right: 0,
+                // top: 56,
+                // bottom: 0,
+                // left: undefined,
+              }}
+            >
+              <XStack
+                paddingHorizontal="$2"
+                paddingVertical="$2"
+                alignItems="center"
+                position="absolute"
+                top={0}
+                right={12}
+                $gtMd={{
+                  right: 0,
+                }}
+                zIndex="$zIndex.2"
+              >
+                <View flex={1} />
+                <Tooltip content="Close Panel">
+                  <Button
+                    chromeless
+                    size="$2"
+                    icon={<X size={20} />}
+                    onPress={() => {
+                      setActivePanel(null)
                     }}
                   />
-                </WebDocContentProvider>
-                {document.metadata &&
-                document.metadata.showActivity === false ? null : (
-                  <DocumentAppendix
-                    id={id}
-                    document={document}
-                    originHomeId={originHomeId}
-                    siteHost={siteHost}
-                    enableWebSigning={enableWebSigning}
-                    enableSiteIdentity={enableSiteIdentity}
-                  />
-                )}
-              </YStack>
-              {showSidebars ? <YStack {...sidebarProps} /> : null}
-            </XStack>
-          </YStack>
-        </WebSiteHeader>
-      </YStack>
+                </Tooltip>
+              </XStack>
+
+              {panel}
+            </YStack>
+          ) : null}
+        </XStack>
+      </WebSiteHeader>
+
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </WebSiteProvider>
   )
@@ -468,78 +618,6 @@ function DocumentDiscoveryPage({
       </YStack>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </YStack>
-  )
-}
-
-function WebDocContentProvider({
-  children,
-  id,
-  originHomeId,
-  siteHost,
-  supportDocuments,
-  supportQueries,
-  routeParams,
-  comment,
-}: {
-  siteHost: string | undefined
-  id: UnpackedHypermediaId
-  originHomeId: UnpackedHypermediaId
-  children: React.ReactNode | JSX.Element
-  supportDocuments?: HMEntityContent[]
-  supportQueries?: HMQueryResult[]
-  routeParams?: {
-    documentId?: string
-    version?: string
-    blockRef?: string
-    blockRange?: BlockRange
-  }
-  comment?: boolean
-}) {
-  const navigate = useNavigate()
-  return (
-    <DocContentProvider
-      entityComponents={{
-        Document: EmbedDocument,
-        Comment: () => null,
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-      }}
-      entityId={id}
-      supportDocuments={supportDocuments}
-      supportQueries={supportQueries}
-      onCopyBlock={(blockId, blockRange) => {
-        const blockHref = getHref(
-          originHomeId,
-          {
-            ...id,
-            hostname: siteHost || null,
-            blockRange: blockRange || null,
-            blockRef: blockId,
-          },
-          id.version || undefined,
-        )
-        window.navigator.clipboard.writeText(blockHref)
-        navigate(
-          window.location.pathname +
-            window.location.search +
-            `#${blockId}${
-              blockRange
-                ? 'start' in blockRange && 'end' in blockRange
-                  ? `[${blockRange.start}:${blockRange.end}]`
-                  : ''
-                : ''
-            }`,
-          {replace: true, preventScrollReset: true},
-        )
-      }}
-      routeParams={routeParams}
-      textUnit={18}
-      layoutUnit={24}
-      debug={false}
-      comment={comment}
-    >
-      {children}
-    </DocContentProvider>
   )
 }
 
@@ -696,97 +774,126 @@ function DocumentActivity({
   )
 }
 
-function CommentReplies({
+const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
+
+function _DocInteractionsSummary({
   docId,
-  homeId,
-  siteHost,
-  replyCommentId,
-  rootReplyCommentId,
-  enableReplies = true,
-  enableWebSigning = false,
+  citations,
+  onCitationsOpen,
+  onCommentsOpen,
+  onVersionOpen,
 }: {
   docId: UnpackedHypermediaId
-  homeId?: UnpackedHypermediaId
-  siteHost?: string | undefined
-  replyCommentId: string
-  rootReplyCommentId: string | null
-  enableReplies?: boolean
-  enableWebSigning?: boolean
+  citations?: HMCitationsPayload
+  onCitationsOpen?: () => void
+  onCommentsOpen?: () => void
+  onVersionOpen?: () => void
 }) {
-  const discussion = useDiscussion(docId, replyCommentId)
-  const renderCommentContent = useCallback(
-    (comment: HMComment) => {
-      return (
-        homeId && (
-          <WebDocContentProvider
-            key={comment.id}
-            originHomeId={homeId}
-            id={docId}
-            siteHost={siteHost}
-            comment={true}
-          >
-            <BlocksContent blocks={comment.content} parentBlockId={null} />
-          </WebDocContentProvider>
-        )
-      )
-    },
-    [homeId],
-  )
-  if (!discussion.data) return null
-  const {commentGroups, commentAuthors} = discussion.data
-  if (!commentGroups) return null
+  const changes = useDocumentChanges(docId)
+
   return (
-    <YStack paddingLeft={22}>
-      {commentGroups.map((commentGroup) => {
-        return (
-          <CommentGroup
-            isNested
-            key={commentGroup.id}
-            docId={docId}
-            authors={commentAuthors}
-            renderCommentContent={renderCommentContent}
-            commentGroup={commentGroup}
-            isLastGroup={commentGroup === commentGroups.at(-1)}
-            CommentReplies={CommentReplies}
-            homeId={homeId}
-            siteHost={siteHost}
-            enableReplies={enableReplies}
-            RepliesEditor={enableReplies ? CommentRepliesEditor : undefined}
-            rootReplyCommentId={rootReplyCommentId}
-            enableWebSigning={enableWebSigning}
-          />
-        )
-      })}
-    </YStack>
+    <XStack
+      position="absolute"
+      top={0}
+      right={8}
+      padding="$4"
+      gap="$1.5"
+      zIndex="$zIndex.7"
+    >
+      {onCitationsOpen && (
+        <InteractionSummaryItem
+          label="citation"
+          count={citations?.length || 0}
+          onPress={() => {
+            console.log('~ onCitationsOpen')
+            onCitationsOpen()
+          }}
+          icon={BlockQuote}
+        />
+      )}
+      <Separator />
+      {onCommentsOpen && (
+        <InteractionSummaryItem
+          label="comment"
+          count={0} // TODO: add comments citations
+          onPress={onCommentsOpen}
+          icon={MessageSquare}
+        />
+      )}
+      <Separator />
+      {onVersionOpen && (
+        <InteractionSummaryItem
+          label="version"
+          count={changes.data?.length || 0}
+          onPress={() => {
+            console.log('~ onVersionOpen')
+            onVersionOpen()
+          }}
+          icon={HistoryIcon}
+        />
+      )}
+    </XStack>
   )
 }
 
-function CommentRepliesEditor({
-  isReplying,
-  docId,
-  replyCommentId,
-  rootReplyCommentId,
-  onDiscardDraft,
-  onReplied,
-  enableWebSigning,
+function InteractionSummaryItem({
+  label,
+  count,
+  onPress,
+  icon: Icon,
 }: {
-  isReplying: boolean
-  docId: UnpackedHypermediaId
-  replyCommentId: string
-  rootReplyCommentId: string
-  onDiscardDraft: () => void
-  onReplied: () => void
-  enableWebSigning: boolean
+  label: string
+  count: number
+  onPress: () => void
+  icon: IconComponent
 }) {
-  if (!isReplying) return null
   return (
-    <WebCommenting
-      docId={docId}
-      replyCommentId={replyCommentId}
-      rootReplyCommentId={rootReplyCommentId}
-      onDiscardDraft={onDiscardDraft}
-      onReplied={onReplied}
-      enableWebSigning={enableWebSigning}
-    />
+    <Tooltip content={`${count} ${pluralS(count, label)}`}>
+      <Button onPress={onPress} size="$1" chromeless icon={Icon}>
+        <SizableText size="$1">{count}</SizableText>
+      </Button>
+    </Tooltip>
+  )
+}
+
+function WebCitationsPanel({
+  citations,
+  blockId,
+  setBlockId,
+}: {
+  citations?: HMCitationsPayload
+  blockId: string | null
+  setBlockId: (blockId: string | null) => void
+}) {
+  const filteredCitations = useMemo(() => {
+    if (!blockId || !citations) return citations
+    return citations?.filter(
+      (citation) =>
+        citation.targetFragment && citation.targetFragment?.blockId === blockId,
+    )
+  }, [citations, blockId])
+  return (
+    <YStack>
+      <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
+        <SizableText size="$3" fontWeight="bold">
+          Citations
+        </SizableText>
+      </XStack>
+      <YStack gap="$2" padding="$3">
+        {blockId ? (
+          <AccessoryBackButton
+            onPress={() => setBlockId(null)}
+            label={`Block Citations`}
+          />
+        ) : null}
+        {filteredCitations ? (
+          filteredCitations.map((citation) => {
+            return <DocumentCitationEntry citation={citation} />
+          })
+        ) : (
+          <Spinner />
+        )}
+      </YStack>
+    </YStack>
   )
 }

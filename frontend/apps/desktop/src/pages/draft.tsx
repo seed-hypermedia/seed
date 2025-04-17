@@ -228,6 +228,15 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
+              <code
+                style={{
+                  minHeight: 600,
+                  border: '1px solid red',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {JSON.stringify(data, null, 2)}
+              </code>
             </>
           )}
         </AccessoryLayout>

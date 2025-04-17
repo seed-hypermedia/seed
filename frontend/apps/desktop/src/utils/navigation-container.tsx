@@ -1,9 +1,20 @@
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
+import {dialogBoxShadow} from '@/components/dialog'
+import {useExperiments} from '@/models/experiments'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
-import {DAEMON_FILE_URL} from '@shm/shared'
+import {
+  DAEMON_FILE_URL,
+  DEFAULT_GATEWAY_URL,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {writeableStateStream} from '@shm/shared/utils/stream'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode, useEffect, useMemo} from 'react'
+import {Button, View, XStack} from 'tamagui'
 import {useAppContext, useIPC} from '../app-context'
 import {
   NavAction,
@@ -11,6 +22,7 @@ import {
   NavState,
   navStateReducer,
   setAppNavDispatch,
+  useNavRoute,
 } from './navigation'
 import {AppWindowEvent} from './window-events'
 
@@ -71,6 +83,13 @@ export function NavigationContainer({
     }
   }, [])
 
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const [copyRefContent, onCopyReference] = useCopyReferenceUrl(
+    gwUrl,
+    undefined,
+    navigation,
+  )
+
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
@@ -84,8 +103,47 @@ export function NavigationContainer({
       openUrl={(url: string) => {
         externalOpen(url)
       }}
+      onCopyReference={async (hmId: UnpackedHypermediaId) => {
+        onCopyReference(hmId)
+      }}
     >
-      <NavContextProvider value={navigation}>{children}</NavContextProvider>
+      <NavContextProvider value={navigation}>
+        {children}
+        {copyRefContent}
+        <DevTools />
+      </NavContextProvider>
     </UniversalAppProvider>
+  )
+}
+
+function DevTools() {
+  const {data: experiments} = useExperiments()
+  const route = useNavRoute()
+  const routeDialog = useAppDialog(RouteDialog)
+  return experiments?.developerTools ? (
+    <>
+      <View userSelect="none">
+        <ReactQueryDevtools />
+      </View>
+      <XStack
+        position="absolute"
+        bottom={20}
+        left={60}
+        zIndex={1000}
+        backgroundColor="$color1"
+        boxShadow={dialogBoxShadow}
+      >
+        <Button onPress={() => routeDialog.open(route)}>View Route</Button>
+      </XStack>
+      {routeDialog.content}
+    </>
+  ) : null
+}
+
+function RouteDialog({input}: {input: NavRoute}) {
+  return (
+    <code style={{whiteSpace: 'pre-wrap'}}>
+      {JSON.stringify(input, null, 2)}
+    </code>
   )
 }

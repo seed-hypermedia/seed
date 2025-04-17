@@ -651,6 +651,9 @@ function EditProfileDialog({
       queryClient.invalidateQueries({
         queryKey: [queryKeys.ENTITY, id.id],
       })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.RESOLVED_ENTITY, id.id],
+      })
     },
   })
   return (

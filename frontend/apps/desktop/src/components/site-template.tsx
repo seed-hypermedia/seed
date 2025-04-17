@@ -53,7 +53,9 @@ export function SiteTemplate({
     onClose()
 
     setTimeout(() => {
-      invalidateQueries([queryKeys.ENTITY, (route as DocumentRoute).id?.id])
+      const entityId = hmId('d', targetId).id
+      invalidateQueries([queryKeys.ENTITY, entityId])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, entityId])
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
     }, 500)
     if (selectedTemplate === 'blank') {

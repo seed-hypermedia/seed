@@ -70,6 +70,23 @@ export function formattedDateLong(
   return format(date, 'MMMM do yyyy, HH:mm:ss z')
 }
 
+export function formattedDateShort(
+  value?: undefined | string | Date | Timestamp | HMTimestamp,
+) {
+  let date = normalizeDate(value)
+  if (!date) return ''
+  // if within the last 24 hours, show the time
+  if (date.getTime() > Date.now() - 24 * 60 * 60 * 1000) {
+    return format(date, 'HH:mm')
+  }
+  // if within the last year, show the month and day
+  if (date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000) {
+    return format(date, 'MMM d')
+  }
+  // otherwise, show the date
+  return format(date, 'MMM d, yyyy')
+}
+
 export function formattedDateMedium(
   value?: undefined | string | Date | Timestamp | HMTimestamp,
 ) {

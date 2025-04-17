@@ -83,7 +83,7 @@ export function HypermediaLinkSwitchToolbar(
             type={props.type}
             hasName={props.type !== 'embed' && props.type !== 'mention'}
             hasSearch={props.type !== 'link'}
-            isSeedDocument={unpackedRef ? true : false}
+            seedEntityType={unpackedRef?.type}
           />
         </YStack>
       ) : (

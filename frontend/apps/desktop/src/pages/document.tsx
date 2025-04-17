@@ -3,6 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
+import {CommentsPanel} from '@/components/comments-panel'
 import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
@@ -14,6 +15,7 @@ import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
   useAccountDraftList,
   useCreateDraft,
@@ -21,6 +23,7 @@ import {
   useListDirectory,
 } from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
+import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -33,6 +36,7 @@ import {
   hmId,
   HMMetadata,
   HMQueryResult,
+  pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
@@ -46,14 +50,18 @@ import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
+  BlockQuote,
+  CitationsIcon,
   CollaboratorsIcon,
   HistoryIcon,
+  IconComponent,
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
@@ -67,7 +75,7 @@ import {
   YStack,
   YStackProps,
 } from 'tamagui'
-import {EntityCitationsAccessory} from '../components/citations'
+import {CitationsPanel} from '../components/citations-panel'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -83,9 +91,16 @@ export default function DocumentPage() {
     replace({...route, accessory: null})
   }
   let accessory: ReactNode = null
-  if (accessoryKey === 'citations') {
+  if (route.accessory?.key === 'citations') {
     accessory = (
-      <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
+      <CitationsPanel
+        entityId={docId}
+        onClose={handleClose}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
     )
   } else if (accessoryKey === 'options') {
     accessory = <OptionsPanel route={route} onClose={handleClose} />
@@ -97,8 +112,17 @@ export default function DocumentPage() {
     accessory = (
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
     )
-  } else if (accessoryKey === 'comments') {
-    accessory = <AccessoryContainer title="Comments" onClose={handleClose} />
+  } else if (route.accessory?.key === 'comments') {
+    accessory = (
+      <CommentsPanel
+        onClose={handleClose}
+        docId={route.id}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
   } else if (accessoryKey === 'all-documents') {
     accessory = (
       <AccessoryContainer title="All Documents" onClose={handleClose} />
@@ -134,16 +158,17 @@ export default function DocumentPage() {
     //   icon: SuggestedChangesIcon,
     // })
   }
+  // WIP COMMENT PANEL
   // accessoryOptions.push({
   //   key: 'comments',
   //   label: 'Comments',
   //   icon: CommentsIcon,
   // })
-  // accessoryOptions.push({
-  //   key: 'citations',
-  //   label: 'Citations',
-  //   icon: CitationsIcon,
-  // })
+  accessoryOptions.push({
+    key: 'citations',
+    label: 'Citations',
+    icon: CitationsIcon,
+  })
   // if (docId.type === 'd' && !docId.path?.length) {
   //   accessoryOptions.push({
   //     key: 'all-documents',
@@ -295,7 +320,7 @@ function _MainDocumentPage({
       >
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <YStack w="100%" ref={elementRef} f={1}>
+        <YStack w="100%" ref={elementRef} f={1} position="relative">
           <XStack {...wrapperProps}>
             {showSidebars ? (
               <YStack
@@ -313,7 +338,10 @@ function _MainDocumentPage({
               </YStack>
             ) : null}
 
-            <DocContainer {...mainContentProps}>
+            <DocContainer
+              {...mainContentProps}
+              $gtSm={{marginRight: 40, marginLeft: 0}}
+            >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
               <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
                 <DocPageContent
@@ -332,6 +360,7 @@ function _MainDocumentPage({
             </DocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
           </XStack>
+          <DocInteractionsSummary docId={id} />
         </YStack>
       </AppDocSiteHeader>
     </YStack>
@@ -339,6 +368,69 @@ function _MainDocumentPage({
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
+
+const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
+
+function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
+  const {docCitations, commentCitations} = useSortedCitations(docId)
+  const changes = useDocumentChanges(docId)
+  const route = useNavRoute()
+  const docRoute = route.key === 'document' ? route : null
+  const replace = useNavigate('replace')
+  if (!docRoute) return null
+  if (docRoute.accessory) return null
+  return (
+    <XStack position="absolute" top={0} right={8} padding="$4" gap="$1.5">
+      <InteractionSummaryItem
+        label="citation"
+        count={docCitations.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'citations'}})
+        }}
+        icon={BlockQuote}
+      />
+      {/* COMMENTING INTERACTIONS DISABLED
+      <Separator />
+      <InteractionSummaryItem
+        label="comment"
+        count={commentCitations.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'comments'}})
+        }}
+        icon={MessageSquare}
+      /> */}
+      <Separator />
+      <InteractionSummaryItem
+        label="version"
+        count={changes.data?.length || 0}
+        onPress={() => {
+          replace({...docRoute, accessory: {key: 'versions'}})
+        }}
+        icon={HistoryIcon}
+      />
+    </XStack>
+  )
+}
+
+function InteractionSummaryItem({
+  label,
+  count,
+  onPress,
+  icon: Icon,
+}: {
+  label: string
+  count: number
+  onPress: () => void
+  icon: IconComponent
+}) {
+  return (
+    <Tooltip content={`${count} ${pluralS(count, label)}`}>
+      <Button onPress={onPress} size="$1" chromeless icon={Icon}>
+        <SizableText size="$1">{count}</SizableText>
+      </Button>
+    </Tooltip>
+  )
+}
 
 function _AppDocSiteHeader({
   siteHomeEntity,
@@ -709,7 +801,8 @@ function DocPageContent({
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
-
+  const citations = useEntityCitations(entity.id)
+  const docRoute = route.key === 'document' ? route : null
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
@@ -721,7 +814,47 @@ function DocPageContent({
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}
+      citations={citations.data || []}
+      onCitationClick={(blockId) => {
+        if (!docRoute) return
+        replace({
+          ...docRoute,
+          id: {
+            ...docRoute.id,
+            blockRef: blockId || null,
+            blockRange: null,
+          },
+          accessory: {
+            key: 'citations',
+            openBlockId: blockId || null,
+          },
+        })
+      }}
       docId={entity.id}
+      // onBlockComment={(blockId, blockRangeInput) => {
+      //   if (route.key !== 'document') return
+      //   if (!blockId) return
+      //   const blockRange =
+      //     blockRangeInput &&
+      //     'start' in blockRangeInput &&
+      //     'end' in blockRangeInput
+      //       ? blockRangeInput
+      //       : null
+      //   replace({
+      //     ...route,
+      //     id: {
+      //       ...route.id,
+      //       blockRef: blockId,
+      //       blockRange,
+      //     },
+      //     accessory: {
+      //       key: 'comments',
+      //       openBlockId: blockId,
+      //       blockRange,
+      //       autoFocus: true,
+      //     },
+      //   })
+      // }}
       isBlockFocused={isBlockFocused}
     >
       <DocContent

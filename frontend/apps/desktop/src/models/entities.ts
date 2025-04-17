@@ -1,6 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  HMAccountsMetadata,
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
@@ -80,10 +81,11 @@ export function useUndeleteEntity(
       const hmId = unpackHmId(variables.id)
       if (hmId?.type === 'd') {
         invalidateQueries([queryKeys.ENTITY, variables.id])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-      } else if (hmId?.type === 'comment') {
+      } else if (hmId?.type === 'c') {
         invalidateQueries([queryKeys.COMMENT, variables.id])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       }
@@ -91,7 +93,7 @@ export function useUndeleteEntity(
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      invalidateQueries([queryKeys.ENTITY_CITATIONS])
+      invalidateQueries([queryKeys.DOC_CITATIONS])
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.DELETED])
       opts?.onSuccess?.(result, variables, context)
@@ -163,6 +165,7 @@ function invalidateEntityWithVersion(id: string, version?: string) {
   if (lastEntity && lastEntity.document?.version !== version) {
     // console.log('[sync] new version discovered for entity', id, version)
     invalidateQueries([queryKeys.ENTITY, id])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, id])
   }
 }
 
@@ -318,4 +321,19 @@ export function useIdEntities(
   ).map((result, i) => {
     return {id: ids[i], entity: result.data || undefined}
   })
+}
+
+export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
+  const accounts = useEntities(ids.map((id) => hmId('d', id)))
+  return Object.fromEntries(
+    accounts
+      .map((account) => {
+        if (!account.data) return null
+        return [
+          account.data.id.uid,
+          {id: account.data.id, metadata: account.data.document?.metadata},
+        ]
+      })
+      .filter((entry) => !!entry),
+  )
 }

@@ -1,4 +1,3 @@
-import {appRouteOfId} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {toast} from '@shm/ui/toast'
@@ -89,12 +88,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             if (route) {
               navigate(route)
             } else if (id) {
-              const appRoute = appRouteOfId(id)
-              if (!appRoute) {
-                toast.error('Failed to open selected item: ' + id)
-              } else {
-                navigate(appRoute)
-              }
+              toast.error('Failed to open selected item: ' + id)
             }
           }}
         />

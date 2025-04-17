@@ -21,7 +21,6 @@ import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
-import {ErrorBlock} from '@shm/ui/document-content'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search} from '@shm/ui/icons'
 import {NewspaperCard} from '@shm/ui/newspaper'
@@ -40,10 +39,6 @@ import {
   YStackProps,
 } from 'tamagui'
 import {HMBlockSchema} from './schema'
-
-function BlockError() {
-  return <ErrorBlock message="Failed to load this Embedded document" />
-}
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'

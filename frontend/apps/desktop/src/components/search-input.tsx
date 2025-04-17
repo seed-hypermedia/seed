@@ -1,15 +1,9 @@
 import appError from '@/errors'
-import {grpcClient} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {trpc} from '@/trpc'
-import {
-  isHttpUrl,
-  resolveHmIdToAppRoute,
-  useHmIdToAppRouteResolver,
-  useNavRoute,
-} from '@/utils/navigation'
+import {appRouteOfId, isHttpUrl, useNavRoute} from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -61,17 +55,16 @@ export function SearchInput({
         title: `Query ${search}`,
         onSelect: async () => {
           const unpacked = unpackHmId(search)
-          const searched = unpacked
-            ? await resolveHmIdToAppRoute(unpacked, grpcClient)
-            : null
+          const appRoute = unpacked ? appRouteOfId(unpacked) : null
 
           if (
-            (searched?.scheme === HYPERMEDIA_SCHEME ||
-              searched?.hostname === gwHost) &&
-            searched?.navRoute
+            (unpacked?.scheme === HYPERMEDIA_SCHEME ||
+              unpacked?.hostname === gwHost) &&
+            appRoute &&
+            unpacked
           ) {
             onClose?.()
-            onSelect({route: searched?.navRoute})
+            onSelect({route: appRoute, id: unpacked})
           } else if (
             search.startsWith('http://') ||
             search.startsWith('https://') ||
@@ -275,7 +268,6 @@ function useURLHandler() {
       // toast.error('Connection Error : ' + err?.rawMessage)
     },
   })
-  const resolveHmUrl = useHmIdToAppRouteResolver()
   return async (search: string): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
     connect.mutate(httpSearch)

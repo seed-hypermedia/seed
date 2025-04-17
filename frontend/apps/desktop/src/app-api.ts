@@ -1,4 +1,4 @@
-import {resolveHmIdToAppRoute} from '@/utils/navigation'
+import {appRouteOfId} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
@@ -23,7 +23,6 @@ import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {favoritesApi} from './app-favorites'
 import {gatewaySettingsApi} from './app-gateway-settings'
-import {grpcClient} from './app-grpc'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {recentSignersApi} from './app-recent-signers'
@@ -377,46 +376,47 @@ export type AppRouter = typeof router
 export async function handleUrlOpen(url: string) {
   log.info('Deep Link Open', {url: url})
   const id = unpackHmId(url)
-  const hmId = id ? await resolveHmIdToAppRoute(id, grpcClient) : null
-  if (!hmId?.navRoute) {
-    const connectionRegexp = /connect-peer\/([\w\d]+)/
+  const appRoute = id ? appRouteOfId(id) : null
+  if (appRoute) {
+    trpc.createAppWindow({
+      routes: [appRoute],
+    })
+    return
+  }
+  const connectionRegexp = /connect-peer\/([\w\d]+)/
+  const parsedConnectUrl = url.match(connectionRegexp)
+  const connectionDeviceId = parsedConnectUrl ? parsedConnectUrl[1] : null
+  if (connectionDeviceId) {
+    ensureFocusedWindowVisible()
+    dispatchFocusedWindowAppEvent({
+      key: 'connectPeer',
+      connectionString: connectionDeviceId,
+    })
+    return
+  }
+
+  if (!id) {
+    const connectionRegexp = /connect\/([\w\-\+]+)/
     const parsedConnectUrl = url.match(connectionRegexp)
-    const connectionDeviceId = parsedConnectUrl ? parsedConnectUrl[1] : null
-    if (connectionDeviceId) {
+    const connectInfoEncoded = parsedConnectUrl ? parsedConnectUrl[1] : null
+    if (connectInfoEncoded) {
       ensureFocusedWindowVisible()
+      const connectInfoJSON =
+        decompressFromEncodedURIComponent(connectInfoEncoded)
+      const connectInfo = JSON.parse(connectInfoJSON)
       dispatchFocusedWindowAppEvent({
         key: 'connectPeer',
-        connectionString: connectionDeviceId,
+        connectionString: connectInfo.a
+          .map((shortAddr: string) => `${shortAddr}/p2p/${connectInfo.d}`)
+          .join(','),
+        name: connectInfo.n,
       })
       return
     }
-
-    if (!hmId?.navRoute) {
-      const connectionRegexp = /connect\/([\w\-\+]+)/
-      const parsedConnectUrl = url.match(connectionRegexp)
-      const connectInfoEncoded = parsedConnectUrl ? parsedConnectUrl[1] : null
-      if (connectInfoEncoded) {
-        ensureFocusedWindowVisible()
-        const connectInfoJSON =
-          decompressFromEncodedURIComponent(connectInfoEncoded)
-        const connectInfo = JSON.parse(connectInfoJSON)
-        dispatchFocusedWindowAppEvent({
-          key: 'connectPeer',
-          connectionString: connectInfo.a
-            .map((shortAddr: string) => `${shortAddr}/p2p/${connectInfo.d}`)
-            .join(','),
-          name: connectInfo.n,
-        })
-        return
-      }
-    }
-
-    dialog.showErrorBox('Invalid URL', `We could not parse this URL: ${url}`)
-    return
   }
-  trpc.createAppWindow({
-    routes: [hmId.navRoute],
-  })
+
+  dialog.showErrorBox('Invalid URL', `We could not parse this URL: ${url}`)
+  return
 }
 
 export function handleSecondInstance(

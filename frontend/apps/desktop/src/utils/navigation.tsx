@@ -1,5 +1,4 @@
-import {grpcClient} from '@/grpc-client'
-import {GRPCClient} from '@shm/shared/grpc-client'
+import {hmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {StateStream} from '@shm/shared/utils/stream'
@@ -146,8 +145,11 @@ export function dispatchAppNavigation(action: NavAction) {
   return appNavDispatch(action)
 }
 
-export function useNavigation() {
+export function useNavigation(overrideNav: NavigationContext | undefined) {
   const nav = useContext(NavContext)
+  if (overrideNav) {
+    return overrideNav
+  }
   if (!nav)
     throw new Error('useNavigation must be used within a NavigationProvider')
   return nav
@@ -195,10 +197,11 @@ export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
       key: 'document',
       id,
     }
-  } else if (id?.type === 'comment') {
+  } else if (id.type === 'c' && id.targetDocUid) {
     navRoute = {
-      key: 'comment',
-      commentId: id,
+      key: 'document',
+      id: hmId('d', id.targetDocUid, {path: id.targetDocPath}),
+      accessory: {key: 'comments', openComment: id.uid},
     }
   }
   return navRoute
@@ -206,35 +209,4 @@ export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
 
 export function isHttpUrl(url: string) {
   return /^https?:\/\//.test(url)
-}
-
-export function useHmIdToAppRouteResolver() {
-  return (
-    id: UnpackedHypermediaId,
-  ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> => {
-    return resolveHmIdToAppRoute(id, grpcClient).catch((e) => {
-      console.error(e)
-      // toast.error('Failed to resolve ID to app route')
-      return null
-    })
-  }
-}
-
-export async function resolveHmIdToAppRoute(
-  hmId: UnpackedHypermediaId,
-  grpcClient: GRPCClient,
-): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
-  if (hmId?.type === 'd') {
-    return {
-      ...hmId,
-      navRoute: {
-        key: 'document',
-        id: {...hmId, version: null},
-      },
-    }
-  }
-  if (!hmId) return null
-  const navRoute = appRouteOfId(hmId)
-  if (!navRoute) return null
-  return {...hmId, navRoute}
 }

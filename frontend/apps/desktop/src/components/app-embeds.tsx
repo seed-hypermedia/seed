@@ -1,8 +1,6 @@
-import {useAccount_deprecated} from '@/models/accounts'
 import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
-import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
@@ -12,7 +10,6 @@ import {
 import {useEntities} from '@shm/shared/models/entity'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
-import {UIAvatar} from '@shm/ui/avatar'
 import {
   BlockContentUnknown,
   BlockNodeContent,
@@ -33,6 +30,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowUpRightSquare} from '@shm/ui/icons'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -171,6 +169,25 @@ function EmbedWrapper({
         !disableEmbedClick
           ? () => {
               if (!id) return
+              if (id.type === 'c') {
+                if (!id.targetDocUid) {
+                  toast.error(
+                    'Comment embeds must have a target document to open',
+                  )
+                  return
+                }
+                navigate({
+                  key: 'document',
+                  id: hmId('d', id.targetDocUid, {
+                    path: id.targetDocPath,
+                  }),
+                  accessory: {
+                    key: 'comments',
+                    openComment: id.uid,
+                  },
+                })
+                return
+              }
               navigate({
                 key: 'document',
                 id,
@@ -296,9 +313,9 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 }
 
 export function EmbedComment(props: EntityComponentProps) {
-  if (props?.type !== 'comment')
+  if (props?.type !== 'c')
     throw new Error('Invalid props as ref for EmbedComment')
-  const comment = useComment(hmId('comment', props.uid), {
+  const comment = useComment(hmId('c', props.uid), {
     enabled: !!props,
   })
   let embedBlocks = useMemo(() => {
@@ -311,22 +328,24 @@ export function EmbedComment(props: EntityComponentProps) {
 
     return embedBlocks
   }, [props.blockRef, comment.data])
-  const account = useAccount_deprecated(comment.data?.author)
+  const account = useSubscribedEntity(
+    comment.data?.author ? hmId('d', comment.data?.author) : null,
+  )
   if (comment.isLoading) return null
   return (
     <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
       <XStack flexWrap="wrap" jc="space-between" p="$3">
-        <XStack gap="$2">
-          <UIAvatar
-            label={account.data?.profile?.alias}
-            id={account.data?.id}
-            url={
-              account.data?.profile?.avatar
-                ? `${DAEMON_FILE_URL}/${account.data?.profile?.avatar}`
-                : undefined
-            }
-          />
-          <SizableText>{account.data?.profile?.alias}</SizableText>
+        <XStack gap="$2" ai="center">
+          {account.data?.id && (
+            <HMIcon
+              size={24}
+              id={account.data.id}
+              metadata={account.data?.document?.metadata}
+            />
+          )}
+          <SizableText fontWeight="bold">
+            {account.data?.document?.metadata?.name}
+          </SizableText>
         </XStack>
         {comment.data?.createTime ? (
           <SizableText fontSize="$2" color="$color10">
@@ -476,7 +495,7 @@ function QueryStyleCard({
   items: any[]
   block: HMBlockQuery
   getEntity: any
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
 }) {
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {

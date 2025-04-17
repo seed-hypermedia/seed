@@ -1,4 +1,3 @@
-import {createHypermediaDocLinkPlugin} from '@/editor'
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
@@ -6,7 +5,9 @@ import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {useBlockNote, type BlockSchema} from '@shm/editor/blocknote'
+import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {serverBlockNodesFromEditorBlocks} from '@shm/editor/utils'
+import {packHmId} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT} from '@shm/shared/constants'
@@ -35,6 +36,7 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
@@ -107,7 +109,9 @@ export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
-  return useQuery(queryComment(grpcClient, id?.id, opts))
+  return useQuery(
+    queryComment(grpcClient, id?.type == 'c' ? id.uid : undefined, opts),
+  )
 }
 
 export function useComments(commentIds: string[] = []) {
@@ -154,11 +158,13 @@ export function useCommentEditor(
     replyCommentId,
     initCommentDraft,
     onReplied,
+    quotingBlockId,
   }: {
     initCommentDraft?: HMCommentDraft | null | undefined
     onDiscardDraft?: () => void
     replyCommentId?: string
     onReplied?: () => void
+    quotingBlockId?: string
   } = {},
 ) {
   const targetEntity = useEntity(targetDocId)
@@ -343,8 +349,29 @@ export function useCommentEditor(
       content: BlockNode[]
       signingKeyName: string
     }) => {
+      const publishContent = quotingBlockId
+        ? [
+            new BlockNode({
+              block: {
+                id: nanoid(8),
+                type: 'Embed',
+                text: '',
+                attributes: {
+                  childrenType: 'Group',
+                  fields: {
+                    childrenType: {case: 'stringValue', value: 'Group'},
+                  },
+                  view: 'Content',
+                },
+                annotations: [],
+                link: packHmId({...targetDocId, blockRef: quotingBlockId}),
+              },
+              children: content,
+            }),
+          ]
+        : content
       const resultComment = await grpcClient.comments.createComment({
-        content,
+        content: publishContent,
         replyParent: replyCommentId || undefined,
         targetAccount: targetDocId.uid,
         targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
@@ -368,7 +395,7 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-
+      invalidateQueries([queryKeys.DOC_CITATIONS])
       clearTimeout(saveTimeoutRef.current)
       removeDraft.mutate({
         targetDocId: targetDocId.id,

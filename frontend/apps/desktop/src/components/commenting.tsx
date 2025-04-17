@@ -24,6 +24,7 @@ import {BlocksContent} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
@@ -123,6 +124,7 @@ export function RepliesEditor({
   onDiscardDraft: () => void
   onReplied: () => void
 }) {
+  const isDark = useIsDark()
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, replyCommentId)
@@ -135,7 +137,7 @@ export function RepliesEditor({
       borderWidth={2}
       borderColor="$color8"
       minHeight={120}
-      bg="$background"
+      bg={isDark ? '$background' : '$backgroundStrong'}
     >
       <CommentDraftEditor
         docId={docId}
@@ -151,14 +153,23 @@ export function RepliesEditor({
 }
 
 export const CommentDraft = memo(_CommentDraft)
-function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
+function _CommentDraft({
+  docId,
+  backgroundColor = '$color4',
+  quotingBlockId,
+  replyCommentId,
+}: {
+  docId: UnpackedHypermediaId
+  backgroundColor?: string
+  quotingBlockId?: string
+  replyCommentId?: string
+}) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, undefined)
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
-  const bgColor = '$color4'
   if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
@@ -168,6 +179,8 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         accounts={accounts}
         autoFocus={isStartingComment}
         initCommentDraft={draft.data}
+        quotingBlockId={quotingBlockId}
+        replyCommentId={replyCommentId}
         onDiscardDraft={() => {
           setIsStartingComment(false)
         }}
@@ -186,9 +199,9 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         chromeless
         color="$color8"
         fontSize={17}
-        bg={bgColor}
-        hoverStyle={{bg: bgColor}}
-        focusStyle={{bg: bgColor, borderWidth: 0}}
+        bg={backgroundColor}
+        hoverStyle={{bg: backgroundColor}}
+        focusStyle={{bg: backgroundColor, borderWidth: 0}}
         borderWidth={0}
         // fontStyle="italic"
         h="auto"
@@ -207,16 +220,16 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
     )
   }
   return (
-    <XStack
+    <YStack
       borderRadius="$4"
       // borderWidth={2}
       // borderColor="$color8"
       minHeight={105}
       onPress={onPress}
-      bg={bgColor}
+      bg={backgroundColor}
     >
       {content}
-    </XStack>
+    </YStack>
   )
 }
 const CommentDraftEditor = memo(_CommentDraftEditor)
@@ -228,6 +241,7 @@ function _CommentDraftEditor({
   replyCommentId,
   initCommentDraft,
   onReplied,
+  quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
   accounts: HMEntityContent[]
@@ -236,6 +250,7 @@ function _CommentDraftEditor({
   replyCommentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
   onReplied?: () => void
+  quotingBlockId?: string
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
@@ -243,6 +258,7 @@ function _CommentDraftEditor({
       replyCommentId,
       initCommentDraft,
       onReplied,
+      quotingBlockId,
     })
   const openUrl = useOpenUrl()
   useEffect(() => {
@@ -359,7 +375,6 @@ function SelectAccountDropdown({
   if (!options || !currentAccount) return null
   return (
     <SelectDropdown
-      width={240}
       size="$2"
       options={options}
       value={currentAccount}

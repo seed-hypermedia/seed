@@ -4,7 +4,6 @@ import {WebCommentingProps} from './commenting'
 function clientLazy<ComponentProps extends {}>(
   doImport: () => Promise<{default: React.FC<ComponentProps>}>,
 ) {
-  // @ts-expect-error
   const ClientComponent = lazy(doImport)
   function ClientAwokenComponent(props: ComponentProps) {
     const [isClientAwake, setIsClientAwake] = useState(false)

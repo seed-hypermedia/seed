@@ -13,24 +13,36 @@ import {
 } from '@shm/shared'
 import * as z from 'zod'
 
+export const ExactBlockRangeSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+})
+export type ExactBlockRange = z.infer<typeof ExactBlockRangeSchema>
+
+export const ExpandedBlockRangeSchema = z.object({
+  expanded: z.boolean(),
+})
+export type ExpandedBlockRange = z.infer<typeof ExpandedBlockRangeSchema>
+
+export const BlockRangeSchema = z.union([
+  ExactBlockRangeSchema,
+  ExpandedBlockRangeSchema,
+])
+export type BlockRange = z.infer<typeof BlockRangeSchema>
+
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
-  type: z.union([z.literal('d'), z.literal('comment')]),
+  type: z.union([z.literal('d'), z.literal('c')]),
   uid: z.string(),
   path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
-  blockRange: z
-    .object({start: z.number(), end: z.number()})
-    .or(
-      z.object({
-        expanded: z.boolean(),
-      }),
-    )
-    .nullable(),
+  blockRange: BlockRangeSchema.nullable(),
   hostname: z.string().nullable(),
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
+  targetDocUid: z.string().nullable(),
+  targetDocPath: z.array(z.string()).nullable(),
 })
 
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
@@ -998,3 +1010,45 @@ export const DeviceLinkSessionSchema = z.object({
 })
 
 export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>
+
+export const ParsedFragmentSchema = z.discriminatedUnion('type', [
+  ExpandedBlockRangeSchema.extend({
+    type: z.literal('block'),
+    blockId: z.string(),
+  }),
+  ExactBlockRangeSchema.extend({
+    type: z.literal('block-range'),
+    blockId: z.string(),
+  }),
+])
+export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
+
+const HMCitationCommentSourceSchema = z.object({
+  type: z.literal('c'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+const HMCitationDocumentSourceSchema = z.object({
+  type: z.literal('d'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+
+export const HMCitationSchema = z.object({
+  source: z.discriminatedUnion('type', [
+    HMCitationCommentSourceSchema,
+    HMCitationDocumentSourceSchema,
+  ]),
+  isExactVersion: z.boolean(),
+  targetFragment: ParsedFragmentSchema.nullable(),
+})
+export type HMCitation = z.infer<typeof HMCitationSchema>
+
+export type HMDocumentCitation = HMCitation & {
+  document: HMDocument | null
+  author: HMMetadataPayload | null
+}
+
+export type HMCitationsPayload = Array<HMDocumentCitation>

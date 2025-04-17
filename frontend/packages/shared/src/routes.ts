@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {unpackedHmIdSchema} from '.'
+import {BlockRangeSchema, unpackedHmIdSchema} from '.'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -22,6 +22,7 @@ export type DocumentVersionsAccessory = z.infer<
 export const documentCitationsAccessorySchema = z.object({
   key: z.literal('citations'),
   width: z.number().optional(),
+  openBlockId: z.string().nullable().optional(),
 })
 export type DocumentCitationsAccessory = z.infer<
   typeof documentCitationsAccessorySchema
@@ -62,6 +63,10 @@ export type DocumentSuggestedChangesAccessory = z.infer<
 export const documentCommentsAccessorySchema = z.object({
   key: z.literal('comments'),
   width: z.number().optional(),
+  openComment: z.string().optional(),
+  openBlockId: z.string().optional(),
+  blockRange: BlockRangeSchema.nullable().optional(),
+  autoFocus: z.boolean().optional(),
 })
 export type DocumentCommentsAccessory = z.infer<
   typeof documentCommentsAccessorySchema

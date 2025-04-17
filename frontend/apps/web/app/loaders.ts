@@ -31,7 +31,7 @@ import {
   WEB_IDENTITY_ENABLED,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
-import {HMAccountsMetadata} from '@shm/shared/hm-types'
+import {HMAccountsMetadata, HMComment} from '@shm/shared/hm-types'
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
@@ -101,13 +101,24 @@ export async function getHMDocument(entityId: UnpackedHypermediaId) {
       throw e
     })
   if (apiDoc instanceof HMRedirectError) {
-    console.log('DO REDIRECT?!!', apiDoc)
     throw apiDoc
   }
   const docJSON = apiDoc.toJson() as any
   documentMetadataParseAdjustments(docJSON.metadata)
   const document = HMDocumentSchema.parse(docJSON)
   return document
+}
+
+export async function resolveHMDocument(entityId: UnpackedHypermediaId) {
+  try {
+    const document = await getHMDocument(entityId)
+    return document
+  } catch (e) {
+    if (e instanceof HMRedirectError) {
+      return await resolveHMDocument(e.target)
+    }
+    throw e
+  }
 }
 
 const getDirectory = getDiretoryWithClient(queryClient)
@@ -239,6 +250,7 @@ export async function getBaseDocument(
   )
   const enableWebSigning =
     WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
+
   return {
     document,
     supportDocuments,
@@ -544,6 +556,7 @@ export type SiteDocumentPayload = WebDocumentPayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
+  comment?: HMComment
 }
 
 export async function loadSiteDocument<T>(
@@ -604,7 +617,6 @@ export async function loadSiteDocument<T>(
         originHomeId,
         hostname: null,
       })
-      console.log('REDIRECT TO:', destRedirectUrl)
       return redirect(destRedirectUrl)
     }
     console.error('Error Loading Site Document', id, e)
@@ -614,4 +626,14 @@ export async function loadSiteDocument<T>(
     {homeMetadata, origin, originHomeId, ...(extraData || {})},
     {status: id ? 200 : 404},
   )
+}
+
+export async function loadComment(
+  id: UnpackedHypermediaId,
+): Promise<HMComment> {
+  const c = await queryClient.comments.getComment({
+    id: id.uid,
+  })
+  const comment = c.toJson() as unknown as HMComment
+  return comment
 }

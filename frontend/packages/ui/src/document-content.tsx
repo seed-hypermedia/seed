@@ -9,11 +9,11 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
+  HMCitation,
   HMDocument,
   HMEntityContent,
   HMInlineContent,
   HMQueryResult,
-  Mention,
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
@@ -91,9 +91,10 @@ import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
 import {SeedHeading} from './heading'
-import {Comment} from './icons'
+import {BlockQuote, Comment} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
+import {useIsDark} from './use-is-dark'
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
 
 export type EntityComponentsRecord = {
@@ -110,9 +111,8 @@ export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
-  citations?: Mention[]
-
-  onCitationClick?: () => void
+  citations?: HMCitation[]
+  onCitationClick?: (blockId?: string | null) => void
   disableEmbedClick?: boolean
   onCopyBlock:
     | null
@@ -126,7 +126,6 @@ export type DocContentContextValue = {
   debug: boolean
   ffSerif?: boolean
   comment?: boolean
-  renderOnly?: boolean
   routeParams?: {
     documentId?: string
     version?: string
@@ -153,7 +152,6 @@ export function DocContentProvider({
   debugTop = 0,
   showDevMenu = false,
   comment = false,
-  renderOnly = false,
   routeParams = {},
   ...docContextContent
 }: PropsWithChildren<
@@ -176,7 +174,6 @@ export function DocContentProvider({
         debug,
         ffSerif,
         comment,
-        renderOnly,
         routeParams,
       }}
     >
@@ -534,7 +531,6 @@ export function BlockNodeContent({
 }) {
   const {
     layoutUnit,
-    renderOnly,
     routeParams,
     onCitationClick,
     onBlockComment,
@@ -543,13 +539,16 @@ export function BlockNodeContent({
     debug,
     comment,
   } = useDocContentContext()
+  const isDark = useIsDark()
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,
     isFirstChild,
   )
-  const {hover, ...hoverProps} = useHover()
-  const {citations} = useBlockCitations(blockNode.block?.id)
+  // const {hover, ...hoverProps} = useHover()
+  const {docCitations, commentCitations} = useBlockCitations(
+    blockNode.block?.id,
+  )
   const [_expanded, setExpanded] = useState<boolean>(expanded)
 
   useEffect(() => {
@@ -590,8 +589,6 @@ export function BlockNodeContent({
   }, [blockNode.block, headingMarginStyles])
 
   const isEmbed = blockNode.block?.type == 'embed'
-
-  const interactiveProps = !renderOnly ? hoverProps : {}
 
   const [isHighlight, setHighlight] = useState(false)
 
@@ -775,7 +772,7 @@ export function BlockNodeContent({
           block={modifiedBlock}
           depth={depth}
           parentBlockId={parentBlockId}
-          {...interactiveProps}
+          // {...interactiveProps}
         />
         {bnChildren && !_expanded ? (
           <Tooltip content="This block is collapsed. you can expand it and see its children">
@@ -792,119 +789,128 @@ export function BlockNodeContent({
             />
           </Tooltip>
         ) : null}
-        <XStack
-          position={isMediablock ? 'absolute' : 'relative'}
-          right={isMediablock ? 8 : undefined}
-          top={isMediablock ? 8 : undefined}
+        <YStack
+          position={'absolute'}
+          right={0}
+          top={12}
+          $gtSm={{
+            right: -44,
+            // background: '$backgroundTransparent',
+          }}
           pl="$2"
           borderRadius={layoutUnit / 4}
-          gap="$2"
-          onHoverIn={() =>
-            props.embedDepth ? undefined : hoverProps.onHoverIn()
-          }
-          onHoverOut={() =>
-            props.embedDepth ? undefined : hoverProps.onHoverOut()
-          }
+          gap="$1"
         >
-          {citations?.length ? (
+          {docCitations?.length ? (
             <Tooltip
-              content={`See ${citations.length} ${pluralS(
-                citations.length,
+              content={`${docCitations.length} ${pluralS(
+                docCitations.length,
                 'document',
-              )} referencing this`}
+              )} citing this block`}
               delay={800}
             >
               <Button
                 userSelect="none"
-                size="$2"
-                chromeless
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                // theme="blue"
-                onPress={() => onCitationClick?.()}
-                bg="$background"
+                onPress={() => onCitationClick?.(blockNode.block?.id)}
+                icon={<BlockQuote size={12} color="$color9" />}
               >
-                <XStack gap="$2" ai="center">
-                  {/* <BlockQuote size={layoutUnit / 2} color="$blue11" />  TODO FIX ME*/}
-                  <SizableText color="$brand5" size="$2">
-                    {String(citations.length)}
-                  </SizableText>
-                </XStack>
+                <SizableText color="$color9" size="$1">
+                  {String(docCitations.length)}
+                </SizableText>
               </Button>
             </Tooltip>
           ) : null}
-          {!props.embedDepth && !renderOnly ? (
-            <>
-              {onCopyBlock ? (
-                <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
-                  <Button
-                    userSelect="none"
-                    size="$2"
-                    opacity={hover ? 1 : 0}
-                    padding={layoutUnit / 4}
-                    borderRadius={layoutUnit / 4}
-                    chromeless
-                    icon={Link}
-                    bg="$background"
-                    onPress={() => {
-                      if (blockNode.block?.id) {
-                        onCopyBlock(blockNode.block.id, {expanded: true})
-                      } else {
-                        console.error('onCopyBlock Error: no blockId available')
-                      }
-                    }}
-                  />
-                </Tooltip>
-              ) : null}
-              {onReplyBlock ? (
-                <Tooltip content="Reply to block" delay={800}>
-                  <Button
-                    userSelect="none"
-                    size="$2"
-                    opacity={hover ? 1 : 0}
-                    padding={layoutUnit / 4}
-                    borderRadius={layoutUnit / 4}
-                    chromeless
-                    icon={Reply}
-                    bg="$background"
-                    onPress={() => {
-                      if (blockNode.block?.id) {
-                        onReplyBlock(blockNode.block.id)
-                      } else {
-                        console.error(
-                          'onReplyBlock Error: no blockId available',
-                        )
-                      }
-                    }}
-                  />
-                </Tooltip>
-              ) : null}
-              {onBlockComment ? (
-                <Tooltip content="Comment on this block" delay={800}>
-                  <Button
-                    userSelect="none"
-                    size="$2"
-                    opacity={hover ? 1 : 0}
-                    padding={layoutUnit / 4}
-                    borderRadius={layoutUnit / 4}
-                    chromeless
-                    icon={MessageSquare}
-                    bg="$background"
-                    onPress={() => {
-                      if (blockNode.block?.id) {
-                        onBlockComment(blockNode.block.id)
-                      } else {
-                        console.error(
-                          'onBlockComment Error: no blockId available',
-                        )
-                      }
-                    }}
-                  />
-                </Tooltip>
-              ) : null}
-            </>
+
+          {onReplyBlock ? (
+            <Tooltip content="Reply to block" delay={800}>
+              <Button
+                userSelect="none"
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
+                opacity={0}
+                $group-blocknode-hover={{
+                  opacity: 1,
+                }}
+                padding={layoutUnit / 4}
+                borderRadius={layoutUnit / 4}
+                icon={Reply}
+                onPress={() => {
+                  if (blockNode.block?.id) {
+                    onReplyBlock(blockNode.block.id)
+                  } else {
+                    console.error('onReplyBlock Error: no blockId available')
+                  }
+                }}
+              />
+            </Tooltip>
           ) : null}
-        </XStack>
+          {onBlockComment ? (
+            <Tooltip
+              content={
+                commentCitations.length
+                  ? `${commentCitations.length} ${pluralS(
+                      commentCitations.length,
+                      'comment',
+                    )}`
+                  : 'Comment on this block'
+              }
+              delay={800}
+            >
+              <Button
+                userSelect="none"
+                size="$1"
+                background={isDark ? '$background' : '$backgroundStrong'}
+                opacity={commentCitations.length ? 1 : 0}
+                $group-blocknode-hover={{
+                  opacity: 1,
+                }}
+                padding={layoutUnit / 4}
+                borderRadius={layoutUnit / 4}
+                onPress={() => {
+                  if (blockNode.block?.id) {
+                    onBlockComment(blockNode.block.id)
+                  } else {
+                    console.error('onBlockComment Error: no blockId available')
+                  }
+                }}
+                icon={<MessageSquare size={12} color="$color9" />}
+              >
+                {commentCitations.length ? (
+                  <SizableText color="$color9" size="$1">
+                    {String(commentCitations.length)}
+                  </SizableText>
+                ) : null}
+              </Button>
+            </Tooltip>
+          ) : null}
+          {onCopyBlock ? (
+            <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
+              <Button
+                userSelect="none"
+                size="$1"
+                opacity={0}
+                $group-blocknode-hover={{
+                  opacity: 1,
+                }}
+                padding={layoutUnit / 4}
+                borderRadius={layoutUnit / 4}
+                chromeless
+                icon={<Link size={12} color="$color9" />}
+                onPress={() => {
+                  if (blockNode.block?.id) {
+                    onCopyBlock(blockNode.block.id, {expanded: true})
+                  } else {
+                    console.error('onCopyBlock Error: no blockId available')
+                  }
+                }}
+              />
+            </Tooltip>
+          ) : null}
+        </YStack>
       </XStack>
       {bnChildren && _expanded ? (
         <BlockNodeList
@@ -1647,7 +1653,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (id?.type == 'd') {
     return <EmbedTypes.Document {...props} {...id} />
   }
-  if (id?.type == 'comment') {
+  if (id?.type == 'c') {
     return <EmbedTypes.Comment {...props} {...id} />
   }
   return <BlockContentUnknown {...props} />
@@ -2526,12 +2532,14 @@ export function useBlockCitations(blockId?: string) {
   let citations = useMemo(() => {
     if (!context.citations?.length) return []
     return context.citations.filter((c) => {
-      return c.targetFragment == blockId
+      // if (c.source.id.type !== 'd') return false
+      return c.targetFragment && c.targetFragment.blockId == blockId
     })
   }, [blockId, context.citations])
 
   return {
-    citations,
+    docCitations: citations.filter((c) => c.source.id.type === 'd'),
+    commentCitations: citations.filter((c) => c.source.id.type === 'c'),
   }
 }
 

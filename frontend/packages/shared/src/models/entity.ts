@@ -66,6 +66,16 @@ export async function loadEntity(
   }
 }
 
+export async function loadResolvedEntity(
+  id: UnpackedHypermediaId,
+): Promise<HMEntityContent | null> {
+  let entity = await loadEntity(id)
+  while (entity?.redirectTarget) {
+    entity = await loadEntity(entity.redirectTarget)
+  }
+  return entity
+}
+
 export function getEntityQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
@@ -82,11 +92,34 @@ export function getEntityQuery(
   }
 }
 
+export function getResolvedEntityQuery(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: UseQueryOptions<HMEntityContent | null>,
+): UseQueryOptions<HMEntityContent | null> {
+  const version = id?.latest ? undefined : id?.version || undefined
+  return {
+    ...options,
+    enabled: options?.enabled ?? !!id,
+    queryKey: [queryKeys.RESOLVED_ENTITY, id?.id, version],
+    queryFn: async (): Promise<HMEntityContent | null> => {
+      if (!id) return null
+      return await loadResolvedEntity(id)
+    },
+  }
+}
+
 export function useEntity(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
 ) {
   return useQuery(getEntityQuery(id, options))
+}
+
+export function useResolvedEntity(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: UseQueryOptions<HMEntityContent | null>,
+) {
+  return useQuery(getResolvedEntityQuery(id, options))
 }
 
 export function useEntities(
@@ -95,6 +128,16 @@ export function useEntities(
 ) {
   return useQueries({
     queries: ids.map((id) => getEntityQuery(id)),
+    ...(options || {}),
+  })
+}
+
+export function useResolvedEntities(
+  ids: (UnpackedHypermediaId | null | undefined)[],
+  options?: UseQueryOptions<HMEntityContent | null>,
+) {
+  return useQueries({
+    queries: ids.map((id) => getResolvedEntityQuery(id)),
     ...(options || {}),
   })
 }
@@ -114,12 +157,10 @@ export function getErrorMessage(err: any) {
   try {
     const e = ConnectError.from(err)
     const firstDetail = e.details[0] // what if there are more than one detail?
-    console.error('~~ ConnectError', e, e.details)
     if (
       // @ts-expect-error
       firstDetail.type === 'com.seed.documents.v3alpha.RedirectErrorDetails'
     ) {
-      console.error('~~ RedirectErrorDetails', firstDetail)
       const redirect = RedirectErrorDetails.fromBinary(
         // @ts-expect-error
         firstDetail.value as Uint8Array,

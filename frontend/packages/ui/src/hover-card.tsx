@@ -1,3 +1,4 @@
+import {ComponentProps} from 'react'
 import {Popover} from './TamaguiPopover'
 import {dialogBoxShadow} from './universal-dialog'
 
@@ -6,17 +7,19 @@ export function HoverCard({
   content,
   contentProps,
   disabled = false,
+  placement = 'bottom-start',
 }: {
   children: React.ReactNode
   content: React.ReactNode
   contentProps?: React.ComponentProps<typeof Popover.Content>
+  placement?: ComponentProps<typeof Popover>['placement']
   disabled?: boolean
 }) {
   if (!content) return children
   return (
     <Popover
       hoverable
-      placement="bottom-start"
+      placement={placement}
       open={disabled ? false : undefined}
     >
       <Popover.Trigger
