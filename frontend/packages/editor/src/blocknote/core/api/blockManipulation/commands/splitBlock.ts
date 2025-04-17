@@ -1,10 +1,13 @@
-import {EditorState} from 'prosemirror-state'
+import {selectableNodeTypes} from '@/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
+import {Node} from 'prosemirror-model'
+import {EditorState, TextSelection} from 'prosemirror-state'
 import {getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 
 export const splitBlockCommand = (
   posInBlock: number,
   keepType?: boolean,
   keepProps?: boolean,
+  insertNode?: Node,
 ) => {
   return ({
     state,
@@ -13,6 +16,8 @@ export const splitBlockCommand = (
     state: EditorState
     dispatch: ((args?: any) => any) | undefined
   }) => {
+    let tr = state.tr
+
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
     if (blockInfo.block.node.type.name !== 'blockContainer') {
@@ -34,10 +39,25 @@ export const splitBlockCommand = (
       },
     ]
 
+    tr = tr.split(posInBlock, 2, types)
+
+    if (insertNode) {
+      const insertPos = tr.doc.resolve(tr.mapping.map(posInBlock))
+      tr = tr.insert(insertPos.start() - 2, insertNode)
+      let selection
+      if (
+        insertNode.firstChild &&
+        selectableNodeTypes.includes(insertNode.firstChild.type.name)
+      ) {
+        selection = TextSelection.create(tr.doc, insertPos.start() + 2)
+      } else {
+        selection = TextSelection.create(tr.doc, insertPos.start())
+      }
+      tr = tr.setSelection(selection)
+    }
+
     if (dispatch) {
-      const $pos = state.doc.resolve(posInBlock)
-      console.log($pos.parent)
-      state.tr.split(posInBlock, 2, types)
+      dispatch(tr)
     }
 
     return true

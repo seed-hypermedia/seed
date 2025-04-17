@@ -1,3 +1,5 @@
+import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
+import {blockToNode} from '../../api/nodeConversions/nodeConversions'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BlockSchema, PartialBlock} from '../Blocks/api/blockTypes'
 import {defaultBlockSchema} from '../Blocks/api/defaultBlocks'
@@ -35,8 +37,17 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
       }
     }
   } else {
-    editor.insertBlocks([block], currentBlock, 'after')
-    editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!)
+    // editor.insertBlocks([block], currentBlock, 'after')
+    // editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!)
+    const {state, view} = editor._tiptapEditor
+    editor._tiptapEditor.commands.command(
+      splitBlockCommand(
+        state.selection.from,
+        true,
+        true,
+        blockToNode(block, state.schema),
+      ),
+    )
   }
 }
 
