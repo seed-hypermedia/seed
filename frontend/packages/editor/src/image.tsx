@@ -88,37 +88,70 @@ const Render = (
   ) => {
     if (isValidUrl(url)) {
       setLoading(true)
-      timeoutPromise(importWebFile.mutateAsync(url), 5000, {
-        reason: 'Error fetching the image.',
-      })
-        .then((imageData) => {
-          setLoading(false)
-          if (imageData?.cid) {
-            if (!imageData.type.includes('image')) {
+      if (typeof importWebFile?.mutateAsync === 'function') {
+        timeoutPromise(importWebFile.mutateAsync(url), 5000, {
+          reason: 'Error fetching the image.',
+        })
+          .then((imageData) => {
+            setLoading(false)
+            if (imageData?.cid) {
+              if (!imageData.type.includes('image')) {
+                setFileName({
+                  name: 'The provided URL is not an image.',
+                  color: 'red',
+                })
+                return
+              }
+              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+              setLoading(false)
+            } else {
+              let imgTypeSplit = imageData.type.split('/')
               setFileName({
-                name: 'The provided URL is not an image.',
+                name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
                 color: 'red',
               })
-              return
+              setLoading(false)
             }
-            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
-            setLoading(false)
-          } else {
-            let imgTypeSplit = imageData.type.split('/')
+          })
+          .catch((e) => {
             setFileName({
-              name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
+              name: e.reason,
               color: 'red',
             })
             setLoading(false)
-          }
-        })
-        .catch((e) => {
-          setFileName({
-            name: e.reason,
-            color: 'red',
           })
-          setLoading(false)
-        })
+      } else {
+        importWebFile(url)
+          .then((imageData) => {
+            console.log(imageData)
+            setLoading(false)
+            if (imageData?.cid) {
+              if (!imageData.type.includes('image')) {
+                setFileName({
+                  name: 'The provided URL is not an image.',
+                  color: 'red',
+                })
+                return
+              }
+              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+              setLoading(false)
+            } else {
+              let imgTypeSplit = imageData.type.split('/')
+              setFileName({
+                name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
+                color: 'red',
+              })
+              setLoading(false)
+            }
+          })
+          .catch((e) => {
+            setFileName({
+              name: "Couldn't fetch the image from this URL due to restrictions. Please download it manually and upload it from your device.",
+              color: 'red',
+            })
+            setLoading(false)
+          })
+      }
     } else setFileName({name: 'The provided URL is invalid.', color: 'red'})
 
     const cursorPosition = editor.getTextCursorPosition()
