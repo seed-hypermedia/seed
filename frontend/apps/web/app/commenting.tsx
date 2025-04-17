@@ -4,7 +4,6 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
-  DAEMON_FILE_UPLOAD_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
@@ -202,10 +201,7 @@ export default function WebCommenting({
 
   return (
     <>
-      <CommentDocContentProvider
-        handleFileAttachment={handleFileAttachment}
-        importWebFile={importWebFile}
-      >
+      <CommentDocContentProvider handleFileAttachment={handleFileAttachment}>
         <CommentEditor
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
@@ -309,42 +305,6 @@ async function handleFileAttachment(file: File) {
   }
 }
 
-async function uploadFile(file: Blob | string) {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-    method: 'POST',
-    body: formData,
-  })
-  const data = await response.text()
-  return data
-}
-
-async function importWebFile(url: string) {
-  try {
-    const res = await fetch(url, {method: 'GET', mode: 'cors'})
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`)
-    }
-
-    const contentType =
-      res.headers.get('content-type') || 'application/octet-stream'
-    const blob = await res.blob()
-
-    const uploadedCID = await uploadFile(blob)
-
-    return {
-      cid: uploadedCID,
-      type: contentType,
-      size: blob.size,
-    }
-  } catch (err: any) {
-    throw new Error(err?.message || 'Could not download file.')
-  }
-}
-
 export function useOpenUrlWeb() {
   const {originHomeId} = useUniversalAppContext()
 
@@ -369,7 +329,6 @@ export function useOpenUrlWeb() {
 
 function CommentDocContentProvider({
   handleFileAttachment,
-  importWebFile,
   children,
 }: {
   children: React.ReactNode | JSX.Element
@@ -377,7 +336,6 @@ function CommentDocContentProvider({
   handleFileAttachment: (
     file: File,
   ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
-  importWebFile: any
   comment?: boolean
   // siteHost: string | undefined
   // id: UnpackedHypermediaId
@@ -402,7 +360,6 @@ function CommentDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
-      importWebFile={importWebFile}
       disableEmbedClick
       // entityId={id}
       // supportDocuments={supportDocuments}
