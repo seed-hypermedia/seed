@@ -228,7 +228,7 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-              <code
+              {/* <code // for debugging draft state
                 style={{
                   minHeight: 600,
                   border: '1px solid red',
@@ -236,7 +236,7 @@ export default function DraftPage() {
                 }}
               >
                 {JSON.stringify(data, null, 2)}
-              </code>
+              </code> */}
             </>
           )}
         </AccessoryLayout>
