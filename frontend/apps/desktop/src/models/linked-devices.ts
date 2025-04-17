@@ -14,6 +14,7 @@ export function useLinkDevice() {
     }) => {
       const result = await grpcClient.daemon.createDeviceLinkSession({
         signingKeyName: accountUid,
+        label: label,
       })
 
       const {accountId, secretToken, addrInfo} = toPlainMessage(result)

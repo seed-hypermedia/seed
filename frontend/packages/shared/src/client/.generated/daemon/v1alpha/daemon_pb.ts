@@ -544,6 +544,14 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
    */
   signingKeyName = "";
 
+  /**
+   * Optional. Label that will be used for the newly created capability.
+   * The label is publicly visible.
+   *
+   * @generated from field: string label = 2;
+   */
+  label = "";
+
   constructor(data?: PartialMessage<CreateDeviceLinkSessionRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -553,6 +561,7 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
   static readonly typeName = "com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDeviceLinkSessionRequest {
@@ -569,6 +578,39 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
 
   static equals(a: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined, b: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined): boolean {
     return proto3.util.equals(CreateDeviceLinkSessionRequest, a, b);
+  }
+}
+
+/**
+ * Request to get the device link session.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+ */
+export class GetDeviceLinkSessionRequest extends Message<GetDeviceLinkSessionRequest> {
+  constructor(data?: PartialMessage<GetDeviceLinkSessionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDeviceLinkSessionRequest | PlainMessage<GetDeviceLinkSessionRequest> | undefined, b: GetDeviceLinkSessionRequest | PlainMessage<GetDeviceLinkSessionRequest> | undefined): boolean {
+    return proto3.util.equals(GetDeviceLinkSessionRequest, a, b);
   }
 }
 
@@ -599,6 +641,28 @@ export class DeviceLinkSession extends Message<DeviceLinkSession> {
    */
   accountId = "";
 
+  /**
+   * Label for the future capability as defined by the user.
+   *
+   * @generated from field: string label = 4;
+   */
+  label = "";
+
+  /**
+   * Expiration time of the session.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 5;
+   */
+  expireTime?: Timestamp;
+
+  /**
+   * Optional. Time when the session was redeemed,
+   * i.e. when the device link exchange was completed successfully.
+   *
+   * @generated from field: google.protobuf.Timestamp redeem_time = 6;
+   */
+  redeemTime?: Timestamp;
+
   constructor(data?: PartialMessage<DeviceLinkSession>) {
     super();
     proto3.util.initPartial(data, this);
@@ -610,6 +674,9 @@ export class DeviceLinkSession extends Message<DeviceLinkSession> {
     { no: 1, name: "addr_info", kind: "message", T: AddrInfo },
     { no: 2, name: "secret_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "expire_time", kind: "message", T: Timestamp },
+    { no: 6, name: "redeem_time", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeviceLinkSession {

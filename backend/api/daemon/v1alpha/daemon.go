@@ -252,19 +252,41 @@ func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
 	}
 
-	sess, err := srv.dlink.NewSession(ctx, in.SigningKeyName)
+	sess, err := srv.dlink.NewSession(ctx, in.SigningKeyName, in.Label)
 	if err != nil {
 		return nil, err
 	}
 
+	return srv.sessionToProto(sess), nil
+}
+
+// GetDeviceLinkSession implements the corresponding gRPC method.
+func (srv *Server) GetDeviceLinkSession(ctx context.Context, in *daemon.GetDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
+	sess, err := srv.dlink.Session()
+	if err != nil {
+		return nil, err
+	}
+
+	return srv.sessionToProto(sess), nil
+}
+
+func (srv *Server) sessionToProto(sess devicelink.Session) *daemon.DeviceLinkSession {
 	pinfo := srv.p2p.AddrInfo()
 
-	return &daemon.DeviceLinkSession{
+	pb := &daemon.DeviceLinkSession{
 		AddrInfo: &daemon.AddrInfo{
 			PeerId: pinfo.ID.String(),
 			Addrs:  colx.SliceMap(pinfo.Addrs, multiaddr.Multiaddr.String),
 		},
 		SecretToken: sess.Secret,
 		AccountId:   sess.Account.String(),
-	}, nil
+		Label:       sess.Label,
+		ExpireTime:  timestamppb.New(sess.ExpireTime),
+	}
+
+	if !sess.RedeemTime.IsZero() {
+		pb.ExpireTime = timestamppb.New(sess.RedeemTime)
+	}
+
+	return pb
 }

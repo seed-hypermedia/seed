@@ -6,12 +6,12 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/cclock"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	blocks "github.com/ipfs/go-block-format"
@@ -48,7 +48,7 @@ type Service struct {
 	blocks Blockstore
 
 	mu      sync.Mutex
-	session *Session
+	session atomic.Value
 }
 
 // NewService creates a devicelink service.
@@ -66,15 +66,19 @@ func NewService(h host.Host, keys core.KeyStore, bs Blockstore, log *zap.Logger)
 }
 
 // NewSession creates a new session replacing any previous session.
-func (svc *Service) NewSession(ctx context.Context, keyName string) (*Session, error) {
+func (svc *Service) NewSession(ctx context.Context, keyName, label string) (Session, error) {
 	if !svc.mu.TryLock() {
-		return nil, fmt.Errorf("another session is already being redeemed")
+		return Session{}, status.Errorf(codes.FailedPrecondition, "previous session is being redeemed")
 	}
 	defer svc.mu.Unlock()
 
 	kp, err := svc.keys.GetKey(ctx, keyName)
 	if err != nil {
-		return nil, err
+		return Session{}, err
+	}
+
+	if err := blob.ValidateCapabilityLabel(label); err != nil {
+		return Session{}, status.Errorf(codes.InvalidArgument, "invalid label: %v", err)
 	}
 
 	var secret string
@@ -82,26 +86,37 @@ func (svc *Service) NewSession(ctx context.Context, keyName string) (*Session, e
 		rawToken := make([]byte, 16)
 		n, err := rand.Read(rawToken)
 		if err != nil {
-			return nil, err
+			return Session{}, err
 		}
 		if n != len(rawToken) {
-			return nil, status.Errorf(codes.Internal, "failed to generate random token")
+			return Session{}, status.Errorf(codes.Internal, "failed to generate random token")
 		}
 
 		secret, err = multibase.Encode(multibase.Base64url, rawToken)
 		if err != nil {
-			return nil, err
+			return Session{}, err
 		}
 	}
 
-	s := &Session{
+	s := Session{
 		KeyName:    keyName,
+		Label:      label,
 		Account:    kp.Principal(),
 		Secret:     secret,
 		ExpireTime: time.Now().Add(defaultExpireTime),
 	}
-	svc.session = s
+	svc.session.Store(s)
 	return s, nil
+}
+
+// Session returns the current session.
+func (svc *Service) Session() (Session, error) {
+	sess, ok := svc.session.Load().(Session)
+	if !ok {
+		return Session{}, status.Errorf(codes.NotFound, "no active session found")
+	}
+
+	return sess, nil
 }
 
 // HandleLibp2pStream implements the libp2p handler for devicelink protocol.
@@ -126,18 +141,26 @@ func (svc *Service) HandleLibp2pStream(s network.Stream) {
 	w := msgio.NewVarintWriter(s)
 
 	err := svc.handleLibp2pStream(ctx, r, w)
-	svc.session = nil
 	log := svc.log.Info
 	if err != nil {
 		log = svc.log.Error
 		err = errors.Join(err, s.ResetWithError(network.StreamProtocolViolation))
+	} else {
+		sess := svc.session.Load().(Session)
+		sess.RedeemTime = time.Now()
+		svc.session.Store(sess)
 	}
 	log("DeviceLinkEnded", zap.Error(err))
 }
 
 func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w msgio.Writer) error {
-	if svc.session == nil {
+	sess, ok := svc.session.Load().(Session)
+	if !ok {
 		return status.Errorf(codes.FailedPrecondition, "no active session")
+	}
+
+	if !sess.RedeemTime.IsZero() {
+		return status.Errorf(codes.Aborted, "currently active session is already redeemed")
 	}
 
 	secretRaw, err := r.ReadMsg()
@@ -150,11 +173,11 @@ func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w ms
 		return err
 	}
 
-	if string(secretRaw) != svc.session.Secret {
+	if string(secretRaw) != sess.Secret {
 		return status.Errorf(codes.PermissionDenied, "secret mismatch")
 	}
 
-	if time.Now().After(svc.session.ExpireTime) {
+	if time.Now().After(sess.ExpireTime) {
 		return status.Errorf(codes.Aborted, "session expired")
 	}
 
@@ -163,7 +186,7 @@ func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w ms
 		return err
 	}
 
-	me, err := svc.keys.GetKey(context.Background(), svc.session.KeyName)
+	me, err := svc.keys.GetKey(context.Background(), sess.KeyName)
 	if err != nil {
 		return err
 	}
@@ -221,8 +244,10 @@ func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w ms
 
 // Session for the devicelink exchange.
 type Session struct {
+	Label      string
 	KeyName    string
 	Account    core.Principal
 	Secret     string
 	ExpireTime time.Time
+	RedeemTime time.Time
 }

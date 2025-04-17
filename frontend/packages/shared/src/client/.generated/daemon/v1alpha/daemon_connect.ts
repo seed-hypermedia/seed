@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -131,6 +131,17 @@ export const Daemon = {
     createDeviceLinkSession: {
       name: "CreateDeviceLinkSession",
       I: CreateDeviceLinkSessionRequest,
+      O: DeviceLinkSession,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get the current device link session (if it exists).
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession
+     */
+    getDeviceLinkSession: {
+      name: "GetDeviceLinkSession",
+      I: GetDeviceLinkSessionRequest,
       O: DeviceLinkSession,
       kind: MethodKind.Unary,
     },

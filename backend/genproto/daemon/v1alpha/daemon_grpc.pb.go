@@ -30,6 +30,7 @@ const (
 	Daemon_DeleteAllKeys_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
 	Daemon_StoreBlobs_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
 	Daemon_CreateDeviceLinkSession_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/CreateDeviceLinkSession"
+	Daemon_GetDeviceLinkSession_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/GetDeviceLinkSession"
 )
 
 // DaemonClient is the client API for Daemon service.
@@ -68,6 +69,8 @@ type DaemonClient interface {
 	//
 	// After the session is redeemed, it becomes invalid.
 	CreateDeviceLinkSession(ctx context.Context, in *CreateDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error)
+	// Get the current device link session (if it exists).
+	GetDeviceLinkSession(ctx context.Context, in *GetDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error)
 }
 
 type daemonClient struct {
@@ -178,6 +181,16 @@ func (c *daemonClient) CreateDeviceLinkSession(ctx context.Context, in *CreateDe
 	return out, nil
 }
 
+func (c *daemonClient) GetDeviceLinkSession(ctx context.Context, in *GetDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeviceLinkSession)
+	err := c.cc.Invoke(ctx, Daemon_GetDeviceLinkSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonServer is the server API for Daemon service.
 // All implementations should embed UnimplementedDaemonServer
 // for forward compatibility.
@@ -214,6 +227,8 @@ type DaemonServer interface {
 	//
 	// After the session is redeemed, it becomes invalid.
 	CreateDeviceLinkSession(context.Context, *CreateDeviceLinkSessionRequest) (*DeviceLinkSession, error)
+	// Get the current device link session (if it exists).
+	GetDeviceLinkSession(context.Context, *GetDeviceLinkSessionRequest) (*DeviceLinkSession, error)
 }
 
 // UnimplementedDaemonServer should be embedded to have
@@ -252,6 +267,9 @@ func (UnimplementedDaemonServer) StoreBlobs(context.Context, *StoreBlobsRequest)
 }
 func (UnimplementedDaemonServer) CreateDeviceLinkSession(context.Context, *CreateDeviceLinkSessionRequest) (*DeviceLinkSession, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDeviceLinkSession not implemented")
+}
+func (UnimplementedDaemonServer) GetDeviceLinkSession(context.Context, *GetDeviceLinkSessionRequest) (*DeviceLinkSession, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceLinkSession not implemented")
 }
 func (UnimplementedDaemonServer) testEmbeddedByValue() {}
 
@@ -453,6 +471,24 @@ func _Daemon_CreateDeviceLinkSession_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Daemon_GetDeviceLinkSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDeviceLinkSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetDeviceLinkSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetDeviceLinkSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetDeviceLinkSession(ctx, req.(*GetDeviceLinkSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Daemon_ServiceDesc is the grpc.ServiceDesc for Daemon service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -499,6 +535,10 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDeviceLinkSession",
 			Handler:    _Daemon_CreateDeviceLinkSession_Handler,
+		},
+		{
+			MethodName: "GetDeviceLinkSession",
+			Handler:    _Daemon_GetDeviceLinkSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

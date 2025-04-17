@@ -48,6 +48,9 @@ service Daemon {
   //
   // After the session is redeemed, it becomes invalid.
   rpc CreateDeviceLinkSession(CreateDeviceLinkSessionRequest) returns (DeviceLinkSession);
+
+  // Get the current device link session (if it exists).
+  rpc GetDeviceLinkSession(GetDeviceLinkSessionRequest) returns (DeviceLinkSession);
 }
 
 // Request to generate mnemonic words.
@@ -129,7 +132,14 @@ message StoreBlobsResponse {
 message CreateDeviceLinkSessionRequest {
   // Required. Name of the signing key for which to create the delegation.
   string signing_key_name = 1;
+
+  // Optional. Label that will be used for the newly created capability.
+  // The label is publicly visible.
+  string label = 2;
 }
+
+// Request to get the device link session.
+message GetDeviceLinkSessionRequest {}
 
 // Information about the device link session.
 message DeviceLinkSession {
@@ -141,6 +151,16 @@ message DeviceLinkSession {
 
   // Account ID that wants to link the new device.
   string account_id = 3;
+
+  // Label for the future capability as defined by the user.
+  string label = 4;
+
+  // Expiration time of the session.
+  google.protobuf.Timestamp expire_time = 5;
+
+  // Optional. Time when the session was redeemed,
+  // i.e. when the device link exchange was completed successfully.
+  google.protobuf.Timestamp redeem_time = 6;
 }
 
 // Address information about a single peer.

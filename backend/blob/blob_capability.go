@@ -81,6 +81,28 @@ func (c *Capability) Space() core.Principal {
 	return c.Signer
 }
 
+// ValidateCapabilityLabel checks the validity of a capability label.
+func ValidateCapabilityLabel(label string) error {
+	if label == "" {
+		return nil
+	}
+
+	const labelLimit = 512
+	if len(label) > labelLimit {
+		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", label, labelLimit)
+	}
+
+	if strings.TrimSpace(label) != label {
+		return fmt.Errorf("capability label '%s' must not contain leading or trailing spaces", label)
+	}
+
+	if label != "" && !labelPattern.MatchString(label) {
+		return fmt.Errorf("capability label '%s' contains invalid characters", label)
+	}
+
+	return nil
+}
+
 func init() {
 	matcher := makeCBORTypeMatch(blobTypeCapability)
 	registerIndexer(blobTypeCapability,
@@ -130,17 +152,8 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 
 	// Ensuring reasonable limits on the label size, to avoid abuse.
 	// The limit is quite arbitrary though.
-	const labelLimit = 512
-	if len(v.Label) > labelLimit {
-		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", v.Label, labelLimit)
-	}
-
-	if strings.TrimSpace(v.Label) != v.Label {
-		return fmt.Errorf("capability label '%s' must not contain leading or trailing spaces", v.Label)
-	}
-
-	if v.Label != "" && !labelPattern.MatchString(v.Label) {
-		return fmt.Errorf("capability label '%s' contains invalid characters", v.Label)
+	if err := ValidateCapabilityLabel(v.Label); err != nil {
+		return err
 	}
 
 	sb.ExtraAttrs = map[string]any{
