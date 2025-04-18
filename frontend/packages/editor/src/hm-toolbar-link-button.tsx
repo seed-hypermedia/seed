@@ -4,6 +4,8 @@ import {
   HyperlinkToolbarProps,
   useEditorSelectionChange,
 } from '@/blocknote'
+import {hmId, packHmId, unpackHmId} from '@shm/shared'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Close} from '@shm/ui/icons'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Check, Link, Unlink} from '@tamagui/lucide-icons'
@@ -13,6 +15,7 @@ import {
   Input,
   Popover,
   SizeTokens,
+  Spinner,
   Theme,
   Tooltip,
   XGroup,
@@ -123,6 +126,33 @@ function AddHyperlink({
   url?: string
 } & Partial<HyperlinkToolbarProps>) {
   const [_url, setUrl] = useState<string>(url)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+
+  const inputLink = useCallback((url: string) => {
+    setIsLoading(true)
+    resolveHypermediaUrl(url)
+      .then((resolved) => {
+        if (resolved) {
+          const baseId = unpackHmId(resolved.id)
+          if (!baseId) return
+          const u = new URL(url)
+          const latest = u.searchParams.get('l')
+          const blockRef = u.hash?.slice(1)
+          const id = hmId(baseId.type, baseId.uid, {
+            path: baseId.path,
+            latest: latest === '',
+          })
+          const finalUrl = `${packHmId(id)}${blockRef ? `#${blockRef}` : ''}`
+          setLink(finalUrl)
+        }
+      })
+      .catch((e) => {
+        setLink(url)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [])
 
   return (
     <XStack elevation="$4" padding="$2" borderRadius="$4" space>
@@ -137,7 +167,7 @@ function AddHyperlink({
         onKeyPress={(e: KeyboardEvent) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            setLink(_url)
+            inputLink(_url)
           }
         }}
         flex={1}
@@ -145,16 +175,20 @@ function AddHyperlink({
 
       <XGroup borderRadius="$4">
         <XGroup.Item>
-          <Button
-            size="$2"
-            bg="$color4"
-            icon={Check}
-            disabled={!_url}
-            borderRadius={0}
-            onClick={() => {
-              setLink(_url)
-            }}
-          />
+          {isLoading ? (
+            <Spinner size="small" />
+          ) : (
+            <Button
+              size="$2"
+              bg="$color4"
+              icon={Check}
+              disabled={!_url}
+              borderRadius={0}
+              onClick={() => {
+                inputLink(_url)
+              }}
+            />
+          )}
         </XGroup.Item>
 
         <XGroup.Item>
