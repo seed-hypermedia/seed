@@ -10664,6 +10664,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@shm/explore@workspace:frontend/apps/explore"
   dependencies:
+    "@tanstack/react-query": ^5.74.4
     "@types/react": ^18.2.56
     "@types/react-dom": ^18.2.19
     "@typescript-eslint/eslint-plugin": ^7.0.2
@@ -10676,6 +10677,7 @@ __metadata:
     postcss: ^8.4.35
     react: ^18.2.0
     react-dom: ^18.2.0
+    react-router-dom: ^7.5.1
     tailwindcss: ^3.4.1
     typescript: ^5.2.2
     vite: ^5.1.4
@@ -13576,6 +13578,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-core@npm:5.74.4":
+  version: 5.74.4
+  resolution: "@tanstack/query-core@npm:5.74.4"
+  checksum: ac1ae08a3da269293819bd783e1235c31784066e5a1a5889910190dd63d3d5bffa47606b4cfe059f02ffc15a387ff9e5eba2666b50edb7ef47fd097001eef0c3
+  languageName: node
+  linkType: hard
+
 "@tanstack/react-query-devtools@npm:4.36.1":
   version: 4.36.1
   resolution: "@tanstack/react-query-devtools@npm:4.36.1"
@@ -13607,6 +13616,17 @@ __metadata:
     react-native:
       optional: true
   checksum: 1aff0a476859386f8d32253fa0d0bde7b81769a6d4d4d9cbd78778f0f955459a3bdb7ee27a0d2ee7373090f12998b45df80db0b5b313bd0a7a39d36c6e8e51c5
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:^5.74.4":
+  version: 5.74.4
+  resolution: "@tanstack/react-query@npm:5.74.4"
+  dependencies:
+    "@tanstack/query-core": 5.74.4
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: d5930592041e36517438a7c018bd84747809e4c82bae89e7460fda630364e4b12a1144221ec037020eb43ca97150f21607f2363e2da6191cbd020485949157f0
   languageName: node
   linkType: hard
 
@@ -18494,6 +18514,13 @@ __metadata:
   version: 0.6.0
   resolution: "cookie@npm:0.6.0"
   checksum: f56a7d32a07db5458e79c726b77e3c2eff655c36792f2b6c58d351fb5f61531e5b1ab7f46987150136e366c65213cbe31729e02a3eaed630c3bf7334635fb410
+  languageName: node
+  linkType: hard
+
+"cookie@npm:^1.0.1":
+  version: 1.0.2
+  resolution: "cookie@npm:1.0.2"
+  checksum: 2c5a6214147ffa7135ce41860c781de17e93128689b0d080d3116468274b3593b607bcd462ac210d3a61f081db3d3b09ae106e18d60b1f529580e95cf2db8a55
   languageName: node
   linkType: hard
 
@@ -32464,6 +32491,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-router-dom@npm:^7.5.1":
+  version: 7.5.1
+  resolution: "react-router-dom@npm:7.5.1"
+  dependencies:
+    react-router: 7.5.1
+  peerDependencies:
+    react: ">=18"
+    react-dom: ">=18"
+  checksum: dc968f0a4b2df21670e2f20f368de6d3826654102aa30ecc7d68cf0d46d421d692c3b17f3077791200377f6191b71e86b59ba42732b399a5ac80023ca9911348
+  languageName: node
+  linkType: hard
+
 "react-router@npm:5.3.4, react-router@npm:^5.3.3":
   version: 5.3.4
   resolution: "react-router@npm:5.3.4"
@@ -32491,6 +32530,23 @@ __metadata:
   peerDependencies:
     react: ">=16.8"
   checksum: 7c98f3f9a5a968086b98bab9c6603b2ebf3e9fca82aaa9f68515fc6d08e88abb292f76445dd4f085aba0479f3d884edd9293a6ff8cc644c2eebb84113f5712bd
+  languageName: node
+  linkType: hard
+
+"react-router@npm:7.5.1":
+  version: 7.5.1
+  resolution: "react-router@npm:7.5.1"
+  dependencies:
+    cookie: ^1.0.1
+    set-cookie-parser: ^2.6.0
+    turbo-stream: 2.4.0
+  peerDependencies:
+    react: ">=18"
+    react-dom: ">=18"
+  peerDependenciesMeta:
+    react-dom:
+      optional: true
+  checksum: e0ab3ad239447761567e4b01cee19e6f334698914cdc32ec0ef90b09e4538494b37acd9059bbfefd1313a48feba8d0a64ecfe4cc5232b160c6ac23e8f7b9a3e7
   languageName: node
   linkType: hard
 
@@ -36118,6 +36174,13 @@ __metadata:
   version: 2.2.0
   resolution: "turbo-stream@npm:2.2.0"
   checksum: c8006f601ff851e0ec8d2a4e983712f5c3e06805f0fc291c8b5d4004b51bee587dd7f92b059e8ad0b05572ed5c44a91c8e9ea1fbf2d4c29bef23f79fdf7e1099
+  languageName: node
+  linkType: hard
+
+"turbo-stream@npm:2.4.0":
+  version: 2.4.0
+  resolution: "turbo-stream@npm:2.4.0"
+  checksum: e36f52ed40589f01bede79757a143bef484914d579927235be1fd0c205618994cb5779a39ff8c2a80a87a1464d05771cd75320a9412b15bca03c7ff432e3cdf7
   languageName: node
   linkType: hard
 
