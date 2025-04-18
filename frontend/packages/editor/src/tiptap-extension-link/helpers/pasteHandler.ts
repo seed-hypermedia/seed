@@ -118,24 +118,12 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
-        console.log('~~~', {
-          textContent,
-          unpackedHmId,
-          gwUrl: options.gwUrl,
-        })
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
             : hasPastedLink
             ? pastedLinkMarks[0].attrs.href
             : link?.href || null
-          console.log('~~~ 0', {
-            pastedLink,
-            unpackedHmId,
-            hasPastedLink,
-            pastedLinkMarks,
-            link,
-          })
           if (pastedLink) {
             if (unpackedHmId) {
               options.editor
@@ -177,11 +165,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           let pos = tr.selection.from
           const normalizedHmUrl = packHmId(
             hmId(unpackedHmId.type, unpackedHmId.uid, unpackedHmId),
-          )
-          console.log(
-            '~~~ normalizedHmUrl',
-            normalizedHmUrl,
-            !!options.grpcClient,
           )
           if (options.grpcClient) {
             fetchEntityTitle(unpackedHmId, options.grpcClient)
@@ -263,7 +246,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }
         }
 
-        console.log('~~~ link', link, selection.empty)
         if (link && selection.empty) {
           let tr = view.state.tr
           if (!tr.selection.empty) tr.deleteSelection()
@@ -352,7 +334,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               const metaPromise = resolveHypermediaUrl(link.href)
                 .then((linkMetaResult) => {
                   if (!linkMetaResult) return
-                  console.log('Resolved Hypermedia Meta', linkMetaResult)
                   const fullHmUrl = hmIdWithVersion(
                     linkMetaResult.id,
                     linkMetaResult.version,

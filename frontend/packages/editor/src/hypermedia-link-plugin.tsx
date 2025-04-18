@@ -1,4 +1,6 @@
 // import {loadWebLinkMeta} from '@/models/web-links'
+import {hmId, packHmId, unpackHmId} from '@shm/shared'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {EditorView} from '@tiptap/pm/view'
 import {Plugin, PluginKey} from 'prosemirror-state'
 
@@ -72,30 +74,34 @@ async function checkHyperLink(
   if (!entryUrl) return
   view.dispatch(view.state.tr.setMeta('hmPlugin:removeId', id))
   try {
-    console.log('checkHyperLink', id, entryUrl)
-    // let res = await loadWebLinkMeta(entryUrl)
-    // if (res && res.hmId) {
-    //   const fullHmId = hmIdWithVersion(
-    //     res.hmId,
-    //     res.hmVersion,
-    //     extractBlockRefOfUrl(entryUrl),
-    //   )
-    //   view.state.doc.descendants((node, pos) => {
-    //     if (node.marks.some((mark) => mark.attrs.id == id)) {
-    //       let tr = view.state.tr
-    //       tr.addMark(
-    //         pos,
-    //         pos + node.textContent.length,
-    //         view.state.schema.mark('link', {
-    //           href: fullHmId,
-    //         }),
-    //       )
-    //       tr.setMeta('hmPlugin:removeId', id)
-
-    //       view.dispatch(tr)
-    //     }
-    //   })
-    // }
+    let res = await resolveHypermediaUrl(entryUrl)
+    const baseId = unpackHmId(res?.id)
+    if (res && baseId) {
+      const url = new URL(entryUrl)
+      const latest = url.searchParams.get('l') === ''
+      const fragment = url.hash?.slice(1)
+      const fullHmId = hmId(baseId.type, baseId.uid, {
+        path: baseId.path,
+        latest,
+      })
+      const finalHmUrl = `${packHmId(fullHmId)}${
+        fragment ? `#${fragment}` : ''
+      }`
+      view.state.doc.descendants((node, pos) => {
+        if (node.marks.some((mark) => mark.attrs.id == id)) {
+          let tr = view.state.tr
+          tr.addMark(
+            pos,
+            pos + node.textContent.length,
+            view.state.schema.mark('link', {
+              href: finalHmUrl,
+            }),
+          )
+          tr.setMeta('hmPlugin:removeId', id)
+          view.dispatch(tr)
+        }
+      })
+    }
   } catch (error) {
     console.error(`Editor: hm-link check error: ${error}`)
   }
