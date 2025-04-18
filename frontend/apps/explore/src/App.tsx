@@ -1,6 +1,16 @@
+import {useState} from "react";
 import "./App.css";
+import Settings from "./components/Settings";
+import {getApiHost, setApiHost} from "./utils/apiHost";
 
 function App() {
+  const [apiHost, setApiHostState] = useState(getApiHost());
+
+  const handleApiHostChange = (newHost: string) => {
+    setApiHost(newHost);
+    setApiHostState(newHost);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
       <div className="relative py-3 sm:max-w-xl sm:mx-auto">
@@ -20,6 +30,8 @@ function App() {
           </div>
         </div>
       </div>
+
+      <Settings apiHost={apiHost} onApiHostChange={handleApiHostChange} />
     </div>
   );
 }
