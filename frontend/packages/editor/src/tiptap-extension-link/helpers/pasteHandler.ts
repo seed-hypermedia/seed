@@ -102,9 +102,17 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         }
 
         const hasPastedLink = pastedLinkMarks.length > 0
-        const link = find(textContent).find(
-          (item) => item.isLink && item.value === textContent,
-        )
+        // const link = find(textContent).find(
+        //   (item) => item.isLink && item.value === textContent,
+        // )
+        const matches = find(textContent)
+
+        const link =
+          matches.length === 1 &&
+          matches[0].isLink &&
+          textContent.trim().startsWith(matches[0].href)
+            ? matches[0]
+            : null
         const unpackedHmId =
           isHypermediaScheme(textContent) ||
           isPublicGatewayLink(textContent, options.gwUrl)
