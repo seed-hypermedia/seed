@@ -1,12 +1,9 @@
-import {useEffect, useState} from "react";
+import {useEffect, useState, useSyncExternalStore} from "react";
+import {getSnapshot, subscribe, updateApiHost} from "../utils/apiHostStore";
 
-interface SettingsProps {
-  apiHost: string;
-  onApiHostChange: (host: string) => void;
-}
-
-export default function Settings({apiHost, onApiHostChange}: SettingsProps) {
+export default function Settings() {
   const [isOpen, setIsOpen] = useState(false);
+  const apiHost = useSyncExternalStore(subscribe, getSnapshot);
   const [inputValue, setInputValue] = useState(apiHost);
 
   useEffect(() => {
@@ -14,7 +11,7 @@ export default function Settings({apiHost, onApiHostChange}: SettingsProps) {
   }, [apiHost]);
 
   const handleSave = () => {
-    onApiHostChange(inputValue);
+    updateApiHost(inputValue);
     setIsOpen(false);
   };
 

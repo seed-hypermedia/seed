@@ -2,7 +2,6 @@
 
 Browse the data on the Hypermedia network
 
-
 ## Development
 
 ### Prerequisites
