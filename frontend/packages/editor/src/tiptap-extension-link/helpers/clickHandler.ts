@@ -23,7 +23,8 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
 
         if (link && href) {
           let newWindow = false // todo, check for meta key
-          options.openUrl(href, newWindow)
+          // Disabled behavior where link clicks mean "open", this interrupts the editing experience
+          // options.openUrl(href, newWindow)
           return true
         }
 
