@@ -1,5 +1,5 @@
 import {useEffect, useState, useSyncExternalStore} from "react";
-import {getSnapshot, subscribe, updateApiHost} from "../utils/apiHostStore";
+import {getSnapshot, subscribe, updateApiHost} from "../apiHostStore";
 
 export default function Settings() {
   const [isOpen, setIsOpen] = useState(false);

@@ -3,7 +3,7 @@ export function validatePath(path: string): {error: string} | null {
   if (path.startsWith('/')) {
     path = path.slice(1)
     // Return error for reserved paths
-    if (['assets', 'favicon.ico', 'robots.txt', 'hm'].includes(path)) {
+    if (['assets', 'favicon.ico', 'robots.txt', 'hm', 'api'].includes(path)) {
       return {
         error: `This path name is reserved and can't be used: ${path}`,
       }

@@ -1,29 +1,28 @@
 import {Link, Outlet} from "react-router-dom";
+import HMLogo from "../assets/HMLogo.svg";
 
 export default function Layout() {
   return (
-    <div className="min-h-screen w-screen flex flex-col bg-gray-100">
+    <div className="flex flex-col w-screen min-h-screen bg-gray-100">
       <header className="sticky top-0 z-10 w-full bg-white shadow">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex items-center">
-                <Link to="/" className="text-xl font-bold text-gray-800">
-                  Explore
-                </Link>
-              </div>
-              <nav className="ml-6 flex space-x-8">
                 <Link
                   to="/"
-                  className="inline-flex items-center px-1 pt-1 text-gray-900 border-b-2 border-transparent hover:border-gray-300"
+                  className="flex items-center text-xl font-bold text-gray-800"
                 >
-                  Home
+                  <img src={HMLogo} alt="HM Logo" className="w-auto h-8 mr-2" />
+                  Hypermedia Explorer
                 </Link>
+              </div>
+              <nav className="flex ml-6 space-x-8">
                 <Link
                   to="/list"
                   className="inline-flex items-center px-1 pt-1 text-gray-900 border-b-2 border-transparent hover:border-gray-300"
                 >
-                  List
+                  All Sites
                 </Link>
               </nav>
             </div>
