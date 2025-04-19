@@ -349,7 +349,7 @@ export function useCommentEditor(
       content: BlockNode[]
       signingKeyName: string
     }) => {
-      const publishContent = quotingBlockId
+      let publishContent = quotingBlockId
         ? [
             new BlockNode({
               block: {
@@ -370,6 +370,10 @@ export function useCommentEditor(
             }),
           ]
         : content
+
+      // remove trailing blocks
+      publishContent = removeTrailingBlocks(publishContent)
+
       const resultComment = await grpcClient.comments.createComment({
         content: publishContent,
         replyParent: replyCommentId || undefined,
@@ -484,4 +488,7 @@ function usePushComments() {
       }
     },
   })
+}
+function removeTrailingBlocks(publishContent: BlockNode[]): BlockNode[] {
+  throw new Error('Function not implemented.')
 }
