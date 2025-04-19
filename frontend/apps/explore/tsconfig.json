@@ -1,7 +1,27 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["vite/client"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./app/*"],
+      "@shm/editor/*": ["../../packages/editor/src/*"],
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@shm/ui/*": ["../../packages/ui/src/*"]
+    },
+    "noEmit": true
+  }
 }

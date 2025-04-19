@@ -1,3 +1,7 @@
+import {QueryClient} from "@tanstack/react-query";
+
+export const queryClient = new QueryClient();
+
 const API_HOST_STORAGE_KEY = "explore_api_host";
 
 export function getApiHost(): string {

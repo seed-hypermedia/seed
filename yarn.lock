@@ -10664,6 +10664,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@shm/explore@workspace:frontend/apps/explore"
   dependencies:
+    "@shm/shared": "*"
     "@tanstack/react-query": ^5.74.4
     "@types/react": ^18.2.56
     "@types/react-dom": ^18.2.19
@@ -10674,6 +10675,7 @@ __metadata:
     eslint: ^8.56.0
     eslint-plugin-react-hooks: ^4.6.0
     eslint-plugin-react-refresh: ^0.4.5
+    lucide-react: ^0.358.0
     postcss: ^8.4.35
     react: ^18.2.0
     react-dom: ^18.2.0
@@ -26478,6 +26480,15 @@ __metadata:
   version: 0.3.3
   resolution: "lru_map@npm:0.3.3"
   checksum: ca9dd43c65ed7a4f117c548028101c5b6855e10923ea9d1f635af53ad20c5868ff428c364d454a7b57fe391b89c704982275410c3c5099cca5aeee00d76e169a
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^0.358.0":
+  version: 0.358.0
+  resolution: "lucide-react@npm:0.358.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0
+  checksum: dd6db1a5db53993680eb9a136990f706343c34124eedb1fd9308704f261bdbdb61aac4009f4816ca1a47bfb1fbfa2fd8dc19d715fa5b15eb7950d066e5b9d584
   languageName: node
   linkType: hard
 
