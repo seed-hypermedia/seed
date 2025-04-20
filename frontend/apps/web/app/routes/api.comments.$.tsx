@@ -1,16 +1,14 @@
 import {queryClient} from '@/client'
-import {json, LoaderFunction} from '@remix-run/node'
+import {apiGetter} from '@/server-api'
 import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
-import {withCors} from '../utils/cors'
 
-export const loader: LoaderFunction = async ({request}) => {
-  const url = new URL(request.url)
-  const pathParts = url.pathname.split('/').slice(1)
+export const loader = apiGetter(async (req) => {
+  const pathParts = req.pathParts
   const [_api, _document, uid, ...restPath] = pathParts
   const result = await queryClient.comments.listComments({
     targetAccount: uid,
     targetPath: hmIdPathToEntityQueryPath(restPath),
     pageSize: BIG_INT,
   })
-  return withCors(json(result.toJson()))
-}
+  return result.toJson()
+})

@@ -1,11 +1,9 @@
 import {queryClient} from '@/client'
-import {json, LoaderFunction} from '@remix-run/node'
+import {apiGetter} from '@/server-api'
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
-import {withCors} from '../utils/cors'
 
-export const loader: LoaderFunction = async ({request}) => {
-  const url = new URL(request.url)
-  const pathParts = url.pathname.split('/').slice(1)
+export const loader = apiGetter(async (req) => {
+  const pathParts = req.pathParts
   const [_api, _document, type, uid, ...restPath] = pathParts
   if (type !== 'd') {
     throw new Error('Invalid entity type, document only')
@@ -14,5 +12,5 @@ export const loader: LoaderFunction = async ({request}) => {
     account: uid,
     path: hmIdPathToEntityQueryPath(restPath),
   })
-  return withCors(json(doc.toJson()))
-}
+  return doc.toJson()
+})

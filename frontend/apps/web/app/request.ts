@@ -17,6 +17,7 @@ export function parseRequest(request: Request) {
     pathParts,
     method: request.method,
     headers: request.headers,
+    searchParams: url.searchParams,
   }
 }
 

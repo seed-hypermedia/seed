@@ -1,3 +1,4 @@
+import {useSyncExternalStore} from "react";
 import {getApiHost, setApiHost} from "./queryClient";
 
 let currentApiHost = getApiHost();
@@ -12,6 +13,10 @@ export function subscribe(listener: () => void) {
 
 export function getSnapshot() {
   return currentApiHost;
+}
+
+export function useApiHost() {
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
 
 export function updateApiHost(newHost: string) {
