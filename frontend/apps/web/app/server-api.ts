@@ -1,5 +1,6 @@
 import {json, LoaderFunction} from '@remix-run/node'
 import {Params} from '@remix-run/react'
+import {WEB_API_DISABLED, WEB_IS_GATEWAY} from '@shm/shared/constants'
 import {ParsedRequest, parseRequest} from './request'
 import {withCors} from './utils/cors'
 
@@ -30,6 +31,12 @@ export function apiGetter<ResultType>(
   const apiGet: LoaderFunction = async ({request}) => {
     const parsedRequest = parseRequest(request)
     try {
+      if (WEB_API_DISABLED) {
+        throw new APIError('API is disabled with SEED_API_ENABLED=false', 500)
+      }
+      if (!WEB_IS_GATEWAY) {
+        throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
+      }
       const result = await handler(parsedRequest)
       return withCors(json(result))
     } catch (e: unknown) {
