@@ -170,7 +170,7 @@ export function DocContentProvider({
       value={{
         ...docContextContent,
         layoutUnit: lUnit,
-        textUnit: comment ? tUnit * 0.8 : tUnit,
+        textUnit: comment ? tUnit * 0.9 : tUnit,
         debug,
         ffSerif,
         comment,
@@ -431,8 +431,18 @@ export function BlockNodeList({
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
 }) {
+  console.log('BLOCK NODE LIST PROPS', props)
+
+  const tag = useMemo(() => {
+    if (childrenType == 'Ordered') return 'ol'
+    if (childrenType == 'Unordered') return 'ul'
+    if (childrenType == 'Blockquote') return 'blockquote'
+    return 'div'
+  }, [childrenType])
+
   return (
     <YStack
+      tag={tag}
       className="blocknode-list"
       data-node-type="blockGroup"
       data-list-type={childrenType}
@@ -519,7 +529,7 @@ export function BlockNodeContent({
   ...props
 }: {
   isFirstChild: boolean
-  blockNode: BlockNode | HMBlockNode
+  blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
   index: number
   depth?: number
   listLevel?: number
@@ -589,7 +599,7 @@ export function BlockNodeContent({
     return {}
   }, [blockNode.block, headingMarginStyles])
 
-  const isEmbed = blockNode.block?.type == 'embed'
+  const isEmbed = blockNode.block?.type == 'Embed'
 
   const [isHighlight, setHighlight] = useState(false)
 
@@ -716,7 +726,9 @@ export function BlockNodeContent({
     >
       <XStack
         borderRadius={layoutUnit / 4}
-        padding={isEmbed ? 0 : layoutUnit / 3}
+        // padding={isEmbed ? 0 : layoutUnit / 3}
+
+        padding={layoutUnit / 3}
         paddingVertical={isEmbed ? 0 : layoutUnit / 6}
         {...headingStyles}
         {...debugStyles(debug, 'red')}
@@ -1842,6 +1854,7 @@ export function ContentEmbed({
         <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
+              parentBlockId={props.parentBlockId}
               isFirstChild
               depth={props.depth}
               expanded

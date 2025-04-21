@@ -161,8 +161,8 @@ function EmbedWrapper({
       // padding={layoutUnit / 2}
       // overflow="hidden"
       borderRadius={0}
-      borderRightWidth={hideBorder ? 0 : 3}
-      borderRightColor={hideBorder ? '$colorTransparent' : '$brand5'}
+      borderLeftWidth={hideBorder ? 0 : 3}
+      borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={
@@ -241,11 +241,11 @@ export function EmbedDocument(props: EntityComponentProps) {
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
-  const {entityId} = useDocContentContext()
+  const {entityId, textUnit} = useDocContentContext()
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
-      <SizableText color="$color9">
+      <SizableText color="$color9" fontSize={textUnit}>
         Embed: Parent document (skipped)
       </SizableText>
     )

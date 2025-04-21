@@ -21,10 +21,12 @@ import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
+import {useIsDark} from './use-is-dark'
 
 const Stack = View
 const lineColor = '$color7'
 const lineWidth = 1
+const avatarSize = 16
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
 export function CommentGroup({
@@ -73,7 +75,7 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <YStack>
+    <YStack gap="$2">
       {isLastGroup ? (
         <View
           width={5}
@@ -175,29 +177,30 @@ export function Comment({
     authorId ? {key: 'document', id: authorId} : null,
   )
   const theme = useTheme()
+  const isDark = useIsDark()
   return (
     <YStack>
       <View
         width={lineWidth}
-        height={isLast && !showReplies ? 20 : '100%'}
+        height={isLast && !showReplies ? avatarSize : '100%'}
         position="absolute"
-        top={isFirst ? 8 : 0}
-        left={16}
+        top={isFirst ? avatarSize / 2 : 0}
+        left={avatarSize - 2}
         bg={lineColor}
       />
       {isFirst && isNested ? (
         <View
           position="absolute"
           zi="$zIndex.1"
-          top={4}
-          left={-6}
+          top={avatarSize / 3}
+          left={-8}
           width={12}
-          height={15}
+          height={10}
           borderLeftWidth={lineWidth}
           borderBottomWidth={lineWidth}
           borderLeftColor={lineColor}
           borderBottomColor={lineColor}
-          borderRadius={25}
+          borderRadius={20}
           borderTopLeftRadius={0}
           borderBottomRightRadius={0}
         />
@@ -209,10 +212,10 @@ export function Comment({
             top={0}
             zi="$zIndex.2"
             left={0}
-            w={20}
-            h={20}
+            w={16}
+            h={16}
             bg="transparent"
-            outlineColor="$background"
+            outlineColor={isDark ? '$backgroundStrong' : '$background'}
             outlineStyle="solid"
             outlineWidth={4}
             borderRadius={100}
@@ -226,14 +229,15 @@ export function Comment({
               zi="$zIndex.2"
               id={authorId}
               metadata={authorMetadata}
-              size={20}
+              size={16}
             />
           )}
         </Stack>
-        <YStack f={1}>
-          <XStack minHeight={20} ai="center" gap="$2">
+        <YStack f={1} gap="$1">
+          <XStack minHeight={16} ai="center" gap="$2">
             <ButtonText
-              size="$2"
+              size="$1"
+              h={16}
               fontWeight="bold"
               hoverStyle={{
                 bg: '$backgroundStrong',
@@ -245,7 +249,8 @@ export function Comment({
             <Tooltip content={formattedDateLong(comment.createTime)}>
               <ButtonText
                 color="$color8"
-                size="$1"
+                fontSize={10}
+                h={16}
                 onPress={() => {
                   copyTextToClipboard(comment.id)
                 }}
@@ -255,7 +260,13 @@ export function Comment({
             </Tooltip>
           </XStack>
           <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>
-          <XStack ai="center" gap="$2" marginLeft={-4} paddingVertical="$1">
+          <XStack
+            ai="center"
+            gap="$2"
+            marginLeft={-4}
+            paddingVertical="$1"
+            marginBottom="$2"
+          >
             {replyCount ? (
               <Button
                 chromeless

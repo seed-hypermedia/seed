@@ -436,22 +436,28 @@ function CommentReference({reference}: {reference: string | null}) {
   if (!referenceData.data) return null
 
   return (
-    <XStack gap="$3" ai="center" p="$2" width="100%">
-      <View w={2} height="100%" bg="rgba(255, 203, 0, 0.64)" />
-      <XStack h={32} ai="center" flex={1}>
-        <SizableText
-          size="$2"
-          color="$color10"
-          textAlign="left"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          overflow="hidden"
-        >
-          {commentReferenceContent({
-            content: referenceContent || [],
-          })}
-        </SizableText>
-      </XStack>
+    <XStack
+      gap="$3"
+      ai="center"
+      p="$2"
+      width="100%"
+      borderLeftWidth={2}
+      borderLeftColor="$brand5"
+      margin="$2"
+      x={2}
+    >
+      <SizableText
+        size="$2"
+        color="$color9"
+        textAlign="left"
+        textOverflow="ellipsis"
+        whiteSpace="nowrap"
+        overflow="hidden"
+      >
+        {commentReferenceContent({
+          content: referenceContent || [],
+        })}
+      </SizableText>
     </XStack>
   )
 }
@@ -461,10 +467,12 @@ function commentReferenceContent({content}: {content: Array<HMBlockNode>}) {
   content.forEach((bn) => {
     if (bn.block.text) {
       text += bn.block.text
+      text += ' '
     }
     if (bn.children?.length) {
       text += commentReferenceContent({content: bn.children})
     }
+    text += ' '
   })
 
   return text
