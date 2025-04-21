@@ -35,3 +35,9 @@
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* ol > [data-node-type='blockContainer'] > :not([data-list-type]),
+ul > [data-node-type='blockContainer'] > :not([data-list-type]) {
+  padding-left: 0;
+  background-color: red;
+} */

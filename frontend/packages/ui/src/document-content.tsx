@@ -915,9 +915,9 @@ export function BlockNodeContent({
       {bnChildren && _expanded ? (
         <BlockNodeList
           paddingLeft={
-            blockNode.block?.type != 'Heading' || childrenType != 'Group'
-              ? layoutUnit
-              : 0
+            childrenType === 'Group' || blockNode.block?.type == 'Heading'
+              ? 0
+              : layoutUnit
           }
           childrenType={childrenType as HMBlockChildrenType}
           listLevel={listLevel}
