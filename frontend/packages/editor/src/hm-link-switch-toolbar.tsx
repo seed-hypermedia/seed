@@ -20,6 +20,7 @@ import {
   HyperlinkToolbarProps,
   PartialBlock,
 } from './blocknote'
+import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HypermediaLinkForm} from './hm-link-form'
 import {HMBlockSchema} from './schema'
 
@@ -168,26 +169,21 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText="Change to a mention"
             icon={Quote}
             onPress={() => {
-              if (props.type === 'link') {
-                const tiptap = props.editor._tiptapEditor
-                const {state} = tiptap
-                const node = state.schema.nodes['inline-embed'].create(
-                  {
-                    link: props.url,
-                  },
-                  state.schema.text(' '),
-                )
-                insertMentionNode(props.editor, props.text, node)
-              } else {
-                const mentionBlock = {
-                  type: 'inline-embed',
-                  content: [],
-                  props: {
-                    link: props.url,
-                  },
-                } as PartialBlock<HMBlockSchema>
-                props.editor.replaceBlocks([props.id], [mentionBlock])
-              }
+              const tiptap = props.editor._tiptapEditor
+              const {state} = tiptap
+              const node = state.schema.nodes['inline-embed'].create(
+                {
+                  link: props.url,
+                },
+                state.schema.text(' '),
+              )
+              insertMentionNode(
+                props.editor,
+                props.text,
+                node,
+                props.id,
+                props.type === 'link',
+              )
               props.resetHyperlink()
             }}
             active={props.type === 'mention'}
@@ -402,27 +398,27 @@ function insertMentionNode(
   editor: BlockNoteEditor<HMBlockSchema>,
   name: string,
   node: Node,
+  id: string,
+  inline: boolean,
 ) {
   const {state, view} = editor._tiptapEditor
-  const {selection} = state
-  const {$from} = selection
   let tr = state.tr
+  const {posBeforeNode} = getNodeById(id, state.doc)
 
-  const $pos = state.doc.resolve($from.pos)
+  const $pos = state.doc.resolve(posBeforeNode + 1)
+  let startPos = $pos.start()
+  let endPos = $pos.start() + 2
 
-  let offset = 0
-  $pos.parent.descendants((node, pos) => {
-    if (node.marks.length > 0) {
-      offset = pos
-    }
-  })
+  if (inline) {
+    let offset = 0
+    $pos.parent.descendants((node, pos) => {
+      if (node.marks.length > 0) {
+        offset = pos
+      }
+    })
+    startPos = startPos + offset
+    endPos = startPos + name.length
+  }
 
-  view.dispatch(
-    tr
-      .deleteRange($pos.start() + offset, $pos.start() + offset + name.length)
-      .insert(
-        $pos.start() + offset,
-        Fragment.fromArray([node, view.state.schema.text(' ')]),
-      ),
-  )
+  view.dispatch(tr.replaceRangeWith(startPos, endPos, node))
 }
