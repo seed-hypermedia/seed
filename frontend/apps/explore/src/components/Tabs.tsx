@@ -1,3 +1,4 @@
+import {HMEntityType, labelOfEntityType} from "@shm/shared";
 import React from "react";
 
 export type TabType =
@@ -36,6 +37,7 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
 
 interface TabsProps {
   currentTab: TabType;
+  type: HMEntityType;
   onTabChange: (tab: TabType) => void;
   changeCount: number | undefined;
   commentCount: number | undefined;
@@ -44,6 +46,7 @@ interface TabsProps {
 }
 
 const Tabs: React.FC<TabsProps> = ({
+  type,
   currentTab,
   onTabChange,
   changeCount,
@@ -52,7 +55,7 @@ const Tabs: React.FC<TabsProps> = ({
   capabilityCount,
 }) => {
   const tabs: {id: TabType; label: string}[] = [
-    {id: "document", label: "Document State"},
+    {id: "document", label: `${labelOfEntityType(type)} State`},
   ];
   if (changeCount) {
     tabs.push({id: "changes", label: `${changeCount} Changes`});

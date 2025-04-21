@@ -41,6 +41,7 @@ export function useComments(hmId: UnpackedHypermediaId) {
       getAPI<any>(
         `comments/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
       ),
+    enabled: hmId.type === "d",
   });
 }
 
@@ -53,6 +54,7 @@ export function useCitations(hmId: UnpackedHypermediaId) {
           hmId.path
         )}`
       ),
+    enabled: hmId.type === "d",
   });
 }
 
@@ -61,6 +63,7 @@ export function useChanges(hmId: UnpackedHypermediaId) {
     queryKey: ["changes", hmId.id],
     queryFn: () =>
       getAPI<any>(`changes/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`),
+    enabled: hmId.type === "d",
   });
 }
 
@@ -71,6 +74,7 @@ export function useCapabilities(hmId: UnpackedHypermediaId) {
       getAPI<any>(
         `capabilities/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
       ),
+    enabled: hmId.type === "d",
   });
 }
 

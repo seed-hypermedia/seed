@@ -1,4 +1,10 @@
-import {HMBlockNode, hmId, HMIDTypeSchema, packHmId} from "@shm/shared";
+import {
+  entityQueryPathToHmIdPath,
+  HMBlockNode,
+  hmId,
+  HMIDTypeSchema,
+  packHmId,
+} from "@shm/shared";
 import {useMemo} from "react";
 import {useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {
@@ -40,13 +46,6 @@ export default function HM() {
   const {data: capabilities, isLoading: capabilitiesLoading} =
     useCapabilities(id);
 
-  console.log({
-    comments,
-    citations,
-    changes,
-    capabilities,
-  });
-
   const url = packHmId(id);
 
   // Get current tab from URL or default to "document"
@@ -59,36 +58,59 @@ export default function HM() {
 
   const preparedData = useMemo(() => {
     if (!data) return null;
-    const {
-      metadata,
-      account,
-      authors,
-      genesis,
-      generationInfo,
-      version,
-      content,
-      ...rest
-    } = data;
-    const cleaned = {...metadata, ...rest};
-    if (account) {
-      cleaned.account = `hm://${account}`;
+    if (type === "d") {
+      const {
+        metadata,
+        account,
+        authors,
+        genesis,
+        generationInfo,
+        version,
+        content,
+        ...rest
+      } = data;
+      const cleaned = {...metadata, ...rest};
+      if (account) {
+        cleaned.account = `hm://${account}`;
+      }
+      if (authors) {
+        cleaned.authors = authors.map((author: string) => `hm://${author}`);
+      }
+      if (version) {
+        cleaned.version = version
+          .split(".")
+          .map((changeCid: string) => `ipfs://${changeCid}`);
+      }
+      if (genesis) {
+        cleaned.genesis = `ipfs://${genesis}`;
+      }
+      if (content) {
+        cleaned.content = content.map(flattenBlockNode);
+      }
+      return flattenSingleItemArrays(cleaned);
     }
-    if (authors) {
-      cleaned.authors = authors.map((author: string) => `hm://${author}`);
+    if (type === "c") {
+      const {id, author, targetPath, targetAccount, targetVersion, ...rest} =
+        data;
+      const cleaned = {...rest};
+      if (id) {
+        cleaned.id = `ipfs://${id}`;
+      }
+      if (author) {
+        cleaned.author = `hm://${author}`;
+      }
+      if (targetAccount) {
+        cleaned.target = packHmId(
+          hmId("d", targetAccount, {
+            path: entityQueryPathToHmIdPath(targetPath),
+            version: targetVersion,
+          })
+        );
+      }
+      return flattenSingleItemArrays(cleaned);
     }
-    if (version) {
-      cleaned.version = version
-        .split(".")
-        .map((changeCid: string) => `ipfs://${changeCid}`);
-    }
-    if (genesis) {
-      cleaned.genesis = `ipfs://${genesis}`;
-    }
-    if (content) {
-      cleaned.content = content.map(flattenBlockNode);
-    }
-    return flattenSingleItemArrays(cleaned);
-  }, [data]);
+    return null;
+  }, [data, type]);
 
   // Render tab content based on current tab
   const renderTabContent = () => {
@@ -123,6 +145,7 @@ export default function HM() {
       </Title>
 
       <Tabs
+        type={type}
         currentTab={currentTab}
         onTabChange={handleTabChange}
         changeCount={changes?.changes?.length}
@@ -136,8 +159,6 @@ export default function HM() {
 }
 
 function flattenBlockNode(node: HMBlockNode) {
-  console.log("flattening", node);
-  // return node;
   const {block, children} = node;
   const out = {...block};
   if (children && Array.isArray(children)) {

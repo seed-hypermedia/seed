@@ -1,10 +1,33 @@
-import React from "react";
+import {entityQueryPathToHmIdPath, hmId, packHmId} from "@shm/shared";
+import React, {useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import DataViewer from "../DataViewer";
 
 const CommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
   const navigate = useNavigate();
-  return <DataViewer data={comments} onNavigate={navigate} />;
+  const preparedComments = useMemo(() => {
+    return comments?.map((comment) => {
+      const {id, author, targetPath, targetAccount, targetVersion, ...rest} =
+        comment;
+      const out = {...rest};
+      if (id) {
+        out.id = `hm://c/${id}`;
+      }
+      if (author) {
+        out.author = `hm://${author}`;
+      }
+      if (targetAccount) {
+        out.target = packHmId(
+          hmId("d", targetAccount, {
+            path: entityQueryPathToHmIdPath(targetPath),
+            version: targetVersion,
+          })
+        );
+      }
+      return out;
+    });
+  }, [comments]);
+  return <DataViewer data={preparedComments} onNavigate={navigate} />;
 };
 
 export default CommentsTab;
