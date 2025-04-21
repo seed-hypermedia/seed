@@ -15,6 +15,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 export default function CreateComment() {
   const {enableWebSigning} = useLoaderData<typeof loader>()
   const [params] = useSearchParams()
+  const originUrl = params.get('originUrl') || undefined
   const targetStr = params.get('target')
   const targetVersion = params.get('targetVersion')
   const targetDocIdBare = targetStr
@@ -41,6 +42,7 @@ export default function CreateComment() {
         replyCommentId={replyCommentId}
         rootReplyCommentId={rootReplyCommentId}
         enableWebSigning={enableWebSigning}
+        commentingOriginUrl={originUrl}
       />
     </YStack>
   )

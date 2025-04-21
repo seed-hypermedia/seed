@@ -1,5 +1,5 @@
 import {createComment, postCBOR} from '@/api'
-import {useCreateAccount, useLocalKeyPair} from '@/auth'
+import {LocalWebIdentity, useCreateAccount, useLocalKeyPair} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
@@ -28,7 +28,6 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {SizableText, Spinner, XStack, YStack} from 'tamagui'
-import {getValidAbility} from './auth-abilities'
 import {useDelegatedAbilities} from './auth-delegation'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -47,6 +46,7 @@ export type WebCommentingProps = {
   onDiscardDraft?: () => void
   onReplied?: () => void
   enableWebSigning: boolean
+  commentingOriginUrl?: string
 }
 
 export default function WebCommenting(props: WebCommentingProps) {
@@ -55,15 +55,18 @@ export default function WebCommenting(props: WebCommentingProps) {
     return (
       <Button
         onPress={() => {
-          const url = `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment?target=${
-            props.docId.uid
-          }${hmIdPathToEntityQueryPath(props.docId.path)}&targetVersion=${
-            props.docId.version
-          }&reply=${props.replyCommentId || ''}&rootReply=${
-            props.rootReplyCommentId || ''
-          }`
-          console.log('Redirect to ' + SITE_IDENTITY_DEFAULT_ORIGIN, url)
-          window.open(url, '_blank')
+          const url = new URL(`${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment`)
+          url.searchParams.set('target', props.docId.uid)
+          url.searchParams.set('targetVersion', props.docId.version || '')
+          url.searchParams.set('reply', props.replyCommentId || '')
+          url.searchParams.set('rootReply', props.rootReplyCommentId || '')
+          url.searchParams.set('originUrl', window.location.toString())
+          url.searchParams.set(
+            'path',
+            hmIdPathToEntityQueryPath(props.docId.path),
+          )
+          console.log('Redirect to ' + url.toString())
+          window.open(url.toString(), '_blank')
         }}
       >
         {`Comment with ${hostnameStripProtocol(
@@ -82,6 +85,7 @@ export function LocalWebCommenting({
   onDiscardDraft,
   onReplied,
   enableWebSigning,
+  commentingOriginUrl,
 }: WebCommentingProps) {
   const userKeyPair = useLocalKeyPair()
   const delegatedAbilities = useDelegatedAbilities()
@@ -119,21 +123,15 @@ export function LocalWebCommenting({
   const myAccountId = userKeyPair ? hmId('d', userKeyPair.id) : null
   const myAccount = useEntity(myAccountId || undefined)
   const myName = myAccount.data?.document?.metadata?.name
-  const commentActionMessage = myName
+  const authenticatedActionMessage = myName
     ? `Comment as ${myName}`
     : 'Submit Comment'
-
-  const validAbility = getValidAbility(
-    delegatedAbilities,
-    docId,
-    'comment',
-    window.location.origin,
-  )
-
   const unauthenticatedActionMessage = enableWebSigning
     ? 'Create Account'
     : `Submit Comment`
-
+  const commentActionMessage = userKeyPair
+    ? authenticatedActionMessage
+    : unauthenticatedActionMessage
   const {
     content: emailNotificationsPromptContent,
     open: openEmailNotificationsPrompt,
@@ -171,18 +169,25 @@ export function LocalWebCommenting({
       return
     }
 
-    const commentPayload = await prepareComment(getContent, {
-      docId,
-      docVersion,
-      keyPair: userKeyPair,
-      replyCommentId,
-      rootReplyCommentId,
-    })
+    const commentPayload = await prepareComment(
+      getContent,
+      {
+        docId,
+        docVersion,
+        keyPair: userKeyPair,
+        replyCommentId,
+        rootReplyCommentId,
+      },
+      commentingOriginUrl,
+    )
 
     await postComment.mutateAsync(commentPayload)
     reset()
     onDiscardDraft?.()
-    promptEmailNotifications()
+    await promptEmailNotifications()
+    if (commentingOriginUrl) {
+      window.location.href = commentingOriginUrl || ''
+    }
   }
 
   return (
@@ -212,9 +217,7 @@ export function LocalWebCommenting({
                 }
                 onPress={() => handleSubmit(getContent, reset)}
               >
-                {userKeyPair
-                  ? commentActionMessage
-                  : unauthenticatedActionMessage}
+                {commentActionMessage}
               </Button>
             )
           }}
@@ -276,13 +279,14 @@ async function prepareComment(
     replyCommentId: string | null | undefined
     rootReplyCommentId: string | null | undefined
   },
+  commentingOriginUrl: string | undefined,
 ): Promise<CommentPayload> {
   const {blockNodes, blobs} = await getContent(prepareAttachments)
   const signedComment = await createComment({
     content: blockNodes,
     ...commentMeta,
   })
-  return {comment: cborEncode(signedComment), blobs}
+  return {comment: cborEncode(signedComment), blobs, commentingOriginUrl}
 }
 
 async function handleFileAttachment(file: Blob) {
