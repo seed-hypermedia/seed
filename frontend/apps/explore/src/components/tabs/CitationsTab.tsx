@@ -19,11 +19,15 @@ const CitationsTab: React.FC<{citations: any[]}> = ({citations}) => {
       return out;
     });
   }, [citations]);
-  return preparedCitations?.map((citation) => (
-    <div className="p-4">
-      <DataViewer data={citation} onNavigate={navigate} />
+  return (
+    <div className="flex flex-col gap-4">
+      {preparedCitations?.map((citation) => (
+        <div key={citation.id}>
+          <DataViewer data={citation} onNavigate={navigate} />
+        </div>
+      ))}
     </div>
-  ));
+  );
 };
 
 export default CitationsTab;

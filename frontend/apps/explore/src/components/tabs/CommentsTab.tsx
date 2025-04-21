@@ -19,7 +19,7 @@ const CommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
       if (targetAccount) {
         out.target = packHmId(
           hmId("d", targetAccount, {
-            path: entityQueryPathToHmIdPath(targetPath),
+            path: entityQueryPathToHmIdPath(targetPath || ""),
             version: targetVersion,
           })
         );
@@ -27,9 +27,15 @@ const CommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
       return out;
     });
   }, [comments]);
-  return preparedComments?.map((comment) => (
-    <DataViewer data={comment} onNavigate={navigate} />
-  ));
+  return (
+    <div className="flex flex-col gap-4">
+      {preparedComments?.map((comment) => (
+        <div key={comment.id}>
+          <DataViewer data={comment} onNavigate={navigate} />
+        </div>
+      ))}
+    </div>
+  );
 };
 
 export default CommentsTab;

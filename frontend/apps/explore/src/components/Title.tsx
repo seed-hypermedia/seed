@@ -12,9 +12,11 @@ export const Title: React.FC<TitleProps> = ({
   buttons,
 }) => {
   return (
-    <div className={`flex items-center ${className}`}>
-      <h1 className="text-2xl font-bold">{children}</h1>
-      {buttons && <div className="flex ml-2">{buttons}</div>}
+    <div className={`flex items-center w-full ${className}`}>
+      <h1 className="flex-grow min-w-0 overflow-hidden text-2xl font-bold break-words">
+        {children}
+      </h1>
+      {buttons && <div className="flex flex-shrink-0 ml-auto">{buttons}</div>}
     </div>
   );
 };

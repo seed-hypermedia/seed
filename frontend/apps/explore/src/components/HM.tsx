@@ -2,23 +2,27 @@ import {
   entityQueryPathToHmIdPath,
   HMBlockNode,
   hmId,
+  hmIdPathToEntityQueryPath,
   HMIDTypeSchema,
   packHmId,
 } from "@shm/shared";
 import {useMemo} from "react";
 import {useNavigate, useParams, useSearchParams} from "react-router-dom";
+import {useApiHost} from "../apiHostStore";
 import {
   useCapabilities,
   useChanges,
+  useChildrenList,
   useCitations,
   useComments,
   useEntity,
 } from "../models";
 import {CopyTextButton} from "./CopyTextButton";
-import {ExternalOpenButton} from "./ExternalOpenButton";
+import {ExternalOpenButton, OpenInAppButton} from "./ExternalOpenButton";
 import Tabs, {TabType} from "./Tabs";
 import CapabilitiesTab from "./tabs/CapabilitiesTab";
 import ChangesTab from "./tabs/ChangesTab";
+import {ChildrenDocsTab} from "./tabs/ChildrenDocsTab";
 import CitationsTab from "./tabs/CitationsTab";
 import CommentsTab from "./tabs/CommentsTab";
 import DocumentTab from "./tabs/DocumentTab";
@@ -37,19 +41,25 @@ export default function HM() {
     uid = pathParts[0];
     hmPath = pathParts.slice(1);
   }
+  const apiHost = useApiHost();
   const navigate = useNavigate();
-  console.log("v=", searchParams.get("v"));
   const id = hmId(type, uid, {
     path: hmPath,
     version: searchParams.get("v") ? searchParams.get("v") : undefined,
   });
-  console.log("id=", id);
   const {data, isLoading} = useEntity(id);
   const {data: comments, isLoading: commentsLoading} = useComments(id);
   const {data: citations, isLoading: citationsLoading} = useCitations(id);
   const {data: changes, isLoading: changesLoading} = useChanges(id);
   const {data: capabilities, isLoading: capabilitiesLoading} =
     useCapabilities(id);
+  const {data: childrenDocsUnfiltered, isLoading: childrenLoading} =
+    useChildrenList(id);
+  const childrenDocs = useMemo(() => {
+    return childrenDocsUnfiltered?.documents?.filter(
+      (doc) => doc.id.id.startsWith(id.id) && doc.id.id !== id.id
+    );
+  }, [childrenDocsUnfiltered, id]);
 
   const url = packHmId(id);
 
@@ -111,7 +121,7 @@ export default function HM() {
       if (targetAccount) {
         cleaned.target = packHmId(
           hmId("d", targetAccount, {
-            path: entityQueryPathToHmIdPath(targetPath),
+            path: entityQueryPathToHmIdPath(targetPath || ""),
             version: targetVersion,
           })
         );
@@ -134,10 +144,19 @@ export default function HM() {
         return <CitationsTab citations={citations?.citations} />;
       case "capabilities":
         return <CapabilitiesTab capabilities={capabilities?.capabilities} />;
+      case "children":
+        return <ChildrenDocsTab list={childrenDocs} id={id} />;
       default:
         return null;
     }
   };
+
+  let webUrl = `${apiHost}/hm/${id.type}/${id.uid}${hmIdPathToEntityQueryPath(
+    id.path
+  )}`;
+  if (id.version) {
+    webUrl += `?v=${id.version}`;
+  }
 
   return (
     <div className="container p-4 mx-auto">
@@ -146,7 +165,8 @@ export default function HM() {
         buttons={
           <>
             <CopyTextButton text={url} />
-            <ExternalOpenButton url={url} />
+            <ExternalOpenButton url={webUrl} />
+            <OpenInAppButton url={url} />
           </>
         }
       >
@@ -161,6 +181,7 @@ export default function HM() {
         commentCount={comments?.comments?.length}
         citationCount={citations?.citations?.length}
         capabilityCount={capabilities?.capabilities?.length}
+        childrenCount={childrenDocs?.length}
       />
       <div className="tab-content">{renderTabContent()}</div>
     </div>

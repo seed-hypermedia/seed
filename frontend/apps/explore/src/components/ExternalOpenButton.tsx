@@ -22,3 +22,19 @@ export const ExternalOpenButton: React.FC<ExternalOpenButtonProps> = ({
     </button>
   );
 };
+
+export const OpenInAppButton: React.FC<ExternalOpenButtonProps> = ({url}) => {
+  const handleClick = () => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="p-2 ml-2 text-green-500 transition-colors hover:text-green-700"
+      title="Open in Seed App"
+    >
+      <FiExternalLink />
+    </button>
+  );
+};

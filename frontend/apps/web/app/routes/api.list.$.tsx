@@ -1,6 +1,10 @@
 import {queryClient} from '@/client'
 import {apiGetter} from '@/server-api'
-import {HMDocumentMetadataSchema, hmId} from '@shm/shared'
+import {
+  entityQueryPathToHmIdPath,
+  HMDocumentMetadataSchema,
+  hmId,
+} from '@shm/shared'
 import {ListAPIResponse} from '@shm/shared/api-types'
 import {BIG_INT} from '@shm/shared/constants'
 
@@ -14,8 +18,8 @@ export const loader = apiGetter(async (req) => {
     })
     return {
       documents: docs.documents.map((doc) => ({
-        id: hmId('d', doc.account),
-        metadata: HMDocumentMetadataSchema.parse(doc.metadata),
+        id: hmId('d', doc.account, {path: entityQueryPathToHmIdPath(doc.path)}),
+        metadata: HMDocumentMetadataSchema.parse(doc.metadata?.toJson()),
       })),
     } satisfies ListAPIResponse
   } else {

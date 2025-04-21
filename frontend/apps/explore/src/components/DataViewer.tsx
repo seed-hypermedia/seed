@@ -55,6 +55,20 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
         );
       }
 
+      // Handle HTTP/HTTPS links
+      if (data.startsWith("http://") || data.startsWith("https://")) {
+        return (
+          <a
+            href={data}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-blue-600 underline cursor-pointer hover:underline"
+          >
+            {data}
+          </a>
+        );
+      }
+
       // Handle HM links
       if (data.startsWith("hm://") && onNavigate) {
         const hmPath = data.substring(5); // Remove "hm://" prefix

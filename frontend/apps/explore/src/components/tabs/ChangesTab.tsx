@@ -25,11 +25,15 @@ const ChangesTab: React.FC<{changes: any[]; docId: UnpackedHypermediaId}> = ({
       return out;
     });
   }, [changes]);
-  return preparedChanges?.map((change) => (
-    <div key={change.id} className="p-4">
-      <DataViewer data={change} onNavigate={navigate} />
+  return (
+    <div className="flex flex-col gap-4">
+      {preparedChanges?.map((change) => (
+        <div key={change.id}>
+          <DataViewer data={change} onNavigate={navigate} />
+        </div>
+      ))}
     </div>
-  ));
+  );
 };
 
 export default ChangesTab;

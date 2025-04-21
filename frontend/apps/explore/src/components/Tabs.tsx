@@ -6,7 +6,8 @@ export type TabType =
   | "changes"
   | "comments"
   | "citations"
-  | "capabilities";
+  | "capabilities"
+  | "children";
 
 interface TabProps {
   id: TabType;
@@ -43,6 +44,7 @@ interface TabsProps {
   commentCount: number | undefined;
   citationCount: number | undefined;
   capabilityCount: number | undefined;
+  childrenCount: number | undefined;
 }
 
 const Tabs: React.FC<TabsProps> = ({
@@ -53,6 +55,7 @@ const Tabs: React.FC<TabsProps> = ({
   commentCount = 0,
   citationCount = 0,
   capabilityCount = 0,
+  childrenCount = 0,
 }) => {
   const tabs: {id: TabType; label: string}[] = [
     {
@@ -82,6 +85,10 @@ const Tabs: React.FC<TabsProps> = ({
         "Capability",
         "Capabilities"
       )}`,
+    });
+    tabs.push({
+      id: "children",
+      label: `${childrenCount} ${pluralS(childrenCount, "Child", "Children")}`,
     });
   }
 

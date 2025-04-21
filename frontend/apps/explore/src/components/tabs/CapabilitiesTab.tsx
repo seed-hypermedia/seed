@@ -27,11 +27,15 @@ const CapabilitiesTab: React.FC<CapabilitiesTabProps> = ({capabilities}) => {
       return out;
     });
   }, [capabilities]);
-  return preparedCapabilities?.map((capability) => (
-    <div className="p-4">
-      <DataViewer data={capability} onNavigate={navigate} />
+  return (
+    <div className="flex flex-col gap-4">
+      {preparedCapabilities?.map((capability) => (
+        <div key={capability.id}>
+          <DataViewer data={capability} onNavigate={navigate} />
+        </div>
+      ))}
     </div>
-  ));
+  );
 };
 
 export default CapabilitiesTab;

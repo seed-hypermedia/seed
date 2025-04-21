@@ -126,3 +126,11 @@ export async function search(input: string) {
       "Invalid input. Please enter a valid hypermedia URL or IPFS url.",
   };
 }
+
+export function useChildrenList(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["children-list", hmId.uid],
+    queryFn: () => getAPI<any>(`list/${hmId.uid}`),
+    enabled: hmId.type === "d",
+  });
+}
