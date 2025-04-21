@@ -1,7 +1,13 @@
 import {HMBlockNode, hmId, HMIDTypeSchema, packHmId} from "@shm/shared";
 import {useMemo} from "react";
 import {useNavigate, useParams, useSearchParams} from "react-router-dom";
-import {useEntity} from "../models";
+import {
+  useCapabilities,
+  useChanges,
+  useCitations,
+  useComments,
+  useEntity,
+} from "../models";
 import {CopyTextButton} from "./CopyTextButton";
 import {ExternalOpenButton} from "./ExternalOpenButton";
 import Tabs, {TabType} from "./Tabs";
@@ -28,6 +34,19 @@ export default function HM() {
   const navigate = useNavigate();
   const id = hmId(type, uid, {path: hmPath});
   const {data, isLoading} = useEntity(id);
+  const {data: comments, isLoading: commentsLoading} = useComments(id);
+  const {data: citations, isLoading: citationsLoading} = useCitations(id);
+  const {data: changes, isLoading: changesLoading} = useChanges(id);
+  const {data: capabilities, isLoading: capabilitiesLoading} =
+    useCapabilities(id);
+
+  console.log({
+    comments,
+    citations,
+    changes,
+    capabilities,
+  });
+
   const url = packHmId(id);
 
   // Get current tab from URL or default to "document"
@@ -77,13 +96,13 @@ export default function HM() {
       case "document":
         return <DocumentTab data={preparedData} onNavigate={navigate} />;
       case "changes":
-        return <ChangesTab />;
+        return <ChangesTab changes={changes?.changes} />;
       case "comments":
-        return <CommentsTab />;
+        return <CommentsTab comments={comments?.comments} />;
       case "citations":
-        return <CitationsTab />;
+        return <CitationsTab citations={citations?.citations} />;
       case "capabilities":
-        return <CapabilitiesTab data={preparedData} />;
+        return <CapabilitiesTab capabilities={capabilities?.capabilities} />;
       default:
         return null;
     }
@@ -103,8 +122,14 @@ export default function HM() {
         {url}
       </Title>
 
-      <Tabs currentTab={currentTab} onTabChange={handleTabChange} />
-
+      <Tabs
+        currentTab={currentTab}
+        onTabChange={handleTabChange}
+        changeCount={changes?.changes?.length}
+        commentCount={comments?.comments?.length}
+        citationCount={citations?.citations?.length}
+        capabilityCount={capabilities?.capabilities?.length}
+      />
       <div className="tab-content">{renderTabContent()}</div>
     </div>
   );

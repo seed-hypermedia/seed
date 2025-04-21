@@ -1,14 +1,16 @@
 import React from "react";
+import {useNavigate} from "react-router-dom";
+import DataViewer from "../DataViewer";
 
 interface CapabilitiesTabProps {
-  data: any;
+  capabilities: any[];
 }
 
-const CapabilitiesTab: React.FC<CapabilitiesTabProps> = ({data}) => {
+const CapabilitiesTab: React.FC<CapabilitiesTabProps> = ({capabilities}) => {
+  const navigate = useNavigate();
   return (
     <div className="p-4">
-      <h2 className="text-xl font-semibold mb-4">Capabilities</h2>
-      <p>Capabilities information will be displayed here.</p>
+      <DataViewer data={capabilities} onNavigate={navigate} />
     </div>
   );
 };

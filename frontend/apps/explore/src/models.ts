@@ -34,6 +34,46 @@ export function useCID(cid: string | undefined) {
   });
 }
 
+export function useComments(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["comments", hmId.id],
+    queryFn: () =>
+      getAPI<any>(
+        `comments/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
+      ),
+  });
+}
+
+export function useCitations(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["citations", hmId.id],
+    queryFn: () =>
+      getAPI<any>(
+        `citations/${hmId.type}/${hmId.uid}${hmIdPathToEntityQueryPath(
+          hmId.path
+        )}`
+      ),
+  });
+}
+
+export function useChanges(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["changes", hmId.id],
+    queryFn: () =>
+      getAPI<any>(`changes/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`),
+  });
+}
+
+export function useCapabilities(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["capabilities", hmId.id],
+    queryFn: () =>
+      getAPI<any>(
+        `capabilities/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
+      ),
+  });
+}
+
 export function extractIpfsUrlCid(cidOrIPFSUrl: string): string | null {
   const regex = /^ipfs:\/\/(.+)$/;
   const match = cidOrIPFSUrl.match(regex);

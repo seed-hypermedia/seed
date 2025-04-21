@@ -37,16 +37,35 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
 interface TabsProps {
   currentTab: TabType;
   onTabChange: (tab: TabType) => void;
+  changeCount: number | undefined;
+  commentCount: number | undefined;
+  citationCount: number | undefined;
+  capabilityCount: number | undefined;
 }
 
-const Tabs: React.FC<TabsProps> = ({currentTab, onTabChange}) => {
+const Tabs: React.FC<TabsProps> = ({
+  currentTab,
+  onTabChange,
+  changeCount,
+  commentCount,
+  citationCount,
+  capabilityCount,
+}) => {
   const tabs: {id: TabType; label: string}[] = [
     {id: "document", label: "Document State"},
-    {id: "changes", label: "Changes"},
-    {id: "comments", label: "Comments"},
-    {id: "citations", label: "Citations"},
-    {id: "capabilities", label: "Capabilities"},
   ];
+  if (changeCount) {
+    tabs.push({id: "changes", label: `${changeCount} Changes`});
+  }
+  if (commentCount) {
+    tabs.push({id: "comments", label: `${commentCount} Comments`});
+  }
+  if (citationCount) {
+    tabs.push({id: "citations", label: `${citationCount} Citations`});
+  }
+  if (capabilityCount) {
+    tabs.push({id: "capabilities", label: `${capabilityCount} Capabilities`});
+  }
 
   return (
     <div className="mb-4 border-b border-gray-200">

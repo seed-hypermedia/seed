@@ -1,9 +1,10 @@
 import React from "react";
+import {useNavigate} from "react-router-dom";
+import DataViewer from "../DataViewer";
 
-const CommentsTab: React.FC = () => {
-  return (
-    <div className="p-4">Comments tab content will be implemented here.</div>
-  );
+const CommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
+  const navigate = useNavigate();
+  return <DataViewer data={comments} onNavigate={navigate} />;
 };
 
 export default CommentsTab;
