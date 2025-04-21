@@ -9,6 +9,7 @@ export const loader = apiGetter(async (req) => {
     const doc = await queryClient.documents.getDocument({
       account: uid,
       path: hmIdPathToEntityQueryPath(restPath),
+      version: req.searchParams.get('v') || undefined,
     })
     return doc.toJson()
   }

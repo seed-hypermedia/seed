@@ -1,4 +1,4 @@
-import {HMEntityType, labelOfEntityType} from "@shm/shared";
+import {labelOfEntityType, pluralS, UnpackedHypermediaId} from "@shm/shared";
 import React from "react";
 
 export type TabType =
@@ -37,7 +37,7 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
 
 interface TabsProps {
   currentTab: TabType;
-  type: HMEntityType;
+  id: UnpackedHypermediaId;
   onTabChange: (tab: TabType) => void;
   changeCount: number | undefined;
   commentCount: number | undefined;
@@ -46,28 +46,43 @@ interface TabsProps {
 }
 
 const Tabs: React.FC<TabsProps> = ({
-  type,
+  id,
   currentTab,
   onTabChange,
-  changeCount,
-  commentCount,
-  citationCount,
-  capabilityCount,
+  changeCount = 0,
+  commentCount = 0,
+  citationCount = 0,
+  capabilityCount = 0,
 }) => {
   const tabs: {id: TabType; label: string}[] = [
-    {id: "document", label: `${labelOfEntityType(type)} State`},
+    {
+      id: "document",
+      label: `${labelOfEntityType(id.type)} State${
+        id.version ? ` (Exact Version)` : ""
+      }`,
+    },
   ];
-  if (changeCount) {
-    tabs.push({id: "changes", label: `${changeCount} Changes`});
-  }
-  if (commentCount) {
-    tabs.push({id: "comments", label: `${commentCount} Comments`});
-  }
-  if (citationCount) {
-    tabs.push({id: "citations", label: `${citationCount} Citations`});
-  }
-  if (capabilityCount) {
-    tabs.push({id: "capabilities", label: `${capabilityCount} Capabilities`});
+  if (id.type === "d") {
+    tabs.push({
+      id: "changes",
+      label: `${changeCount} ${pluralS(changeCount, "Change")}`,
+    });
+    tabs.push({
+      id: "comments",
+      label: `${commentCount} ${pluralS(commentCount, "Comment")}`,
+    });
+    tabs.push({
+      id: "citations",
+      label: `${citationCount} ${pluralS(citationCount, "Citation")}`,
+    });
+    tabs.push({
+      id: "capabilities",
+      label: `${capabilityCount} ${pluralS(
+        capabilityCount,
+        "Capability",
+        "Capabilities"
+      )}`,
+    });
   }
 
   return (

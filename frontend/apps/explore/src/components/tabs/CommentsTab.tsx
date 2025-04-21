@@ -27,7 +27,9 @@ const CommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
       return out;
     });
   }, [comments]);
-  return <DataViewer data={preparedComments} onNavigate={navigate} />;
+  return preparedComments?.map((comment) => (
+    <DataViewer data={comment} onNavigate={navigate} />
+  ));
 };
 
 export default CommentsTab;

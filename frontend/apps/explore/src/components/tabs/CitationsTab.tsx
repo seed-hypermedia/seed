@@ -5,7 +5,7 @@ import DataViewer from "../DataViewer";
 const CitationsTab: React.FC<{citations: any[]}> = ({citations}) => {
   const navigate = useNavigate();
   const preparedCitations = useMemo(() => {
-    return citations.map((citation) => {
+    return citations?.map((citation) => {
       const {sourceBlob, ...rest} = citation;
       const out = {...rest};
       if (sourceBlob) {
@@ -19,11 +19,11 @@ const CitationsTab: React.FC<{citations: any[]}> = ({citations}) => {
       return out;
     });
   }, [citations]);
-  return (
+  return preparedCitations?.map((citation) => (
     <div className="p-4">
-      <DataViewer data={preparedCitations} onNavigate={navigate} />
+      <DataViewer data={citation} onNavigate={navigate} />
     </div>
-  );
+  ));
 };
 
 export default CitationsTab;

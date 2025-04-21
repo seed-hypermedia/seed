@@ -38,7 +38,12 @@ export default function HM() {
     hmPath = pathParts.slice(1);
   }
   const navigate = useNavigate();
-  const id = hmId(type, uid, {path: hmPath});
+  console.log("v=", searchParams.get("v"));
+  const id = hmId(type, uid, {
+    path: hmPath,
+    version: searchParams.get("v") ? searchParams.get("v") : undefined,
+  });
+  console.log("id=", id);
   const {data, isLoading} = useEntity(id);
   const {data: comments, isLoading: commentsLoading} = useComments(id);
   const {data: citations, isLoading: citationsLoading} = useCitations(id);
@@ -80,6 +85,10 @@ export default function HM() {
         cleaned.version = version
           .split(".")
           .map((changeCid: string) => `ipfs://${changeCid}`);
+        cleaned.exactDocumentVersion = packHmId({
+          ...id,
+          version: version,
+        });
       }
       if (genesis) {
         cleaned.genesis = `ipfs://${genesis}`;
@@ -118,7 +127,7 @@ export default function HM() {
       case "document":
         return <DocumentTab data={preparedData} onNavigate={navigate} />;
       case "changes":
-        return <ChangesTab changes={changes?.changes} />;
+        return <ChangesTab changes={changes?.changes} docId={id} />;
       case "comments":
         return <CommentsTab comments={comments?.comments} />;
       case "citations":
@@ -145,7 +154,7 @@ export default function HM() {
       </Title>
 
       <Tabs
-        type={type}
+        id={id}
         currentTab={currentTab}
         onTabChange={handleTabChange}
         changeCount={changes?.changes?.length}

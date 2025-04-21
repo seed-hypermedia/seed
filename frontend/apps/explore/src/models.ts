@@ -17,12 +17,15 @@ export function useRootDocuments() {
 }
 
 export function useEntity(hmId: UnpackedHypermediaId) {
+  let url = `entity/${hmId.type}/${hmId.uid}${hmIdPathToEntityQueryPath(
+    hmId.path
+  )}`;
+  if (hmId.version) {
+    url += `?v=${hmId.version}`;
+  }
   return useQuery({
     queryKey: ["entity", hmId],
-    queryFn: () =>
-      getAPI<any>(
-        `entity/${hmId.type}/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
-      ),
+    queryFn: () => getAPI<any>(url),
   });
 }
 
