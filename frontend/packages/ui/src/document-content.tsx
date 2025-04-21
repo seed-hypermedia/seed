@@ -539,6 +539,7 @@ export function BlockNodeContent({
     debug,
     comment,
   } = useDocContentContext()
+  const [hover, setHover] = useState(false)
   const isDark = useIsDark()
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
@@ -714,6 +715,7 @@ export function BlockNodeContent({
       // }
     >
       <XStack
+        borderRadius={layoutUnit / 4}
         padding={isEmbed ? 0 : layoutUnit / 3}
         paddingVertical={isEmbed ? 0 : layoutUnit / 6}
         {...headingStyles}
@@ -721,6 +723,13 @@ export function BlockNodeContent({
         group="blocknode"
         className={
           blockNode.block!.type == 'Heading' ? 'blocknode-content-heading' : ''
+        }
+        bg={
+          hover
+            ? isDark
+              ? '$backgroundStrong'
+              : '$background'
+            : '$backgroundTransparent'
         }
       >
         {bnChildren ? (
@@ -792,8 +801,16 @@ export function BlockNodeContent({
         ) : null}
         <YStack
           position={'absolute'}
+          zIndex={hover ? '$zIndex.9' : '$zIndex.1'}
+          bg={
+            hover
+              ? isDark
+                ? '$background'
+                : '$backgroundStrong'
+              : '$backgroundTransparent'
+          }
           right={0}
-          top={12}
+          top={0}
           $gtSm={{
             right: -44,
             // background: '$backgroundTransparent',
@@ -801,6 +818,9 @@ export function BlockNodeContent({
           pl="$2"
           borderRadius={layoutUnit / 4}
           gap="$1"
+          onHoverIn={() => setHover(true)}
+          onHoverOut={() => setHover(false)}
+          // paddingBottom={hover ? 100 : 0}
         >
           {docCitations?.length ? (
             <Tooltip
@@ -820,7 +840,7 @@ export function BlockNodeContent({
                 icon={<BlockQuote size={12} color="$color9" />}
               >
                 <SizableText color="$color9" size="$1">
-                  {String(docCitations.length)}
+                  {docCitations.length ? String(docCitations.length) : ' '}
                 </SizableText>
               </Button>
             </Tooltip>
@@ -865,6 +885,7 @@ export function BlockNodeContent({
                 userSelect="none"
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
+                bg="red"
                 opacity={commentCitations.length ? 1 : 0}
                 $group-blocknode-hover={{
                   opacity: 1,
@@ -880,11 +901,11 @@ export function BlockNodeContent({
                 }}
                 icon={<MessageSquare size={12} color="$color9" />}
               >
-                {commentCitations.length ? (
-                  <SizableText color="$color9" size="$1">
-                    {String(commentCitations.length)}
-                  </SizableText>
-                ) : null}
+                <SizableText color="$color9" size="$1">
+                  {commentCitations.length
+                    ? String(commentCitations.length)
+                    : ' '}
+                </SizableText>
               </Button>
             </Tooltip>
           ) : null}
@@ -908,7 +929,11 @@ export function BlockNodeContent({
                     console.error('onCopyBlock Error: no blockId available')
                   }
                 }}
-              />
+              >
+                <SizableText color="$color9" size="$1">
+                  {' '}
+                </SizableText>
+              </Button>
             </Tooltip>
           ) : null}
         </YStack>
