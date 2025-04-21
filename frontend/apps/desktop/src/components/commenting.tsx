@@ -4,34 +4,56 @@ import {
   useDocumentCommentGroups,
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
-import {useSubscribedEntities} from '@/models/entities'
+import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {getDocumentTitle} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
+  HMBlockEmbed,
+  HMBlockNode,
   HMComment,
   HMCommentDraft,
   HMCommentGroup,
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {CommentGroup} from '@shm/ui/discussion'
-import {BlocksContent} from '@shm/ui/document-content'
+import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
-import {memo, useEffect, useState} from 'react'
+import {memo, useEffect, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Tooltip, View, XStack, YStack} from 'tamagui'
+import {Button, SizableText, Tooltip, View, XStack, YStack} from 'tamagui'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {
+  console.log('comment', comment)
+
+  const data: HMComment & {reference: string | null} = useMemo(() => {
+    if (comment.content.length === 1) {
+      let parentBlock = comment.content[0]
+      if (parentBlock.block.type === 'Embed') {
+        return {
+          ...comment,
+          reference: (parentBlock.block as HMBlockEmbed).link,
+          content: parentBlock.children || [],
+        }
+      }
+    }
+
+    return {
+      ...comment,
+      reference: null,
+    }
+  }, [comment])
+
   return (
     <AppDocContentProvider
       comment
@@ -48,7 +70,10 @@ export function renderCommentContent(comment: HMComment) {
       //   copyUrlToClipboardWithFeedback(url, 'Comment Block')
       // }}
     >
-      <BlocksContent blocks={comment.content} parentBlockId={null} />
+      <YStack w="100%">
+        <CommentReference reference={data.reference} />
+        <BlocksContent blocks={data.content} parentBlockId={null} />
+      </YStack>
     </AppDocContentProvider>
   )
 }
@@ -381,4 +406,66 @@ function SelectAccountDropdown({
       onValue={onSetAccount}
     />
   )
+}
+
+function CommentReference({reference}: {reference: string | null}) {
+  const referenceId = useMemo(() => {
+    if (!reference) return null
+    return unpackHmId(reference)
+  }, [reference])
+
+  const referenceData = useSubscribedEntity(referenceId)
+
+  const referenceContent = useMemo(() => {
+    if (!referenceData.data) return null
+    if (referenceId?.blockRef) {
+      let bn = getBlockNodeById(
+        referenceData.data.document?.content || [],
+        referenceId.blockRef,
+      )
+      if (bn) {
+        return [bn]
+      } else {
+        return referenceData.data.document?.content || []
+      }
+    }
+
+    return referenceData.data.document?.content || []
+  }, [referenceData.data])
+
+  if (!referenceData.data) return null
+
+  return (
+    <XStack gap="$3" ai="center" p="$2" width="100%">
+      <View w={2} height="100%" bg="rgba(255, 203, 0, 0.64)" />
+      <XStack h={32} ai="center" flex={1}>
+        <SizableText
+          size="$2"
+          color="$color10"
+          textAlign="left"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+          overflow="hidden"
+        >
+          {commentReferenceContent({
+            content: referenceContent || [],
+          })}
+        </SizableText>
+      </XStack>
+    </XStack>
+  )
+}
+
+function commentReferenceContent({content}: {content: Array<HMBlockNode>}) {
+  let text = ''
+  content.forEach((bn) => {
+    if (bn.block.text) {
+      text += bn.block.text
+    }
+    if (bn.children?.length) {
+      text += commentReferenceContent({content: bn.children})
+    }
+  })
+
+  return text
 }

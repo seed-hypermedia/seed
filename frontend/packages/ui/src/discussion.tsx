@@ -8,6 +8,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
@@ -165,8 +166,8 @@ export function Comment({
   defaultExpandReplies?: boolean
 }) {
   // DISABLED COMMENT URL COPYINGc
-  // const {onCopyReference} = useUniversalAppContext()
-  const onCopyReference = null
+  const {onCopyReference} = useUniversalAppContext()
+
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isReplying, setIsReplying] = useState(false)
   const authorId = comment.author ? hmId('d', comment.author) : null
