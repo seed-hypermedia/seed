@@ -8,6 +8,7 @@
     "format:write": "yarn workspaces foreach -pt run format:write",
     "web": "SEED_SIGNING_ENABLED=true && yarn workspace @shm/web dev",
     "web:dev": "yarn web:prod && SEED_IS_GATEWAY=true SEED_SIGNING_ENABLED=true SEED_BASE_URL=http://localhost:3000 yarn web:start",
+    "web:dev:standalone": "concurrently -n \"BACKEND,WEB\" -c \"blue,green\" -p \"[{name}]\" \"./dev run-backend -- -http.port=53001 -grpc.port=53002 -p2p.port=53000 -data-dir=$PWD/.dev-data/standalone\" \"SEED_BASE_URL=\\\"http://localhost:3099\\\" PORT=3099 SEED_IDENTITY_ENABLED=true SEED_DEFAULT_IDENTITY_ORIGIN=\\\"http://localhost:3000\\\" DAEMON_HTTP_URL=http://localhost:53001 VITE_DESKTOP_HTTP_PORT=53001 VITE_DESKTOP_GRPC_PORT=53002 VITE_DESKTOP_P2P_PORT=53000 yarn web:start\"",
     "web:prod": "yarn build && yarn workspace @shm/web build",
     "web:start": "yarn workspace @shm/web start",
     "web:dev:cross-origin": "yarn web:prod && concurrently -c \"blue,green\" -p \"[{name}]\" \"SEED_IDENTITY_ENABLED=true PORT=3099 SEED_BASE_URL=\\\"http://localhost:3099\\\" SEED_DEFAULT_IDENTITY_ORIGIN=\\\"http://localhost:3000\\\" yarn web:start\" \"SEED_SIGNING_ISSUER=true SEED_SIGNING_ENABLED=true yarn web:start\"",
