@@ -1,4 +1,6 @@
+import {HMDocument, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
+import {useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   CircleDot,
@@ -33,8 +35,7 @@ export function HypermediaLinkSwitchToolbar(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
-  // const entity = useEntity(unpackedRef)
-  const entity = {data: null}
+  const entity = useEntity(unpackedRef)
 
   useEffect(() => {
     if (props.stopEditing && isEditing) {
@@ -115,8 +116,8 @@ export function HypermediaLinkSwitchToolbar(
             onPress={() => {
               let title = props.text ? props.text : props.url
               if (['mention', 'embed'].includes(props.type)) {
-                const docTitle = getDocumentTitle(entity.data?.document)
-                if (docTitle) title = docTitle
+                const linkTitle = getTitle(unpackedRef, entity.data?.document)
+                if (linkTitle) title = linkTitle
               }
               if (props.type === 'mention') {
                 const tiptap = props.editor._tiptapEditor
@@ -197,8 +198,8 @@ export function HypermediaLinkSwitchToolbar(
             onPress={() => {
               let title = props.text ? props.text : props.url
               if (['mention', 'embed'].includes(props.type)) {
-                const docTitle = getDocumentTitle(entity.data?.document)
-                if (docTitle) title = docTitle
+                const buttonTitle = getTitle(unpackedRef, entity.data?.document)
+                if (buttonTitle) title = buttonTitle
               }
               if (['mention', 'link'].includes(props.type)) {
                 const schema = props.editor._tiptapEditor.state.schema
@@ -298,6 +299,28 @@ function LinkSwitchButton({
       </XStack>
     </XGroup.Item>
   )
+}
+
+function getTitle(
+  unpackedId?: UnpackedHypermediaId | null,
+  document?: HMDocument | null,
+) {
+  if (!document || !unpackedId) return
+  let title
+  if (unpackedId.blockRef) {
+    const block = document.content.find((block) => {
+      if (block.block) {
+        return block.block.id === unpackedId.blockRef
+      }
+    })
+    if (block?.block?.type === 'Heading') {
+      title = block.block.text
+    }
+  }
+  if (!title) {
+    title = getDocumentTitle(document)
+  }
+  return title
 }
 
 function insertNode(

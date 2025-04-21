@@ -167,7 +167,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             hmId(unpackedHmId.type, unpackedHmId.uid, unpackedHmId),
           )
           if (options.grpcClient) {
-            fetchEntityTitle(unpackedHmId, options.grpcClient)
+            fetchEntityTitle(
+              unpackedHmId,
+              options.grpcClient,
+              unpackedHmId.blockRef,
+            )
               .then(({title}) => {
                 if (title) {
                   view.dispatch(
@@ -242,6 +246,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   }),
                 )
               })
+
             return true
           }
         }
@@ -507,6 +512,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 async function fetchEntityTitle(
   hmId: UnpackedHypermediaId,
   grpcClient: GRPCClient,
+  blockRef?: string | null,
 ) {
   if (hmId.type == 'd') {
     const document = await grpcClient.documents.getDocument({
@@ -514,12 +520,25 @@ async function fetchEntityTitle(
       path: hmIdPathToEntityQueryPath(hmId.path),
     })
     const doc = document
-    const title = getDocumentTitle({
-      ...doc,
-      metadata: HMDocumentMetadataSchema.parse(
-        doc.metadata?.toJson({emitDefaultValues: true}),
-      ),
-    } as HMDocument)
+    let title
+    if (blockRef) {
+      const block = doc.content.find((block) => {
+        if (block.block) {
+          return block.block.id === blockRef
+        }
+      })
+      if (block?.block?.type === 'Heading') {
+        title = block.block.text
+      }
+    }
+    if (!title) {
+      title = getDocumentTitle({
+        ...doc,
+        metadata: HMDocumentMetadataSchema.parse(
+          doc.metadata?.toJson({emitDefaultValues: true}),
+        ),
+      } as HMDocument)
+    }
     return {
       title,
     }
