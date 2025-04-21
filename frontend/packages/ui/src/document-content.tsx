@@ -1472,10 +1472,11 @@ function InlineContentView({
             textDecorationLine = 'line-through'
           }
 
-          // TODO: fix this hack to render soft-line breaks
           let children: any = content.text.split('\n')
 
-          if (children.length > 1) {
+          // we are checking if this is the last inline content and if it has more than one line
+          // if so, we are rendering a <br /> for each line
+          if (inline.length == index + 1 && children.length > 1) {
             children = children.map(
               (l: string, i: number, a: Array<string>) => {
                 if (a.length == i - 1) {
