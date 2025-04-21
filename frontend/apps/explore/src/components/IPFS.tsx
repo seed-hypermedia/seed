@@ -34,7 +34,11 @@ const IPFS: React.FC = () => {
       >
         {`ipfs://${cid}`}
       </Title>
-      {revisedData && <DataViewer data={revisedData} onNavigate={navigate} />}
+      {revisedData && (
+        <div className="mt-4">
+          <DataViewer data={revisedData} onNavigate={navigate} />
+        </div>
+      )}
     </div>
   );
 };

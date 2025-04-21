@@ -30,12 +30,13 @@ export default function Home() {
   };
 
   return (
-    <div className="w-full p-6 bg-white rounded-lg shadow">
+    <div className="container p-4 mx-auto bg-white rounded-lg shadow">
       <h1 className="mb-4 text-3xl font-bold text-gray-900">
         Explore Hypermedia
       </h1>
       <p className="mb-6 text-gray-600">
-        Enter a URL to explore the Hypermedia network.
+        Enter a URL to explore the Hypermedia network. Supports hm://, ipfs://,
+        and http(s):// URLS of hypermedia documents.
       </p>
 
       <form onSubmit={handleSearch} className="mb-6">

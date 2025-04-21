@@ -6,7 +6,7 @@ export default function List() {
   const {data, isLoading} = useRootDocuments();
   const apiHost = useApiHost();
   return (
-    <div className="w-full p-6 ">
+    <div className="container p-4 mx-auto">
       <h1 className="mb-4 text-3xl font-bold text-gray-900">
         All Hypermedia Sites
       </h1>
