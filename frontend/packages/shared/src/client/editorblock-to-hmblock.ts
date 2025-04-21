@@ -32,7 +32,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   let block: HMBlock = {
     id: editorBlock.id,
     type: blockType,
-    attributes: {},
+    attributes: {} as HMBlock['attributes'],
     text: '',
     annotations: [],
   }
@@ -41,16 +41,14 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   block.annotations = [] as HMAnnotations
 
-  const parentBlock = getParentBlock(block)
-
-  if (parentBlock && editorBlock.props.childrenType == 'Group') {
-    parentBlock.attributes.childrenType = 'Group'
-  } else if (parentBlock && editorBlock.props.childrenType == 'Unordered') {
-    parentBlock.attributes.childrenType = 'Unordered'
-  } else if (parentBlock && editorBlock.props.childrenType == 'Ordered') {
-    parentBlock.attributes.childrenType = 'Ordered'
-  } else if (parentBlock && editorBlock.props.childrenType == 'Blockquote') {
-    parentBlock.attributes.childrenType = 'Blockquote'
+  if (editorBlock.props.childrenType == 'Group') {
+    block.attributes.childrenType = 'Group'
+  } else if (editorBlock.props.childrenType == 'Unordered') {
+    block.attributes.childrenType = 'Unordered'
+  } else if (editorBlock.props.childrenType == 'Ordered') {
+    block.attributes.childrenType = 'Ordered'
+  } else if (editorBlock.props.childrenType == 'Blockquote') {
+    block.attributes.childrenType = 'Blockquote'
   }
 
   // if (parentBlock && editorBlock.props.start) {

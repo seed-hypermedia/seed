@@ -971,5 +971,76 @@ describe('EditorBlock to HMBlock', () => {
 
       expect(val).toEqual(result)
     })
+
+    test('image with childrenType', () => {
+      const editorBlock: EditorImageBlock = {
+        id: 'foo',
+        type: 'image',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_IMAGE',
+          width: '400',
+          childrenType: 'Ordered',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockImage = {
+        id: 'foo',
+        type: 'Image',
+        text: ``,
+        link: 'ipfs://foobarcid_IMAGE',
+        annotations: [],
+        attributes: {
+          width: 400,
+          childrenType: 'Ordered',
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('embed with childrenType', () => {
+      const editorBlock: EditorEmbedBlock = {
+        id: 'foo',
+        type: 'embed',
+        children: [],
+        props: {
+          url: 'hm://foobarembed',
+          view: 'Card',
+          childrenType: 'Unordered',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockEmbed = {
+        id: 'foo',
+        type: 'Embed',
+        text: ``,
+        link: 'hm://foobarembed',
+        annotations: [],
+        attributes: {
+          view: 'Card',
+          childrenType: 'Unordered',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
   })
 })
