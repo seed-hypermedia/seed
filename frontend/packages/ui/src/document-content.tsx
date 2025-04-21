@@ -1378,7 +1378,7 @@ function BlockContentVideo({
               position="absolute"
               width="100%"
               height="100%"
-              src={block.link}
+              src={getVideoIframeSrc(block.link)}
               frameBorder="0"
               allowFullScreen
             />
@@ -1394,6 +1394,15 @@ function BlockContentVideo({
       ) : null}
     </YStack>
   )
+}
+
+function getVideoIframeSrc(link: string) {
+  const url = new URL(link)
+  if (url.host.includes('youtube.com')) {
+    url.searchParams.set('rel', '0')
+    return url.toString()
+  }
+  return link
 }
 
 type LinkType = null | 'basic' | 'hypermedia'
