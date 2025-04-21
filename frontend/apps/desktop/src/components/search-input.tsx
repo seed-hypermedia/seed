@@ -110,7 +110,7 @@ export function SearchInput({
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => onSelect({id: item.id}),
+          onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
