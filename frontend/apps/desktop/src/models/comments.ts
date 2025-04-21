@@ -6,7 +6,10 @@ import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {useBlockNote, type BlockSchema} from '@shm/editor/blocknote'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {serverBlockNodesFromEditorBlocks} from '@shm/editor/utils'
+import {
+  removeTrailingBlocks,
+  serverBlockNodesFromEditorBlocks,
+} from '@shm/editor/utils'
 import {packHmId} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -297,34 +300,6 @@ export function useCommentEditor(
     }
   }, [])
 
-  // const draftQuery = trpc.comments.getCommentDraft.useQuery(
-  //   {
-  //     targetDocId: targetDocId.id,
-  //     replyCommentId,
-  //   },
-  //   {
-  //     onError: (err) =>
-  //       appError(`Could not load comment draft: ${err.message}`),
-  //     onSuccess: (draft: HMCommentDraft | null) => {
-  //       if (initCommentDraft.current) return
-  //       if (draft) {
-  //         initCommentDraft.current = draft
-  //         setAccountStream(draft.account)
-  //       } else {
-  //         const account: string = accounts[0]!.id.uid
-  //         initCommentDraft.current = {
-  //           account,
-  //           blocks: [],
-  //         }
-  //         setAccountStream(account)
-  //       }
-  //       initDraft()
-  //     },
-  //   },
-  // )
-  // const initCommentDraft = useRef<HMCommentDraft | null | undefined>(
-  //   draftQuery.data,
-  // )
   const recentSigners = trpc.recentSigners.get.useQuery()
   const availableRecentSigner = recentSigners.data
     ? recentSigners.data.recentSigners.find((signer) =>
@@ -413,23 +388,22 @@ export function useCommentEditor(
   return useMemo(() => {
     function onSubmit() {
       if (!targetDocId.id) throw new Error('no targetDocId.id')
-      const content = serverBlockNodesFromEditorBlocks(
-        editor,
-        editor.topLevelBlocks,
-      )
-      const contentWithoutLastEmptyBlock = content.filter((block, index) => {
-        const isLast = index === content.length - 1
-        if (!isLast) return true
-        if (
-          block.type === 'paragraph' &&
-          block.text === '' &&
-          block.children.length === 0
-        )
-          return false
-        return true
-      })
+      // remove trailing blocks
+      const editorBlocks = removeTrailingBlocks(editor.topLevelBlocks)
+      const content = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+      // const contentWithoutLastEmptyBlock = content.filter((block, index) => {
+      //   const isLast = index === content.length - 1
+      //   if (!isLast) return true
+      //   if (
+      //     block.type === 'paragraph' &&
+      //     block.text === '' &&
+      //     block.children.length === 0
+      //   )
+      //     return false
+      //   return true
+      // })
       publishComment.mutate({
-        content: contentWithoutLastEmptyBlock,
+        content,
         signingKeyName: account.get()!,
       })
     }

@@ -236,3 +236,21 @@ export const chromiumSupportedVideoMimeTypes = new Set([
   'video/mp4',
   'video/webm',
 ])
+
+export function removeTrailingBlocks(blocks: Array<EditorBlock>) {
+  let trailedBlocks = [...blocks]
+  while (true) {
+    let lastBlock = trailedBlocks[trailedBlocks.length - 1]
+    if (!lastBlock) break
+    if (
+      lastBlock.type == 'paragraph' &&
+      lastBlock.content.length == 0 &&
+      lastBlock.children.length == 0
+    ) {
+      trailedBlocks.pop()
+    } else {
+      break
+    }
+  }
+  return trailedBlocks
+}
