@@ -47,14 +47,14 @@ function convertBlockToHtml(block: any, isListItem = false) {
       )
       .join('\n')
     if (block.props.childrenType === 'Unordered') {
-      childrenHtml = `<ul>${childrenContent}</ul>`
+      childrenHtml = `<ul style={{all: 'unset'}}>${childrenContent}</ul>`
     } else if (block.props.childrenType === 'Ordered') {
       // childrenHtml = `<ol start="${
       //   block.props.start || 1
       // }">${childrenContent}</ol>`
-      childrenHtml = `<ol>${childrenContent}</ol>`
+      childrenHtml = `<ol style={{all: 'unset'}}>${childrenContent}</ol>`
     } else if (block.props.childrenType === 'Blockquote') {
-      childrenHtml = `<blockquote>${childrenContent}</blockquote>`
+      childrenHtml = `<blockquote style={{all: 'unset'}}>${childrenContent}</blockquote>`
     } else {
       childrenHtml = childrenContent
     }

@@ -435,17 +435,17 @@ export function BlockNodeList({
     <YStack
       className="blocknode-list"
       data-node-type="blockGroup"
-      data-list-type={childrenType !== 'Group' ? childrenType : undefined}
+      data-list-type={childrenType}
       data-list-level={listLevel}
       width="100%"
       {...props}
     >
       {childrenType === 'Ordered' ? (
-        <ol>{children}</ol>
+        <ol style={{all: 'unset'}}>{children}</ol>
       ) : childrenType === 'Unordered' ? (
-        <ul>{children}</ul>
+        <ul style={{all: 'unset'}}>{children}</ul>
       ) : childrenType === 'Blockquote' ? (
-        <blockquote>{children}</blockquote>
+        <blockquote style={{all: 'unset'}}>{children}</blockquote>
       ) : (
         <div>{children}</div>
       )}
@@ -681,11 +681,11 @@ export function BlockNodeContent({
     }
   }, [elm.current, blockNode.block])
 
-  const isMediablock = useMemo(() => {
-    return ['Image', 'Video', 'File', 'Embed', 'WebEmbed', 'Query'].includes(
-      blockNode.block!.type,
-    )
-  }, [blockNode.block])
+  // const isMediablock = useMemo(() => {
+  //   return ['Image', 'Video', 'File', 'Embed', 'WebEmbed', 'Query'].includes(
+  //     blockNode.block!.type,
+  //   )
+  // }, [blockNode.block])
 
   const themeName = useThemeName()
   const highlightColor =
@@ -715,6 +715,7 @@ export function BlockNodeContent({
     >
       <XStack
         padding={isEmbed ? 0 : layoutUnit / 3}
+        paddingVertical={isEmbed ? 0 : layoutUnit / 6}
         {...headingStyles}
         {...debugStyles(debug, 'red')}
         group="blocknode"
@@ -914,12 +915,8 @@ export function BlockNodeContent({
       </XStack>
       {bnChildren && _expanded ? (
         <BlockNodeList
-          paddingLeft={
-            childrenType === 'Group' || blockNode.block?.type == 'Heading'
-              ? 0
-              : layoutUnit
-          }
-          childrenType={childrenType as HMBlockChildrenType}
+          paddingLeft={blockNode.block?.type == 'Heading' ? 0 : layoutUnit}
+          childrenType={blockNode.block?.attributes?.childrenType}
           listLevel={listLevel}
           display="block"
         >

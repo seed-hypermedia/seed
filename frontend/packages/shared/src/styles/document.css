@@ -36,8 +36,13 @@
   scrollbar-width: none; /* Firefox */
 }
 
-/* ol > [data-node-type='blockContainer'] > :not([data-list-type]),
-ul > [data-node-type='blockContainer'] > :not([data-list-type]) {
+[data-list-type='Ordered']
+  > ol
+  > [data-node-type='blockContainer']
+  > [data-list-type='Group'],
+[data-list-type='Unordered']
+  > ul
+  > [data-node-type='blockContainer']
+  > [data-list-type='Group'] {
   padding-left: 0;
-  background-color: red;
-} */
+}
