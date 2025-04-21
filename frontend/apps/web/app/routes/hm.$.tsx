@@ -73,6 +73,5 @@ function produceHmId(
 
 export default function HypermediaDocument() {
   const data = unwrap<SiteDocumentPayload>(useLoaderData())
-  console.log('~~~ data', data)
   return <DocumentPage {...data} />
 }

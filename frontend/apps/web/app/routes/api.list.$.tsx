@@ -8,29 +8,52 @@ import {
 import {ListAPIResponse} from '@shm/shared/api-types'
 import {BIG_INT} from '@shm/shared/constants'
 
+const processDocuments = (docs: any[]) => {
+  const invalidDocuments: ListAPIResponse['invalidDocuments'] = []
+  const documents: ListAPIResponse['documents'] = []
+
+  docs.forEach((doc) => {
+    const id = hmId(
+      'd',
+      doc.account,
+      doc.path ? {path: entityQueryPathToHmIdPath(doc.path)} : undefined,
+    )
+    const rawMetadata = doc.metadata?.toJson()
+    const metadataParsed = HMDocumentMetadataSchema.safeParse(rawMetadata)
+
+    if (!metadataParsed.success) {
+      invalidDocuments.push({
+        id,
+        error: metadataParsed.error,
+        metadata: rawMetadata,
+      })
+    } else {
+      documents.push({
+        id,
+        metadata: metadataParsed.data,
+      })
+    }
+  })
+
+  return {invalidDocuments, documents}
+}
+
 export const loader = apiGetter(async (req) => {
   const pathParts = req.pathParts
   const [_api, _list, uid] = pathParts
+
   if (uid) {
     const docs = await queryClient.documents.listDocuments({
       account: uid,
       pageSize: BIG_INT,
     })
-    return {
-      documents: docs.documents.map((doc) => ({
-        id: hmId('d', doc.account, {path: entityQueryPathToHmIdPath(doc.path)}),
-        metadata: HMDocumentMetadataSchema.parse(doc.metadata?.toJson()),
-      })),
-    } satisfies ListAPIResponse
+    const {invalidDocuments, documents} = processDocuments(docs.documents)
+    return {invalidDocuments, documents} satisfies ListAPIResponse
   } else {
     const rootDocs = await queryClient.documents.listRootDocuments({
       pageSize: BIG_INT,
     })
-    return {
-      documents: rootDocs.documents.map((doc) => ({
-        id: hmId('d', doc.account),
-        metadata: HMDocumentMetadataSchema.parse(doc.metadata?.toJson()),
-      })),
-    } satisfies ListAPIResponse
+    const {invalidDocuments, documents} = processDocuments(rootDocs.documents)
+    return {invalidDocuments, documents} satisfies ListAPIResponse
   }
 })
