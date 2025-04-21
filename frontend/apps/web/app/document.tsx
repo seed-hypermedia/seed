@@ -333,19 +333,19 @@ export function DocumentPage(props: SiteDocumentPayload) {
       >
         <XStack w="100%">
           <YStack f={1}>
-            <DocInteractionsSummary
-              docId={id}
-              citations={citations.data}
-              onCitationsOpen={() =>
-                setActivePanel({type: 'citations', blockId: null})
-              }
-              onCommentsOpen={
-                comment ? () => setActivePanel({type: 'comments'}) : undefined
-              }
-              // onVersionOpen={() => {}}
-            />
             <DocumentCover cover={document.metadata.cover} id={id} />
-            <YStack w="100%" ref={elementRef} f={1}>
+            <YStack w="100%" ref={elementRef} f={1} position="relative">
+              <DocInteractionsSummary
+                docId={id}
+                citations={citations.data}
+                onCitationsOpen={() =>
+                  setActivePanel({type: 'citations', blockId: null})
+                }
+                onCommentsOpen={
+                  comment ? () => setActivePanel({type: 'comments'}) : undefined
+                }
+                // onVersionOpen={() => {}}
+              />
               <XStack {...wrapperProps}>
                 {showSidebars ? (
                   <YStack
@@ -465,6 +465,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
               bg={isDark ? '$background' : '$backgroundStrong'}
               $gtMd={{
                 maxWidth: '25vw',
+                minWidth: 220,
+                w: '100%',
                 borderLeftWidth: 1,
                 borderBottomWidth: 1,
                 borderLeftColor: '$color7',
