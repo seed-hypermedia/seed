@@ -118,13 +118,16 @@ export const WEB_SIGNING_ISSUER =
   WEB_ENV.WEB_SIGNING_ISSUER || process.env.SEED_SIGNING_ISSUER
 
 export const WEB_SIGNING_ENABLED = process.env.SEED_SIGNING_ENABLED === 'true'
-console.log('~ WEB_SIGNING_ENABLED', WEB_SIGNING_ENABLED)
 
 export const NOTIFY_SMTP_HOST = process.env.NOTIFY_SMTP_HOST
 export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT
 export const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER
 export const NOTIFY_SMTP_PASSWORD = process.env.NOTIFY_SMTP_PASSWORD
 export const NOTIFY_SENDER = process.env.NOTIFY_SENDER
+
+export const WEB_IS_GATEWAY = process.env.SEED_IS_GATEWAY === 'true'
+
+export const WEB_API_DISABLED = process.env.SEED_API_ENABLED === 'false'
 
 export const ENABLE_EMAIL_NOTIFICATIONS =
   WEB_ENV.ENABLE_EMAIL_NOTIFICATIONS ||
