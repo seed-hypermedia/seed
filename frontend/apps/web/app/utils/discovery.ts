@@ -7,11 +7,10 @@ export async function discoverDocument(
   path: string[],
   version?: string,
 ) {
-  console.log('discovering document', uid, path, version)
   await queryClient.entities.discoverEntity({
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
-    version: version,
+    version,
     recursive: true,
   })
   await tryUntilSuccess(async () => {
@@ -20,7 +19,6 @@ export async function discoverDocument(
       path: hmIdPathToEntityQueryPath(path),
       version: version,
     })
-    console.log('trying disovered document', version, document.version)
-    return document.version === version
+    return !version || document.version === version
   })
 }

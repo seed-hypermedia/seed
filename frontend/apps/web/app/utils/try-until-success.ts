@@ -6,11 +6,14 @@ export async function tryUntilSuccess(
   const startTime = Date.now()
   let didResolve = false
   let didTimeout = false
-  while (!didResolve) {
-    const result = await fn()
-    if (result) {
-      didResolve = true
-    } else {
+  while (!didResolve && !didTimeout) {
+    try {
+      const result = await fn()
+      if (result) {
+        didResolve = true
+      }
+    } catch (error) {}
+    if (!didResolve) {
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
     }
     if (Date.now() - startTime > maxRetryMs) {

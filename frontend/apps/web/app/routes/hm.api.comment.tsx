@@ -81,7 +81,6 @@ export const action: ActionFunction = async ({request}) => {
       hmId('d', signerUid, {}),
       ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
     ]
-
     const resp = await fetch(`${url.origin}/hm/api/sync-comment`, {
       method: 'POST',
       body: JSON.stringify({
@@ -90,9 +89,9 @@ export const action: ActionFunction = async ({request}) => {
         dependencies,
       } satisfies SyncCommentRequest),
     })
-    console.log('sync comment to url', url)
-    console.log(await resp.text())
-    console.log(resp.status)
+    if (resp.status !== 200) {
+      return json({message: 'Failed to sync comment'}, {status: 500})
+    }
   }
   return json({
     message: 'Success',

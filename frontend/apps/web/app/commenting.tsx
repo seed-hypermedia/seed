@@ -56,15 +56,14 @@ export default function WebCommenting(props: WebCommentingProps) {
       <Button
         onPress={() => {
           const url = new URL(`${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment`)
-          url.searchParams.set('target', props.docId.uid)
+          url.searchParams.set(
+            'target',
+            `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
+          )
           url.searchParams.set('targetVersion', props.docId.version || '')
           url.searchParams.set('reply', props.replyCommentId || '')
           url.searchParams.set('rootReply', props.rootReplyCommentId || '')
           url.searchParams.set('originUrl', window.location.toString())
-          url.searchParams.set(
-            'path',
-            hmIdPathToEntityQueryPath(props.docId.path),
-          )
           console.log('Redirect to ' + url.toString())
           window.open(url.toString(), '_blank')
         }}
@@ -180,7 +179,6 @@ export function LocalWebCommenting({
       },
       commentingOriginUrl,
     )
-
     await postComment.mutateAsync(commentPayload)
     reset()
     onDiscardDraft?.()
@@ -286,7 +284,12 @@ async function prepareComment(
     content: blockNodes,
     ...commentMeta,
   })
-  return {comment: cborEncode(signedComment), blobs, commentingOriginUrl}
+  const result: CommentPayload = {
+    comment: cborEncode(signedComment),
+    blobs,
+  }
+  if (commentingOriginUrl) result.commentingOriginUrl = commentingOriginUrl
+  return result
 }
 
 async function handleFileAttachment(file: Blob) {

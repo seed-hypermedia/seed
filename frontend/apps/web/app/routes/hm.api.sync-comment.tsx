@@ -22,36 +22,39 @@ export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return json({message: 'Method not allowed'}, {status: 405})
   }
-  const body = await request.json()
-  const {commentId, target, dependencies} = syncCommentRequestSchema.parse(body)
-  const targetId = unpackHmId(target)
-  if (!targetId) {
-    return json({message: 'Invalid target'}, {status: 400})
-  }
-  console.log({commentId, target, dependencies})
-  console.log('WILL GET COMMENT EXISTS', commentId)
-  const commentExists = await getCommentExists(commentId)
-  if (!commentExists) {
-    await syncComment({
-      commentId,
-      targetId,
+  try {
+    const body = await request.json()
+    const {commentId, target, dependencies} =
+      syncCommentRequestSchema.parse(body)
+    const targetId = unpackHmId(target)
+    if (!targetId) {
+      return json({message: 'Invalid target'}, {status: 400})
+    }
+    const commentExists = await getCommentExists(commentId)
+    if (!commentExists) {
+      await syncComment({
+        commentId,
+        targetId,
+      })
+    }
+    await Promise.all(
+      dependencies.map((dependency) => {
+        return discoverDocument(
+          dependency.uid,
+          dependency.path || [],
+          dependency.latest ? undefined : dependency.version ?? undefined,
+        )
+      }),
+    )
+    return json({
+      message: 'Success',
     })
-    return json({message: 'Comment could not be synced'}, {status: 404})
+  } catch (error) {
+    return json(
+      {message: 'Error syncing comment:' + error.message},
+      {status: 500},
+    )
   }
-  console.log('WILL DISCOVER dependencies', dependencies)
-  await Promise.all(
-    dependencies.map((dependency) => {
-      return discoverDocument(
-        dependency.uid,
-        dependency.path || [],
-        dependency.latest ? undefined : dependency.version ?? undefined,
-      )
-    }),
-  )
-
-  return json({
-    message: 'Success',
-  })
 }
 
 async function getCommentExists(commentId: string) {
@@ -75,6 +78,7 @@ async function syncComment({
   const discovered = await queryClient.entities.discoverEntity({
     account: targetId.uid,
     path: hmIdPathToEntityQueryPath(targetId.path),
+    recursive: true,
   })
   await tryUntilSuccess(
     async () => {
@@ -87,6 +91,6 @@ async function syncComment({
       return false
     },
     1000,
-    20_000,
+    30_000,
   )
 }
