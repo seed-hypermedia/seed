@@ -33,23 +33,29 @@ func TestFTS(t *testing.T) {
 
 	// Execute the CREATE VIRTUAL TABLE statement
 	err = db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, `CREATE VIRTUAL TABLE ft USING fts5(characters);`, nil)
+		return sqlitex.Exec(conn, `CREATE VIRTUAL TABLE fts USING fts5(content, type, iri);`, nil)
 	})
 	require.NoError(t, err)
 
 	// Execute the INSERT statement
 	err = db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, `INSERT INTO ft(rowid, characters) VALUES(1, 'A B C D x x x E F x');`, nil)
+		return sqlitex.Exec(conn, `INSERT INTO fts(content, type, iri) VALUES('My first comment', 'comment', 'hm://c/asdf');`, nil)
 	})
 	require.NoError(t, err)
 
-	var match string
+	var content string
+	var contentType string
+	var contentIRI string
 	err = db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, `SELECT * FROM ft WHERE characters MATCH 'NEAR(e d, 4)';`, func(stmt *sqlite.Stmt) error {
-			match = stmt.ColumnText(0)
+		return sqlitex.Exec(conn, `SELECT * FROM fts WHERE content MATCH 'First';`, func(stmt *sqlite.Stmt) error {
+			content = stmt.ColumnText(0)
+			contentType = stmt.ColumnText(1)
+			contentIRI = stmt.ColumnText(2)
 			return nil
 		})
 	})
 	require.NoError(t, err)
-	require.Equal(t, "A B C D x x x E F x", match)
+	require.Equal(t, "My first comment", content)
+	require.Equal(t, "comment", contentType)
+	require.Equal(t, "hm://c/asdf", contentIRI)
 }
