@@ -611,7 +611,7 @@ export class DeletedEntity extends Message<DeletedEntity> {
  */
 export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   /**
-   * Query to find. We Ssupport wildcards and prhases.
+   * Query to find. We Ssupport wildcards and phrases.
    * See https://sqlite.org/fts5.html#full_text_query_syntax.
    *
    * @generated from field: string query = 1;
@@ -628,12 +628,12 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   includeBody = false;
 
   /**
-   * Whether to look into latest versions only or lookk into full.
+   * Whether to look into latest versions only or look into full
    * history of the entity. Default is false.
    *
-   * @generated from field: bool full_hystory = 3;
+   * @generated from field: bool full_history = 3;
    */
-  fullHystory = false;
+  fullHistory = false;
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
@@ -645,7 +645,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "full_hystory", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "full_history", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
