@@ -693,16 +693,16 @@ func (x *DeletedEntity) GetMetadata() string {
 // Request to
 type SearchEntitiesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Query to find. We Ssupport wildcards and prhases.
+	// Query to find. We Ssupport wildcards and phrases.
 	// See https://sqlite.org/fts5.html#full_text_query_syntax.
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	// Whether to look into all content available or just the titles.
 	// If false, comments are not included in the search.
 	// Default is false.
 	IncludeBody bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
-	// Whether to look into latest versions only or lookk into full.
+	// Whether to look into latest versions only or look into full
 	// history of the entity. Default is false.
-	FullHystory   bool `protobuf:"varint,3,opt,name=full_hystory,json=fullHystory,proto3" json:"full_hystory,omitempty"`
+	FullHistory   bool `protobuf:"varint,3,opt,name=full_history,json=fullHistory,proto3" json:"full_history,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -751,9 +751,9 @@ func (x *SearchEntitiesRequest) GetIncludeBody() bool {
 	return false
 }
 
-func (x *SearchEntitiesRequest) GetFullHystory() bool {
+func (x *SearchEntitiesRequest) GetFullHistory() bool {
 	if x != nil {
-		return x.FullHystory
+		return x.FullHistory
 	}
 	return false
 }
@@ -1400,7 +1400,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
 	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
-	"\ffull_hystory\x18\x03 \x01(\bR\vfullHystory\"\x7f\n" +
+	"\ffull_history\x18\x03 \x01(\bR\vfullHistory\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
