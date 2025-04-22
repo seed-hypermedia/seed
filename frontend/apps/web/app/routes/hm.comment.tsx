@@ -1,10 +1,14 @@
 import {WebCommenting} from '@/client-lazy'
+import {PageFooter} from '@/page-footer'
 import {parseRequest} from '@/request'
 import {LoaderFunctionArgs} from '@remix-run/node'
 import {json, useLoaderData, useSearchParams} from '@remix-run/react'
 import {unpackHmId} from '@shm/shared'
-import {YStack} from '@tamagui/stacks'
-import {Heading, SizableText} from '@tamagui/text'
+import {useEntity} from '@shm/shared/models/entity'
+import {Container} from '@shm/ui/container'
+import {NewspaperCard} from '@shm/ui/newspaper'
+import {Heading} from '@tamagui/text'
+import {YStack} from 'tamagui'
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
@@ -30,20 +34,32 @@ export default function CreateComment() {
   const replyCommentId = params.get('reply')
   const rootReplyCommentId = params.get('rootReply')
   console.log({replyCommentId, rootReplyCommentId, targetDocId})
+
+  const entity = useEntity(targetDocId)
   if (!targetDocId) {
     return <Heading>Invalid target</Heading>
   }
   return (
-    <YStack>
-      <Heading>Create Comment</Heading>
-      <SizableText>{params.get('target')}</SizableText>
-      <WebCommenting
-        docId={targetDocId}
-        replyCommentId={replyCommentId}
-        rootReplyCommentId={rootReplyCommentId}
-        enableWebSigning={enableWebSigning}
-        commentingOriginUrl={originUrl}
-      />
-    </YStack>
+    <Container>
+      <YStack flex={1}>
+        <Heading>Create Comment</Heading>
+        {entity.data && (
+          <NewspaperCard
+            id={targetDocId}
+            entity={entity.data}
+            accountsMetadata={{}}
+          />
+        )}
+        {/* <SizableText>{params.get('target')}</SizableText> */}
+        <WebCommenting
+          docId={targetDocId}
+          replyCommentId={replyCommentId}
+          rootReplyCommentId={rootReplyCommentId}
+          enableWebSigning={enableWebSigning}
+          commentingOriginUrl={originUrl}
+        />
+      </YStack>
+      <PageFooter enableWebSigning={enableWebSigning} />
+    </Container>
   )
 }

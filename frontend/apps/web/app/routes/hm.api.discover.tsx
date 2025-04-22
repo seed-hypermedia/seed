@@ -1,6 +1,5 @@
-import {queryClient} from '@/client'
+import {discoverDocument} from '@/utils/discovery'
 import {ActionFunction, json} from '@remix-run/node'
-import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {z} from 'zod'
 
 const discoverSchema = z.object({
@@ -14,13 +13,8 @@ export const action: ActionFunction = async ({request}) => {
     const data = await request.json()
     const input = discoverSchema.parse(data)
     console.log('[discover][start]: ', input)
-    const discovered = await queryClient.entities.discoverEntity({
-      account: input.uid,
-      path: hmIdPathToEntityQueryPath(input.path),
-      version: input.version,
-      recursive: true,
-    })
-    console.log('[discover][end] version: ', discovered.version)
+    await discoverDocument(input.uid, input.path, input.version)
+    console.log('[discover][success]: ', input)
     return json({message: 'Success'})
   } catch (e) {
     if (e.toJSON) {
