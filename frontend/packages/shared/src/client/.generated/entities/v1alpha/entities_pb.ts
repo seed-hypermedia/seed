@@ -478,23 +478,31 @@ export class Entity extends Message<Entity> {
   content = "";
 
   /**
+   * where the matching string is found in the content.
+   * This is a char offset in the content.
+   *
+   * @generated from field: int32 match_offset = 3;
+   */
+  matchOffset = 0;
+
+  /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 3;
+   * @generated from field: string owner = 4;
    */
   owner = "";
 
   /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 4;
+   * @generated from field: string icon = 5;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 5;
+   * @generated from field: repeated string parent_names = 6;
    */
   parentNames: string[] = [];
 
@@ -508,9 +516,10 @@ export class Entity extends Message<Entity> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "match_offset", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
@@ -610,20 +619,21 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   query = "";
 
   /**
-   * Whether to look into titles only or in all content available.
-   * Default is true.
+   * Whether to look into all content available or just the titles.
+   * If false, comments are not included in the search.
+   * Default is false.
    *
-   * @generated from field: bool title_only = 2;
+   * @generated from field: bool include_body = 2;
    */
-  titleOnly = false;
+  includeBody = false;
 
   /**
    * Whether to look into latest versions only or lookk into full.
-   * history of the entity. Default is true.
+   * history of the entity. Default is false.
    *
-   * @generated from field: bool latest_only = 3;
+   * @generated from field: bool full_hystory = 3;
    */
-  latestOnly = false;
+  fullHystory = false;
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
@@ -634,8 +644,8 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "title_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "latest_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "full_hystory", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
