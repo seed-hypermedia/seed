@@ -153,6 +153,8 @@ export function DocContentProvider({
   showDevMenu = false,
   comment = false,
   routeParams = {},
+  layoutUnit = contentLayoutUnit,
+  textUnit = contentTextUnit,
   ...docContextContent
 }: PropsWithChildren<
   DocContentContextValue & {
@@ -161,8 +163,8 @@ export function DocContentProvider({
     ffSerif?: boolean
   }
 >) {
-  const [tUnit, setTUnit] = useState(contentTextUnit)
-  const [lUnit, setLUnit] = useState(contentLayoutUnit)
+  const [tUnit, setTUnit] = useState(textUnit)
+  const [lUnit, setLUnit] = useState(layoutUnit)
   const [debug, setDebug] = useState(false)
   const [ffSerif, toggleSerif] = useState(true)
   return (
@@ -726,8 +728,6 @@ export function BlockNodeContent({
     >
       <XStack
         borderRadius={layoutUnit / 4}
-        // padding={isEmbed ? 0 : layoutUnit / 3}
-
         padding={layoutUnit / 3}
         paddingVertical={isEmbed ? 0 : layoutUnit / 6}
         {...headingStyles}
@@ -1102,13 +1102,13 @@ export function BlockContentHeading({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {textUnit, debug, ffSerif, comment} = useDocContentContext()
+  const {textUnit, debug, comment} = useDocContentContext()
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
   let headingTextStyles = useHeadingTextStyles(
     depth,
     comment ? textUnit * 0.8 : textUnit,
+    comment,
   )
-  let tag = `h${depth}`
 
   return (
     <YStack
@@ -1120,7 +1120,6 @@ export function BlockContentHeading({
       <SeedHeading
         level={depth as 1 | 2 | 3 | 4 | undefined}
         className="content-inline"
-        // fontFamily={ffSerif ? '$editorBody' : '$body'}
         maxWidth="95%"
       >
         <InlineContentView
@@ -1174,8 +1173,26 @@ export function DocHeading({
   )
 }
 
-export function useHeadingTextStyles(depth: number, unit: number) {
+export function useHeadingTextStyles(
+  depth: number,
+  unit: number,
+  comment?: boolean,
+) {
   return useMemo(() => {
+    if (comment) {
+      return {
+        fontSize: '$3',
+        lineHeight: '$3',
+        $gtMd: {
+          fontSize: '$3',
+          lineHeight: '$3',
+        },
+        $gtLg: {
+          fontSize: '$4',
+          lineHeight: '$4',
+        },
+      } satisfies TextProps
+    }
     if (depth == 1) {
       return {
         fontSize: '$8',
@@ -1778,6 +1795,9 @@ export function ContentEmbed({
   >
   parentBlockId: string | null
 }) {
+  const context = useDocContentContext()
+
+  console.log(`== ~ EmbedDocumentContent context:`, context)
   const embedData = useMemo(() => {
     const selectedBlock =
       props.blockRef && document?.content
@@ -1934,13 +1954,19 @@ export function ContentEmbed({
     )
   }
   return (
-    <EmbedWrapper
-      depth={props.depth}
-      id={narrowHmId(props)}
-      parentBlockId={parentBlockId || ''}
+    <DocContentProvider
+      {...context}
+      layoutUnit={context.comment ? 18 : context.layoutUnit}
+      textUnit={context.comment ? 12 : context.textUnit}
     >
-      {content}
-    </EmbedWrapper>
+      <EmbedWrapper
+        depth={props.depth}
+        id={narrowHmId(props)}
+        parentBlockId={parentBlockId || ''}
+      >
+        {content}
+      </EmbedWrapper>
+    </DocContentProvider>
   )
 }
 

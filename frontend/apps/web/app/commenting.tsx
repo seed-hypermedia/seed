@@ -419,8 +419,6 @@ function CommentDocContentProvider({
       //   )
       // }}
       // routeParams={routeParams}
-      textUnit={18}
-      layoutUnit={24}
       openUrl={openUrl}
       handleFileAttachment={handleFileAttachment}
       debug={false}

@@ -61,11 +61,9 @@ function EmbedWrapper({
     hideBorder?: boolean
   } & Omit<ComponentProps<typeof YStack>, 'id'>
 >) {
-  const {
-    disableEmbedClick = false,
-    comment,
-    routeParams,
-  } = useDocContentContext()
+  const docContentContext = useDocContentContext()
+
+  const {disableEmbedClick = false, comment, routeParams} = docContentContext
   const navigate = useNavigate('push')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const sideannotationRef = useRef<HTMLDivElement>(null)
@@ -152,14 +150,8 @@ function EmbedWrapper({
             ? '$brand12'
             : '$backgroundTransparent'
           : '$backgroundTransparent',
-        // borderRadius: '$2',
-        // borderRightColor: depth == 1 ? '$blue7' : undefined,
       }}
       margin={0}
-      // marginHorizontal={-1 * layoutUnit}
-
-      // padding={layoutUnit / 2}
-      // overflow="hidden"
       borderRadius={0}
       borderLeftWidth={hideBorder ? 0 : 3}
       borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
@@ -198,6 +190,7 @@ function EmbedWrapper({
       {...props}
     >
       {children}
+
       {/* {!comment && viewType == 'Content' ? (
         <EmbedSideAnnotation
           sidePos={sidePos}
@@ -242,6 +235,7 @@ export function EmbedDocument(props: EntityComponentProps) {
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
   const {entityId, textUnit} = useDocContentContext()
+
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
