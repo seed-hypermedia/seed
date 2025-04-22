@@ -54,8 +54,10 @@ export function findNextBlock(view: EditorView, pos?: number) {
       },
     )
   }
-  const maybePos = pos ? state.doc.resolve(pos) : state.selection.$to
-  const nextBlockInfo = getBlockInfoFromPos(state, maybePos.end() + 3)
+  const nextBlockInfo = getBlockInfoFromPos(
+    state,
+    blockInfo.blockContent.afterPos + 3,
+  )
   // If there is first child, return it as a next block
   if (nextBlock && nextBlockPos) {
     if (!nextBlockInfo || nextBlockPos <= nextBlockInfo.block.beforePos)

@@ -189,17 +189,15 @@ const Render = (
                 justifyContent="center"
                 textAlign="center"
                 userSelect="none"
-                borderColor="$colorTransparent"
-                borderWidth={0}
+                borderColor={selected ? '$color8' : '$colorTransparent'}
+                borderWidth={3}
                 size="$4"
                 maxWidth="100%"
                 hoverStyle={{
                   bg: '$brand4',
-                  borderWidth: 0,
                 }}
                 focusStyle={{
                   bg: '$brand3',
-                  borderWidth: 0,
                 }}
               >
                 <SizableText
