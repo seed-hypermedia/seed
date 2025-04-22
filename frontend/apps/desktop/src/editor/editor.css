@@ -485,3 +485,14 @@ ol > [data-node-type='block-outer']::marker {
     display: flex !important;
   }
 }
+
+ol[data-list-type='Ordered']
+  > [data-node-type='block-outer']
+  > [data-node-type='blockContainer']
+  > [data-node-type='blockGroup'],
+ul[data-list-type='Unordered']
+  > [data-node-type='block-outer']
+  > [data-node-type='blockContainer']
+  > [data-node-type='blockGroup'] {
+  margin-left: 0;
+}
