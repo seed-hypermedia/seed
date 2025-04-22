@@ -468,14 +468,14 @@ export class Entity extends Message<Entity> {
   id = "";
 
   /**
-   * Title of the entity, depending on the type:
+   * Content of the entity, depending on the type:
    * Alias in the case of account.
-   * Title in the case of groups and documents
-   * Empty in the case of comments.
+   * Title/Body in the case of groups and documents.
+   * Body in the case of comments.
    *
-   * @generated from field: string title = 2;
+   * @generated from field: string content = 2;
    */
-  title = "";
+  content = "";
 
   /**
    * The owner of the entity
@@ -507,7 +507,7 @@ export class Entity extends Message<Entity> {
   static readonly typeName = "com.seed.entities.v1alpha.Entity";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
@@ -602,13 +602,28 @@ export class DeletedEntity extends Message<DeletedEntity> {
  */
 export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   /**
-   * Query to find. Since we use
-   * Fuzzy search, a single query may return multiple
-   * entities.
+   * Query to find. We Ssupport wildcards and prhases.
+   * See https://sqlite.org/fts5.html#full_text_query_syntax.
    *
    * @generated from field: string query = 1;
    */
   query = "";
+
+  /**
+   * Whether to look into titles only or in all content available.
+   * Default is true.
+   *
+   * @generated from field: bool title_only = 2;
+   */
+  titleOnly = false;
+
+  /**
+   * Whether to look into latest versions only or lookk into full.
+   * history of the entity. Default is true.
+   *
+   * @generated from field: bool latest_only = 3;
+   */
+  latestOnly = false;
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
@@ -619,6 +634,8 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "title_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "latest_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

@@ -152,11 +152,11 @@ message Entity {
   // EID of the entity.
   string id = 1;
 
-  // Title of the entity, depending on the type:
+  // Content of the entity, depending on the type:
   // Alias in the case of account.
-  // Title in the case of groups and documents
-  // Empty in the case of comments.
-  string title = 2;
+  // Title/Body in the case of groups and documents.
+  // Body in the case of comments.
+  string content = 2;
 
   // The owner of the entity
   string owner = 3;
@@ -184,10 +184,17 @@ message DeletedEntity {
 }
 // Request to
 message SearchEntitiesRequest {
-  // Query to find. Since we use
-  // Fuzzy search, a single query may return multiple
-  // entities.
+  // Query to find. We Ssupport wildcards and prhases.
+  // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
+
+  // Whether to look into titles only or in all content available.
+  // Default is true.
+  bool title_only = 2;
+
+  // Whether to look into latest versions only or lookk into full.
+  // history of the entity. Default is true.
+  bool latest_only = 3;
 }
 
 // A list of entities matching the request.

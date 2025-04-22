@@ -270,7 +270,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
-			Title:       match.Str,
+			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
 			Owner:       owners[match.Index]})
