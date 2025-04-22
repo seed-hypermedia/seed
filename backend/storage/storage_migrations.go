@@ -57,6 +57,18 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+
+	{Version: "2025-04-22.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE VIRTUAL TABLE fts USING fts5(
+				raw_content, 
+				type, 
+				block_id,
+				iri
+			);
+		`))
+	}},
+
 	{Version: "2025-04-14.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE INDEX profiles_by_alias ON structural_blobs (extra_attrs->>'alias', author) WHERE type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL;

@@ -88,6 +88,106 @@ const (
 	C_DocumentGenerationsResource             = "document_generations.resource"
 )
 
+// Table fts.
+const (
+	Fts           sqlitegen.Table  = "fts"
+	FtsBlockID    sqlitegen.Column = "fts.block_id"
+	FtsFts        sqlitegen.Column = "fts.fts"
+	FtsIRI        sqlitegen.Column = "fts.iri"
+	FtsRank       sqlitegen.Column = "fts.rank"
+	FtsRawContent sqlitegen.Column = "fts.raw_content"
+	FtsType       sqlitegen.Column = "fts.type"
+)
+
+// Table fts. Plain strings.
+const (
+	T_Fts           = "fts"
+	C_FtsBlockID    = "fts.block_id"
+	C_FtsFts        = "fts.fts"
+	C_FtsIRI        = "fts.iri"
+	C_FtsRank       = "fts.rank"
+	C_FtsRawContent = "fts.raw_content"
+	C_FtsType       = "fts.type"
+)
+
+// Table fts_config.
+const (
+	FtsConfig  sqlitegen.Table  = "fts_config"
+	FtsConfigK sqlitegen.Column = "fts_config.k"
+	FtsConfigV sqlitegen.Column = "fts_config.v"
+)
+
+// Table fts_config. Plain strings.
+const (
+	T_FtsConfig  = "fts_config"
+	C_FtsConfigK = "fts_config.k"
+	C_FtsConfigV = "fts_config.v"
+)
+
+// Table fts_content.
+const (
+	FtsContent   sqlitegen.Table  = "fts_content"
+	FtsContentC0 sqlitegen.Column = "fts_content.c0"
+	FtsContentC1 sqlitegen.Column = "fts_content.c1"
+	FtsContentC2 sqlitegen.Column = "fts_content.c2"
+	FtsContentC3 sqlitegen.Column = "fts_content.c3"
+	FtsContentID sqlitegen.Column = "fts_content.id"
+)
+
+// Table fts_content. Plain strings.
+const (
+	T_FtsContent   = "fts_content"
+	C_FtsContentC0 = "fts_content.c0"
+	C_FtsContentC1 = "fts_content.c1"
+	C_FtsContentC2 = "fts_content.c2"
+	C_FtsContentC3 = "fts_content.c3"
+	C_FtsContentID = "fts_content.id"
+)
+
+// Table fts_data.
+const (
+	FtsData      sqlitegen.Table  = "fts_data"
+	FtsDataBlock sqlitegen.Column = "fts_data.block"
+	FtsDataID    sqlitegen.Column = "fts_data.id"
+)
+
+// Table fts_data. Plain strings.
+const (
+	T_FtsData      = "fts_data"
+	C_FtsDataBlock = "fts_data.block"
+	C_FtsDataID    = "fts_data.id"
+)
+
+// Table fts_docsize.
+const (
+	FtsDocsize   sqlitegen.Table  = "fts_docsize"
+	FtsDocsizeID sqlitegen.Column = "fts_docsize.id"
+	FtsDocsizeSz sqlitegen.Column = "fts_docsize.sz"
+)
+
+// Table fts_docsize. Plain strings.
+const (
+	T_FtsDocsize   = "fts_docsize"
+	C_FtsDocsizeID = "fts_docsize.id"
+	C_FtsDocsizeSz = "fts_docsize.sz"
+)
+
+// Table fts_idx.
+const (
+	FtsIdx      sqlitegen.Table  = "fts_idx"
+	FtsIdxPgno  sqlitegen.Column = "fts_idx.pgno"
+	FtsIdxSegid sqlitegen.Column = "fts_idx.segid"
+	FtsIdxTerm  sqlitegen.Column = "fts_idx.term"
+)
+
+// Table fts_idx. Plain strings.
+const (
+	T_FtsIdx      = "fts_idx"
+	C_FtsIdxPgno  = "fts_idx.pgno"
+	C_FtsIdxSegid = "fts_idx.segid"
+	C_FtsIdxTerm  = "fts_idx.term"
+)
+
 // Table kv.
 const (
 	KV      sqlitegen.Table  = "kv"
@@ -339,6 +439,26 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		FtsBlockID:                              {Table: Fts, SQLType: ""},
+		FtsFts:                                  {Table: Fts, SQLType: ""},
+		FtsIRI:                                  {Table: Fts, SQLType: ""},
+		FtsRank:                                 {Table: Fts, SQLType: ""},
+		FtsRawContent:                           {Table: Fts, SQLType: ""},
+		FtsType:                                 {Table: Fts, SQLType: ""},
+		FtsConfigK:                              {Table: FtsConfig, SQLType: ""},
+		FtsConfigV:                              {Table: FtsConfig, SQLType: ""},
+		FtsContentC0:                            {Table: FtsContent, SQLType: ""},
+		FtsContentC1:                            {Table: FtsContent, SQLType: ""},
+		FtsContentC2:                            {Table: FtsContent, SQLType: ""},
+		FtsContentC3:                            {Table: FtsContent, SQLType: ""},
+		FtsContentID:                            {Table: FtsContent, SQLType: "INTEGER"},
+		FtsDataBlock:                            {Table: FtsData, SQLType: "BLOB"},
+		FtsDataID:                               {Table: FtsData, SQLType: "INTEGER"},
+		FtsDocsizeID:                            {Table: FtsDocsize, SQLType: "INTEGER"},
+		FtsDocsizeSz:                            {Table: FtsDocsize, SQLType: "BLOB"},
+		FtsIdxPgno:                              {Table: FtsIdx, SQLType: ""},
+		FtsIdxSegid:                             {Table: FtsIdx, SQLType: ""},
+		FtsIdxTerm:                              {Table: FtsIdx, SQLType: ""},
 		KVKey:                                   {Table: KV, SQLType: "TEXT"},
 		KVValue:                                 {Table: KV, SQLType: "TEXT"},
 		PeersAddresses:                          {Table: Peers, SQLType: "TEXT"},
