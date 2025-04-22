@@ -316,7 +316,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
             return false
           }),
-        // Removes a level of nesting if the block is indented if the selection is at the start of the block.
+        // Removes a level of nesting if the block is indented and the selection is at the start of the block.
         () =>
           commands.command(({state}) => {
             const {blockContent} = getBlockInfoFromSelection(state)

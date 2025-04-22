@@ -18,7 +18,6 @@ import {
   BlockNoteEditor,
   getBlockInfoFromPos,
   HyperlinkToolbarProps,
-  PartialBlock,
 } from './blocknote'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HypermediaLinkForm} from './hm-link-form'
@@ -148,18 +147,23 @@ export function HypermediaLinkSwitchToolbar(
                   view.dispatch(tr)
                 }
               } else {
-                const linkBlock = {
-                  type: 'paragraph',
-                  props: {},
-                  content: [
-                    {
-                      type: 'link',
-                      href: props.url,
-                      content: title,
-                    },
-                  ],
-                } as PartialBlock<HMBlockSchema>
-                props.editor.replaceBlocks([props.id], [linkBlock])
+                const {state} = props.editor._tiptapEditor
+                const node = state.schema.nodes.paragraph.create(
+                  null,
+                  state.schema.text(
+                    title,
+                    // @ts-ignore
+                    state.schema.marks['link'].create({href: props.url})!,
+                  ),
+                )
+                insertNode(
+                  props.editor,
+                  props.id,
+                  props.url,
+                  props.text,
+                  props.type,
+                  node,
+                )
               }
               props.resetHyperlink()
             }}
@@ -197,31 +201,20 @@ export function HypermediaLinkSwitchToolbar(
                 const buttonTitle = getTitle(unpackedRef, entity.data?.document)
                 if (buttonTitle) title = buttonTitle
               }
-              if (['mention', 'link'].includes(props.type)) {
-                const schema = props.editor._tiptapEditor.state.schema
-                const node = schema.nodes.button.create({
-                  url: props.url,
-                  name: title,
-                })
+              const schema = props.editor._tiptapEditor.state.schema
+              const node = schema.nodes.button.create({
+                url: props.url,
+                name: title,
+              })
 
-                insertNode(
-                  props.editor,
-                  props.url,
-                  props.text,
-                  props.type,
-                  node,
-                )
-              } else {
-                const buttonBlock = {
-                  type: 'button',
-                  content: [],
-                  props: {
-                    url: props.url,
-                    name: title,
-                  },
-                } as PartialBlock<HMBlockSchema>
-                props.editor.replaceBlocks([props.id], [buttonBlock])
-              }
+              insertNode(
+                props.editor,
+                props.id,
+                props.url,
+                props.text,
+                props.type,
+                node,
+              )
             }}
             active={props.type === 'button'}
           />
@@ -229,33 +222,23 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText="Change to an embed"
             icon={PanelBottom}
             onPress={() => {
-              if (['mention', 'link'].includes(props.type)) {
-                const schema = props.editor._tiptapEditor.state.schema
-                const node = schema.nodes.embed.create(
-                  {
-                    url: props.url,
-                    view: 'Content',
-                  },
-                  schema.text(' '),
-                )
+              const schema = props.editor._tiptapEditor.state.schema
+              const node = schema.nodes.embed.create(
+                {
+                  url: props.url,
+                  view: 'Content',
+                },
+                schema.text(' '),
+              )
 
-                insertNode(
-                  props.editor,
-                  props.url,
-                  props.text,
-                  props.type,
-                  node,
-                )
-              } else {
-                const embedBlock = {
-                  type: 'embed',
-                  content: [],
-                  props: {
-                    url: props.url,
-                  },
-                } as PartialBlock<HMBlockSchema>
-                props.editor.replaceBlocks([props.id], [embedBlock])
-              }
+              insertNode(
+                props.editor,
+                props.id,
+                props.url,
+                props.text,
+                props.type,
+                node,
+              )
             }}
             active={props.type === 'embed'}
           />
@@ -321,6 +304,7 @@ function getTitle(
 
 function insertNode(
   editor: BlockNoteEditor<HMBlockSchema>,
+  selectedId: string,
   link: string,
   text: string,
   prevType: string,
@@ -387,8 +371,13 @@ function insertNode(
     )
     tr = tr.deleteRange(startPos, $pos.end())
   } else {
-    const $pos = state.doc.resolve($from.pos)
-    tr = tr.replaceWith($pos.start() - 2, $pos.end(), node)
+    const {posBeforeNode} = getNodeById(selectedId, state.doc)
+    const blockInfo = getBlockInfoFromPos(state, posBeforeNode + 1)
+    tr = tr.replaceRangeWith(
+      blockInfo.blockContent.beforePos,
+      blockInfo.blockContent.afterPos,
+      node,
+    )
   }
   view.dispatch(tr)
   editor._tiptapEditor.commands.focus()
@@ -398,12 +387,12 @@ function insertMentionNode(
   editor: BlockNoteEditor<HMBlockSchema>,
   name: string,
   node: Node,
-  id: string,
+  selectedId: string,
   inline: boolean,
 ) {
   const {state, view} = editor._tiptapEditor
   let tr = state.tr
-  const {posBeforeNode} = getNodeById(id, state.doc)
+  const {posBeforeNode} = getNodeById(selectedId, state.doc)
 
   const $pos = state.doc.resolve(posBeforeNode + 1)
   let startPos = $pos.start()
