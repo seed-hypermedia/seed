@@ -158,14 +158,18 @@ message Entity {
   // Body in the case of comments.
   string content = 2;
 
+  // where the matching string is found in the content.
+  // This is a char offset in the content.
+  int32 match_offset = 3;
+
   // The owner of the entity
-  string owner = 3;
+  string owner = 4;
 
   // Icon of the document containing that entity
-  string icon = 4;
+  string icon = 5;
 
   // Parent document names
-  repeated string parent_names = 5;
+  repeated string parent_names = 6;
 }
 
 // Publication that has been deleted
@@ -188,13 +192,14 @@ message SearchEntitiesRequest {
   // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
 
-  // Whether to look into titles only or in all content available.
-  // Default is true.
-  bool title_only = 2;
+  // Whether to look into all content available or just the titles.
+  // If false, comments are not included in the search.
+  // Default is false.
+  bool include_body = 2;
 
   // Whether to look into latest versions only or lookk into full.
-  // history of the entity. Default is true.
-  bool latest_only = 3;
+  // history of the entity. Default is false.
+  bool full_hystory = 3;
 }
 
 // A list of entities matching the request.
