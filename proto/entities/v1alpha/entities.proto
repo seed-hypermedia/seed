@@ -188,7 +188,7 @@ message DeletedEntity {
 }
 // Request to
 message SearchEntitiesRequest {
-  // Query to find. We Ssupport wildcards and prhases.
+  // Query to find. We Ssupport wildcards and phrases.
   // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
 
@@ -197,9 +197,9 @@ message SearchEntitiesRequest {
   // Default is false.
   bool include_body = 2;
 
-  // Whether to look into latest versions only or lookk into full.
+  // Whether to look into latest versions only or look into full
   // history of the entity. Default is false.
-  bool full_hystory = 3;
+  bool full_history = 3;
 }
 
 // A list of entities matching the request.
