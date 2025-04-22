@@ -229,3 +229,17 @@ CREATE TABLE wallets (
 );
 
 CREATE INDEX wallets_by_account ON wallets (account);
+
+-- Stores text content to to a full text search
+-- https://sqlite.org/fts5.html.
+
+CREATE VIRTUAL TABLE fts USING fts5(
+    -- The text content to be indexed.
+    raw_content, 
+    -- The type of the content being indexed.
+    type, 
+    -- The ID of the block that contains the content.
+    block_id,
+    -- The IRI of the resource that contains the content.
+    iri
+);
