@@ -484,6 +484,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 					return err
 				}
 			}
+		}
 
 		if ftsType != "" && ftsContent != "" {
 			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, c.String(), ftsBlkID); err != nil {
