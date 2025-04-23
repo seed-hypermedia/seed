@@ -246,8 +246,6 @@ export async function getBaseDocument(
       }),
     )),
   )
-  const enableWebSigning =
-    WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
 
   return {
     document,
@@ -256,9 +254,19 @@ export async function getBaseDocument(
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
-    siteHost: parsedRequest.origin,
     id: {...entityId, version: document.version},
+    ...getOriginRequestData(parsedRequest),
+  }
+}
+
+export function getOriginRequestData(parsedRequest: ParsedRequest) {
+  const enableWebSigning =
+    WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
+
+  return {
     enableWebSigning,
+    siteHost: parsedRequest.origin,
+    origin: parsedRequest.origin,
   }
 }
 

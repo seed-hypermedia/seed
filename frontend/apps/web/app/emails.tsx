@@ -129,7 +129,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
   await sendEmail(
     email,
-    subject,
+    'DEV_' + subject,
     {text, html},
     `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`,
   )

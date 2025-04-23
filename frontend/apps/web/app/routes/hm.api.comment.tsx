@@ -13,7 +13,6 @@ import {
 } from '@shm/shared'
 import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
-import {SyncCommentRequest} from './hm.api.sync-comment'
 
 const createCommentSchema = z
   .object({
@@ -42,6 +41,13 @@ export type CommentPayload = {
   commentingOriginUrl?: string | undefined
 }
 
+export type CommentResponsePayload = {
+  dependencies: UnpackedHypermediaId[]
+  commentId: string
+  targetId: UnpackedHypermediaId
+  message: string
+}
+
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return json({message: 'Method not allowed'}, {status: 405})
@@ -67,35 +73,23 @@ export const action: ActionFunction = async ({request}) => {
   ) as SignedComment
   const signerUid = base58btc.encode(comment.signer)
   const resultCommentId = resultComment.cids[0]
-  console.log('resultComment', resultCommentId, comment)
   if (!resultCommentId) {
     return json({message: 'Failed to store comment'}, {status: 500})
   }
-  if (commentPayload.commentingOriginUrl) {
-    const targetUid = base58btc.encode(comment.space)
-    const targetId = hmId('d', targetUid, {
-      path: entityQueryPathToHmIdPath(comment.path),
-    })
-    const url = new URL(commentPayload.commentingOriginUrl)
-    const dependencies: UnpackedHypermediaId[] = [
-      hmId('d', signerUid, {}),
-      ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
-    ]
-    const resp = await fetch(`${url.origin}/hm/api/sync-comment`, {
-      method: 'POST',
-      body: JSON.stringify({
-        commentId: resultCommentId,
-        target: targetId.id,
-        dependencies,
-      } satisfies SyncCommentRequest),
-    })
-    if (resp.status !== 200) {
-      return json({message: 'Failed to sync comment'}, {status: 500})
-    }
-  }
+  const targetUid = base58btc.encode(comment.space)
+  const targetId = hmId('d', targetUid, {
+    path: entityQueryPathToHmIdPath(comment.path),
+  })
+  const dependencies: UnpackedHypermediaId[] = [
+    hmId('d', signerUid, {}),
+    ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
+  ]
   return json({
     message: 'Success',
-  })
+    dependencies,
+    commentId: resultCommentId,
+    targetId,
+  } satisfies CommentResponsePayload)
 }
 
 /**

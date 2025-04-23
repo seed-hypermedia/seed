@@ -141,13 +141,13 @@ export function RepliesEditor({
   replyCommentId,
   docId,
   onDiscardDraft,
-  onReplied,
+  onSuccess,
 }: {
   isReplying: boolean
   docId: UnpackedHypermediaId
   replyCommentId: string
   onDiscardDraft: () => void
-  onReplied: () => void
+  onSuccess: () => void
 }) {
   const isDark = useIsDark()
   const myAccountsQuery = useMyAccounts()
@@ -171,7 +171,7 @@ export function RepliesEditor({
         autoFocus={isReplying}
         initCommentDraft={draft.data}
         onDiscardDraft={onDiscardDraft}
-        onReplied={onReplied}
+        onSuccess={onSuccess}
       />
     </XStack>
   )
@@ -265,7 +265,7 @@ function _CommentDraftEditor({
   autoFocus,
   replyCommentId,
   initCommentDraft,
-  onReplied,
+  onSuccess,
   quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
@@ -274,7 +274,7 @@ function _CommentDraftEditor({
   autoFocus?: boolean
   replyCommentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
-  onReplied?: () => void
+  onSuccess?: () => void
   quotingBlockId?: string
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
@@ -282,7 +282,7 @@ function _CommentDraftEditor({
       onDiscardDraft,
       replyCommentId,
       initCommentDraft,
-      onReplied,
+      onSuccess,
       quotingBlockId,
     })
   const openUrl = useOpenUrl()

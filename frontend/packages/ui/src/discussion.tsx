@@ -58,7 +58,7 @@ export function CommentGroup({
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
-    onReplied: () => void
+    onSuccess: () => void
     enableWebSigning: boolean
   }>
   CommentReplies: React.FC<{
@@ -152,7 +152,7 @@ export function Comment({
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
-    onReplied: () => void
+    onSuccess: () => void
     enableWebSigning: boolean
   }>
   CommentReplies: React.FC<{
@@ -373,7 +373,7 @@ export function Comment({
           rootReplyCommentId={rootReplyCommentId || comment.id}
           onDiscardDraft={() => setIsReplying(false)}
           enableWebSigning={enableWebSigning}
-          onReplied={() => {
+          onSuccess={() => {
             // we want to show the replies if it was collapsed, because the new one should be visible
             if (replyCount === undefined || replyCount > 0) {
               setShowReplies(true)

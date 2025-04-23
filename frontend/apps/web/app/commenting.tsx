@@ -35,7 +35,10 @@ import {
   hasPromptedEmailNotifications,
   setHasPromptedEmailNotifications,
 } from './local-db'
-import type {CommentPayload} from './routes/hm.api.comment'
+import type {
+  CommentPayload,
+  CommentResponsePayload,
+} from './routes/hm.api.comment'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 injectModels()
 
@@ -44,7 +47,10 @@ export type WebCommentingProps = {
   replyCommentId: string | null
   rootReplyCommentId: string | null
   onDiscardDraft?: () => void
-  onReplied?: () => void
+  onSuccess?: (successData: {
+    response: CommentResponsePayload
+    commentPayload: CommentPayload
+  }) => void
   enableWebSigning: boolean
   commentingOriginUrl?: string
 }
@@ -82,7 +88,7 @@ export function LocalWebCommenting({
   replyCommentId,
   rootReplyCommentId,
   onDiscardDraft,
-  onReplied,
+  onSuccess,
   enableWebSigning,
   commentingOriginUrl,
 }: WebCommentingProps) {
@@ -98,9 +104,13 @@ export function LocalWebCommenting({
         '/hm/api/comment',
         cborEncode(commentPayload),
       )
+      return result as CommentResponsePayload
     },
-    onSuccess: () => {
-      onReplied?.()
+    onSuccess: (result, commentPayload) => {
+      onSuccess?.({
+        response: result,
+        commentPayload: commentPayload,
+      })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
       })
@@ -183,9 +193,6 @@ export function LocalWebCommenting({
     reset()
     onDiscardDraft?.()
     await promptEmailNotifications()
-    if (commentingOriginUrl) {
-      window.location.href = commentingOriginUrl || ''
-    }
   }
 
   return (

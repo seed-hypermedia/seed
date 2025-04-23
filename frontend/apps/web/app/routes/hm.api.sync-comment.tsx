@@ -1,7 +1,8 @@
 import {queryClient} from '@/client'
+import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
 import {tryUntilSuccess} from '@/utils/try-until-success'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
 import {
   hmIdPathToEntityQueryPath,
   unpackedHmIdSchema,
@@ -18,9 +19,13 @@ const syncCommentRequestSchema = z.object({
 
 export type SyncCommentRequest = z.infer<typeof syncCommentRequestSchema>
 
+export const loader: LoaderFunction = async ({request}) => {
+  return withCors(json({message: 'Method not allowed'}, {status: 405}))
+}
+
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return json({message: 'Method not allowed'}, {status: 405})
+    return withCors(json({message: 'Method not allowed'}, {status: 405}))
   }
   try {
     const body = await request.json()
@@ -46,13 +51,14 @@ export const action: ActionFunction = async ({request}) => {
         )
       }),
     )
-    return json({
-      message: 'Success',
-    })
+    return withCors(
+      json({
+        message: 'Success',
+      }),
+    )
   } catch (error) {
-    return json(
-      {message: 'Error syncing comment:' + error.message},
-      {status: 500},
+    return withCors(
+      json({message: 'Error syncing comment:' + error.message}, {status: 500}),
     )
   }
 }
