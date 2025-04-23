@@ -161,19 +161,13 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		var aidString string
 		pids := peer.ID.String()
 		addrs := hmnet.AddrInfoToStrings(peer)
-		aid, err := net.AccountForDevice(ctx, peer.ID)
-		if err == nil {
-			aidString = aid.String()
-		}
+
 		var protocol string
 		protos, err := net.Libp2p().Peerstore().GetProtocols(peer.ID)
 		if err == nil && len(protos) > 0 {
-			for _, p := range protos {
-				version := strings.TrimPrefix(string(p), hmnet.ProtocolPrefix)
-				if version != string(p) {
-					protocol = string(p)
-					break
-				}
+			pinfo, ok := hmnet.FindHypermediaProtocol(protos)
+			if ok {
+				protocol = string(pinfo.ID)
 			}
 		}
 		connectedness := net.Libp2p().Network().Connectedness(peer.ID)
@@ -237,15 +231,10 @@ func (srv *Server) GetPeerInfo(ctx context.Context, in *networking.GetPeerInfoRe
 		addrs = append(addrs, addr)
 	}
 	connectedness := net.Libp2p().Network().Connectedness(pid)
-	var aidString string
-	aid, err := net.AccountForDevice(ctx, pid)
-	if err == nil {
-		aidString = aid.String()
-	}
 
 	resp := &networking.PeerInfo{
 		Id:               in.DeviceId,
-		AccountId:        aidString,
+		AccountId:        "", // Peers are not explicitly tied to accounts now.
 		Addrs:            addrs,
 		ConnectionStatus: networking.ConnectionStatus(connectedness), // ConnectionStatus is a 1-to-1 mapping for the libp2p connectedness.
 	}

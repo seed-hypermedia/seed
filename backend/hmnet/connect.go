@@ -129,7 +129,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return fmt.Errorf("failed to connect to peer %s: %w", info.ID, err)
 	}
 	n.p2p.ConnManager().Protect(info.ID, ProtocolSupportKey)
-	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
+	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.Version); err != nil {
 		n.p2p.ConnManager().Unprotect(info.ID, ProtocolSupportKey)
 		return err
 	}
@@ -259,7 +259,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 						return
 					}
 					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.version); err != nil {
+					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.Version); err != nil {
 						atomic.AddUint32(&nonSeedPeers, 1)
 						mu.Lock()
 						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
@@ -324,7 +324,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 
-	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
+	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.Version, event.Protocols...); err != nil {
 		n.p2p.ConnManager().Unprotect(event.Peer, ProtocolSupportKey)
 		return
 	}
@@ -366,7 +366,7 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 			attempts++
 			protos, err = n.p2p.Peerstore().GetProtocols(pid)
 			if err != nil {
-				return retry.RetryableError(fmt.Errorf("failed to check Hyper Media protocol version: %w", err))
+				return retry.RetryableError(fmt.Errorf("failed to check Hypermedia protocol version: %w", err))
 			}
 
 			if len(protos) > 0 {
@@ -378,26 +378,17 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 			return fmt.Errorf("retry failed: attempts %d: %w", attempts, err)
 		}
 	}
-	// Eventually we'd need to implement some compatibility checks between different protocol versions.
-	var isSeed bool
-	var gotProtocols []string
-	for _, p := range protos {
-		version := strings.TrimPrefix(string(p), n.protocol.prefix)
-		if version == string(p) {
-			continue
-		}
-		isSeed = true
-		gotProtocols = append(gotProtocols, string(p))
-		if version == desiredVersion {
-			return nil
-		}
+
+	pinfo, isHM := FindHypermediaProtocol(protos)
+	if !isHM {
+		return fmt.Errorf("not a Hypermedia peer")
 	}
 
-	if isSeed {
-		return fmt.Errorf("peer with incompatible Seed protocol version: want=%s, got=%v", n.protocol.ID, gotProtocols)
+	if pinfo.Version != desiredVersion {
+		return fmt.Errorf("peer with incompatible Hypermedia protocol version: want=%s, got=%v", n.protocol.ID, pinfo.ID)
 	}
 
-	return fmt.Errorf("not a Seed peer")
+	return nil
 }
 
 var errDialSelf = errors.New("can't dial self")

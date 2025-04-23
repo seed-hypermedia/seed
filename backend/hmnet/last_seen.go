@@ -13,7 +13,7 @@ type lastSeenTracker struct {
 	host  host.Host
 	db    *sqlitex.Pool
 	rand  rand.Rand
-	proto protocolInfo
+	proto ProtocolInfo
 }
 
 // func (l *lastSeenTracker) run(ctx context.Context) error {

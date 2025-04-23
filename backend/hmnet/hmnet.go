@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"math/rand/v2"
+	"regexp"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -19,6 +20,7 @@ import (
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -99,7 +101,7 @@ type Node struct {
 	client                 *Client
 	connectionCallback     func(context.Context, event.EvtPeerConnectednessChanged)
 	identificationCallback func(context.Context, event.EvtPeerIdentificationCompleted)
-	protocol               protocolInfo
+	protocol               ProtocolInfo
 	p2p                    *ipfs.Libp2p
 	bitswap                *ipfs.Bitswap
 	grpc                   *grpc.Server
@@ -216,7 +218,7 @@ func (n *Node) ProtocolID() protocol.ID {
 
 // GetProtocolInfo returns the supported protocol version.
 func (n *Node) ProtocolVersion() string {
-	return n.protocol.version
+	return n.protocol.Version
 }
 
 // RegisterRPCService allows registering additional gRPC services to be exposed over libp2p.
@@ -270,53 +272,6 @@ func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Pr
 		return nil, fmt.Errorf("Can't get account for this device: %w", err)
 	}
 	return pk.PublicKey.Principal(), nil
-}
-
-// AccountForDevice returns the linked AccountID of a given device.
-func (n *Node) AccountForDevice(_ context.Context, _ peer.ID) (core.Principal, error) {
-	// TODO(hm24): When we have contacts we can do it.
-	return nil, fmt.Errorf("Not ready until we have contacts. Use GetAccountByKeyName instead")
-	/*
-		if n.p2p.Network().LocalPeer() == pid {
-			pk, err := n.keys.GetKey(ctx, "main")
-			if err != nil {
-				return nil, fmt.Errorf("Can't get account for this device. Has the user registered any key?")
-			}
-			return pk.PublicKey.Principal(), nil
-		}
-
-			var out core.Principal
-			if err := n.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-				pk, err := pid.ExtractPublicKey()
-				if err != nil {
-					return err
-				}
-
-				delegate := core.PrincipalFromPubKey(pk)
-
-				list, err := hypersql.KeyDelegationsListByDelegate(conn, delegate)
-				if err != nil {
-					return err
-				}
-				if len(list) == 0 {
-					return fmt.Errorf("not found key delegation for peer: %s", pid)
-				}
-
-				if len(list) > 1 {
-					n.log.Warn("MoreThanOneKeyDelegation", zap.String("peer", pid.String()))
-				}
-
-				del := list[0]
-
-				out = core.Principal(del.KeyDelegationsViewIssuer)
-
-				return nil
-			}); err != nil {
-				return nil, err
-			}
-
-			return out, nil
-	*/
 }
 
 // Libp2p returns the underlying libp2p host.
@@ -579,16 +534,45 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 	return node, &clean, nil
 }
 
-type protocolInfo struct {
+// ProtocolInfo is a parsed main Hypermedia protocol ID.
+type ProtocolInfo struct {
 	ID      protocol.ID
-	prefix  string
-	version string
+	Prefix  string
+	Version string
 }
 
-func newProtocolInfo(prefix, version string) protocolInfo {
-	return protocolInfo{
+func newProtocolInfo(prefix, version string) ProtocolInfo {
+	return ProtocolInfo{
 		ID:      protocol.ID(prefix + version),
-		prefix:  prefix,
-		version: version,
+		Prefix:  prefix,
+		Version: version,
 	}
+}
+
+// ParseProtocolID parses a protocol ID and returns the protocol info.
+func ParseProtocolID(s protocol.ID) (ProtocolInfo, error) {
+	if !hmProtocolPattern.MatchString(string(s)) {
+		return ProtocolInfo{}, fmt.Errorf("invalid protocol ID: %s", s)
+	}
+
+	version, ok := strings.CutPrefix(string(s), ProtocolPrefix)
+	if !ok {
+		return ProtocolInfo{}, fmt.Errorf("BUG: invalid protocol ID: %s", s)
+	}
+
+	return newProtocolInfo(ProtocolPrefix, version), nil
+}
+
+var hmProtocolPattern = regexp.MustCompile(`^\/hypermedia\/\d\.\d\.\d(-\w+)?$`)
+
+// FindHypermediaProtocol returns the main hypermedia protocol ID from the list of protocols.
+func FindHypermediaProtocol(protos []protocol.ID) (pinfo ProtocolInfo, ok bool) {
+	for _, p := range protos {
+		pinfo, err := ParseProtocolID(p)
+		if err == nil {
+			return pinfo, true
+		}
+	}
+
+	return ProtocolInfo{}, false
 }
