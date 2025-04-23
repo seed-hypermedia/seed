@@ -108,13 +108,15 @@ export const SEED_HOST_URL =
 
 export const WEB_IDENTITY_DEFAULT_ORIGIN =
   WEB_ENV.WEB_IDENTITY_DEFAULT_ORIGIN ||
-  process.env.SEED_DEFAULT_IDENTITY_ORIGIN ||
+  process.env.SEED_IDENTITY_DEFAULT_ORIGIN ||
   'https://hyper.media'
 
 // when web identity is enabled, we will REDIRECT to web identity origin to sign comments
+// this will be enabled on all origins
 export const WEB_IDENTITY_ENABLED =
   WEB_ENV.WEB_IDENTITY_ENABLED || process.env.SEED_IDENTITY_ENABLED === 'true'
 
+// this will be enabled when the web origin matches the SEED_BASE_URL, and passed to the client explicitly in props
 export const WEB_SIGNING_ENABLED = process.env.SEED_SIGNING_ENABLED === 'true'
 
 export const NOTIFY_SMTP_HOST = process.env.NOTIFY_SMTP_HOST
