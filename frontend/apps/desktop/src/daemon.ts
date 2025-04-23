@@ -10,7 +10,7 @@ import {spawn} from 'child_process'
 import {app} from 'electron'
 import * as readline from 'node:readline'
 import path from 'path'
-import {grpcClient} from './app-grpc'
+import {grpcClient, markGRPCReady} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
@@ -96,39 +96,25 @@ export async function startMainDaemon(): Promise<{
     stdio: 'pipe',
   })
 
-  let hasStartupCompleted = false
   let lastStderr = ''
   const stderr = readline.createInterface({input: daemonProcess.stderr})
+  let expectingDaemonClose = false
   await new Promise<void>((resolve, reject) => {
     stderr.on('line', (line: string) => {
       lastStderr = line
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
-
-      // log.rawMessage(line)
-
-      const daemonEvent = JSON.parse(line)
-
-      if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
-        hasStartupCompleted = true
-        log.debug('Daemon P2PNodeReady')
-        resolve()
-      }
+      log.rawMessage(line)
     })
-
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
-      console.log('Daemon Stdout:', line)
+      log.rawMessage(line)
     })
-
-    let expectingDaemonClose = false
-
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
       reject(err)
     })
-
     daemonProcess.on('close', (code, signal) => {
       if (!expectingDaemonClose) {
         updateGoDaemonState({
@@ -138,27 +124,29 @@ export async function startMainDaemon(): Promise<{
         log.error('Go daemon closed', {code: code, signal: signal})
       }
     })
-
     daemonProcess.on('spawn', () => {
       log.debug('Go daemon spawned')
+      resolve()
     })
+  })
 
-    app.addListener('will-quit', () => {
-      log.debug('App will quit')
-      expectingDaemonClose = true
-      daemonProcess.kill()
-    })
+  app.addListener('will-quit', () => {
+    log.debug('App will quit')
+    expectingDaemonClose = true
+    daemonProcess.kill()
   })
 
   await tryUntilSuccess(
     async () => {
+      log.debug('Trying daemon gRPC..')
       const info = await grpcClient.daemon.getInfo({})
-      log.debug('Daemon is ready: ' + JSON.stringify(info.toJson()))
+      log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
     },
     'waiting for daemon gRPC to be ready',
-    200, // try every 200ms
+    100, // try every 100ms
     10_000, // timeout after 10s
   )
+  markGRPCReady()
 
   const mainDaemon = {
     httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
@@ -183,10 +171,10 @@ export async function tryUntilSuccess(
       didResolve = true
     } catch (error) {}
     if (!didResolve) {
+      if (Date.now() - startTime > maxRetryMs) {
+        didTimeout = true
+      }
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
-    }
-    if (Date.now() - startTime > maxRetryMs) {
-      didTimeout = true
     }
   }
   if (didTimeout) {

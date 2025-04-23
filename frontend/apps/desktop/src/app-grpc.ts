@@ -3,6 +3,8 @@ import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {createGRPCClient} from '@shm/shared/grpc-client'
 
+let isGrpcReady = false
+
 const loggingInterceptor: Interceptor = (next) => async (req) => {
   try {
     const result = await next(req)
@@ -10,6 +12,7 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
     // console.log(`🔃 to ${req.method.name} `, req.message, result?.message)
     return result
   } catch (e: any) {
+    if (!isGrpcReady) throw e
     let error = e
 
     if (e.message.match('stream.getReader is not a function')) {
@@ -26,6 +29,7 @@ const prodInter: Interceptor = (next) => async (req) => {
     ...req,
     init: {...req.init, redirect: 'follow'},
   }).catch((e) => {
+    if (!isGrpcReady) throw e
     if (e.message.match('fetch failed') && e.stack.join('.').match('undici')) {
       console.error(
         // 'Mysterious Undici Error via ConnectWeb. Quitting the server so that the environment restarts it',
@@ -37,6 +41,10 @@ const prodInter: Interceptor = (next) => async (req) => {
     throw e
   })
   return result
+}
+
+export function markGRPCReady() {
+  isGrpcReady = true
 }
 
 const IS_DEV = process.env.NODE_ENV == 'development'
