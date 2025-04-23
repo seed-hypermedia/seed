@@ -5,11 +5,10 @@ import {
   LIGHTNING_API_URL,
   OptimizedImageSize,
   SITE_BASE_URL,
-  SITE_IDENTITY_DEFAULT_ORIGIN,
   UniversalAppProvider,
   UnpackedHypermediaId,
+  WEB_IDENTITY_DEFAULT_ORIGIN,
   WEB_IDENTITY_ENABLED,
-  WEB_SIGNING_ISSUER,
 } from '@shm/shared'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -85,9 +84,8 @@ export function WebSiteProvider(props: {
           __html: `window.ENV = ${JSON.stringify({
             LIGHTNING_API_URL,
             SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
-            SITE_IDENTITY_DEFAULT_ORIGIN,
+            WEB_IDENTITY_DEFAULT_ORIGIN,
             WEB_IDENTITY_ENABLED,
-            WEB_SIGNING_ISSUER,
             ENABLE_EMAIL_NOTIFICATIONS,
           })}`,
         }}

@@ -106,16 +106,14 @@ export const SEED_HOST_URL =
   (import.meta.env && import.meta.env.VITE_SEED_HOST_URL) ||
   'http://localhost:5555'
 
-export const SITE_IDENTITY_DEFAULT_ORIGIN =
-  WEB_ENV.SITE_IDENTITY_DEFAULT_ORIGIN ||
+export const WEB_IDENTITY_DEFAULT_ORIGIN =
+  WEB_ENV.WEB_IDENTITY_DEFAULT_ORIGIN ||
   process.env.SEED_DEFAULT_IDENTITY_ORIGIN ||
   'https://hyper.media'
 
+// when web identity is enabled, we will REDIRECT to web identity origin to sign comments
 export const WEB_IDENTITY_ENABLED =
   WEB_ENV.WEB_IDENTITY_ENABLED || process.env.SEED_IDENTITY_ENABLED === 'true'
-
-export const WEB_SIGNING_ISSUER =
-  WEB_ENV.WEB_SIGNING_ISSUER || process.env.SEED_SIGNING_ISSUER
 
 export const WEB_SIGNING_ENABLED = process.env.SEED_SIGNING_ENABLED === 'true'
 

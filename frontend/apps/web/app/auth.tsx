@@ -44,14 +44,10 @@ import {
   postCBOR,
   rawCodec,
 } from './api'
-import {Ability} from './auth-abilities'
 import {preparePublicKey} from './auth-utils'
 import {NotifSettingsDialog} from './email-notifications'
 import {
-  deleteAbility,
-  deleteAllAbilities,
   deleteLocalKeys,
-  getAllAbilities,
   getStoredLocalKeys,
   setHasPromptedEmailNotifications,
   writeLocalKeys,
@@ -96,11 +92,7 @@ function updateKeyPair() {
 }
 
 export function logout() {
-  Promise.all([
-    deleteLocalKeys(),
-    deleteAllAbilities(),
-    setHasPromptedEmailNotifications(false),
-  ])
+  Promise.all([deleteLocalKeys(), setHasPromptedEmailNotifications(false)])
     .then(() => {
       keyPairStore.set(null)
       console.log('Logged out')
@@ -716,50 +708,7 @@ export function AccountFooterActions() {
   )
 }
 
-let allAbilities: Ability[] | null = null
-let allAbilitiesJson: string | null = null
-const allAbilitiesSubscribers = new Set<() => void>()
-export const allAbilitiesStore = {
-  subscribe: (onUpdate: () => void) => {
-    allAbilitiesSubscribers.add(onUpdate)
-    return () => {
-      allAbilitiesSubscribers.delete(onUpdate)
-    }
-  },
-  getSnapshot: () => allAbilities,
-} as const
-
-export function useAbilities() {
-  return useSyncExternalStore(
-    allAbilitiesStore.subscribe,
-    allAbilitiesStore.getSnapshot,
-    () => null,
-  )
-}
-
-function updateAbilities() {
-  getAllAbilities().then((abilities) => {
-    const jsonCheck = JSON.stringify(abilities)
-    if (allAbilitiesJson !== jsonCheck) {
-      allAbilities = abilities
-      allAbilitiesJson = jsonCheck
-      allAbilitiesSubscribers.forEach((onUpdate) => onUpdate())
-    }
-  })
-}
-
 if (typeof window !== 'undefined') {
-  updateAbilities()
-  setInterval(updateAbilities, 200)
   updateKeyPair()
   setInterval(updateKeyPair, 200)
-}
-
-export function useDeleteAbility() {
-  return useMutation({
-    mutationFn: (id: string) => deleteAbility(id),
-    onSuccess: () => {
-      updateAbilities()
-    },
-  })
 }

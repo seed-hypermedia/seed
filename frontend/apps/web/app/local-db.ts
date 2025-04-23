@@ -1,5 +1,3 @@
-import {Ability, AbilitySchema} from './auth-abilities'
-
 function upgradeStore(
   db: IDBDatabase,
   storeName: string,
@@ -27,9 +25,6 @@ function upgradeIndex(
 
 const DB_NAME = 'keyStore-04' // oops, can't change this, ever
 const KEYS_STORE_NAME = 'keys-01'
-const ABILITIES_STORE_NAME = 'abilities-01'
-// const DELEGATED_ABILITIES_STORE_NAME = 'delegated-abilities-01'
-const DELEGATED_IDENTITY_ORIGINS_STORE_NAME = 'delegated-identity-origins-01'
 const EMAIL_NOTIFICATIONS_STORE_NAME = 'email-notifications-01'
 const DB_VERSION = 5
 
@@ -44,24 +39,10 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
     const tx = event.target.transaction
     console.log(`Upgrading to version ${db.version}`)
     upgradeStore(db, KEYS_STORE_NAME)
-    upgradeStore(db, ABILITIES_STORE_NAME)
-    upgradeIndex(tx, ABILITIES_STORE_NAME, 'delegateOrigin', 'delegateOrigin', {
-      unique: false,
-    })
-    upgradeStore(db, DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
     upgradeStore(db, EMAIL_NOTIFICATIONS_STORE_NAME)
   }
   return new Promise((resolve, reject) => {
     openDb.onsuccess = (event) => {
-      console.log('~ db opened', openDb.result, window.location.origin)
-      getAllAbilitiesByOrigin(origin).then((abilities) => {
-        const abilitiesJson = JSON.stringify(abilities)
-        console.log(
-          '~~000  abilitiesJson',
-          abilitiesJson,
-          window.location.origin,
-        )
-      })
       resolve(openDb.result)
     }
     openDb.onerror = (error) => {
@@ -194,80 +175,6 @@ export async function deleteLocalKeys() {
     .transaction(KEYS_STORE_NAME, 'readwrite')
     .objectStore(KEYS_STORE_NAME)
   await storeClear(store)
-}
-
-export async function addDelegatedIdentityOrigin(
-  origin: string,
-): Promise<void> {
-  const store = (await getDB())
-    .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
-    .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
-  await storePut(store, '', origin)
-}
-
-export async function removeDelegatedIdentityOrigin(
-  origin: string,
-): Promise<void> {
-  const store = (await getDB())
-    .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readwrite')
-    .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
-  await storeDelete(store, origin)
-}
-
-export async function getAllDelegatedIdentityOrigins(): Promise<string[]> {
-  const store = (await getDB())
-    .transaction(DELEGATED_IDENTITY_ORIGINS_STORE_NAME, 'readonly')
-    .objectStore(DELEGATED_IDENTITY_ORIGINS_STORE_NAME)
-  return await storeGetAllKeys(store)
-}
-
-export async function writeAbility(
-  ability: Omit<Ability, 'id'>,
-): Promise<Ability> {
-  const id = crypto.randomUUID()
-  const store = (await getDB())
-    .transaction(ABILITIES_STORE_NAME, 'readwrite')
-    .objectStore(ABILITIES_STORE_NAME)
-  const writtenAbility = {...ability, id}
-  await store.put(writtenAbility, id)
-  return writtenAbility
-}
-
-export async function deleteAbility(id: string): Promise<void> {
-  const store = (await getDB())
-    .transaction(ABILITIES_STORE_NAME, 'readwrite')
-    .objectStore(ABILITIES_STORE_NAME)
-  await storeDelete(store, id)
-}
-
-export async function deleteAllAbilities(): Promise<void> {
-  const store = (await getDB())
-    .transaction(ABILITIES_STORE_NAME, 'readwrite')
-    .objectStore(ABILITIES_STORE_NAME)
-  await storeClear(store)
-}
-
-export async function getAllAbilities(): Promise<Ability[]> {
-  const store = (await getDB())
-    .transaction(ABILITIES_STORE_NAME, 'readonly')
-    .objectStore(ABILITIES_STORE_NAME)
-  const abilities = await storeIndexGetAll<Ability>(store)
-  return abilities.map((ability) => {
-    return AbilitySchema.parse(ability)
-  })
-}
-
-export async function getAllAbilitiesByOrigin(
-  origin: string,
-): Promise<Ability[]> {
-  const store = (await getDB())
-    .transaction(ABILITIES_STORE_NAME, 'readonly')
-    .objectStore(ABILITIES_STORE_NAME)
-  const index = store.index('delegateOrigin')
-  const abilities = await storeIndexGetAll<Ability>(index)
-  return abilities.map((ability) => {
-    return AbilitySchema.parse(ability)
-  })
 }
 
 export async function hasPromptedEmailNotifications(): Promise<boolean> {

@@ -11,10 +11,10 @@ import {
   hostnameStripProtocol,
   idToUrl,
   queryKeys,
-  SITE_IDENTITY_DEFAULT_ORIGIN,
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
+  WEB_IDENTITY_DEFAULT_ORIGIN,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
@@ -28,7 +28,6 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {SizableText, Spinner, XStack, YStack} from 'tamagui'
-import {useDelegatedAbilities} from './auth-delegation'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
 import {
@@ -61,7 +60,7 @@ export default function WebCommenting(props: WebCommentingProps) {
     return (
       <Button
         onPress={() => {
-          const url = new URL(`${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/comment`)
+          const url = new URL(`${WEB_IDENTITY_DEFAULT_ORIGIN}/hm/comment`)
           url.searchParams.set(
             'target',
             `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
@@ -75,7 +74,7 @@ export default function WebCommenting(props: WebCommentingProps) {
         }}
       >
         {`Comment with ${hostnameStripProtocol(
-          SITE_IDENTITY_DEFAULT_ORIGIN,
+          WEB_IDENTITY_DEFAULT_ORIGIN,
         )} Identity`}
       </Button>
     )
@@ -93,7 +92,6 @@ export function LocalWebCommenting({
   commentingOriginUrl,
 }: WebCommentingProps) {
   const userKeyPair = useLocalKeyPair()
-  const delegatedAbilities = useDelegatedAbilities()
   const queryClient = useQueryClient()
   const postComment = useMutation({
     mutationFn: async (commentPayload: {
