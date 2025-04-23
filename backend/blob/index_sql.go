@@ -49,6 +49,31 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
+func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType, FTSChangeID, FTSBlockID string) error {
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":FTSContent", FTSContent)
+		stmt.SetText(":FTSType", FTSType)
+		stmt.SetText(":FTSChangeID", FTSChangeID)
+		stmt.SetText(":FTSBlockID", FTSBlockID)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, qFTSInsertOrReplace(), before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: FTSInsertOrReplace: %w", err)
+	}
+
+	return err
+}
+
+var qFTSInsertOrReplace = dqb.Str(`
+	INSERT OR REPLACE INTO fts(raw_content, type, change_id, block_id)
+	VALUES (:FTSContent, :FTSType, :FTSChangeID, :FTSBlockID)
+`)
+
 func dbResourceLinksInsert(conn *sqlite.Conn, sourceBlob, targetResource int64, ltype string, isPinned bool, meta []byte) error {
 	return sqlitex.Exec(conn, qResourceLinksInsert(), nil, sourceBlob, targetResource, ltype, isPinned, maybe.AnySlice(meta))
 }

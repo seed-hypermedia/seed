@@ -92,8 +92,8 @@ const (
 const (
 	Fts           sqlitegen.Table  = "fts"
 	FtsBlockID    sqlitegen.Column = "fts.block_id"
+	FtsChangeID   sqlitegen.Column = "fts.change_id"
 	FtsFts        sqlitegen.Column = "fts.fts"
-	FtsIRI        sqlitegen.Column = "fts.iri"
 	FtsRank       sqlitegen.Column = "fts.rank"
 	FtsRawContent sqlitegen.Column = "fts.raw_content"
 	FtsType       sqlitegen.Column = "fts.type"
@@ -103,8 +103,8 @@ const (
 const (
 	T_Fts           = "fts"
 	C_FtsBlockID    = "fts.block_id"
+	C_FtsChangeID   = "fts.change_id"
 	C_FtsFts        = "fts.fts"
-	C_FtsIRI        = "fts.iri"
 	C_FtsRank       = "fts.rank"
 	C_FtsRawContent = "fts.raw_content"
 	C_FtsType       = "fts.type"
@@ -440,8 +440,8 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
 		FtsBlockID:                              {Table: Fts, SQLType: ""},
+		FtsChangeID:                             {Table: Fts, SQLType: ""},
 		FtsFts:                                  {Table: Fts, SQLType: ""},
-		FtsIRI:                                  {Table: Fts, SQLType: ""},
 		FtsRank:                                 {Table: Fts, SQLType: ""},
 		FtsRawContent:                           {Table: Fts, SQLType: ""},
 		FtsType:                                 {Table: Fts, SQLType: ""},
