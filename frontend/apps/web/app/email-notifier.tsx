@@ -76,6 +76,7 @@ async function handleEmailNotificationsAfterBlobCid(
 async function handleEventsForEmailNotifications(
   events: PlainMessage<Event>[],
 ) {
+  console.log('handleEventsForEmailNotifications', events.length)
   const allEmails = getAllEmails()
   const accountNotificationOptions: Record<
     string,
@@ -263,6 +264,11 @@ async function getParentComments(comment: PlainMessage<Comment>) {
 
 async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   const newestEvent = events.at(0)
+  console.log(
+    'will markEventsAsProcessed',
+    events.length,
+    newestEvent?.data.value?.cid,
+  )
   if (!newestEvent) return
   const lastProcessedBlobCid = newestEvent.data.value?.cid
   if (!lastProcessedBlobCid) return

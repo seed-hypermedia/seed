@@ -34,6 +34,7 @@ export async function sendEmail(
     console.error('Email notifier is not enabled')
     return
   }
+  console.log(`Sending email to ${to} with subject ${subject}`)
 
   const from = senderLabel
     ? `${senderLabel} <${NOTIFY_SMTP_USER}>`
