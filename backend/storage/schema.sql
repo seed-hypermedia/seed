@@ -238,9 +238,8 @@ CREATE VIRTUAL TABLE fts USING fts5(
     raw_content, 
     -- The type of the content being indexed.
     type, 
-    -- The Change ID of the change in which the content
-    -- was created.
-    change_id,
+    -- The multihash of the blob containting the content.
+    multihash,
     -- The ID of the block that contains the content. 
     -- Only relevant on type=document
     block_id
