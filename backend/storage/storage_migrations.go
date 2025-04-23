@@ -59,14 +59,17 @@ type migration struct {
 var migrations = []migration{
 
 	{Version: "2025-04-23.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		return sqlitex.ExecScript(conn, sqlfmt(`
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE VIRTUAL TABLE fts USING fts5(
 				raw_content, 
 				type, 
 				change_id,
 				block_id
 			);
-		`))
+		`)); err != nil {
+			return err
+		}
+		return scheduleReindex(conn)
 	}},
 
 	{Version: "2025-04-14.01", Run: func(_ *Store, conn *sqlite.Conn) error {
