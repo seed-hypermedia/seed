@@ -9,7 +9,10 @@ import {
 } from '../../api/blockManipulation/commands/nestBlock'
 import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
-import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
+import {
+  updateGroupChildrenCommand,
+  updateGroupCommand,
+} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
   getBlockInfoFromPos,
@@ -324,9 +327,26 @@ export const KeyboardShortcutsExtension = Extension.create<{
               state.selection.from === blockContent.beforePos + 1
 
             if (selectionAtBlockStart && state.selection.$from.depth - 1 > 2) {
-              setTimeout(() => {
-                unnestBlock(this.editor, state.selection.from)
-              })
+              const groupInfo = getGroupInfoFromPos(state.selection.from, state)
+              // If list and list has only one item, remove the list instead of unnesting.
+              if (
+                groupInfo.group.childCount === 1 &&
+                groupInfo.group.attrs.listType !== 'Group'
+              ) {
+                commands.command(
+                  updateGroupCommand(
+                    state.selection.from,
+                    'Group',
+                    false,
+                    undefined,
+                    true,
+                  ),
+                )
+              } else {
+                setTimeout(() => {
+                  unnestBlock(this.editor, state.selection.from)
+                })
+              }
 
               return true
             }
