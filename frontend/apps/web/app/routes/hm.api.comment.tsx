@@ -1,7 +1,17 @@
+import {SignedComment} from '@/api'
 import {queryClient} from '@/client'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
-import {HMBlockNodeSchema, HMTimestampSchema} from '@shm/shared'
+import {
+  entityQueryPathToHmIdPath,
+  HMBlockNodeSchema,
+  hmId,
+  HMPublishableBlock,
+  HMTimestampSchema,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
+import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
 
 const createCommentSchema = z
@@ -28,6 +38,14 @@ export type HMUnsignedComment = z.infer<typeof hmUnsignedCommentSchema>
 export type CommentPayload = {
   comment: Uint8Array
   blobs: {cid: string; data: Uint8Array}[]
+  commentingOriginUrl?: string | undefined
+}
+
+export type CommentResponsePayload = {
+  dependencies: UnpackedHypermediaId[]
+  commentId: string
+  targetId: UnpackedHypermediaId
+  message: string
 }
 
 export const action: ActionFunction = async ({request}) => {
@@ -43,14 +61,64 @@ export const action: ActionFunction = async ({request}) => {
   const cborData = await request.arrayBuffer()
   const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
   await queryClient.daemon.storeBlobs({blobs: commentPayload.blobs})
-  await queryClient.daemon.storeBlobs({
+  const resultComment = await queryClient.daemon.storeBlobs({
     blobs: [
       {
         data: commentPayload.comment,
       },
     ],
   })
+  const comment = cborDecode(
+    new Uint8Array(commentPayload.comment),
+  ) as SignedComment
+  const signerUid = base58btc.encode(comment.signer)
+  const resultCommentId = resultComment.cids[0]
+  if (!resultCommentId) {
+    return json({message: 'Failed to store comment'}, {status: 500})
+  }
+  const targetUid = base58btc.encode(comment.space)
+  const targetId = hmId('d', targetUid, {
+    path: entityQueryPathToHmIdPath(comment.path),
+  })
+  const dependencies: UnpackedHypermediaId[] = [
+    hmId('d', signerUid, {}),
+    ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
+  ]
   return json({
     message: 'Success',
-  })
+    dependencies,
+    commentId: resultCommentId,
+    targetId,
+  } satisfies CommentResponsePayload)
+}
+
+/**
+ * Extracts reference materials (links and embeds) from a publishable block.
+ *
+ * @param body - The body of the publishable block.
+ * @returns An array of HMIds
+ */
+function extractReferenceMaterials(body: HMPublishableBlock[]) {
+  const references: UnpackedHypermediaId[] = []
+
+  function reviewBlock(block: HMPublishableBlock) {
+    // skip over query blocks because comments don't support them yet.
+    // if (block.type === 'Query') {
+    //   return
+    // }
+    if (block.type === 'Embed' && block.link) {
+      const id = unpackHmId(block.link)
+      if (id) references.push(id)
+    }
+    if (block.type === 'Paragraph' || block.type === 'Heading') {
+      block.annotations.forEach((annotation) => {
+        if (annotation.type === 'Link') {
+          const id = unpackHmId(annotation.link)
+          if (id) references.push(id)
+        }
+      })
+    }
+  }
+  body.forEach(reviewBlock)
+  return references
 }

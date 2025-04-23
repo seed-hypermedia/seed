@@ -239,7 +239,7 @@ function DocumentCard({
             right: 0,
             width: COVER_WIDTH,
             bottom: 0,
-            backgroundColor: 'red',
+            backgroundColor: '#f5f5f5',
           }}
         >
           <img

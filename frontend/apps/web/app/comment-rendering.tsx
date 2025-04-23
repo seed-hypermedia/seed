@@ -77,7 +77,7 @@ export function CommentRepliesEditor({
   replyCommentId,
   rootReplyCommentId,
   onDiscardDraft,
-  onReplied,
+  onSuccess,
   enableWebSigning,
 }: {
   isReplying: boolean
@@ -85,7 +85,7 @@ export function CommentRepliesEditor({
   replyCommentId: string
   rootReplyCommentId: string
   onDiscardDraft: () => void
-  onReplied: () => void
+  onSuccess: () => void
   enableWebSigning: boolean
 }) {
   if (!isReplying) return null
@@ -95,7 +95,7 @@ export function CommentRepliesEditor({
       replyCommentId={replyCommentId}
       rootReplyCommentId={rootReplyCommentId}
       onDiscardDraft={onDiscardDraft}
-      onReplied={onReplied}
+      onSuccess={onSuccess}
       enableWebSigning={enableWebSigning}
     />
   )
