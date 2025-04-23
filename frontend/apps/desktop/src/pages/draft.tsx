@@ -20,6 +20,7 @@ import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {
   chromiumSupportedImageMimeTypes,
@@ -30,9 +31,9 @@ import {
   HMBlockNode,
   HMDocument,
   HMEntityContent,
-  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
 import {Container} from '@shm/ui/container'
@@ -98,6 +99,18 @@ export default function DraftPage() {
     if (editId && editId.path?.length === 0) return true
     return false
   }, [locationId, editId])
+
+  const homeId = useMemo(() => {
+    if (locationId) {
+      return hmId('d', locationId.uid, {path: []})
+    }
+    if (editId) {
+      return hmId('d', editId.uid, {path: []})
+    }
+    return undefined
+  }, [locationId, editId])
+
+  const homeEntity = useEntity(homeId)
 
   const accessoryOptions: {
     key: 'options'
@@ -219,24 +232,33 @@ export default function DraftPage() {
           ) : (
             <>
               <DraftRebaseBanner />
-              <DocumentEditor
-                editor={editor}
-                state={state}
-                actor={actor}
-                data={data}
-                send={send}
-                handleFocusAtMousePos={handleFocusAtMousePos}
-                isHomeDoc={isEditingHomeDoc}
-              />
-              {/* <code // for debugging draft state
-                style={{
-                  minHeight: 600,
-                  border: '1px solid red',
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {JSON.stringify(data, null, 2)}
-              </code> */}
+              {locationId || editId ? (
+                <DraftAppHeader
+                  siteHomeEntity={homeEntity.data}
+                  docId={locationId || editId}
+                  document={homeEntity.data?.document}
+                >
+                  <DocumentEditor
+                    editor={editor}
+                    state={state}
+                    actor={actor}
+                    data={data}
+                    send={send}
+                    handleFocusAtMousePos={handleFocusAtMousePos}
+                    isHomeDoc={isEditingHomeDoc}
+                  />
+                </DraftAppHeader>
+              ) : (
+                <DocumentEditor
+                  editor={editor}
+                  state={state}
+                  actor={actor}
+                  data={data}
+                  send={send}
+                  handleFocusAtMousePos={handleFocusAtMousePos}
+                  isHomeDoc={isEditingHomeDoc}
+                />
+              )}
             </>
           )}
         </AccessoryLayout>
@@ -535,13 +557,11 @@ function DocumentEditor({
 }
 
 function DraftAppHeader({
-  siteHomeMetadata,
   siteHomeEntity,
   docId,
   children,
   document,
 }: {
-  siteHomeMetadata: HMMetadata | undefined | null
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
@@ -557,10 +577,15 @@ function DraftAppHeader({
       : [],
     drafts: drafts.data,
   })
+
+  const siteHomeMetadata = siteHomeEntity.document?.metadata
   // const draft = useDraft(docId)
   return (
     <SiteHeader
-      onScroll={() => dispatchScroll('scroll')}
+      onScroll={() => {
+        console.log('onScroll')
+        dispatchScroll('scroll')
+      }}
       originHomeId={siteHomeEntity.id}
       items={navItems}
       document={document || undefined}
