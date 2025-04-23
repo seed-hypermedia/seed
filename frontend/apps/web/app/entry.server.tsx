@@ -117,12 +117,19 @@ async function connectToWebIdentityOrigin() {
     const alreadyConnectedPeer = peers.find(
       (peer) => peer.id === identityOriginPeerId,
     )
-    if (!alreadyConnectedPeer) {
-      console.log('Connecting to the WEB_IDENTITY_ORIGIN server')
-      await queryClient.networking.connect({
-        addrs: identityOriginInfo.addrs,
-      })
+    if (alreadyConnectedPeer) {
+      // we are already connected, great!
+      return
     }
+    console.log(
+      'Connecting to the WEB_IDENTITY_ORIGIN server ' +
+        WEB_IDENTITY_ORIGIN +
+        ' Peer ID: ' +
+        identityOriginPeerId,
+    )
+    await queryClient.networking.connect({
+      addrs: identityOriginInfo.addrs,
+    })
   } catch (e) {
     console.error('Failed to connect to the WEB_IDENTITY_ORIGIN server', e)
   }
