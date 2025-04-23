@@ -238,8 +238,10 @@ CREATE VIRTUAL TABLE fts USING fts5(
     raw_content, 
     -- The type of the content being indexed.
     type, 
-    -- The ID of the block that contains the content.
-    block_id,
-    -- The IRI of the resource that contains the content.
-    iri
+    -- The Change ID of the change in which the content
+    -- was created.
+    change_id,
+    -- The ID of the block that contains the content. 
+    -- Only relevant on type=document
+    block_id
 );
