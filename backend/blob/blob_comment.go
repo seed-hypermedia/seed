@@ -10,6 +10,7 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -237,7 +238,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 			ftsBlkID = blk.ID()
 			ftsContent = blk.Text
 			if ftsContent != "" {
-				if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, c.String(), ftsBlkID); err != nil {
+				if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, strings.ToUpper(c.Hash().String()), ftsBlkID); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
 			}
