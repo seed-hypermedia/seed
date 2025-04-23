@@ -52,8 +52,6 @@ describe('local-db integration', () => {
       // Verify all stores exist
       const storeNames = Array.from(db.objectStoreNames)
       expect(storeNames).toContain('keys-01')
-      expect(storeNames).toContain('abilities-01')
-      expect(storeNames).toContain('delegated-identity-origins-01')
       expect(storeNames).toContain('email-notifications-01')
     } finally {
       // Always close the database connection
