@@ -153,6 +153,8 @@ export function DocContentProvider({
   showDevMenu = false,
   comment = false,
   routeParams = {},
+  layoutUnit = contentLayoutUnit,
+  textUnit = contentTextUnit,
   ...docContextContent
 }: PropsWithChildren<
   DocContentContextValue & {
@@ -161,8 +163,8 @@ export function DocContentProvider({
     ffSerif?: boolean
   }
 >) {
-  const [tUnit, setTUnit] = useState(contentTextUnit)
-  const [lUnit, setLUnit] = useState(contentLayoutUnit)
+  const [tUnit, setTUnit] = useState(textUnit)
+  const [lUnit, setLUnit] = useState(layoutUnit)
   const [debug, setDebug] = useState(false)
   const [ffSerif, toggleSerif] = useState(true)
   return (
@@ -170,7 +172,7 @@ export function DocContentProvider({
       value={{
         ...docContextContent,
         layoutUnit: lUnit,
-        textUnit: comment ? tUnit * 0.8 : tUnit,
+        textUnit: comment ? tUnit * 0.9 : tUnit,
         debug,
         ffSerif,
         comment,
@@ -431,8 +433,18 @@ export function BlockNodeList({
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
 }) {
+  console.log('BLOCK NODE LIST PROPS', props)
+
+  const tag = useMemo(() => {
+    if (childrenType == 'Ordered') return 'ol'
+    if (childrenType == 'Unordered') return 'ul'
+    if (childrenType == 'Blockquote') return 'blockquote'
+    return 'div'
+  }, [childrenType])
+
   return (
     <YStack
+      tag={tag}
       className="blocknode-list"
       data-node-type="blockGroup"
       data-list-type={childrenType}
@@ -519,7 +531,7 @@ export function BlockNodeContent({
   ...props
 }: {
   isFirstChild: boolean
-  blockNode: BlockNode | HMBlockNode
+  blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
   index: number
   depth?: number
   listLevel?: number
@@ -539,6 +551,7 @@ export function BlockNodeContent({
     debug,
     comment,
   } = useDocContentContext()
+  const [hover, setHover] = useState(false)
   const isDark = useIsDark()
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
@@ -588,7 +601,7 @@ export function BlockNodeContent({
     return {}
   }, [blockNode.block, headingMarginStyles])
 
-  const isEmbed = blockNode.block?.type == 'embed'
+  const isEmbed = blockNode.block?.type == 'Embed'
 
   const [isHighlight, setHighlight] = useState(false)
 
@@ -714,13 +727,21 @@ export function BlockNodeContent({
       // }
     >
       <XStack
-        padding={isEmbed ? 0 : layoutUnit / 3}
+        borderRadius={layoutUnit / 4}
+        padding={layoutUnit / 3}
         paddingVertical={isEmbed ? 0 : layoutUnit / 6}
         {...headingStyles}
         {...debugStyles(debug, 'red')}
         group="blocknode"
         className={
           blockNode.block!.type == 'Heading' ? 'blocknode-content-heading' : ''
+        }
+        bg={
+          hover
+            ? isDark
+              ? '$backgroundStrong'
+              : '$background'
+            : '$backgroundTransparent'
         }
       >
         {bnChildren ? (
@@ -792,8 +813,16 @@ export function BlockNodeContent({
         ) : null}
         <YStack
           position={'absolute'}
+          zIndex={hover ? '$zIndex.9' : '$zIndex.1'}
+          bg={
+            hover
+              ? isDark
+                ? '$background'
+                : '$backgroundStrong'
+              : '$backgroundTransparent'
+          }
           right={0}
-          top={12}
+          top={0}
           $gtSm={{
             right: -44,
             // background: '$backgroundTransparent',
@@ -801,6 +830,9 @@ export function BlockNodeContent({
           pl="$2"
           borderRadius={layoutUnit / 4}
           gap="$1"
+          onHoverIn={() => setHover(true)}
+          onHoverOut={() => setHover(false)}
+          // paddingBottom={hover ? 100 : 0}
         >
           {docCitations?.length ? (
             <Tooltip
@@ -820,7 +852,7 @@ export function BlockNodeContent({
                 icon={<BlockQuote size={12} color="$color9" />}
               >
                 <SizableText color="$color9" size="$1">
-                  {String(docCitations.length)}
+                  {docCitations.length ? String(docCitations.length) : ' '}
                 </SizableText>
               </Button>
             </Tooltip>
@@ -865,6 +897,7 @@ export function BlockNodeContent({
                 userSelect="none"
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
+                bg="red"
                 opacity={commentCitations.length ? 1 : 0}
                 $group-blocknode-hover={{
                   opacity: 1,
@@ -880,11 +913,11 @@ export function BlockNodeContent({
                 }}
                 icon={<MessageSquare size={12} color="$color9" />}
               >
-                {commentCitations.length ? (
-                  <SizableText color="$color9" size="$1">
-                    {String(commentCitations.length)}
-                  </SizableText>
-                ) : null}
+                <SizableText color="$color9" size="$1">
+                  {commentCitations.length
+                    ? String(commentCitations.length)
+                    : ' '}
+                </SizableText>
               </Button>
             </Tooltip>
           ) : null}
@@ -908,7 +941,11 @@ export function BlockNodeContent({
                     console.error('onCopyBlock Error: no blockId available')
                   }
                 }}
-              />
+              >
+                <SizableText color="$color9" size="$1">
+                  {' '}
+                </SizableText>
+              </Button>
             </Tooltip>
           ) : null}
         </YStack>
@@ -1065,13 +1102,13 @@ export function BlockContentHeading({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {textUnit, debug, ffSerif, comment} = useDocContentContext()
+  const {textUnit, debug, comment} = useDocContentContext()
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
   let headingTextStyles = useHeadingTextStyles(
     depth,
     comment ? textUnit * 0.8 : textUnit,
+    comment,
   )
-  let tag = `h${depth}`
 
   return (
     <YStack
@@ -1083,7 +1120,6 @@ export function BlockContentHeading({
       <SeedHeading
         level={depth as 1 | 2 | 3 | 4 | undefined}
         className="content-inline"
-        // fontFamily={ffSerif ? '$editorBody' : '$body'}
         maxWidth="95%"
       >
         <InlineContentView
@@ -1137,8 +1173,26 @@ export function DocHeading({
   )
 }
 
-export function useHeadingTextStyles(depth: number, unit: number) {
+export function useHeadingTextStyles(
+  depth: number,
+  unit: number,
+  comment?: boolean,
+) {
   return useMemo(() => {
+    if (comment) {
+      return {
+        fontSize: '$3',
+        lineHeight: '$3',
+        $gtMd: {
+          fontSize: '$3',
+          lineHeight: '$3',
+        },
+        $gtLg: {
+          fontSize: '$4',
+          lineHeight: '$4',
+        },
+      } satisfies TextProps
+    }
     if (depth == 1) {
       return {
         fontSize: '$8',
@@ -1741,6 +1795,9 @@ export function ContentEmbed({
   >
   parentBlockId: string | null
 }) {
+  const context = useDocContentContext()
+
+  console.log(`== ~ EmbedDocumentContent context:`, context)
   const embedData = useMemo(() => {
     const selectedBlock =
       props.blockRef && document?.content
@@ -1817,6 +1874,7 @@ export function ContentEmbed({
         <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
+              parentBlockId={props.parentBlockId}
               isFirstChild
               depth={props.depth}
               expanded
@@ -1896,13 +1954,19 @@ export function ContentEmbed({
     )
   }
   return (
-    <EmbedWrapper
-      depth={props.depth}
-      id={narrowHmId(props)}
-      parentBlockId={parentBlockId || ''}
+    <DocContentProvider
+      {...context}
+      layoutUnit={context.comment ? 18 : context.layoutUnit}
+      textUnit={context.comment ? 12 : context.textUnit}
     >
-      {content}
-    </EmbedWrapper>
+      <EmbedWrapper
+        depth={props.depth}
+        id={narrowHmId(props)}
+        parentBlockId={parentBlockId || ''}
+      >
+        {content}
+      </EmbedWrapper>
+    </DocContentProvider>
   )
 }
 

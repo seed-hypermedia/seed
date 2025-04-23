@@ -168,7 +168,14 @@ function QuotedDocBlock({
     return <Spinner />
   }
   return (
-    <XStack backgroundColor="$green3" borderRadius="$4" padding="$2">
+    <XStack
+      borderRadius="$3"
+      marginLeft={12}
+      borderLeftWidth={3}
+      borderLeftColor="$brand5"
+      bg="$brand12"
+      padding="$2"
+    >
       <CitationsIcon color="#000" size={40} />
       {blockContent && (
         <AppDocContentProvider>
