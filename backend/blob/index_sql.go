@@ -49,11 +49,11 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
-func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType, FTSChangeID, FTSBlockID string) error {
+func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType, FTSMultihash, FTSBlockID string) error {
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSContent", FTSContent)
 		stmt.SetText(":FTSType", FTSType)
-		stmt.SetText(":FTSChangeID", FTSChangeID)
+		stmt.SetText(":FTSMultihash", FTSMultihash)
 		stmt.SetText(":FTSBlockID", FTSBlockID)
 	}
 
@@ -71,7 +71,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType, FTSChangeID, F
 
 var qFTSInsertOrReplace = dqb.Str(`
 	INSERT OR REPLACE INTO fts(raw_content, type, change_id, block_id)
-	VALUES (:FTSContent, :FTSType, :FTSChangeID, :FTSBlockID)
+	VALUES (:FTSContent, :FTSType, :FTSMultihash, :FTSBlockID)
 `)
 
 func dbResourceLinksInsert(conn *sqlite.Conn, sourceBlob, targetResource int64, ltype string, isPinned bool, meta []byte) error {
