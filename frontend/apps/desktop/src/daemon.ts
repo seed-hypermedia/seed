@@ -10,6 +10,7 @@ import {spawn} from 'child_process'
 import {app} from 'electron'
 import * as readline from 'node:readline'
 import path from 'path'
+import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
@@ -111,6 +112,7 @@ export async function startMainDaemon(): Promise<{
 
       if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
         hasStartupCompleted = true
+        log.debug('Daemon P2PNodeReady')
         resolve()
       }
     })
@@ -148,10 +150,46 @@ export async function startMainDaemon(): Promise<{
     })
   })
 
+  await tryUntilSuccess(
+    async () => {
+      const info = await grpcClient.daemon.getInfo({})
+      log.debug('Daemon is ready: ' + JSON.stringify(info.toJson()))
+    },
+    'waiting for daemon gRPC to be ready',
+    200, // try every 200ms
+    10_000, // timeout after 10s
+  )
+
   const mainDaemon = {
     httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
     grpcPort: process.env.VITE_DESKTOP_GRPC_PORT,
     p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
   }
   return mainDaemon
+}
+
+export async function tryUntilSuccess(
+  fn: () => Promise<void>,
+  attemptName: string,
+  retryDelayMs: number = 1_000,
+  maxRetryMs: number = 10_000,
+) {
+  const startTime = Date.now()
+  let didResolve = false
+  let didTimeout = false
+  while (!didResolve && !didTimeout) {
+    try {
+      await fn()
+      didResolve = true
+    } catch (error) {}
+    if (!didResolve) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+    if (Date.now() - startTime > maxRetryMs) {
+      didTimeout = true
+    }
+  }
+  if (didTimeout) {
+    throw new Error('Timed out: ' + attemptName)
+  }
 }
