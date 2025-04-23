@@ -215,7 +215,9 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 	if v.Capability.Defined() {
 		sb.AddBlobLink("comment/capability", v.Capability)
 	}
-
+	const ftsType = "comment"
+	var ftsContent string
+	var ftsBlkID string
 	var indexCommentContent func([]CommentBlock) error // Declaring function to allow recursive calls.
 	indexCommentContent = func(in []CommentBlock) error {
 		for _, blk := range in {
@@ -231,6 +233,13 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 
 			if err := indexCommentContent(blk.Children); err != nil {
 				return err
+			}
+			ftsBlkID = blk.ID()
+			ftsContent = blk.Text
+			if ftsContent != "" {
+				if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, c.String(), ftsBlkID); err != nil {
+					return fmt.Errorf("failed to insert record in fts table: %w", err)
+				}
 			}
 		}
 
