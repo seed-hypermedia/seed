@@ -6,13 +6,20 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
-import {hmId, SITE_BASE_URL} from '@shm/shared'
+import {
+  hmId,
+  SITE_BASE_URL,
+  WEB_IDENTITY_ENABLED,
+  WEB_IDENTITY_ORIGIN,
+  WEB_SIGNING_ENABLED,
+} from '@shm/shared'
 import fs from 'fs'
 import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'
 import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
+import {queryClient} from './client'
 import {initDatabase} from './db'
 import {initEmailNotifier} from './email-notifier'
 import {getHMDocument} from './loaders'
@@ -74,8 +81,51 @@ async function initializeServer() {
       }, CACHE_WARM_INTERVAL)
     }
   }
+  await connectToWebIdentityOrigin()
+  setInterval(connectToWebIdentityOrigin, 1000 * 60 * 5) // every 5 minutes, make sure we are connected to the WEB_IDENTITY_ORIGIN server
   await initDatabase()
   await initEmailNotifier()
+}
+
+// if we are configured for web identity, we rely on another server to sign content.
+// this is to ensure that we are connected to the WEB_IDENTITY_ORIGIN server
+async function connectToWebIdentityOrigin() {
+  if (WEB_SIGNING_ENABLED || !WEB_IDENTITY_ENABLED) {
+    // We are only expected to connect if we have identity enabled and if we don't have our own signing enabled
+    return
+  }
+  try {
+    const peers = (await queryClient.networking.listPeers({})).peers
+    const identityOriginInfoReq = await fetch(
+      `${WEB_IDENTITY_ORIGIN}/hm/api/config`,
+    )
+    if (identityOriginInfoReq.status !== 200) {
+      throw new Error(
+        'Connection failed to the WEB_IDENTITY_ORIGIN server at ' +
+          WEB_IDENTITY_ORIGIN,
+      )
+    }
+    const identityOriginInfo = await identityOriginInfoReq.json()
+    const identityOriginPeerId = identityOriginInfo.peerId
+    if (!identityOriginPeerId) {
+      throw new Error(
+        'WEB_IDENTITY_ORIGIN server at ' +
+          WEB_IDENTITY_ORIGIN +
+          ' did not return a peerId',
+      )
+    }
+    const alreadyConnectedPeer = peers.find(
+      (peer) => peer.id === identityOriginPeerId,
+    )
+    if (!alreadyConnectedPeer) {
+      console.log('Connecting to the WEB_IDENTITY_ORIGIN server')
+      await queryClient.networking.connect({
+        addrs: identityOriginInfo.addrs,
+      })
+    }
+  } catch (e) {
+    console.error('Failed to connect to the WEB_IDENTITY_ORIGIN server', e)
+  }
 }
 
 function logDebugRequest(path: string) {

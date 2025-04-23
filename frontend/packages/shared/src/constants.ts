@@ -106,8 +106,8 @@ export const SEED_HOST_URL =
   (import.meta.env && import.meta.env.VITE_SEED_HOST_URL) ||
   'http://localhost:5555'
 
-export const WEB_IDENTITY_DEFAULT_ORIGIN =
-  WEB_ENV.WEB_IDENTITY_DEFAULT_ORIGIN ||
+export const WEB_IDENTITY_ORIGIN =
+  WEB_ENV.WEB_IDENTITY_ORIGIN ||
   process.env.SEED_IDENTITY_DEFAULT_ORIGIN ||
   'https://hyper.media'
 

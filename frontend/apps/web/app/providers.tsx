@@ -7,8 +7,8 @@ import {
   SITE_BASE_URL,
   UniversalAppProvider,
   UnpackedHypermediaId,
-  WEB_IDENTITY_DEFAULT_ORIGIN,
   WEB_IDENTITY_ENABLED,
+  WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -84,7 +84,7 @@ export function WebSiteProvider(props: {
           __html: `window.ENV = ${JSON.stringify({
             LIGHTNING_API_URL,
             SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
-            WEB_IDENTITY_DEFAULT_ORIGIN,
+            WEB_IDENTITY_ORIGIN,
             WEB_IDENTITY_ENABLED,
             ENABLE_EMAIL_NOTIFICATIONS,
           })}`,

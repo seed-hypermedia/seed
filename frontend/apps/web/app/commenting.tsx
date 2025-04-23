@@ -14,7 +14,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
-  WEB_IDENTITY_DEFAULT_ORIGIN,
+  WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
@@ -60,7 +60,7 @@ export default function WebCommenting(props: WebCommentingProps) {
     return (
       <Button
         onPress={() => {
-          const url = new URL(`${WEB_IDENTITY_DEFAULT_ORIGIN}/hm/comment`)
+          const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
           url.searchParams.set(
             'target',
             `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
@@ -73,9 +73,7 @@ export default function WebCommenting(props: WebCommentingProps) {
           window.open(url.toString(), '_blank')
         }}
       >
-        {`Comment with ${hostnameStripProtocol(
-          WEB_IDENTITY_DEFAULT_ORIGIN,
-        )} Identity`}
+        {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}
       </Button>
     )
   }
