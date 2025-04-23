@@ -55,7 +55,6 @@ export type WebCommentingProps = {
 }
 
 export default function WebCommenting(props: WebCommentingProps) {
-  console.log('WebCommenting', props)
   if (!props.enableWebSigning) {
     return (
       <Button
@@ -69,7 +68,6 @@ export default function WebCommenting(props: WebCommentingProps) {
           url.searchParams.set('reply', props.replyCommentId || '')
           url.searchParams.set('rootReply', props.rootReplyCommentId || '')
           url.searchParams.set('originUrl', window.location.toString())
-          console.log('Redirect to ' + url.toString())
           window.open(url.toString(), '_blank')
         }}
       >

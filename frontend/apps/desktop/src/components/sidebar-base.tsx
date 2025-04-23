@@ -99,15 +99,12 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         collapsible
         id="sidebar"
         onCollapse={() => {
-          console.log('=== Sidebar onCollapse call')
           ctx.onCloseSidebar()
         }}
         onResize={(size) => {
           ctx.onSidebarResize(size)
         }}
         onExpand={() => {
-          console.log('=== Sidebar onExpand call')
-
           ctx.onLockSidebarOpen()
         }}
       >

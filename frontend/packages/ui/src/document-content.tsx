@@ -433,8 +433,6 @@ export function BlockNodeList({
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
 }) {
-  console.log('BLOCK NODE LIST PROPS', props)
-
   const tag = useMemo(() => {
     if (childrenType == 'Ordered') return 'ol'
     if (childrenType == 'Unordered') return 'ul'

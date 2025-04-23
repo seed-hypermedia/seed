@@ -53,9 +53,7 @@ export async function loadEntity(
     }
   } catch (e) {
     const error = getErrorMessage(e)
-    console.error('~~ Document Load Error', error)
     if (error instanceof HMRedirectError) {
-      console.error('~~ HMRedirectError to', error.target)
       return {
         id,
         redirectTarget: error.target,

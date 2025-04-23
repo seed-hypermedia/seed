@@ -34,8 +34,6 @@ import {Button, SizableText, Tooltip, View, XStack, YStack} from 'tamagui'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {
-  console.log('comment', comment)
-
   const data: HMComment & {reference: string | null} = useMemo(() => {
     if (comment.content.length === 1) {
       let parentBlock = comment.content[0]
