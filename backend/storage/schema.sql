@@ -236,7 +236,8 @@ CREATE INDEX wallets_by_account ON wallets (account);
 CREATE VIRTUAL TABLE fts USING fts5(
     -- The text content to be indexed.
     raw_content, 
-    -- The type of the content being indexed.
+    -- The type of the content being indexed. It could be
+    -- a title, a document body, or a comment.
     type, 
     -- The id of the blob of the blob containting the change.
     -- With the raw_contnet in it.
