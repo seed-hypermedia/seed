@@ -57,7 +57,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 		stmt.SetText(":FTSBlockID", FTSBlockID)
 	}
 
-	onStep := func(_ int, stmt *sqlite.Stmt) error {
+	onStep := func(_ int, _ *sqlite.Stmt) error {
 		return nil
 	}
 

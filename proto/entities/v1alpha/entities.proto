@@ -159,8 +159,8 @@ message Entity {
   string content = 2;
 
   // where the matching string is found in the content.
-  // This is a char offset in the content.
-  int32 match_offset = 3;
+  // This is a char offset in the content for each matching char.
+  repeated int32 match_offset = 3;
 
   // The owner of the entity
   string owner = 4;
