@@ -81,6 +81,7 @@ async function initializeServer() {
       }, CACHE_WARM_INTERVAL)
     }
   }
+  console.log('Connecting to the WEB_IDENTITY_ORIGIN server')
   await connectToWebIdentityOrigin()
   setInterval(connectToWebIdentityOrigin, 1000 * 60 * 5) // every 5 minutes, make sure we are connected to the WEB_IDENTITY_ORIGIN server
   await initDatabase()
@@ -119,6 +120,7 @@ async function connectToWebIdentityOrigin() {
     )
     if (alreadyConnectedPeer) {
       // we are already connected, great!
+      console.log('Already connected to the WEB_IDENTITY_ORIGIN server')
       return
     }
     console.log(

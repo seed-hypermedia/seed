@@ -45,6 +45,7 @@ import {queryClient} from './client'
 import {logDebug} from './logger'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
+import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping'
 
 export async function getMetadata(
@@ -81,8 +82,18 @@ export type WebDocumentPayload = WebBaseDocumentPayload & {
   breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>
 }
 
-export async function getHMDocument(entityId: UnpackedHypermediaId) {
+export async function getHMDocument(
+  entityId: UnpackedHypermediaId,
+  {discover}: {discover?: boolean} = {},
+) {
   const {version, uid, latest} = entityId
+  if (discover) {
+    return await discoverDocument(
+      uid,
+      entityId.path || [],
+      version || undefined,
+    )
+  }
   const path = hmIdPathToEntityQueryPath(entityId.path)
   const apiDoc = await queryClient.documents
     .getDocument({
@@ -107,15 +118,18 @@ export async function getHMDocument(entityId: UnpackedHypermediaId) {
   return document
 }
 
-export async function resolveHMDocument(entityId: UnpackedHypermediaId) {
+export async function resolveHMDocument(
+  entityId: UnpackedHypermediaId,
+  {discover}: {discover?: boolean} = {},
+) {
   try {
-    const document = await getHMDocument(entityId)
+    const document = await getHMDocument(entityId, {discover})
     return document
   } catch (e) {
     if (e instanceof HMRedirectError) {
-      return await resolveHMDocument(e.target)
+      return await resolveHMDocument(e.target, {discover})
     }
-    throw e
+    if (e) throw e
   }
 }
 
@@ -125,6 +139,7 @@ const getQueryResults = getQueryResultsWithClient(queryClient)
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
+  {recursiveDiscover = true}: {recursiveDiscover?: boolean} = {},
 ): Promise<WebBaseDocumentPayload> {
   const {uid} = entityId
   const path = hmIdPathToEntityQueryPath(entityId.path)
@@ -132,7 +147,7 @@ export async function getBaseDocument(
     .discoverEntity({
       account: uid,
       path,
-      recursive: true,
+      recursive: recursiveDiscover,
       // version ommitted intentionally here. we want to discover the latest version
     })
     .then(() => {})

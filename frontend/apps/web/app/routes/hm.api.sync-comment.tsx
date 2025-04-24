@@ -29,6 +29,7 @@ export const action: ActionFunction = async ({request}) => {
   }
   try {
     const body = await request.json()
+    console.log('sync comment body', body)
     const {commentId, target, dependencies} =
       syncCommentRequestSchema.parse(body)
     const targetId = unpackHmId(target)
@@ -42,6 +43,7 @@ export const action: ActionFunction = async ({request}) => {
         targetId,
       })
     }
+    console.log('will discover dependencies', dependencies)
     await Promise.all(
       dependencies.map((dependency) => {
         return discoverDocument(
@@ -81,22 +83,24 @@ async function syncComment({
   commentId: string
   targetId: UnpackedHypermediaId
 }) {
+  console.log('syncing comment1', targetId)
   const discovered = await queryClient.entities.discoverEntity({
     account: targetId.uid,
     path: hmIdPathToEntityQueryPath(targetId.path),
     recursive: true,
   })
-  await tryUntilSuccess(
+  const comment = await tryUntilSuccess(
     async () => {
+      console.log('checking comment', commentId)
       const comment = await queryClient.comments.getComment({
         id: commentId,
       })
-      if (comment) {
-        return true
-      }
-      return false
+      console.log('comment', comment)
+      return comment
     },
-    1000,
-    30_000,
+    {
+      retryDelayMs: 1000,
+      maxRetryMs: 30_000,
+    },
   )
 }

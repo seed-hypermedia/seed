@@ -98,9 +98,11 @@ export function LocalWebCommenting({
         '/hm/api/comment',
         cborEncode(commentPayload),
       )
+      console.log('end of local commenting mutation', result)
       return result as CommentResponsePayload
     },
     onSuccess: (result, commentPayload) => {
+      console.log('LocalWebCommenting onSuccess', result, commentPayload)
       onSuccess?.({
         response: result,
         commentPayload: commentPayload,

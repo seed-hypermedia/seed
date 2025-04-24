@@ -428,6 +428,7 @@ export type HMPublishableBlockCode = {
   type: 'Code'
   text: string
   annotations: HMPublishableAnnotation[]
+  language?: string
   childrenType?: HMBlockChildrenType
   children?: HMPublishableBlock[]
 }
