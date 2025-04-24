@@ -45,7 +45,6 @@ function EmbedWrapper({
   hideBorder?: boolean
 }>) {
   const {originHomeId} = useUniversalAppContext()
-  const {disableEmbedClick = false} = useDocContentContext()
   const navigate = useNavigate()
   return (
     <YStack
@@ -53,24 +52,20 @@ function EmbedWrapper({
       borderRadius={0}
       borderLeftWidth={hideBorder ? 0 : 3}
       borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
-      onPress={
-        !disableEmbedClick
-          ? (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              const destUrl = createWebHMUrl(id.type, id.uid, {
-                hostname: null,
-                blockRange: id.blockRange,
-                blockRef: id.blockRef,
-                version: id.version,
-                latest: id.latest,
-                path: id.path,
-                originHomeId,
-              })
-              navigate(destUrl)
-            }
-          : undefined
-      }
+      onPress={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const destUrl = createWebHMUrl(id.type, id.uid, {
+          hostname: null,
+          blockRange: id.blockRange,
+          blockRef: id.blockRef,
+          version: id.version,
+          latest: id.latest,
+          path: id.path,
+          originHomeId,
+        })
+        navigate(destUrl)
+      }}
     >
       {children}
     </YStack>

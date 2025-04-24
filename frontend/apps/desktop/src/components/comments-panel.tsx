@@ -13,21 +13,25 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Comment, CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {CitationsIcon} from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
+import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
-import {memo, useMemo} from 'react'
-import {Spinner, View, XStack} from 'tamagui'
+import {memo, useMemo, useState} from 'react'
+import {Button, Spinner, View, XStack} from 'tamagui'
+import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
   CommentDraft,
   CommentReplies,
   renderCommentContent,
+  RepliesEditor,
   useCommentGroupAuthors,
 } from './commenting'
 
-export const CommentsPanel = memo(_CommentsPanel)
+export const DiscussionsPanel = memo(_DiscussionsPanel)
 
-function _CommentsPanel({
+function _DiscussionsPanel({
   onClose,
   docId,
   onAccessory,
@@ -157,6 +161,7 @@ function QuotedDocBlock({
   docId: UnpackedHypermediaId
   blockId: string
 }) {
+  const [expanded, setExpanded] = useState(false)
   const doc = useEntity(docId)
   const blockContent = useMemo(() => {
     if (!doc.data?.document?.content) return null
@@ -166,21 +171,54 @@ function QuotedDocBlock({
     return <Spinner />
   }
   return (
-    <XStack
-      borderRadius="$3"
-      marginLeft={12}
-      borderLeftWidth={3}
-      borderLeftColor="$brand5"
-      bg="$brand12"
-      padding="$2"
-    >
-      <CitationsIcon color="#000" size={40} />
-      {blockContent && (
-        <AppDocContentProvider>
-          <BlocksContent blocks={[blockContent]} parentBlockId={blockId} />
-        </AppDocContentProvider>
-      )}
-    </XStack>
+    <YStack marginLeft={12} bg="$brand12">
+      <XStack
+        borderRadius="$2"
+        padding="$2"
+        gap="$1"
+        maxHeight={expanded ? 'none' : 180}
+        overflow="hidden"
+        position="relative"
+        animation="fast"
+      >
+        <XStack flexShrink={0} paddingVertical="$1.5">
+          <CitationsIcon color="#000" size={23} />
+        </XStack>
+
+        {blockContent && (
+          <AppDocContentProvider>
+            <BlocksContent
+              blocks={[blockContent]}
+              parentBlockId={blockId}
+              hideCollapseButtons
+            />
+          </AppDocContentProvider>
+        )}
+        {!expanded ? (
+          <LinearGradient
+            colors={['$brand12', 'transparent']}
+            start={[0, 1]}
+            end={[0, 0]}
+            w="100%"
+            position="absolute"
+            bottom={0}
+            left={0}
+            right={0}
+            height={32}
+          />
+        ) : null}
+      </XStack>
+      <Tooltip content={expanded ? 'Collapse' : 'Expand'}>
+        <Button
+          flexShrink={0}
+          size="$2"
+          onPress={() => setExpanded(!expanded)}
+          chromeless
+          hoverStyle={{bg: '$brand11'}}
+          icon={expanded ? ChevronsUp : ChevronsDown}
+        ></Button>
+      </Tooltip>
+    </YStack>
   )
 }
 
@@ -228,6 +266,7 @@ function CommentReplyAccessory({
           enableReplies
           replyCount={replyCount}
           defaultExpandReplies
+          RepliesEditor={RepliesEditor}
         />
       ) : (
         <Spinner />

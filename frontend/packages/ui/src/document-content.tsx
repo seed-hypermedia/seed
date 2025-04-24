@@ -113,7 +113,6 @@ export type DocContentContextValue = {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onCitationClick?: (blockId?: string | null) => void
-  disableEmbedClick?: boolean
   onCopyBlock:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
@@ -127,7 +126,7 @@ export type DocContentContextValue = {
   ffSerif?: boolean
   comment?: boolean
   routeParams?: {
-    documentId?: string
+    uid?: string
     version?: string
     blockRef?: string
     blockRange?: BlockRange
@@ -393,10 +392,12 @@ function _BlocksContent({
   blocks,
   parentBlockId,
   handleBlockReplace,
+  hideCollapseButtons = false,
 }: {
   blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
+  hideCollapseButtons?: boolean
 }) {
   if (!blocks) return null
 
@@ -405,6 +406,7 @@ function _BlocksContent({
       {blocks?.length
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
+              hideCollapseButtons={hideCollapseButtons}
               parentBlockId={parentBlockId}
               isFirstChild={idx === 0}
               key={bn.block?.id}
@@ -526,7 +528,7 @@ export function BlockNodeContent({
   embedDepth = 1,
   parentBlockId,
   handleBlockReplace,
-  ...props
+  hideCollapseButtons = false,
 }: {
   isFirstChild: boolean
   blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
@@ -538,6 +540,7 @@ export function BlockNodeContent({
   expanded?: boolean
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
+  hideCollapseButtons?: boolean
 }) {
   const {
     layoutUnit,
@@ -572,6 +575,7 @@ export function BlockNodeContent({
   let bnChildren = blockNode.children?.length
     ? blockNode.children.map((bn, index) => (
         <BlockNodeContent
+          hideCollapseButtons={hideCollapseButtons}
           key={bn.block!.id}
           depth={depth + 1}
           isFirstChild={index == 0}
@@ -671,7 +675,11 @@ export function BlockNodeContent({
 
   useEffect(() => {
     if (elm.current) {
-      if (routeParams && routeParams.blockRef === blockNode.block?.id)
+      if (
+        !comment &&
+        routeParams &&
+        routeParams.blockRef === blockNode.block?.id
+      )
         elm.current.scrollIntoView({behavior: 'smooth', block: 'start'})
     }
   }, [routeParams])
@@ -713,7 +721,7 @@ export function BlockNodeContent({
     <YStack
       ref={elm}
       className="blocknode-content"
-      id={blockNode.block?.id}
+      id={comment ? undefined : blockNode.block?.id}
       borderColor={isHighlight ? '$brandHighlight' : '$colorTransparent'}
       borderWidth={1}
       borderRadius={layoutUnit / 4}
@@ -742,7 +750,7 @@ export function BlockNodeContent({
             : '$backgroundTransparent'
         }
       >
-        {bnChildren ? (
+        {!hideCollapseButtons && bnChildren ? (
           <Tooltip
             delay={1000}
             content={
@@ -794,7 +802,7 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
-        {bnChildren && !_expanded ? (
+        {!hideCollapseButtons && bnChildren && !_expanded ? (
           <Tooltip content="This block is collapsed. you can expand it and see its children">
             <Button
               userSelect="none"

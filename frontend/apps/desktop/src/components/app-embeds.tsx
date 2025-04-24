@@ -1,6 +1,7 @@
 import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
+import {useNavRoute} from '@/utils/navigation'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
@@ -8,6 +9,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntities} from '@shm/shared/models/entity'
+import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {
@@ -30,7 +32,6 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowUpRightSquare} from '@shm/ui/icons'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
-import {toast} from '@shm/ui/toast'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -63,18 +64,30 @@ function EmbedWrapper({
 >) {
   const docContentContext = useDocContentContext()
 
-  const {disableEmbedClick = false, comment, routeParams} = docContentContext
-  const navigate = useNavigate('push')
+  const {comment, routeParams} = docContentContext
+  const spawn = useNavigate('spawn')
+  const replace = useNavigate('replace')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const sideannotationRef = useRef<HTMLDivElement>(null)
   const wrapperRect = useRef<DOMRect>()
   const sideRect = useRef<DOMRect>()
   const [sidePos, setSidePos] = useState<'bottom' | 'right'>('bottom')
   const [isHighlight, setHighlight] = useState(false)
+  const route = useNavRoute()
+
+  const isSameDocument = useMemo(() => {
+    if (!id) return false
+    if (route.key !== 'document') return false
+    return (
+      typeof id.uid == 'string' &&
+      typeof route?.id?.uid == 'string' &&
+      id.uid == route?.id?.uid
+    )
+  }, [route, id])
 
   useEffect(() => {
     const val =
-      (routeParams?.documentId == id?.id &&
+      (routeParams?.uid == id?.uid &&
         routeParams?.version == id?.version &&
         comment) ||
       false
@@ -86,13 +99,7 @@ function EmbedWrapper({
     }
 
     setHighlight(val)
-  }, [
-    routeParams?.documentId,
-    routeParams?.version,
-    comment,
-    id?.id,
-    id?.version,
-  ])
+  }, [routeParams?.uid, routeParams?.version, comment, id?.id, id?.version])
 
   useEffect(() => {
     if (wrapperRef.current) {
@@ -127,7 +134,7 @@ function EmbedWrapper({
     }
   }, [wrapperRef])
 
-  return (
+  return id ? (
     <YStack
       ref={wrapperRef}
       contentEditable={false}
@@ -157,36 +164,40 @@ function EmbedWrapper({
       borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
-      onPress={
-        !disableEmbedClick
-          ? () => {
-              if (!id) return
-              if (id.type === 'c') {
-                if (!id.targetDocUid) {
-                  toast.error(
-                    'Comment embeds must have a target document to open',
-                  )
-                  return
-                }
-                navigate({
-                  key: 'document',
-                  id: hmId('d', id.targetDocUid, {
-                    path: id.targetDocPath,
-                  }),
-                  accessory: {
-                    key: 'discussions',
-                    openComment: id.uid,
-                  },
-                })
-                return
-              }
-              navigate({
+      onPress={() => {
+        // if the embed is from the same document, we navigate on the same window, if not. we open a new window.
+        const method = isSameDocument ? replace : spawn
+
+        method(
+          isSameDocument
+            ? ({
+                ...route,
+                id: {
+                  ...(route as DocumentRoute).id,
+                  blockRef: id.blockRef,
+                  blockRange:
+                    id.blockRange &&
+                    'start' in id.blockRange &&
+                    'end' in id.blockRange
+                      ? id.blockRange
+                      : null,
+                },
+              } as DocumentRoute)
+            : {
                 key: 'document',
-                id,
-              })
-            }
-          : undefined
-      }
+                id: {
+                  ...id,
+                  blockRef: id.blockRef,
+                  blockRange:
+                    id.blockRange &&
+                    'start' in id.blockRange &&
+                    'end' in id.blockRange
+                      ? id.blockRange
+                      : null,
+                },
+              },
+        )
+      }}
       {...props}
     >
       {children}
@@ -196,11 +207,10 @@ function EmbedWrapper({
           sidePos={sidePos}
           ref={sideannotationRef}
           id={hmRef}
-          disableEmbedClick={disableEmbedClick}
         />
       ) : null} */}
     </YStack>
-  )
+  ) : null
 }
 
 export function observeSize(

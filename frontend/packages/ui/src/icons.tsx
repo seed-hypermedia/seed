@@ -191,6 +191,9 @@ export function CitationsIcon({
   color = DefaultIconColor,
   size = '1em',
   ...props
+}: {
+  color?: string
+  size?: string | number
 }) {
   return (
     <svg
@@ -219,7 +222,14 @@ export function CitationsIcon({
   )
 }
 
-export function HistoryIcon({color = DefaultIconColor, size = 20, ...props}) {
+export function HistoryIcon({
+  color = DefaultIconColor,
+  size = 20,
+  ...props
+}: {
+  color?: string
+  size?: string | number
+}) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -252,6 +262,9 @@ export function CollaboratorsIcon({
   color = DefaultIconColor,
   size = 20,
   ...props
+}: {
+  color?: string
+  size?: string | number
 }) {
   return (
     <svg
@@ -317,6 +330,9 @@ export function CommentsIcon({
   color = DefaultIconColor,
   size = '1em',
   ...props
+}: {
+  color?: string
+  size?: string | number
 }) {
   return (
     <svg

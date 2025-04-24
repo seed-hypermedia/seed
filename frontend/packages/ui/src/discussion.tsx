@@ -131,6 +131,7 @@ export function Comment({
   RepliesEditor,
   CommentReplies,
   siteHost,
+  // onFocusComment,
   enableReplies = true,
   enableWebSigning = false,
   defaultExpandReplies = false,
@@ -142,6 +143,7 @@ export function Comment({
   isLast?: boolean
   isNested?: boolean
   rootReplyCommentId: string | null
+  // onFocusComment: () => void
   authorMetadata?: HMMetadata | null
   renderCommentContent: (comment: HMComment) => ReactNode
   homeId?: UnpackedHypermediaId
@@ -304,7 +306,13 @@ export function Comment({
                 chromeless
                 size="$1"
                 icon={<ReplyArrow color={theme.brand5.val} size={16} />}
-                onPress={() => setIsReplying(true)}
+                onPress={() => {
+                  // if (onFocusComment) {
+                  //   onFocusComment()
+                  // } else {
+                  setIsReplying(true)
+                  // }
+                }}
                 color="$brand5"
                 borderColor="$colorTransparent"
                 hoverStyle={{

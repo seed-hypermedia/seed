@@ -34,7 +34,7 @@ export function WebDocContentProvider({
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
   routeParams?: {
-    documentId?: string
+    uid?: string
     version?: string
     blockRef?: string
     blockRange?: BlockRange

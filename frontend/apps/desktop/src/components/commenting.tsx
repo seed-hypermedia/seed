@@ -7,6 +7,8 @@ import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {getDocumentTitle} from '@shm/shared/content'
 import {
@@ -55,7 +57,6 @@ export function renderCommentContent(comment: HMComment) {
   return (
     <AppDocContentProvider
       comment
-      disableEmbedClick
       // onReplyBlock={onReplyBlock}
       // onReplyBlock={() => {}}
       // onCopyBlock={(
@@ -89,7 +90,7 @@ export function CommentReplies({
   const comments = commentGroupQueries.data
   const authors = useCommentGroupAuthors(comments)
   return (
-    <YStack paddingLeft={22}>
+    <YStack>
       {comments.map((commentGroup) => {
         return (
           <CommentGroup
@@ -100,7 +101,6 @@ export function CommentReplies({
             renderCommentContent={renderCommentContent}
             commentGroup={commentGroup}
             isLastGroup={commentGroup === comments[comments.length - 1]}
-            RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
             rootReplyCommentId={rootReplyCommentId}
           />
@@ -315,7 +315,7 @@ function _CommentDraftEditor({
       paddingBottom="$2"
       className="comment-editor"
     >
-      <AppDocContentProvider disableEmbedClick comment>
+      <AppDocContentProvider comment>
         <EmbedToolbarProvider>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </EmbedToolbarProvider>
@@ -407,6 +407,9 @@ function SelectAccountDropdown({
 }
 
 function CommentReference({reference}: {reference: string | null}) {
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
+
   const referenceId = useMemo(() => {
     if (!reference) return null
     return unpackHmId(reference)
@@ -431,6 +434,14 @@ function CommentReference({reference}: {reference: string | null}) {
     return referenceData.data.document?.content || []
   }, [referenceData.data])
 
+  const highlight = useMemo(() => {
+    if (!referenceId) return false
+    if (route.key !== 'document') return false
+    if (!route.id) return false
+    if (!referenceId.blockRef) return false
+    return referenceId.blockRef == route.id.blockRef
+  }, [route, referenceId])
+
   if (!referenceData.data) return null
 
   return (
@@ -442,7 +453,26 @@ function CommentReference({reference}: {reference: string | null}) {
       borderLeftWidth={2}
       borderLeftColor="$brand5"
       margin="$2"
+      bg={highlight ? '$brand12' : '$colorTransparent'}
       x={2}
+      onPress={() => {
+        if (route.key == 'document' && referenceId?.blockRef) {
+          navigate({
+            ...route,
+            isBlockFocused: false,
+            id: {
+              ...route.id,
+              blockRef: referenceId.blockRef,
+              blockRange:
+                referenceId.blockRange &&
+                'start' in referenceId.blockRange &&
+                'end' in referenceId.blockRange
+                  ? referenceId.blockRange
+                  : null,
+            },
+          })
+        }
+      }}
     >
       <SizableText
         size="$2"

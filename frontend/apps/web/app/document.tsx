@@ -400,6 +400,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     supportQueries={supportQueries}
                     citations={citations.data}
                     routeParams={{
+                      uid: id.uid,
+                      version: id.version || undefined,
                       blockRef: blockRef,
                       blockRange: blockRange,
                     }}

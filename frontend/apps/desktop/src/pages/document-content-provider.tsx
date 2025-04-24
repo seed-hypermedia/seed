@@ -38,6 +38,7 @@ export function AppDocContentProvider({
   const route = useNavRoute()
   const experiments = useExperiments()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  console.log(`=== route:`, docId)
   return (
     <>
       <DocContentProvider
@@ -82,7 +83,12 @@ export function AppDocContentProvider({
         }
         openUrl={openUrl}
         saveCidAsFile={saveCidAsFile}
-        routeParams={{}}
+        routeParams={{
+          uid: route.id?.uid || undefined,
+          version: route.id?.version || undefined,
+          blockRef: route.id?.blockRef || undefined,
+          blockRange: route.id?.blockRange || undefined,
+        }}
         {...overrides}
       >
         {children}

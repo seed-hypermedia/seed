@@ -3,7 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
-import {CommentsPanel} from '@/components/comments-panel'
+import {DiscussionsPanel} from '@/components/comments-panel'
 import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
@@ -115,7 +115,7 @@ export default function DocumentPage() {
     )
   } else if (route.accessory?.key === 'discussions') {
     accessory = (
-      <CommentsPanel
+      <DiscussionsPanel
         onClose={handleClose}
         docId={route.id}
         accessory={route.accessory}
@@ -812,6 +812,8 @@ function DocPageContent({
   return (
     <AppDocContentProvider
       routeParams={{
+        uid: route.id?.uid || undefined,
+        version: route.id?.version || undefined,
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}

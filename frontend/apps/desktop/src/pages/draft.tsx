@@ -360,7 +360,6 @@ function DocumentEditor({
         onPress={handleFocusAtMousePos}
       >
         <AppDocContentProvider
-          disableEmbedClick
           // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
           importWebFile={importWebFile}
         >
@@ -691,7 +690,6 @@ function NewSubDocumentButton({
 //         onPress={handleFocusAtMousePos}
 //       >
 //         <AppDocContentProvider
-//           disableEmbedClick
 //           // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
 //           importWebFile={importWebFile}
 //         >

@@ -4,6 +4,7 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
+  BlockRange,
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
@@ -355,6 +356,8 @@ function CommentDocContentProvider({
   handleFileAttachment,
   importWebFile,
   children,
+
+  routeParams,
 }: {
   children: React.ReactNode | JSX.Element
   // TODO: specify return type
@@ -362,18 +365,17 @@ function CommentDocContentProvider({
     file: Blob,
   ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
   importWebFile: any
-  comment?: boolean
   // siteHost: string | undefined
   // id: UnpackedHypermediaId
   // originHomeId: UnpackedHypermediaId
   // supportDocuments?: HMEntityContent[]
   // supportQueries?: HMQueryResult[]
-  // routeParams?: {
-  //   documentId?: string
-  //   version?: string
-  //   blockRef?: string
-  //   blockRange?: BlockRange
-  // }
+  routeParams?: {
+    uid?: string
+    version?: string
+    blockRef?: string
+    blockRange?: BlockRange
+  }
 }) {
   const openUrl = useOpenUrlWeb()
   // const importWebFile = trpc.webImporting.importWebFile.useMutation()
@@ -387,7 +389,6 @@ function CommentDocContentProvider({
         Query: QueryBlockWeb,
       }}
       importWebFile={importWebFile}
-      disableEmbedClick
       // entityId={id}
       // supportDocuments={supportDocuments}
       // supportQueries={supportQueries}
@@ -414,7 +415,7 @@ function CommentDocContentProvider({
       //     {replace: true, preventScrollReset: true},
       //   )
       // }}
-      // routeParams={routeParams}
+      routeParams={routeParams}
       openUrl={openUrl}
       handleFileAttachment={handleFileAttachment}
       debug={false}
