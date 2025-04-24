@@ -28,6 +28,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   mouseHoveredHyperlinkMark: Mark | PMNode | undefined
   mouseHoveredHyperlinkMarkRange: Range | undefined
 
+  public isHoveringToolbar = false
+
   keyboardHoveredHyperlinkMark: Mark | PMNode | undefined
   keyboardHoveredHyperlinkMarkRange: Range | undefined
 
@@ -50,6 +52,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     this.startMenuUpdateTimer = () => {
+      // console.log(this.isHoveringToolbar)
       this.menuUpdateTimer = setTimeout(() => {
         this.update()
       }, 250)
@@ -70,11 +73,118 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   }
 
   mouseOverHandler = (event: MouseEvent) => {
+    const target = event.target as HTMLElement
+
+    if (!target) return
+
+    // const smth = document.getElementsByClassName('switch-toolbar')
+
+    // // console.log(smth)
+    // if (smth.length > 0) return
+
+    // // console.log('mouseOver')
+
+    // if (target.closest('.switch-toolbar')) {
+    //   console.log('return in toolbar')
+    //   // Do NOT reset anything if we're hovering the toolbar itself
+    //   return
+    // }
+
+    if (this.isHoveringToolbar) return
+
     // Resets the hyperlink mark currently hovered by the mouse cursor.
     this.mouseHoveredHyperlinkMark = undefined
     this.mouseHoveredHyperlinkMarkRange = undefined
 
     this.stopMenuUpdateTimer()
+
+    const tiptap = this.editor._tiptapEditor
+    const editorElement = document.getElementsByClassName(
+      'mantine-Editor-root',
+    )[0]
+    const editorBoundingBox = editorElement.getBoundingClientRect()
+    const {state, view} = tiptap
+    if (target.closest('.link')) {
+      // Existing link hover logic
+      // console.log('link?', target)
+      const pos = view.posAtCoords({
+        left: editorBoundingBox.left + editorBoundingBox.width / 2,
+        top: event.clientY,
+      })
+      if (pos?.pos) {
+        const $pos = state.doc.resolve(pos.pos)
+        $pos.parent.descendants((child, childPos) => {
+          const linkMark = child.marks.find(
+            (mark) => mark.type.name === state.schema.mark('link').type.name,
+          )
+          // console.log(linkMark)
+          if (linkMark) {
+            const $childPos = state.doc.resolve(
+              childPos + $pos.start() + child.nodeSize,
+            )
+            // console.log($childPos, $pos, $childPos.parent)
+            // console.log(childPos, $pos.start(), child.text, child.nodeSize)
+            const markRange = getMarkRange(
+              $childPos,
+              linkMark.type,
+              linkMark.attrs,
+            )
+            this.mouseHoveredHyperlinkMark = linkMark
+            this.mouseHoveredHyperlinkMarkRange = markRange
+            // console.log(linkMark, markRange)
+          }
+        })
+      }
+    } else if (target.closest('.inline-embed-token')) {
+      const pos = view.posAtCoords({
+        left: editorBoundingBox.left + editorBoundingBox.width / 2,
+        top: event.clientY,
+      })
+      if (pos?.pos) {
+        const $pos = state.doc.resolve(pos.pos)
+        $pos.parent.descendants((child, childPos) => {
+          if (child.type.name === 'inline-embed') {
+            const $childPos = state.doc.resolve(
+              childPos + $pos.start() + child.nodeSize,
+            )
+            // console.log(childPos, $pos.start(), child.text, child.nodeSize)
+            const range = {from: $childPos.start(), to: $childPos.end()}
+            this.mouseHoveredHyperlinkMark = child
+            this.mouseHoveredHyperlinkMarkRange = range
+          }
+        })
+      }
+    } else if (target.closest('[data-content-type="button"]')) {
+      const pos = view.posAtCoords({
+        left: editorBoundingBox.left + editorBoundingBox.width / 2,
+        top: event.clientY,
+      })
+      if (pos?.pos) {
+        const $pos = state.doc.resolve(pos.pos)
+        if ($pos.parent.type.name === 'button') {
+          this.mouseHoveredHyperlinkMark = $pos.parent
+          this.mouseHoveredHyperlinkMarkRange = {
+            from: $pos.start(),
+            to: $pos.end(),
+          }
+        }
+      }
+    } else if (target.closest('[data-content-type="embed"]')) {
+      const pos = view.posAtCoords({
+        left: editorBoundingBox.left + editorBoundingBox.width / 2,
+        top: event.clientY,
+      })
+      if (pos?.pos) {
+        const $pos = state.doc.resolve(pos.pos)
+        if ($pos.parent.type.name === 'embed') {
+          this.mouseHoveredHyperlinkMark = $pos.parent
+          this.mouseHoveredHyperlinkMarkRange = {
+            from: $pos.start(),
+            to: $pos.end(),
+          }
+        }
+      }
+    }
 
     // const target = event.target
     // if (target instanceof HTMLSpanElement && target.nodeName === 'SPAN') {
@@ -270,6 +380,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       type: '',
       id: '',
     }
+    this.isHoveringToolbar = false
     this.updateHyperlinkToolbar()
   }
 
@@ -321,9 +432,9 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   }
 
   update() {
-    if (!this.pmView.hasFocus()) {
-      return
-    }
+    // if (!this.pmView.hasFocus()) {
+    //   return
+    // }
 
     // Saves the currently hovered hyperlink mark before it's updated.
     const prevHyperlinkMark = this.hyperlinkMark
@@ -407,13 +518,14 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           id: container ? container.attrs.id : '',
         }
       } else if (this.hyperlinkMark instanceof PMNode) {
-        const parent = this.pmView.state.selection.$anchor.parent
+        // const parent = this.pmView.state.selection.$anchor.parent
         this.hyperlinkToolbarState = {
-          show:
-            parent &&
-            this.pmView.state.doc
-              .resolve(this.hyperlinkMarkRange!.from)
-              .parent.eq(parent),
+          // show:
+          //   parent &&
+          //   this.pmView.state.doc
+          //     .resolve(this.hyperlinkMarkRange!.from)
+          //     .parent.eq(parent),
+          show: true,
           referencePos: posToDOMRect(
             this.pmView,
             this.hyperlinkMarkRange!.from,
@@ -431,12 +543,22 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       return
     }
 
+    // console.log(
+    //   prevHyperlinkMark,
+    //   this.hyperlinkMark,
+    //   this.hyperlinkToolbarState?.show,
+    // )
+
     // Hides menu.
     if (
       this.hyperlinkToolbarState?.show &&
-      prevHyperlinkMark &&
+      // prevHyperlinkMark &&
       (!this.hyperlinkMark || !this.editor.isEditable)
     ) {
+      // console.log('here', this.isHoveringToolbar)
+      if (this.isHoveringToolbar) {
+        return
+      }
       this.hyperlinkToolbarState.show = false
 
       this.updateHyperlinkToolbar()
@@ -475,6 +597,12 @@ export class HyperlinkToolbarProsemirrorPlugin<
 
   public onUpdate(callback: (state: HyperlinkToolbarState) => void) {
     return this.on('update', callback)
+  }
+
+  public setToolbarHovered = (hovered: boolean) => {
+    if (this.view) {
+      this.view.isHoveringToolbar = hovered
+    }
   }
 
   /**

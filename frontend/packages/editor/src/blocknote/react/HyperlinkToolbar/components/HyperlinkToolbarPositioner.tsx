@@ -97,6 +97,9 @@ export const HyperlinkToolbarPositioner = <
         editor={props.editor}
         type={type}
         id={id}
+        setHovered={(hovering: boolean) =>
+          props.editor.hyperlinkToolbar.setToolbarHovered(hovering)
+        }
       />
     )
   }, [props.hyperlinkToolbar, props.editor, text, url, show])
@@ -110,7 +113,7 @@ export const HyperlinkToolbarPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'top'}
+      placement={'bottom'}
       zIndex={99998}
     />
   )
