@@ -52,7 +52,7 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       )
     },
     onSuccess: (data, {collaboratorAccountIds: count}) => {
-      toast.success(`Capabilit${count.length > 1 ? 'ies' : 'y'} added`),
+      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`),
         invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
