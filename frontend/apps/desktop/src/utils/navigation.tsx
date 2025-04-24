@@ -201,7 +201,7 @@ export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
     navRoute = {
       key: 'document',
       id: hmId('d', id.targetDocUid, {path: id.targetDocPath}),
-      accessory: {key: 'comments', openComment: id.uid},
+      accessory: {key: 'discussions', openComment: id.uid},
     }
   }
   return navRoute

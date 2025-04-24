@@ -6,7 +6,7 @@ import {
 } from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {DocumentCommentsAccessory, hmId, pluralS} from '@shm/shared'
+import {DocumentDiscussionsAccessory, hmId, pluralS} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -22,7 +22,6 @@ import {
   CommentDraft,
   CommentReplies,
   renderCommentContent,
-  RepliesEditor,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -36,14 +35,14 @@ function _CommentsPanel({
 }: {
   onClose?: () => void
   docId: UnpackedHypermediaId
-  accessory: DocumentCommentsAccessory
-  onAccessory: (acc: DocumentCommentsAccessory) => void
+  accessory: DocumentDiscussionsAccessory
+  onAccessory: (acc: DocumentDiscussionsAccessory) => void
 }) {
   if (openComment) {
     return (
       <CommentReplyAccessory
         docId={docId}
-        onBack={() => onAccessory({key: 'comments'})}
+        onBack={() => onAccessory({key: 'discussions'})}
         commentId={openComment}
       />
     )
@@ -54,7 +53,7 @@ function _CommentsPanel({
         docId={docId}
         blockId={openBlockId}
         autoFocus={autoFocus}
-        onBack={() => onAccessory({key: 'comments'})}
+        onBack={() => onAccessory({key: 'discussions'})}
       />
     )
   }
@@ -90,7 +89,6 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
                 isLastGroup={cg === commentGroups.data?.at(-1)}
                 authors={authors}
                 renderCommentContent={renderCommentContent}
-                RepliesEditor={RepliesEditor}
                 CommentReplies={CommentReplies}
               />
             </YStack>
@@ -126,7 +124,7 @@ function CommentBlockAccessory({
   const accounts = useAccountsMetadata(Array.from(accountIds))
   return (
     <AccessoryContainer
-      title={`Comments`}
+      title="Discussions"
       footer={
         <View padding="$3">
           <CommentDraft
@@ -137,7 +135,7 @@ function CommentBlockAccessory({
         </View>
       }
     >
-      <AccessoryBackButton onPress={onBack} label="Block Comments" />
+      <AccessoryBackButton onPress={onBack} label="All Discussions" />
       <QuotedDocBlock docId={docId} blockId={blockId} />
       {citationsForBlock?.map((citation) => {
         return (
@@ -216,7 +214,7 @@ function CommentReplyAccessory({
         </View>
       }
     >
-      <AccessoryBackButton onPress={onBack} />
+      <AccessoryBackButton onPress={onBack} label="All Discussions" />
       {comment.data ? (
         <Comment
           comment={comment.data}
@@ -227,7 +225,6 @@ function CommentReplyAccessory({
           isLast
           enableWebSigning={false}
           CommentReplies={CommentReplies}
-          RepliesEditor={RepliesEditor}
           enableReplies
           replyCount={replyCount}
           defaultExpandReplies

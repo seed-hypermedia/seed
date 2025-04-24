@@ -60,16 +60,16 @@ export type DocumentSuggestedChangesAccessory = z.infer<
   typeof documentSuggestedChangesAccessorySchema
 >
 
-export const documentCommentsAccessorySchema = z.object({
-  key: z.literal('comments'),
+export const documentDiscussionsAccessorySchema = z.object({
+  key: z.literal('discussions'),
   width: z.number().optional(),
   openComment: z.string().optional(),
   openBlockId: z.string().optional(),
   blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
 })
-export type DocumentCommentsAccessory = z.infer<
-  typeof documentCommentsAccessorySchema
+export type DocumentDiscussionsAccessory = z.infer<
+  typeof documentDiscussionsAccessorySchema
 >
 
 export const documentOptionsAccessorySchema = z.object({
@@ -86,14 +86,13 @@ export const documentRouteSchema = z.object({
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptTemplate: z.boolean().optional(),
-  tab: z.enum(['directory', 'discussion']).optional(), // directory is the default
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
       documentCitationsAccessorySchema,
       documentCollaboratorsAccessorySchema,
       documentSuggestedChangesAccessorySchema,
-      documentCommentsAccessorySchema,
+      documentDiscussionsAccessorySchema,
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
       documentOptionsAccessorySchema,
@@ -117,7 +116,7 @@ export const draftRouteSchema = z.object({
       documentCitationsAccessorySchema,
       documentCollaboratorsAccessorySchema,
       documentSuggestedChangesAccessorySchema,
-      documentCommentsAccessorySchema,
+      documentDiscussionsAccessorySchema,
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
       documentOptionsAccessorySchema,
@@ -186,7 +185,7 @@ export type DocAccessoryOption = {
     | 'versions'
     | 'collaborators'
     | 'suggested-changes'
-    | 'comments'
+    | 'discussions'
     | 'citations'
     | 'contacts'
     | 'all-documents'

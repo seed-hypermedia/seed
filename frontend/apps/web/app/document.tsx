@@ -880,7 +880,7 @@ function WebCitationsPanel({
         {blockId ? (
           <AccessoryBackButton
             onPress={() => setBlockId(null)}
-            label={`Block Citations`}
+            label="All Citations"
           />
         ) : null}
         {filteredCitations ? (

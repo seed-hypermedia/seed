@@ -12,7 +12,7 @@ export function AccessoryBackButton({
 }) {
   return (
     <StyledAccessoryBackButton icon={ChevronLeft} onPress={onPress}>
-      {label || 'All Comments'}
+      {label || 'Back'}
     </StyledAccessoryBackButton>
   )
 }

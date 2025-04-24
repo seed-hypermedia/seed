@@ -74,7 +74,7 @@ export function CitationsPanel({
     >
       {accessory.openBlockId ? (
         <AccessoryBackButton
-          label={`Block Citations`}
+          label="All Citations"
           onPress={() => onAccessory({...accessory, openBlockId: null})}
         />
       ) : null}

@@ -174,7 +174,7 @@ function EmbedWrapper({
                     path: id.targetDocPath,
                   }),
                   accessory: {
-                    key: 'comments',
+                    key: 'discussions',
                     openComment: id.uid,
                   },
                 })

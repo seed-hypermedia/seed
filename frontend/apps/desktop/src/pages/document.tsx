@@ -113,7 +113,7 @@ export default function DocumentPage() {
     accessory = (
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
     )
-  } else if (route.accessory?.key === 'comments') {
+  } else if (route.accessory?.key === 'discussions') {
     accessory = (
       <CommentsPanel
         onClose={handleClose}
@@ -161,8 +161,8 @@ export default function DocumentPage() {
   }
 
   accessoryOptions.push({
-    key: 'comments',
-    label: 'Comments',
+    key: 'discussions',
+    label: 'Discussions',
     icon: CommentsIcon,
   })
   accessoryOptions.push({
@@ -396,7 +396,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
         label="comment"
         count={commentCitations.length || 0}
         onPress={() => {
-          replace({...docRoute, accessory: {key: 'comments'}})
+          replace({...docRoute, accessory: {key: 'discussions'}})
         }}
         icon={MessageSquare}
       />
@@ -849,7 +849,7 @@ function DocPageContent({
             blockRange,
           },
           accessory: {
-            key: 'comments',
+            key: 'discussions',
             openBlockId: blockId,
             blockRange,
             autoFocus: true,
