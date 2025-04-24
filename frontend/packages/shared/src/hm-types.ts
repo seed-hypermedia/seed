@@ -5,7 +5,6 @@ import {
   type Block,
   type BlockNode,
   type Breadcrumb,
-  type Comment,
   type DeletedEntity,
   type Document,
   type DocumentChangeInfo,
@@ -598,9 +597,20 @@ export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
 
 export type HMDraft = HMDraftContent & HMListedDraft
 
-export type HMComment = Omit<PlainMessage<Comment>, 'content'> & {
-  content: HMBlockNode[]
-}
+export const HMCommentSchema = z.object({
+  id: z.string(),
+  author: z.string(),
+  targetAccount: z.string(),
+  targetPath: z.string(),
+  targetVersion: z.string(),
+  replyParent: z.string().optional(),
+  threadRoot: z.string().optional(),
+  capability: z.string().optional(),
+  content: z.array(HMBlockNodeSchema),
+  createTime: HMTimestampSchema,
+})
+
+export type HMComment = z.infer<typeof HMCommentSchema>
 
 export type HMDocumentOperation = HMDocumentOperationSetAttributes // | HMDocumentOperationReplaceBlock | HMDocumentOperationMoveBlock
 

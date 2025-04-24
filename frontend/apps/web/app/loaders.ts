@@ -30,7 +30,11 @@ import {
   unpackHmId,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
-import {HMAccountsMetadata, HMComment} from '@shm/shared/hm-types'
+import {
+  HMAccountsMetadata,
+  HMComment,
+  HMCommentSchema,
+} from '@shm/shared/hm-types'
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
@@ -66,6 +70,13 @@ export async function getMetadata(
   } catch (e) {
     return {id, metadata: {}}
   }
+}
+
+export async function getComment(id: string): Promise<HMComment> {
+  const rawDoc = await queryClient.comments.getComment({
+    id,
+  })
+  return HMCommentSchema.parse(rawDoc.toJson())
 }
 
 export type WebBaseDocumentPayload = {

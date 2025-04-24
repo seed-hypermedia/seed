@@ -1,7 +1,12 @@
 import {cborDecode, SignedComment} from '@/api'
 import {WebCommenting} from '@/client-lazy'
 import {WebDocContentProvider} from '@/doc-content-provider'
-import {getMetadata, getOriginRequestData, resolveHMDocument} from '@/loaders'
+import {
+  getComment,
+  getMetadata,
+  getOriginRequestData,
+  resolveHMDocument,
+} from '@/loaders'
 import {PageFooter} from '@/page-footer'
 import {WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
@@ -18,6 +23,7 @@ import {
   HMDocument,
   hmId,
   HMMetadata,
+  HMMetadataPayload,
   HMPublishableAnnotation,
   HMPublishableBlock,
   UnpackedHypermediaId,
@@ -43,12 +49,22 @@ type CommentPagePayload = {
   originHomeId: UnpackedHypermediaId | undefined
   originHomeMetadata: HMMetadata | undefined
   origin: string
+  replyComment?:
+    | {
+        comment: HMComment
+        author: HMMetadataPayload
+        replyCommentId: string
+        rootReplyCommentId: string
+      }
+    | undefined
 } & ReturnType<typeof getOriginRequestData>
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
   const config = await getConfig(parsedRequest.hostname)
   const targetStr = parsedRequest.searchParams.get('target')
+  const replyCommentId = parsedRequest.searchParams.get('reply')
+  const rootReplyCommentId = parsedRequest.searchParams.get('rootReply')
   const targetVersion = parsedRequest.searchParams.get('targetVersion')
   const targetIdBare = targetStr ? unpackHmId(`hm://${targetStr}`) : undefined
   const targetId = targetIdBare
@@ -77,12 +93,23 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const originHome = config?.registeredAccountUid
     ? await getMetadata(hmId('d', config.registeredAccountUid))
     : undefined
+  const replyComment = replyCommentId
+    ? await getComment(replyCommentId)
+    : undefined
   return wrapJSON({
     targetAuthors: Object.fromEntries(
       targetAuthors.map((author) => [author.id.uid, author]),
     ),
     targetDocument,
     targetId,
+    replyComment: replyComment
+      ? {
+          comment: replyComment,
+          author: await getMetadata(hmId('d', replyComment.author)),
+          replyCommentId: replyComment.id,
+          rootReplyCommentId: rootReplyCommentId ?? '',
+        }
+      : undefined,
     originHomeId: config?.registeredAccountUid
       ? hmId('d', config.registeredAccountUid)
       : undefined,
