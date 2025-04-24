@@ -207,10 +207,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		Icon value `json:"icon"`
 	}
 	if in.FullHistory {
-		return nil, fmt.Errorf("Full history search is not supported yet")
+		return nil, fmt.Errorf("full history search is not supported yet")
 	}
 	if in.IncludeBody {
-		return nil, fmt.Errorf("Full body search is not supported yet")
+		return nil, fmt.Errorf("full body search is not supported yet")
 	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
