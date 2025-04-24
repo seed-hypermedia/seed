@@ -69,7 +69,7 @@ export const HyperlinkToolbarPositioner = <
   )
 
   const hyperlinkToolbarElement = useMemo(() => {
-    if (!url || !text || !type || !id) {
+    if (!type || !id) {
       return null
     }
 
@@ -77,8 +77,8 @@ export const HyperlinkToolbarPositioner = <
 
     return (
       <HyperlinkToolbar
-        url={url}
-        text={text}
+        url={url ?? ''}
+        text={text ?? ''}
         editHyperlink={props.editor.hyperlinkToolbar.editHyperlink}
         updateHyperlink={props.editor.hyperlinkToolbar.updateHyperlink}
         deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}

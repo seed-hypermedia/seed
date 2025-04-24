@@ -1,7 +1,6 @@
 import {Block, BlockNoteEditor} from '@/blocknote'
 import {createReactBlockSpec} from '@/blocknote/react'
 import {useEmbedToolbarContext} from '@/embed-toolbar-context'
-import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
 import {LauncherItem, RecentLauncherItem, SwitcherItem} from '@/launcher-item'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
@@ -530,7 +529,7 @@ function EmbedControl({
       padding="$2"
       gap="$0.5"
     >
-      <HypermediaLinkSwitchToolbar
+      {/* <HypermediaLinkSwitchToolbar
         url={url}
         text={''}
         openUrl={openUrl}
@@ -557,7 +556,7 @@ function EmbedControl({
         type="embed"
         id={block.id}
         setHovered={setHovered}
-      />
+      /> */}
       {hasBlockRef ? (
         <Tooltip
           content={

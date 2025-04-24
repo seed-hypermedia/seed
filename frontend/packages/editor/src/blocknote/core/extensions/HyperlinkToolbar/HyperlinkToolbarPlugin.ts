@@ -6,6 +6,7 @@ import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
+import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 
 export type HyperlinkToolbarState = BaseUiElementState & {
@@ -163,9 +164,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         const $pos = state.doc.resolve(pos.pos)
         if ($pos.parent.type.name === 'button') {
           this.mouseHoveredHyperlinkMark = $pos.parent
+          const blockInfo = getBlockInfoFromPos(state, pos.pos)
           this.mouseHoveredHyperlinkMarkRange = {
-            from: $pos.start(),
-            to: $pos.end(),
+            from: blockInfo.blockContent.beforePos,
+            to: blockInfo.blockContent.afterPos,
           }
         }
       }
@@ -178,9 +180,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         const $pos = state.doc.resolve(pos.pos)
         if ($pos.parent.type.name === 'embed') {
           this.mouseHoveredHyperlinkMark = $pos.parent
+          const blockInfo = getBlockInfoFromPos(state, pos.pos)
           this.mouseHoveredHyperlinkMarkRange = {
-            from: $pos.start(),
-            to: $pos.end(),
+            from: blockInfo.blockContent.beforePos,
+            to: blockInfo.blockContent.afterPos,
           }
         }
       }
@@ -519,22 +522,60 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         }
       } else if (this.hyperlinkMark instanceof PMNode) {
         // const parent = this.pmView.state.selection.$anchor.parent
-        this.hyperlinkToolbarState = {
-          // show:
-          //   parent &&
-          //   this.pmView.state.doc
-          //     .resolve(this.hyperlinkMarkRange!.from)
-          //     .parent.eq(parent),
-          show: true,
-          referencePos: posToDOMRect(
-            this.pmView,
-            this.hyperlinkMarkRange!.from,
-            this.hyperlinkMarkRange!.to,
-          ),
-          url: this.hyperlinkMark!.attrs.link,
-          text: ' ',
-          type: 'mention',
-          id: container ? container.attrs.id : '',
+        if (this.hyperlinkMark.type.name === 'inline-embed')
+          this.hyperlinkToolbarState = {
+            // show:
+            //   parent &&
+            //   this.pmView.state.doc
+            //     .resolve(this.hyperlinkMarkRange!.from)
+            //     .parent.eq(parent),
+            show: true,
+            referencePos: posToDOMRect(
+              this.pmView,
+              this.hyperlinkMarkRange!.from,
+              this.hyperlinkMarkRange!.to,
+            ),
+            url: this.hyperlinkMark!.attrs.link,
+            text: ' ',
+            type: 'mention',
+            id: container ? container.attrs.id : '',
+          }
+        else if (this.hyperlinkMark.type.name === 'button') {
+          this.hyperlinkToolbarState = {
+            // show:
+            //   parent &&
+            //   this.pmView.state.doc
+            //     .resolve(this.hyperlinkMarkRange!.from)
+            //     .parent.eq(parent),
+            show: true,
+            referencePos: posToDOMRect(
+              this.pmView,
+              this.hyperlinkMarkRange!.from,
+              this.hyperlinkMarkRange!.to,
+            ),
+            url: this.hyperlinkMark!.attrs.url,
+            text: this.hyperlinkMark!.attrs.name,
+            type: 'button',
+            id: container ? container.attrs.id : '',
+          }
+        } else if (this.hyperlinkMark.type.name === 'embed') {
+          this.hyperlinkToolbarState = {
+            // show:
+            //   parent &&
+            //   this.pmView.state.doc
+            //     .resolve(this.hyperlinkMarkRange!.from)
+            //     .parent.eq(parent),
+            show: true,
+            referencePos: posToDOMRect(
+              this.pmView,
+              this.hyperlinkMarkRange!.from,
+              this.hyperlinkMarkRange!.to,
+            ),
+            url: this.hyperlinkMark!.attrs.url,
+            text: '',
+            type: 'embed',
+            id: container ? container.attrs.id : '',
+          }
         }
       }
 
