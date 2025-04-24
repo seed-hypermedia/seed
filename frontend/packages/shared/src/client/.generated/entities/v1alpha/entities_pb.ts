@@ -479,11 +479,11 @@ export class Entity extends Message<Entity> {
 
   /**
    * where the matching string is found in the content.
-   * This is a char offset in the content.
+   * This is a char offset in the content for each matching char.
    *
-   * @generated from field: int32 match_offset = 3;
+   * @generated from field: repeated int32 match_offset = 3;
    */
-  matchOffset = 0;
+  matchOffset: number[] = [];
 
   /**
    * The owner of the entity
@@ -516,7 +516,7 @@ export class Entity extends Message<Entity> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "match_offset", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "match_offset", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
     { no: 4, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },

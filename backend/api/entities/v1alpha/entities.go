@@ -179,6 +179,44 @@ func (task *discoveryTask) start(api *Server) {
 	}
 }
 
+var qGetFTS = dqb.Str(`
+WITH fts_data AS (
+SELECT
+    fts.raw_content,
+    fts.type,
+    fts.block_id,
+    resources.iri,
+    structural_blobs.ts,
+    fts.rank
+    
+FROM fts
+JOIN structural_blobs ON structural_blobs.id = fts.blob_id
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE fts.raw_content MATCH ':ftsStr' AND
+fts.type IN ('document', 'comment') ORDER BY rank
+)
+
+SELECT
+    fts_data.raw_content,
+    fts_data.type,
+	fts_data.block_id,
+    resources.iri,
+    public_keys.principal AS author,
+    blobs.codec,
+    blobs.multihash,
+    document_generations.metadata
+    
+FROM fts_data
+JOIN structural_blobs ON fts_data.ts = structural_blobs.ts
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN document_generations ON document_generations.resource = resources.id
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resources.iri IS NOT NULL
+ORDER BY fts_data.rank;`)
+
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg 
 	INNER JOIN resources r ON r.id = dg.resource 
@@ -192,10 +230,11 @@ var qGetParentsMetadata = dqb.Str(`
 
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
-	var names []string
+	var contents []string
 	var icons []string
 	var iris []string
 	var owners []string
+	var blockIDs []string
 	var limit = 30
 	type value struct {
 		Value string `json:"v"`
@@ -209,9 +248,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	if in.FullHistory {
 		return nil, fmt.Errorf("full history search is not supported yet")
 	}
-	if in.IncludeBody {
-		return nil, fmt.Errorf("full body search is not supported yet")
-	}
+
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var title title
@@ -219,7 +256,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
 				return nil
 			}
-			names = append(names, title.Name.Value)
+			contents = append(contents, title.Name.Value)
 			if err := json.Unmarshal(stmt.ColumnBytes(0), &icon); err != nil {
 				return nil
 			}
@@ -227,21 +264,55 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			iris = append(iris, stmt.ColumnText(1))
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
+			blockIDs = append(blockIDs, "")
 			return nil
 		})
 	}); err != nil {
 		return nil, err
 	}
-	matches := fuzzy.Find(in.Query, names)
+	var numTitles = len(contents)
+	var bodyMatches []fuzzy.Match
+	cleanQuery := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(in.Query, ",", ""), "$", ""), "^", ""), "*", "")
+	if in.IncludeBody {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
+				var icon icon
+				matchStr := stmt.ColumnText(0)
+				firstOffset := strings.Index(matchStr, in.Query)
+				if firstOffset == -1 {
+					return nil
+				}
+
+				contents = append(contents, matchStr)
+				if err := json.Unmarshal(stmt.ColumnBytes(7), &icon); err != nil {
+					return nil
+				}
+				icons = append(icons, icon.Icon.Value)
+				iris = append(iris, stmt.ColumnText(1))
+				//blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String()
+				blockIDs = append(blockIDs, stmt.ColumnText(2))
+				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
+				owners = append(owners, ownerID)
+				offsets := []int{firstOffset}
+				for i := firstOffset + 1; i < firstOffset+1+len(cleanQuery); i++ {
+					offsets = append(offsets, i)
+				}
+				bodyMatches = append(bodyMatches, fuzzy.Match{
+					Str:            matchStr,
+					Index:          len(contents) - 1,
+					Score:          1,
+					MatchedIndexes: offsets,
+				})
+				return nil
+			}, in.Query)
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	titleMatches := fuzzy.Find(in.Query, contents[:numTitles])
 	matchingEntities := []*entities.Entity{}
-	for i, match := range matches {
-		if match.Score < 0 {
-			limit++
-			continue
-		}
-		if i >= limit {
-			break
-		}
+	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
 		breadcrum := strings.Split(strings.TrimPrefix(iris[match.Index], "hm://"), "/")
 		var root string
@@ -274,14 +345,53 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}); err != nil {
 			return nil, err
 		}
+		return parentTitles, nil
+	}
+
+	for i, match := range titleMatches {
+		if match.Score < 0 {
+			limit++
+			continue
+		}
+		if i >= limit {
+			break
+		}
+
+		parentTitles, err := getParentsFcn(match)
+		if err != nil {
+			return nil, err
+		}
+
+		offsets := make([]int32, len(match.MatchedIndexes))
+		for j, off := range match.MatchedIndexes {
+			offsets[j] = int32(off)
+		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
 			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
+			MatchOffset: offsets,
 			Owner:       owners[match.Index]})
-		fmt.Println("Entity ID: ", iris[match.Index])
+	}
 
+	for _, match := range bodyMatches {
+		parentTitles, err := getParentsFcn(match)
+		if err != nil {
+			return nil, err
+		}
+
+		offsets := make([]int32, len(match.MatchedIndexes))
+		for j, off := range match.MatchedIndexes {
+			offsets[j] = int32(off)
+		}
+		matchingEntities = append(matchingEntities, &entities.Entity{
+			Id:          iris[match.Index],
+			Content:     match.Str,
+			ParentNames: parentTitles,
+			Icon:        icons[match.Index],
+			MatchOffset: offsets,
+			Owner:       owners[match.Index]})
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }

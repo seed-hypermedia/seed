@@ -533,8 +533,8 @@ type Entity struct {
 	// Body in the case of comments.
 	Content string `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
 	// where the matching string is found in the content.
-	// This is a char offset in the content.
-	MatchOffset int32 `protobuf:"varint,3,opt,name=match_offset,json=matchOffset,proto3" json:"match_offset,omitempty"`
+	// This is a char offset in the content for each matching char.
+	MatchOffset []int32 `protobuf:"varint,3,rep,packed,name=match_offset,json=matchOffset,proto3" json:"match_offset,omitempty"`
 	// The owner of the entity
 	Owner string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
 	// Icon of the document containing that entity
@@ -589,11 +589,11 @@ func (x *Entity) GetContent() string {
 	return ""
 }
 
-func (x *Entity) GetMatchOffset() int32 {
+func (x *Entity) GetMatchOffset() []int32 {
 	if x != nil {
 		return x.MatchOffset
 	}
-	return 0
+	return nil
 }
 
 func (x *Entity) GetOwner() string {
@@ -1387,7 +1387,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12!\n" +
-	"\fmatch_offset\x18\x03 \x01(\x05R\vmatchOffset\x12\x14\n" +
+	"\fmatch_offset\x18\x03 \x03(\x05R\vmatchOffset\x12\x14\n" +
 	"\x05owner\x18\x04 \x01(\tR\x05owner\x12\x12\n" +
 	"\x04icon\x18\x05 \x01(\tR\x04icon\x12!\n" +
 	"\fparent_names\x18\x06 \x03(\tR\vparentNames\"\x9f\x01\n" +
