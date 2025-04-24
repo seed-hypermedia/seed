@@ -7,13 +7,14 @@ import {
   getOriginRequestData,
   resolveHMDocument,
 } from '@/loaders'
+import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {WebSiteProvider} from '@/providers'
+import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
-import {LoaderFunctionArgs} from '@remix-run/node'
-import {useLoaderData, useSearchParams} from '@remix-run/react'
+import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
+import {MetaDescriptor, useLoaderData, useSearchParams} from '@remix-run/react'
 import {
   HMAccountsMetadata,
   HMAnnotation,
@@ -32,6 +33,7 @@ import {
 import {useEntity} from '@shm/shared/models/entity'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {NewspaperCard} from '@shm/ui/newspaper'
 import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
@@ -58,6 +60,24 @@ type CommentPagePayload = {
       }
     | undefined
 } & ReturnType<typeof getOriginRequestData>
+
+export const meta: MetaFunction = ({data}) => {
+  const {targetDocument, originHomeMetadata} = unwrap<CommentPagePayload>(data)
+  const meta: MetaDescriptor[] = []
+  const homeIcon = originHomeMetadata?.icon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(originHomeMetadata.icon), 'S')
+    : null
+  meta.push({
+    tagName: 'link',
+    rel: 'icon',
+    href: homeIcon || defaultSiteIcon,
+    type: 'image/png',
+  })
+  meta.push({
+    title: `Comment on ${targetDocument.metadata.name ?? 'Untitled Document'}`,
+  })
+  return meta
+}
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)

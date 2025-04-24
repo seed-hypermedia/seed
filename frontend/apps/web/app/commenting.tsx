@@ -8,7 +8,6 @@ import {
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
-  hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
   idToUrl,
   queryKeys,
@@ -29,6 +28,7 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {SizableText, Spinner, XStack, YStack} from 'tamagui'
+import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
 import {
@@ -60,16 +60,21 @@ export default function WebCommenting(props: WebCommentingProps) {
     return (
       <Button
         onPress={() => {
-          const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
-          url.searchParams.set(
-            'target',
-            `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
+          redirectToWebIdentityCommenting(
+            props.docId,
+            props.replyCommentId,
+            props.rootReplyCommentId,
           )
-          url.searchParams.set('targetVersion', props.docId.version || '')
-          url.searchParams.set('reply', props.replyCommentId || '')
-          url.searchParams.set('rootReply', props.rootReplyCommentId || '')
-          url.searchParams.set('originUrl', window.location.toString())
-          window.open(url.toString(), '_blank')
+          // const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
+          // url.searchParams.set(
+          //   'target',
+          //   `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
+          // )
+          // url.searchParams.set('targetVersion', props.docId.version || '')
+          // url.searchParams.set('reply', props.replyCommentId || '')
+          // url.searchParams.set('rootReply', props.rootReplyCommentId || '')
+          // url.searchParams.set('originUrl', window.location.toString())
+          // window.open(url.toString(), '_blank')
         }}
       >
         {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}

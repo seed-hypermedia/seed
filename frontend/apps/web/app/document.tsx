@@ -43,9 +43,10 @@ import {Separator, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {OpenCommentPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
+import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
-import {addRecent, getRecents} from './local-db-recents'
+import {addRecent} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
 import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
@@ -193,11 +194,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   useEffect(() => {
     if (!id) return
-    addRecent(id.id, document?.metadata?.name || '').then(() => {
-      getRecents().then((recents) => {
-        console.log('added to recents', recents)
-      })
-    })
+    addRecent(id.id, document?.metadata?.name || '')
   }, [id, document?.metadata?.name])
 
   if (!id) return <NotFoundPage {...props} />
@@ -738,6 +735,17 @@ function DocumentActivity({
               enableReplies={enableReplies}
               RepliesEditor={CommentRepliesEditor}
               enableWebSigning={enableWebSigning}
+              onReplyClick={
+                !enableWebSigning && WEB_IDENTITY_ENABLED
+                  ? (replyCommentId, rootReplyCommentId) => {
+                      redirectToWebIdentityCommenting(
+                        id,
+                        replyCommentId,
+                        rootReplyCommentId,
+                      )
+                    }
+                  : undefined
+              }
             />
           )
         }

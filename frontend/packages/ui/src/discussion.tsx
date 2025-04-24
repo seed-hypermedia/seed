@@ -38,6 +38,7 @@ export function CommentGroup({
   renderCommentContent,
   RepliesEditor,
   CommentReplies,
+  onReplyClick,
   homeId,
   siteHost,
   rootReplyCommentId,
@@ -68,6 +69,7 @@ export function CommentGroup({
     homeId?: UnpackedHypermediaId
     siteHost?: string
   }>
+  onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
   homeId?: UnpackedHypermediaId
   siteHost?: string
   enableReplies?: boolean
@@ -107,6 +109,7 @@ export function CommentGroup({
             enableWebSigning={enableWebSigning}
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
+            onReplyClick={onReplyClick}
             enableReplies={enableReplies}
             homeId={homeId}
             siteHost={siteHost}
@@ -129,9 +132,9 @@ export function Comment({
   authorMetadata,
   renderCommentContent,
   RepliesEditor,
+  onReplyClick,
   CommentReplies,
   siteHost,
-  // onFocusComment,
   enableReplies = true,
   enableWebSigning = false,
   defaultExpandReplies = false,
@@ -143,7 +146,6 @@ export function Comment({
   isLast?: boolean
   isNested?: boolean
   rootReplyCommentId: string | null
-  // onFocusComment: () => void
   authorMetadata?: HMMetadata | null
   renderCommentContent: (comment: HMComment) => ReactNode
   homeId?: UnpackedHypermediaId
@@ -157,6 +159,7 @@ export function Comment({
     onSuccess: () => void
     enableWebSigning: boolean
   }>
+  onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
     replyCommentId: string
@@ -301,17 +304,17 @@ export function Comment({
                 </SizableText>
               </Button>
             ) : null}
-            {RepliesEditor && enableReplies ? (
+            {(RepliesEditor && enableReplies) || onReplyClick ? (
               <Button
                 chromeless
                 size="$1"
                 icon={<ReplyArrow color={theme.brand5.val} size={16} />}
                 onPress={() => {
-                  // if (onFocusComment) {
-                  //   onFocusComment()
-                  // } else {
-                  setIsReplying(true)
-                  // }
+                  if (onReplyClick) {
+                    onReplyClick(comment.id, rootReplyCommentId || comment.id)
+                  } else {
+                    setIsReplying(true)
+                  }
                 }}
                 color="$brand5"
                 borderColor="$colorTransparent"
