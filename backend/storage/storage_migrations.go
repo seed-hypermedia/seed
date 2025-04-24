@@ -63,7 +63,7 @@ var migrations = []migration{
 			CREATE VIRTUAL TABLE fts USING fts5(
 				raw_content, 
 				type, 
-				multihash,
+				blob_id,
 				block_id
 			);
 		`)); err != nil {

@@ -91,9 +91,9 @@ const (
 // Table fts.
 const (
 	Fts           sqlitegen.Table  = "fts"
+	FtsBlobID     sqlitegen.Column = "fts.blob_id"
 	FtsBlockID    sqlitegen.Column = "fts.block_id"
 	FtsFts        sqlitegen.Column = "fts.fts"
-	FtsMultihash  sqlitegen.Column = "fts.multihash"
 	FtsRank       sqlitegen.Column = "fts.rank"
 	FtsRawContent sqlitegen.Column = "fts.raw_content"
 	FtsType       sqlitegen.Column = "fts.type"
@@ -102,9 +102,9 @@ const (
 // Table fts. Plain strings.
 const (
 	T_Fts           = "fts"
+	C_FtsBlobID     = "fts.blob_id"
 	C_FtsBlockID    = "fts.block_id"
 	C_FtsFts        = "fts.fts"
-	C_FtsMultihash  = "fts.multihash"
 	C_FtsRank       = "fts.rank"
 	C_FtsRawContent = "fts.raw_content"
 	C_FtsType       = "fts.type"
@@ -439,9 +439,9 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		FtsBlobID:                               {Table: Fts, SQLType: ""},
 		FtsBlockID:                              {Table: Fts, SQLType: ""},
 		FtsFts:                                  {Table: Fts, SQLType: ""},
-		FtsMultihash:                            {Table: Fts, SQLType: ""},
 		FtsRank:                                 {Table: Fts, SQLType: ""},
 		FtsRawContent:                           {Table: Fts, SQLType: ""},
 		FtsType:                                 {Table: Fts, SQLType: ""},
