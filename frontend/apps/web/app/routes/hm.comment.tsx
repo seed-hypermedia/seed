@@ -1,5 +1,6 @@
 import {cborDecode, SignedComment} from '@/api'
 import {WebCommenting} from '@/client-lazy'
+import {CommentReplies} from '@/comment-rendering'
 import {WebDocContentProvider} from '@/doc-content-provider'
 import {
   getComment,
@@ -147,6 +148,7 @@ export default function CreateComment() {
     originHomeId,
     siteHost,
     origin,
+    replyComment,
   } = unwrap<CommentPagePayload>(useLoaderData())
 
   const [params] = useSearchParams()
@@ -176,6 +178,24 @@ export default function CreateComment() {
     id: string
     raw: CommentPayload
   } | null>(null)
+
+  const renderCommentContent = useCallback(
+    (comment: HMComment) => {
+      return (
+        <WebDocContentProvider
+          key={comment.id}
+          originHomeId={originHomeId}
+          // id={id}
+          siteHost={siteHost}
+          comment={true}
+        >
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
+        </WebDocContentProvider>
+      )
+    },
+    [originHomeId],
+  )
+  console.log('replyComment', replyComment)
   if (!targetId) {
     return <Heading>Invalid target</Heading>
   }
@@ -202,6 +222,17 @@ export default function CreateComment() {
             }}
             accountsMetadata={targetAuthors}
           />
+          {replyComment ? (
+            <Comment
+              comment={replyComment.comment}
+              docId={targetId}
+              rootReplyCommentId={rootReplyCommentId}
+              renderCommentContent={renderCommentContent}
+              enableWebSigning={false}
+              authorMetadata={replyComment.author.metadata}
+              CommentReplies={CommentReplies}
+            />
+          ) : null}
           {publishedComment ? (
             <>
               <SyncCommentFeedback

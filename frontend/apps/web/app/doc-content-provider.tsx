@@ -29,7 +29,7 @@ export function WebDocContentProvider({
 }: {
   siteHost: string | undefined
   id?: UnpackedHypermediaId | undefined
-  originHomeId: UnpackedHypermediaId
+  originHomeId: UnpackedHypermediaId | undefined
   children: React.ReactNode | JSX.Element
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
