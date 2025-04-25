@@ -114,7 +114,7 @@ export const WEB_IDENTITY_ORIGIN =
 // when web identity is enabled, we will REDIRECT to web identity origin to sign comments
 // this will be enabled on all origins
 export const WEB_IDENTITY_ENABLED =
-  WEB_ENV.WEB_IDENTITY_ENABLED || process.env.SEED_IDENTITY_ENABLED === 'true'
+  WEB_ENV.WEB_IDENTITY_ENABLED || process.env.SEED_IDENTITY_ENABLED !== 'false' // ENABLED BY DEFAULT
 
 // this will be enabled when the web origin matches the SEED_BASE_URL, and passed to the client explicitly in props
 export const WEB_SIGNING_ENABLED = process.env.SEED_SIGNING_ENABLED === 'true'
