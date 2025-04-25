@@ -1,6 +1,6 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {useEntityCitations} from '@/models/citations'
-import {useComment} from '@/models/comments'
+import {useComment, useCommentReplies} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
@@ -24,7 +24,7 @@ import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {useMemo} from 'react'
 import {SizableText, Spinner, YStack} from 'tamagui'
-import {CommentReplies, renderCommentContent, RepliesEditor} from './commenting'
+import {renderCommentContent} from './commenting'
 
 export function CitationsPanel({
   entityId,
@@ -172,11 +172,15 @@ export function CommentCitationEntry({
     }
     return comment.data
   }, [comment.data, citationTargetFragment, citationTarget])
-  if (!comment.data) return null
-  const docId = hmId('d', comment.data.targetAccount, {
-    path: entityQueryPathToHmIdPath(comment.data.targetPath),
-    version: comment.data.targetVersion,
-  })
+  const docId = comment.data
+    ? hmId('d', comment.data.targetAccount, {
+        path: entityQueryPathToHmIdPath(comment.data.targetPath),
+        version: comment.data.targetVersion,
+      })
+    : undefined
+  const replies = useCommentReplies(citation.source.id.uid, docId)
+  console.log('~~ useCommentReplies', citation.source.id.uid, docId, replies)
+  if (!comment.data || !docId) return null
   if (!focusedComment) return null
   return (
     <Comment
@@ -189,17 +193,8 @@ export function CommentCitationEntry({
       rootReplyCommentId={comment.data.threadRoot ?? null}
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
-      replyCount={
-        // 9 // todo
-        // // isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
-        0
-      }
+      replyCount={replies.length}
       enableWebSigning={true}
-      RepliesEditor={RepliesEditor}
-      CommentReplies={CommentReplies}
-      // enableReplies={enableReplies}
-      // homeId={homeId}
-      // siteHost={siteHost}
       onReplyClick={onReplyClick}
       onReplyCountClick={onReplyCountClick}
     />

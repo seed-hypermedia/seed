@@ -9,7 +9,7 @@ import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentDiscussionsAccessory} from '@shm/shared'
+import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -19,7 +19,14 @@ import {CitationsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
-import {memo, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {Button, Separator, Spinner, View, XStack} from 'tamagui'
 import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContainer} from './accessory-sidebar'
@@ -388,13 +395,20 @@ function FocusedCommentReplies({
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const comments = useAllDocumentComments(docId)
+  useEffect(() => {
+    setIsOpen(defaultOpen)
+  }, [commentId, defaultOpen])
   const replies = useCommentGroups(comments.data, commentId)
   const commentAuthors = useCommentGroupAuthors(replies)
   if (!replies) return null
-  if (!isOpen)
+  if (!isOpen && replies.length > 0)
     return (
       <Button onPress={() => setIsOpen(true)} size="$2">
-        {`Show ${replies?.length} Replies`}
+        {`Show ${replies?.length} ${pluralS(
+          replies?.length,
+          'Reply',
+          'Replies',
+        )}`}
       </Button>
     )
   return (

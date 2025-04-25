@@ -57,16 +57,13 @@ export function useCommentGroups(
 
 export function useCommentReplies(
   targetCommentId: string,
-  targetDocId: UnpackedHypermediaId,
+  targetDocId: UnpackedHypermediaId | undefined,
 ) {
   const comments = useAllDocumentComments(targetDocId)
   return useMemo(() => {
-    let comment = comments.data?.find((c) => c.id === targetCommentId)
-    const thread = [comment]
-    while (comment) {
-      comment = comments.data?.find((c) => c.id === comment?.replyParent)
-      thread.unshift(comment)
-    }
+    const thread = comments.data?.filter(
+      (c) => c.replyParent === targetCommentId,
+    )
     return thread
   }, [comments.data, targetCommentId])
 }
