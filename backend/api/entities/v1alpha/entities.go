@@ -235,6 +235,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var iris []string
 	var owners []string
 	var blockIDs []string
+	var docIDs []string
 	var blobIDs []string
 	var contentType []string
 	var limit = 30
@@ -263,7 +264,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				return nil
 			}
 			icons = append(icons, icon.Icon.Value)
-			iris = append(iris, stmt.ColumnText(1))
+			iri := stmt.ColumnText(1)
+			iris = append(iris, iri)
+			docIDs = append(docIDs, iri)
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
 			blockIDs = append(blockIDs, "")
@@ -286,17 +289,32 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				if firstOffset == -1 {
 					return nil
 				}
-				//fmt.Println(len(matchStr), firstOffset, matchStr[:4], matchStr[firstOffset:])
-
+				var contextStart int
+				var contextEnd int = len(matchStr)
+				if firstOffset > 16 {
+					contextStart = firstOffset - 16
+				}
+				if firstOffset+len(cleanQuery) < len(matchStr)-32 {
+					contextEnd = firstOffset + len(cleanQuery) + 32
+				}
+				matchStr = matchStr[contextStart:contextEnd]
 				contents = append(contents, matchStr)
 				if err := json.Unmarshal(stmt.ColumnBytes(7), &icon); err != nil {
 					return nil
 				}
 				icons = append(icons, icon.Icon.Value)
-				iris = append(iris, stmt.ColumnText(3))
 				blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String()
 				blobIDs = append(blobIDs, blobID)
-				contentType = append(contentType, stmt.ColumnText(1))
+				cType := stmt.ColumnText(1)
+				iri := stmt.ColumnText(3)
+				docIDs = append(docIDs, iri)
+				if cType == "comment" {
+					iris = append(iris, "hm://c/"+blobID)
+				} else {
+					iris = append(iris, iri)
+					fmt.Println("matchStr", matchStr)
+				}
+				contentType = append(contentType, cType)
 				blockIDs = append(blockIDs, stmt.ColumnText(2))
 				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
 				owners = append(owners, ownerID)
@@ -311,7 +329,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					MatchedIndexes: offsets,
 				})
 				return nil
-			}, in.Query)
+			}, cleanQuery)
 		}); err != nil {
 			return nil, err
 		}
@@ -344,9 +362,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					return nil
 				}
 				parentTitles = append(parentTitles, title.Name.Value)
-				iris = append(iris, iri)
-				ownerID := core.Principal(stmt.ColumnBytes(2)).String()
-				owners = append(owners, ownerID)
 				return nil
 			}, root)
 		}); err != nil {
