@@ -243,6 +243,6 @@ CREATE VIRTUAL TABLE fts USING fts5(
     -- With the raw_contnet in it.
     blob_id,
     -- The ID of the block that contains the content. 
-    -- Only relevant on type=document
+    -- Only relevant on type=document,comment.
     block_id
 );
