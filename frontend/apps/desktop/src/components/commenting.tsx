@@ -199,6 +199,8 @@ function _CommentDraft({
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, undefined)
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
@@ -217,7 +219,18 @@ function _CommentDraft({
           setIsStartingComment(false)
         }}
         onSuccess={({id}) => {
-          console.log('=== ONSUCCESS NEW COMMENT ===', id)
+          if (route.key === 'document' && !!id) {
+            replace({
+              ...route,
+              id: {
+                ...route.id,
+              },
+              accessory: {
+                ...route.accessory,
+                openComment: id,
+              },
+            })
+          }
         }}
       />
     )
