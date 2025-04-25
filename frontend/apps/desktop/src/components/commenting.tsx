@@ -97,7 +97,7 @@ export function CommentReplies({
   const comments = commentGroupQueries.data
   const authors = useCommentGroupAuthors(comments)
   return (
-    <YStack>
+    <YStack paddingLeft={22}>
       {comments.map((commentGroup) => {
         return (
           <CommentGroup
@@ -154,7 +154,7 @@ export function RepliesEditor({
   docId: UnpackedHypermediaId
   replyCommentId: string
   onDiscardDraft: () => void
-  onSuccess: () => void
+  onSuccess: (commentId: {id: string}) => void
 }) {
   const isDark = useIsDark()
   const myAccountsQuery = useMyAccounts()
@@ -215,6 +215,9 @@ function _CommentDraft({
         replyCommentId={replyCommentId}
         onDiscardDraft={() => {
           setIsStartingComment(false)
+        }}
+        onSuccess={({id}) => {
+          console.log('=== ONSUCCESS NEW COMMENT ===', id)
         }}
       />
     )
@@ -281,7 +284,7 @@ function _CommentDraftEditor({
   autoFocus?: boolean
   replyCommentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
-  onSuccess?: () => void
+  onSuccess?: (commentId: {id: string}) => void
   quotingBlockId?: string
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =

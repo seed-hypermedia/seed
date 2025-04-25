@@ -239,7 +239,7 @@ function QuotedDocBlock({
     return <Spinner />
   }
   return (
-    <YStack marginLeft={12} bg="$brand12">
+    <YStack marginLeft={12} bg="$brand12" borderRadius="$2">
       <XStack
         borderRadius="$2"
         padding="$2"
@@ -314,6 +314,8 @@ function CommentReplyAccessory({
   isReplying?: boolean
 }) {
   const comment = useComment(hmId('c', commentId))
+
+  console.log(`== ~ comment:`, comment.data)
   const commentAuthor = useEntity(
     comment.data?.author ? hmId('d', comment.data?.author) : null,
   )
@@ -337,25 +339,28 @@ function CommentReplyAccessory({
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
-      {comment.data ? (
-        <Comment
-          comment={comment.data}
-          renderCommentContent={renderCommentContent}
-          docId={docId}
-          authorMetadata={commentAuthor.data?.document?.metadata}
-          rootReplyCommentId={null}
-          isLast
-          enableWebSigning={false}
-          CommentReplies={CommentReplies}
-          // enableReplies
-          replyCount={replyCount}
-          defaultExpandReplies
-          onReplyClick={onReplyClick}
-          // onReplyCountClick={onReplyCountClick}
-        />
-      ) : (
-        <Spinner />
-      )}
+      <YStack>
+        {comment.data ? (
+          <Comment
+            isFocused={true}
+            comment={comment.data}
+            renderCommentContent={renderCommentContent}
+            docId={docId}
+            authorMetadata={commentAuthor.data?.document?.metadata}
+            rootReplyCommentId={null}
+            isLast
+            enableWebSigning={false}
+            CommentReplies={CommentReplies}
+            // enableReplies
+            replyCount={replyCount}
+            defaultExpandReplies
+            onReplyClick={onReplyClick}
+            // onReplyCountClick={onReplyCountClick}
+          />
+        ) : (
+          <Spinner />
+        )}
+      </YStack>
     </AccessoryContainer>
   )
 }

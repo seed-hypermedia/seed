@@ -14,7 +14,7 @@ import {useTheme, View} from '@tamagui/core'
 import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {ReactNode, useState} from 'react'
+import {ReactNode, useEffect, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
@@ -58,7 +58,7 @@ export function CommentGroup({
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
-    onSuccess: () => void
+    onSuccess: (commentId: {id: string}) => void
     enableWebSigning: boolean
   }>
   CommentReplies: React.FC<{
@@ -126,6 +126,7 @@ export function CommentGroup({
 
 export function Comment({
   docId,
+  isFocused = false,
   comment,
   replyCount,
   isFirst = false,
@@ -144,6 +145,7 @@ export function Comment({
   enableWebSigning = false,
   defaultExpandReplies = false,
 }: {
+  isFocused?: boolean
   docId: UnpackedHypermediaId
   comment: HMComment
   replyCount?: number
@@ -161,7 +163,7 @@ export function Comment({
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
-    onSuccess: () => void
+    onSuccess: (commentId: {id: string}) => void
     enableWebSigning: boolean
   }>
   onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
@@ -194,6 +196,13 @@ export function Comment({
   )
   const theme = useTheme()
   const isDark = useIsDark()
+
+  useEffect(() => {
+    if (defaultExpandReplies !== showReplies) {
+      console.log('=== DEFAULT EXPAND REPLIES ===', defaultExpandReplies)
+      setShowReplies(defaultExpandReplies)
+    }
+  }, [defaultExpandReplies])
   return (
     <YStack>
       <View
@@ -221,7 +230,14 @@ export function Comment({
           borderBottomRightRadius={0}
         />
       ) : null}
-      <XStack gap="$2" padding="$2" group="item">
+      <XStack
+        gap="$2"
+        padding="$2"
+        borderRadius="$2"
+        group="item"
+        marginBottom={isFocused ? '$4' : 0}
+        bg={isFocused ? '$brand12' : 'transparent'}
+      >
         <Stack position="relative">
           <Stack
             position="absolute"
@@ -276,93 +292,95 @@ export function Comment({
             </Tooltip>
           </XStack>
           <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>
-          <XStack
-            ai="center"
-            gap="$2"
-            marginLeft={-4}
-            paddingVertical="$1"
-            marginBottom="$2"
-          >
-            {replyCount ? (
-              <Button
-                chromeless
-                size="$1"
-                icon={showReplies ? ChevronDown : ChevronRight}
-                color="$brand5"
-                borderColor="$colorTransparent"
-                hoverStyle={{
-                  bg: '$color4',
-                  borderColor: '$color5',
-                }}
-                focusStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                pressStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                onPress={() => {
-                  if (onReplyCountClick) {
-                    onReplyCountClick(
-                      comment.id,
-                      rootReplyCommentId || comment.id,
-                    )
-                  } else {
-                    setShowReplies(!showReplies)
-                  }
-                }}
-              >
-                <SizableText
+          {!isFocused && (
+            <XStack
+              ai="center"
+              gap="$2"
+              marginLeft={-4}
+              paddingVertical="$1"
+              marginBottom="$2"
+            >
+              {replyCount ? (
+                <Button
+                  chromeless
                   size="$1"
+                  icon={showReplies ? ChevronDown : ChevronRight}
                   color="$brand5"
-                  hoverStyle={{color: '$brand6'}}
-                  focusStyle={{color: '$brand7'}}
-                  pressStyle={{color: '$brand7'}}
+                  borderColor="$colorTransparent"
+                  hoverStyle={{
+                    bg: '$color4',
+                    borderColor: '$color5',
+                  }}
+                  focusStyle={{
+                    bg: '$color5',
+                    borderColor: '$color6',
+                  }}
+                  pressStyle={{
+                    bg: '$color5',
+                    borderColor: '$color6',
+                  }}
+                  onPress={() => {
+                    if (onReplyCountClick) {
+                      onReplyCountClick(
+                        comment.id,
+                        rootReplyCommentId || comment.id,
+                      )
+                    } else {
+                      setShowReplies(!showReplies)
+                    }
+                  }}
                 >
-                  Replies ({replyCount})
-                </SizableText>
-              </Button>
-            ) : null}
-            {(RepliesEditor && enableReplies) || onReplyClick ? (
-              <Button
-                chromeless
-                size="$1"
-                icon={<ReplyArrow color={theme.brand5.val} size={16} />}
-                onPress={() => {
-                  if (onReplyClick) {
-                    onReplyClick(comment.id, rootReplyCommentId || comment.id)
-                  } else {
-                    setIsReplying(true)
-                  }
-                }}
-                color="$brand5"
-                borderColor="$colorTransparent"
-                hoverStyle={{
-                  bg: '$color4',
-                  borderColor: '$color5',
-                }}
-                focusStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                pressStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-              >
-                <SizableText
+                  <SizableText
+                    size="$1"
+                    color="$brand5"
+                    hoverStyle={{color: '$brand6'}}
+                    focusStyle={{color: '$brand7'}}
+                    pressStyle={{color: '$brand7'}}
+                  >
+                    Replies ({replyCount})
+                  </SizableText>
+                </Button>
+              ) : null}
+              {(RepliesEditor && enableReplies) || onReplyClick ? (
+                <Button
+                  chromeless
                   size="$1"
+                  icon={<ReplyArrow color={theme.brand5.val} size={16} />}
+                  onPress={() => {
+                    if (onReplyClick) {
+                      onReplyClick(comment.id, rootReplyCommentId || comment.id)
+                    } else {
+                      setIsReplying(true)
+                    }
+                  }}
                   color="$brand5"
-                  hoverStyle={{color: '$brand6'}}
-                  focusStyle={{color: '$brand7'}}
-                  pressStyle={{color: '$brand7'}}
+                  borderColor="$colorTransparent"
+                  hoverStyle={{
+                    bg: '$color4',
+                    borderColor: '$color5',
+                  }}
+                  focusStyle={{
+                    bg: '$color5',
+                    borderColor: '$color6',
+                  }}
+                  pressStyle={{
+                    bg: '$color5',
+                    borderColor: '$color6',
+                  }}
                 >
-                  Reply
-                </SizableText>
-              </Button>
-            ) : null}
-          </XStack>
+                  <SizableText
+                    size="$1"
+                    color="$brand5"
+                    hoverStyle={{color: '$brand6'}}
+                    focusStyle={{color: '$brand7'}}
+                    pressStyle={{color: '$brand7'}}
+                  >
+                    Reply
+                  </SizableText>
+                </Button>
+              ) : null}
+            </XStack>
+          )}
         </YStack>
         {/* {onCopyReference && (
           <Tooltip content="Copy link to comment">
@@ -412,6 +430,7 @@ export function Comment({
           }}
         />
       ) : null}
+
       {showReplies ? (
         <CommentReplies
           docId={docId}
