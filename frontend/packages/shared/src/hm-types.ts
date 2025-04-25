@@ -603,7 +603,7 @@ export const HMCommentSchema = z.object({
   id: z.string(),
   author: z.string(),
   targetAccount: z.string(),
-  targetPath: z.string(),
+  targetPath: z.string().optional(),
   targetVersion: z.string(),
   replyParent: z.string().optional(),
   threadRoot: z.string().optional(),
