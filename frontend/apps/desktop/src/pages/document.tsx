@@ -30,6 +30,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   DocAccessoryOption,
+  DocumentRoute,
   getDocumentTitle,
   HMDocument,
   HMEntityContent,
@@ -65,7 +66,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquare, Plus} from '@tamagui/lucide-icons'
-import React, {ReactNode, useMemo, useRef} from 'react'
+import React, {ReactNode, useCallback, useMemo, useRef} from 'react'
 import {
   ButtonText,
   SizableText,
@@ -201,12 +202,19 @@ export default function DocumentPage() {
           <MainDocumentPage
             id={route.id}
             isBlockFocused={route.isBlockFocused || false}
-            onScrollParamSet={(isFrozen) => {
+            onScrollParamSet={useCallback((isFrozen) => {
               mainPanelRef.current?.style.setProperty(
                 'overflow',
                 isFrozen ? 'hidden' : 'auto',
               )
-            }}
+            }, [])}
+            isCommentingPanelOpen={route.accessory?.key === 'discussions'}
+            onAccessory={useCallback(
+              (accessory) => {
+                replace({...route, accessory})
+              },
+              [route, replace],
+            )}
           />
         </AccessoryLayout>
       </XStack>
@@ -241,10 +249,14 @@ function _MainDocumentPage({
   id,
   isBlockFocused,
   onScrollParamSet,
+  isCommentingPanelOpen,
+  onAccessory,
 }: {
   id: UnpackedHypermediaId
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
+  isCommentingPanelOpen: boolean
+  onAccessory: (accessory: DocumentRoute['accessory']) => void
 }) {
   const replace = useNavigate('replace')
   const entity = useSubscribedEntity(
@@ -356,7 +368,9 @@ function _MainDocumentPage({
               <DocPageAppendix
                 centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
                 metadata={metadata}
+                isCommentingPanelOpen={isCommentingPanelOpen}
                 docId={id}
+                onAccessory={onAccessory}
               />
             </DocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
@@ -883,16 +897,24 @@ function DocPageAppendix({
   docId,
   centered = false,
   metadata,
+  isCommentingPanelOpen,
+  onAccessory,
 }: {
   docId: UnpackedHypermediaId
   centered: boolean
   metadata?: HMMetadata
+  isCommentingPanelOpen: boolean
+  onAccessory: (accessory: DocumentRoute['accessory']) => void
 }) {
   return (
     <Container centered={centered}>
       {/* <Discussion docId={docId} /> */}
       {metadata && metadata.showActivity === false ? null : (
-        <DocumentActivity docId={docId} />
+        <DocumentActivity
+          docId={docId}
+          isCommentingPanelOpen={isCommentingPanelOpen}
+          onAccessory={onAccessory}
+        />
       )}
     </Container>
   )

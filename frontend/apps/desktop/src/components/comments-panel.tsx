@@ -347,11 +347,11 @@ function CommentReplyAccessory({
           isLast
           enableWebSigning={false}
           CommentReplies={CommentReplies}
-          enableReplies
+          // enableReplies
           replyCount={replyCount}
           defaultExpandReplies
           onReplyClick={onReplyClick}
-          onReplyCountClick={onReplyCountClick}
+          // onReplyCountClick={onReplyCountClick}
         />
       ) : (
         <Spinner />

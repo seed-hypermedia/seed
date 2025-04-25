@@ -12,6 +12,7 @@ import {
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
@@ -30,16 +31,44 @@ import {
   useCommentGroupAuthors,
 } from './commenting'
 
-export function DocumentActivity({docId}: {docId: UnpackedHypermediaId}) {
+export function DocumentActivity({
+  docId,
+  isCommentingPanelOpen,
+  onAccessory,
+}: {
+  docId: UnpackedHypermediaId
+  isCommentingPanelOpen: boolean
+  onAccessory: (accessory: DocumentRoute['accessory']) => void
+}) {
   return (
     <ActivitySection>
-      <ActivityList docId={docId} />
-      <CommentDraft docId={docId} />
+      <ActivityList
+        docId={docId}
+        onCommentFocus={
+          isCommentingPanelOpen
+            ? (commentId, isReplying) => {
+                onAccessory({
+                  key: 'discussions',
+                  openComment: commentId,
+                  openBlockId: undefined,
+                  isReplying,
+                })
+              }
+            : undefined
+        }
+      />
+      {isCommentingPanelOpen ? null : <CommentDraft docId={docId} />}
     </ActivitySection>
   )
 }
 
-function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
+function ActivityList({
+  docId,
+  onCommentFocus,
+}: {
+  docId: UnpackedHypermediaId
+  onCommentFocus?: (commentId: string, isReplying?: boolean) => void
+}) {
   const latestDoc = useEntity({...docId, version: null, latest: true})
   const latestDocChanges = new Set<string>(
     latestDoc?.data?.document?.version?.split('.') || [],
@@ -163,8 +192,22 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
                 isLastGroup={activityItem === activity[activity.length - 1]}
                 authors={authors}
                 renderCommentContent={renderCommentContent}
-                RepliesEditor={RepliesEditor}
+                RepliesEditor={onCommentFocus ? undefined : RepliesEditor}
                 CommentReplies={CommentReplies}
+                onReplyClick={
+                  onCommentFocus
+                    ? (replyCommentId) => {
+                        onCommentFocus(replyCommentId, true)
+                      }
+                    : undefined
+                }
+                onReplyCountClick={
+                  onCommentFocus
+                    ? (replyCommentId) => {
+                        onCommentFocus(replyCommentId, false)
+                      }
+                    : undefined
+                }
               />
             </YStack>
           )

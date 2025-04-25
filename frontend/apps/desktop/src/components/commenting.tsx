@@ -81,10 +81,17 @@ export function CommentReplies({
   docId,
   replyCommentId,
   rootReplyCommentId,
+  onReplyClick,
+  onReplyCountClick,
 }: {
   docId: UnpackedHypermediaId
   replyCommentId: string
   rootReplyCommentId: string | null
+  onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
+  onReplyCountClick?: (
+    replyCommentId: string,
+    rootReplyCommentId: string,
+  ) => void
 }) {
   const commentGroupQueries = useDocumentCommentGroups(docId, replyCommentId)
   const comments = commentGroupQueries.data
@@ -103,6 +110,8 @@ export function CommentReplies({
             isLastGroup={commentGroup === comments[comments.length - 1]}
             CommentReplies={CommentReplies}
             rootReplyCommentId={rootReplyCommentId}
+            onReplyClick={onReplyClick}
+            onReplyCountClick={onReplyCountClick}
           />
         )
       })}

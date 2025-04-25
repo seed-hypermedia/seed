@@ -176,6 +176,11 @@ export function Comment({
     homeId?: UnpackedHypermediaId
     siteHost?: string
     enableReplies?: boolean
+    onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
+    onReplyCountClick?: (
+      replyCommentId: string,
+      rootReplyCommentId: string,
+    ) => void
   }>
   siteHost?: string
   enableReplies?: boolean
@@ -319,7 +324,7 @@ export function Comment({
                 </SizableText>
               </Button>
             ) : null}
-            {RepliesEditor && enableReplies ? (
+            {(RepliesEditor && enableReplies) || onReplyClick ? (
               <Button
                 chromeless
                 size="$1"
@@ -415,6 +420,8 @@ export function Comment({
           homeId={homeId}
           siteHost={siteHost}
           enableReplies={enableReplies}
+          onReplyClick={onReplyClick}
+          onReplyCountClick={onReplyCountClick}
         />
       ) : null}
     </YStack>

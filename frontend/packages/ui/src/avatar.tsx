@@ -34,7 +34,7 @@ export function UIAvatar({
       height={size}
       borderRadius={borderRadius}
       overflow="hidden"
-      backgroundColor={url ? 'transparent' : avatarColor}
+      backgroundColor={url ? '$color1' : avatarColor}
       alignItems="center"
       justifyContent="center"
       position="relative"
