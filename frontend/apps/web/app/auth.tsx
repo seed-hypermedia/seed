@@ -671,10 +671,9 @@ export function AccountFooterActions() {
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
-  console.log('AccountFooterActions', userKeyPair?.id)
   if (!userKeyPair) return null
   return (
-    <XStack gap="$2">
+    <XStack gap="$2" flexWrap="wrap" maxWidth="100%" jc="flex-end">
       {ENABLE_EMAIL_NOTIFICATIONS && (
         <Button
           size="$2"

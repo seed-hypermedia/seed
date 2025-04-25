@@ -36,6 +36,7 @@ import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {NewspaperCard} from '@shm/ui/newspaper'
+import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
@@ -149,6 +150,7 @@ export default function CreateComment() {
     siteHost,
     origin,
     replyComment,
+    originHomeMetadata,
   } = unwrap<CommentPagePayload>(useLoaderData())
 
   const [params] = useSearchParams()
@@ -195,7 +197,6 @@ export default function CreateComment() {
     },
     [originHomeId],
   )
-  console.log('replyComment', replyComment)
   if (!targetId) {
     return <Heading>Invalid target</Heading>
   }
@@ -213,86 +214,112 @@ export default function CreateComment() {
       siteHost={siteHost}
     >
       <YStack ai="center" flex={1} minHeight="100vh">
-        <YStack flex={1} gap="$3" maxWidth={500} paddingTop="$4">
-          <NewspaperCard
-            id={targetId}
-            entity={{
-              id: targetId,
-              document: targetDocument,
-            }}
-            accountsMetadata={targetAuthors}
+        {originHomeMetadata && (
+          <SmallSiteHeader
+            originHomeMetadata={originHomeMetadata}
+            originHomeId={originHomeId}
+            siteHost={siteHost}
           />
-          {replyComment ? (
-            <Comment
-              comment={replyComment.comment}
-              docId={targetId}
-              rootReplyCommentId={rootReplyCommentId}
-              renderCommentContent={renderCommentContent}
-              enableWebSigning={false}
-              authorMetadata={replyComment.author.metadata}
-              CommentReplies={CommentReplies}
+        )}
+        <YStack
+          flex={1}
+          gap="$3"
+          width="100%"
+          maxWidth={600}
+          paddingTop="$4"
+          paddingHorizontal={0}
+        >
+          <View paddingHorizontal="$4">
+            <NewspaperCard
+              overflow="hidden"
+              id={targetId}
+              entity={{
+                id: targetId,
+                document: targetDocument,
+              }}
+              accountsMetadata={targetAuthors}
             />
-          ) : null}
-          {publishedComment ? (
-            <>
-              <SyncCommentFeedback
-                isLoading={syncComment.isLoading}
-                hostname={originUrlUrl?.hostname ?? ''}
-                error={syncComment.error?.message}
-                retry={retry}
-              />
-              <PublishedComment
-                commentId={publishedComment.id}
-                siteHost={siteHost}
-                comment={publishedComment.raw}
-                targetId={targetId}
+          </View>
+          <YStack flex={1} paddingHorizontal="$4">
+            {replyComment ? (
+              <Comment
+                isFirst={true}
+                isLast={!publishedComment}
+                comment={replyComment.comment}
+                docId={targetId}
                 rootReplyCommentId={rootReplyCommentId}
-                enableWebSigning={enableWebSigning}
-                originHomeId={originHomeId}
+                renderCommentContent={renderCommentContent}
+                enableWebSigning={false}
+                authorMetadata={replyComment.author.metadata}
+                CommentReplies={CommentReplies}
               />
-            </>
-          ) : null}
+            ) : null}
+            {publishedComment ? (
+              <>
+                <SyncCommentFeedback
+                  isLoading={syncComment.isLoading}
+                  hostname={originUrlUrl?.hostname ?? ''}
+                  // @ts-expect-error - error types are bad...
+                  error={syncComment.error?.message}
+                  retry={retry}
+                />
+                <PublishedComment
+                  commentId={publishedComment.id}
+                  siteHost={siteHost}
+                  comment={publishedComment.raw}
+                  targetId={targetId}
+                  rootReplyCommentId={rootReplyCommentId}
+                  enableWebSigning={enableWebSigning}
+                  originHomeId={originHomeId}
+                  isFirst={!replyComment}
+                  isLast={true}
+                />
+              </>
+            ) : null}
+          </YStack>
           {/* EXPANDING SPACE GOES HERE */}
           <View f={1} />
-          {publishedComment ? null : (
-            <WebCommenting
-              docId={targetId}
-              replyCommentId={replyCommentId}
-              rootReplyCommentId={rootReplyCommentId}
-              enableWebSigning={enableWebSigning}
-              commentingOriginUrl={originUrl}
-              onSuccess={(result) => {
-                if (originUrl) {
-                  setPublishedComment({
-                    id: result.response.commentId,
-                    raw: result.commentPayload,
-                  })
-                  function attemptSync() {
-                    syncComment.mutate({
-                      commentId: result.response.commentId,
-                      target: targetId.id,
-                      dependencies: result.response.dependencies,
+          <View paddingHorizontal="$4">
+            {publishedComment ? null : (
+              <WebCommenting
+                docId={targetId}
+                replyCommentId={replyCommentId}
+                rootReplyCommentId={rootReplyCommentId}
+                enableWebSigning={enableWebSigning}
+                commentingOriginUrl={originUrl}
+                onSuccess={(result) => {
+                  if (originUrl) {
+                    setPublishedComment({
+                      id: result.response.commentId,
+                      raw: result.commentPayload,
                     })
+                    function attemptSync() {
+                      syncComment.mutate({
+                        commentId: result.response.commentId,
+                        target: targetId.id,
+                        dependencies: result.response.dependencies,
+                      })
+                    }
+                    setRetry(() => attemptSync)
+                    attemptSync()
                   }
-                  setRetry(() => attemptSync)
-                  attemptSync()
-                }
-              }}
-            />
-          )}
-          {syncComment.isSuccess && originUrlUrl ? (
-            <Button
-              backgroundColor="$brand5"
-              hoverStyle={{backgroundColor: '$brand4'}}
-              focusStyle={{backgroundColor: '$brand4'}}
-              tag="a"
-              style={{textDecorationLine: 'none'}}
-              color="$color1"
-              href={originUrl}
-            >
-              {`Go back to ${originUrlUrl.hostname}`}
-            </Button>
-          ) : null}
+                }}
+              />
+            )}
+            {syncComment.isSuccess && originUrlUrl ? (
+              <Button
+                backgroundColor="$brand5"
+                hoverStyle={{backgroundColor: '$brand4'}}
+                focusStyle={{backgroundColor: '$brand4'}}
+                tag="a"
+                style={{textDecorationLine: 'none'}}
+                color="$color1"
+                href={originUrl}
+              >
+                {`Go back to ${originUrlUrl.hostname}`}
+              </Button>
+            ) : null}
+          </View>
           <PageFooter enableWebSigning={enableWebSigning} />
         </YStack>
       </YStack>
@@ -349,6 +376,8 @@ function PublishedComment({
   enableWebSigning,
   originHomeId,
   siteHost,
+  isFirst = true,
+  isLast = true,
 }: {
   commentId: string
   comment: CommentPayload
@@ -357,6 +386,8 @@ function PublishedComment({
   enableWebSigning: boolean
   originHomeId: UnpackedHypermediaId
   siteHost: string
+  isFirst: boolean
+  isLast: boolean
 }) {
   const rawComment = useMemo(() => {
     const c = cborDecode<SignedComment>(comment.comment)
@@ -366,9 +397,7 @@ function PublishedComment({
       signerId,
     }
   }, [comment])
-  console.log('rawComment', rawComment)
   const author = useEntity(rawComment.signerId)
-  console.log('author', author.data)
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -396,6 +425,8 @@ function PublishedComment({
       renderCommentContent={renderCommentContent}
       enableWebSigning={enableWebSigning}
       CommentReplies={() => null}
+      isFirst={isFirst}
+      isLast={isLast}
       authorMetadata={author.data?.document?.metadata ?? undefined}
     />
   )

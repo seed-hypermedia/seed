@@ -252,6 +252,26 @@ function NavItems({
   )
 }
 
+export function SmallSiteHeader({
+  originHomeMetadata,
+  originHomeId,
+  siteHost,
+}: {
+  originHomeMetadata: HMMetadata
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}) {
+  return (
+    <YStack backgroundColor="$backgroundStrong" ai="center" width="100vw">
+      <XStack maxWidth={600} width="100%">
+        <XStack paddingHorizontal="$4" paddingVertical="$2">
+          <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
+        </XStack>
+      </XStack>
+    </YStack>
+  )
+}
+
 function HeaderLinkItem({
   id,
   metadata,
