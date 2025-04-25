@@ -34,7 +34,10 @@ export const loader = async ({
       if (sourceId.type !== 'd') continue
 
       const targetFragment = parseFragment(mention.targetFragment)
-
+      const targetId = hmId(id.type, id.uid, {
+        path: id.path,
+        version: mention.targetVersion,
+      })
       const citation: HMCitation = {
         source: {
           id: sourceId,
@@ -43,19 +46,21 @@ export const loader = async ({
           time: mention.sourceBlob?.createTime,
         },
         targetFragment,
+        targetId,
         isExactVersion: mention.isExactVersion,
       }
       const document = await resolveHMDocument(sourceId)
       const author = citation.source.author
         ? await getMetadata(hmId('d', citation.source.author))
         : null
-      const documentCitation: HMDocumentCitation = {
-        ...citation,
-        document,
-        author,
+      if (document) {
+        const documentCitation: HMDocumentCitation = {
+          ...citation,
+          document,
+          author,
+        }
+        documentCitations.push(documentCitation)
       }
-
-      documentCitations.push(documentCitation)
     }
 
     result = documentCitations

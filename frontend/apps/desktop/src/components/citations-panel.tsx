@@ -7,10 +7,12 @@ import {
   DocumentCitationsAccessory,
   entityQueryPathToHmIdPath,
   hmId,
+  unpackHmId,
 } from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMCitation,
+  HMComment,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -20,6 +22,7 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
+import {useMemo} from 'react'
 import {SizableText, Spinner, YStack} from 'tamagui'
 import {CommentReplies, renderCommentContent, RepliesEditor} from './commenting'
 
@@ -144,12 +147,37 @@ export function CommentCitationEntry({
     rootReplyCommentId?: string | null,
   ) => void
 }) {
+  const citationTargetFragment = citation.targetFragment
+  const citationTarget = citation.targetId
   const comment = useComment(citation.source.id)
+  const focusedComment = useMemo(() => {
+    if (!comment.data) return comment.data
+    if (
+      comment.data.content.length === 1 &&
+      comment.data.content[0].block.type === 'Embed'
+    ) {
+      const firstBlockNode = comment.data.content[0]
+      const singleEmbedId = unpackHmId(firstBlockNode.block.link)
+      if (
+        firstBlockNode.children?.length &&
+        singleEmbedId?.type === citationTarget.type &&
+        singleEmbedId.id === citationTarget.id &&
+        singleEmbedId.blockRef === citationTargetFragment?.blockId
+      ) {
+        return {
+          ...comment.data,
+          content: firstBlockNode.children,
+        } satisfies HMComment
+      }
+    }
+    return comment.data
+  }, [comment.data, citationTargetFragment, citationTarget])
   if (!comment.data) return null
   const docId = hmId('d', comment.data.targetAccount, {
     path: entityQueryPathToHmIdPath(comment.data.targetPath),
     version: comment.data.targetVersion,
   })
+  if (!focusedComment) return null
   return (
     <Comment
       isFirst={false}
@@ -157,8 +185,8 @@ export function CommentCitationEntry({
       isNested={false}
       key={comment.data.id}
       docId={docId}
-      comment={comment.data}
-      rootReplyCommentId={comment.data.threadRoot}
+      comment={focusedComment}
+      rootReplyCommentId={comment.data.threadRoot ?? null}
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
       replyCount={

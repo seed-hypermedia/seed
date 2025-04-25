@@ -1,5 +1,5 @@
 import {grpcClient} from '@/grpc-client'
-import {BIG_INT, parseFragment, queryKeys, unpackHmId} from '@shm/shared'
+import {BIG_INT, hmId, parseFragment, queryKeys, unpackHmId} from '@shm/shared'
 import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
 
@@ -15,6 +15,10 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
       return results.mentions
         .map(({source, isExactVersion, ...mention}) => {
           const sourceId = unpackHmId(source)
+          const targetId = hmId(docId.type, docId.uid, {
+            path: docId.path,
+            version: mention.targetVersion,
+          })
           if (!sourceId) return null
           const targetFragment = parseFragment(mention.targetFragment)
           if (sourceId.type === 'c') {
@@ -27,6 +31,7 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
               },
               targetFragment,
               isExactVersion,
+              targetId,
             } satisfies HMCitation
           } else if (sourceId.type === 'd') {
             return {
@@ -38,6 +43,7 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
               },
               targetFragment,
               isExactVersion,
+              targetId,
             } satisfies HMCitation
           }
           return null

@@ -1803,7 +1803,6 @@ export function ContentEmbed({
 }) {
   const context = useDocContentContext()
 
-  console.log(`== ~ EmbedDocumentContent context:`, context)
   const embedData = useMemo(() => {
     const selectedBlock =
       props.blockRef && document?.content

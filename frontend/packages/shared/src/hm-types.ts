@@ -1056,6 +1056,7 @@ export const HMCitationSchema = z.object({
   ]),
   isExactVersion: z.boolean(),
   targetFragment: ParsedFragmentSchema.nullable(),
+  targetId: unpackedHmIdSchema,
 })
 export type HMCitation = z.infer<typeof HMCitationSchema>
 

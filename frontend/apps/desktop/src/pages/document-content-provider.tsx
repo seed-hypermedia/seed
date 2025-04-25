@@ -38,7 +38,6 @@ export function AppDocContentProvider({
   const route = useNavRoute()
   const experiments = useExperiments()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
-  console.log(`=== route:`, docId)
   return (
     <>
       <DocContentProvider
