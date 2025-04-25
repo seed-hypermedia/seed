@@ -28,11 +28,13 @@ import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Button, SizableText, Tooltip, View, XStack, YStack} from 'tamagui'
+import {Button, SizableText, View, XStack, YStack} from 'tamagui'
+import {useSizeObserver} from './app-embeds'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {
@@ -300,6 +302,11 @@ function _CommentDraftEditor({
   onSuccess?: (commentId: {id: string}) => void
   quotingBlockId?: string
 }) {
+  const [isHorizontal, setIsHorizontal] = useState(false)
+  const sizeObserverdRef = useSizeObserver((rect) => {
+    console.log('wrapperRect', rect.width)
+    setIsHorizontal(rect.width > 322)
+  })
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
       onDiscardDraft,
@@ -312,12 +319,15 @@ function _CommentDraftEditor({
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
   }, [autoFocus, editor])
+
   return (
     <YStack
+      ref={sizeObserverdRef}
       f={1}
       marginTop="$1"
       paddingHorizontal="$4"
       onPress={(e: GestureResponderEvent) => {
+        // @ts-expect-error fix this type in the future!
         const target = e.target as HTMLElement
 
         // Check if the clicked element is not an input, button, or textarea
@@ -345,44 +355,54 @@ function _CommentDraftEditor({
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </EmbedToolbarProvider>
       </AppDocContentProvider>
-      <XStack
-        jc="flex-end"
+      <View
+        alignSelf="flex-end"
+        maxWidth={320}
+        w="100%"
         gap="$2"
-        ai="center"
+        f={1}
+        flexDirection={isHorizontal ? 'row' : 'column'}
+        ai={isHorizontal ? 'center' : undefined}
         // paddingVertical="$2"
         // marginHorizontal="$4"
         // marginTop="$6"
       >
-        <AutosaveIndicator isSaved={isSaved} />
-        <SelectAccountDropdown
-          accounts={accounts}
-          account={account}
-          onSetAccount={onSetAccount}
-        />
-        <Button
-          size="$2"
-          // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
-          onPress={(e: GestureResponderEvent) => {
-            e.stopPropagation()
-            onSubmit()
-          }}
-          disabled={!isSaved.get()}
-        >
-          Publish
-        </Button>
-        <Tooltip content="Discard Comment Draft">
+        <XStack gap="$2" f={1}>
+          <AutosaveIndicator isSaved={isSaved} />
+          <SelectAccountDropdown
+            accounts={accounts}
+            account={account}
+            onSetAccount={onSetAccount}
+          />
+        </XStack>
+        <XStack gap="$2" f={1}>
           <Button
-            // marginLeft="$2"
+            flex={1}
+            w="100%"
             size="$2"
+            // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
             onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
-              onDiscard()
+              onSubmit()
             }}
-            theme="red"
-            icon={Trash}
-          />
-        </Tooltip>
-      </XStack>
+            disabled={!isSaved.get()}
+          >
+            Publish
+          </Button>
+          <Tooltip content="Discard Comment Draft">
+            <Button
+              // marginLeft="$2"
+              size="$2"
+              onPress={(e: GestureResponderEvent) => {
+                e.stopPropagation()
+                onDiscard()
+              }}
+              theme="red"
+              icon={Trash}
+            />
+          </Tooltip>
+        </XStack>
+      </View>
     </YStack>
   )
 }
@@ -392,6 +412,11 @@ function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
   const currentIsSaved = useStream(isSaved)
   return (
     <View
+      position="absolute"
+      top={0}
+      left={0}
+      x={-12}
+      y={10}
       backgroundColor={currentIsSaved ? '$colorTransparent' : '$yellow10'}
       width={autosaveIndicatorSize}
       height={autosaveIndicatorSize}
@@ -404,6 +429,7 @@ function SelectAccountDropdown({
   account,
   onSetAccount,
   accounts,
+  ...props
 }: {
   account: StateStream<string | null>
   onSetAccount: (account: string) => void
@@ -424,6 +450,7 @@ function SelectAccountDropdown({
   return (
     <SelectDropdown
       size="$2"
+      f={1}
       options={options}
       value={currentAccount}
       onValue={onSetAccount}

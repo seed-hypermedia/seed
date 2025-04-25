@@ -27,7 +27,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Button, Separator, Spinner, View, XStack} from 'tamagui'
+import {Button, SizableText, Spinner, View, XStack} from 'tamagui'
 import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
@@ -296,7 +296,7 @@ function QuotedDocBlock({
             chromeless
             hoverStyle={{bg: '$brand11'}}
             icon={expanded ? ChevronsUp : ChevronsDown}
-          ></Button>
+          />
         </Tooltip>
       )}
     </YStack>
@@ -364,8 +364,6 @@ function CommentReplyAccessory({
         />
       ) : null}
 
-      <Separator />
-
       <FocusedCommentReplies
         defaultOpen={!isReplying}
         docId={docId}
@@ -401,14 +399,15 @@ function FocusedCommentReplies({
   const replies = useCommentGroups(comments.data, commentId)
   const commentAuthors = useCommentGroupAuthors(replies)
   if (!replies) return null
-  if (!isOpen && replies.length > 0)
+  if (replies.length == 0) return null
+  if (!isOpen)
     return (
-      <Button onPress={() => setIsOpen(true)} size="$2">
-        {`Show ${replies?.length} ${pluralS(
+      <Button onPress={() => setIsOpen(true)} size="$1">
+        <SizableText size="$1">{`Show ${replies?.length} ${pluralS(
           replies?.length,
           'Reply',
           'Replies',
-        )}`}
+        )}`}</SizableText>
       </Button>
     )
   return (

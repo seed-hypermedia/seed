@@ -44,6 +44,7 @@ export function SelectDropdown<Options extends SelectOptions>({
       <Select.Trigger
         size={size}
         width={width}
+        f={1}
         iconAfter={ChevronDown}
         borderRadius="$3"
         borderWidth={1}
@@ -62,6 +63,7 @@ export function SelectDropdown<Options extends SelectOptions>({
                   {selectedOption.label}
                 </SizableText>
               </XStack>
+              <ChevronDown size={16} />
             </>
           ) : (
             <SizableText

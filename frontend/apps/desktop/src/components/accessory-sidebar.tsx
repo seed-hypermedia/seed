@@ -34,7 +34,7 @@ export function AccessoryContainer({
       <ScrollView f={1}>
         <YStack paddingVertical="$3" paddingHorizontal="$3" gap="$3">
           {title ? <AccessoryTitle title={title} /> : null}
-          <YStack gap="$5">{children}</YStack>
+          <YStack gap="$2">{children}</YStack>
         </YStack>
       </ScrollView>
       <YStack borderTopWidth={1} borderColor="$color6">
