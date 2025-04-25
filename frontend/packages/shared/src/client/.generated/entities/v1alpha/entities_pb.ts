@@ -468,12 +468,27 @@ export class Entity extends Message<Entity> {
   id = "";
 
   /**
+   * Blob Id of the resource containing the matching record.
+   *
+   * @generated from field: string blob_id = 2;
+   */
+  blobId = "";
+
+  /**
+   * In the case of documents and comments, the block id
+   * containing the entity.
+   *
+   * @generated from field: string block_id = 3;
+   */
+  blockId = "";
+
+  /**
    * Content of the entity, depending on the type:
    * Alias in the case of account.
    * Title/Body in the case of groups and documents.
    * Body in the case of comments.
    *
-   * @generated from field: string content = 2;
+   * @generated from field: string content = 4;
    */
   content = "";
 
@@ -481,28 +496,35 @@ export class Entity extends Message<Entity> {
    * where the matching string is found in the content.
    * This is a char offset in the content for each matching char.
    *
-   * @generated from field: repeated int32 match_offset = 3;
+   * @generated from field: repeated int64 match_offset = 5;
    */
-  matchOffset: number[] = [];
+  matchOffset: bigint[] = [];
 
   /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 4;
+   * @generated from field: string owner = 6;
    */
   owner = "";
 
   /**
+   * The type of the entity it coud be Title, Document or Comment
+   *
+   * @generated from field: string type = 7;
+   */
+  type = "";
+
+  /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 5;
+   * @generated from field: string icon = 8;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 6;
+   * @generated from field: repeated string parent_names = 9;
    */
   parentNames: string[] = [];
 
@@ -515,11 +537,14 @@ export class Entity extends Message<Entity> {
   static readonly typeName = "com.seed.entities.v1alpha.Entity";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "match_offset", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
-    { no: 4, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "match_offset", kind: "scalar", T: 3 /* ScalarType.INT64 */, repeated: true },
+    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
