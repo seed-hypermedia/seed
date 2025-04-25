@@ -14,14 +14,14 @@ import {SizableText} from '@tamagui/text'
 import React, {useMemo, useState} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
-import {Close, X} from './icons'
+import {Close, Menu, X} from './icons'
 import {
   DocNavigationDocument,
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
 } from './navigation'
-import {MobileSearch} from './search'
+import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {useIsDark} from './use-is-dark'
 
@@ -65,6 +65,24 @@ export function SiteHeader({
     : supportDocuments?.find(
         (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length,
       )
+  const headerSearch = (
+    <>
+      <Button
+        $gtSm={{display: 'none'}}
+        icon={<Menu size={20} />}
+        chromeless
+        size="$2"
+        onPress={() => {
+          setIsMobileMenuOpen(true)
+        }}
+      />
+      {originHomeId ? (
+        <XStack display="none" $gtSm={{display: 'flex'}}>
+          <HeaderSearch originHomeId={originHomeId} />
+        </XStack>
+      ) : null}
+    </>
+  )
   const isHomeDoc = !docId?.path?.length
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
@@ -109,6 +127,7 @@ export function SiteHeader({
                 metadata={homeDoc.document?.metadata}
               />
             </XStack>
+            {isCenterLayout ? headerSearch : null}
           </XStack>
           <XStack
             flex={1}
@@ -150,6 +169,8 @@ export function SiteHeader({
               ) : null}
             </XStack>
           </XStack>
+
+          {isCenterLayout ? null : headerSearch}
         </XStack>
       </YStack>
       {children}
