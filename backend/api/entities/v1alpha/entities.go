@@ -194,7 +194,7 @@ JOIN structural_blobs ON structural_blobs.id = fts.blob_id
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE fts.raw_content MATCH ':ftsStr' AND
+WHERE fts.raw_content MATCH :ftsStr AND
 fts.type IN ('document', 'comment') ORDER BY rank
 )
 
@@ -235,6 +235,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var iris []string
 	var owners []string
 	var blockIDs []string
+	var blobIDs []string
+	var contentType []string
 	var limit = 30
 	type value struct {
 		Value string `json:"v"`
@@ -265,6 +267,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
 			blockIDs = append(blockIDs, "")
+			blobIDs = append(blobIDs, "")
+			contentType = append(contentType, "title")
 			return nil
 		})
 	}); err != nil {
@@ -278,18 +282,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 				var icon icon
 				matchStr := stmt.ColumnText(0)
-				firstOffset := strings.Index(matchStr, in.Query)
+				firstOffset := strings.Index(strings.ToLower(matchStr), strings.ToLower(in.Query))
 				if firstOffset == -1 {
 					return nil
 				}
+				//fmt.Println(len(matchStr), firstOffset, matchStr[:4], matchStr[firstOffset:])
 
 				contents = append(contents, matchStr)
 				if err := json.Unmarshal(stmt.ColumnBytes(7), &icon); err != nil {
 					return nil
 				}
 				icons = append(icons, icon.Icon.Value)
-				iris = append(iris, stmt.ColumnText(1))
-				//blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String()
+				iris = append(iris, stmt.ColumnText(3))
+				blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String()
+				blobIDs = append(blobIDs, blobID)
+				contentType = append(contentType, stmt.ColumnText(1))
 				blockIDs = append(blockIDs, stmt.ColumnText(2))
 				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
 				owners = append(owners, ownerID)
@@ -362,13 +369,16 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			return nil, err
 		}
 
-		offsets := make([]int32, len(match.MatchedIndexes))
+		offsets := make([]int64, len(match.MatchedIndexes))
 		for j, off := range match.MatchedIndexes {
-			offsets[j] = int32(off)
+			offsets[j] = int64(off)
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
+			BlockId:     blockIDs[match.Index],
+			BlobId:      blobIDs[match.Index],
 			Content:     match.Str,
+			Type:        contentType[match.Index],
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
 			MatchOffset: offsets,
@@ -381,12 +391,15 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			return nil, err
 		}
 
-		offsets := make([]int32, len(match.MatchedIndexes))
+		offsets := make([]int64, len(match.MatchedIndexes))
 		for j, off := range match.MatchedIndexes {
-			offsets[j] = int32(off)
+			offsets[j] = int64(off)
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
+			BlockId:     blockIDs[match.Index],
+			BlobId:      blobIDs[match.Index],
+			Type:        contentType[match.Index],
 			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
