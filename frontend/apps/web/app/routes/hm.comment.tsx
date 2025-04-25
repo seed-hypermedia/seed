@@ -358,7 +358,7 @@ function SyncCommentFeedback({
       backgroundColor={bgColor}
     >
       <SizableText color={borderColor}>{statusText}</SizableText>
-      {isLoading && <Spinner />}
+      {isLoading && <Spinner width={20} height={20} />}
       {retry && !isLoading ? (
         <Button onPress={retry} size="$1" theme="red">
           Retry

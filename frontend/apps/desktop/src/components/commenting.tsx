@@ -320,7 +320,6 @@ function _CommentDraftEditor({
 }) {
   const [isHorizontal, setIsHorizontal] = useState(false)
   const sizeObserverdRef = useSizeObserver((rect) => {
-    console.log('wrapperRect', rect.width)
     setIsHorizontal(rect.width > 322)
   })
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
