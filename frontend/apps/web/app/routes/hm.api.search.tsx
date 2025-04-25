@@ -5,6 +5,7 @@ import {SearchPayload, unpackHmId} from '@shm/shared'
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url)
   const searchQuery = url.searchParams.get('q') || ''
+  const accountUid = url.searchParams.get('a') || ''
   const result = await queryClient.entities.searchEntities({
     query: searchQuery,
   })
@@ -23,6 +24,10 @@ export const loader = async ({request}: {request: Request}) => {
           }
         )
       })
-      .filter((result) => !!result),
+      .filter((result) => !!result)
+      .filter((result) => {
+        if (!accountUid) return true
+        return result.id.uid === accountUid
+      }),
   })
 }

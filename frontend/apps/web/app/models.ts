@@ -85,8 +85,8 @@ export function useActivity(
   return response
 }
 
-export function searchQuery(input: string) {
-  return queryAPI<SearchPayload>(`/hm/api/search?q=${input}`)
+export function searchQuery(input: string, accountUid?: string) {
+  return queryAPI<SearchPayload>(`/hm/api/search?q=${input}&a=${accountUid}`)
 }
 
 export function useCitations(id: UnpackedHypermediaId) {

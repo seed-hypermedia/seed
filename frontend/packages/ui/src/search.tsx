@@ -25,7 +25,10 @@ export function MobileSearch({
   originHomeId: UnpackedHypermediaId | null
 }) {
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(searchValue, {enabled: !!searchValue})
+  const searchResults = useSearch(searchValue, {
+    enabled: !!searchValue,
+    accountUid: originHomeId?.uid,
+  })
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
@@ -98,7 +101,10 @@ export function HeaderSearch({
 }) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(searchValue, {enabled: !!searchValue})
+  const searchResults = useSearch(searchValue, {
+    enabled: !!searchValue,
+    accountUid: originHomeId?.uid,
+  })
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
   const inputWrapperRef = useRef(null)

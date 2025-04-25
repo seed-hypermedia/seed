@@ -14,21 +14,25 @@ export type SearchPayload = {
   searchQuery: string
 }
 
-export let searchQuery: ((query: string) => Promise<SearchPayload>) | null =
-  null
+export let searchQuery:
+  | ((query: string, accountUid?: string) => Promise<SearchPayload>)
+  | null = null
 
 export function setSearchQuery(
-  handler: (query: string) => Promise<SearchPayload>,
+  handler: (query: string, accountUid?: string) => Promise<SearchPayload>,
 ) {
   searchQuery = handler
 }
 
-export function useSearch(query: string, opts?: {enabled?: boolean}) {
+export function useSearch(
+  query: string,
+  {enabled = true, accountUid}: {enabled?: boolean; accountUid?: string} = {},
+) {
   return useQuery({
-    queryKey: [queryKeys.SEARCH, query],
+    queryKey: [queryKeys.SEARCH, accountUid || null, query],
     queryFn: async () => {
       if (!searchQuery) throw new Error('searchQuery not injected')
-      const out = await searchQuery(query)
+      const out = await searchQuery(query, accountUid || undefined)
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       out.entities.forEach((result) => {
@@ -39,6 +43,6 @@ export function useSearch(query: string, opts?: {enabled?: boolean}) {
       })
       return {out, entities}
     },
-    enabled: opts?.enabled,
+    enabled,
   })
 }

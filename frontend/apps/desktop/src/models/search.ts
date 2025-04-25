@@ -6,23 +6,30 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 
-export async function querySearch(searchQuery: string): Promise<SearchPayload> {
+export async function querySearch(
+  searchQuery: string,
+  accountUid?: string,
+): Promise<SearchPayload> {
   const result = await grpcClient.entities.searchEntities({query: searchQuery})
   return {
     searchQuery,
     entities: result.entities
       .map((entity) => {
         const id = unpackHmId(entity.id)
-        return (
-          id && {
-            id,
-            title: entity.title,
-            parentNames: entity.parentNames,
-            icon: entity.icon,
-          }
-        )
+        return id
+          ? {
+              id,
+              title: entity.title,
+              parentNames: entity.parentNames,
+              icon: entity.icon,
+            }
+          : undefined
       })
-      .filter((result) => !!result),
+      .filter((result) => !!result)
+      .filter((result) => {
+        if (!accountUid) return true
+        return result.id.uid === accountUid
+      }),
   }
 }
 

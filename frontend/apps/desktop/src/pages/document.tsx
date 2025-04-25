@@ -494,7 +494,7 @@ function _AppDocSiteHeader({
   })
   return (
     <SiteHeader
-      originHomeId={null}
+      originHomeId={hmId('d', siteHomeEntity.id.uid)}
       items={navItems}
       docId={docId}
       isCenterLayout={
