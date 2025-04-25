@@ -27,7 +27,6 @@ import {
   CommentDraft,
   CommentReplies,
   renderCommentContent,
-  RepliesEditor,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -351,7 +350,6 @@ function CommentReplyAccessory({
           enableReplies
           replyCount={replyCount}
           defaultExpandReplies
-          RepliesEditor={RepliesEditor}
           onReplyClick={onReplyClick}
           onReplyCountClick={onReplyCountClick}
         />
