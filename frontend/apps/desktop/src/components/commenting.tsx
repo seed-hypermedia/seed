@@ -238,7 +238,7 @@ function _CommentDraft({
           setIsStartingComment(true)
         }}
       >
-        What are your thoughts?
+        Start a new Discussion
       </Button>
     )
   }

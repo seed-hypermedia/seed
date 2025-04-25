@@ -319,7 +319,7 @@ export function Comment({
                 </SizableText>
               </Button>
             ) : null}
-            {(RepliesEditor && enableReplies) || onReplyClick ? (
+            {RepliesEditor && enableReplies ? (
               <Button
                 chromeless
                 size="$1"

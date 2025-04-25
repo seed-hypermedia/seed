@@ -8,7 +8,7 @@ import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentDiscussionsAccessory, hmId, pluralS} from '@shm/shared'
+import {DocumentDiscussionsAccessory, hmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -120,10 +120,7 @@ function AllComments({
 
   return (
     <AccessoryContainer
-      title={`${commentGroups.data?.length} ${pluralS(
-        commentGroups.data?.length,
-        'Comment',
-      )}`}
+      title="Discussions"
       footer={
         <View paddingVertical="$2">
           <CommentDraft docId={docId} backgroundColor="$color1" />
