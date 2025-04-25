@@ -474,16 +474,37 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       }
     } else {
       const textNode = this.pmView.state.selection.$from.nodeAfter
-      if (textNode && textNode.type.name === 'inline-embed') {
-        if (
-          this.pmView.state.selection.to - this.pmView.state.selection.from ===
-          1
-        ) {
-          this.keyboardHoveredHyperlinkMark = textNode
-          this.keyboardHoveredHyperlinkMarkRange = {
-            from: this.pmView.state.selection.from,
-            to: this.pmView.state.selection.to,
-          }
+      if (textNode) {
+        switch (textNode.type.name) {
+          case 'inline-embed':
+            if (
+              this.pmView.state.selection.to -
+                this.pmView.state.selection.from ===
+              1
+            ) {
+              this.keyboardHoveredHyperlinkMark = textNode
+              this.keyboardHoveredHyperlinkMarkRange = {
+                from: this.pmView.state.selection.from,
+                to: this.pmView.state.selection.to,
+              }
+            }
+            break
+          case 'button':
+            this.keyboardHoveredHyperlinkMark = textNode
+            this.keyboardHoveredHyperlinkMarkRange = {
+              from: this.pmView.state.selection.from,
+              to: this.pmView.state.selection.to,
+            }
+            break
+          case 'embed':
+            this.keyboardHoveredHyperlinkMark = textNode
+            this.keyboardHoveredHyperlinkMarkRange = {
+              from: this.pmView.state.selection.from,
+              to: this.pmView.state.selection.to,
+            }
+            break
+          default:
+            break
         }
       }
     }
