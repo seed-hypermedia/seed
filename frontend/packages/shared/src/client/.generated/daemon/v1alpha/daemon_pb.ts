@@ -615,6 +615,96 @@ export class GetDeviceLinkSessionRequest extends Message<GetDeviceLinkSessionReq
 }
 
 /**
+ * Request to sign data.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SignDataRequest
+ */
+export class SignDataRequest extends Message<SignDataRequest> {
+  /**
+   * Required. Name of the signing key to use for signing.
+   *
+   * @generated from field: string signing_key_name = 1;
+   */
+  signingKeyName = "";
+
+  /**
+   * Required. Data to be signed.
+   *
+   * @generated from field: bytes data = 2;
+   */
+  data = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<SignDataRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SignDataRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SignDataRequest {
+    return new SignDataRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SignDataRequest {
+    return new SignDataRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SignDataRequest {
+    return new SignDataRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SignDataRequest | PlainMessage<SignDataRequest> | undefined, b: SignDataRequest | PlainMessage<SignDataRequest> | undefined): boolean {
+    return proto3.util.equals(SignDataRequest, a, b);
+  }
+}
+
+/**
+ * Response for signing data.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SignDataResponse
+ */
+export class SignDataResponse extends Message<SignDataResponse> {
+  /**
+   * Signature over the data.
+   *
+   * @generated from field: bytes signature = 1;
+   */
+  signature = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<SignDataResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SignDataResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "signature", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SignDataResponse {
+    return new SignDataResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SignDataResponse {
+    return new SignDataResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SignDataResponse {
+    return new SignDataResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SignDataResponse | PlainMessage<SignDataResponse> | undefined, b: SignDataResponse | PlainMessage<SignDataResponse> | undefined): boolean {
+    return proto3.util.equals(SignDataResponse, a, b);
+  }
+}
+
+/**
  * Information about the device link session.
  *
  * @generated from message com.seed.daemon.v1alpha.DeviceLinkSession

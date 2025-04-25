@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -143,6 +143,17 @@ export const Daemon = {
       name: "GetDeviceLinkSession",
       I: GetDeviceLinkSessionRequest,
       O: DeviceLinkSession,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Sign arbitrary data with an existing signing key.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SignData
+     */
+    signData: {
+      name: "SignData",
+      I: SignDataRequest,
+      O: SignDataResponse,
       kind: MethodKind.Unary,
     },
   }

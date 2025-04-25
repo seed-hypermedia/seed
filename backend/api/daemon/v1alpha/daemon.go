@@ -290,3 +290,28 @@ func (srv *Server) sessionToProto(sess devicelink.Session) *daemon.DeviceLinkSes
 
 	return pb
 }
+
+// SignData implements the corresponding gRPC method.
+func (srv *Server) SignData(ctx context.Context, in *daemon.SignDataRequest) (*daemon.SignDataResponse, error) {
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
+	}
+
+	if len(in.Data) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "data to sign is required")
+	}
+
+	keyPair, err := srv.store.KeyStore().GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "key %s: %v", in.SigningKeyName, err)
+	}
+
+	signature, err := keyPair.Sign(in.Data)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to sign data: %v", err)
+	}
+
+	return &daemon.SignDataResponse{
+		Signature: signature,
+	}, nil
+}

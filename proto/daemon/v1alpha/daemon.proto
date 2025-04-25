@@ -51,6 +51,9 @@ service Daemon {
 
   // Get the current device link session (if it exists).
   rpc GetDeviceLinkSession(GetDeviceLinkSessionRequest) returns (DeviceLinkSession);
+
+  // Sign arbitrary data with an existing signing key.
+  rpc SignData(SignDataRequest) returns (SignDataResponse);
 }
 
 // Request to generate mnemonic words.
@@ -140,6 +143,21 @@ message CreateDeviceLinkSessionRequest {
 
 // Request to get the device link session.
 message GetDeviceLinkSessionRequest {}
+
+// Request to sign data.
+message SignDataRequest {
+  // Required. Name of the signing key to use for signing.
+  string signing_key_name = 1;
+
+  // Required. Data to be signed.
+  bytes data = 2;
+}
+
+// Response for signing data.
+message SignDataResponse {
+  // Signature over the data.
+  bytes signature = 1;
+}
 
 // Information about the device link session.
 message DeviceLinkSession {
