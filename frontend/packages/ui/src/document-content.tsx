@@ -91,7 +91,7 @@ import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
 import {SeedHeading} from './heading'
-import {BlockQuote, Comment} from './icons'
+import {BlockQuote} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
@@ -356,7 +356,7 @@ export function DocContent({
             />
           </Tooltip>
         ) : null}
-        {onBlockComment ? (
+        {/* {onBlockComment ? (
           <Tooltip content="Add a Comment">
             <Button
               size="$2"
@@ -376,7 +376,7 @@ export function DocContent({
               }}
             />
           </Tooltip>
-        ) : null}
+        ) : null} */}
       </XStack>
       <BlocksContent
         blocks={displayBlocks}
