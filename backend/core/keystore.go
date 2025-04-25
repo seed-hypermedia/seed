@@ -69,7 +69,7 @@ func (ks *osKeyStore) GetKey(ctx context.Context, name string) (*KeyPair, error)
 
 	privBytes, ok := collection[name]
 	if !ok {
-		return nil, errKeyNotFound
+		return nil, fmt.Errorf("%s: %w", name, errKeyNotFound)
 	}
 
 	kp := new(KeyPair)
