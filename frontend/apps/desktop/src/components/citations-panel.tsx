@@ -133,9 +133,16 @@ function DocumentPreview({
 export function CommentCitationEntry({
   citation,
   accounts,
+  onReplyClick,
+  onReplyCountClick,
 }: {
   citation: HMCitation
   accounts: HMAccountsMetadata
+  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
+  onReplyCountClick: (
+    commentId: string,
+    rootReplyCommentId?: string | null,
+  ) => void
 }) {
   const comment = useComment(citation.source.id)
   if (!comment.data) return null
@@ -165,6 +172,8 @@ export function CommentCitationEntry({
       // enableReplies={enableReplies}
       // homeId={homeId}
       // siteHost={siteHost}
+      onReplyClick={onReplyClick}
+      onReplyCountClick={onReplyCountClick}
     />
   )
 }

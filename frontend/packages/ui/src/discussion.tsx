@@ -8,18 +8,16 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
-  useUniversalAppContext,
 } from '@shm/shared'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
-import {ChevronDown, ChevronRight, Link} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {ReactNode, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
-import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
@@ -39,6 +37,7 @@ export function CommentGroup({
   RepliesEditor,
   CommentReplies,
   onReplyClick,
+  onReplyCountClick,
   homeId,
   siteHost,
   rootReplyCommentId,
@@ -70,6 +69,10 @@ export function CommentGroup({
     siteHost?: string
   }>
   onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
+  onReplyCountClick?: (
+    replyCommentId: string,
+    rootReplyCommentId: string,
+  ) => void
   homeId?: UnpackedHypermediaId
   siteHost?: string
   enableReplies?: boolean
@@ -110,6 +113,7 @@ export function CommentGroup({
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
             onReplyClick={onReplyClick}
+            onReplyCountClick={onReplyCountClick}
             enableReplies={enableReplies}
             homeId={homeId}
             siteHost={siteHost}
@@ -133,6 +137,7 @@ export function Comment({
   renderCommentContent,
   RepliesEditor,
   onReplyClick,
+  onReplyCountClick,
   CommentReplies,
   siteHost,
   enableReplies = true,
@@ -160,6 +165,10 @@ export function Comment({
     enableWebSigning: boolean
   }>
   onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
+  onReplyCountClick?: (
+    replyCommentId: string,
+    rootReplyCommentId: string,
+  ) => void
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
     replyCommentId: string
@@ -172,9 +181,6 @@ export function Comment({
   enableReplies?: boolean
   defaultExpandReplies?: boolean
 }) {
-  // DISABLED COMMENT URL COPYINGc
-  const {onCopyReference} = useUniversalAppContext()
-
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isReplying, setIsReplying] = useState(false)
   const authorId = comment.author ? hmId('d', comment.author) : null
@@ -277,7 +283,6 @@ export function Comment({
                 chromeless
                 size="$1"
                 icon={showReplies ? ChevronDown : ChevronRight}
-                onPress={() => setShowReplies(!showReplies)}
                 color="$brand5"
                 borderColor="$colorTransparent"
                 hoverStyle={{
@@ -291,6 +296,16 @@ export function Comment({
                 pressStyle={{
                   bg: '$color5',
                   borderColor: '$color6',
+                }}
+                onPress={() => {
+                  if (onReplyCountClick) {
+                    onReplyCountClick(
+                      comment.id,
+                      rootReplyCommentId || comment.id,
+                    )
+                  } else {
+                    setShowReplies(!showReplies)
+                  }
                 }}
               >
                 <SizableText
@@ -344,7 +359,7 @@ export function Comment({
             ) : null}
           </XStack>
         </YStack>
-        {onCopyReference && (
+        {/* {onCopyReference && (
           <Tooltip content="Copy link to comment">
             <Button
               position="absolute"
@@ -374,7 +389,7 @@ export function Comment({
               icon={Link}
             ></Button>
           </Tooltip>
-        )}
+        )} */}
       </XStack>
       {RepliesEditor ? (
         <RepliesEditor
