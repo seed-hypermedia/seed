@@ -483,12 +483,20 @@ export class Entity extends Message<Entity> {
   blockId = "";
 
   /**
+   * In the case of comments, the document id
+   * containing the comment.
+   *
+   * @generated from field: string doc_id = 4;
+   */
+  docId = "";
+
+  /**
    * Content of the entity, depending on the type:
    * Alias in the case of account.
    * Title/Body in the case of groups and documents.
    * Body in the case of comments.
    *
-   * @generated from field: string content = 4;
+   * @generated from field: string content = 5;
    */
   content = "";
 
@@ -496,35 +504,35 @@ export class Entity extends Message<Entity> {
    * where the matching string is found in the content.
    * This is a char offset in the content for each matching char.
    *
-   * @generated from field: repeated int64 match_offset = 5;
+   * @generated from field: repeated int64 match_offset = 6;
    */
   matchOffset: bigint[] = [];
 
   /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 6;
+   * @generated from field: string owner = 7;
    */
   owner = "";
 
   /**
    * The type of the entity it coud be Title, Document or Comment
    *
-   * @generated from field: string type = 7;
+   * @generated from field: string type = 8;
    */
   type = "";
 
   /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 8;
+   * @generated from field: string icon = 9;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 9;
+   * @generated from field: repeated string parent_names = 10;
    */
   parentNames: string[] = [];
 
@@ -539,12 +547,13 @@ export class Entity extends Message<Entity> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "match_offset", kind: "scalar", T: 3 /* ScalarType.INT64 */, repeated: true },
-    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "match_offset", kind: "scalar", T: 3 /* ScalarType.INT64 */, repeated: true },
+    { no: 7, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
