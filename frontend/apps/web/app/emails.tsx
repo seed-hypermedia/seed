@@ -125,11 +125,10 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
       </MjmlBody>
     </Mjml>,
   )
-  console.log('Sending email to', email, 'with text:\n', text)
 
   await sendEmail(
     email,
-    'DEV_' + subject,
+    subject,
     {text, html},
     `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`,
   )
@@ -184,7 +183,6 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
       </MjmlBody>
     </Mjml>,
   )
-  console.log('Sending email to', email, 'with text:\n ' + text)
 
   await sendEmail(
     email,

@@ -48,7 +48,5 @@ export async function sendEmail(
     html: body.html,
   })
 
-  console.log('Email sent to %s (%s)', to, info.messageId)
-
   return info
 }
