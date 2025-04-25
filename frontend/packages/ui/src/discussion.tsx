@@ -43,6 +43,7 @@ export function CommentGroup({
   rootReplyCommentId,
   enableReplies = true,
   enableWebSigning = false,
+  highlightLastComment = false,
 }: {
   docId: UnpackedHypermediaId
   commentGroup: HMCommentGroup
@@ -61,7 +62,7 @@ export function CommentGroup({
     onSuccess: (commentId: {id: string}) => void
     enableWebSigning: boolean
   }>
-  CommentReplies: React.FC<{
+  CommentReplies?: React.FC<{
     docId: UnpackedHypermediaId
     replyCommentId: string
     rootReplyCommentId: string
@@ -77,6 +78,7 @@ export function CommentGroup({
   siteHost?: string
   enableReplies?: boolean
   enableWebSigning?: boolean
+  highlightLastComment?: boolean
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
@@ -117,6 +119,7 @@ export function CommentGroup({
             enableReplies={enableReplies}
             homeId={homeId}
             siteHost={siteHost}
+            highlight={highlightLastComment && isLastCommentInGroup}
           />
         )
       })}
@@ -126,7 +129,6 @@ export function CommentGroup({
 
 export function Comment({
   docId,
-  isFocused = false,
   comment,
   replyCount,
   isFirst = false,
@@ -144,8 +146,8 @@ export function Comment({
   enableReplies = true,
   enableWebSigning = false,
   defaultExpandReplies = false,
+  highlight = false,
 }: {
-  isFocused?: boolean
   docId: UnpackedHypermediaId
   comment: HMComment
   replyCount?: number
@@ -171,7 +173,7 @@ export function Comment({
     replyCommentId: string,
     rootReplyCommentId: string,
   ) => void
-  CommentReplies: React.FC<{
+  CommentReplies?: React.FC<{
     docId: UnpackedHypermediaId
     replyCommentId: string
     rootReplyCommentId: string
@@ -187,6 +189,7 @@ export function Comment({
   siteHost?: string
   enableReplies?: boolean
   defaultExpandReplies?: boolean
+  highlight?: boolean
 }) {
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isReplying, setIsReplying] = useState(false)
@@ -233,10 +236,9 @@ export function Comment({
       <XStack
         gap="$2"
         padding="$2"
-        borderRadius="$2"
         group="item"
-        marginBottom={isFocused ? '$4' : 0}
-        bg={isFocused ? '$brand12' : 'transparent'}
+        backgroundColor={highlight ? '$brand12' : undefined}
+        borderRadius={'$2'}
       >
         <Stack position="relative">
           <Stack
@@ -292,7 +294,7 @@ export function Comment({
             </Tooltip>
           </XStack>
           <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>
-          {!isFocused && (
+          {
             <XStack
               ai="center"
               gap="$2"
@@ -380,7 +382,7 @@ export function Comment({
                 </Button>
               ) : null}
             </XStack>
-          )}
+          }
         </YStack>
         {/* {onCopyReference && (
           <Tooltip content="Copy link to comment">
@@ -430,8 +432,7 @@ export function Comment({
           }}
         />
       ) : null}
-
-      {showReplies ? (
+      {showReplies && CommentReplies ? (
         <CommentReplies
           docId={docId}
           replyCommentId={comment.id}

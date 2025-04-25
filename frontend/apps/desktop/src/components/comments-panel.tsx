@@ -1,18 +1,14 @@
 import {useEntityCitations} from '@/models/citations'
-import {
-  useAllDocumentComments,
-  useComment,
-  useDocumentCommentGroups,
-} from '@/models/comments'
+import {useCommentParents, useDocumentCommentGroups} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocumentDiscussionsAccessory, hmId} from '@shm/shared'
+import {DocumentDiscussionsAccessory} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
-import {Comment, CommentGroup} from '@shm/ui/discussion'
+import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {CitationsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -313,16 +309,13 @@ function CommentReplyAccessory({
   ) => void
   isReplying?: boolean
 }) {
-  const comment = useComment(hmId('c', commentId))
-
-  console.log(`== ~ comment:`, comment.data)
-  const commentAuthor = useEntity(
-    comment.data?.author ? hmId('d', comment.data?.author) : null,
+  const parentThread = useCommentParents(docId, commentId)
+  const commentAuthors = useAccountsMetadata(
+    useMemo(() => {
+      return parentThread?.map((doc) => doc.author) || []
+    }, [parentThread]),
   )
-  const allComments = useAllDocumentComments(docId)
-  const replyCount = useMemo(() => {
-    return allComments.data?.filter((c) => c.replyParent === commentId).length
-  }, [allComments.data, commentId])
+  const rootCommentId = parentThread?.at(0)?.id
   return (
     <AccessoryContainer
       title="Comment"
@@ -339,28 +332,25 @@ function CommentReplyAccessory({
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
-      <YStack>
-        {comment.data ? (
-          <Comment
-            isFocused={true}
-            comment={comment.data}
-            renderCommentContent={renderCommentContent}
-            docId={docId}
-            authorMetadata={commentAuthor.data?.document?.metadata}
-            rootReplyCommentId={null}
-            isLast
-            enableWebSigning={false}
-            CommentReplies={CommentReplies}
-            // enableReplies
-            replyCount={replyCount}
-            defaultExpandReplies
-            onReplyClick={onReplyClick}
-            // onReplyCountClick={onReplyCountClick}
-          />
-        ) : (
-          <Spinner />
-        )}
-      </YStack>
+
+      {rootCommentId && parentThread ? (
+        <CommentGroup
+          docId={docId}
+          commentGroup={{
+            id: rootCommentId,
+            comments: parentThread,
+            moreCommentsCount: 0,
+            type: 'commentGroup',
+          }}
+          isLastGroup
+          authors={commentAuthors}
+          renderCommentContent={renderCommentContent}
+          rootReplyCommentId={null}
+          highlightLastComment
+          onReplyClick={onReplyClick}
+          onReplyCountClick={onReplyCountClick}
+        />
+      ) : null}
     </AccessoryContainer>
   )
 }

@@ -142,6 +142,31 @@ export function useAllDocumentComments(
   })
 }
 
+export function useCommentParents(
+  docId: UnpackedHypermediaId,
+  focusedCommentId: string,
+) {
+  const comments = useAllDocumentComments(docId)
+  return useMemo(() => {
+    const focusedComment = comments.data?.find((c) => c.id === focusedCommentId)
+    if (!focusedComment) return null
+    let selectedComment: HMComment | null = focusedComment
+    const parentThread: HMComment[] = [focusedComment]
+    while (selectedComment?.replyParent) {
+      const parentComment: HMComment | null = selectedComment
+        ? comments.data?.find((c) => c.id === selectedComment?.replyParent)
+        : null
+      if (!parentComment) {
+        selectedComment = null
+        break
+      }
+      parentThread.unshift(parentComment)
+      selectedComment = parentComment
+    }
+    return parentThread
+  }, [comments, focusedCommentId])
+}
+
 export function useDocumentCommentGroups(
   docId: UnpackedHypermediaId | undefined,
   commentId: string | null = null,
