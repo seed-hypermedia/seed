@@ -35,6 +35,7 @@ import {
   CommentDraft,
   CommentReplies,
   renderCommentContent,
+  triggerCommentDraftFocus,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -71,6 +72,7 @@ function _DiscussionsPanel({
 
   function onReplyClick(commentId: string) {
     focusComment(commentId, true)
+    triggerCommentDraftFocus(docId.id, commentId)
   }
 
   function onReplyCountClick(commentId: string) {
@@ -336,6 +338,7 @@ function CommentReplyAccessory({
           <View padding="$3">
             <CommentDraft
               docId={docId}
+              autoFocus={isReplying}
               backgroundColor="$color1"
               replyCommentId={commentId}
             />

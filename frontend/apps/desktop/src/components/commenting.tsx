@@ -192,11 +192,13 @@ function _CommentDraft({
   backgroundColor = '$color4',
   quotingBlockId,
   replyCommentId,
+  autoFocus,
 }: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
   replyCommentId?: string
+  autoFocus?: boolean
 }) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
@@ -213,7 +215,7 @@ function _CommentDraft({
       <CommentDraftEditor
         docId={docId}
         accounts={accounts}
-        autoFocus={isStartingComment}
+        autoFocus={autoFocus || isStartingComment}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
         replyCommentId={replyCommentId}
@@ -282,6 +284,20 @@ function _CommentDraft({
     </YStack>
   )
 }
+
+export function triggerCommentDraftFocus(
+  docId: string,
+  replyCommentId?: string,
+) {
+  const focusKey = `${docId}-${replyCommentId}`
+  const subscribers = focusSubscribers.get(focusKey)
+  if (subscribers) {
+    subscribers.forEach((fn) => fn())
+  }
+}
+
+const focusSubscribers = new Map<string, Set<() => void>>()
+
 const CommentDraftEditor = memo(_CommentDraftEditor)
 function _CommentDraftEditor({
   docId,
@@ -318,8 +334,25 @@ function _CommentDraftEditor({
   const openUrl = useOpenUrl()
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
-  }, [autoFocus, editor])
-
+  }, [
+    autoFocus,
+    editor,
+    // include this because if autoFocus is true when the reply commentID or docId changes, we should focus again
+    docId.id,
+    replyCommentId,
+  ])
+  useEffect(() => {
+    const focusKey = `${docId.id}-${replyCommentId}`
+    const subscribers = focusSubscribers.get(focusKey)
+    if (subscribers) {
+      subscribers.add(editor._tiptapEditor.commands.focus)
+    } else {
+      focusSubscribers.set(
+        focusKey,
+        new Set([editor._tiptapEditor.commands.focus]),
+      )
+    }
+  }, [docId.id, replyCommentId])
   return (
     <YStack
       ref={sizeObserverdRef}
