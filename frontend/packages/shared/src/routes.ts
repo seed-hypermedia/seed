@@ -67,6 +67,7 @@ export const documentDiscussionsAccessorySchema = z.object({
   openBlockId: z.string().optional(),
   blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
+  isReplying: z.boolean().optional(),
 })
 export type DocumentDiscussionsAccessory = z.infer<
   typeof documentDiscussionsAccessorySchema

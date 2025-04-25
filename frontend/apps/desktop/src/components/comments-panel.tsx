@@ -37,7 +37,7 @@ function _DiscussionsPanel({
   onClose,
   docId,
   onAccessory,
-  accessory: {openComment, openBlockId, blockRange, autoFocus},
+  accessory: {openComment, openBlockId, blockRange, autoFocus, isReplying},
 }: {
   onClose?: () => void
   docId: UnpackedHypermediaId
@@ -47,7 +47,7 @@ function _DiscussionsPanel({
   const route = useNavRoute()
   const navigate = useNavigate('replace')
 
-  function focusComment(commentId: string) {
+  function focusComment(commentId: string, isReplying?: boolean) {
     if (route.key != 'document') return
     navigate({
       ...route,
@@ -57,16 +57,17 @@ function _DiscussionsPanel({
         key: 'discussions',
         openComment: commentId,
         openBlockId: undefined,
+        isReplying,
       },
     })
   }
 
   function onReplyClick(commentId: string) {
-    focusComment(commentId)
+    focusComment(commentId, true)
   }
 
   function onReplyCountClick(commentId: string) {
-    focusComment(commentId)
+    focusComment(commentId, false)
   }
 
   if (openComment) {
@@ -77,6 +78,7 @@ function _DiscussionsPanel({
         commentId={openComment}
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
+        isReplying={isReplying}
       />
     )
   }
@@ -303,6 +305,7 @@ function CommentReplyAccessory({
   commentId,
   onReplyClick,
   onReplyCountClick,
+  isReplying,
 }: {
   docId: UnpackedHypermediaId
   onBack: () => void
@@ -312,6 +315,7 @@ function CommentReplyAccessory({
     commentId: string,
     rootReplyCommentId?: string | null,
   ) => void
+  isReplying?: boolean
 }) {
   const comment = useComment(hmId('c', commentId))
   const commentAuthor = useEntity(
@@ -325,13 +329,15 @@ function CommentReplyAccessory({
     <AccessoryContainer
       title="Comment"
       footer={
-        <View padding="$3">
-          <CommentDraft
-            docId={docId}
-            backgroundColor="$color1"
-            replyCommentId={commentId}
-          />
-        </View>
+        isReplying ? (
+          <View padding="$3">
+            <CommentDraft
+              docId={docId}
+              backgroundColor="$color1"
+              replyCommentId={commentId}
+            />
+          </View>
+        ) : null
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
