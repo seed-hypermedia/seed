@@ -522,7 +522,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     if (this.hyperlinkMark && this.editor.isEditable) {
       const {container} = getGroupInfoFromPos(
-        this.pmView.state.selection.from,
+        this.hyperlinkMarkRange!.from,
         this.pmView.state,
       )
       if (this.hyperlinkMark instanceof Mark) {

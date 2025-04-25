@@ -4,12 +4,27 @@ import {
   HMEntityType,
   HYPERMEDIA_ENTITY_TYPES,
 } from '@shm/shared/utils/entity-id-url'
-import {Link as LinkIcon, Search} from '@tamagui/lucide-icons'
+import {
+  CircleDot,
+  File,
+  Link as LinkIcon,
+  PanelBottom,
+  Quote,
+  Search,
+} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Input, SizableText, SizeTokens, XStack, YStack} from 'tamagui'
-import {TextCursorInput} from '../../ui/src/icons'
+import {ChevronDown, TextCursorInput} from '../../ui/src/icons'
 import './hm-link-form.css'
+
+const LINK_TYPES = [
+  {value: 'link', label: 'Link', icon: LinkIcon},
+  {value: 'mention', label: 'Mention', icon: Quote},
+  {value: 'button', label: 'Button', icon: CircleDot},
+  {value: 'embed', label: 'Content Embed', icon: File},
+  {value: 'card', label: 'Card', icon: PanelBottom},
+]
 
 export type HypermediaLinkFormProps = {
   children?: ReactNode
@@ -21,12 +36,18 @@ export type HypermediaLinkFormProps = {
   seedEntityType?: HMEntityType
   hasName?: boolean
   hasSearch?: boolean
+  onChangeType?: (type: string) => void
 }
 
 export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const formSize: SizeTokens = '$2'
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
+  const [selectedType, setSelectedType] = useState(props.type)
+
+  useEffect(() => {
+    setSelectedType(props.type)
+  }, [props.type])
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' || event.key == 'Enter') {
@@ -37,6 +58,14 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
   return (
     <YStack gap="$1.5" zIndex="$zIndex.5">
+      <LinkTypeDropdown
+        selected={selectedType}
+        onSelect={(val) => {
+          setSelectedType(val)
+          props.onChangeType?.(val)
+        }}
+      />
+      {/* </XStack> */}
       {props.hasName && (
         <XStack
           paddingHorizontal="$2"
@@ -314,6 +343,89 @@ const SearchInput = ({
       />
 
       {focused && inputPosition && createPortal(dropdownContent, portalRoot)}
+    </>
+  )
+}
+
+export function LinkTypeDropdown({
+  selected,
+  onSelect,
+}: {
+  selected: string
+  onSelect: (value: string) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
+  const ref = useRef<HTMLInputElement>(null)
+  const portalRoot = document.body
+  const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
+
+  useEffect(() => {
+    if (ref.current) {
+      setInputPosition(ref.current.getBoundingClientRect())
+    }
+  }, [focused])
+
+  const dropdown = (
+    <YStack
+      position="absolute"
+      top={inputPosition ? inputPosition.bottom + 5 : 0}
+      left={inputPosition?.left ?? 0}
+      width={inputPosition?.width ?? 200}
+      zIndex={99999}
+      backgroundColor="$backgroundHover"
+      borderRadius="$2"
+      paddingVertical="$2"
+      elevation="$4"
+    >
+      {LINK_TYPES.map((item) => (
+        <XStack
+          key={item.value}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          hoverStyle={{backgroundColor: '$background'}}
+          cursor="pointer"
+          gap="$2"
+          onMouseDown={() => {
+            onSelect(item.value)
+            setFocused(false)
+          }}
+        >
+          <item.icon
+            size={16}
+            color={item.value === selected ? '$brand4' : '$color12'}
+          />
+          <SizableText
+            size="$2"
+            color={item.value === selected ? '$brand4' : '$color12'}
+          >
+            {item.label}
+          </SizableText>
+        </XStack>
+      ))}
+    </YStack>
+  )
+
+  return (
+    <>
+      <XStack
+        ref={ref as any}
+        onPress={() => setFocused(!focused)}
+        alignItems="center"
+        paddingHorizontal="$2"
+        borderColor="$borderColorFocus"
+        borderWidth="$1"
+        borderRadius="$2"
+        backgroundColor="$background"
+        hoverStyle={{borderColor: '$borderColorHover'}}
+        height={36}
+        gap="$2"
+      >
+        {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
+        <SizableText size="$2">{selectedTypeObj?.label}</SizableText>
+        <ChevronDown size={16} />
+      </XStack>
+      {focused && inputPosition && createPortal(dropdown, portalRoot)}
     </>
   )
 }
