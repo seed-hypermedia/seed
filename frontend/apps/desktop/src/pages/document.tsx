@@ -333,7 +333,13 @@ function _MainDocumentPage({
       >
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <YStack w="100%" ref={elementRef} f={1} position="relative">
+        <YStack
+          w="100%"
+          ref={elementRef}
+          f={1}
+          position="relative"
+          paddingTop="$4"
+        >
           <XStack {...wrapperProps}>
             {showSidebars ? (
               <YStack
