@@ -1,5 +1,10 @@
 import {useEntityCitations} from '@/models/citations'
-import {useCommentParents, useDocumentCommentGroups} from '@/models/comments'
+import {
+  useAllDocumentComments,
+  useCommentGroups,
+  useCommentParents,
+  useDocumentCommentGroups,
+} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
@@ -15,7 +20,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {Button, Spinner, View, XStack} from 'tamagui'
+import {Button, Separator, Spinner, View, XStack} from 'tamagui'
 import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
@@ -351,6 +356,63 @@ function CommentReplyAccessory({
           onReplyCountClick={onReplyCountClick}
         />
       ) : null}
+
+      <Separator />
+
+      <FocusedCommentReplies
+        defaultOpen={!isReplying}
+        docId={docId}
+        commentId={commentId}
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
+      />
     </AccessoryContainer>
+  )
+}
+
+function FocusedCommentReplies({
+  defaultOpen,
+  docId,
+  commentId,
+  onReplyClick,
+  onReplyCountClick,
+}: {
+  defaultOpen: boolean
+  docId: UnpackedHypermediaId
+  commentId: string
+  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
+  onReplyCountClick: (
+    commentId: string,
+    rootReplyCommentId?: string | null,
+  ) => void
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const comments = useAllDocumentComments(docId)
+  const replies = useCommentGroups(comments.data, commentId)
+  const commentAuthors = useCommentGroupAuthors(replies)
+  if (!replies) return null
+  if (!isOpen)
+    return (
+      <Button onPress={() => setIsOpen(true)} size="$2">
+        {`Show ${replies?.length} Replies`}
+      </Button>
+    )
+  return (
+    <YStack>
+      {replies.map((r) => {
+        return (
+          <CommentGroup
+            key={r.id}
+            docId={docId}
+            commentGroup={r}
+            renderCommentContent={renderCommentContent}
+            rootReplyCommentId={null}
+            authors={commentAuthors}
+            onReplyClick={onReplyClick}
+            onReplyCountClick={onReplyCountClick}
+          />
+        )
+      })}
+    </YStack>
   )
 }
