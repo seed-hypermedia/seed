@@ -4,9 +4,11 @@ package entities
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
@@ -206,7 +208,19 @@ SELECT
     public_keys.principal AS author,
     blobs.codec,
     blobs.multihash,
-    document_generations.metadata
+    document_generations.metadata,
+	(
+    SELECT
+      json_group_array(
+        json_object(
+          'codec',    b2.codec,
+          'multihash', hex(b2.multihash)
+        )
+      )
+    FROM json_each(document_generations.heads) AS a
+      JOIN blobs AS b2
+        ON b2.id = a.value
+  	) AS heads
     
 FROM fts_data
 JOIN structural_blobs ON fts_data.ts = structural_blobs.ts
@@ -248,6 +262,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	type icon struct {
 		Icon value `json:"icon"`
 	}
+
+	type head struct {
+		Multihash string `json:"multihash"`
+		Codec     int    `json:"codec"`
+	}
+
 	if in.FullHistory {
 		return nil, fmt.Errorf("full history search is not supported yet")
 	}
@@ -284,6 +304,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 				var icon icon
+				var heads []head
 				matchStr := stmt.ColumnText(0)
 				firstOffset := strings.Index(strings.ToLower(matchStr), strings.ToLower(in.Query))
 				if firstOffset == -1 {
@@ -308,11 +329,24 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				cType := stmt.ColumnText(1)
 				iri := stmt.ColumnText(3)
 				docIDs = append(docIDs, iri)
+				if err := json.Unmarshal(stmt.ColumnBytes(8), &heads); err != nil {
+					return err
+				}
+
+				cids := make([]cid.Cid, len(heads))
+				for i, h := range heads {
+					mhBinary, err := hex.DecodeString(h.Multihash)
+					if err != nil {
+						return err
+					}
+					cids[i] = cid.NewCidV1(uint64(h.Codec), mhBinary)
+				}
+				latestVersion := docmodel.NewVersion(cids...).String()
+				fmt.Println("latestVersion", latestVersion)
 				if cType == "comment" {
 					iris = append(iris, "hm://c/"+blobID)
 				} else {
 					iris = append(iris, iri)
-					fmt.Println("matchStr", matchStr)
 				}
 				contentType = append(contentType, cType)
 				blockIDs = append(blockIDs, stmt.ColumnText(2))
