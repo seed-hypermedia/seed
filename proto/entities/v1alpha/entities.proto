@@ -159,31 +159,35 @@ message Entity {
   // containing the entity.
   string block_id = 3;
 
+  // The version of the document containing the entity.
+  // Empty string means latest version.
+  string version = 4;
+
   // In the case of comments, the document id
   // containing the comment.
-  string doc_id = 4;
+  string doc_id = 5;
 
   // Content of the entity, depending on the type:
   // Alias in the case of account.
   // Title/Body in the case of groups and documents.
   // Body in the case of comments.
-  string content = 5;
+  string content = 6;
 
   // where the matching string is found in the content.
   // This is a char offset in the content for each matching char.
-  repeated int64 match_offset = 6;
+  repeated int64 match_offset = 7;
 
   // The owner of the entity
-  string owner = 7;
+  string owner = 8;
 
   // The type of the entity it coud be Title, Document or Comment
-  string type = 8;
+  string type = 9;
 
   // Icon of the document containing that entity
-  string icon = 9;
+  string icon = 10;
 
   // Parent document names
-  repeated string parent_names = 10;
+  repeated string parent_names = 11;
 }
 
 // Publication that has been deleted

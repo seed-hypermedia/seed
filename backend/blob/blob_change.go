@@ -487,7 +487,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 
 		if ftsType != "" && ftsContent != "" {
-			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID); err != nil {
+			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID, sb.CID.String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
 		}
