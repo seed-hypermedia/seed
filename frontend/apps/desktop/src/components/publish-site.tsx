@@ -1285,12 +1285,15 @@ function SeedHostRegisterCustomDomain({
                   control={control}
                   name="domain"
                   placeholder="mydomain.com"
-                  transformInput={(text) =>
-                    text
+                  transformInput={(text) => {
+                    if (text.match(/https?:\/\//)) {
+                      text = text.replace(/https?:\/\//, '')
+                    }
+                    return text
                       .replace(/[ _]/g, '-')
                       .replace(/[^a-zA-Z0-9-\.]/g, '')
                       .toLowerCase()
-                  }
+                  }}
                 />
               </FormField>
               {createDomain.error ? (
