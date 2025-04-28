@@ -2,6 +2,7 @@ import {getMarkRange, posToDOMRect, Range} from '@tiptap/core'
 import {EditorView} from '@tiptap/pm/view'
 import {Mark, Node as PMNode} from 'prosemirror-model'
 import {Plugin, PluginKey} from 'prosemirror-state'
+import {getNodeById} from '../../api/util/nodeUtil'
 import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
 import {EventEmitter} from '../../shared/EventEmitter'
@@ -310,16 +311,85 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   // it should be TRUE if you DON't want to close the modal when called.
   editHyperlink(url: string, text: string) {
     let tr = this.pmView.state.tr
-    if (
-      this.hyperlinkToolbarState &&
-      this.hyperlinkToolbarState.type === 'mention'
-    ) {
-      const pos = this.hyperlinkMarkRange
-        ? this.hyperlinkMarkRange.from
-        : this.pmView.state.selection.from
-      tr = tr.setNodeMarkup(pos, null, {
-        link: url,
-      })
+    let markOrNode = this.hyperlinkMark
+    let range = this.hyperlinkMarkRange
+
+    if (!markOrNode && this.hyperlinkToolbarState?.id) {
+      const {state} = this.pmView
+      const {posBeforeNode} = getNodeById(
+        this.hyperlinkToolbarState.id,
+        state.doc,
+      )
+      const parentNode = state.doc.nodeAt(posBeforeNode + 1)
+
+      if (parentNode) {
+        console.log(this.hyperlinkToolbarState, parentNode)
+        if (
+          this.hyperlinkToolbarState.type === 'link' ||
+          this.hyperlinkToolbarState.type === 'mention'
+        ) {
+          console.log('here?')
+          // Search inside children
+          parentNode.descendants((child, pos) => {
+            if (this.hyperlinkToolbarState!.type === 'link') {
+              const linkMark = child.marks?.find(
+                (mark) =>
+                  mark.type.name === 'link' &&
+                  mark.attrs.href === this.hyperlinkToolbarState?.url,
+              )
+              console.log(linkMark)
+              if (linkMark) {
+                markOrNode = linkMark
+                range = {
+                  from: posBeforeNode + 1 + pos,
+                  to: posBeforeNode + 1 + pos + (child.text?.length || 1),
+                }
+                return false // stop iteration
+              }
+            } else if (this.hyperlinkToolbarState!.type === 'mention') {
+              if (
+                child.type.name === 'inline-embed' &&
+                child.attrs.link === this.hyperlinkToolbarState?.url
+              ) {
+                markOrNode = child
+                range = {
+                  from: posBeforeNode + 2 + pos,
+                  to: posBeforeNode + 2 + pos + child.nodeSize,
+                }
+                return false
+              }
+            }
+            return true
+          })
+        } else {
+          // otherwise (button, embed) simple node
+          markOrNode = parentNode
+          range = {
+            from: posBeforeNode + 1,
+            to: posBeforeNode + 1 + parentNode.nodeSize,
+          }
+        }
+      }
+    }
+    if (this.hyperlinkToolbarState) {
+      const pos = range!.from
+      if (this.hyperlinkToolbarState.type === 'mention') {
+        tr = tr.setNodeMarkup(pos, null, {
+          link: url,
+        })
+      } else if (this.hyperlinkToolbarState.type === 'button') {
+        // this.editor.updateBlock(this.hyperlinkToolbarState.id, {
+        //   props: {url: url},
+        // })
+        tr = tr.setNodeMarkup(pos, null, {
+          url: url,
+          name: text,
+        })
+      } else if (this.hyperlinkToolbarState.type === 'embed') {
+        tr = tr.setNodeMarkup(pos, null, {
+          url: url,
+        })
+      }
       // return
     } else {
       tr = this.pmView.state.tr.insertText(
@@ -346,32 +416,97 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
   updateHyperlink(url: string, text: string) {
     let tr = this.pmView.state.tr
-    if (
-      this.hyperlinkToolbarState &&
-      this.hyperlinkToolbarState.type === 'mention'
-    ) {
-      const pos = this.hyperlinkMarkRange
-        ? this.hyperlinkMarkRange.from
-        : this.pmView.state.selection.from
-      tr = tr.setNodeMarkup(pos, null, {
-        link: url,
-      })
-      // return
-    } else {
-      const newLength = this.hyperlinkMarkRange!.from + text.length
-      tr = this.pmView.state.tr
-        .insertText(
-          text,
-          this.hyperlinkMarkRange!.from,
-          this.hyperlinkMarkRange!.to,
-        )
-        .addMark(
-          this.hyperlinkMarkRange!.from,
-          newLength,
-          this.pmView.state.schema.mark('link', {href: url}),
-        )
+    let markOrNode = this.hyperlinkMark
+    let range = this.hyperlinkMarkRange
 
-      this.hyperlinkMarkRange!.to = newLength
+    if (!markOrNode && this.hyperlinkToolbarState?.id) {
+      const {state} = this.pmView
+      const {posBeforeNode} = getNodeById(
+        this.hyperlinkToolbarState.id,
+        state.doc,
+      )
+      const parentNode = state.doc.nodeAt(posBeforeNode + 1)
+      console.log(parentNode)
+
+      if (parentNode) {
+        if (
+          this.hyperlinkToolbarState.type === 'link' ||
+          this.hyperlinkToolbarState.type === 'mention'
+        ) {
+          // Search inside children
+          parentNode.descendants((child, pos) => {
+            if (this.hyperlinkToolbarState!.type === 'link') {
+              const linkMark = child.marks?.find(
+                (mark) =>
+                  mark.type.name === 'link' &&
+                  mark.attrs.href === this.hyperlinkToolbarState?.url,
+              )
+              console.log(linkMark)
+              if (linkMark) {
+                markOrNode = linkMark
+                range = {
+                  from: posBeforeNode + 2 + pos,
+                  to: posBeforeNode + 2 + pos + (child.text?.length || 1),
+                }
+                return false // stop iteration
+              }
+            } else if (this.hyperlinkToolbarState!.type === 'mention') {
+              if (
+                child.type.name === 'inline-embed' &&
+                child.attrs.link === this.hyperlinkToolbarState?.url
+              ) {
+                markOrNode = child
+                range = {
+                  from: posBeforeNode + 2 + pos,
+                  to: posBeforeNode + 2 + pos + child.nodeSize,
+                }
+                return false
+              }
+            }
+            return true
+          })
+        } else {
+          // otherwise (button, embed) simple node
+          markOrNode = parentNode
+          range = {
+            from: posBeforeNode + 1,
+            to: posBeforeNode + 1 + parentNode.nodeSize,
+          }
+        }
+      }
+    }
+    if (this.hyperlinkToolbarState) {
+      const pos = range!.from
+      if (this.hyperlinkToolbarState.type === 'mention') {
+        tr = tr.setNodeMarkup(pos, null, {
+          link: url,
+        })
+      } else if (this.hyperlinkToolbarState.type === 'button') {
+        // this.editor.updateBlock(this.hyperlinkToolbarState.id, {
+        //   props: {url: url},
+        // })
+        tr = tr.setNodeMarkup(pos, null, {
+          url: url,
+          name: text,
+        })
+      } else if (this.hyperlinkToolbarState.type === 'embed') {
+        tr = tr.setNodeMarkup(pos, null, {
+          url: url,
+        })
+      } else {
+        console.log('here???')
+        const newLength = range!.from + text.length
+        tr = this.pmView.state.tr
+          .insertText(text, range!.from, range!.to)
+          .addMark(
+            range!.from,
+            newLength,
+            this.pmView.state.schema.mark('link', {href: url}),
+          )
+
+        range!.to = newLength
+      }
+      // return
     }
 
     this.pmView.dispatch(tr)
@@ -450,8 +585,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     const prevHyperlinkMarkRange = this.hyperlinkMarkRange
 
     // Resets the currently hovered hyperlink mark.
+    // if (!this.isHoveringToolbar) {
     this.hyperlinkMark = undefined
     this.hyperlinkMarkRange = undefined
+    // }
 
     // Resets the hyperlink mark currently hovered by the keyboard cursor.
     this.keyboardHoveredHyperlinkMark = undefined
