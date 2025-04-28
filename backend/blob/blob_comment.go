@@ -218,6 +218,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 	const ftsType = "comment"
 	var ftsContent string
 	var ftsBlkID string
+	var ftsEntries []ftsEntry
 	var indexCommentContent func([]CommentBlock) error // Declaring function to allow recursive calls.
 	indexCommentContent = func(in []CommentBlock) error {
 		for _, blk := range in {
@@ -237,9 +238,12 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 			ftsBlkID = blk.ID()
 			ftsContent = blk.Text
 			if ftsContent != "" {
-				if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID); err != nil {
-					return fmt.Errorf("failed to insert record in fts table: %w", err)
-				}
+				ftsEntries = append(ftsEntries, ftsEntry{
+					ID:      id,
+					Content: ftsContent,
+					Type:    ftsType,
+					BlkID:   ftsBlkID,
+				})
 			}
 		}
 
@@ -327,6 +331,15 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 			if err := ensureUnread(ictx.conn, iri); err != nil {
 				return err
 			}
+		}
+	}
+	version, err := getResourceVersion(ictx.conn, string(sb.Resource.ID))
+	if err != nil {
+		return fmt.Errorf("failed to get resource version: %w", err)
+	}
+	for _, entry := range ftsEntries {
+		if err := dbFTSInsertOrReplace(ictx.conn, entry.Content, entry.Type, entry.ID, entry.BlkID, version); err != nil {
+			return fmt.Errorf("failed to insert record in fts table: %w", err)
 		}
 	}
 
