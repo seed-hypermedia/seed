@@ -187,6 +187,7 @@ SELECT
     fts.raw_content,
     fts.type,
     fts.block_id,
+	fts.version,
     resources.iri,
     structural_blobs.ts,
     fts.rank
@@ -204,6 +205,7 @@ SELECT
     fts_data.raw_content,
     fts_data.type,
 	fts_data.block_id,
+	fts_data.version,
     resources.iri,
     public_keys.principal AS author,
     blobs.codec,
@@ -252,6 +254,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var docIDs []string
 	var blobIDs []string
 	var contentType []string
+	var versions []string
 	var limit = 30
 	type value struct {
 		Value string `json:"v"`
@@ -291,6 +294,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			owners = append(owners, ownerID)
 			blockIDs = append(blockIDs, "")
 			blobIDs = append(blobIDs, "")
+			versions = append(versions, "")
 			contentType = append(contentType, "title")
 			return nil
 		})
@@ -320,16 +324,16 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 				matchStr = matchStr[contextStart:contextEnd]
 				contents = append(contents, matchStr)
-				if err := json.Unmarshal(stmt.ColumnBytes(7), &icon); err != nil {
+				if err := json.Unmarshal(stmt.ColumnBytes(8), &icon); err != nil {
 					return nil
 				}
 				icons = append(icons, icon.Icon.Value)
-				blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String()
+				blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(6)), stmt.ColumnBytesUnsafe(7)).String()
 				blobIDs = append(blobIDs, blobID)
 				cType := stmt.ColumnText(1)
-				iri := stmt.ColumnText(3)
+				iri := stmt.ColumnText(4)
 				docIDs = append(docIDs, iri)
-				if err := json.Unmarshal(stmt.ColumnBytes(8), &heads); err != nil {
+				if err := json.Unmarshal(stmt.ColumnBytes(9), &heads); err != nil {
 					return err
 				}
 
@@ -342,7 +346,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					cids[i] = cid.NewCidV1(uint64(h.Codec), mhBinary)
 				}
 				latestVersion := docmodel.NewVersion(cids...).String()
-				fmt.Println("latestVersion", latestVersion)
+				version := stmt.ColumnText(3)
+				if version != latestVersion && cType == "document" {
+					versions = append(versions, version)
+				} else {
+					versions = append(versions, "")
+				}
+
 				if cType == "comment" {
 					iris = append(iris, "hm://c/"+blobID)
 				} else {
@@ -426,6 +436,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Id:          iris[match.Index],
 			BlockId:     blockIDs[match.Index],
 			BlobId:      blobIDs[match.Index],
+			Version:     versions[match.Index],
 			Content:     match.Str,
 			Type:        contentType[match.Index],
 			ParentNames: parentTitles,
@@ -448,6 +459,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Id:          iris[match.Index],
 			BlockId:     blockIDs[match.Index],
 			BlobId:      blobIDs[match.Index],
+			Version:     versions[match.Index],
 			Type:        contentType[match.Index],
 			Content:     match.Str,
 			ParentNames: parentTitles,
