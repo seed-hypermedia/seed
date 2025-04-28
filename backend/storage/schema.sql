@@ -244,5 +244,8 @@ CREATE VIRTUAL TABLE fts USING fts5(
     blob_id,
     -- The ID of the block that contains the content. 
     -- Only relevant on type=document,comment.
-    block_id
+    block_id,
+    -- The version of the document that contains
+    -- the change. Only relevant on type=document,comment
+    version
 );
