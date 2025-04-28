@@ -27,6 +27,11 @@ export function HypermediaLinkPreview(
     formComponents: () => React.JSX.Element
     type: string
     setHovered?: (hovered: boolean) => void
+    toolbarProps?: {
+      alignment?: 'flex-start' | 'center' | 'flex-end'
+      view?: string
+      [key: string]: any
+    }
   },
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
@@ -137,6 +142,8 @@ export function HypermediaLinkPreview(
           {props.formComponents && props.formComponents()}
 
           <HypermediaLinkForm
+            editor={props.editor}
+            id={props.id}
             url={props.url}
             text={props.text}
             updateLink={props.updateHyperlink}
@@ -149,6 +156,7 @@ export function HypermediaLinkPreview(
             hasName={props.type !== 'embed' && props.type !== 'mention'}
             hasSearch={props.type !== 'link'}
             seedEntityType={unpackHmId(props.url)?.type}
+            toolbarProps={props.toolbarProps}
           />
         </YStack>
       ) : (

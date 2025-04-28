@@ -14,9 +14,25 @@ import {
 } from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Input, SizableText, SizeTokens, XStack, YStack} from 'tamagui'
-import {ChevronDown, TextCursorInput} from '../../ui/src/icons'
+import {
+  Button,
+  Input,
+  Label,
+  SizableText,
+  SizeTokens,
+  XStack,
+  YStack,
+} from 'tamagui'
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ChevronDown,
+  TextCursorInput,
+} from '../../ui/src/icons'
+import {BlockNoteEditor} from './blocknote'
 import './hm-link-form.css'
+import {HMBlockSchema} from './schema'
 
 const LINK_TYPES = [
   {value: 'link', label: 'Link', icon: LinkIcon},
@@ -27,7 +43,9 @@ const LINK_TYPES = [
 ]
 
 export type HypermediaLinkFormProps = {
+  editor: BlockNoteEditor<HMBlockSchema>
   children?: ReactNode
+  id: string
   url: string
   text: string
   type: string
@@ -37,6 +55,11 @@ export type HypermediaLinkFormProps = {
   hasName?: boolean
   hasSearch?: boolean
   onChangeType?: (type: string) => void
+  toolbarProps?: {
+    alignment?: 'flex-start' | 'center' | 'flex-end'
+    view?: string
+    [key: string]: any
+  }
 }
 
 export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
@@ -147,6 +170,69 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               props.updateLink(val, _text)
             }}
           />
+        </XStack>
+      )}
+      {props.toolbarProps?.alignment && (
+        <XStack gap="$0.25" paddingLeft="$1" justifyContent="space-between">
+          <Label opacity={0.6} fontSize={13} marginBottom="$-2">
+            Alignment
+          </Label>
+          <XStack gap="$3">
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'flex-start'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'flex-start'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignLeft size="$1.5" />
+            </Button>
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'center'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'center'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignCenter size="$1.5" />
+            </Button>
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'flex-end'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'flex-end'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignRight size="$1.5" />
+            </Button>
+          </XStack>
         </XStack>
       )}
 

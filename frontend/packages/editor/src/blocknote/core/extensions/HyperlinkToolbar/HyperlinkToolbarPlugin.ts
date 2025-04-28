@@ -16,6 +16,12 @@ export type HyperlinkToolbarState = BaseUiElementState & {
   text: string
   type: string
   id: string
+
+  props?: {
+    alignment?: 'flex-start' | 'center' | 'flex-end'
+    view?: string
+    [key: string]: any // extensible
+  }
 }
 
 class HyperlinkToolbarView<BSchema extends BlockSchema> {
@@ -578,6 +584,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             text: this.hyperlinkMark!.attrs.name,
             type: 'button',
             id: container ? container.attrs.id : '',
+            props: {
+              alignment:
+                this.hyperlinkMark!.attrs.alignment.length > 0
+                  ? this.hyperlinkMark!.attrs.alignment
+                  : 'flex-start',
+            },
           }
         } else if (this.hyperlinkMark.type.name === 'embed') {
           this.hyperlinkToolbarState = {

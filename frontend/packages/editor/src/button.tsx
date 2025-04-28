@@ -9,7 +9,7 @@ import {Button} from '@shm/ui/button'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {Label, SizableText} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 
@@ -25,7 +25,7 @@ export const ButtonBlock = createReactBlockSpec({
       default: '',
     },
     alignment: {
-      default: '',
+      default: 'flex-start',
     },
     defaultOpen: {
       values: ['false', 'true'],
@@ -89,6 +89,10 @@ const Render = (
   useEditorSelectionChange(editor, () =>
     updateSelection(editor, block, setSelected),
   )
+
+  useEffect(() => {
+    setAlignment(block.props.alignment as ButtonAlignment)
+  }, [block.props.alignment])
 
   function ButtonLinkComponents() {
     return (

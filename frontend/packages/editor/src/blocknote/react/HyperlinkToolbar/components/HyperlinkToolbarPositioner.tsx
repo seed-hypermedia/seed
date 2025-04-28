@@ -38,6 +38,8 @@ export const HyperlinkToolbarPositioner = <
   const [text, setText] = useState<string>()
   const [type, setType] = useState<string>()
   const [id, setId] = useState<string>()
+  const [toolbarProps, setToolbarProps] =
+    useState<HyperlinkToolbarState['props']>()
 
   const referencePos = useRef<DOMRect>()
 
@@ -51,6 +53,7 @@ export const HyperlinkToolbarPositioner = <
         setText(hyperlinkToolbarState.text)
         setType(hyperlinkToolbarState.type)
         setId(hyperlinkToolbarState.id)
+        setToolbarProps(hyperlinkToolbarState.props)
 
         referencePos.current = hyperlinkToolbarState.referencePos
       },
@@ -94,12 +97,14 @@ export const HyperlinkToolbarPositioner = <
         }}
         openUrl={props.openUrl}
         stopEditing={!show}
+        // @ts-ignore
         editor={props.editor}
         type={type}
         id={id}
         setHovered={(hovering: boolean) =>
           props.editor.hyperlinkToolbar.setToolbarHovered(hovering)
         }
+        toolbarProps={toolbarProps}
       />
     )
   }, [props.hyperlinkToolbar, props.editor, text, url, show])
