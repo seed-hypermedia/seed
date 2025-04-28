@@ -596,7 +596,7 @@ export function BlockNodeContent({
     : null
 
   const headingStyles = useMemo(() => {
-    if (blockNode.block?.type == 'heading') {
+    if (blockNode.block?.type == 'Heading') {
       return headingMarginStyles
     }
 
@@ -958,7 +958,7 @@ export function BlockNodeContent({
       </XStack>
       {bnChildren && _expanded ? (
         <BlockNodeList
-          paddingLeft={blockNode.block?.type == 'Heading' ? 0 : layoutUnit}
+          paddingLeft={layoutUnit}
           childrenType={blockNode.block?.attributes?.childrenType}
           listLevel={listLevel}
           display="block"
