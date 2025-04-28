@@ -3,8 +3,6 @@ package blob
 import (
 	"bytes"
 	"cmp"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"iter"
 	"net/url"
@@ -14,7 +12,6 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -317,13 +314,6 @@ type OpDeleteBlocks struct {
 	Blocks []string `refmt:"blocks"`
 }
 
-type ftsEntry struct {
-	ID      int64
-	Type    string
-	Content string
-	BlkID   string
-}
-
 // NewOpDeleteBlocks creates the corresponding op.
 func NewOpDeleteBlocks(blocks []string) OpMap {
 	op := OpDeleteBlocks{
@@ -397,7 +387,6 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	}
 
 	var extra changeIndexedAttrs
-	var ftsEntries []ftsEntry
 	for op, err := range v.Ops() {
 		if err != nil {
 			return err
@@ -498,12 +487,9 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 
 		if ftsType != "" && ftsContent != "" {
-			ftsEntries = append(ftsEntries, ftsEntry{
-				ID:      id,
-				Content: ftsContent,
-				Type:    ftsType,
-				BlkID:   ftsBlkID,
-			})
+			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID); err != nil {
+				return fmt.Errorf("failed to insert record in fts table: %w", err)
+			}
 		}
 	}
 
@@ -534,23 +520,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 			}
 		}
 	}
-	/*
-		iri, err := loadIRIForChange(ictx.conn, ictx.blockStore, sb)
-		if err != nil && len(ftsEntries) > 0 {
-			return err
-		} else if err != nil {
-			return nil
-		}
-		version, err := getResourceVersion(ictx.conn, iri)
-		if err != nil {
-			return fmt.Errorf("failed to get resource version: %w", err)
-		}
-	*/
-	for _, entry := range ftsEntries {
-		if err := dbFTSInsertOrReplace(ictx.conn, entry.Content, entry.Type, entry.ID, entry.BlkID, sb.CID.String()); err != nil {
-			return fmt.Errorf("failed to insert record in fts table: %w", err)
-		}
-	}
+
 	return nil
 }
 
@@ -565,94 +535,6 @@ type decodedBlob[T any] struct {
 	Value T
 }
 
-type head struct {
-	Multihash string `json:"multihash"`
-	Codec     int    `json:"codec"`
-}
-
-var qLoadHeadsForDocument = dqb.Str(`
-	SELECT
-      json_group_array(
-        json_object(
-          'codec',    b.codec,
-          'multihash', hex(b.multihash)
-        )
-      )
-    FROM json_each(dg.heads) AS a,
-	resources AS r
-	JOIN document_generations AS dg ON dg.resource = r.id
-    JOIN blobs AS b
-    ON b.id = a.value
-  	WHERE r.iri = :resource;
-`)
-
-func getResourceVersion(conn *sqlite.Conn, resource string) (string, error) {
-	var heads []head
-	var version string
-	if resource == "" {
-		return "", nil
-	}
-	rows, check := sqlitex.Query(conn, qLoadHeadsForDocument(), resource)
-	for row := range rows {
-		if err := json.Unmarshal(row.ColumnBytes(0), &heads); err != nil {
-			return "", err
-		}
-
-		cids := make([]cid.Cid, len(heads))
-		for i, h := range heads {
-			mhBinary, err := hex.DecodeString(h.Multihash)
-			if err != nil {
-				return "", err
-			}
-			cids[i] = cid.NewCidV1(uint64(h.Codec), mhBinary)
-		}
-		if len(cids) == 0 {
-			return "", nil
-		}
-
-		out := make([]string, 0, len(cids))
-		for _, k := range cids {
-			out = append(out, k.String())
-		}
-		sort.Strings(out)
-
-		version = strings.Join(out, ".")
-	}
-
-	err := check()
-	if err != nil {
-		return "", err
-	}
-
-	return version, nil
-}
-
-var qLoadIRIForChange = dqb.Str(`
-	SELECT
-    r.iri
-    FROM structural_blobs sb
-	JOIN resources r ON r.id = sb.resource
-  	WHERE sb.type = 'ref' AND sb.ts = :ts;
-`)
-
-func loadIRIForChange(conn *sqlite.Conn, bs *blockStore, sb structuralBlob) (string, error) {
-	var iri string
-	if sb.Ts.IsZero() {
-		return "", nil
-	}
-	rows, check := sqlitex.Query(conn, qLoadIRIForChange(), sb.Ts.UnixMilli())
-
-	for row := range rows {
-		iri = row.ColumnText(0)
-	}
-
-	err := check()
-	if err != nil {
-		return "", err
-	}
-
-	return iri, nil
-}
 func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]decodedBlob[*Ref], error) {
 	var out []decodedBlob[*Ref]
 	rows, check := sqlitex.Query(conn, qLoadRefsForChange(), changeID)
