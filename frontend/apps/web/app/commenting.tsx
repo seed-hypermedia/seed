@@ -48,6 +48,7 @@ export type WebCommentingProps = {
   rootReplyCommentId: string | null
   onDiscardDraft?: () => void
   onSuccess?: (successData: {
+    id: string
     response: CommentResponsePayload
     commentPayload: CommentPayload
   }) => void
@@ -112,6 +113,7 @@ export function LocalWebCommenting({
       onSuccess?.({
         response: result,
         commentPayload: commentPayload,
+        id: result.commentId,
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],

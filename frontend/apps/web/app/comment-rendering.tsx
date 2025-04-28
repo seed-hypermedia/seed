@@ -85,7 +85,7 @@ export function CommentRepliesEditor({
   replyCommentId: string
   rootReplyCommentId: string
   onDiscardDraft: () => void
-  onSuccess: () => void
+  onSuccess: (commentId: {id: string}) => void
   enableWebSigning: boolean
 }) {
   if (!isReplying) return null
