@@ -34,6 +34,7 @@ export function CommentReplies({
             originHomeId={homeId}
             siteHost={siteHost}
             comment={true}
+            // id={hmId('c', comment.id)}
           >
             <BlocksContent blocks={comment.content} parentBlockId={null} />
           </WebDocContentProvider>
