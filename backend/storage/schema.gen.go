@@ -97,6 +97,7 @@ const (
 	FtsRank       sqlitegen.Column = "fts.rank"
 	FtsRawContent sqlitegen.Column = "fts.raw_content"
 	FtsType       sqlitegen.Column = "fts.type"
+	FtsVersion    sqlitegen.Column = "fts.version"
 )
 
 // Table fts. Plain strings.
@@ -108,6 +109,7 @@ const (
 	C_FtsRank       = "fts.rank"
 	C_FtsRawContent = "fts.raw_content"
 	C_FtsType       = "fts.type"
+	C_FtsVersion    = "fts.version"
 )
 
 // Table fts_config.
@@ -131,6 +133,7 @@ const (
 	FtsContentC1 sqlitegen.Column = "fts_content.c1"
 	FtsContentC2 sqlitegen.Column = "fts_content.c2"
 	FtsContentC3 sqlitegen.Column = "fts_content.c3"
+	FtsContentC4 sqlitegen.Column = "fts_content.c4"
 	FtsContentID sqlitegen.Column = "fts_content.id"
 )
 
@@ -141,6 +144,7 @@ const (
 	C_FtsContentC1 = "fts_content.c1"
 	C_FtsContentC2 = "fts_content.c2"
 	C_FtsContentC3 = "fts_content.c3"
+	C_FtsContentC4 = "fts_content.c4"
 	C_FtsContentID = "fts_content.id"
 )
 
@@ -445,12 +449,14 @@ var Schema = sqlitegen.Schema{
 		FtsRank:                                 {Table: Fts, SQLType: ""},
 		FtsRawContent:                           {Table: Fts, SQLType: ""},
 		FtsType:                                 {Table: Fts, SQLType: ""},
+		FtsVersion:                              {Table: Fts, SQLType: ""},
 		FtsConfigK:                              {Table: FtsConfig, SQLType: ""},
 		FtsConfigV:                              {Table: FtsConfig, SQLType: ""},
 		FtsContentC0:                            {Table: FtsContent, SQLType: ""},
 		FtsContentC1:                            {Table: FtsContent, SQLType: ""},
 		FtsContentC2:                            {Table: FtsContent, SQLType: ""},
 		FtsContentC3:                            {Table: FtsContent, SQLType: ""},
+		FtsContentC4:                            {Table: FtsContent, SQLType: ""},
 		FtsContentID:                            {Table: FtsContent, SQLType: "INTEGER"},
 		FtsDataBlock:                            {Table: FtsData, SQLType: "BLOB"},
 		FtsDataID:                               {Table: FtsData, SQLType: "INTEGER"},

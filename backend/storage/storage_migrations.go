@@ -58,13 +58,19 @@ type migration struct {
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
 
-	{Version: "2025-04-23.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+	{Version: "2025-04-28.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
-			CREATE VIRTUAL TABLE fts USING fts5(
+			DROP TABLE IF EXISTS fts5;
+		`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
 				raw_content, 
 				type, 
 				blob_id,
-				block_id
+				block_id,
+				version
 			);
 		`)); err != nil {
 			return err
