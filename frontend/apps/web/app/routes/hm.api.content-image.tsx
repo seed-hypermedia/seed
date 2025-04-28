@@ -19,8 +19,6 @@ import satori from 'satori'
 import svg2img from 'svg2img'
 import {processImage} from '../utils/image-processor'
 
-import {toPlainMessage} from '@bufbuild/protobuf'
-
 export const OG_IMAGE_SIZE = {
   width: 1200,
   height: 630,
@@ -296,14 +294,18 @@ export const loader = async ({request}: {request: Request}) => {
       const rawDoc = await queryClient.documents.getDocument({
         account: authorUid,
       })
-      const document = HMDocumentSchema.parse({
-        ...toPlainMessage(rawDoc),
-        metadata: HMDocumentMetadataSchema.parse(
-          rawDoc.metadata?.toJson({emitDefaultValues: true}),
-        ),
-      })
-
-      return document
+      const rawDocJson = rawDoc.toJson({emitDefaultValues: true})
+      const document = HMDocumentSchema.safeParse(rawDocJson)
+      if (!document.success) {
+        console.error(
+          'Failed to parse author document for ',
+          authorUid,
+          document.error,
+        )
+        console.error(rawDocJson)
+        throw new Error('Failed to parse author document')
+      }
+      return document.data
     }),
   )
 

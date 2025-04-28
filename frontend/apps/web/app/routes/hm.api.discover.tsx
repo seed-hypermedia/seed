@@ -12,15 +12,13 @@ export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json()
     const input = discoverSchema.parse(data)
-    console.log('[discover][start]: ', input)
     await discoverDocument(input.uid, input.path, input.version)
-    console.log('[discover][success]: ', input)
     return json({message: 'Success'})
   } catch (e) {
-    if (e.toJSON) {
-      return json(e, {status: 500})
-    } else {
+    if (e instanceof Error) {
       return json({message: e.message}, {status: 500})
+    } else {
+      return json({message: 'Unknown error'}, {status: 500})
     }
   }
 }
