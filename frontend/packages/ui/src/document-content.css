@@ -79,3 +79,7 @@
   list-style-type: square !important;
   list-style-position: outside;
 }
+
+.blocknode-content-heading ~ [data-list-type='Group'] {
+  padding-left: 0 !important;
+}
