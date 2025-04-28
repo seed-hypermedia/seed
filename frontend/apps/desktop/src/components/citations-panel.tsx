@@ -193,7 +193,7 @@ export function CommentCitationEntry({
       rootReplyCommentId={comment.data.threadRoot ?? null}
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
-      replyCount={replies.length}
+      replyCount={replies?.length}
       enableWebSigning={true}
       onReplyClick={onReplyClick}
       onReplyCountClick={onReplyCountClick}

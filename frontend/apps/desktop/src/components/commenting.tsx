@@ -24,7 +24,11 @@ import {
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {CommentGroup} from '@shm/ui/discussion'
-import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
+import {
+  BlocksContent,
+  getBlockNodeById,
+  useDocContentContext,
+} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
@@ -33,7 +37,7 @@ import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Button, SizableText, View, XStack, YStack} from 'tamagui'
+import {Button, View, XStack, YStack} from 'tamagui'
 import {useSizeObserver} from './app-embeds'
 import {HyperMediaEditorView} from './editor'
 
@@ -493,7 +497,7 @@ function SelectAccountDropdown({
 function CommentReference({reference}: {reference: string | null}) {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
-
+  const context = useDocContentContext()
   const referenceId = useMemo(() => {
     if (!reference) return null
     return unpackHmId(reference)
@@ -532,7 +536,6 @@ function CommentReference({reference}: {reference: string | null}) {
     <XStack
       gap="$3"
       ai="center"
-      p="$2"
       width="100%"
       borderLeftWidth={2}
       borderLeftColor="$brand5"
@@ -558,18 +561,16 @@ function CommentReference({reference}: {reference: string | null}) {
         }
       }}
     >
-      <SizableText
-        size="$2"
-        color="$color9"
-        textAlign="left"
-        textOverflow="ellipsis"
-        whiteSpace="nowrap"
-        overflow="hidden"
-      >
-        {commentReferenceContent({
-          content: referenceContent || [],
-        })}
-      </SizableText>
+      <View opacity={0.5} f={1}>
+        <AppDocContentProvider {...context} comment>
+          <BlocksContent
+            blocks={referenceContent}
+            parentBlockId={null}
+            expanded={false}
+            hideCollapseButtons
+          />
+        </AppDocContentProvider>
+      </View>
     </XStack>
   )
 }
