@@ -864,6 +864,82 @@ func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	require.NotNil(t, doc)
 }
 
+func TestBug_LeftOverDocumentsAfterDelete(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	alice := coretest.NewTester("alice").Account.Principal()
+
+	// Create initial document.
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        alice.String(),
+		Path:           "/test/doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Original Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Initial content",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	// Create new ref to supercede the previous one.
+	newRef, err := dmn.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        alice.String(),
+		Path:           "/test/doc",
+		SigningKeyName: "main",
+		Generation:     doc.GenerationInfo.Generation + 10,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: doc.Genesis,
+					Version: doc.Version,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, newRef)
+
+	// Delete the document.
+	_, err = dmn.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        alice.String(),
+		Path:           "/test/doc",
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{},
+		},
+		Generation: newRef.GenerationInfo.Generation,
+	})
+	require.NoError(t, err)
+
+	// List documents to verify the deleted ref doesn't appear
+	docs, err := dmn.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{
+		Account: alice.String(),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, docs.Documents, 0, "deleted document must not reveal previous generations in the list")
+
+	_, err = dmn.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc.Account,
+		Path:    doc.Path,
+	})
+	require.Error(t, err)
+}
+
 func TestKeyDelegation(t *testing.T) {
 	t.Parallel()
 

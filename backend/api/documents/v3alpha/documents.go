@@ -886,8 +886,8 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"document_generations dg",
 			"resources r",
 		).
-		Where("r.id = dg.resource", "dg.is_deleted = 0").
-		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation)").
+		Where("r.id = dg.resource").
+		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation) AND dg.is_deleted = 0").
 		Limit("? + 1")
 }
 
