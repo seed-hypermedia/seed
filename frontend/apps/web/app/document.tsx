@@ -44,9 +44,14 @@ import {useIsDark} from '@shm/ui/use-is-dark'
 import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import React, {useCallback, useEffect, useMemo, useState} from 'react'
-import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Separator, View} from 'tamagui'
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {
+  ImperativePanelHandle,
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+} from 'react-resizable-panels'
+import {Separator, useMedia, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
@@ -186,6 +191,9 @@ type WebAccessory =
 
 export function DocumentPage(props: SiteDocumentPayload) {
   const isDark = useIsDark()
+  const mainPanelRef = useRef<ImperativePanelHandle>(null)
+  const media = useMedia()
+  let panel: any = null
   const {
     document,
     originHomeId,
@@ -204,6 +212,29 @@ export function DocumentPage(props: SiteDocumentPayload) {
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '')
   }, [id, document?.metadata?.name])
+
+  useEffect(() => {
+    if (comment) setActivePanel({type: 'comments'})
+  }, [comment])
+
+  useEffect(() => {
+    if (media.gtSm) {
+      console.log('EXPAND PANEL')
+      const mainPanel = mainPanelRef.current
+      if (!mainPanel) return
+      if (panel) {
+        mainPanel.resize(60)
+        mainPanel.expand()
+      }
+    } else {
+      console.log('COLLAPSE PANEL')
+      const mainPanel = mainPanelRef.current
+      if (!mainPanel) return
+      if (panel) {
+        mainPanel.collapse()
+      }
+    }
+  }, [panel, media.gtSm])
 
   if (!id) return <NotFoundPage {...props} />
   if (!document)
@@ -260,10 +291,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     return null
   })
 
-  useEffect(() => {
-    if (comment) setActivePanel({type: 'comments'})
-  }, [comment])
-
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
       replace: true,
@@ -291,23 +318,34 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const citations = useCitations(id)
   const comments = useComments(id)
-  let panel = null
 
   function onBlockCitationClick(blockId?: string | null) {
-    console.log('~ onBlockCitationClick', blockId)
+    console.log('~ onBlockCitationClick', blockId, media.gtSm)
+
     setActivePanel({type: 'citations', blockId: blockId || null})
+
+    if (!media.gtSm) {
+      const mainPanel = mainPanelRef.current
+      if (!mainPanel) return
+      mainPanel.collapse()
+    }
   }
 
   function onBlockCommentClick(blockId?: string | null) {
-    console.log('~ onBlockCommentClick', blockId)
+    console.log('~ onBlockCommentClick', blockId, media.gtSm)
     setActivePanel({type: 'comments', blockId: blockId || null})
+    if (!media.gtSm) {
+      const mainPanel = mainPanelRef.current
+      if (!mainPanel) return
+      mainPanel.collapse()
+    }
   }
 
   if (activePanel?.type == 'comments') {
     panel = (
       <WebCommentsPanel
         blockId={activePanel.blockId}
-        setBlockId={(blockId) => setActivePanel({type: 'comments', blockId})}
+        setBlockId={onBlockCommentClick}
         comments={comments.data}
         docId={id}
         homeId={originHomeId}
@@ -324,7 +362,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       <WebCitationsPanel
         citations={citations.data}
         blockId={activePanel.blockId}
-        setBlockId={(blockId) => setActivePanel({type: 'citations', blockId})}
+        setBlockId={onBlockCitationClick}
       />
     )
   }
@@ -336,7 +374,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       siteHost={siteHost}
     >
       <PanelGroup direction="horizontal">
-        <Panel>
+        <Panel ref={mainPanelRef} collapsible id="main-panel">
           <WebSiteHeader
             homeMetadata={homeMetadata}
             originHomeId={originHomeId}
@@ -355,12 +393,26 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       docId={id}
                       citations={citations.data}
                       comments={comments.data}
-                      onCitationsOpen={() =>
+                      onCitationsOpen={() => {
                         setActivePanel({type: 'citations', blockId: null})
-                      }
-                      onCommentsOpen={() =>
+                        if (!media.gtSm) {
+                          const mainPanel = mainPanelRef.current
+
+                          if (!mainPanel) return
+                          console.log('COLLAPSE PANEL')
+                          mainPanel.collapse()
+                        }
+                      }}
+                      onCommentsOpen={() => {
                         setActivePanel({type: 'comments', blockId: null})
-                      }
+                        if (!media.gtSm) {
+                          const mainPanel = mainPanelRef.current
+                          if (!mainPanel) return
+                          console.log('COLLAPSE PANEL')
+                          mainPanel.resize(60)
+                          mainPanel.collapse()
+                        }
+                      }}
                       // onVersionOpen={() => {}}
                     />
                   ) : null}
@@ -545,7 +597,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <>
             <PanelResizeHandle className="panel-resize-handle" />
 
-            <Panel maxSize={40} defaultSize={30} minSize={20}>
+            <Panel defaultSize={30} minSize={20}>
               <YStack
                 borderLeftWidth={1}
                 borderLeftColor="$borderColor"

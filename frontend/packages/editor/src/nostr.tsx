@@ -5,6 +5,7 @@ import {getBlockInfoFromPos} from '@/blocknote/core/extensions/Blocks/helpers/ge
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
+import {Tooltip} from '@shm/ui/tooltip'
 import {
   Event as NostrEvent,
   nip19,
@@ -15,11 +16,6 @@ import {
 } from 'nostr-tools'
 import {useEffect, useState} from 'react'
 import {
-  RiCheckFill,
-  RiCloseCircleLine,
-  RiRefreshLine,
-} from 'react-icons/ri/index.js'
-import {
   Button,
   Card,
   Form,
@@ -29,7 +25,6 @@ import {
   SizableText,
   Tabs,
   Text,
-  Tooltip,
   XStack,
   YStack,
   useTheme,
@@ -250,13 +245,15 @@ function NostrComponent({
                         ? 'green'
                         : 'orange'
                     }
-                    icon={
-                      verified === undefined
-                        ? RiRefreshLine
-                        : verified
-                        ? RiCheckFill
-                        : RiCloseCircleLine
-                    }
+                    icon={undefined}
+                    // icon={
+                    //   verified === undefined
+                    //     ? RiRefreshLine
+                    //     : verified
+                    //     ? // ? RiCheckFill
+                    //       undefined
+                    //     : RiCloseCircleLine
+                    // }
                   />
                 </Tooltip>
               </XStack>
