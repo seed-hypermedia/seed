@@ -268,7 +268,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	type head struct {
 		Multihash string `json:"multihash"`
-		Codec     int    `json:"codec"`
+		Codec     uint64 `json:"codec"`
 	}
 
 	if in.FullHistory {
@@ -315,7 +315,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					return nil
 				}
 				var contextStart int
-				var contextEnd int = len(matchStr)
+				var contextEnd = len(matchStr)
 				if firstOffset > 16 {
 					contextStart = firstOffset - 16
 				}
@@ -343,7 +343,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					if err != nil {
 						return err
 					}
-					cids[i] = cid.NewCidV1(uint64(h.Codec), mhBinary)
+					cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 				}
 				latestVersion := docmodel.NewVersion(cids...).String()
 				version := stmt.ColumnText(3)
