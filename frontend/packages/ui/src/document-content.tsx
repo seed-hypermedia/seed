@@ -1,8 +1,12 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
+  CONTENT_ADDED_COLOR_DARK,
+  CONTENT_ADDED_COLOR_LIGHT,
   CONTENT_HIGHLIGHT_COLOR_DARK,
   CONTENT_HIGHLIGHT_COLOR_LIGHT,
+  CONTENT_REMOVED_COLOR_DARK,
+  CONTENT_REMOVED_COLOR_LIGHT,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
@@ -962,27 +966,6 @@ export function BlockNodeContent({
   )
 }
 
-function isBlockNodeEmpty(bn: HMBlockNode): boolean {
-  if (bn.children && bn.children.length) return false
-  if (typeof bn.block == 'undefined') return true
-  switch (bn.block.type) {
-    case 'Paragraph':
-    case 'Heading':
-    case 'Math':
-    case 'Code':
-      return !bn.block.text
-    case 'Image':
-    case 'File':
-    case 'Video':
-    // case "nostr":
-    case 'Embed':
-    case 'WebEmbed':
-      return !bn.block.link
-    default:
-      return false
-  }
-}
-
 export const blockStyles: YStackProps = {
   width: '100%',
   alignSelf: 'center',
@@ -1493,6 +1476,10 @@ function InlineContentView({
     theme === 'dark'
       ? CONTENT_HIGHLIGHT_COLOR_DARK
       : CONTENT_HIGHLIGHT_COLOR_LIGHT
+  const addedColor =
+    theme === 'dark' ? CONTENT_ADDED_COLOR_DARK : CONTENT_ADDED_COLOR_LIGHT
+  const removedColor =
+    theme === 'dark' ? CONTENT_REMOVED_COLOR_DARK : CONTENT_REMOVED_COLOR_LIGHT
   return (
     <Text
       fontSize={fSize}
@@ -1549,6 +1536,31 @@ function InlineContentView({
 
           if (content.styles.range) {
             children = <Text backgroundColor={rangeColor}>{children}</Text>
+          }
+
+          if (content.styles.added) {
+            children = (
+              <Tooltip
+                content="Added" // todo, add more context to this tooltip such as version+author+time added
+              >
+                <Text backgroundColor={addedColor}>{children}</Text>
+              </Tooltip>
+            )
+          }
+
+          if (content.styles.removed) {
+            children = (
+              <Tooltip
+                content="Removed" // todo, add more context to this tooltip such as version+author+time
+              >
+                <Text
+                  backgroundColor={removedColor}
+                  textDecorationLine="line-through"
+                >
+                  {children}
+                </Text>
+              </Tooltip>
+            )
           }
 
           if (content.styles.bold) {

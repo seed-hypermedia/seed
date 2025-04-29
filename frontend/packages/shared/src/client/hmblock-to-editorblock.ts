@@ -322,9 +322,16 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       }
 
       if (
-        ['Bold', 'Italic', 'Strike', 'Underline', 'Code', 'Range'].includes(
-          annotationData.type,
-        )
+        [
+          'Bold',
+          'Italic',
+          'Strike',
+          'Underline',
+          'Code',
+          'Range',
+          'Added',
+          'Removed',
+        ].includes(annotationData.type)
       ) {
         // @ts-ignore
         leaf.styles[annotationData.type.toLowerCase()] = true
@@ -497,4 +504,17 @@ function isText(entry: HMInlineContent): boolean {
     entry.type == 'text' &&
     typeof (entry as EditorText).text == 'string'
   )
+}
+
+export function blockAnnotations(block: HMBlock): HMAnnotation[] | undefined {
+  const {type} = block
+  if (
+    type === 'Paragraph' ||
+    type === 'Heading' ||
+    type === 'Code' ||
+    type === 'Math'
+  ) {
+    return block.annotations || (block.annotations = [])
+  }
+  return undefined
 }

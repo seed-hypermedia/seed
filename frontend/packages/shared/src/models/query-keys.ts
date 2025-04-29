@@ -41,6 +41,7 @@ export const queryKeys = {
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
   DOCUMENT_INTERACTION_SUMMARY: 'DOCUMENT_INTERACTION_SUMMARY', //, docId.id: string
+  DOCUMENT_BLAME: 'DOC_BLAME', // id.id: string, version: string, shallow: boolean
 
   // entity
   ENTITY: 'ENTITY', // , id.id: string, version: string

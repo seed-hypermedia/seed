@@ -9,6 +9,7 @@ import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {useDocumentBlame} from '@/models/blame'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
   useAccountDraftList,
@@ -788,6 +789,16 @@ function DocPageContent({
   const route = useNavRoute()
   const citations = useEntityCitations(entity.id)
   const docRoute = route.key === 'document' ? route : null
+  const isBlame = !!docRoute && docRoute.view === 'blame'
+  const isShowingChange = docRoute?.accessory?.key === 'versions'
+  const blame = useDocumentBlame(entity.id, {
+    enabled: isBlame || isShowingChange,
+    shallow: isShowingChange && !isBlame,
+  })
+  const displayDocument: HMDocument | null | undefined = isBlame
+    ? blame.data?.document
+    : entity.document
+  if (!displayDocument || !docRoute) return null
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
@@ -796,8 +807,8 @@ function DocPageContent({
   return (
     <AppDocContentProvider
       routeParams={{
-        uid: route.id?.uid || undefined,
-        version: route.id?.version || undefined,
+        uid: docRoute.id?.uid || undefined,
+        version: docRoute.id?.version || undefined,
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}
@@ -866,7 +877,7 @@ function DocPageContent({
       isBlockFocused={isBlockFocused}
     >
       <DocContent
-        document={entity.document!}
+        document={displayDocument}
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         handleBlockReplace={() => {
           if (route.key === 'document') {

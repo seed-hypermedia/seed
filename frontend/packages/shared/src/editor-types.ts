@@ -158,6 +158,8 @@ export interface EditorInlineStyles {
   code?: boolean
   math?: boolean
   range?: boolean
+  added?: boolean
+  removed?: boolean
 }
 
 export type EditorAnnotationType =

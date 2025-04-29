@@ -169,6 +169,20 @@ export const HighlightAnnotationSchema = z
   })
   .strict()
 
+export const AddedAnnotationSchema = z
+  .object({
+    type: z.literal('Added'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
+
+export const RemovedAnnotationSchema = z
+  .object({
+    type: z.literal('Removed'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
+
 export const HMAnnotationSchema = z.discriminatedUnion('type', [
   BoldAnnotationSchema,
   ItalicAnnotationSchema,
@@ -178,6 +192,8 @@ export const HMAnnotationSchema = z.discriminatedUnion('type', [
   LinkAnnotationSchema,
   InlineEmbedAnnotationSchema,
   HighlightAnnotationSchema,
+  AddedAnnotationSchema,
+  RemovedAnnotationSchema,
 ])
 export type HMAnnotation = z.infer<typeof HMAnnotationSchema>
 

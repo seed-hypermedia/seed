@@ -103,6 +103,7 @@ export const documentRouteSchema = z.object({
   immediatelyPromptNotifs: z.boolean().optional(),
   immediatelyPromptTemplate: z.boolean().optional(),
   accessory: documentAccessorySchema.nullable().optional(),
+  view: z.union([z.literal('default'), z.literal('blame')]).optional(),
 })
 
 export type DocumentRoute = z.infer<typeof documentRouteSchema>

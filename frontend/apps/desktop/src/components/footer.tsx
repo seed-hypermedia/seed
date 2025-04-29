@@ -1,6 +1,8 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
+import {DocumentRoute} from '@shm/shared'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {FooterWrapper} from '@shm/ui/footer'
@@ -43,7 +45,26 @@ export default function Footer({children}: {children?: ReactNode}) {
       <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
         {children}
       </XStack>
+      <DocumentViewButton />
     </FooterWrapper>
+  )
+}
+
+function DocumentViewButton() {
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  const docRoute = route.key === 'document' ? route : null
+  if (!docRoute) return null
+  const activeView = docRoute.view || 'default'
+  function toggleView() {
+    if (!docRoute) return null
+    const view = activeView === 'default' ? 'blame' : 'default'
+    replace({...docRoute, view} satisfies DocumentRoute)
+  }
+  return (
+    <Button onPress={toggleView} size="$1">
+      View:{activeView}
+    </Button>
   )
 }
 

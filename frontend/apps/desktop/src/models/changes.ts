@@ -152,7 +152,7 @@ export type ProfileSchema = {
 export type ChangeData = ChangeBlob<ProfileSchema> // todo: add DocumentSchema
 export type BlobData = ChangeData
 
-function queryBlob(cid: string | undefined) {
+export function queryBlob(cid: string | undefined) {
   return {
     queryFn: async () => {
       const res = await fetch(
