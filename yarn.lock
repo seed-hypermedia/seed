@@ -10862,7 +10862,7 @@ __metadata:
     react-icons: 4.9.0
     react-native-svg: ">=12"
     react-qr-code: 2.0.15
-    react-resizable-panels: ^2.1.7
+    react-resizable-panels: ^2.1.9
     sharp: ^0.33.5
     superjson: 2.2.1
     tamagui: 1.108.2
@@ -32448,13 +32448,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-resizable-panels@npm:^2.1.7":
-  version: 2.1.8
-  resolution: "react-resizable-panels@npm:2.1.8"
+"react-resizable-panels@npm:^2.1.9":
+  version: 2.1.9
+  resolution: "react-resizable-panels@npm:2.1.9"
   peerDependencies:
     react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
     react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
-  checksum: 0237bbfb14f8fa76fec64382e59449462d5cf382402e2b18d42f587687679193ce646bc3961bf0e6b4e30794c0dc8b5c005e5ac6a0559b6c591e67aa64ccb386
+  checksum: a807d6cd572c1323e21cea896cb27ae1544219dd813c746607ecb05d4f3a81a166921f86720481ac07b7e37e7812e0a24abbb7a3237b8e11cf69d29f7022a2cb
   languageName: node
   linkType: hard
 

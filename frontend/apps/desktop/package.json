@@ -114,7 +114,7 @@
     "react-icons": "4.9.0",
     "react-native-qrcode-svg": "6.3.12",
     "react-qr-code": "2.0.15",
-    "react-resizable-panels": "2.0.20",
+    "react-resizable-panels": "^2.1.9",
     "react-tweet": "3.2.0",
     "rehype": "12.0.1",
     "rehype-parse": "8.0.4",

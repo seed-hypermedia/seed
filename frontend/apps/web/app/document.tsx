@@ -45,6 +45,7 @@ import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useState} from 'react'
+import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Separator, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
@@ -313,7 +314,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         document={document}
         originHomeId={originHomeId}
         siteHost={siteHost}
-        enableWebSigning={enableWebSigning}
+        enableWebSigning={enableWebSigning || false}
       />
     )
   }
@@ -334,207 +335,254 @@ export function DocumentPage(props: SiteDocumentPayload) {
       originHomeId={props.originHomeId}
       siteHost={siteHost}
     >
-      <WebSiteHeader
-        homeMetadata={homeMetadata}
-        originHomeId={originHomeId}
-        docId={id}
-        document={document}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
-        origin={origin}
-      >
-        <XStack w="100%">
-          <YStack f={1}>
-            <DocumentCover cover={document.metadata.cover} id={id} />
-            <YStack w="100%" ref={elementRef} f={1} position="relative">
-              {panel == null ? (
-                <DocInteractionsSummary
-                  docId={id}
-                  citations={citations.data}
-                  comments={comments.data}
-                  onCitationsOpen={() =>
-                    setActivePanel({type: 'citations', blockId: null})
-                  }
-                  onCommentsOpen={() =>
-                    setActivePanel({type: 'comments', blockId: null})
-                  }
-                  // onVersionOpen={() => {}}
-                />
-              ) : null}
-              <XStack {...wrapperProps}>
-                {showSidebars ? (
-                  <YStack
-                    marginTop={document.metadata?.cover ? 152 : 220}
-                    {...sidebarProps}
-                  >
-                    <YStack
-                      className="hide-scrollbar"
-                      overflow="scroll"
-                      height="100%"
-                      // paddingTop={32}
-                      paddingBottom={32}
-                    >
-                      <DocNavigationWrapper showCollapsed={showCollapsed}>
-                        <DocumentOutline
-                          onActivateBlock={onActivateBlock}
-                          document={document}
-                          id={id}
-                          // onCloseNav={() => {}}
-                          supportDocuments={props.supportDocuments}
-                          activeBlockId={id.blockRef}
-                        />
-                        <DocDirectory
-                          // supportDocuments={props.supportDocuments}
-                          supportQueries={props.supportQueries}
-                          // documentMetadata={document.metadata}
-                          id={id}
-                        />
-                      </DocNavigationWrapper>
-                    </YStack>
-                  </YStack>
-                ) : null}
-                <YStack {...mainContentProps}>
-                  {isHomeDoc ? null : (
-                    <PageHeader
-                      originHomeId={originHomeId}
-                      breadcrumbs={props.breadcrumbs}
-                      docMetadata={document.metadata}
+      <PanelGroup direction="horizontal">
+        <Panel>
+          <WebSiteHeader
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            docId={id}
+            document={document}
+            supportDocuments={supportDocuments}
+            supportQueries={supportQueries}
+            origin={origin}
+          >
+            <XStack w="100%" bg={isDark ? '$background' : '$backgroundStrong'}>
+              <YStack f={1}>
+                <DocumentCover cover={document.metadata.cover} id={id} />
+                <YStack w="100%" ref={elementRef} f={1} position="relative">
+                  {panel == null ? (
+                    <DocInteractionsSummary
                       docId={id}
-                      authors={document.authors.map(
-                        (author) => accountsMetadata[author],
-                      )}
-                      updateTime={document.updateTime}
+                      citations={citations.data}
+                      comments={comments.data}
+                      onCitationsOpen={() =>
+                        setActivePanel({type: 'citations', blockId: null})
+                      }
+                      onCommentsOpen={() =>
+                        setActivePanel({type: 'comments', blockId: null})
+                      }
+                      // onVersionOpen={() => {}}
                     />
-                  )}
-                  <WebDocContentProvider
-                    onBlockCitationClick={onBlockCitationClick}
-                    onBlockCommentClick={onBlockCommentClick}
-                    originHomeId={originHomeId}
-                    id={{...id, version: document.version}}
-                    siteHost={siteHost}
-                    supportDocuments={supportDocuments}
-                    supportQueries={supportQueries}
-                    citations={citations.data}
-                    routeParams={{
-                      uid: id.uid,
-                      version: id.version || undefined,
-                      blockRef: blockRef,
-                      blockRange: blockRange,
+                  ) : null}
+                  <XStack {...wrapperProps}>
+                    {showSidebars ? (
+                      <YStack
+                        marginTop={document.metadata?.cover ? 152 : 220}
+                        {...sidebarProps}
+                      >
+                        <YStack
+                          className="hide-scrollbar"
+                          overflow="scroll"
+                          height="100%"
+                          // paddingTop={32}
+                          paddingBottom={32}
+                        >
+                          <DocNavigationWrapper showCollapsed={showCollapsed}>
+                            <DocumentOutline
+                              onActivateBlock={onActivateBlock}
+                              document={document}
+                              id={id}
+                              // onCloseNav={() => {}}
+                              supportDocuments={props.supportDocuments}
+                              activeBlockId={id.blockRef}
+                            />
+                            <DocDirectory
+                              // supportDocuments={props.supportDocuments}
+                              supportQueries={props.supportQueries}
+                              // documentMetadata={document.metadata}
+                              id={id}
+                            />
+                          </DocNavigationWrapper>
+                        </YStack>
+                      </YStack>
+                    ) : null}
+                    <YStack {...mainContentProps}>
+                      {isHomeDoc ? null : (
+                        <PageHeader
+                          originHomeId={originHomeId}
+                          breadcrumbs={props.breadcrumbs}
+                          docMetadata={document.metadata}
+                          docId={id}
+                          authors={document.authors.map(
+                            (author) => accountsMetadata[author],
+                          )}
+                          updateTime={document.updateTime}
+                        />
+                      )}
+                      <WebDocContentProvider
+                        onBlockCitationClick={onBlockCitationClick}
+                        onBlockCommentClick={onBlockCommentClick}
+                        originHomeId={originHomeId}
+                        id={{...id, version: document.version}}
+                        siteHost={siteHost}
+                        supportDocuments={supportDocuments}
+                        supportQueries={supportQueries}
+                        citations={citations.data}
+                        routeParams={{
+                          uid: id.uid,
+                          version: id.version || undefined,
+                          blockRef: blockRef,
+                          blockRange: blockRange,
+                        }}
+                      >
+                        <DocContent
+                          document={document}
+                          handleBlockReplace={() => {
+                            // Replace the URL to not include fragment.
+                            replace(
+                              window.location.pathname + window.location.search,
+                              {
+                                replace: true,
+                                preventScrollReset: true,
+                              },
+                            )
+                            return true
+                          }}
+                        />
+                      </WebDocContentProvider>
+                      {document.metadata &&
+                      document.metadata.showActivity === false ? null : (
+                        <DocumentAppendix
+                          id={id}
+                          document={document}
+                          originHomeId={originHomeId}
+                          siteHost={siteHost}
+                          enableWebSigning={enableWebSigning}
+                          isCommentingPanelOpen={
+                            activePanel?.type == 'comments'
+                          }
+                        />
+                      )}
+                    </YStack>
+                    {showSidebars ? <YStack {...sidebarProps} /> : null}
+                  </XStack>
+                </YStack>
+              </YStack>
+              {/* {panel ? (
+                <YStack
+                  $sm={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    zIndex: '$zIndex.7',
+                  }}
+                  $md={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    zIndex: '$zIndex.7',
+                  }}
+                  // position="absolute"
+                  // right={0}
+                  // top={0}
+                  // bottom={0}
+                  // left={0}
+                  // zIndex="$zIndex.7"
+                  // f={1}
+                  // w="100%"
+                  // h="100%"
+                  bg={isDark ? '$background' : '$backgroundStrong'}
+                  $gtMd={{
+                    maxWidth: '25vw',
+                    minWidth: 220,
+                    w: '100%',
+                    borderLeftWidth: 1,
+                    borderBottomWidth: 1,
+                    borderLeftColor: '$color7',
+                    borderBottomColor: '$color7',
+                    borderBottomLeftRadius: '$2',
+                    position: 'relative',
+                    minHeight: '100%',
+                    top: 'unset',
+                    bottom: 'unset',
+                    left: 'unset',
+                    right: 'unset',
+
+                    // position: 'sticky',
+                    // height: 'calc(100vh - 56px)',
+                    // right: 0,
+                    // top: 56,
+                    // bottom: 0,
+                    // left: undefined,
+                  }}
+                >
+                  <XStack
+                    paddingHorizontal="$2"
+                    paddingVertical="$2"
+                    alignItems="center"
+                    position="absolute"
+                    top={0}
+                    right={12}
+                    $gtMd={{
+                      right: 0,
                     }}
+                    zIndex="$zIndex.2"
                   >
-                    <DocContent
-                      document={document}
-                      handleBlockReplace={() => {
-                        // Replace the URL to not include fragment.
-                        replace(
-                          window.location.pathname + window.location.search,
-                          {
-                            replace: true,
-                            preventScrollReset: true,
-                          },
-                        )
-                        return true
+                    <View flex={1} />
+                    <Tooltip content="Close Panel">
+                      <Button
+                        chromeless
+                        size="$2"
+                        icon={<X size={20} />}
+                        onPress={() => {
+                          setActivePanel(null)
+                        }}
+                      />
+                    </Tooltip>
+                  </XStack>
+                  {panel}
+                </YStack>
+              ) : null} */}
+            </XStack>
+          </WebSiteHeader>
+          <PageFooter enableWebSigning={enableWebSigning} id={id} />
+        </Panel>
+        {panel ? (
+          <>
+            <PanelResizeHandle className="panel-resize-handle" />
+
+            <Panel maxSize={40} defaultSize={30} minSize={20}>
+              <YStack
+                borderLeftWidth={1}
+                borderLeftColor="$borderColor"
+                minHeight="100%"
+              >
+                <XStack
+                  paddingHorizontal="$2"
+                  paddingVertical="$2"
+                  alignItems="center"
+                  position="absolute"
+                  w={56}
+                  h={56}
+                  top={0}
+                  right={12}
+                  $gtMd={{
+                    right: 0,
+                  }}
+                  zIndex="$zIndex.2"
+                >
+                  <View flex={1} />
+                  <Tooltip content="Close Panel">
+                    <Button
+                      chromeless
+                      size="$2"
+                      icon={<X size={20} />}
+                      onPress={() => {
+                        setActivePanel(null)
                       }}
                     />
-                  </WebDocContentProvider>
-                  {document.metadata &&
-                  document.metadata.showActivity === false ? null : (
-                    <DocumentAppendix
-                      id={id}
-                      document={document}
-                      originHomeId={originHomeId}
-                      siteHost={siteHost}
-                      enableWebSigning={enableWebSigning}
-                      isCommentingPanelOpen={activePanel?.type == 'comments'}
-                    />
-                  )}
-                </YStack>
-                {showSidebars ? <YStack {...sidebarProps} /> : null}
-              </XStack>
-            </YStack>
-          </YStack>
-          {panel ? (
-            <YStack
-              $sm={{
-                position: 'absolute',
-                right: 0,
-                top: 0,
-                bottom: 0,
-                left: 0,
-                zIndex: '$zIndex.7',
-              }}
-              $md={{
-                position: 'absolute',
-                right: 0,
-                top: 0,
-                bottom: 0,
-                left: 0,
-                zIndex: '$zIndex.7',
-              }}
-              // position="absolute"
-              // right={0}
-              // top={0}
-              // bottom={0}
-              // left={0}
-              // zIndex="$zIndex.7"
-              // f={1}
-              // w="100%"
-              // h="100%"
-              bg={isDark ? '$background' : '$backgroundStrong'}
-              $gtMd={{
-                maxWidth: '25vw',
-                minWidth: 220,
-                w: '100%',
-                borderLeftWidth: 1,
-                borderBottomWidth: 1,
-                borderLeftColor: '$color7',
-                borderBottomColor: '$color7',
-                borderBottomLeftRadius: '$2',
-                position: 'relative',
-                minHeight: '100%',
-                top: 'unset',
-                bottom: 'unset',
-                left: 'unset',
-                right: 'unset',
-
-                // position: 'sticky',
-                // height: 'calc(100vh - 56px)',
-                // right: 0,
-                // top: 56,
-                // bottom: 0,
-                // left: undefined,
-              }}
-            >
-              <XStack
-                paddingHorizontal="$2"
-                paddingVertical="$2"
-                alignItems="center"
-                position="absolute"
-                top={0}
-                right={12}
-                $gtMd={{
-                  right: 0,
-                }}
-                zIndex="$zIndex.2"
-              >
-                <View flex={1} />
-                <Tooltip content="Close Panel">
-                  <Button
-                    chromeless
-                    size="$2"
-                    icon={<X size={20} />}
-                    onPress={() => {
-                      setActivePanel(null)
-                    }}
-                  />
-                </Tooltip>
-              </XStack>
-              {panel}
-            </YStack>
-          ) : null}
-        </XStack>
-      </WebSiteHeader>
-      <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                  </Tooltip>
+                </XStack>
+                {panel}
+              </YStack>
+            </Panel>
+          </>
+        ) : null}
+      </PanelGroup>
     </WebSiteProvider>
   )
 }
@@ -904,8 +952,15 @@ function WebCitationsPanel({
     )
   }, [citations, blockId])
   return (
-    <YStack>
-      <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
+    <YStack gap="$4">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$3"
+        alignItems="center"
+        h={57}
+        borderBottomWidth={1}
+        borderBottomColor="$borderColor"
+      >
         <SizableText size="$3" fontWeight="bold">
           Citations
         </SizableText>

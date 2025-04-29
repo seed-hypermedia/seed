@@ -103,8 +103,15 @@ export function WebCommentsPanel({
   }
 
   return (
-    <YStack>
-      <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
+    <YStack gap="$4">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$3"
+        alignItems="center"
+        h={57}
+        borderBottomWidth={1}
+        borderBottomColor="$borderColor"
+      >
         <SizableText size="$3" fontWeight="bold">
           Discussions
         </SizableText>
