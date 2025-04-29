@@ -25,7 +25,7 @@ export function HypermediaLinkPreview(
     stopEditing: boolean
     forceEditing?: boolean
     formComponents: () => React.JSX.Element
-    type: string
+    type: 'link' | 'inline-embed' | 'embed' | 'button'
     setHovered?: (hovered: boolean) => void
     toolbarProps?: {
       alignment?: 'flex-start' | 'center' | 'flex-end'
@@ -50,7 +50,7 @@ export function HypermediaLinkPreview(
     const schema = state.schema
 
     const getTitle = () => {
-      if (['mention', 'embed'].includes(props.type)) {
+      if (['inline-embed', 'embed'].includes(props.type)) {
         const title = getTitleFromEntity(unpackedRef, entity.data?.document)
         return title || props.text || props.url
       }
@@ -72,7 +72,7 @@ export function HypermediaLinkPreview(
         props.type,
         node,
       )
-    } else if (type === 'mention') {
+    } else if (type === 'inline-embed') {
       const node = schema.nodes['inline-embed'].create(
         {link: props.url},
         schema.text(' '),
@@ -135,9 +135,9 @@ export function HypermediaLinkPreview(
     >
       {isEditing ? (
         <YStack flex={1} gap="$2">
-          <SizableText fontWeight="700">{`${
+          {/* <SizableText fontWeight="700">{`${
             props.type.charAt(0).toUpperCase() + props.type.slice(1)
-          } settings`}</SizableText>
+          } settings`}</SizableText> */}
 
           {props.formComponents && props.formComponents()}
 
@@ -153,9 +153,10 @@ export function HypermediaLinkPreview(
               handleChangeBlockType(type)
             }}
             type={props.type}
-            hasName={props.type !== 'embed' && props.type !== 'mention'}
+            hasName={props.type !== 'embed' && props.type !== 'inline-embed'}
             hasSearch={props.type !== 'link'}
             seedEntityType={unpackHmId(props.url)?.type}
+            resetLink={props.resetHyperlink}
             toolbarProps={props.toolbarProps}
           />
         </YStack>
@@ -166,16 +167,27 @@ export function HypermediaLinkPreview(
           alignItems="center"
           gap="$2"
         >
-          <SizableText
-            size="$4"
-            color="$brand5"
+          <XStack
             flex={1}
-            overflow="hidden"
-            whiteSpace="nowrap"
-            textOverflow="ellipsis"
+            cursor="pointer"
+            borderRadius="$3"
+            paddingVertical="$1.5"
+            paddingHorizontal="$2"
+            hoverStyle={{opacity: 0.8, background: '$backgroundHover'}}
+            pressStyle={{opacity: 0.8, background: '$backgroundHover'}}
+            onPress={() => props.openUrl(props.url)}
           >
-            {entity.data?.document?.metadata.name ?? props.url}
-          </SizableText>
+            <SizableText
+              size="$4"
+              color="$brand5"
+              flex={1}
+              overflow="hidden"
+              whiteSpace="nowrap"
+              textOverflow="ellipsis"
+            >
+              {entity.data?.document?.metadata.name ?? props.url}
+            </SizableText>
+          </XStack>
 
           <Button
             icon={Pencil}
@@ -240,7 +252,7 @@ function insertNode(
           endContent = endContent.addToEnd(node)
         }
       })
-    } else if (prevType === 'mention') {
+    } else if (prevType === 'inline-embed') {
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.type.name === 'inline-embed' && node.attrs.link === link) {
           startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos

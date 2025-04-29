@@ -18,6 +18,7 @@ import {
   Button,
   Input,
   Label,
+  Separator,
   SizableText,
   SizeTokens,
   XStack,
@@ -29,14 +30,17 @@ import {
   AlignRight,
   ChevronDown,
   TextCursorInput,
+  Trash,
+  Unlink,
 } from '../../ui/src/icons'
 import {BlockNoteEditor} from './blocknote'
+import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import './hm-link-form.css'
 import {HMBlockSchema} from './schema'
 
 const LINK_TYPES = [
   {value: 'link', label: 'Link', icon: LinkIcon},
-  {value: 'mention', label: 'Mention', icon: Quote},
+  {value: 'inline-embed', label: 'Mention', icon: Quote},
   {value: 'button', label: 'Button', icon: CircleDot},
   {value: 'embed', label: 'Content Embed', icon: File},
   {value: 'card', label: 'Card', icon: PanelBottom},
@@ -48,9 +52,10 @@ export type HypermediaLinkFormProps = {
   id: string
   url: string
   text: string
-  type: string
+  type: 'link' | 'inline-embed' | 'embed' | 'button'
   updateLink: (url: string, text: string) => void
   editLink: (url: string, text: string) => void
+  resetLink: () => void
   seedEntityType?: HMEntityType
   hasName?: boolean
   hasSearch?: boolean
@@ -139,7 +144,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             link={_url}
             text={_text}
             setLink={setUrl}
-            title={props.type === 'mention' ? true : false}
+            title={props.type === 'inline-embed' ? true : false}
           />
         </XStack>
       ) : (
@@ -243,6 +248,70 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       </SizableText>
 
       {props.children}
+
+      <Separator background="$color11" />
+
+      <XStack justifyContent="flex-end">
+        <Button
+          size="$3"
+          icon={
+            props.type === 'link' ? <Unlink size={14} /> : <Trash size={16} />
+          }
+          chromeless
+          onPress={() => {
+            if (props.type === 'link') {
+              const {state, view} = props.editor._tiptapEditor
+              let tr = state.tr
+              let range
+              const {posBeforeNode} = getNodeById(props.id, state.doc)
+              const contentNode = state.doc.nodeAt(posBeforeNode + 1)
+
+              if (contentNode) {
+                if (
+                  contentNode.type.name === 'embed' ||
+                  contentNode.type.name === 'button'
+                ) {
+                  range = {
+                    from: posBeforeNode + 1,
+                    to: posBeforeNode + 1 + contentNode.nodeSize,
+                  }
+                } else {
+                  contentNode.descendants((child, childPos) => {
+                    const linkMark = child.marks?.find(
+                      (mark) => mark.type.name === 'link',
+                    )
+                    if (linkMark) {
+                      range = {
+                        from: posBeforeNode + 2 + childPos,
+                        to:
+                          posBeforeNode +
+                          2 +
+                          childPos +
+                          (child.text?.length || 1),
+                      }
+                      return false
+                    }
+                    if (child.type.name === 'inline-embed') {
+                      range = {
+                        from: posBeforeNode + 2 + childPos,
+                        to: posBeforeNode + 2 + childPos + child.nodeSize,
+                      }
+                      return false
+                    }
+                  })
+                }
+              }
+              tr = tr.insertText(
+                props.text.length ? props.text : ' ',
+                range!.from,
+                range!.to,
+              )
+              view.dispatch(tr)
+            } else props.editor.removeBlocks([props.id])
+            props.resetLink()
+          }}
+        />
+      </XStack>
     </YStack>
   )
 }
@@ -504,11 +573,13 @@ export function LinkTypeDropdown({
         borderRadius="$2"
         backgroundColor="$background"
         hoverStyle={{borderColor: '$borderColorHover'}}
-        height={36}
+        height="$2"
         gap="$2"
       >
         {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
-        <SizableText size="$2">{selectedTypeObj?.label}</SizableText>
+        <SizableText size="$2" marginLeft="$1.5">
+          {selectedTypeObj?.label}
+        </SizableText>
         <ChevronDown size={16} />
       </XStack>
       {focused && inputPosition && createPortal(dropdown, portalRoot)}
