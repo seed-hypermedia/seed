@@ -51,12 +51,12 @@ export function CommentReplies({
       {commentGroups.map((commentGroup) => {
         return (
           <CommentGroup
-            isNested
             key={commentGroup.id}
+            commentGroup={commentGroup}
             docId={docId}
             authors={commentAuthors}
             renderCommentContent={renderCommentContent}
-            commentGroup={commentGroup}
+            isNested
             isLastGroup={commentGroup === commentGroups.at(-1)}
             CommentReplies={CommentReplies}
             homeId={homeId}

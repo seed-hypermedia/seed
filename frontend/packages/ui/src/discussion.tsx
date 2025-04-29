@@ -417,20 +417,22 @@ export function Comment({
         )} */}
       </XStack>
       {RepliesEditor ? (
-        <RepliesEditor
-          isReplying={isReplying}
-          docId={docId}
-          replyCommentId={comment.id}
-          rootReplyCommentId={rootReplyCommentId || comment.id}
-          onDiscardDraft={() => setIsReplying(false)}
-          enableWebSigning={enableWebSigning}
-          onSuccess={() => {
-            // we want to show the replies if it was collapsed, because the new one should be visible
-            if (replyCount === undefined || replyCount > 0) {
-              setShowReplies(true)
-            }
-          }}
-        />
+        <YStack paddingBottom="$4">
+          <RepliesEditor
+            isReplying={isReplying}
+            docId={docId}
+            replyCommentId={comment.id}
+            rootReplyCommentId={rootReplyCommentId || comment.id}
+            onDiscardDraft={() => setIsReplying(false)}
+            enableWebSigning={enableWebSigning}
+            onSuccess={() => {
+              // we want to show the replies if it was collapsed, because the new one should be visible
+              if (replyCount === undefined || replyCount > 0) {
+                setShowReplies(true)
+              }
+            }}
+          />
+        </YStack>
       ) : null}
       {showReplies && CommentReplies ? (
         <CommentReplies

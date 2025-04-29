@@ -1,6 +1,7 @@
 import {useFetcher} from '@remix-run/react'
 import {
   HMCitationsPayload,
+  HMCommentsPayload,
   HMDocument,
   packHmId,
   queryKeys,
@@ -91,6 +92,11 @@ export function searchQuery(input: string, accountUid?: string) {
 
 export function useCitations(id: UnpackedHypermediaId) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
+  return response
+}
+
+export function useComments(id: UnpackedHypermediaId) {
+  const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`)
   return response
 }
 

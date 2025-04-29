@@ -1066,3 +1066,9 @@ export type HMDocumentCitation = HMCitation & {
 }
 
 export type HMCitationsPayload = Array<HMDocumentCitation>
+
+export type HMCommentsPayload = {
+  allComments: HMComment[]
+  commentGroups: HMCommentGroup[]
+  commentAuthors: Record<string, {id: string; metadata: HMMetadata}>
+}

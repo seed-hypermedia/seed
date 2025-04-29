@@ -25,7 +25,8 @@ export function WebDocContentProvider({
   routeParams,
   comment,
   citations,
-  onCitationClick,
+  onBlockCitationClick,
+  onBlockCommentClick,
 }: {
   siteHost: string | undefined
   id?: UnpackedHypermediaId | undefined
@@ -41,7 +42,8 @@ export function WebDocContentProvider({
   }
   comment?: boolean
   citations?: HMCitationsPayload
-  onCitationClick?: (blockId?: string | null) => void
+  onBlockCitationClick?: (blockId?: string | null) => void
+  onBlockCommentClick?: (blockId?: string | null) => void
 }) {
   const navigate = useNavigate()
   return (
@@ -84,7 +86,8 @@ export function WebDocContentProvider({
             }
           : null
       }
-      onCitationClick={onCitationClick}
+      onBlockCommentClick={onBlockCommentClick}
+      onBlockCitationClick={onBlockCitationClick}
       routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}

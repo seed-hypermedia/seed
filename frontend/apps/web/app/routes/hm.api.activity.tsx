@@ -1,10 +1,8 @@
 import {queryClient} from '@/client'
 import {getMetadata} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
-  Comment,
   entityQueryPathToHmIdPath,
   getCommentGroups,
   HMAccountsMetadata,
@@ -46,9 +44,7 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
     const allComments = res.comments.map(
-      (rawComment: PlainMessage<Comment>) => {
-        return toPlainMessage(rawComment) as HMComment
-      },
+      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
     )
     const commentGroups = getCommentGroups(allComments, targetCommentId || null)
     const allAccounts = new Set<string>()
@@ -73,7 +69,7 @@ export const loader = async ({
       })
       .map((d) => {
         return {
-          ...toPlainMessage(d),
+          ...d.toJson({emitDefaultValues: true}),
           path: entityQueryPathToHmIdPath(d.path),
           type: 'document',
           metadata: HMDocumentMetadataSchema.parse(

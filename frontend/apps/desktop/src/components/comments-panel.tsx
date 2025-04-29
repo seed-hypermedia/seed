@@ -20,7 +20,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useEffect, useMemo, useRef, useState} from 'react'
-import {Button, SizableText, Spinner, View, XStack} from 'tamagui'
+import {Button, Separator, SizableText, Spinner, View, XStack} from 'tamagui'
 import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContainer} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
@@ -130,9 +130,13 @@ function AllComments({
       }
     >
       <YStack>
-        {commentGroups.data?.map((cg) => {
+        {commentGroups.data?.map((cg, idx) => {
           return (
-            <YStack key={cg.id} paddingHorizontal="$1.5">
+            <YStack
+              key={cg.id}
+              paddingHorizontal="$1.5"
+              marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
+            >
               <CommentGroup
                 rootReplyCommentId={null}
                 key={cg.id}
@@ -145,6 +149,7 @@ function AllComments({
                 onReplyCountClick={onReplyCountClick}
                 onReplyClick={onReplyClick}
               />
+              {commentGroups.data?.length - 1 > idx && <Separator />}
             </YStack>
           )
         })}
@@ -343,7 +348,6 @@ function CommentReplyAccessory({
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
-
       {rootCommentId && parentThread ? (
         <CommentGroup
           docId={docId}

@@ -1,106 +1,185 @@
+import {WEB_IDENTITY_ENABLED} from '@shm/shared'
 import {
   HMComment,
+  HMCommentsPayload,
   UnpackedHypermediaId,
-  useUniversalAppContext,
-} from '@shm/shared'
-import {Comment} from '@shm/ui/discussion'
+} from '@shm/shared/hm-types'
+import {AccessoryBackButton} from '@shm/ui/accessories'
+import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
-import {useCallback} from 'react'
-import {SizableText, YStack} from 'tamagui'
+import {useCallback, useMemo, useState} from 'react'
+import {SizableText, XStack, YStack} from 'tamagui'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
+import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
+import {useDiscussion} from './models'
 
-export function OpenCommentPanel({
-  comment,
+export function WebCommentsPanel({
   docId,
+  homeId,
+  setBlockId,
+  comments,
   siteHost,
-  enableWebSigning = false,
+  enableWebSigning,
 }: {
-  comment: HMComment
   docId: UnpackedHypermediaId
+  homeId: UnpackedHypermediaId
   siteHost?: string
-  enableWebSigning?: boolean
+  setBlockId: (blockId: string | null) => void
+  comments?: HMCommentsPayload
+  enableWebSigning: boolean
 }) {
-  const {originHomeId} = useUniversalAppContext()
-  if (!originHomeId)
-    throw new Error(
-      'originHomeId is required in universalAppContext for OpenCommentPanel',
-    )
+  const [focusedCommentId, setFocusedCommentId] = useState<string | undefined>(
+    undefined,
+  )
+  const focusedComments = useDiscussion(docId, focusedCommentId)
+
+  const commentGroups = useMemo(() => {
+    if (!focusedCommentId) return comments?.commentGroups || []
+    return focusedComments?.data?.commentGroups || []
+  }, [focusedCommentId, focusedComments, comments])
+
+  const focusedComment = useMemo(() => {
+    if (!focusedCommentId) return null
+    return comments?.allComments.find((c) => c.id === focusedCommentId)
+  }, [focusedCommentId, focusedComments])
+
+  const commentAuthors = useMemo(() => {
+    if (!focusedCommentId) return comments?.commentAuthors || {}
+    return focusedComments?.data?.commentAuthors || {}
+  }, [focusedCommentId, focusedComments, comments])
+
+  const parentThread = useMemo(() => {
+    if (!focusedCommentId) return null
+    let selectedComment: HMComment | null = focusedComment || null
+    if (!selectedComment) return null
+
+    const parentThread = [selectedComment]
+    while (selectedComment?.replyParent) {
+      const parentComment =
+        comments?.allComments?.find(
+          (c) => c.id === selectedComment!.replyParent,
+        ) || null
+
+      if (!parentComment) {
+        break
+      }
+      parentThread.unshift(parentComment)
+      selectedComment = parentComment
+    }
+    return parentThread
+  }, [focusedCommentId, focusedComment, comments])
+
+  const rootCommentId = parentThread?.at(0)?.id
+
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
-        <WebDocContentProvider
-          key={comment.id}
-          originHomeId={originHomeId}
-          id={docId}
-          siteHost={siteHost}
-          comment={true}
-        >
-          <BlocksContent blocks={comment.content} parentBlockId={null} />
-        </WebDocContentProvider>
+        homeId && (
+          <WebDocContentProvider
+            key={comment.id}
+            originHomeId={homeId}
+            siteHost={siteHost}
+            comment={true}
+          >
+            <BlocksContent
+              hideCollapseButtons
+              blocks={comment.content}
+              parentBlockId={null}
+            />
+          </WebDocContentProvider>
+        )
       )
     },
-    [originHomeId],
+    [homeId],
   )
-  return (
-    <YStack f={1} borderLeftWidth={1} borderLeftColor="$border">
-      <Comment
-        comment={comment}
-        renderCommentContent={renderCommentContent}
-        docId={docId}
-        authorMetadata={{}} // todo
-        rootReplyCommentId={null}
-        isLast
-        enableWebSigning={enableWebSigning}
-        CommentReplies={CommentReplies}
-        RepliesEditor={CommentRepliesEditor}
-        enableReplies
-        replyCount={111} // todo
-        defaultExpandReplies
-      />
-      {/* <CommentGroup
-        docId={docId}
-        commentGroup={{
-          comments: [comment],
-          moreCommentsCount: 0,
-          id: comment.id,
-          type: 'commentGroup',
-        }}
-        //   isLastGroup={index === activityItems.length - 1}
-        //   authors={activity.data?.accountsMetadata}
-        renderCommentContent={renderCommentContent}
-        CommentReplies={CommentReplies}
-        //   homeId={originHomeId}
-        rootReplyCommentId={null}
-        siteHost={siteHost}
-        //   enableReplies={enableReplies}
-        enableReplies={true}
-        RepliesEditor={CommentRepliesEditor}
-        //   enableWebSigning={enableWebSigning}
-        enableWebSigning={true}
-      /> */}
-    </YStack>
-  )
-}
 
-export function BlockCommentsPanel({
-  blockRef,
-  docId,
-}: {
-  blockRef: string
-  docId: UnpackedHypermediaId
-}) {
+  function onReplyClick(replyCommentId: string, rootReplyCommentId: string) {
+    redirectToWebIdentityCommenting(docId, replyCommentId, rootReplyCommentId)
+  }
+
+  function onReplyCountClick(commentId: string) {
+    setFocusedCommentId(commentId)
+  }
+
   return (
-    <YStack
-      f={1}
-      backgroundColor="salmon"
-      minWidth={200}
-      position="absolute"
-      right={0}
-      top={80}
-      bottom={0}
-    >
-      <SizableText>COMMENT</SizableText>
+    <YStack>
+      <XStack paddingHorizontal="$4" paddingVertical="$3" alignItems="center">
+        <SizableText size="$3" fontWeight="bold">
+          Discussions
+        </SizableText>
+      </XStack>
+      <YStack gap="$2" paddingHorizontal="$3">
+        {focusedCommentId ? (
+          <AccessoryBackButton
+            onPress={() => setFocusedCommentId(undefined)}
+            label="All Discussions"
+          />
+        ) : null}
+        <YStack gap="$4">
+          {rootCommentId && parentThread ? (
+            <YStack padding="$3" borderRadius="$3">
+              <CommentGroup
+                docId={docId}
+                commentGroup={{
+                  id: rootCommentId,
+                  comments: parentThread,
+                  moreCommentsCount: 0,
+                  type: 'commentGroup',
+                }}
+                isLastGroup
+                authors={commentAuthors as any}
+                renderCommentContent={renderCommentContent}
+                rootReplyCommentId={null}
+                highlightLastComment
+                enableReplies
+                enableWebSigning={enableWebSigning}
+                onReplyClick={
+                  !enableWebSigning && WEB_IDENTITY_ENABLED
+                    ? onReplyClick
+                    : undefined
+                }
+                onReplyCountClick={onReplyCountClick}
+              />
+            </YStack>
+          ) : null}
+          <YStack>
+            {commentGroups?.map((cg, idx) => {
+              return (
+                <YStack
+                  key={cg.id}
+                  paddingHorizontal="$3"
+                  marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
+                  borderBottomWidth={1}
+                  borderBottomColor="$borderColor"
+                >
+                  <CommentGroup
+                    key={cg.id}
+                    commentGroup={cg}
+                    docId={docId}
+                    authors={commentAuthors as any}
+                    renderCommentContent={renderCommentContent}
+                    isLastGroup={cg === commentGroups.at(-1)}
+                    CommentReplies={CommentReplies}
+                    homeId={homeId}
+                    siteHost={siteHost}
+                    enableReplies
+                    RepliesEditor={CommentRepliesEditor}
+                    enableWebSigning={enableWebSigning}
+                    onReplyClick={
+                      !enableWebSigning && WEB_IDENTITY_ENABLED
+                        ? onReplyClick
+                        : undefined
+                    }
+                    onReplyCountClick={onReplyCountClick}
+                    rootReplyCommentId={null}
+                  />
+                </YStack>
+              )
+            })}
+          </YStack>
+        </YStack>
+      </YStack>
     </YStack>
   )
 }

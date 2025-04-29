@@ -838,7 +838,7 @@ function DocPageContent({
         blockRange: blockRange || undefined,
       }}
       citations={citations.data || []}
-      onCitationClick={(blockId) => {
+      onBlockCitationClick={(blockId) => {
         if (!docRoute) return
         replace({
           ...docRoute,
@@ -854,7 +854,7 @@ function DocPageContent({
         })
       }}
       docId={entity.id}
-      onBlockComment={(blockId, blockRangeInput) => {
+      onBlockCommentClick={(blockId, blockRangeInput) => {
         if (route.key !== 'document') return
         if (!blockId) return
         const blockRange =

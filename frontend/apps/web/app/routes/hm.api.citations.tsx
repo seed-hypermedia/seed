@@ -26,6 +26,8 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
 
+    console.log(`== ~ res:`, res)
+
     const documentCitations: HMDocumentCitation[] = []
 
     for (const mention of res.mentions) {

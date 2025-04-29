@@ -1,7 +1,7 @@
 import {queryClient} from '@/client'
 import {getMetadata} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {PlainMessage} from '@bufbuild/protobuf'
 import {
   getCommentGroups,
   HMAccountsMetadata,
@@ -34,13 +34,14 @@ export const loader = async ({
   try {
     const targetAccount = id.uid
     const targetPath = hmIdPathToEntityQueryPath(id.path)
+    // TODO: change this to use hm.api.comments
     const res = await queryClient.comments.listComments({
       targetAccount,
       targetPath,
     })
-    const allComments = res.comments.map((rawComment) => {
-      return toPlainMessage(rawComment) as HMComment
-    })
+    const allComments = res.comments.map(
+      (c) => c.toJson({emitDefaultValues: true}) as HMComment,
+    )
     const commentGroups = getCommentGroups(allComments, targetCommentId || null)
     const commentGroupAuthors = new Set<string>()
     commentGroups.forEach((commentGroup) => {

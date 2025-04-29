@@ -1,4 +1,9 @@
-import {useActivity, useCitations, useDocumentChanges} from '@/models'
+import {
+  useActivity,
+  useCitations,
+  useComments,
+  useDocumentChanges,
+} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
@@ -6,6 +11,7 @@ import {
   getDocumentTitle,
   HMCitationsPayload,
   HMComment,
+  HMCommentsPayload,
   HMDocument,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -41,7 +47,7 @@ import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useState} from 'react'
 import {Separator, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
-import {OpenCommentPanel} from './comment-panel'
+import {WebCommentsPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -174,6 +180,7 @@ type WebAccessory =
     }
   | {
       type: 'comments'
+      blockId?: string | null
     }
 
 export function DocumentPage(props: SiteDocumentPayload) {
@@ -282,25 +289,33 @@ export function DocumentPage(props: SiteDocumentPayload) {
   })
 
   const citations = useCitations(id)
-
+  const comments = useComments(id)
   let panel = null
 
-  const onCitationClick = (blockId?: string | null) => {
-    console.log('~ onCitationClick', blockId)
+  function onBlockCitationClick(blockId?: string | null) {
+    console.log('~ onBlockCitationClick', blockId)
     setActivePanel({type: 'citations', blockId: blockId || null})
   }
 
-  if (activePanel?.type == 'comments' && comment) {
+  function onBlockCommentClick(blockId?: string | null) {
+    console.log('~ onBlockCommentClick', blockId)
+    setActivePanel({type: 'comments', blockId: blockId || null})
+  }
+
+  if (activePanel?.type == 'comments') {
     panel = (
-      <OpenCommentPanel
-        comment={comment}
+      <WebCommentsPanel
+        blockId={activePanel.blockId}
+        setBlockId={(blockId) => setActivePanel({type: 'comments', blockId})}
+        comments={comments.data}
         docId={id}
+        homeId={originHomeId}
+        document={document}
+        originHomeId={originHomeId}
         siteHost={siteHost}
         enableWebSigning={enableWebSigning}
       />
     )
-    // } else if (blockRef) {
-    //   panel = <BlockCommentsPanel blockRef={blockRef} docId={id} />
   }
 
   if (activePanel?.type == 'citations') {
@@ -332,17 +347,20 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <YStack f={1}>
             <DocumentCover cover={document.metadata.cover} id={id} />
             <YStack w="100%" ref={elementRef} f={1} position="relative">
-              <DocInteractionsSummary
-                docId={id}
-                citations={citations.data}
-                onCitationsOpen={() =>
-                  setActivePanel({type: 'citations', blockId: null})
-                }
-                onCommentsOpen={
-                  comment ? () => setActivePanel({type: 'comments'}) : undefined
-                }
-                // onVersionOpen={() => {}}
-              />
+              {panel == null ? (
+                <DocInteractionsSummary
+                  docId={id}
+                  citations={citations.data}
+                  comments={comments.data}
+                  onCitationsOpen={() =>
+                    setActivePanel({type: 'citations', blockId: null})
+                  }
+                  onCommentsOpen={() =>
+                    setActivePanel({type: 'comments', blockId: null})
+                  }
+                  // onVersionOpen={() => {}}
+                />
+              ) : null}
               <XStack {...wrapperProps}>
                 {showSidebars ? (
                   <YStack
@@ -389,7 +407,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     />
                   )}
                   <WebDocContentProvider
-                    onCitationClick={onCitationClick}
+                    onBlockCitationClick={onBlockCitationClick}
+                    onBlockCommentClick={onBlockCommentClick}
                     originHomeId={originHomeId}
                     id={{...id, version: document.version}}
                     siteHost={siteHost}
@@ -426,6 +445,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       originHomeId={originHomeId}
                       siteHost={siteHost}
                       enableWebSigning={enableWebSigning}
+                      isCommentingPanelOpen={activePanel?.type == 'comments'}
                     />
                   )}
                 </YStack>
@@ -625,12 +645,14 @@ function DocumentAppendix({
   originHomeId,
   siteHost,
   enableWebSigning,
+  isCommentingPanelOpen,
 }: {
   id: UnpackedHypermediaId
   document: HMDocument
   originHomeId: UnpackedHypermediaId
   siteHost: string | undefined
   enableWebSigning?: boolean
+  isCommentingPanelOpen: boolean
 }) {
   const docIdWithVersion: UnpackedHypermediaId = {
     ...id,
@@ -648,7 +670,8 @@ function DocumentAppendix({
           enableWebSigning={enableWebSigning || false}
         />
 
-        {enableWebSigning || WEB_IDENTITY_ENABLED ? (
+        {isCommentingPanelOpen ? null : enableWebSigning ||
+          WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             docId={docIdWithVersion}
             replyCommentId={null}
@@ -786,18 +809,19 @@ const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
 function _DocInteractionsSummary({
   docId,
   citations,
+  comments,
   onCitationsOpen,
   onCommentsOpen,
   onVersionOpen,
 }: {
   docId: UnpackedHypermediaId
   citations?: HMCitationsPayload
+  comments?: HMCommentsPayload
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
   onVersionOpen?: () => void
 }) {
   const changes = useDocumentChanges(docId)
-
   return (
     <XStack
       position="absolute"
@@ -822,7 +846,7 @@ function _DocInteractionsSummary({
       {onCommentsOpen && (
         <InteractionSummaryItem
           label="comment"
-          count={0} // TODO: add comments citations
+          count={comments?.allComments.length || 0}
           onPress={onCommentsOpen}
           icon={MessageSquare}
         />

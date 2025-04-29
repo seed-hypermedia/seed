@@ -112,12 +112,12 @@ export type DocContentContextValue = {
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
-  onCitationClick?: (blockId?: string | null) => void
+  onBlockCitationClick?: (blockId?: string | null) => void
   onCopyBlock:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
   onReplyBlock?: null | ((blockId: string) => void)
-  onBlockComment?:
+  onBlockCommentClick?:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
   layoutUnit: number
@@ -294,7 +294,7 @@ export function DocContent({
   handleBlockReplace?: () => boolean
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection()
-  const {layoutUnit, onCopyBlock, onBlockComment} = useDocContentContext()
+  const {layoutUnit, onCopyBlock, onBlockCommentClick} = useDocContentContext()
   const allBlocks = document?.content || []
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
   const displayBlocks = maxBlockCount
@@ -356,14 +356,14 @@ export function DocContent({
             />
           </Tooltip>
         ) : null}
-        {/* {onBlockComment ? (
+        {/* {onBlockCommentClick ? (
           <Tooltip content="Add a Comment">
             <Button
               size="$2"
               icon={Comment}
               onPress={() => {
                 // send({type: "CREATE_COMMENT"});
-                // onBlockComment(
+                // onBlockCommentClick(
                 //   state.context.blockId,
                 //   typeof state.context.rangeStart == "number" &&
                 //     typeof state.context.rangeEnd == "number"
@@ -393,11 +393,13 @@ function _BlocksContent({
   parentBlockId,
   handleBlockReplace,
   hideCollapseButtons = false,
+  expanded = true,
 }: {
   blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
   hideCollapseButtons?: boolean
+  expanded?: boolean
 }) {
   if (!blocks) return null
 
@@ -419,6 +421,7 @@ function _BlocksContent({
               listLevel={1}
               index={idx}
               handleBlockReplace={handleBlockReplace}
+              expanded={expanded}
             />
           ))
         : null}
@@ -545,8 +548,8 @@ export function BlockNodeContent({
   const {
     layoutUnit,
     routeParams,
-    onCitationClick,
-    onBlockComment,
+    onBlockCitationClick,
+    onBlockCommentClick,
     onCopyBlock,
     onReplyBlock,
     debug,
@@ -591,6 +594,7 @@ export function BlockNodeContent({
           parentBlockId={blockNode.block?.id || null}
           embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
           handleBlockReplace={handleBlockReplace}
+          expanded={_expanded}
         />
       ))
     : null
@@ -854,7 +858,7 @@ export function BlockNodeContent({
                 background={isDark ? '$background' : '$backgroundStrong'}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                onPress={() => onCitationClick?.(blockNode.block?.id)}
+                onPress={() => onBlockCitationClick?.(blockNode.block?.id)}
                 icon={<BlockQuote size={12} color="$color9" />}
               >
                 <SizableText color="$color9" size="$1">
@@ -887,7 +891,7 @@ export function BlockNodeContent({
               />
             </Tooltip>
           ) : null}
-          {onBlockComment ? (
+          {onBlockCommentClick ? (
             <Tooltip
               content={
                 commentCitations.length
@@ -912,9 +916,11 @@ export function BlockNodeContent({
                 borderRadius={layoutUnit / 4}
                 onPress={() => {
                   if (blockNode.block?.id) {
-                    onBlockComment(blockNode.block.id)
+                    onBlockCommentClick(blockNode.block.id)
                   } else {
-                    console.error('onBlockComment Error: no blockId available')
+                    console.error(
+                      'onBlockCommentClick Error: no blockId available',
+                    )
                   }
                 }}
                 icon={<MessageSquare size={12} color="$color9" />}
