@@ -231,7 +231,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
       if (panel) {
-        mainPanel.collapse()
+        setTimeout(() => {
+          mainPanel.collapse()
+        }, 1)
       }
     }
   }, [panel, media.gtSm])
@@ -327,7 +329,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
     if (!media.gtSm) {
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
-      mainPanel.collapse()
+      setTimeout(() => {
+        mainPanel.collapse()
+      }, 1)
     }
   }
 
@@ -337,7 +341,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
     if (!media.gtSm) {
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
-      mainPanel.collapse()
+      setTimeout(() => {
+        mainPanel.collapse()
+      }, 1)
     }
   }
 
@@ -400,7 +406,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
                           if (!mainPanel) return
                           console.log('COLLAPSE PANEL')
-                          mainPanel.collapse()
+
+                          setTimeout(() => {
+                            mainPanel.collapse()
+                          }, 1)
                         }
                       }}
                       onCommentsOpen={() => {
@@ -409,8 +418,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           const mainPanel = mainPanelRef.current
                           if (!mainPanel) return
                           console.log('COLLAPSE PANEL')
-                          mainPanel.resize(60)
-                          mainPanel.collapse()
+                          setTimeout(() => {
+                            mainPanel.collapse()
+                          }, 1)
                         }
                       }}
                       // onVersionOpen={() => {}}
@@ -597,7 +607,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <>
             <PanelResizeHandle className="panel-resize-handle" />
 
-            <Panel defaultSize={30} minSize={20}>
+            <Panel
+              defaultSize={media.gtSm ? 30 : 100}
+              maxSize={media.gtSm ? 40 : 100}
+              minSize={media.gtSm ? 20 : 100}
+            >
               <YStack
                 borderLeftWidth={1}
                 borderLeftColor="$borderColor"

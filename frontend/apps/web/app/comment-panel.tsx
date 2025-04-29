@@ -17,13 +17,19 @@ import {useDiscussion} from './models'
 export function WebCommentsPanel({
   docId,
   homeId,
+  blockId,
   setBlockId,
   comments,
+  document,
+  originHomeId,
   siteHost,
   enableWebSigning,
 }: {
   docId: UnpackedHypermediaId
   homeId: UnpackedHypermediaId
+  blockId?: string | null
+  document?: any
+  originHomeId?: UnpackedHypermediaId
   siteHost?: string
   setBlockId: (blockId: string | null) => void
   comments?: HMCommentsPayload
