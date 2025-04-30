@@ -164,7 +164,12 @@ function EmbedWrapper({
       borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
-      onPress={() => {
+      onPress={(e) => {
+        if (route.key != 'document') {
+          e.preventDefault()
+          e.stopPropagation()
+          return
+        }
         // if the embed is from the same document, we navigate on the same window, if not. we open a new window.
         const method = isSameDocument ? replace : spawn
 
@@ -245,7 +250,7 @@ export function EmbedDocument(props: EntityComponentProps) {
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
   const {entityId, textUnit} = useDocContentContext()
-
+  const route = useNavRoute()
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
@@ -269,7 +274,12 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
         <Button
           size="$2"
           icon={ArrowUpRightSquare}
-          onPress={() => {
+          onPress={(e) => {
+            if (route.key != 'document') {
+              e.preventDefault()
+              e.stopPropagation()
+              return
+            }
             if (!props.id) return
             navigate({
               key: 'document',
@@ -377,13 +387,6 @@ export function EmbedComment(props: EntityComponentProps) {
       )}
     </EmbedWrapper>
   )
-}
-
-function IconComponent({accountId}: {accountId?: string}) {
-  const id = accountId ? hmId('d', accountId) : undefined
-  const entity = useSubscribedEntity(id)
-  if (!id) return null
-  return <HMIcon id={id} metadata={entity.data?.document?.metadata} size={28} />
 }
 
 export function EmbedInline(props: UnpackedHypermediaId) {
