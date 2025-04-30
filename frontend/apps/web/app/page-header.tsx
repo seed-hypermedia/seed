@@ -12,6 +12,7 @@ import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover} from '@shm/ui/TamaguiPopover'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Button, ButtonText} from '@tamagui/button'
 import {Home} from '@tamagui/lucide-icons'
@@ -44,6 +45,7 @@ export function PageHeader({
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
+  const isDark = useIsDark()
   return (
     <YStack id="page-header">
       <Container
@@ -52,7 +54,7 @@ export function PageHeader({
           paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
-        backgroundColor="$background"
+        bg={isDark ? '$background' : '$backgroundStrong'}
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
