@@ -24,7 +24,7 @@ const variants = {
 
 export const defaultContainerStyle = {
   w: 'calc(100% - 16px)',
-  marginHorizontal: 8,
+  paddingHorizontal: 8,
   borderColor: '$borderColor',
   borderWidth: 1,
   borderRadius: '$4',
@@ -36,18 +36,10 @@ export function PanelContainer({children, ...props}: ViewProps) {
 
   return (
     <View
-      className="page-container"
       h="100%"
       bg={isDark ? '$background' : '$backgroundStrong'}
       overflow="hidden"
       w="100%"
-      $gtSm={{
-        w: 'calc(100% - 16px)',
-        marginHorizontal: 8,
-        borderColor: '$borderColor',
-        borderWidth: 1,
-        borderRadius: '$4',
-      }}
       {...props}
     >
       {children}

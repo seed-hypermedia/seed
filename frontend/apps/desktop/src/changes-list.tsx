@@ -1,9 +1,9 @@
-import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Theme, YStack} from 'tamagui'
+import {AccessoryContent} from './components/accessory-sidebar'
 
 export function EntityVersionsAccessory({
   id,
@@ -29,7 +29,7 @@ export function EntityVersionsAccessory({
   return (
     <>
       <Theme name="subtle">
-        <AccessoryContainer title="Variant History">
+        <AccessoryContent>
           <YStack
             paddingHorizontal="$4"
             paddingVertical="$2"
@@ -60,7 +60,7 @@ export function EntityVersionsAccessory({
               // />
             })}
           </YStack>
-        </AccessoryContainer>
+        </AccessoryContent>
       </Theme>
     </>
   )

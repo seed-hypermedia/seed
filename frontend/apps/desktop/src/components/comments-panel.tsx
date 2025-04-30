@@ -22,7 +22,7 @@ import {YStack} from '@tamagui/stacks'
 import {memo, useEffect, useMemo, useRef, useState} from 'react'
 import {Button, Separator, SizableText, Spinner, View, XStack} from 'tamagui'
 import {LinearGradient} from 'tamagui/linear-gradient'
-import {AccessoryContainer} from './accessory-sidebar'
+import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
   CommentDraft,
@@ -35,12 +35,10 @@ import {
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
 function _DiscussionsPanel({
-  onClose,
   docId,
   onAccessory,
   accessory: {openComment, openBlockId, blockRange, autoFocus, isReplying},
 }: {
-  onClose?: () => void
   docId: UnpackedHypermediaId
   accessory: DocumentDiscussionsAccessory
   onAccessory: (acc: DocumentDiscussionsAccessory) => void
@@ -121,11 +119,10 @@ function AllComments({
   const authors = useCommentGroupAuthors(commentGroups.data)
 
   return (
-    <AccessoryContainer
-      title="Discussions"
+    <AccessoryContent
       footer={
         <View paddingVertical="$2">
-          <CommentDraft docId={docId} backgroundColor="$color1" />
+          <CommentDraft docId={docId} backgroundColor="$colorTransparent" />
         </View>
       }
     >
@@ -154,7 +151,7 @@ function AllComments({
           )
         })}
       </YStack>
-    </AccessoryContainer>
+    </AccessoryContent>
   )
 }
 
@@ -189,15 +186,10 @@ function CommentBlockAccessory({
   })
   const accounts = useAccountsMetadata(Array.from(accountIds))
   return (
-    <AccessoryContainer
-      title="Discussions"
+    <AccessoryContent
       footer={
         <View padding="$3">
-          <CommentDraft
-            docId={docId}
-            backgroundColor="$color1"
-            quotingBlockId={blockId}
-          />
+          <CommentDraft docId={docId} quotingBlockId={blockId} />
         </View>
       }
     >
@@ -214,7 +206,7 @@ function CommentBlockAccessory({
           />
         )
       })}
-    </AccessoryContainer>
+    </AccessoryContent>
   )
 }
 
@@ -332,15 +324,13 @@ function CommentReplyAccessory({
   )
   const rootCommentId = parentThread?.at(0)?.id
   return (
-    <AccessoryContainer
-      title="Comment"
+    <AccessoryContent
       footer={
         isReplying ? (
           <View padding="$3">
             <CommentDraft
               docId={docId}
               autoFocus={isReplying}
-              backgroundColor="$color1"
               replyCommentId={commentId}
             />
           </View>
@@ -374,7 +364,7 @@ function CommentReplyAccessory({
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       />
-    </AccessoryContainer>
+    </AccessoryContent>
   )
 }
 

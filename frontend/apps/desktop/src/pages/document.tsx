@@ -1,7 +1,4 @@
-import {
-  AccessoryContainer,
-  AccessoryLayout,
-} from '@/components/accessory-sidebar'
+import {AccessoryLayout, AccessoryWrapper} from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {DiscussionsPanel} from '@/components/comments-panel'
 import {DocNavigation} from '@/components/doc-navigation'
@@ -10,7 +7,6 @@ import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
-import {OptionsPanel} from '@/components/options-panel'
 import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
@@ -88,36 +84,26 @@ export default function DocumentPage() {
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
 
-  function handleClose() {
-    if (route.key !== 'document') return
-    replace({...route, accessory: null})
-  }
   let accessory: ReactNode = null
   if (route.accessory?.key === 'citations') {
     accessory = (
       <CitationsPanel
         entityId={docId}
-        onClose={handleClose}
         accessory={route.accessory}
         onAccessory={(acc) => {
           replace({...route, accessory: acc})
         }}
       />
     )
-  } else if (accessoryKey === 'options') {
-    accessory = <OptionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'versions') {
-    accessory = <VersionsPanel route={route} onClose={handleClose} />
+    accessory = <VersionsPanel route={route} />
   } else if (accessoryKey === 'collaborators') {
-    accessory = <CollaboratorsPanel route={route} onClose={handleClose} />
+    accessory = <CollaboratorsPanel route={route} />
   } else if (accessoryKey === 'suggested-changes') {
-    accessory = (
-      <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
-    )
+    accessory = <AccessoryWrapper title="Suggested Changes" />
   } else if (route.accessory?.key === 'discussions') {
     accessory = (
       <DiscussionsPanel
-        onClose={handleClose}
         docId={route.id}
         accessory={route.accessory}
         onAccessory={(acc) => {
@@ -126,11 +112,9 @@ export default function DocumentPage() {
       />
     )
   } else if (accessoryKey === 'all-documents') {
-    accessory = (
-      <AccessoryContainer title="All Documents" onClose={handleClose} />
-    )
+    accessory = <AccessoryWrapper title="All Documents" />
   } else if (accessoryKey === 'contacts') {
-    accessory = <AccessoryContainer title="Contacts" onClose={handleClose} />
+    accessory = <AccessoryWrapper title="Contacts" />
   }
 
   const accessoryOptions: Array<DocAccessoryOption> = []

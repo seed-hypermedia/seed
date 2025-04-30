@@ -41,7 +41,6 @@ import {
   Pencil,
   Trash,
   UploadCloud,
-  UserPlus,
 } from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -56,6 +55,7 @@ import {
   GitFork,
   Import,
   PanelLeft,
+  PanelRight,
 } from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useState} from 'react'
@@ -356,6 +356,10 @@ function EditDocButton() {
   const button = (
     <Button
       size="$2"
+      chromeless
+      hoverStyle={{
+        bg: '$color6',
+      }}
       theme={existingDraft ? 'yellow' : undefined}
       onPress={() => {
         if (existingDraft) {
@@ -472,25 +476,7 @@ export function PageActionButtons(props: TitleBarProps) {
     buttonGroup = [
       <PublishDraftButton key="publish-draft" />,
       <DiscardDraftButton key="discard-draft" />,
-    ]
-  } else if (route.key == 'contacts') {
-    buttonGroup = [
-      <Button
-        size="$2"
-        bg="$brand12"
-        borderColor="$brand11"
-        hoverStyle={{
-          bg: '$brand11',
-          borderColor: '$brand10',
-        }}
-        onPress={() => {
-          connectDialog.open(true)
-        }}
-        icon={UserPlus}
-      >
-        Add Connection
-      </Button>,
-      connectDialog.content,
+      <AccessorySidebarToggle />,
     ]
   } else if (route.key === 'document' && route.id.type === 'd') {
     return <DocumentTitlebarButtons route={route} />
@@ -516,6 +502,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
     <TitlebarSection>
       {showPublishSiteButton ? (
         <Button
+          chromeless
           onPress={() => publishSite.open({id})}
           iconAfter={UploadCloud}
           size="$2"
@@ -533,6 +520,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
       {isLatest ? <EditDocButton key="editDoc" /> : null}
       <DocOptionsButton key="options" onPublishSite={publishSite.open} />
       {publishSite.content}
+      <AccessorySidebarToggle />
     </TitlebarSection>
   )
 }
@@ -653,4 +641,59 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
       Latest Version
     </Button>
   )
+}
+
+function AccessorySidebarToggle() {
+  const route = useNavRoute()
+
+  console.log(`== ~ AccessorySidebarToggle ~ route:`, route)
+  const replace = useNavigate('replace')
+  if (route.key == 'document') {
+    return route.accessory ? (
+      <Tooltip content="Hide Accessory Sidebar">
+        <Button
+          size="$2"
+          chromeless
+          hoverStyle={{
+            bg: '$color6',
+          }}
+          icon={PanelRight}
+          onPress={() => {
+            if (route.key === 'document') {
+              replace({
+                ...route,
+                accessory: null,
+              })
+            }
+          }}
+        />
+      </Tooltip>
+    ) : null
+  } else if (route.key == 'draft') {
+    return (
+      <Tooltip
+        content={route.accessory ? 'Hide Options Panel' : 'Show Options Panel'}
+      >
+        <Button
+          size="$2"
+          chromeless
+          hoverStyle={{
+            bg: '$color6',
+          }}
+          icon={PanelRight}
+          onPress={() => {
+            replace({
+              ...route,
+              accessory: route.accessory
+                ? null
+                : {
+                    key: 'options',
+                  },
+            })
+          }}
+        />
+      </Tooltip>
+    )
+  }
+  return null
 }
