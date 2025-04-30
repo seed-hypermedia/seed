@@ -1,7 +1,7 @@
 import {styled, View} from '@tamagui/core'
 import {YStack} from '@tamagui/stacks'
-import {ComponentProps, useMemo} from 'react'
-import {useThemeName} from 'tamagui'
+import {useMemo} from 'react'
+import {useThemeName, ViewProps} from 'tamagui'
 
 const variants = {
   hide: {
@@ -30,10 +30,7 @@ export const defaultContainerStyle = {
   borderRadius: '$4',
 }
 
-export function PanelContainer({
-  children,
-  ...props
-}: ComponentProps<typeof YStack>) {
+export function PanelContainer({children, ...props}: ViewProps) {
   const themeName = useThemeName()
   const isDark = useMemo(() => themeName === 'dark', [themeName])
 

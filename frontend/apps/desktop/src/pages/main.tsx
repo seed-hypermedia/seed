@@ -1,30 +1,30 @@
-import {useAppContext, useListen} from '@/app-context'
+import { useAppContext, useListen } from '@/app-context'
 
-import {CloseButton} from '@/components/window-controls'
-import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
-import {getRouteKey, useNavRoute} from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
-import {getWindowType} from '@/utils/window-types'
-import {NavRoute} from '@shm/shared/routes'
-import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
-import {useIsDark} from '@shm/ui/use-is-dark'
-import {useStream} from '@shm/ui/use-stream'
-import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
+import { CloseButton } from '@/components/window-controls'
+import { SidebarContextProvider, useSidebarContext } from '@/sidebar-context'
+import { getRouteKey, useNavRoute } from '@/utils/navigation'
+import { useNavigate } from '@/utils/useNavigate'
+import { getWindowType } from '@/utils/window-types'
+import { NavRoute } from '@shm/shared/routes'
+import { TitlebarWrapper, TitleText } from '@shm/ui/titlebar'
+import { useIsDark } from '@shm/ui/use-is-dark'
+import { useStream } from '@shm/ui/use-stream'
+import { lazy, ReactElement, ReactNode, useEffect, useMemo, useRef } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 import {
   ImperativePanelGroupHandle,
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {XStack, YStack} from 'tamagui'
-import {AppErrorPage} from '../components/app-error'
-import {AutoUpdater} from '../components/auto-updater'
+import { XStack, YStack } from 'tamagui'
+import { AppErrorPage } from '../components/app-error'
+import { AutoUpdater } from '../components/auto-updater'
 import Footer from '../components/footer'
-import {HypermediaHighlight} from '../components/hypermedia-highlight'
-import {AppSidebar} from '../components/sidebar'
-import {TitleBar} from '../components/titlebar'
-import {BaseLoading, NotFoundPage} from './base'
-import {DocumentPlaceholder} from './document-placeholder'
+import { HypermediaHighlight } from '../components/hypermedia-highlight'
+import { AppSidebar } from '../components/sidebar'
+import { TitleBar } from '../components/titlebar'
+import { BaseLoading, NotFoundPage } from './base'
+import { DocumentPlaceholder } from './document-placeholder'
 import './polyfills'
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
@@ -170,6 +170,7 @@ function PanelContent({children}: {children: ReactNode}) {
       }
     }
   }, [sidebarWidth])
+
   return (
     <PanelGroup
       ref={ref}

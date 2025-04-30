@@ -1,8 +1,15 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {useNavigationDispatch, useNavigationState} from '@/utils/navigation'
 import {defaultContainerStyle, PanelContainer} from '@shm/ui/container'
 import {Tooltip} from '@shm/ui/tooltip'
-import {ComponentProps} from 'react'
-import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {ComponentProps, useEffect, useMemo, useRef} from 'react'
+import {
+  ImperativePanelGroupHandle,
+  ImperativePanelHandle,
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+} from 'react-resizable-panels'
 import {
   Button,
   ScrollView,
@@ -91,10 +98,67 @@ export function AccessoryLayout<
   mainPanelRef?: React.RefObject<HTMLDivElement>
 }) {
   const theme = useTheme()
+  const panelsRef = useRef<ImperativePanelGroupHandle>(null)
+  const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
+  const state = useNavigationState()
+
+  const dispatch = useNavigationDispatch()
+
+  const widthStorage = useMemo(
+    () => ({
+      getItem(name: string) {
+        try {
+          console.log('====== getItem', state?.accessoryWidth)
+          return String(state?.accessoryWidth || 0)
+        } catch (e) {
+          console.error('Error getting sidebar width from storage', {e})
+          return '0'
+        }
+      },
+      setItem(name: string, value: string) {
+        console.log('setItem', {name, value})
+        try {
+          const data = JSON.parse(value)
+          // Extract the first value from the layout array which represents the sidebar width percentage
+          const accessoryWidth = data['accessory,main']?.layout[1]
+
+          if (typeof accessoryWidth === 'number') {
+            dispatch({type: 'accessoryWidth', value: accessoryWidth})
+          }
+        } catch (e) {
+          console.error('Error setting sidebar width in storage', {e})
+        }
+      },
+    }),
+    [state?.sidebarLocked, state?.accessoryWidth],
+  )
+
+  useEffect(() => {
+    const panelGroup = panelsRef.current
+    if (panelGroup) {
+      if (state?.accessoryWidth && state?.accessoryWidth > 0) {
+        console.log('====== accessoryWidth setLayout', state?.accessoryWidth)
+        panelGroup.setLayout([
+          100 - state?.accessoryWidth,
+          state?.accessoryWidth,
+        ])
+      } else {
+        panelGroup.setLayout([100, 0])
+      }
+    }
+  }, [state?.accessoryWidth])
+
   return (
     <XStack f={1} height="100%">
-      <PanelGroup direction="horizontal">
+      <PanelGroup
+        direction="horizontal"
+        ref={panelsRef}
+        style={{flex: 1}}
+        autoSaveId="accessory"
+        storage={widthStorage}
+      >
         <Panel
+          id="main"
           minSize={50}
           style={{
             overflow: 'hidden',
@@ -130,9 +194,14 @@ export function AccessoryLayout<
         ) : null}
         <Panel
           hidden={accessoryKey === undefined}
+          id="accessory"
+          ref={accesoryPanelRef}
           maxSize={50}
           minSize={20}
-          defaultSize={20}
+          defaultSize={state?.accessoryWidth || 20}
+          onResize={(size) => {
+            dispatch({type: 'accessoryWidth', value: size})
+          }}
           style={{
             overflowY: 'auto',
             paddingLeft: 4,
