@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ipfs/go-cid"
 
@@ -303,27 +305,25 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	var numTitles = len(contents)
 	var bodyMatches []fuzzy.Match
-	cleanQuery := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(in.Query, ",", ""), "$", ""), "^", ""), "*", "")
 	if in.IncludeBody {
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 				var icon icon
 				var heads []head
 				matchStr := stmt.ColumnText(0)
-				firstRuneOffset := indexOfQuery(matchStr, in.Query)
+				firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(matchStr, in.Query)
 				if firstRuneOffset == -1 {
 					return nil
 				}
-				firstCharOffset := strings.Index(strings.ToLower(matchStr), strings.ToLower(in.Query))
 				var contextStart int
 				var contextEnd = len(matchStr)
 				if firstCharOffset > 12 {
 					contextStart = firstCharOffset - 12
 				}
-				if firstCharOffset+len(cleanQuery) < len(matchStr)-24 {
-					contextEnd = firstCharOffset + len(cleanQuery) + 24
+				if firstCharOffset+matchedChars < len(matchStr)-24 {
+					contextEnd = firstCharOffset + matchedChars + 24
 				}
-				matchStr = matchStr[contextStart:contextEnd]
+				matchStr = matchStr[contextStart:min(contextEnd, len(matchStr))]
 				contents = append(contents, matchStr)
 				if err := json.Unmarshal(stmt.ColumnBytes(8), &icon); err != nil {
 					return nil
@@ -364,7 +364,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
 				owners = append(owners, ownerID)
 				offsets := []int{firstRuneOffset}
-				for i := firstRuneOffset + 1; i < firstRuneOffset+len(cleanQuery); i++ {
+				for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
 					offsets = append(offsets, i)
 				}
 				bodyMatches = append(bodyMatches, fuzzy.Match{
@@ -374,12 +374,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					MatchedIndexes: offsets,
 				})
 				return nil
-			}, cleanQuery)
+			}, in.Query)
 		}); err != nil {
 			return nil, err
 		}
 	}
-
 	titleMatches := fuzzy.Find(in.Query, contents[:numTitles])
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
@@ -445,7 +444,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			MatchOffset: offsets,
 			Owner:       owners[match.Index]})
 	}
-
 	for _, match := range bodyMatches {
 		parentTitles, err := getParentsFcn(match)
 		if err != nil {
@@ -816,24 +814,47 @@ func (mc mentionsCursor) String() string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 
-func indexOfQuery(haystack, needle string) int {
-	// convert both strings to lowercase runes for case-insensitive matching
-	hs := []rune(strings.ToLower(haystack))
-	nd := []rune(strings.ToLower(needle))
-	if len(nd) == 0 {
-		return 0
+func patternToRegex(pattern string) string {
+	// If the user specifies ^ or $ at the beginning or end, we keep them.
+	startAnchor := strings.HasPrefix(pattern, "^")
+	endAnchor := strings.HasSuffix(pattern, "$")
+	// Remove anchors temporarily.
+	p := pattern
+	if startAnchor {
+		p = strings.TrimPrefix(p, "^")
 	}
-	for i := 0; i <= len(hs)-len(nd); i++ {
-		match := true
-		for j := 0; j < len(nd); j++ {
-			if hs[i+j] != nd[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
+	if endAnchor {
+		p = strings.TrimSuffix(p, "$")
 	}
-	return -1
+	// Escape meta characters.
+	quoted := regexp.QuoteMeta(p)
+	// Replace escaped wildcard with a pattern matching non-whitespace characters.
+	quoted = strings.ReplaceAll(quoted, "\\*", "[^\\s]*")
+	if startAnchor {
+		quoted = "^" + quoted
+	}
+	if endAnchor {
+		quoted = quoted + "$"
+	}
+	// Make search case-insensitive.
+	return "(?i)" + quoted
+}
+
+func indexOfQueryPattern(haystack, pattern string) (startRunes, startChars, matchedRunes, matchedChars int) {
+	// Convert the pattern to a regex pattern.
+	regexPattern := patternToRegex(pattern)
+	re := regexp.MustCompile(regexPattern)
+	loc := re.FindStringIndex(haystack)
+	if loc == nil {
+		return -1, -1, 0, 0
+	}
+	// The start index in runes.
+	startRunes = utf8.RuneCountInString(haystack[:loc[0]])
+	// The start index in characters (bytes).
+	startChars = loc[0]
+	// The matched length in runes.
+	matchedRunes = utf8.RuneCountInString(haystack[loc[0]:loc[1]])
+	// The matched length in characters (bytes).
+	matchedChars = loc[1] - loc[0]
+	return
 }
