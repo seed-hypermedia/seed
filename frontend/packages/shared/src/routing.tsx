@@ -118,8 +118,11 @@ export function useRouteLink(
       ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
           e.preventDefault()
           e.stopPropagation()
+          console.log('useRouteLink', route)
           if (typeof route === 'string') {
-            context.openUrl(route)
+            context.openUrl(
+              route.startsWith('http') ? route : `https://${route}`,
+            )
           } else if (context.openRoute) {
             context.openRoute(route, opts?.replace)
           } else {

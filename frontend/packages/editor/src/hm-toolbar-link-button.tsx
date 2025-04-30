@@ -129,29 +129,37 @@ function AddHyperlink({
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const inputLink = useCallback((url: string) => {
-    setIsLoading(true)
-    resolveHypermediaUrl(url)
-      .then((resolved) => {
-        if (resolved) {
-          const baseId = unpackHmId(resolved.id)
-          if (!baseId) return
-          const u = new URL(url)
-          const latest = u.searchParams.get('l')
-          const blockRef = u.hash?.slice(1)
-          const id = hmId(baseId.type, baseId.uid, {
-            path: baseId.path,
-            latest: latest === '',
-          })
-          const finalUrl = `${packHmId(id)}${blockRef ? `#${blockRef}` : ''}`
-          setLink(finalUrl)
-        }
-      })
-      .catch((e) => {
-        setLink(url)
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
+    try {
+      setIsLoading(true)
+      resolveHypermediaUrl(url)
+        .then((resolved) => {
+          console.log('resolved', resolved)
+          if (resolved) {
+            const baseId = unpackHmId(resolved.id)
+            if (!baseId) return
+            const u = new URL(url)
+            const latest = u.searchParams.get('l')
+            const blockRef = u.hash?.slice(1)
+            const id = hmId(baseId.type, baseId.uid, {
+              path: baseId.path,
+              latest: latest === '',
+            })
+            const finalUrl = `${packHmId(id)}${blockRef ? `#${blockRef}` : ''}`
+            setLink(finalUrl)
+          } else {
+            setLink(url.startsWith('http') ? url : `https://${url}`)
+          }
+        })
+        .catch((e) => {
+          setLink(url)
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
+    } catch (e) {
+      setLink(url.startsWith('http') ? url : `https://${url}`)
+      setIsLoading(false)
+    }
   }, [])
 
   return (
