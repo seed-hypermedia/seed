@@ -2,7 +2,7 @@
 .editor {
   --text-unit: 18;
   --layout-unit: 24;
-  max-width: calc(75ch + 108px);
+  /* max-width: calc(75ch + 108px); */
   width: 100%;
   margin-left: auto;
   margin-right: auto;
@@ -81,10 +81,13 @@
   width: calc(100%);
   height: calc(100%);
 }
-.image-caption {
+/* .image-caption {
   font-size: 0.75em;
   opacity: 0.6;
-}
+  width: 100%;
+  display: block;
+  text-align: center;
+} */
 
 @keyframes rotation {
   0% {
@@ -136,8 +139,7 @@
 }
 
 .editor code {
-  /* background-color: var(--color5); */
-  background-color: red;
+  background-color: var(--color5);
   font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
     'Liberation Mono', monospace;
   overflow: hidden;
