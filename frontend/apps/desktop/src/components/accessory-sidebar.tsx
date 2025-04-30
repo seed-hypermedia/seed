@@ -4,7 +4,7 @@ import {
   useNavigationState,
   useNavRoute,
 } from '@/utils/navigation'
-import {defaultContainerStyle, PanelContainer} from '@shm/ui/container'
+import {PanelContainer} from '@shm/ui/container'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -167,12 +167,7 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
             overflow: 'hidden',
           }}
         >
-          <PanelContainer
-            $gtSm={{
-              ...defaultContainerStyle,
-              marginLeft: 8,
-            }}
-          >
+          <PanelContainer>
             <View
               style={{
                 overflowY: 'auto',
@@ -206,11 +201,6 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
           <AccessoryWrapper
             padding={0}
             title={route.key == 'document' ? 'Activity' : 'Document Options'}
-            $gtSm={{
-              ...defaultContainerStyle,
-              w: 'calc(100% - 8px)',
-              padding: 0,
-            }}
           >
             {route.key == 'document' ? (
               <AccessoryTabs

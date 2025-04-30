@@ -25,7 +25,11 @@ import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {
+  Container,
+  defaultContainerStyle,
+  PanelContainer,
+} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -98,7 +102,11 @@ export default function LibraryPage() {
 
   return (
     <XStack flex={1} height="100%">
-      <PanelContainer>
+      <PanelContainer
+        $gtSm={{
+          ...defaultContainerStyle,
+        }}
+      >
         <MainWrapper scrollable>
           <Container justifyContent="center" centered>
             <CreateAccountBanner />
