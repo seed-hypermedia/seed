@@ -124,15 +124,11 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   mouseOverHandler = (event: MouseEvent) => {
     const target = event.target as HTMLElement
 
-    // if (!target) return
-
-    // if (this.isHoveringToolbar) return
     if (!target) return
 
     this.stopMenuUpdateTimer()
 
     const tiptap = this.editor._tiptapEditor
-    const {state, view} = tiptap
     const coords = {
       left: event.clientX,
       top: event.clientY,
@@ -221,9 +217,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           link: url,
         })
       } else if (this.hyperlinkToolbarState.type === 'button') {
-        // this.editor.updateBlock(this.hyperlinkToolbarState.id, {
-        //   props: {url: url},
-        // })
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
           name: text,
@@ -233,7 +226,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           url: url,
         })
       }
-      // return
     } else {
       tr = this.pmView.state.tr.insertText(
         text.length ? text : ' ',
@@ -268,16 +260,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     markOrNode = nodeAndRange.markOrNode
     range = nodeAndRange.range
     if (this.hyperlinkToolbarState) {
-      console.log(markOrNode, range)
       const pos = range!.from
       if (this.hyperlinkToolbarState.type === 'inline-embed') {
         tr = tr.setNodeMarkup(pos, null, {
           link: url,
         })
       } else if (this.hyperlinkToolbarState.type === 'button') {
-        // this.editor.updateBlock(this.hyperlinkToolbarState.id, {
-        //   props: {url: url},
-        // })
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
           name: text,
@@ -299,7 +287,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
         range!.to = newLength
       }
-      // return
     }
 
     this.pmView.dispatch(tr)
@@ -379,9 +366,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     this.hoveredNode = undefined
     this.hoveredNodeRange = undefined
 
-    // Finds link mark at the editor selection's position to update keyboardHoveredHyperlinkMark and
-    // keyboardHoveredHyperlinkMarkRange.
-    // if (this.pmView.state.selection.empty) {
     const marksAtPos = this.pmView.state.selection.$from.marks()
 
     if (marksAtPos.length > 0) {

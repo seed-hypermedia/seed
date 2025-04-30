@@ -47,7 +47,6 @@ export const HyperlinkToolbarPositioner = <
     return props.editor.hyperlinkToolbar.on(
       'update',
       (hyperlinkToolbarState) => {
-        // console.log('update', hyperlinkToolbarState)
         setShow(hyperlinkToolbarState.show)
         setUrl(hyperlinkToolbarState.url)
         setText(hyperlinkToolbarState.text)
