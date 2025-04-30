@@ -475,37 +475,47 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             id: container ? container.attrs.id : '',
           }
         else if (this.selectedNode.type.name === 'button') {
-          console.log(this.selectedNodeRange)
-          this.hyperlinkToolbarState = {
-            show: true,
-            referencePos: posToDOMRect(
-              this.pmView,
-              this.selectedNodeRange!.from + 1,
-              this.selectedNodeRange!.to,
-            ),
-            url: this.selectedNode!.attrs.url,
-            text: this.selectedNode!.attrs.name,
-            type: 'button',
-            id: container ? container.attrs.id : '',
-            props: {
-              alignment:
-                this.selectedNode!.attrs.alignment.length > 0
-                  ? this.selectedNode!.attrs.alignment
-                  : 'flex-start',
-            },
+          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
+            .node as HTMLElement
+          const buttonElement = dom.querySelector('button')
+
+          if (buttonElement) {
+            const buttonRect = buttonElement.getBoundingClientRect()
+            this.hyperlinkToolbarState = {
+              show: true,
+              referencePos: buttonRect,
+              url: this.selectedNode!.attrs.url,
+              text: this.selectedNode!.attrs.name,
+              type: 'button',
+              id: container ? container.attrs.id : '',
+              props: {
+                alignment:
+                  this.selectedNode!.attrs.alignment.length > 0
+                    ? this.selectedNode!.attrs.alignment
+                    : 'flex-start',
+              },
+            }
           }
         } else if (this.selectedNode.type.name === 'embed') {
-          this.hyperlinkToolbarState = {
-            show: true,
-            referencePos: posToDOMRect(
-              this.pmView,
-              this.selectedNodeRange!.from,
-              this.selectedNodeRange!.to,
-            ),
-            url: this.selectedNode!.attrs.url,
-            text: '',
-            type: 'embed',
-            id: container ? container.attrs.id : '',
+          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
+            .node as HTMLElement
+          const embedElement = dom.querySelector('[data-content-type="embed"]')
+          if (embedElement) {
+            const embedRect = embedElement.getBoundingClientRect()
+            const embedTopRightRect = new DOMRect(
+              embedRect.right - 162,
+              embedRect.top + 12,
+              1,
+              1,
+            )
+            this.hyperlinkToolbarState = {
+              show: true,
+              referencePos: embedTopRightRect,
+              url: this.selectedNode!.attrs.url,
+              text: '',
+              type: 'embed',
+              id: container ? container.attrs.id : '',
+            }
           }
         }
       }
@@ -590,32 +600,48 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             id: container ? container.attrs.id : '',
           }
         else if (this.hoveredNode.type.name === 'button') {
-          this.hyperlinkToolbarState = {
-            show: true,
-            referencePos: posToDOMRect(
-              this.pmView,
-              this.hoveredNodeRange!.from + 1,
-              this.hoveredNodeRange!.to,
-            ),
-            url: this.hoveredNode!.attrs.url,
-            text: this.hoveredNode!.attrs.name,
-            type: 'button',
-            id: container ? container.attrs.id : '',
-            props: {
-              alignment:
-                this.hoveredNode!.attrs.alignment.length > 0
-                  ? this.hoveredNode!.attrs.alignment
-                  : 'flex-start',
-            },
+          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
+            .node as HTMLElement
+          const buttonElement = dom.querySelector('button')
+
+          if (buttonElement) {
+            const buttonRect = buttonElement.getBoundingClientRect()
+
+            this.hyperlinkToolbarState = {
+              show: true,
+              referencePos: buttonRect,
+              url: this.hoveredNode!.attrs.url,
+              text: this.hoveredNode!.attrs.name,
+              type: 'button',
+              id: container ? container.attrs.id : '',
+              props: {
+                alignment:
+                  this.hoveredNode!.attrs.alignment.length > 0
+                    ? this.hoveredNode!.attrs.alignment
+                    : 'flex-start',
+              },
+            }
           }
         } else if (this.hoveredNode.type.name === 'embed') {
-          this.hyperlinkToolbarState = {
-            show: true,
-            referencePos: rect,
-            url: this.hoveredNode!.attrs.url,
-            text: '',
-            type: 'embed',
-            id: container ? container.attrs.id : '',
+          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
+            .node as HTMLElement
+          const embedElement = dom.querySelector('[data-content-type="embed"]')
+          if (embedElement) {
+            const embedRect = embedElement.getBoundingClientRect()
+            const embedTopRightRect = new DOMRect(
+              embedRect.right - 162,
+              embedRect.top + 12,
+              1,
+              1,
+            )
+            this.hyperlinkToolbarState = {
+              show: true,
+              referencePos: embedTopRightRect,
+              url: this.hoveredNode!.attrs.url,
+              text: '',
+              type: 'embed',
+              id: container ? container.attrs.id : '',
+            }
           }
         }
       }
