@@ -13,7 +13,6 @@ import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
-import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
@@ -27,6 +26,7 @@ import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import '@shm/editor/editor.css'
 import {
   BlockRange,
   DocAccessoryOption,

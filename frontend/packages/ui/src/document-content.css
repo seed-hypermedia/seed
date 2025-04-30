@@ -83,3 +83,7 @@
 .blocknode-content-heading ~ [data-list-type='Group'] {
   padding-left: 0 !important;
 }
+
+[data-block-type='Heading'] {
+  margin-bottom: 20px;
+}

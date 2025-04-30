@@ -731,6 +731,7 @@ export function BlockNodeContent({
       borderRadius={layoutUnit / 4}
       bg={isHighlight ? highlightColor : '$backgroundTransparent'}
       data-node-type="blockContainer"
+      data-block-type={blockNode.block?.type}
       // onHoverIn={() => (props.embedDepth ? undefined : hoverProps.onHoverIn())}
       // onHoverOut={() =>
       //   props.embedDepth ? undefined : hoverProps.onHoverOut()

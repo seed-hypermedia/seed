@@ -521,3 +521,7 @@ ul[data-list-type='Unordered']
   > [data-node-type='blockGroup'] {
   margin-left: 0;
 }
+
+[data-node-type='blockContainer']:has([data-content-type='heading']) {
+  margin-bottom: 20px;
+}
