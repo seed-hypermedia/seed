@@ -52,7 +52,10 @@ export function WebCommentsPanel({
 
   const commentAuthors = useMemo(() => {
     if (!focusedCommentId) return comments?.commentAuthors || {}
-    return focusedComments?.data?.commentAuthors || {}
+    return {
+      ...(comments?.commentAuthors || {}),
+      ...(focusedComments?.data?.commentAuthors || {}),
+    }
   }, [focusedCommentId, focusedComments, comments])
 
   const parentThread = useMemo(() => {
