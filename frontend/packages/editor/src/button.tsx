@@ -185,7 +185,7 @@ const Render = (
         >
           {/* <Popover.Trigger> */}
           <Button
-            bg="$brand5"
+            backgroundColor="$brand5"
             color="white"
             width="100%"
             justifyContent="center"
@@ -196,10 +196,12 @@ const Render = (
             size="$4"
             maxWidth="100%"
             hoverStyle={{
-              background: '$brand4',
+              backgroundColor: '$brand4',
+              borderColor: '$colorTransparent',
             }}
             focusStyle={{
-              background: '$brand3',
+              backgroundColor: '$brand3',
+              borderColor: '$colorTransparent',
             }}
           >
             <SizableText
@@ -214,35 +216,6 @@ const Render = (
               {block.props.name || 'Button Text'}
             </SizableText>
           </Button>
-          {/* </Popover.Trigger>
-            <Popover.Content size="$0" zIndex={99998}>
-              <YStack marginBottom="$2" position="absolute" bottom="100%">
-                <HypermediaLinkSwitchToolbar
-                  url={block.props.url}
-                  text={block.props.name}
-                  editHyperlink={(url: string, text: string) => {
-                    assign({props: {url: url, name: text}} as ButtonType)
-                  }}
-                  updateHyperlink={(url: string, text: string) => {
-                    assign({props: {url: url, name: text}} as ButtonType)
-                  }}
-                  deleteHyperlink={() => {
-                    assign({props: {url: ''}} as ButtonType)
-                  }}
-                  startHideTimer={() => {}}
-                  stopHideTimer={() => {}}
-                  resetHyperlink={() => {}}
-                  onChangeLink={() => {}}
-                  openUrl={openUrl}
-                  editor={editor}
-                  stopEditing={false}
-                  forceEditing={forceEdit}
-                  formComponents={ButtonLinkComponents}
-                  type="button"
-                  id={block.id}
-                />
-              </YStack>
-            </Popover.Content> */}
         </XStack>
       </XStack>
     </YStack>
