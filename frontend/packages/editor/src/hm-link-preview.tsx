@@ -36,7 +36,7 @@ export function HypermediaLinkPreview(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
-  const entity = useEntity(unpackedRef)
+  const entity = useEntity(unpackedRef || undefined)
   useEffect(() => {
     if (props.stopEditing && isEditing) {
       setIsEditing(false)
@@ -114,7 +114,7 @@ export function HypermediaLinkPreview(
 
   return (
     <XStack
-      className="switch-toolbar"
+      className="link-preview-toolbar"
       borderRadius="$5"
       background="$backgroundFocus"
       shadowColor="$shadowColorHover"
@@ -185,7 +185,9 @@ export function HypermediaLinkPreview(
               whiteSpace="nowrap"
               textOverflow="ellipsis"
             >
-              {entity.data?.document?.metadata.name ?? props.url}
+              {!!unpackedRef
+                ? entity.data?.document?.metadata.name ?? props.url
+                : props.url}
             </SizableText>
           </XStack>
 
