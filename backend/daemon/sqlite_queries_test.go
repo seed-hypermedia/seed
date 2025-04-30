@@ -47,7 +47,7 @@ func TestFTS(t *testing.T) {
 	var contentType string
 	var contentIRI string
 	err = db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, `SELECT * FROM fts WHERE content MATCH 'First';`, func(stmt *sqlite.Stmt) error {
+		return sqlitex.Exec(conn, `SELECT * FROM fts WHERE content MATCH 'Firs*';`, func(stmt *sqlite.Stmt) error {
 			content = stmt.ColumnText(0)
 			contentType = stmt.ColumnText(1)
 			contentIRI = stmt.ColumnText(2)
