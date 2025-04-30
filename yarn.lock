@@ -10551,7 +10551,7 @@ __metadata:
     react-icons: 4.9.0
     react-native-qrcode-svg: 6.3.12
     react-qr-code: 2.0.15
-    react-resizable-panels: 2.0.20
+    react-resizable-panels: ^2.1.9
     react-tweet: 3.2.0
     rehype: 12.0.1
     rehype-parse: 8.0.4
@@ -32435,16 +32435,6 @@ __metadata:
     "@types/react":
       optional: true
   checksum: a4afd320435cc25a6ee39d7cef2f605dca14cc7618e1cdab24ed0924fa71d8c3756626334dedc9a578945d7ba6f8f87d7b8b66b48034853dc4dbfbda0a1b228b
-  languageName: node
-  linkType: hard
-
-"react-resizable-panels@npm:2.0.20":
-  version: 2.0.20
-  resolution: "react-resizable-panels@npm:2.0.20"
-  peerDependencies:
-    react: ^16.14.0 || ^17.0.0 || ^18.0.0
-    react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0
-  checksum: 73f42c826037a5027c4112c5d62ded42c122ca2f62210123954923fb000f9b4ce6b9d329284892046fb8b14036b53abc0c5235ef3ec85e53175c0c73ba70844a
   languageName: node
   linkType: hard
 
