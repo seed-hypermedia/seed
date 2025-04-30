@@ -310,7 +310,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				var icon icon
 				var heads []head
 				matchStr := stmt.ColumnText(0)
-				firstOffset := strings.Index(strings.ToLower(matchStr), strings.ToLower(in.Query))
+				firstOffset := indexOfQuery(matchStr, in.Query)
 				if firstOffset == -1 {
 					return nil
 				}
@@ -363,7 +363,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
 				owners = append(owners, ownerID)
 				offsets := []int{firstOffset}
-				for i := firstOffset + 1; i < firstOffset+1+len(cleanQuery); i++ {
+				for i := firstOffset + 1; i < firstOffset+len(cleanQuery); i++ {
 					offsets = append(offsets, i)
 				}
 				bodyMatches = append(bodyMatches, fuzzy.Match{
@@ -813,4 +813,26 @@ func (mc mentionsCursor) String() string {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func indexOfQuery(haystack, needle string) int {
+	// convert both strings to lowercase runes for case-insensitive matching
+	hs := []rune(strings.ToLower(haystack))
+	nd := []rune(strings.ToLower(needle))
+	if len(nd) == 0 {
+		return 0
+	}
+	for i := 0; i <= len(hs)-len(nd); i++ {
+		match := true
+		for j := 0; j < len(nd); j++ {
+			if hs[i+j] != nd[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
 }
