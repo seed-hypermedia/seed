@@ -310,17 +310,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				var icon icon
 				var heads []head
 				matchStr := stmt.ColumnText(0)
-				firstOffset := indexOfQuery(matchStr, in.Query)
-				if firstOffset == -1 {
+				firstRuneOffset := indexOfQuery(matchStr, in.Query)
+				if firstRuneOffset == -1 {
 					return nil
 				}
+				firstCharOffset := strings.Index(strings.ToLower(matchStr), strings.ToLower(in.Query))
 				var contextStart int
 				var contextEnd = len(matchStr)
-				if firstOffset > 16 {
-					contextStart = firstOffset - 16
+				if firstCharOffset > 12 {
+					contextStart = firstCharOffset - 12
 				}
-				if firstOffset+len(cleanQuery) < len(matchStr)-32 {
-					contextEnd = firstOffset + len(cleanQuery) + 32
+				if firstCharOffset+len(cleanQuery) < len(matchStr)-24 {
+					contextEnd = firstCharOffset + len(cleanQuery) + 24
 				}
 				matchStr = matchStr[contextStart:contextEnd]
 				contents = append(contents, matchStr)
@@ -362,8 +363,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				blockIDs = append(blockIDs, stmt.ColumnText(2))
 				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
 				owners = append(owners, ownerID)
-				offsets := []int{firstOffset}
-				for i := firstOffset + 1; i < firstOffset+len(cleanQuery); i++ {
+				offsets := []int{firstRuneOffset}
+				for i := firstRuneOffset + 1; i < firstRuneOffset+len(cleanQuery); i++ {
 					offsets = append(offsets, i)
 				}
 				bodyMatches = append(bodyMatches, fuzzy.Match{
