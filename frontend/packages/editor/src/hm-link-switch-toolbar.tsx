@@ -52,8 +52,10 @@ export function HypermediaLinkSwitchToolbar(
         },
         onMouseLeave: () => {
           props.setHovered?.(false)
+          props.editor.hyperlinkToolbar.startHideTimer()
         },
       })}
+      className="switch-toolbar"
     >
       {isEditing ? (
         // Render the form when in editing mode

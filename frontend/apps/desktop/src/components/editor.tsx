@@ -9,8 +9,9 @@ import {
 import '@shm/editor/blocknote/core/style.css'
 import '@shm/editor/editor.css'
 import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
-import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
+// import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
 // import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
+import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
 import type {HyperMediaEditor} from '@shm/editor/types'
 
 export function HyperMediaEditorView({
@@ -30,7 +31,7 @@ export function HyperMediaEditorView({
       />
       <HyperlinkToolbarPositioner
         // hyperlinkToolbar={HypermediaLinkToolbar}
-        hyperlinkToolbar={HypermediaLinkSwitchToolbar}
+        hyperlinkToolbar={HypermediaLinkPreview}
         editor={editor}
         openUrl={openUrl}
       />

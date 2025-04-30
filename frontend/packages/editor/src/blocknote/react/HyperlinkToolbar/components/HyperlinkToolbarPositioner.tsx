@@ -38,6 +38,8 @@ export const HyperlinkToolbarPositioner = <
   const [text, setText] = useState<string>()
   const [type, setType] = useState<string>()
   const [id, setId] = useState<string>()
+  const [toolbarProps, setToolbarProps] =
+    useState<HyperlinkToolbarState['props']>()
 
   const referencePos = useRef<DOMRect>()
 
@@ -45,12 +47,12 @@ export const HyperlinkToolbarPositioner = <
     return props.editor.hyperlinkToolbar.on(
       'update',
       (hyperlinkToolbarState) => {
-        // console.log('update', hyperlinkToolbarState)
         setShow(hyperlinkToolbarState.show)
         setUrl(hyperlinkToolbarState.url)
         setText(hyperlinkToolbarState.text)
         setType(hyperlinkToolbarState.type)
         setId(hyperlinkToolbarState.id)
+        setToolbarProps(hyperlinkToolbarState.props)
 
         referencePos.current = hyperlinkToolbarState.referencePos
       },
@@ -69,7 +71,7 @@ export const HyperlinkToolbarPositioner = <
   )
 
   const hyperlinkToolbarElement = useMemo(() => {
-    if (!url || !text || !type || !id) {
+    if (!type || !id) {
       return null
     }
 
@@ -77,8 +79,8 @@ export const HyperlinkToolbarPositioner = <
 
     return (
       <HyperlinkToolbar
-        url={url}
-        text={text}
+        url={url ?? ''}
+        text={text ?? ''}
         editHyperlink={props.editor.hyperlinkToolbar.editHyperlink}
         updateHyperlink={props.editor.hyperlinkToolbar.updateHyperlink}
         deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}
@@ -94,9 +96,14 @@ export const HyperlinkToolbarPositioner = <
         }}
         openUrl={props.openUrl}
         stopEditing={!show}
+        // @ts-ignore
         editor={props.editor}
         type={type}
         id={id}
+        setHovered={(hovering: boolean) =>
+          props.editor.hyperlinkToolbar.setToolbarHovered(hovering)
+        }
+        toolbarProps={toolbarProps}
       />
     )
   }, [props.hyperlinkToolbar, props.editor, text, url, show])
@@ -110,7 +117,7 @@ export const HyperlinkToolbarPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'top'}
+      placement={'bottom'}
       zIndex={99998}
     />
   )

@@ -4,29 +4,78 @@ import {
   HMEntityType,
   HYPERMEDIA_ENTITY_TYPES,
 } from '@shm/shared/utils/entity-id-url'
-import {Link as LinkIcon, Search} from '@tamagui/lucide-icons'
+import {
+  CircleDot,
+  File,
+  Link as LinkIcon,
+  PanelBottom,
+  Quote,
+  Search,
+} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Input, SizableText, SizeTokens, XStack, YStack} from 'tamagui'
-import {TextCursorInput} from '../../ui/src/icons'
+import {
+  Button,
+  Input,
+  Label,
+  Separator,
+  SizableText,
+  SizeTokens,
+  XStack,
+  YStack,
+} from 'tamagui'
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ChevronDown,
+  TextCursorInput,
+  Trash,
+  Unlink,
+} from '../../ui/src/icons'
+import {BlockNoteEditor} from './blocknote'
+import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import './hm-link-form.css'
+import {HMBlockSchema} from './schema'
+
+const LINK_TYPES = [
+  {value: 'link', label: 'Link', icon: LinkIcon},
+  {value: 'inline-embed', label: 'Mention', icon: Quote},
+  {value: 'button', label: 'Button', icon: CircleDot},
+  {value: 'embed', label: 'Content Embed', icon: File},
+  {value: 'card', label: 'Card', icon: PanelBottom},
+]
 
 export type HypermediaLinkFormProps = {
+  editor: BlockNoteEditor<HMBlockSchema>
   children?: ReactNode
+  id: string
   url: string
   text: string
-  type: string
+  type: 'link' | 'inline-embed' | 'embed' | 'button'
   updateLink: (url: string, text: string) => void
   editLink: (url: string, text: string) => void
+  resetLink: () => void
   seedEntityType?: HMEntityType
   hasName?: boolean
   hasSearch?: boolean
+  onChangeType?: (type: string) => void
+  toolbarProps?: {
+    alignment?: 'flex-start' | 'center' | 'flex-end'
+    view?: string
+    [key: string]: any
+  }
 }
 
 export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const formSize: SizeTokens = '$2'
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
+  const [selectedType, setSelectedType] = useState(props.type)
+
+  useEffect(() => {
+    setSelectedType(props.type)
+  }, [props.type])
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' || event.key == 'Enter') {
@@ -37,6 +86,14 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
   return (
     <YStack gap="$1.5" zIndex="$zIndex.5">
+      <LinkTypeDropdown
+        selected={selectedType}
+        onSelect={(val) => {
+          setSelectedType(val)
+          props.onChangeType?.(val)
+        }}
+      />
+      {/* </XStack> */}
       {props.hasName && (
         <XStack
           paddingHorizontal="$2"
@@ -87,7 +144,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             link={_url}
             text={_text}
             setLink={setUrl}
-            title={props.type === 'mention' ? true : false}
+            title={props.type === 'inline-embed' ? true : false}
           />
         </XStack>
       ) : (
@@ -120,6 +177,69 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           />
         </XStack>
       )}
+      {props.toolbarProps?.alignment && (
+        <XStack gap="$0.25" paddingLeft="$1" justifyContent="space-between">
+          <Label opacity={0.6} fontSize={13} marginBottom="$-2">
+            Alignment
+          </Label>
+          <XStack gap="$3">
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'flex-start'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'flex-start'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignLeft size="$1.5" />
+            </Button>
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'center'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'center'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignCenter size="$1.5" />
+            </Button>
+            <Button
+              size="$2"
+              height="$3"
+              borderRadius="$3"
+              onPress={() => {
+                props.editor.updateBlock(props.id, {
+                  props: {alignment: 'flex-end'},
+                })
+              }}
+              borderColor="$brand5"
+              backgroundColor={
+                props.toolbarProps.alignment === 'flex-end'
+                  ? '$brand5'
+                  : '$colorTransparent'
+              }
+            >
+              <AlignRight size="$1.5" />
+            </Button>
+          </XStack>
+        </XStack>
+      )}
 
       <SizableText fontSize="$2" color="$brand5">
         {!!props.seedEntityType
@@ -128,6 +248,70 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       </SizableText>
 
       {props.children}
+
+      <Separator background="$color11" />
+
+      <XStack justifyContent="flex-end">
+        <Button
+          size="$3"
+          icon={
+            props.type === 'link' ? <Unlink size={14} /> : <Trash size={16} />
+          }
+          chromeless
+          onPress={() => {
+            if (props.type === 'link') {
+              const {state, view} = props.editor._tiptapEditor
+              let tr = state.tr
+              let range
+              const {posBeforeNode} = getNodeById(props.id, state.doc)
+              const contentNode = state.doc.nodeAt(posBeforeNode + 1)
+
+              if (contentNode) {
+                if (
+                  contentNode.type.name === 'embed' ||
+                  contentNode.type.name === 'button'
+                ) {
+                  range = {
+                    from: posBeforeNode + 1,
+                    to: posBeforeNode + 1 + contentNode.nodeSize,
+                  }
+                } else {
+                  contentNode.descendants((child, childPos) => {
+                    const linkMark = child.marks?.find(
+                      (mark) => mark.type.name === 'link',
+                    )
+                    if (linkMark) {
+                      range = {
+                        from: posBeforeNode + 2 + childPos,
+                        to:
+                          posBeforeNode +
+                          2 +
+                          childPos +
+                          (child.text?.length || 1),
+                      }
+                      return false
+                    }
+                    if (child.type.name === 'inline-embed') {
+                      range = {
+                        from: posBeforeNode + 2 + childPos,
+                        to: posBeforeNode + 2 + childPos + child.nodeSize,
+                      }
+                      return false
+                    }
+                  })
+                }
+              }
+              tr = tr.insertText(
+                props.text.length ? props.text : ' ',
+                range!.from,
+                range!.to,
+              )
+              view.dispatch(tr)
+            } else props.editor.removeBlocks([props.id])
+            props.resetLink()
+          }}
+        />
+      </XStack>
     </YStack>
   )
 }
@@ -314,6 +498,91 @@ const SearchInput = ({
       />
 
       {focused && inputPosition && createPortal(dropdownContent, portalRoot)}
+    </>
+  )
+}
+
+export function LinkTypeDropdown({
+  selected,
+  onSelect,
+}: {
+  selected: string
+  onSelect: (value: string) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
+  const ref = useRef<HTMLInputElement>(null)
+  const portalRoot = document.body
+  const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
+
+  useEffect(() => {
+    if (ref.current) {
+      setInputPosition(ref.current.getBoundingClientRect())
+    }
+  }, [focused])
+
+  const dropdown = (
+    <YStack
+      position="absolute"
+      top={inputPosition ? inputPosition.bottom + 5 : 0}
+      left={inputPosition?.left ?? 0}
+      width={inputPosition?.width ?? 200}
+      zIndex={99999}
+      backgroundColor="$backgroundHover"
+      borderRadius="$2"
+      paddingVertical="$2"
+      elevation="$4"
+    >
+      {LINK_TYPES.map((item) => (
+        <XStack
+          key={item.value}
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          hoverStyle={{backgroundColor: '$background'}}
+          cursor="pointer"
+          gap="$2"
+          onMouseDown={() => {
+            onSelect(item.value)
+            setFocused(false)
+          }}
+        >
+          <item.icon
+            size={16}
+            color={item.value === selected ? '$brand4' : '$color12'}
+          />
+          <SizableText
+            size="$2"
+            color={item.value === selected ? '$brand4' : '$color12'}
+          >
+            {item.label}
+          </SizableText>
+        </XStack>
+      ))}
+    </YStack>
+  )
+
+  return (
+    <>
+      <XStack
+        ref={ref as any}
+        onPress={() => setFocused(!focused)}
+        alignItems="center"
+        paddingHorizontal="$2"
+        borderColor="$borderColorFocus"
+        borderWidth="$1"
+        borderRadius="$2"
+        backgroundColor="$background"
+        hoverStyle={{borderColor: '$borderColorHover'}}
+        height="$2"
+        gap="$2"
+      >
+        {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
+        <SizableText size="$2" marginLeft="$1.5">
+          {selectedTypeObj?.label}
+        </SizableText>
+        <ChevronDown size={16} />
+      </XStack>
+      {focused && inputPosition && createPortal(dropdown, portalRoot)}
     </>
   )
 }
