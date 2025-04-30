@@ -84,6 +84,12 @@
   padding-left: 0 !important;
 }
 
+/* Default margin for all headings */
 [data-block-type='Heading'] {
   margin-bottom: 20px;
+}
+
+/* Reset margin for consecutive headings */
+[data-block-type='Heading'] + [data-block-type='Heading'] {
+  margin-top: -20px; /* Cancel out the previous element's margin */
 }

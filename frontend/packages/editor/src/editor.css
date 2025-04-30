@@ -524,6 +524,19 @@ ul[data-list-type='Unordered']
   margin-left: 0;
 }
 
-[data-node-type='blockContainer']:has([data-content-type='heading']) {
+/* Default margin for all heading containers */
+[data-node-type='block-outer']:has(
+    > [data-node-type='blockContainer'] > [data-content-type='heading']
+  ) {
   margin-bottom: 20px;
+}
+
+/* Reset margin for consecutive headings */
+[data-node-type='block-outer']:has(
+    [data-node-type='blockContainer'] > [data-content-type='heading']
+  )
+  + [data-node-type='block-outer']:has(
+    > [data-node-type='blockContainer'] > [data-content-type='heading']
+  ) {
+  margin-top: -20px; /* Cancel out the previous element's margin */
 }
