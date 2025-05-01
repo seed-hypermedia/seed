@@ -92,6 +92,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           setSelectedType(val)
           props.onChangeType?.(val)
         }}
+        seedEntityType={props.seedEntityType}
       />
       {/* </XStack> */}
       {props.hasName && (
@@ -505,15 +506,21 @@ const SearchInput = ({
 export function LinkTypeDropdown({
   selected,
   onSelect,
+  seedEntityType,
 }: {
   selected: string
   onSelect: (value: string) => void
+  seedEntityType?: HMEntityType
 }) {
   const [focused, setFocused] = useState(false)
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
   const ref = useRef<HTMLInputElement>(null)
   const portalRoot = document.body
   const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
+  const filteredTypes = LINK_TYPES.filter((t) => {
+    if (t.value === 'link' || t.value === 'button') return true
+    return !!seedEntityType
+  })
 
   useEffect(() => {
     if (ref.current) {
@@ -533,7 +540,7 @@ export function LinkTypeDropdown({
       paddingVertical="$2"
       elevation="$4"
     >
-      {LINK_TYPES.map((item) => (
+      {filteredTypes.map((item) => (
         <XStack
           key={item.value}
           paddingHorizontal="$3"
