@@ -131,7 +131,9 @@ export function useAllDocumentComments(
         targetPath: hmIdPathToEntityQueryPath(docId.path),
         pageSize: BIG_INT,
       })
-      return res.comments.map(toPlainMessage) as HMComment[]
+      return res.comments.map((c) =>
+        c.toJson({emitDefaultValues: true}),
+      ) as HMComment[]
     },
     enabled: !!docId,
     refetchInterval: 10_000,
