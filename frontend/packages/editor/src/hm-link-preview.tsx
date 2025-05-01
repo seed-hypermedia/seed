@@ -25,7 +25,7 @@ export function HypermediaLinkPreview(
     stopEditing: boolean
     forceEditing?: boolean
     formComponents: () => React.JSX.Element
-    type: 'link' | 'inline-embed' | 'embed' | 'button'
+    type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
     setHovered?: (hovered: boolean) => void
     toolbarProps?: {
       alignment?: 'flex-start' | 'center' | 'flex-end'
@@ -153,7 +153,11 @@ export function HypermediaLinkPreview(
               handleChangeBlockType(type)
             }}
             type={props.type}
-            hasName={props.type !== 'embed' && props.type !== 'inline-embed'}
+            hasName={
+              props.type !== 'embed' &&
+              props.type !== 'inline-embed' &&
+              props.type !== 'card'
+            }
             hasSearch={props.type !== 'link'}
             seedEntityType={unpackHmId(props.url)?.type}
             resetLink={props.resetHyperlink}

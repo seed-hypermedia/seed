@@ -52,7 +52,7 @@ export type HypermediaLinkFormProps = {
   id: string
   url: string
   text: string
-  type: 'link' | 'inline-embed' | 'embed' | 'button'
+  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
   updateLink: (url: string, text: string) => void
   editLink: (url: string, text: string) => void
   resetLink: () => void

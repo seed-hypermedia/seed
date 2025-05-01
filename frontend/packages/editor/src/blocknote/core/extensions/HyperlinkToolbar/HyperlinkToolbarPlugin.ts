@@ -15,7 +15,7 @@ export type HyperlinkToolbarState = BaseUiElementState & {
   // The text of the link or button. Not relevant with mention and embed
   text: string
   // Type of the link node
-  type: 'link' | 'inline-embed' | 'embed' | 'button'
+  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
   id: string
 
   props?: {
@@ -497,7 +497,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
               referencePos: embedTopRightRect,
               url: this.selectedNode!.attrs.url,
               text: '',
-              type: 'embed',
+              type: this.selectedNode.attrs.view === 'Card' ? 'card' : 'embed',
               id: container ? container.attrs.id : '',
             }
           }
@@ -623,7 +623,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
               referencePos: embedTopRightRect,
               url: this.hoveredNode!.attrs.url,
               text: '',
-              type: 'embed',
+              type: this.hoveredNode.attrs.view === 'Card' ? 'card' : 'embed',
               id: container ? container.attrs.id : '',
             }
           }
