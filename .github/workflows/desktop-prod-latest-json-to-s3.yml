@@ -3,6 +3,9 @@ name: Generate latest.json (prod)
 on:
   workflow_dispatch:
 
+  release:
+    types: [published]
+
 jobs:
   generate-latest-json:
     runs-on: ubuntu-latest
