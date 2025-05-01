@@ -368,14 +368,14 @@ export function EmbedComment(props: EntityComponentProps) {
         ) : null}
       </XStack>
       {embedBlocks?.length ? (
-        <BlockNodeList childrenType="group">
+        <BlockNodeList childrenType="Group">
           {embedBlocks.map((bn, idx) => (
             <BlockNodeContent
               isFirstChild={idx === 0}
               key={bn.block?.id}
               depth={1}
               blockNode={bn}
-              childrenType="group"
+              childrenType={bn.block.attributes.childrenType || 'Group'}
               index={idx}
               embedDepth={1}
               parentBlockId={props.id}

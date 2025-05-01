@@ -379,17 +379,17 @@ export function DocumentPage(props: SiteDocumentPayload) {
       originHomeId={props.originHomeId}
       siteHost={siteHost}
     >
-      <PanelGroup direction="horizontal">
-        <Panel ref={mainPanelRef} collapsible id="main-panel">
-          <WebSiteHeader
-            homeMetadata={homeMetadata}
-            originHomeId={originHomeId}
-            docId={id}
-            document={document}
-            supportDocuments={supportDocuments}
-            supportQueries={supportQueries}
-            origin={origin}
-          >
+      <WebSiteHeader
+        homeMetadata={homeMetadata}
+        originHomeId={originHomeId}
+        docId={id}
+        document={document}
+        supportDocuments={supportDocuments}
+        supportQueries={supportQueries}
+        origin={origin}
+      >
+        <PanelGroup direction="horizontal">
+          <Panel ref={mainPanelRef} collapsible id="main-panel">
             <XStack w="100%" bg={isDark ? '$background' : '$backgroundStrong'}>
               <YStack f={1}>
                 <DocumentCover cover={document.metadata.cover} id={id} />
@@ -519,64 +519,34 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     {showSidebars ? <YStack {...sidebarProps} /> : null}
                   </XStack>
                 </YStack>
+                <PageFooter enableWebSigning={enableWebSigning} id={id} />
               </YStack>
-              {/* {panel ? (
-                <YStack
-                  $sm={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    zIndex: '$zIndex.7',
-                  }}
-                  $md={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    zIndex: '$zIndex.7',
-                  }}
-                  // position="absolute"
-                  // right={0}
-                  // top={0}
-                  // bottom={0}
-                  // left={0}
-                  // zIndex="$zIndex.7"
-                  // f={1}
-                  // w="100%"
-                  // h="100%"
-                  bg={isDark ? '$background' : '$backgroundStrong'}
-                  $gtMd={{
-                    maxWidth: '25vw',
-                    minWidth: 220,
-                    w: '100%',
-                    borderLeftWidth: 1,
-                    borderBottomWidth: 1,
-                    borderLeftColor: '$color7',
-                    borderBottomColor: '$color7',
-                    borderBottomLeftRadius: '$2',
-                    position: 'relative',
-                    minHeight: '100%',
-                    top: 'unset',
-                    bottom: 'unset',
-                    left: 'unset',
-                    right: 'unset',
+            </XStack>
+          </Panel>
+          {panel ? (
+            <>
+              <PanelResizeHandle className="panel-resize-handle" />
 
-                    // position: 'sticky',
-                    // height: 'calc(100vh - 56px)',
-                    // right: 0,
-                    // top: 56,
-                    // bottom: 0,
-                    // left: undefined,
-                  }}
+              <Panel
+                defaultSize={media.gtSm ? 30 : 100}
+                maxSize={media.gtSm ? 40 : 100}
+                minSize={media.gtSm ? 20 : 100}
+              >
+                <YStack
+                  bg={isDark ? '$background' : '$backgroundStrong'}
+                  borderLeftWidth={1}
+                  borderLeftColor="$borderColor"
+                  minHeight="100%"
+                  top={0}
+                  right={0}
                 >
                   <XStack
                     paddingHorizontal="$2"
                     paddingVertical="$2"
                     alignItems="center"
                     position="absolute"
+                    w={56}
+                    h={56}
                     top={0}
                     right={12}
                     $gtMd={{
@@ -598,57 +568,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   </XStack>
                   {panel}
                 </YStack>
-              ) : null} */}
-            </XStack>
-          </WebSiteHeader>
-          <PageFooter enableWebSigning={enableWebSigning} id={id} />
-        </Panel>
-        {panel ? (
-          <>
-            <PanelResizeHandle className="panel-resize-handle" />
-
-            <Panel
-              defaultSize={media.gtSm ? 30 : 100}
-              maxSize={media.gtSm ? 40 : 100}
-              minSize={media.gtSm ? 20 : 100}
-            >
-              <YStack
-                borderLeftWidth={1}
-                borderLeftColor="$borderColor"
-                minHeight="100%"
-              >
-                <XStack
-                  paddingHorizontal="$2"
-                  paddingVertical="$2"
-                  alignItems="center"
-                  position="absolute"
-                  w={56}
-                  h={56}
-                  top={0}
-                  right={12}
-                  $gtMd={{
-                    right: 0,
-                  }}
-                  zIndex="$zIndex.2"
-                >
-                  <View flex={1} />
-                  <Tooltip content="Close Panel">
-                    <Button
-                      chromeless
-                      size="$2"
-                      icon={<X size={20} />}
-                      onPress={() => {
-                        setActivePanel(null)
-                      }}
-                    />
-                  </Tooltip>
-                </XStack>
-                {panel}
-              </YStack>
-            </Panel>
-          </>
-        ) : null}
-      </PanelGroup>
+              </Panel>
+            </>
+          ) : null}
+        </PanelGroup>
+      </WebSiteHeader>
     </WebSiteProvider>
   )
 }
@@ -824,7 +748,9 @@ function DocumentActivity({
           siteHost={siteHost}
           comment={true}
         >
-          <BlocksContent blocks={comment.content} parentBlockId={null} />
+          <View bg="orange">
+            <BlocksContent blocks={comment.content} parentBlockId={null} />
+          </View>
         </WebDocContentProvider>
       )
     },

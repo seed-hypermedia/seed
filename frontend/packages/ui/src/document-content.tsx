@@ -404,7 +404,7 @@ function _BlocksContent({
   if (!blocks) return null
 
   return (
-    <BlockNodeList childrenType={'Group'}>
+    <BlockNodeList childrenType="Group">
       {blocks?.length
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
