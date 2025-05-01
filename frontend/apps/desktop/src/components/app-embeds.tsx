@@ -375,7 +375,7 @@ export function EmbedComment(props: EntityComponentProps) {
               key={bn.block?.id}
               depth={1}
               blockNode={bn}
-              childrenType={bn.block.attributes.childrenType || 'Group'}
+              childrenType="Group"
               index={idx}
               embedDepth={1}
               parentBlockId={props.id}
