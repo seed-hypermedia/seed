@@ -748,9 +748,7 @@ function DocumentActivity({
           siteHost={siteHost}
           comment={true}
         >
-          <View bg="orange">
-            <BlocksContent blocks={comment.content} parentBlockId={null} />
-          </View>
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
         </WebDocContentProvider>
       )
     },
