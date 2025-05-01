@@ -3,7 +3,11 @@ import {useSearch} from '@shm/shared/models/search'
 import {
   HMEntityType,
   HYPERMEDIA_ENTITY_TYPES,
+  packHmId,
+  unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
+import {AnimatedSwitch} from '@shm/ui/switch'
+import '@tamagui/core/reset.css'
 import {
   CircleDot,
   File,
@@ -72,6 +76,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
   const [selectedType, setSelectedType] = useState(props.type)
+  const unpacked = unpackHmId(_url)
+  const isSeedLink = !!unpacked
+  const isLatestVersion = isSeedLink ? unpacked.latest !== false : false
 
   useEffect(() => {
     setSelectedType(props.type)
@@ -178,11 +185,28 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           />
         </XStack>
       )}
+      {(props.type === 'embed' || props.type === 'card') && isSeedLink && (
+        <XStack alignItems="center" justifyContent="space-between">
+          <Label fontSize="$2">Show Latest</Label>
+          <AnimatedSwitch
+            size="$2"
+            checked={isLatestVersion}
+            onCheckedChange={(checked) => {
+              const newUrl = packHmId({...unpacked, latest: checked})
+              setUrl(newUrl)
+              props.updateLink(newUrl, _text)
+            }}
+          />
+        </XStack>
+      )}
       {props.toolbarProps?.alignment && (
-        <XStack gap="$0.25" paddingLeft="$1" justifyContent="space-between">
-          <Label opacity={0.6} fontSize={13} marginBottom="$-2">
-            Alignment
-          </Label>
+        <XStack
+          gap="$0.25"
+          paddingLeft="$1"
+          justifyContent="space-between"
+          marginTop="$2"
+        >
+          <Label fontSize="$2">Alignment</Label>
           <XStack gap="$3">
             <Button
               size="$2"

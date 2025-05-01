@@ -221,9 +221,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           url: url,
           name: text,
         })
-      } else if (this.hyperlinkToolbarState.type === 'embed') {
+      } else if (
+        this.hyperlinkToolbarState.type === 'embed' ||
+        this.hyperlinkToolbarState.type === 'card'
+      ) {
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
+          view: this.hyperlinkToolbarState.type === 'card' ? 'Card' : 'Content',
         })
       }
     } else {
@@ -270,9 +274,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           url: url,
           name: text,
         })
-      } else if (this.hyperlinkToolbarState.type === 'embed') {
+      } else if (
+        this.hyperlinkToolbarState.type === 'embed' ||
+        this.hyperlinkToolbarState.type === 'card'
+      ) {
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
+          view: this.hyperlinkToolbarState.type === 'card' ? 'Card' : 'Content',
         })
       } else {
         const newText = text.length ? text : ' '
