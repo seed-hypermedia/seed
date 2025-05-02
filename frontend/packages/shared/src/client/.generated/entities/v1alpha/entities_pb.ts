@@ -670,14 +670,6 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   includeBody = false;
 
-  /**
-   * Whether to look into latest versions only or look into full
-   * history of the entity. Default is false.
-   *
-   * @generated from field: bool full_history = 3;
-   */
-  fullHistory = false;
-
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -688,7 +680,6 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "full_history", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

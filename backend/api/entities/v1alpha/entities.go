@@ -272,11 +272,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-
-	if in.FullHistory {
-		return nil, fmt.Errorf("full history search is not supported yet")
+	if in.Query == "" {
+		return nil, nil
 	}
-
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var title title

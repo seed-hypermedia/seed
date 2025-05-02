@@ -747,10 +747,7 @@ type SearchEntitiesRequest struct {
 	// Whether to look into all content available or just the titles.
 	// If false, comments are not included in the search.
 	// Default is false.
-	IncludeBody bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
-	// Whether to look into latest versions only or look into full
-	// history of the entity. Default is false.
-	FullHistory   bool `protobuf:"varint,3,opt,name=full_history,json=fullHistory,proto3" json:"full_history,omitempty"`
+	IncludeBody   bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -795,13 +792,6 @@ func (x *SearchEntitiesRequest) GetQuery() string {
 func (x *SearchEntitiesRequest) GetIncludeBody() bool {
 	if x != nil {
 		return x.IncludeBody
-	}
-	return false
-}
-
-func (x *SearchEntitiesRequest) GetFullHistory() bool {
-	if x != nil {
-		return x.FullHistory
 	}
 	return false
 }
@@ -1450,11 +1440,10 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"s\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"P\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
-	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
-	"\ffull_history\x18\x03 \x01(\bR\vfullHistory\"\x7f\n" +
+	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
