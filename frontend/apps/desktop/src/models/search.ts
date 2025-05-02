@@ -10,7 +10,7 @@ export async function querySearch(
   searchQuery: string,
   accountUid?: string,
 ): Promise<SearchPayload> {
-  const result = await grpcClient.entities.searchEntities({query: searchQuery})
+  const result = await grpcClient.entities.searchEntities({query: searchQuery, includeBody: true})
   return {
     searchQuery,
     entities: result.entities
@@ -19,7 +19,7 @@ export async function querySearch(
         return id
           ? {
               id,
-              title: entity.title,
+              title: entity.content,
               parentNames: entity.parentNames,
               icon: entity.icon,
             }
@@ -52,7 +52,7 @@ export function transformResultsToItems(
         if (!id) return null
 
         return {
-          title: entity.title,
+          title: entity.content,
           subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
           value: entity.id,
         } as SearchItem

@@ -214,10 +214,6 @@ message SearchEntitiesRequest {
   // If false, comments are not included in the search.
   // Default is false.
   bool include_body = 2;
-
-  // Whether to look into latest versions only or look into full
-  // history of the entity. Default is false.
-  bool full_history = 3;
 }
 
 // A list of entities matching the request.
