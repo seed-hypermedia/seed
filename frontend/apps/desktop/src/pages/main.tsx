@@ -1,5 +1,6 @@
-import {useListen} from '@/app-context'
+import {useAppContext, useListen} from '@/app-context'
 
+import {CloseButton} from '@/components/window-controls'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -46,6 +47,7 @@ export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
   const isDark = useIsDark()
+  const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(
     () => getPageComponent(navR),
     [navR],
@@ -81,6 +83,7 @@ export default function Main({className}: {className?: string}) {
           >
             Settings
           </TitleText>
+          {platform !== 'darwin' && <WindowClose />}
         </XStack>
       </TitlebarWrapper>
     )
@@ -118,6 +121,7 @@ export default function Main({className}: {className?: string}) {
           >
             Review Deleted Content
           </TitleText>
+          {platform !== 'darwin' && <WindowClose />}
         </XStack>
       </TitlebarWrapper>
     )
@@ -328,5 +332,23 @@ function NewLayout() {
         </XStack>
       </YStack>
     </>
+  )
+}
+
+function WindowClose() {
+  return (
+    <XStack
+      w={26}
+      h={26}
+      ai="center"
+      jc="center"
+      className="no-window-drag"
+      marginHorizontal="$2"
+      position="absolute"
+      right={0}
+      top={0}
+    >
+      <CloseButton />
+    </XStack>
   )
 }
