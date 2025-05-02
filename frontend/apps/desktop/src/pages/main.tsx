@@ -5,31 +5,22 @@ import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getWindowType} from '@/utils/window-types'
-import {HMMetadata} from '@shm/shared'
 import {NavRoute} from '@shm/shared/routes'
-import {useDocumentLayout} from '@shm/ui/layout'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
-import {
-  lazy,
-  ReactElement,
-  ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {
   ImperativePanelGroupHandle,
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
+import {HypermediaHighlight} from '../components/hypermedia-highlight'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
@@ -152,6 +143,7 @@ export default function Main({className}: {className?: string}) {
           </XStack>
           <Footer />
           <AutoUpdater />
+          <HypermediaHighlight />
         </ErrorBoundary>
       </SidebarContextProvider>
     </YStack>
@@ -235,104 +227,6 @@ function getPageComponent(navRoute: NavRoute) {
         Fallback: BaseLoading,
       }
   }
-}
-
-function NewLayout() {
-  const [contentWidth, setContentWidth] =
-    useState<HMMetadata['contentWidth']>('M')
-  const [shouldShowSidebars, setShouldShowSidebars] = useState(true)
-
-  const {showSidebars, elementRef, showCollapsed, maxWidth, contentMaxWidth} =
-    useDocumentLayout({
-      contentWidth,
-      showSidebars: shouldShowSidebars,
-    })
-  return (
-    <>
-      <YStack padding={25}>
-        <XStack gap="$4" alignItems="center" flexWrap="wrap">
-          <SizableText>Content Width:</SizableText>
-          <select
-            value={contentWidth}
-            onChange={(e) =>
-              setContentWidth(e.target.value as HMMetadata['contentWidth'])
-            }
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-            }}
-          >
-            <option value="S">Small</option>
-            <option value="M">Medium</option>
-            <option value="L">Large</option>
-          </select>
-
-          <XStack gap="$2" alignItems="center" marginLeft="$4">
-            <input
-              type="checkbox"
-              id="showSidebars"
-              checked={shouldShowSidebars}
-              onChange={(e) => setShouldShowSidebars(e.target.checked)}
-              style={{width: '16px', height: '16px'}}
-            />
-            <label htmlFor="showSidebars">
-              <SizableText>Show Sidebars</SizableText>
-            </label>
-          </XStack>
-        </XStack>
-      </YStack>
-      <YStack flex={1} ref={elementRef} w="100%">
-        <XStack
-          maxWidth={maxWidth}
-          marginHorizontal="auto"
-          width="100%"
-          justifyContent="space-between"
-          bg="lightblue"
-          flex={1}
-        >
-          {showSidebars ? (
-            <YStack
-              bg="blue"
-              width="100%"
-              maxWidth={showCollapsed ? 40 : 280}
-              flex={1}
-              paddingRight={showCollapsed ? 0 : 40}
-              className="document-aside"
-            >
-              <SizableText>sidebar left</SizableText>
-            </YStack>
-          ) : null}
-          <YStack maxWidth={contentMaxWidth} width="100%" p={40}>
-            <pre>
-              <SizableText size="$5">
-                {JSON.stringify(
-                  {
-                    showSidebars,
-                    showCollapsed,
-                    maxWidth,
-                    contentMaxWidth,
-                  },
-                  null,
-                  2,
-                )}
-              </SizableText>
-            </pre>
-          </YStack>
-          {showSidebars ? (
-            <YStack
-              bg="blue"
-              width="100%"
-              maxWidth={showCollapsed ? 40 : 280}
-              flex={1}
-            >
-              <SizableText>sidebar right</SizableText>
-            </YStack>
-          ) : null}
-        </XStack>
-      </YStack>
-    </>
-  )
 }
 
 function WindowClose() {

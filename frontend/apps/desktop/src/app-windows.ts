@@ -164,6 +164,13 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
     focusedWindow.webContents.send('appWindowEvent', event)
   }
 }
+
+export function dispatchAllWindowsAppEvent(event: AppWindowEvent) {
+  allWindows.forEach((window) => {
+    window.webContents.send('appWindowEvent', event)
+  })
+}
+
 export function createAppWindow(
   input: Partial<AppWindow> & {id?: string},
 ): BrowserWindow {

@@ -76,6 +76,7 @@ export function SmallListItem({
   onSetCollapsed,
   isDraft,
   multiline = false,
+  docId,
   ...props
 }: ListItemProps & {
   indented?: boolean | number
@@ -88,6 +89,7 @@ export function SmallListItem({
   onSetCollapsed?: (collapsed: boolean) => void
   isDraft?: boolean
   multiline?: boolean
+  docId?: string
 }) {
   const theme = useTheme()
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
@@ -132,6 +134,8 @@ export function SmallListItem({
           </>
         ) : null
       }
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={docId}
       {...props}
     >
       <XStack gap="$2" jc="center" f={1}>

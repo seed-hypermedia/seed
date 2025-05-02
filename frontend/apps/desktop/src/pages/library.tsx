@@ -439,6 +439,8 @@ function LibrarySiteItem({
         }}
         h="auto"
         ai="center"
+        // this data attribute is used by the hypermedia highlight component
+        data-docid={id.id}
       >
         <SelectionCollapseButton
           isCollapsed={isCollapsed}
@@ -524,6 +526,8 @@ export function LibraryDocumentItem({
       h="auto"
       marginVertical={'$1'}
       ai="center"
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={id.id}
     >
       <SelectionCollapseButton isCollapsed={null} docId={id.id} />
       <View width={32} />

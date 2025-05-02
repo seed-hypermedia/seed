@@ -137,8 +137,7 @@ function EmbedWrapper({
   return id ? (
     <YStack
       ref={wrapperRef}
-      onHoverIn={() => docContentContext?.onHoverIn?.(id)}
-      onHoverOut={() => docContentContext?.onHoverOut?.(id)}
+      // @ts-expect-error this is a tamagui error
       contentEditable={false}
       userSelect="none"
       {...blockStyles}
@@ -146,6 +145,11 @@ function EmbedWrapper({
       data-content-type="embed"
       data-url={id ? packHmId(id) : ''}
       data-view={viewType}
+      // this data attribute is used by the hypermedia highlight component
+      onHoverIn={() => docContentContext?.onHoverIn?.(id)}
+      onHoverOut={() => docContentContext?.onHoverOut?.(id)}
+      data-blockid={id?.blockRef}
+      data-docid={id?.blockRef ? undefined : id?.id}
       backgroundColor={
         isHighlight
           ? routeParams?.blockRef == id?.blockRef
@@ -636,6 +640,7 @@ function QueryStyleList({
           return (
             <LibraryListItem
               key={item.id.id}
+              docId={item.id.id}
               entry={item}
               exportMode={false}
               selected={false}

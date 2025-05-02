@@ -159,6 +159,7 @@ function FavoritesSection() {
         return (
           <SmallListItem
             key={id.id}
+            docId={id.id}
             title={getDocumentTitle(document)}
             icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
@@ -204,6 +205,7 @@ function AccountsSection() {
         return (
           <SmallListItem
             key={id.uid}
+            docId={id.id}
             title={getDocumentTitle(document) || id.uid}
             icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
             onPress={() => {

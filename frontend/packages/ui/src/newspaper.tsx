@@ -39,6 +39,8 @@ export function BannerNewspaperCard({
       minHeight={200}
       $gtMd={{flexDirection: 'row', maxHeight: 300}}
       {...linkProps}
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={id.id}
     >
       {entity.document.metadata.cover ? (
         <View height={200} width="100%" $gtMd={{width: '50%', height: 'auto'}}>
@@ -209,6 +211,8 @@ export function NewspaperCard({
       //   onPress={() => {
       //     //   navigate({key: 'document', id})
       //   }}
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={id.id}
       {...linkProps}
       {...props}
     >

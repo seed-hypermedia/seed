@@ -1672,8 +1672,11 @@ function HrefLink({
       {...linkProps}
       onClick={onPress}
       {...buttonProps}
+      // this data attribute is used by the hypermedia highlight component
       onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
       onMouseLeave={id ? () => onHoverOut?.(id) : undefined}
+      data-blockid={id?.blockRef}
+      data-docid={id?.blockRef ? undefined : id?.id}
     >
       {children}
     </a>
@@ -2629,6 +2632,9 @@ export function InlineEmbedButton({
       className="hm-link"
       fontSize="inherit"
       data-inline-embed={packHmId(entityId)}
+      // this data attribute is used by the hypermedia highlight component
+      data-blockid={entityId.blockRef}
+      data-docid={entityId.blockRef ? undefined : entityId.id}
     >
       {children}
     </ButtonText>

@@ -40,6 +40,7 @@ import {welcomingApi} from './app-welcoming'
 import {
   closeAppWindow,
   createAppWindow,
+  dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
   getAllWindows,
   getFocusedWindow,
@@ -52,6 +53,10 @@ ipcMain.on('invalidate_queries', (_event, info) => {
 
 ipcMain.on('focusedWindowAppEvent', (_event, info) => {
   dispatchFocusedWindowAppEvent(info)
+})
+
+ipcMain.on('broadcastWindowEvent', (_event, info) => {
+  dispatchAllWindowsAppEvent(info)
 })
 
 ipcMain.on('minimize_window', (_event, _info) => {

@@ -146,12 +146,14 @@ export function LibraryListItem({
   entry,
   exportMode,
   selected,
+  docId,
   toggleDocumentSelection,
 }: {
   entry: LibraryData['items'][number]
   exportMode: boolean
   selected: boolean
   toggleDocumentSelection: (id: string) => void
+  docId: string
 }) {
   const navigate = useNavigate()
   const metadata = entry.document?.metadata || entry.draft?.metadata
@@ -222,6 +224,8 @@ export function LibraryListItem({
           icon
         )
       }
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={docId}
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">

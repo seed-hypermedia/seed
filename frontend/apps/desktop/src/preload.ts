@@ -213,6 +213,9 @@ contextBridge.exposeInMainWorld('ipc', {
   versions: () => {
     return process.versions
   },
+  broadcast: (event: any) => {
+    ipcRenderer.send('broadcastWindowEvent', event)
+  },
 })
 
 contextBridge.exposeInMainWorld('autoUpdate', {

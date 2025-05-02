@@ -106,6 +106,8 @@ export function SiteHeader({
         right={0}
         left={0}
         backgroundColor={isDark ? '$background' : '$backgroundStrong'}
+        // this data attribute is used by the hypermedia highlight component
+        data-docid={headerHomeId.id}
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"
@@ -283,7 +285,13 @@ export function SmallSiteHeader({
   siteHost: string
 }) {
   return (
-    <YStack backgroundColor="$backgroundStrong" ai="center" width="100vw">
+    <YStack
+      backgroundColor="$backgroundStrong"
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={originHomeId.id}
+      ai="center"
+      width="100vw"
+    >
       <XStack maxWidth={600} width="100%">
         <XStack paddingHorizontal="$4" paddingVertical="$2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
@@ -325,8 +333,10 @@ function HeaderLinkItem({
     <XStack
       ai="center"
       gap="$1"
-      hoverStyle={{bg: '$backgroundHover'}}
+      hoverStyle={draftId ? {bg: '$backgroundHover'} : undefined}
       paddingHorizontal="$1"
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={id?.id}
     >
       <SizableText
         numberOfLines={1}

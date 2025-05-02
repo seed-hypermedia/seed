@@ -13,6 +13,8 @@ export type AppWindowSimpleEvent =
 export type AppWindowEvent =
   | AppWindowSimpleEvent
   | {key: 'connectPeer'; connectionString: string; name?: string}
+  | {key: 'hypermediaHoverIn'; id: string}
+  | {key: 'hypermediaHoverOut'; id: string}
 
 export function useListenAppEvent(
   eventKey: AppWindowSimpleEvent,

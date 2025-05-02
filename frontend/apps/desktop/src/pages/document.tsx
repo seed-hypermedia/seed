@@ -323,7 +323,8 @@ function _MainDocumentPage({
   }
 
   return (
-    <YStack>
+    // this data attribute is used by the hypermedia highlight component
+    <YStack data-docid={id.id}>
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
@@ -879,12 +880,6 @@ function DocPageContent({
         })
       }}
       isBlockFocused={isBlockFocused}
-      onHoverIn={(id) => {
-        console.log('=== BLOCK HOVER EFFECT: hover in', id)
-      }}
-      onHoverOut={(id) => {
-        console.log('=== BLOCK HOVER EFFECT: hover out', id)
-      }}
     >
       <DocContent
         document={entity.document!}
