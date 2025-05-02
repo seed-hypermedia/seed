@@ -1,18 +1,22 @@
 # Hypermedia Highlight System
 
-This system enables cross-window highlighting of hypermedia elements when hovering over them.
+This system enables cross-window highlighting of hypermedia elements when
+hovering over them.
 
 ## How It Works
 
-1. When a user hovers over an element with a hypermedia ID, we broadcast that ID to all windows
-2. Each window listens for these broadcasts and highlights elements with matching IDs
+1. When a user hovers over an element with a hypermedia ID, we broadcast that ID
+   to all windows
+2. Each window listens for these broadcasts and highlights elements with
+   matching IDs
 3. When the hover ends, a second broadcast is sent to clear highlights
 
 ## Implementation Details
 
 ### Broadcasting Events
 
-The document-content-provider.tsx contains hover handlers that broadcast events to all windows:
+The document-content-provider.tsx contains hover handlers that broadcast events
+to all windows:
 
 ```jsx
 onHoverIn={(id) => {
@@ -35,7 +39,8 @@ onHoverOut={(id) => {
 
 ### Listening for Events
 
-The HypermediaHighlight component, included in the main application layout, listens for these events and applies highlighting:
+The HypermediaHighlight component, included in the main application layout,
+listens for these events and applies highlighting:
 
 ```jsx
 useEffect(() => {
@@ -51,7 +56,7 @@ useEffect(() => {
       }
     }
   })
-  
+
   return () => {
     if (unsubscribe) unsubscribe()
   }
@@ -76,7 +81,8 @@ function createHighlightCSS(id: string): string {
 ## Key Files
 
 - **document-content-provider.tsx**: Contains the hover event handlers
-- **components/hypermedia-highlight.tsx**: Component that listens for events and applies highlights
+- **components/hypermedia-highlight.tsx**: Component that listens for events and
+  applies highlights
 - **utils/window-events.ts**: Defines the event types
 - **app-windows.ts**: Contains the function to broadcast to all windows
 - **app-api.ts**: Handles IPC communication
@@ -84,7 +90,8 @@ function createHighlightCSS(id: string): string {
 
 ## Customization
 
-You can customize the highlight appearance by passing a custom color to the HypermediaHighlight component:
+You can customize the highlight appearance by passing a custom color to the
+HypermediaHighlight component:
 
 ```jsx
 <HypermediaHighlight highlightColor="rgba(0, 128, 255, 0.3)" />
@@ -92,5 +99,7 @@ You can customize the highlight appearance by passing a custom color to the Hype
 
 ## Troubleshooting
 
-- **No highlighting**: Make sure elements have `data-blockid` or `data-docid` attributes matching the ID being sent
-- **Events not working**: Check browser console for errors in the broadcast mechanism 
+- **No highlighting**: Make sure elements have `data-blockid` or `data-docid`
+  attributes matching the ID being sent
+- **Events not working**: Check browser console for errors in the broadcast
+  mechanism
