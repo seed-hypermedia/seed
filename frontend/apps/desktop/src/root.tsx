@@ -154,10 +154,12 @@ function useWindowUtils(ipc: AppIPC): WindowUtils {
       ipc.send('close_window')
     },
     minimize: () => {
+      // toast.error('Not implemented')
       ipc.send('minimize_window')
+      // win.minimize()
     },
     hide: () => {
-      toast.error('Not implemented')
+      ipc.send('hide_window')
     },
     isMaximized,
     quit: () => {

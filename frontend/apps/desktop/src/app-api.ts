@@ -58,6 +58,10 @@ ipcMain.on('minimize_window', (_event, _info) => {
   getFocusedWindow()?.minimize()
 })
 
+ipcMain.on('hide_window', (_event, _info) => {
+  getFocusedWindow()?.hide()
+})
+
 ipcMain.on('maximize_window', (_event, info) => {
   const window = getFocusedWindow()
   if (!window) return

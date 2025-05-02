@@ -152,6 +152,13 @@ export function createAppMenu() {
             }
           },
         },
+        {
+          label: 'Hide',
+          accelerator: 'CmdOrCtrl+H',
+          click: () => {
+            getFocusedWindow()?.hide()
+          },
+        },
       ],
     }),
   )
