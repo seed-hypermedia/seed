@@ -30,15 +30,11 @@ export function MaximizeOrRestoreButton() {
     name = 'restore'
     path =
       'm 2,1e-5 0,2 -2,0 0,8 8,0 0,-2 2,0 0,-8 z m 1,1 6,0 0,6 -1,0 0,-5 -5,0 z m -2,2 6,0 0,6 -6,0 z'
-    cb = () => {
-      unmaximize()
-    }
+    cb = unmaximize
   } else {
     name = 'maximize'
     path = 'M 0,0 0,10 10,10 10,0 Z M 1,1 9,1 9,9 1,9 Z'
-    cb = () => {
-      maximize()
-    }
+    cb = maximize
   }
 
   const title = name[0].toUpperCase() + name.substring(1)
@@ -73,7 +69,7 @@ export function MinimizeButton() {
     <ButtonWrapper
       aria-label="minize"
       tabIndex={-1}
-      onPress={() => minimize()}
+      onPress={minimize}
       icon={
         <svg aria-hidden="true" viewBox="0 0 10 10" width={10} height={10}>
           <path fill={theme.color.variable} d="M 0,5 10,5 10,6 0,6 Z" />
@@ -89,8 +85,8 @@ function ButtonWrapper(props: any) {
       size="$1"
       chromeless
       color="$color"
-      width={20}
-      height={20}
+      width={24}
+      height={24}
       {...props}
     />
   )

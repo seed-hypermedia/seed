@@ -58,12 +58,27 @@ ipcMain.on('minimize_window', (_event, _info) => {
   getFocusedWindow()?.minimize()
 })
 
-ipcMain.on('maximize_window', (_event, _info) => {
+ipcMain.on('maximize_window', (_event, info) => {
   const window = getFocusedWindow()
-  if (window?.isMaximized()) {
+  if (!window) return
+
+  // Handle the force flags if they're provided
+  if (info && typeof info === 'object') {
+    if (info.forceMaximize) {
+      window.maximize()
+      return
+    }
+    if (info.forceUnmaximize) {
+      window.unmaximize()
+      return
+    }
+  }
+
+  // Default toggle behavior if no force flags
+  if (window.isMaximized()) {
     window.unmaximize()
   } else {
-    window?.maximize()
+    window.maximize()
   }
 })
 

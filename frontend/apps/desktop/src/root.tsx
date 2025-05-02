@@ -35,6 +35,7 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
+import {AppWindowEvent} from '@/utils/window-events'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -115,32 +116,48 @@ const hiddenLogMessages = new Set<string>([
 function useWindowUtils(ipc: AppIPC): WindowUtils {
   // const win = getCurrent()
   const [isMaximized, setIsMaximized] = useState<boolean | undefined>(false)
+
+  // Listen for window state changes
+  useEffect(() => {
+    const unsubscribe = window.appWindowEvents?.subscribe(
+      (event: AppWindowEvent) => {
+        if (event === 'window_state_changed') {
+          // Get the actual window state from the exposed windowMaximizedState
+          if (window.windowMaximizedState) {
+            const currentState = window.windowMaximizedState.get()
+            setIsMaximized(currentState)
+          }
+        }
+      },
+    )
+
+    // Also initialize from current window state if available
+    if (window.windowMaximizedState) {
+      setIsMaximized(window.windowMaximizedState.get())
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [])
+
   const windowUtils = {
     maximize: () => {
-      // toast.error('Not implemented maximize')
-      setIsMaximized(true)
-      ipc.send('maximize_window')
-      // win.maximize()
+      // No longer immediately set the state here, let the event handler do it
+      ipc.send('maximize_window', {forceMaximize: true})
     },
     unmaximize: () => {
-      // toast.error('Not implemented')
-      setIsMaximized(false)
-      ipc.send('maximize_window')
-      // win.unmaximize()
+      // No longer immediately set the state here, let the event handler do it
+      ipc.send('maximize_window', {forceUnmaximize: true})
     },
     close: () => {
-      // toast.error('Not implemented')
       ipc.send('close_window')
-      // win.close()
     },
     minimize: () => {
-      // toast.error('Not implemented')
       ipc.send('minimize_window')
-      // win.minimize()
     },
     hide: () => {
       toast.error('Not implemented')
-      // win.hide()
     },
     isMaximized,
     quit: () => {
@@ -198,6 +215,22 @@ onQueryCacheError((error, query) => {
     },
   })
 })
+
+// Add window interface extension
+declare global {
+  interface Window {
+    appWindowEvents?: {
+      subscribe: (handler: (event: AppWindowEvent) => void) => () => void
+    }
+    windowMaximizedState?: {
+      get: () => boolean
+    }
+    darkMode?: any
+    initNavState?: any
+    windowType?: any
+    windowId?: string
+  }
+}
 
 function MainApp({}: {}) {
   // Make window visible immediately - this should be the very first thing

@@ -18,6 +18,7 @@ import {
   Settings,
 } from '@shm/ui/icons'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
+import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
 import {
   ListItem,
@@ -91,7 +92,8 @@ export function WindowsLinuxTitleBar({
 
 export function SystemMenu() {
   const createDraft = useOpenDraft('spawn')
-  const {hide, close, quit} = useWindowUtils()
+  const {hide, close, quit, minimize, maximize, unmaximize, isMaximized} =
+    useWindowUtils()
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
   const navDispatch = useNavigationDispatch()
@@ -112,6 +114,9 @@ export function SystemMenu() {
             icon: Settings,
           },
           {
+            id: 'separator',
+          },
+          {
             id: 'quickswitcher',
             title: 'Search / Open',
             accelerator: 'Ctrl+K',
@@ -128,6 +133,9 @@ export function SystemMenu() {
             id: 'app-update',
             title: 'Check for Updates',
             onSelect: () => window.autoUpdate?.checkForUpdates(),
+          },
+          {
+            id: 'separator',
           },
           {
             id: 'hide',
@@ -152,7 +160,10 @@ export function SystemMenu() {
             id: 'newdocument',
             title: 'New Document',
             accelerator: 'Ctrl+N',
-            onSelect: () => createDraft(),
+            onSelect: () =>
+              createDraft({
+                id: nanoid(8),
+              }),
             icon: AddSquare,
           },
           {
@@ -161,6 +172,31 @@ export function SystemMenu() {
             accelerator: 'Ctrl+Shift+N',
             onSelect: () => spawn(defaultRoute),
             icon: AddSquare,
+          },
+          {
+            id: 'separator',
+          },
+          {
+            id: 'minimize',
+            title: 'Minimize Window',
+            accelerator: 'Ctrl+M',
+            // @ts-ignore - Ignoring parameter count mismatch
+            onSelect: minimize,
+          },
+          {
+            id: 'maximize',
+            title: 'Maximize Window',
+            accelerator: 'Ctrl+Up',
+            onSelect: () => {
+              if (isMaximized) {
+                unmaximize()
+              } else {
+                maximize()
+              }
+            },
+          },
+          {
+            id: 'separator',
           },
           {
             id: 'close',
@@ -231,7 +267,7 @@ export function SystemMenu() {
             icon: Reload,
           },
           {
-            id: 'reload',
+            id: 'forcereload',
             title: 'Force Reload',
             accelerator: 'Ctrl+Shift+R',
             onSelect: () => window.location.reload(),
@@ -291,39 +327,49 @@ export function SystemMenu() {
               },
             ]}
           >
-            <YGroup separator={<Separator />}>
-              {item.children.map((p) => (
-                <YGroup.Item key={p.id}>
-                  <ListItem
-                    className="no-window-drag"
-                    icon={p.icon}
-                    hoverTheme
-                    pressTheme
-                    hoverStyle={{
-                      backgroundColor: '$backgroundFocus',
-                    }}
-                    paddingHorizontal="$3"
-                    paddingVertical="$1"
-                    backgroundColor="transparent"
-                    onPress={p.onSelect}
-                    size="$2"
-                    disabled={p.disabled}
-                  >
-                    <SizableText fontSize="$1" flex={1}>
-                      {p.title}
-                    </SizableText>
-                    {p.accelerator && (
-                      <SizableText
-                        marginLeft="$2"
-                        fontSize="$1"
-                        color={'$color9'}
+            <YGroup>
+              {item.children.map((p) => {
+                if (p.id == 'separator') {
+                  return (
+                    <YGroup.Item key={p.id}>
+                      <Separator />
+                    </YGroup.Item>
+                  )
+                } else {
+                  return (
+                    <YGroup.Item key={p.id}>
+                      <ListItem
+                        className="no-window-drag"
+                        icon={p.icon}
+                        hoverTheme
+                        pressTheme
+                        hoverStyle={{
+                          backgroundColor: '$backgroundFocus',
+                        }}
+                        paddingHorizontal="$3"
+                        paddingVertical="$1"
+                        backgroundColor="transparent"
+                        onPress={p.onSelect}
+                        size="$2"
+                        disabled={p.disabled}
                       >
-                        {p.accelerator}
-                      </SizableText>
-                    )}
-                  </ListItem>
-                </YGroup.Item>
-              ))}
+                        <SizableText fontSize="$1" flex={1}>
+                          {p.title}
+                        </SizableText>
+                        {p.accelerator && (
+                          <SizableText
+                            marginLeft="$2"
+                            fontSize="$1"
+                            color={'$color9'}
+                          >
+                            {p.accelerator}
+                          </SizableText>
+                        )}
+                      </ListItem>
+                    </YGroup.Item>
+                  )
+                }
+              })}
             </YGroup>
           </Popover.Content>
         </Popover>

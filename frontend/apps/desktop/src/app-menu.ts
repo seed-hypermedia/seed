@@ -3,6 +3,7 @@
 
 import {ipcMain, Menu, MenuItem} from 'electron'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
+import {getFocusedWindow} from './app-windows'
 import {checkForUpdates} from './auto-update'
 
 export function createAppMenu() {
@@ -135,6 +136,21 @@ export function createAppMenu() {
       submenu: [
         {
           role: 'minimize',
+          accelerator: 'CmdOrCtrl+M',
+        },
+        {
+          label: 'Maximize',
+          accelerator: 'CmdOrCtrl+Up',
+          click: () => {
+            const window = getFocusedWindow()
+            if (window) {
+              if (window.isMaximized()) {
+                window.unmaximize()
+              } else {
+                window.maximize()
+              }
+            }
+          },
         },
       ],
     }),

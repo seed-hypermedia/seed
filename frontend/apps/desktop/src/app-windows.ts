@@ -336,6 +336,15 @@ export function createAppWindow(
     // browserWindow.show()
   })
 
+  // Add event listeners for maximize and unmaximize events
+  browserWindow.on('maximize', () => {
+    browserWindow.webContents.send('window-state-change', {isMaximized: true})
+  })
+
+  browserWindow.on('unmaximize', () => {
+    browserWindow.webContents.send('window-state-change', {isMaximized: false})
+  })
+
   browserWindow.on('close', () => {
     releaseDaemonListener()
     allWindows.delete(windowId)

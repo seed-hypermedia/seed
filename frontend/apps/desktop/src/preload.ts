@@ -12,6 +12,13 @@ import type {
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
 
+// Declare global window extension for TypeScript
+declare global {
+  interface Window {
+    isWindowMaximized?: boolean
+  }
+}
+
 process.once('loaded', async () => {
   exposeElectronTRPC()
 })
@@ -171,12 +178,31 @@ ipcRenderer.addListener('find_in_page', (info, event) => {
   dispatchAppWindow(event)
 })
 
+// Add a state stream for window maximized state
+const [updateWindowMaximizedState, windowMaximizedState] =
+  writeableStateStream<boolean>(false)
+contextBridge.exposeInMainWorld('windowMaximizedState', windowMaximizedState)
+
+// Add listener for window-state-change event
+ipcRenderer.addListener(
+  'window-state-change',
+  (info, state: {isMaximized: boolean}) => {
+    dispatchAppWindow('window_state_changed')
+    // Update the window maximized state
+    updateWindowMaximizedState(state.isMaximized)
+    // Also expose the state directly
+    if (typeof state === 'object' && state !== null && 'isMaximized' in state) {
+      window.isWindowMaximized = state.isMaximized
+    }
+  },
+)
+
 contextBridge.exposeInMainWorld('ipc', {
-  send: (cmd, args) => {
+  send: (cmd: string, args: any) => {
     ipcRenderer.send(cmd, args)
   },
   listen: async (cmd: string, handler: (event: any) => void) => {
-    const innerHandler = (info, payload: any) => {
+    const innerHandler = (info: any, payload: any) => {
       handler({info, payload})
     }
     ipcRenderer.addListener(cmd, innerHandler)

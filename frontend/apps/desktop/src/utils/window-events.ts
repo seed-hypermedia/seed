@@ -8,6 +8,7 @@ export type AppWindowSimpleEvent =
   | 'open_launcher'
   | 'find_in_page'
   | 'discover'
+  | 'window_state_changed'
 
 export type AppWindowEvent =
   | AppWindowSimpleEvent
