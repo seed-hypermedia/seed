@@ -170,6 +170,7 @@ function PanelContent({children}: {children: ReactNode}) {
       }
     }
   }, [sidebarWidth])
+
   return (
     <PanelGroup
       ref={ref}

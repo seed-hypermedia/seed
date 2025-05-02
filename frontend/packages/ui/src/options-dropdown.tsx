@@ -42,6 +42,10 @@ export function OptionsDropdown({
           {button || (
             <Button
               size="$1"
+              chromeless
+              hoverStyle={{
+                bg: '$color6',
+              }}
               circular
               data-trigger
               onPress={(e: GestureReponderEvent) => {

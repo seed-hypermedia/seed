@@ -13,15 +13,9 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Version} from '@shm/ui/icons'
 import {SizableText, XStack, YStack} from 'tamagui'
-import {AccessoryContainer} from './accessory-sidebar'
+import {AccessoryContent} from './accessory-sidebar'
 
-export function VersionsPanel({
-  route,
-  onClose,
-}: {
-  route: DocumentRoute | DraftRoute
-  onClose: () => void
-}) {
+export function VersionsPanel({route}: {route: DocumentRoute | DraftRoute}) {
   const navigate = useNavigate()
   if (route.key !== 'document')
     throw new Error('VersionsPanel must have document id')
@@ -29,7 +23,7 @@ export function VersionsPanel({
   const currentEntity = useSubscribedEntity({...route.id, version: null})
   const changes = useDocumentChanges(route.id, false)
   return (
-    <AccessoryContainer title="Versions" onClose={onClose}>
+    <AccessoryContent>
       <YStack>
         {changes.data?.map((change, idx) => {
           const isActive = activeChangeIds?.has(change.id) || false
@@ -53,7 +47,7 @@ export function VersionsPanel({
           )
         })}
       </YStack>
-    </AccessoryContainer>
+    </AccessoryContent>
   )
 }
 

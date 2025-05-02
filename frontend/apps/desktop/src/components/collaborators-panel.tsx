@@ -32,22 +32,16 @@ import {
   YGroup,
   YStack,
 } from 'tamagui'
-import {AccessoryContainer} from './accessory-sidebar'
+import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
-export function CollaboratorsPanel({
-  route,
-  onClose,
-}: {
-  route: DocumentRoute
-  onClose: () => void
-}) {
+export function CollaboratorsPanel({route}: {route: DocumentRoute}) {
   return (
-    <AccessoryContainer title="Collaborators" onClose={onClose}>
+    <AccessoryContent>
       <AddCollaboratorForm id={route.id} />
       <PublisherCollaborator id={route.id} />
       <CollaboratorsList id={route.id} />
-    </AccessoryContainer>
+    </AccessoryContent>
   )
 }
 

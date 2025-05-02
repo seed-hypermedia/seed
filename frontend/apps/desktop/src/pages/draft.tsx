@@ -34,6 +34,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
+import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
 import {Container} from '@shm/ui/container'
@@ -69,8 +70,8 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 export default function DraftPage() {
   const route = useNavRoute()
-  const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
-    undefined,
+  const [accessoryKey, setAccessory] = useState(
+    (route as DraftRoute).accessory?.key || undefined,
   )
   const {data, editor, send, state, actor} = useDraftEditor()
   const isNewspaperLayout =
@@ -86,6 +87,10 @@ export default function DraftPage() {
       })
     return undefined
   }, [route, data])
+
+  useEffect(() => {
+    setAccessory((route as DraftRoute).accessory?.key || undefined)
+  }, [(route as DraftRoute).accessory])
 
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
@@ -141,7 +146,6 @@ export default function DraftPage() {
           if (!metadata) return
           actor.send({type: 'change', metadata})
         }}
-        onClose={() => setAccessory(undefined)}
         onResetContent={(blockNodes: HMBlockNode[]) => {
           actor.send({type: 'reset.content'})
         }}

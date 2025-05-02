@@ -11,11 +11,10 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useState} from 'react'
 import {Button, ButtonText, Heading, Input, Label, YStack} from 'tamagui'
-import {AccessoryContainer, AccessorySection} from './accessory-sidebar'
+import {AccessoryContent, AccessorySection} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
 export function OptionsPanel({
-  onClose,
   draftId,
   onMetadata,
   metadata,
@@ -23,7 +22,6 @@ export function OptionsPanel({
   isHomeDoc,
   isNewspaperLayout,
 }: {
-  onClose: () => void
   draftId: string
   onMetadata: (values: Partial<HMMetadata>) => void
   metadata: HMMetadata
@@ -32,77 +30,83 @@ export function OptionsPanel({
   isNewspaperLayout: boolean
 }) {
   return (
-    <AccessoryContainer
-      title={isHomeDoc ? 'Home Options' : 'Document Options'}
-      onClose={onClose}
-    >
-      {isNewspaperLayout ? (
-        <>
-          <YStack
-            theme="red"
-            gap="$4"
-            padding="$4"
-            backgroundColor="$red3"
-            borderRadius="$4"
-          >
-            <Heading size="$3" fontSize="$4">
-              Document Model Upgrade Required
-            </Heading>
-            <Button
-              onPress={() => {
-                upgradeNewspaperLayoutModel(draftId, onMetadata, onResetContent)
-              }}
+    <AccessoryContent>
+      <YStack gap="$4">
+        {isNewspaperLayout ? (
+          <>
+            <YStack
+              theme="red"
+              gap="$4"
+              padding="$4"
+              backgroundColor="$red3"
+              borderRadius="$4"
             >
-              Upgrade Document
-            </Button>
-          </YStack>
-        </>
-      ) : isHomeDoc ? (
-        <>
-          <NameInput metadata={metadata} onMetadata={onMetadata} />
-          <DocumentIconForm
-            draftId={draftId}
-            metadata={metadata}
-            onMetadata={onMetadata}
-          />
-          <HeaderLogo
-            draftId={draftId}
-            metadata={metadata}
-            onMetadata={onMetadata}
-          />
-          <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
+              <Heading size="$3" fontSize="$4">
+                Document Model Upgrade Required
+              </Heading>
+              <Button
+                onPress={() => {
+                  upgradeNewspaperLayoutModel(
+                    draftId,
+                    onMetadata,
+                    onResetContent,
+                  )
+                }}
+              >
+                Upgrade Document
+              </Button>
+            </YStack>
+          </>
+        ) : isHomeDoc ? (
+          <>
+            <NameInput metadata={metadata} onMetadata={onMetadata} />
+            <DocumentIconForm
+              draftId={draftId}
+              metadata={metadata}
+              onMetadata={onMetadata}
+            />
+            <HeaderLogo
+              draftId={draftId}
+              metadata={metadata}
+              onMetadata={onMetadata}
+            />
+            <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
-          <AccessorySection title="Document Options">
+            <AccessorySection title="Document Options">
+              <CoverImage
+                draftId={draftId}
+                metadata={metadata}
+                onMetadata={onMetadata}
+              />
+              <OriginalPublishDate
+                metadata={metadata}
+                onMetadata={onMetadata}
+              />
+              <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+              <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+            </AccessorySection>
+          </>
+        ) : (
+          <>
+            <NameInput metadata={metadata} onMetadata={onMetadata} />
+            <DocumentIconForm
+              draftId={draftId}
+              metadata={metadata}
+              onMetadata={onMetadata}
+            />
             <CoverImage
               draftId={draftId}
               metadata={metadata}
               onMetadata={onMetadata}
             />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-            <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+            <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
-          </AccessorySection>
-        </>
-      ) : (
-        <>
-          <NameInput metadata={metadata} onMetadata={onMetadata} />
-          <DocumentIconForm
-            draftId={draftId}
-            metadata={metadata}
-            onMetadata={onMetadata}
-          />
-          <CoverImage
-            draftId={draftId}
-            metadata={metadata}
-            onMetadata={onMetadata}
-          />
-          <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-          <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-          <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
-          <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-        </>
-      )}
-    </AccessoryContainer>
+            <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+          </>
+        )}
+      </YStack>
+    </AccessoryContent>
   )
 }
 

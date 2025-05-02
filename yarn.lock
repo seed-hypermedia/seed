@@ -8213,9 +8213,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@puppeteer/browsers@npm:2.10.3":
-  version: 2.10.3
-  resolution: "@puppeteer/browsers@npm:2.10.3"
+"@puppeteer/browsers@npm:2.10.2":
+  version: 2.10.2
+  resolution: "@puppeteer/browsers@npm:2.10.2"
   dependencies:
     debug: ^4.4.0
     extract-zip: ^2.0.1
@@ -8226,7 +8226,7 @@ __metadata:
     yargs: ^17.7.2
   bin:
     browsers: lib/cjs/main-cli.js
-  checksum: 34bd9c915a6c05577e8bbe0ae3118b275a467cc53233843d531663a716e6bcd7ab36cb320ae8fed31872f0706beeb24afb975576f11ecd80d1937e8e44f2c473
+  checksum: 27a373b915c0e30f7c154e3154e374df366389d0138b31936649bbf6a2285d87e0c19cf6caa23420ea59c4f918a22e654409d742a966acc44424141ad04782d1
   languageName: node
   linkType: hard
 
@@ -13568,10 +13568,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:5.75.0":
-  version: 5.75.0
-  resolution: "@tanstack/query-core@npm:5.75.0"
-  checksum: d6570e32e1b778afeed37898039dfb3fdda898402c56ba3f29ca562fd6a09615726b54baf2a5f76f52cc27e1e7cac5f02da5b0923f9f35d30ac6174cfd30f2bd
+"@tanstack/query-core@npm:5.74.9":
+  version: 5.74.9
+  resolution: "@tanstack/query-core@npm:5.74.9"
+  checksum: d2c3459ba57bbd946dd5996b267ccf0afedc0fbc55ade6f152201382a14c895b1ba676bbef682b6472c53c2672b98daf67f9f34d2f68e3a8b55f626071e47179
   languageName: node
   linkType: hard
 
@@ -13610,13 +13610,13 @@ __metadata:
   linkType: hard
 
 "@tanstack/react-query@npm:^5.74.4":
-  version: 5.75.1
-  resolution: "@tanstack/react-query@npm:5.75.1"
+  version: 5.74.11
+  resolution: "@tanstack/react-query@npm:5.74.11"
   dependencies:
-    "@tanstack/query-core": 5.75.0
+    "@tanstack/query-core": 5.74.9
   peerDependencies:
     react: ^18 || ^19
-  checksum: cedb3a531b7f5d2541326d39eeacb403ffbc433fdfcc01648d1719a0e8fa267341cd6982dc333a5817bb8e8bb97b7763d8da6c1e729a8e754222bf0c2a571a79
+  checksum: 97426a1ff2d75267bc790dee70473ec30daee3082eec2d12e43a5bcbef9a9d8286e49089d403cc125cbb76d5722d0e80a6bb40e88e5efc4bee95a0271db31740
   languageName: node
   linkType: hard
 
@@ -16682,8 +16682,8 @@ __metadata:
   linkType: hard
 
 "bare-fs@npm:^4.0.1":
-  version: 4.1.4
-  resolution: "bare-fs@npm:4.1.4"
+  version: 4.1.3
+  resolution: "bare-fs@npm:4.1.3"
   dependencies:
     bare-events: ^2.5.4
     bare-path: ^3.0.0
@@ -16693,7 +16693,7 @@ __metadata:
   peerDependenciesMeta:
     bare-buffer:
       optional: true
-  checksum: b0e83d3a10d74f56a3d82e50e7582d6775c14d36dd48e0ed01fab0ac5cc14387303408b6f5dc2a731ebc61fdeef4dd2147af4efd137734a01e61dab9e8ed7868
+  checksum: 1b98167e97f89e50df1e472db2de227f37e585a089581699723914e5e0a271466cba18456883d91c98f6769de89b8dc24caf2d728dd38a478cf1c0cbb3c415b2
   languageName: node
   linkType: hard
 
@@ -20013,9 +20013,9 @@ __metadata:
   linkType: hard
 
 "electron-to-chromium@npm:^1.5.73":
-  version: 1.5.149
-  resolution: "electron-to-chromium@npm:1.5.149"
-  checksum: 7f91d8293a48fab7dabb15c4569f8704e56320ccf7039f71134f03d601bada089393852e257cf7639233fc3fd2a558664ccca9e530287d40f94d64d107f3acab
+  version: 1.5.145
+  resolution: "electron-to-chromium@npm:1.5.145"
+  checksum: 0cc2412ca234ce61fc4a9a8b290a1236508b81a7214aee970a0204da0779a369c8e4584b4186fc32facb7f5ddb9b9c09712d098a7a5f285456043926ce30f521
   languageName: node
   linkType: hard
 
@@ -31667,16 +31667,16 @@ __metadata:
   linkType: hard
 
 "puppeteer-core@npm:^24.6.1":
-  version: 24.8.0
-  resolution: "puppeteer-core@npm:24.8.0"
+  version: 24.7.2
+  resolution: "puppeteer-core@npm:24.7.2"
   dependencies:
-    "@puppeteer/browsers": 2.10.3
+    "@puppeteer/browsers": 2.10.2
     chromium-bidi: 4.1.1
     debug: ^4.4.0
     devtools-protocol: 0.0.1439962
     typed-query-selector: ^2.12.0
     ws: ^8.18.1
-  checksum: e89db314280404a509c00cded220c89c0704084f2162968d88ed4e334be36869cc8f2675ed5207937f5785ac1d03787b958ef0eaecdaa9d4c9c860e63e37f341
+  checksum: 1fbdc14bad5a22aa8981759b9e6122f462d4e41a647106ecb6936aa8d5747154f416b4339918d4ecbc45c77c78dfc6cb2e0a50fc8f4512dd4275e5050fed7838
   languageName: node
   linkType: hard
 

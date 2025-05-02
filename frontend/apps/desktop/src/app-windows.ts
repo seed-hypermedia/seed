@@ -42,6 +42,7 @@ export function closeAppWindow(windowId: string) {
       routeIndex: 0,
       sidebarLocked: true,
       sidebarWidth: 15,
+      accessoryWidth: 20,
     })
   }
 }
@@ -88,6 +89,7 @@ const appWindowSchema = z.object({
     .optional(),
   sidebarLocked: z.boolean(),
   sidebarWidth: z.number(),
+  accessoryWidth: z.number(),
 })
 
 type AppWindow = z.infer<typeof appWindowSchema>
@@ -253,6 +255,7 @@ export function createAppWindow(
     sidebarLocked:
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
+    accessoryWidth: input.accessoryWidth || 20,
   }
   windowNavState[windowId] = windValue
 
@@ -307,6 +310,7 @@ export function createAppWindow(
     sidebarLocked:
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
+    accessoryWidth: input.accessoryWidth || 20,
     bounds: null,
   })
 
@@ -318,13 +322,23 @@ export function createAppWindow(
   })
   browserWindow.webContents.ipc.addListener(
     'windowNavState',
-    (info, {routes, routeIndex, sidebarLocked, sidebarWidth}: NavState) => {
+    (
+      info,
+      {
+        routes,
+        routeIndex,
+        sidebarLocked,
+        sidebarWidth,
+        accessoryWidth,
+      }: NavState,
+    ) => {
       windowNavState[windowId] = {
         routes,
         routeIndex,
         sidebarLocked:
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
+        accessoryWidth: accessoryWidth || 20,
       }
       updateWindowState(windowId, (window) => ({
         ...window,
@@ -333,6 +347,7 @@ export function createAppWindow(
         sidebarLocked:
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
+        accessoryWidth: accessoryWidth || 20,
       }))
       updateRecentRoute(routes[routeIndex])
     },

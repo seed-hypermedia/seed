@@ -13,7 +13,6 @@ export type ContactsRoute = z.infer<typeof contactsRouteSchema>
 
 export const documentVersionsAccessorySchema = z.object({
   key: z.literal('versions'),
-  width: z.number().optional(),
 })
 export type DocumentVersionsAccessory = z.infer<
   typeof documentVersionsAccessorySchema
@@ -21,7 +20,6 @@ export type DocumentVersionsAccessory = z.infer<
 
 export const documentCitationsAccessorySchema = z.object({
   key: z.literal('citations'),
-  width: z.number().optional(),
   openBlockId: z.string().nullable().optional(),
 })
 export type DocumentCitationsAccessory = z.infer<
@@ -30,7 +28,6 @@ export type DocumentCitationsAccessory = z.infer<
 
 export const documentAllDocumentsAccessorySchema = z.object({
   key: z.literal('all-documents'),
-  width: z.number().optional(),
 })
 export type DocumentAllDocumentsAccessory = z.infer<
   typeof documentAllDocumentsAccessorySchema
@@ -38,7 +35,6 @@ export type DocumentAllDocumentsAccessory = z.infer<
 
 export const documentContactsAccessorySchema = z.object({
   key: z.literal('contacts'),
-  width: z.number().optional(),
 })
 export type DocumentContactsAccessory = z.infer<
   typeof documentContactsAccessorySchema
@@ -46,7 +42,6 @@ export type DocumentContactsAccessory = z.infer<
 
 export const documentCollaboratorsAccessorySchema = z.object({
   key: z.literal('collaborators'),
-  width: z.number().optional(),
 })
 export type DocumentCollaboratorsAccessory = z.infer<
   typeof documentCollaboratorsAccessorySchema
@@ -54,7 +49,6 @@ export type DocumentCollaboratorsAccessory = z.infer<
 
 export const documentSuggestedChangesAccessorySchema = z.object({
   key: z.literal('suggested-changes'),
-  width: z.number().optional(),
 })
 export type DocumentSuggestedChangesAccessory = z.infer<
   typeof documentSuggestedChangesAccessorySchema
@@ -75,7 +69,6 @@ export type DocumentDiscussionsAccessory = z.infer<
 
 export const documentOptionsAccessorySchema = z.object({
   key: z.literal('options'),
-  width: z.number().optional(),
 })
 export type DocumentOptionsAccessory = z.infer<
   typeof documentOptionsAccessorySchema
@@ -182,15 +175,7 @@ export function getRecentsRouteEntityUrl(route: NavRoute) {
 }
 
 export type DocAccessoryOption = {
-  key:
-    | 'versions'
-    | 'collaborators'
-    | 'suggested-changes'
-    | 'discussions'
-    | 'citations'
-    | 'contacts'
-    | 'all-documents'
-    | 'options'
+  key: 'versions' | 'collaborators' | 'discussions' | 'citations'
   label: string
   icon: null | React.FC<{color: string; size?: number}>
 }

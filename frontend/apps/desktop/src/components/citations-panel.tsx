@@ -1,4 +1,3 @@
-import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {useEntityCitations} from '@/models/citations'
 import {useComment, useCommentReplies} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
@@ -17,23 +16,21 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity, useResolvedEntities} from '@shm/shared/models/entity'
-import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {useMemo} from 'react'
 import {SizableText, Spinner, YStack} from 'tamagui'
+import {AccessoryContent} from './accessory-sidebar'
 import {renderCommentContent} from './commenting'
 
 export function CitationsPanel({
   entityId,
-  onClose,
   accessory,
   onAccessory,
 }: {
   entityId?: UnpackedHypermediaId
-  onClose: () => void
   accessory: DocumentCitationsAccessory
   onAccessory: (accessory: DocumentCitationsAccessory) => void
 }) {
@@ -71,32 +68,31 @@ export function CitationsPanel({
   )
   const accounts = useAccountsMetadata(Array.from(accountsToLoad))
   return (
-    <AccessoryContainer
-      title={`${distinctCount} ${pluralS(distinctCount, 'Citation')}`}
-      onClose={onClose}
-    >
-      {accessory.openBlockId ? (
-        <AccessoryBackButton
-          label="All Citations"
-          onPress={() => onAccessory({...accessory, openBlockId: null})}
-        />
-      ) : null}
-      {distinctCitations?.map((citation, index) => {
-        return (
-          <DocumentCitationEntry
-            key={`${citation.source}${citation.targetFragment}`}
-            citation={{
-              ...citation,
-              document: documents.at(index)?.data?.document || null,
-              author: citation.source.author
-                ? accounts[citation.source.author]
-                : null,
-            }}
-            DocPreview={DocumentPreview}
+    <AccessoryContent>
+      <YStack gap="$3">
+        {accessory.openBlockId ? (
+          <AccessoryBackButton
+            label="All Citations"
+            onPress={() => onAccessory({...accessory, openBlockId: null})}
           />
-        )
-      })}
-    </AccessoryContainer>
+        ) : null}
+        {distinctCitations?.map((citation, index) => {
+          return (
+            <DocumentCitationEntry
+              key={`${citation.source}${citation.targetFragment}`}
+              citation={{
+                ...citation,
+                document: documents.at(index)?.data?.document || null,
+                author: citation.source.author
+                  ? accounts[citation.source.author]
+                  : null,
+              }}
+              DocPreview={DocumentPreview}
+            />
+          )
+        })}
+      </YStack>
+    </AccessoryContent>
   )
 }
 

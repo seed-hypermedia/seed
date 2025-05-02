@@ -1,6 +1,5 @@
 import {ComponentProps} from 'react'
 import {Popover} from './TamaguiPopover'
-import {dialogBoxShadow} from './universal-dialog'
 
 export function HoverCard({
   children,
@@ -31,7 +30,9 @@ export function HoverCard({
         {children}
       </Popover.Trigger>
       <Popover.Content
-        boxShadow={dialogBoxShadow}
+        borderColor="$borderColor"
+        borderWidth={1}
+        elevation="$4"
         gap="$2"
         padding="$2"
         ai="flex-start"
