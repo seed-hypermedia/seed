@@ -11,7 +11,7 @@ import {
 import {ButtonText} from '@tamagui/button'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import React, {useMemo, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {Close, Menu, X} from './icons'
@@ -21,14 +21,15 @@ import {
   DocumentSmallListItem,
   getSiteNavDirectory,
 } from './navigation'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
+import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
 export function SiteHeader({
   originHomeId,
   docId,
-  afterLinksContent,
   items,
   isCenterLayout = false,
   children,
@@ -42,7 +43,6 @@ export function SiteHeader({
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
-  afterLinksContent?: React.ReactNode
   items?: DocNavigationDocument[]
   isCenterLayout?: boolean
   children?: React.ReactNode
@@ -90,10 +90,11 @@ export function SiteHeader({
   const mainHeader = (
     <YStack
       position="relative"
-      overflowX="hidden"
-      $gtSm={{overflowX: 'inherit'}}
+      overflow="hidden"
+      $gtSm={{overflow: 'visible'}}
       h="100%"
       minHeight="calc(100vh - 78px)"
+      // @ts-ignore
       onScroll={onScroll}
     >
       <YStack
@@ -131,46 +132,19 @@ export function SiteHeader({
             </XStack>
             {isCenterLayout ? headerSearch : null}
           </XStack>
-          <XStack
+
+          {/* <XStack
             flex={1}
             // @ts-ignore
-            overflowX="auto"
-            overflowY="hidden"
             maxWidth="100%"
-          >
-            <XStack minWidth="100%" jc="flex-end">
-              {items?.length || afterLinksContent ? (
-                <XStack
-                  ai="center"
-                  gap="$5"
-                  minWidth="fit-content"
-                  padding="$2"
-                  jc="center"
-                  display="none"
-                  flexShrink={0}
-                  $gtSm={{display: 'flex'}}
-                >
-                  {items?.map((item) => {
-                    return (
-                      <HeaderLinkItem
-                        id={item.id}
-                        key={item.id?.id || item.draftId || '?'}
-                        metadata={item.metadata}
-                        draftId={item.draftId}
-                        isPublished={item.isPublished}
-                        active={
-                          !!docId?.path &&
-                          !!item.id?.path &&
-                          item.id.path?.[0] === docId.path[0]
-                        }
-                      />
-                    )
-                  })}
-                  {afterLinksContent}
-                </XStack>
-              ) : null}
-            </XStack>
+            width="100%"
+          > */}
+          <XStack f={1}>
+            {items?.length ? (
+              <SiteHeaderMenu items={items} docId={docId} />
+            ) : null}
           </XStack>
+          {/* </XStack> */}
 
           {isCenterLayout ? null : headerSearch}
         </XStack>
@@ -187,10 +161,10 @@ export function SiteHeader({
               <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
                 {items?.map((item) => (
                   <DocumentSmallListItem
-                    key={item.id.id}
+                    key={item.id?.id || ''}
                     id={item.id}
                     metadata={item.metadata}
-                    isDraft={item.isDraft}
+                    draftId={item.draftId}
                     isPublished={item.isPublished}
                   />
                 ))}
@@ -224,17 +198,14 @@ export function SiteHeader({
         <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
           <SizableText color="white" size="$3">
             Hosted on{' '}
-            <ButtonText color="white" tag="a" href="/">
-              {hostnameStripProtocol(origin)}
+            <ButtonText color="white" asChild>
+              <a href="/">{hostnameStripProtocol(origin)}</a>
             </ButtonText>{' '}
             via the{' '}
-            <ButtonText
-              color="white"
-              tag="a"
-              target="_blank"
-              href="https://hyper.media"
-            >
-              Hypermedia Protocol
+            <ButtonText color="white" asChild>
+              <a href="https://hyper.media" target="_blank">
+                Hypermedia Protocol
+              </a>
             </ButtonText>
             .
           </SizableText>
@@ -379,7 +350,12 @@ export function MobileMenu({
       x={open ? 0 : '100%'}
       animation="fast"
     >
-      <YStack height="calc(100vh - 64px)" position="sticky" top={0}>
+      <YStack
+        height="calc(100vh - 64px)"
+        // @ts-ignore
+        position="sticky"
+        top={0}
+      >
         <XStack p="$4" alignItems="center">
           <Button
             icon={<Close size={24} />}
@@ -452,4 +428,145 @@ function GotoLatestBanner({isLatest = true}: {isLatest: boolean}) {
       </XStack>
     </XStack>
   ) : null
+}
+
+export function SiteHeaderMenu({
+  items,
+  docId,
+}: {
+  items?: DocNavigationDocument[]
+  docId: UnpackedHypermediaId | null
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
+  const [overflowItems, setOverflowItems] = useState<DocNavigationDocument[]>(
+    [],
+  )
+
+  // Simplified approach - instead of trying to measure individual items,
+  // we'll use a fixed width estimate per item and compare with container width
+  const updateVisibility = useCallback(() => {
+    if (!containerRef.current || !items?.length) {
+      return
+    }
+
+    const container = containerRef.current
+    const containerWidth = container.getBoundingClientRect().width
+
+    // Estimate average width per item (including gap)
+    const avgItemWidth = 120 // px, including the gap
+
+    // Reserve space for dropdown button
+    const reservedWidth = 50 // px
+    const availableWidth = containerWidth - reservedWidth
+
+    // Calculate how many items can fit
+    const itemsToShow = Math.max(1, Math.floor(availableWidth / avgItemWidth))
+
+    if (itemsToShow >= items.length) {
+      // All items fit
+      setVisibleItems(items)
+      setOverflowItems([])
+    } else {
+      // Some items need to go to dropdown
+      setVisibleItems(items.slice(0, itemsToShow))
+      setOverflowItems(items.slice(itemsToShow))
+    }
+  }, [items])
+
+  // Initialize resize observer
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const observer = new ResizeObserver(() => {
+      updateVisibility()
+    })
+
+    observer.observe(containerRef.current)
+    window.addEventListener('resize', updateVisibility)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateVisibility)
+    }
+  }, [updateVisibility])
+
+  // Update when items change or on mount
+  useEffect(() => {
+    updateVisibility()
+
+    // Also update after a short delay to handle initial rendering
+    const timer = setTimeout(() => {
+      updateVisibility()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [items, updateVisibility])
+
+  // Build menu items for dropdown
+  const dropdownMenuItems = useMemo(() => {
+    return overflowItems.map((item): MenuItemType => {
+      const isActive =
+        !!docId?.path && !!item.id?.path && item.id.path?.[0] === docId.path[0]
+
+      return {
+        key: item.id?.id || item.draftId || '?',
+        label: getMetadataName(item.metadata) || 'Untitled',
+        icon: () => null,
+        color: isActive
+          ? '$color'
+          : item.isPublished === false
+          ? '$color9'
+          : '$color10',
+        onPress: function () {
+          if (item.draftId) {
+            window.location.href = `/draft/${item.draftId}`
+          } else if (item.id) {
+            window.location.href = `/doc/${item.id.id}`
+          }
+        },
+      }
+    })
+  }, [overflowItems, docId])
+
+  if (!items?.length) return null
+
+  return (
+    <XStack
+      ref={containerRef}
+      ai="center"
+      gap="$5"
+      w="100%"
+      padding="$2"
+      jc="flex-end"
+      display="none"
+      flex={1}
+      overflow="hidden"
+      $gtSm={{display: 'flex'}}
+    >
+      {visibleItems.map((item) => {
+        const key = item.id?.id || item.draftId || '?'
+        return (
+          <HeaderLinkItem
+            key={key}
+            id={item.id}
+            metadata={item.metadata}
+            draftId={item.draftId}
+            isPublished={item.isPublished}
+            active={
+              !!docId?.path &&
+              !!item.id?.path &&
+              item.id.path?.[0] === docId.path[0]
+            }
+          />
+        )
+      })}
+
+      {overflowItems.length > 0 && (
+        <Tooltip content="More Menu items">
+          <OptionsDropdown menuItems={dropdownMenuItems} />
+        </Tooltip>
+      )}
+    </XStack>
+  )
 }
