@@ -879,6 +879,12 @@ function DocPageContent({
         })
       }}
       isBlockFocused={isBlockFocused}
+      onHoverIn={(id) => {
+        console.log('=== BLOCK HOVER EFFECT: hover in', id)
+      }}
+      onHoverOut={(id) => {
+        console.log('=== BLOCK HOVER EFFECT: hover out', id)
+      }}
     >
       <DocContent
         document={entity.document!}

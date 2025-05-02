@@ -10,12 +10,16 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {BlockRange, ExpandedBlockRange} from '@shm/shared/utils/entity-id-url'
+import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
-  DocContentContextValue,
-  DocContentProvider,
-} from '@shm/ui/document-content'
+  BlockRange,
+  ExpandedBlockRange,
+  HMCitation,
+  HMEntityContent,
+  HMQueryResult,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {DocContentProvider} from '@shm/ui/document-content'
 import {
   contentLayoutUnit,
   contentTextUnit,
@@ -95,4 +99,39 @@ export function AppDocContentProvider({
       {reference?.content}
     </>
   )
+}
+
+export type DocContentContextValue = {
+  entityId: UnpackedHypermediaId | undefined
+  entityComponents: EntityComponentsRecord
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  citations?: HMCitation[]
+  onBlockCitationClick?: (blockId?: string | null) => void
+  onCopyBlock:
+    | null
+    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
+  onReplyBlock?: null | ((blockId: string) => void)
+  onBlockCommentClick?:
+    | null
+    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
+  layoutUnit: number
+  textUnit: number
+  debug: boolean
+  ffSerif?: boolean
+  comment?: boolean
+  routeParams?: {
+    uid?: string
+    version?: string
+    blockRef?: string
+    blockRange?: BlockRange
+  }
+  importWebFile?: any
+  handleFileAttachment?: (
+    file: File,
+  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
+  openUrl?: (url?: string, newWindow?: boolean) => void
+  supportDocuments?: HMEntityContent[]
+  supportQueries?: HMQueryResult[]
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
 }

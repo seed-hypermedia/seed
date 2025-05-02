@@ -14,11 +14,11 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from '@shm/shared'
+import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
-  EntityComponentProps,
   ErrorBlock,
   InlineEmbedButton,
   useDocContentContext,
@@ -44,6 +44,7 @@ function EmbedWrapper({
   parentBlockId: string | null
   hideBorder?: boolean
 }>) {
+  const docContext = useDocContentContext()
   const {originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
   return (
@@ -66,6 +67,8 @@ function EmbedWrapper({
         })
         navigate(destUrl)
       }}
+      onHoverIn={() => docContext?.onHoverIn?.(id)}
+      onHoverOut={() => docContext?.onHoverOut?.(id)}
     >
       {children}
     </YStack>
@@ -87,8 +90,15 @@ export function EmbedComment(props: EntityComponentProps) {
 }
 
 export function EmbedInline(props: EntityComponentProps) {
+  const {onHoverIn, onHoverOut} = useDocContentContext()
   if (props?.type == 'd') {
-    return <DocInlineEmbed {...props} />
+    return (
+      <DocInlineEmbed
+        {...props}
+        onHoverIn={onHoverIn}
+        onHoverOut={onHoverOut}
+      />
+    )
   } else {
     console.error('Inline Embed Error', JSON.stringify(props))
     return <Text>?</Text>
@@ -101,7 +111,14 @@ function DocInlineEmbed(props: EntityComponentProps) {
   const doc = useEntity(props)
   const document = doc.data?.document
   return (
-    <InlineEmbedButton id={narrowHmId(props)}>
+    <InlineEmbedButton
+      entityId={narrowHmId(props)}
+      block={props.block}
+      parentBlockId={props.parentBlockId}
+      depth={props.depth}
+      onHoverIn={props.onHoverIn}
+      onHoverOut={props.onHoverOut}
+    >
       {`@${getDocumentTitle(document) || '...'}`}
     </InlineEmbedButton>
   )

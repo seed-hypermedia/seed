@@ -3,6 +3,7 @@ import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
+import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
   HMAccountsMetadata,
   HMBlockQuery,
@@ -18,7 +19,6 @@ import {
   BlockNodeList,
   blockStyles,
   ContentEmbed,
-  EntityComponentProps,
   ErrorBlock,
   getBlockNodeById,
   InlineEmbedButton,
@@ -137,6 +137,8 @@ function EmbedWrapper({
   return id ? (
     <YStack
       ref={wrapperRef}
+      onHoverIn={() => docContentContext?.onHoverIn?.(id)}
+      onHoverOut={() => docContentContext?.onHoverOut?.(id)}
       contentEditable={false}
       userSelect="none"
       {...blockStyles}
@@ -389,22 +391,37 @@ export function EmbedComment(props: EntityComponentProps) {
   )
 }
 
-export function EmbedInline(props: UnpackedHypermediaId) {
+export function EmbedInline(props: EntityComponentProps) {
+  const {onHoverIn, onHoverOut} = useDocContentContext()
   if (props?.type == 'd') {
-    return <DocInlineEmbed {...props} />
+    return (
+      <DocInlineEmbed
+        {...props}
+        onHoverIn={onHoverIn}
+        onHoverOut={onHoverOut}
+      />
+    )
   } else {
     console.error('Inline Embed Error', JSON.stringify(props))
     return <SizableText>??</SizableText>
   }
 }
 
-function DocInlineEmbed(props: UnpackedHypermediaId) {
+function DocInlineEmbed(props: EntityComponentProps) {
   const pubId = props?.type == 'd' ? props.id : undefined
   if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useSubscribedEntity(props)
+  const document = doc.data?.document
   return (
-    <InlineEmbedButton id={props}>
-      @{getDocumentTitle(doc.data?.document)}
+    <InlineEmbedButton
+      entityId={narrowHmId(props)}
+      block={props.block}
+      parentBlockId={props.parentBlockId}
+      depth={props.depth}
+      onHoverIn={props.onHoverIn}
+      onHoverOut={props.onHoverOut}
+    >
+      {`@${getDocumentTitle(document) || '...'}`}
     </InlineEmbedButton>
   )
 }

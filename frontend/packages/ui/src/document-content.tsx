@@ -1,19 +1,13 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
-  BlockRange,
   CONTENT_HIGHLIGHT_COLOR_DARK,
   CONTENT_HIGHLIGHT_COLOR_LIGHT,
-  ExpandedBlockRange,
-  HMBlock,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
-  HMCitation,
   HMDocument,
-  HMEntityContent,
   HMInlineContent,
-  HMQueryResult,
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
@@ -32,6 +26,11 @@ import {
   useRouteLink,
   useRouteLinkHref,
 } from '@shm/shared'
+import {
+  BlockContentProps,
+  DocContentContextValue,
+  EntityComponentProps,
+} from '@shm/shared/document-content-types'
 import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
 import {SizeTokens, Text, TextProps, Theme, useThemeName} from '@tamagui/core'
@@ -97,54 +96,9 @@ import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
 
-export type EntityComponentsRecord = {
-  Document: React.FC<EntityComponentProps>
-  Comment: React.FC<EntityComponentProps>
-  Inline: React.FC<UnpackedHypermediaId>
-  Query: React.FC<{
-    id: UnpackedHypermediaId
-    query: HMBlockQuery['attributes']['query']
-  }>
-}
-
-export type DocContentContextValue = {
-  entityId: UnpackedHypermediaId | undefined
-  entityComponents: EntityComponentsRecord
-  saveCidAsFile?: (cid: string, name: string) => Promise<void>
-  citations?: HMCitation[]
-  onBlockCitationClick?: (blockId?: string | null) => void
-  onCopyBlock:
-    | null
-    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
-  onReplyBlock?: null | ((blockId: string) => void)
-  onBlockCommentClick?:
-    | null
-    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
-  layoutUnit: number
-  textUnit: number
-  debug: boolean
-  ffSerif?: boolean
-  comment?: boolean
-  routeParams?: {
-    uid?: string
-    version?: string
-    blockRef?: string
-    blockRange?: BlockRange
-  }
-  importWebFile?: any
-  handleFileAttachment?: (
-    file: File,
-  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
-  openUrl?: (url?: string, newWindow?: boolean) => void
-  supportDocuments?: HMEntityContent[]
-  supportQueries?: HMQueryResult[]
-}
-
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
 )
-
-export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
 
 export function DocContentProvider({
   children,
@@ -294,7 +248,7 @@ export function DocContent({
   handleBlockReplace?: () => boolean
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection()
-  const {layoutUnit, onCopyBlock, onBlockCommentClick} = useDocContentContext()
+  const {layoutUnit, onCopyBlock} = useDocContentContext()
   const allBlocks = document?.content || []
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
   const displayBlocks = maxBlockCount
@@ -1017,14 +971,6 @@ function inlineContentSize(unit: number): TextProps {
   }
 }
 
-export type BlockContentProps = {
-  block: HMBlock
-  parentBlockId: string | null
-  depth: number
-  onHoverIn?: () => void
-  onHoverOut?: () => void
-}
-
 function BlockContent(props: BlockContentProps) {
   const dataProps = {
     depth: props.depth || 1,
@@ -1425,6 +1371,7 @@ function BlockContentVideo({
               position="absolute"
               width="100%"
               height="100%"
+              // @ts-expect-error this is a bug in tamagui
               contentEditable={false}
               playsInline
               controls
@@ -1502,7 +1449,8 @@ function InlineContentView({
   rangeOffset?: number
   isRange?: boolean
 }) {
-  const {textUnit, entityComponents, comment} = useDocContentContext()
+  const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
+    useDocContentContext()
 
   const InlineEmbed = entityComponents.Inline
 
@@ -1661,6 +1609,8 @@ function InlineContentView({
                 className: isHmScheme ? 'hm-link' : 'link',
                 target: isHmScheme ? undefined : '_blank',
               }}
+              onHoverIn={onHoverIn}
+              onHoverOut={onHoverOut}
             >
               <InlineContentView
                 fontSize={fSize}
@@ -1707,13 +1657,24 @@ function HrefLink({
   href,
   children,
   buttonProps,
+  onHoverIn,
+  onHoverOut,
 }: PropsWithChildren<{
   href: string
   buttonProps: ComponentProps<'a'>
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
 }>) {
   const {onPress, ...linkProps} = useRouteLinkHref(href)
+  const id = unpackHmId(href)
   return (
-    <a {...linkProps} onClick={onPress} {...buttonProps}>
+    <a
+      {...linkProps}
+      onClick={onPress}
+      {...buttonProps}
+      onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
+      onMouseLeave={id ? () => onHoverOut?.(id) : undefined}
+    >
       {children}
     </a>
   )
@@ -2055,7 +2016,7 @@ export function getBlockNodeById(
   return res || null
 }
 
-export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
+export function BlockContentFile({block}: BlockContentProps) {
   const {hover, ...hoverProps} = useHover()
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
@@ -2649,22 +2610,25 @@ function CheckboxWithLabel({
 
 export function InlineEmbedButton({
   children,
-  id,
-}: {
+  entityId,
+  ...props
+}: BlockContentProps & {
   children: string
-  id: UnpackedHypermediaId
+  entityId: UnpackedHypermediaId
 }) {
-  const buttonProps = useRouteLink({key: 'document', id})
+  const buttonProps = useRouteLink({key: 'document', id: entityId})
   return (
     <ButtonText
       {...buttonProps}
+      onHoverIn={() => props.onHoverIn?.(entityId)}
+      onHoverOut={() => props.onHoverOut?.(entityId)}
       textDecorationColor={'$brand5'}
       // style={{textDecorationLine: "underline"}}
       color="$brand5"
       fontWeight="bold"
       className="hm-link"
       fontSize="inherit"
-      data-inline-embed={packHmId(id)}
+      data-inline-embed={packHmId(entityId)}
     >
       {children}
     </ButtonText>

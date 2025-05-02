@@ -41,7 +41,7 @@ export function clipContentBlocks(
 
 export function getDocumentTitle(document?: HMDocument | null) {
   if (!document) {
-    return null
+    return 'Error: document not found'
   }
 
   return document.metadata?.name || document.account! + document.path!

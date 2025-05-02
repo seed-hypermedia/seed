@@ -27,6 +27,8 @@ export function WebDocContentProvider({
   citations,
   onBlockCitationClick,
   onBlockCommentClick,
+  onHoverIn,
+  onHoverOut,
 }: {
   siteHost: string | undefined
   id?: UnpackedHypermediaId | undefined
@@ -44,6 +46,8 @@ export function WebDocContentProvider({
   citations?: HMCitationsPayload
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (blockId?: string | null) => void
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
   const navigate = useNavigate()
   return (
@@ -94,6 +98,8 @@ export function WebDocContentProvider({
       debug={false}
       comment={comment}
       citations={citations}
+      // onHoverIn={onHoverIn}
+      // onHoverOut={onHoverOut}
     >
       {children}
     </DocContentProvider>
