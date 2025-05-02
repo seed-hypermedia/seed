@@ -1,7 +1,6 @@
 import {useIPC, useWindowUtils} from '@/app-context'
 import {WindowsLinuxWindowControls} from '@/components/window-controls'
 import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
-import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
@@ -91,7 +90,7 @@ export function WindowsLinuxTitleBar({
 }
 
 export function SystemMenu() {
-  const createDraft = useOpenDraft('spawn')
+  const createDraft = useNavigate('spawn')
   const {hide, close, quit, minimize, maximize, unmaximize, isMaximized} =
     useWindowUtils()
   const spawn = useNavigate('spawn')
@@ -100,189 +99,161 @@ export function SystemMenu() {
   const route = useNavRoute()
   const triggerFocusedWindow = useTriggerWindowEvent()
   const {invoke} = useIPC()
-  const menuItems: Array<MenuItemElement> = useMemo(
-    () => [
-      {
-        id: 'seed',
-        title: 'Seed',
-        children: [
-          {
-            id: 'preferences',
-            title: 'Preferences...',
-            accelerator: 'Ctrl+,',
-            onSelect: () => spawn({key: 'settings'}),
-            icon: Settings,
-          },
-          {
-            id: 'separator',
-          },
-          {
-            id: 'quickswitcher',
-            title: 'Search / Open',
-            accelerator: 'Ctrl+K',
-            onSelect: () => triggerFocusedWindow('open_launcher'),
-            icon: Search,
-          },
-          {
-            id: 'forcesync',
-            title: 'Trigger sync with Peers',
-            accelerator: 'Opt+Ctrl+R',
-            onSelect: () => triggerFocusedWindow('trigger_peer_sync'),
-          },
-          {
-            id: 'app-update',
-            title: 'Check for Updates',
-            onSelect: () => window.autoUpdate?.checkForUpdates(),
-          },
-          {
-            id: 'separator',
-          },
-          {
-            id: 'hide',
-            title: 'Hide',
-            accelerator: 'Ctrl+H',
-            onSelect: () => hide(),
-            icon: Hide,
-          },
-          {
-            id: 'quit',
-            title: 'Quit Seed',
-            onSelect: () => quit(),
-            icon: Delete,
-          },
-        ],
-      },
-      {
-        title: 'File',
-        id: 'file',
-        children: [
-          {
-            id: 'newdocument',
-            title: 'New Document',
-            accelerator: 'Ctrl+N',
-            onSelect: () =>
-              createDraft({
-                id: nanoid(8),
-              }),
-            icon: AddSquare,
-          },
-          {
-            id: 'newwindow',
-            title: 'New Window',
-            accelerator: 'Ctrl+Shift+N',
-            onSelect: () => spawn(defaultRoute),
-            icon: AddSquare,
-          },
-          {
-            id: 'separator',
-          },
-          {
-            id: 'minimize',
-            title: 'Minimize Window',
-            accelerator: 'Ctrl+M',
-            // @ts-ignore - Ignoring parameter count mismatch
-            onSelect: minimize,
-          },
-          {
-            id: 'maximize',
-            title: 'Maximize Window',
-            accelerator: 'Ctrl+Up',
-            onSelect: () => {
-              if (isMaximized) {
-                unmaximize()
-              } else {
-                maximize()
-              }
+  const menuItems = useMemo<MenuItemElement[]>(
+    () =>
+      [
+        {
+          id: 'seed',
+          title: 'Seed',
+          children: [
+            {
+              id: 'preferences',
+              title: 'Preferences...',
+              accelerator: 'Ctrl+,',
+              onSelect: () => spawn({key: 'settings'}),
+              icon: Settings,
             },
-          },
-          {
-            id: 'separator',
-          },
-          {
-            id: 'close',
-            title: 'Close Window  ',
-            accelerator: 'Ctrl+F4',
-            onSelect: () => close(),
-            icon: Close,
-          },
-          {
-            id: 'closeallwindows',
-            title: 'Close all Windows',
-            accelerator: 'Ctrl+Shift+Alt+W',
-            onSelect: () => invoke('close_all_windows'),
-            icon: CloseAll,
-          },
-        ],
-      },
-      // TODO: we need to pass the `editor` object to make all this actions possible: copy, cut, paste...
-      // {
-      //   id: 'edit',
-      //   title: 'Edit',
-      //   children: [
-      //     {
-      //       id: 'undo',
-      //       title: 'Undo',
-      //       accelerator: 'Ctrl+Z',
-      //       disabled: true,
-      //       onSelect: () => toast.error('Action Not implemented from the menu'),
-      //     },
-      //     {
-      //       id: 'redo',
-      //       title: 'Redo',
-      //       accelerator: 'Ctrl+Shift+Z',
-      //       disabled: true,
-      //       onSelect: () => toast.error('Action Not implemented from the menu'),
-      //     },
-      //   ],
-      // },
-      {
-        id: 'view',
-        title: 'View',
-        children: [
-          {
-            id: 'back',
-            title: 'Back',
-            accelerator: 'Ctrl+◀︎',
-            onSelect: () => navDispatch({type: 'pop'}),
-          },
-          {
-            id: 'forward',
-            title: 'Forward',
-            accelerator: 'Ctrl+▶︎',
-            onSelect: () => navDispatch({type: 'forward'}),
-          },
-          {
-            id: 'contacts',
-            title: 'Contacts',
-            accelerator: 'Ctrl+9',
-            onSelect: () => push({key: 'contacts'}),
-            icon: Contact,
-            disabled: route.key == 'contacts',
-          },
-          {
-            id: 'reload',
-            title: 'Reload',
-            accelerator: 'Ctrl+R',
-            onSelect: () => window.location.reload(),
-            icon: Reload,
-          },
-          {
-            id: 'forcereload',
-            title: 'Force Reload',
-            accelerator: 'Ctrl+Shift+R',
-            onSelect: () => window.location.reload(),
-            icon: Reload,
-          },
-          {
-            id: 'discover',
-            title: 'Discover current Document',
-            accelerator: 'Ctrl+D',
-            disabled: route.key != 'document',
-            onSelect: () => triggerFocusedWindow('discover'),
-          },
-        ],
-      },
-    ],
+            {id: 'separator'},
+            {
+              id: 'quickswitcher',
+              title: 'Search / Open',
+              accelerator: 'Ctrl+K',
+              onSelect: () => triggerFocusedWindow('open_launcher'),
+              icon: Search,
+            },
+            {
+              id: 'forcesync',
+              title: 'Trigger sync with Peers',
+              accelerator: 'Opt+Ctrl+R',
+              onSelect: () => triggerFocusedWindow('trigger_peer_sync'),
+            },
+            {
+              id: 'app-update',
+              title: 'Check for Updates',
+              onSelect: () => window.autoUpdate?.checkForUpdates(),
+            },
+            {id: 'separator'},
+            {
+              id: 'hide',
+              title: 'Hide',
+              accelerator: 'Ctrl+H',
+              onSelect: () => hide(),
+              icon: Hide,
+            },
+            {
+              id: 'quit',
+              title: 'Quit Seed',
+              onSelect: () => quit(),
+              icon: Delete,
+            },
+          ],
+        },
+        {
+          title: 'File',
+          id: 'file',
+          children: [
+            {
+              id: 'newdocument',
+              title: 'New Document',
+              accelerator: 'Ctrl+Alt+N',
+              onSelect: () =>
+                createDraft({
+                  key: 'draft',
+                  id: nanoid(10),
+                }),
+              icon: AddSquare,
+            },
+            {
+              id: 'newwindow',
+              title: 'New Window',
+              accelerator: 'Ctrl+Shift+N',
+              onSelect: () => spawn(defaultRoute),
+              icon: AddSquare,
+            },
+            {id: 'separator'},
+            {
+              id: 'minimize',
+              title: 'Minimize Window',
+              accelerator: 'Ctrl+M',
+              onSelect: minimize,
+            },
+            {
+              id: 'maximize',
+              title: 'Maximize Window',
+              accelerator: 'Ctrl+Up',
+              onSelect: () => {
+                if (isMaximized) {
+                  unmaximize()
+                } else {
+                  maximize()
+                }
+              },
+            },
+            {id: 'separator'},
+            {
+              id: 'close',
+              title: 'Close Window  ',
+              accelerator: 'Ctrl+F4',
+              onSelect: () => close(),
+              icon: Close,
+            },
+            {
+              id: 'closeallwindows',
+              title: 'Close all Windows',
+              accelerator: 'Ctrl+Shift+Alt+W',
+              onSelect: () => invoke('close_all_windows'),
+              icon: CloseAll,
+            },
+          ],
+        },
+        {
+          id: 'view',
+          title: 'View',
+          children: [
+            {
+              id: 'back',
+              title: 'Back',
+              accelerator: 'Ctrl+◀︎',
+              onSelect: () => navDispatch({type: 'pop'}),
+            },
+            {
+              id: 'forward',
+              title: 'Forward',
+              accelerator: 'Ctrl+▶︎',
+              onSelect: () => navDispatch({type: 'forward'}),
+            },
+            {
+              id: 'contacts',
+              title: 'Contacts',
+              accelerator: 'Ctrl+9',
+              onSelect: () => push({key: 'contacts'}),
+              icon: Contact,
+              disabled: route.key == 'contacts',
+            },
+            {
+              id: 'reload',
+              title: 'Reload',
+              accelerator: 'Ctrl+R',
+              onSelect: () => window.location.reload(),
+              icon: Reload,
+            },
+            {
+              id: 'forcereload',
+              title: 'Force Reload',
+              accelerator: 'Ctrl+Shift+R',
+              onSelect: () => window.location.reload(),
+              icon: Reload,
+            },
+            {
+              id: 'discover',
+              title: 'Discover current Document',
+              accelerator: 'Ctrl+D',
+              disabled: route.key != 'document',
+              onSelect: () => triggerFocusedWindow('discover'),
+            },
+          ],
+        },
+      ] as MenuItemElement[],
     [
       createDraft,
       close,
@@ -340,7 +311,7 @@ export function SystemMenu() {
                     <YGroup.Item key={p.id}>
                       <ListItem
                         className="no-window-drag"
-                        icon={p.icon}
+                        icon={(p as SubMenuItemElement).icon}
                         hoverTheme
                         pressTheme
                         hoverStyle={{
@@ -349,20 +320,20 @@ export function SystemMenu() {
                         paddingHorizontal="$3"
                         paddingVertical="$1"
                         backgroundColor="transparent"
-                        onPress={p.onSelect}
+                        onPress={(p as SubMenuItemElement).onSelect}
                         size="$2"
-                        disabled={p.disabled}
+                        disabled={(p as SubMenuItemElement).disabled}
                       >
                         <SizableText fontSize="$1" flex={1}>
-                          {p.title}
+                          {(p as SubMenuItemElement).title}
                         </SizableText>
-                        {p.accelerator && (
+                        {(p as SubMenuItemElement).accelerator && (
                           <SizableText
                             marginLeft="$2"
                             fontSize="$1"
                             color={'$color9'}
                           >
-                            {p.accelerator}
+                            {(p as SubMenuItemElement).accelerator}
                           </SizableText>
                         )}
                       </ListItem>
@@ -381,7 +352,7 @@ export function SystemMenu() {
 type MenuItemElement = {
   id: string
   title: string
-  children: Array<SubMenuItemElement>
+  children: Array<SubMenuItemElement | {id: 'separator'}>
 }
 
 type SubMenuItemElement = {
