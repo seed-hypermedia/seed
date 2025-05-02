@@ -438,13 +438,14 @@ export function SiteHeaderMenu({
   docId: UnpackedHypermediaId | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Map<string, any>>(new Map())
   const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
   const [overflowItems, setOverflowItems] = useState<DocNavigationDocument[]>(
     [],
   )
+  const [isMeasured, setIsMeasured] = useState(false)
 
-  // Simplified approach - instead of trying to measure individual items,
-  // we'll use a fixed width estimate per item and compare with container width
+  // Measure the actual width of each element and calculate visibility
   const updateVisibility = useCallback(() => {
     if (!containerRef.current || !items?.length) {
       return
@@ -453,28 +454,71 @@ export function SiteHeaderMenu({
     const container = containerRef.current
     const containerWidth = container.getBoundingClientRect().width
 
-    // Estimate average width per item (including gap)
-    const avgItemWidth = 120 // px, including the gap
-
-    // Reserve space for dropdown button
-    const reservedWidth = 50 // px
+    // Reserve space for dropdown button plus a small buffer for visual comfort
+    const reservedWidth = 200 // px
     const availableWidth = containerWidth - reservedWidth
 
-    // Calculate how many items can fit
-    const itemsToShow = Math.max(1, Math.floor(availableWidth / avgItemWidth))
+    let currentWidth = 0
+    const visible: DocNavigationDocument[] = []
+    const overflow: DocNavigationDocument[] = []
 
-    if (itemsToShow >= items.length) {
-      // All items fit
-      setVisibleItems(items)
-      setOverflowItems([])
-    } else {
-      // Some items need to go to dropdown
-      setVisibleItems(items.slice(0, itemsToShow))
-      setOverflowItems(items.slice(itemsToShow))
+    // Create array of items with their measured widths
+    const itemWidths: Array<{item: DocNavigationDocument; width: number}> = []
+
+    for (const item of items) {
+      const key = item.id?.id || item.draftId || '?'
+      const element = itemRefs.current.get(key)
+
+      if (element) {
+        const width = element.getBoundingClientRect().width
+        itemWidths.push({item, width})
+      } else {
+        // If we can't measure, use an estimate
+        itemWidths.push({item, width: 150})
+      }
     }
+
+    // Add items until we run out of space
+    // The key change: we check if adding this item would overflow
+    // That way, we avoid partially visible items
+    for (const {item, width} of itemWidths) {
+      // Check if adding this item would overflow
+      if (currentWidth + width < availableWidth) {
+        visible.push(item)
+        currentWidth += width
+      } else {
+        overflow.push(item)
+      }
+    }
+
+    // Ensure we show at least one item
+    if (visible.length === 0 && items.length > 0) {
+      visible.push(items[0])
+      overflow.splice(0, 1)
+    }
+
+    setVisibleItems(visible)
+    setOverflowItems(overflow)
+    setIsMeasured(true)
   }, [items])
 
-  // Initialize resize observer
+  // Measure on mount and when items change
+  useEffect(() => {
+    // Reset measurement state when items change
+    setIsMeasured(false)
+
+    // Initial update
+    updateVisibility()
+
+    // Second update after render to ensure accurate measurements
+    const timer = setTimeout(() => {
+      updateVisibility()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [items, updateVisibility])
+
+  // Setup resize observer
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -490,18 +534,6 @@ export function SiteHeaderMenu({
       window.removeEventListener('resize', updateVisibility)
     }
   }, [updateVisibility])
-
-  // Update when items change or on mount
-  useEffect(() => {
-    updateVisibility()
-
-    // Also update after a short delay to handle initial rendering
-    const timer = setTimeout(() => {
-      updateVisibility()
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [items, updateVisibility])
 
   // Build menu items for dropdown
   const dropdownMenuItems = useMemo(() => {
@@ -544,6 +576,44 @@ export function SiteHeaderMenu({
       overflow="hidden"
       $gtSm={{display: 'flex'}}
     >
+      {/* Hidden measurement container */}
+      <XStack
+        position="absolute"
+        pointerEvents="none"
+        opacity={0}
+        ai="center"
+        gap="$5"
+      >
+        {items.map((item) => {
+          const key = item.id?.id || item.draftId || '?'
+          return (
+            <XStack
+              key={`measure-${key}`}
+              ref={(el) => {
+                if (el) {
+                  itemRefs.current.set(key, el)
+                } else {
+                  itemRefs.current.delete(key)
+                }
+              }}
+            >
+              <HeaderLinkItem
+                id={item.id}
+                metadata={item.metadata}
+                draftId={item.draftId}
+                isPublished={item.isPublished}
+                active={
+                  !!docId?.path &&
+                  !!item.id?.path &&
+                  item.id.path?.[0] === docId.path[0]
+                }
+              />
+            </XStack>
+          )
+        })}
+      </XStack>
+
+      {/* Visible items */}
       {visibleItems.map((item) => {
         const key = item.id?.id || item.draftId || '?'
         return (
