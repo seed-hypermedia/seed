@@ -145,8 +145,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         if (nodeId?.id) this.hoveredId = nodeId.id
       }
     } else if (target.closest('[data-content-type="embed"]')) {
-      const nodeId = getNodeIdFromCoords(coords, this.pmView)
-      if (nodeId?.id) this.hoveredId = nodeId.id
+      if (
+        target.closest('[data-content-type="embed"]')?.getAttribute('data-url')
+      ) {
+        const nodeId = getNodeIdFromCoords(coords, this.pmView)
+        if (nodeId?.id) this.hoveredId = nodeId.id
+      }
     }
 
     this.startMenuUpdateTimer()
