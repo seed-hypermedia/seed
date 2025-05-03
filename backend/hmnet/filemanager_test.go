@@ -2,6 +2,7 @@ package hmnet
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"mime/multipart"
 	"net"
@@ -76,6 +77,88 @@ func TestPostGet(t *testing.T) {
 	res = makeRequest(t, "GET", "/ipfs/"+string(responseData), nil, router)
 	require.Equal(t, http.StatusOK, res.Code)
 	require.Equal(t, fileBytes, res.Body.Bytes())
+}
+
+func TestRangeRequests(t *testing.T) {
+	server := makeManager(t, akey)
+	fileBytes, err := createFile0toBound(fileBoundary)
+	require.NoError(t, err)
+	router := mux.NewRouter()
+	router.HandleFunc("/ipfs/file-upload", server.UploadFile)
+	router.HandleFunc("/ipfs/{cid}", server.GetFile)
+	const port = 8086
+	srv := &http.Server{
+		Addr:         ":" + strconv.Itoa(port),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		Handler:      router,
+	}
+
+	lis, err := net.Listen("tcp", srv.Addr)
+	require.NoError(t, err)
+
+	go func() {
+		err := srv.Serve(lis)
+		require.ErrorAs(t, err, http.ErrServerClosed)
+	}()
+
+	// First upload the file
+	res := makeRequest(t, "POST", "/ipfs/file-upload", fileBytes, router)
+	require.Equal(t, http.StatusCreated, res.Code)
+	cid := res.Body.String()
+
+	// Test full file request
+	res = makeRequest(t, "GET", "/ipfs/"+cid, nil, router)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Equal(t, fileBytes, res.Body.Bytes())
+
+	// Test range request for first 100 bytes
+	req, err := http.NewRequest("GET", "/ipfs/"+cid, nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", "bytes=0-99")
+	res = httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusPartialContent, res.Code)
+	require.Equal(t, "bytes 0-99/"+strconv.Itoa(len(fileBytes)), res.Header().Get("Content-Range"))
+	require.Equal(t, fileBytes[:100], res.Body.Bytes())
+
+	// Test range request for middle 100 bytes
+	mid := len(fileBytes) / 2
+	req, err = http.NewRequest("GET", "/ipfs/"+cid, nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", mid, mid+99))
+	res = httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusPartialContent, res.Code)
+	require.Equal(t, fmt.Sprintf("bytes %d-%d/%d", mid, mid+99, len(fileBytes)), res.Header().Get("Content-Range"))
+	require.Equal(t, fileBytes[mid:mid+100], res.Body.Bytes())
+
+	// Test range request for last 100 bytes
+	last := len(fileBytes) - 100
+	req, err = http.NewRequest("GET", "/ipfs/"+cid, nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", last))
+	res = httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusPartialContent, res.Code)
+	require.Equal(t, fmt.Sprintf("bytes %d-%d/%d", last, len(fileBytes)-1, len(fileBytes)), res.Header().Get("Content-Range"))
+	require.Equal(t, fileBytes[last:], res.Body.Bytes())
+
+	// Test invalid range request
+	req, err = http.NewRequest("GET", "/ipfs/"+cid, nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", "bytes=invalid")
+	res = httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusRequestedRangeNotSatisfiable, res.Code)
+
+	// Test out of bounds range request
+	req, err = http.NewRequest("GET", "/ipfs/"+cid, nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", len(fileBytes), len(fileBytes)+100))
+	res = httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusRequestedRangeNotSatisfiable, res.Code)
 }
 
 func makeRequest(t *testing.T, method, url string, body []byte, router *mux.Router) *httptest.ResponseRecorder {

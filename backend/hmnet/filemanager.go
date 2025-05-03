@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"seed/backend/ipfs"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,8 +80,9 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 // GetFile retrieves a file from ipfs.
 func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control, ETag")
+	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control, ETag, Range")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
+	w.Header().Set("Accept-Ranges", "bytes")
 
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -122,27 +124,107 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	// If the CID is not a UnixFS file we want to return the raw bytes.
 	// Otherwise we assemble the file and return it as a file.
 	var response io.Reader
+	var size int64
 	codec, _ := ipfs.DecodeCID(n.Cid())
 	if codec == multicodec.DagPb {
 		ufsNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
 		if err != nil {
 			response = bytes.NewReader(n.RawData())
+			size = int64(len(n.RawData()))
 		} else {
 			f, ok := ufsNode.(files.File)
 			if ok {
 				response = f
+				if s, ok := f.(io.Seeker); ok {
+					// Get the size if we can seek
+					if size, err = s.Seek(0, io.SeekEnd); err == nil {
+						_, err = s.Seek(0, io.SeekStart)
+					}
+					if err != nil {
+						fm.log.Warn("GetFile: failed to get file size", zap.Error(err), zap.String("cid", cidStr))
+						size = -1
+					}
+				} else {
+					size = -1
+				}
 			} else {
 				response = bytes.NewReader(n.RawData())
+				size = int64(len(n.RawData()))
 			}
 		}
 	} else {
 		response = bytes.NewReader(n.RawData())
+		size = int64(len(n.RawData()))
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("ETag", cidStr)
 	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
-	w.WriteHeader(http.StatusOK)
+
+	// Handle range requests if we know the size
+	if size >= 0 {
+		rangeHeader := r.Header.Get("Range")
+		if rangeHeader != "" {
+			// Parse the range header
+			rangeStr := strings.TrimPrefix(rangeHeader, "bytes=")
+			parts := strings.Split(rangeStr, "-")
+			if len(parts) != 2 {
+				w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+				return
+			}
+
+			start, err := strconv.ParseInt(parts[0], 10, 64)
+			if err != nil {
+				w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+				return
+			}
+
+			var end int64
+			if parts[1] == "" {
+				end = size - 1
+			} else {
+				end, err = strconv.ParseInt(parts[1], 10, 64)
+				if err != nil {
+					w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+					return
+				}
+			}
+
+			// Validate range
+			if start < 0 || end >= size || start > end {
+				w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+				return
+			}
+
+			// Set up the response for a range request
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, size))
+			w.WriteHeader(http.StatusPartialContent)
+
+			// If we can seek, use that to get the range
+			if seeker, ok := response.(io.Seeker); ok {
+				if _, err := seeker.Seek(start, io.SeekStart); err != nil {
+					fm.log.Warn("GetFile: failed to seek to range start", zap.Error(err), zap.String("cid", cidStr))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				response = io.LimitReader(response, end-start+1)
+			} else {
+				// If we can't seek, we need to read and discard up to start
+				_, err := io.CopyN(io.Discard, response, start)
+				if err != nil {
+					fm.log.Warn("GetFile: failed to seek to range start", zap.Error(err), zap.String("cid", cidStr))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				response = io.LimitReader(response, end-start+1)
+			}
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+
 	if _, err := io.Copy(w, response); err != nil {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
 	}

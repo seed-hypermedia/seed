@@ -1375,7 +1375,7 @@ function BlockContentVideo({
               contentEditable={false}
               playsInline
               controls
-              preload="metadata"
+              preload="auto"
             >
               <source
                 src={fileUrl(link)}
