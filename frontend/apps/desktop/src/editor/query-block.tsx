@@ -22,7 +22,7 @@ import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
-import {Pencil, Search} from '@shm/ui/icons'
+import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {NewspaperCard} from '@shm/ui/newspaper'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
@@ -31,6 +31,8 @@ import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   ButtonFrame,
+  Input,
+  Separator,
   SizableText,
   Tooltip,
   View,
@@ -132,13 +134,15 @@ function Render(
 
   const sortedItems = useMemo(() => {
     if (directoryItems.data && querySort) {
-      return queryBlockSortedItems({
+      const sorted = queryBlockSortedItems({
         entries: directoryItems.data,
         sort: querySort,
       })
+      const queryLimit = parseInt(block.props.queryLimit || '', 10)
+      return sorted.slice(0, queryLimit > 0 ? queryLimit : undefined)
     }
     return []
-  }, [directoryItems, querySort])
+  }, [directoryItems, querySort, block.props.queryLimit])
 
   const docResults = useEntities(
     sortedItems.map((item) =>
@@ -418,6 +422,7 @@ function QuerySettings({
   editor: BlockNoteEditor<HMBlockSchema>
 }) {
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
+  const [limit, setLimit] = useState(!!block.props.queryLimit)
 
   useEffect(() => {
     if (block.props.defaultOpen === 'true') {
@@ -471,7 +476,7 @@ function QuerySettings({
               zi="$zIndex.3"
               // overflow="hidden"
               w="100%"
-              maxWidth={250}
+              maxWidth={350}
               onPress={(e) => {
                 console.log('CLICK MODAL')
                 e.stopPropagation()
@@ -493,7 +498,7 @@ function QuerySettings({
                         space: id.uid,
                         path:
                           id.path && id.path.length ? id.path.join('/') : '',
-                        mode: queryIncludes[0].mode,
+                        mode: queryIncludes[0]?.mode,
                       },
                     ]
                     // console.log('=== NEW VAL', id, newVal)
@@ -508,19 +513,16 @@ function QuerySettings({
                 }}
               />
 
-              <SwitchField
-                label="Show all Children"
-                id="mode"
-                defaultChecked={queryIncludes[0]?.mode == 'AllDescendants'}
-                opacity={queryIncludes[0]?.mode == 'AllDescendants' ? 1 : 0.4}
-                onCheckedChange={(value) => {
+              <SelectField
+                size="$2"
+                value={queryIncludes[0]?.mode ?? 'Children'}
+                onValue={(value) => {
                   let newVal = [
                     {
                       ...queryIncludes[0],
                       mode: value ? 'AllDescendants' : 'Children',
                     },
                   ]
-
                   onValuesChange({
                     id: null,
                     props: {
@@ -529,6 +531,17 @@ function QuerySettings({
                     },
                   })
                 }}
+                id="showChildren"
+                options={[
+                  {
+                    label: 'Show only Direct Children',
+                    value: 'Children',
+                  },
+                  {
+                    label: 'Show all Descendants',
+                    value: 'AllDescendants',
+                  },
+                ]}
               />
 
               <SelectField
@@ -550,6 +563,47 @@ function QuerySettings({
                   {
                     label: 'List',
                     value: 'List',
+                  },
+                ]}
+              />
+              <SelectField
+                size="$2"
+                value={querySort[0].term}
+                onValue={(value) => {
+                  console.log('SORT', querySort[0])
+                  let newVal = [
+                    {
+                      ...querySort[0],
+                      term: value,
+                    },
+                  ]
+
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      querySort: JSON.stringify(newVal),
+                    },
+                  })
+                }}
+                label="Sort by"
+                id="sort"
+                options={[
+                  {
+                    label: 'Update time',
+                    value: 'UpdateTime',
+                  },
+                  {
+                    label: 'Create time',
+                    value: 'CreateTime',
+                  },
+                  // {
+                  //   label: 'By Path',
+                  //   value: 'Path',
+                  // },
+                  {
+                    label: 'By Title',
+                    value: 'Title',
                   },
                 ]}
               />
@@ -602,51 +656,10 @@ function QuerySettings({
                 </>
               ) : null}
 
-              <SelectField
-                size="$2"
-                value={querySort[0].term}
-                onValue={(value) => {
-                  console.log('SORT', querySort[0])
-                  let newVal = [
-                    {
-                      ...querySort[0],
-                      term: value,
-                    },
-                  ]
-
-                  onValuesChange({
-                    id: null,
-                    props: {
-                      ...block.props,
-                      querySort: JSON.stringify(newVal),
-                    },
-                  })
-                }}
-                label="Sort by"
-                id="sort"
-                options={[
-                  {
-                    label: 'Update time',
-                    value: 'UpdateTime',
-                  },
-                  {
-                    label: 'Create time',
-                    value: 'CreateTime',
-                  },
-                  // {
-                  //   label: 'By Path',
-                  //   value: 'Path',
-                  // },
-                  {
-                    label: 'By Title',
-                    value: 'Title',
-                  },
-                ]}
-              />
               <SwitchField
-                label="Reverse?"
+                label="Reverse"
                 defaultChecked={querySort[0].reverse}
-                id="sort-everse"
+                id="sort-reverse"
                 opacity={querySort[0].reverse ? 1 : 0.4}
                 onCheckedChange={(value) => {
                   let newVal = [
@@ -665,6 +678,54 @@ function QuerySettings({
                   })
                 }}
               />
+              <SwitchField
+                label="Limit Result Count"
+                id="limit"
+                defaultChecked={limit}
+                opacity={limit ? 1 : 0.4}
+                onCheckedChange={(value) => {
+                  setLimit(value)
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      queryLimit: value ? block.props.queryLimit || '10' : '',
+                    },
+                  })
+                }}
+              />
+              {limit ? (
+                <Input
+                  keyboardType="numeric"
+                  inputMode="numeric"
+                  size="$2"
+                  value={block.props.queryLimit}
+                  onChangeText={(value) => {
+                    onValuesChange({
+                      id: null,
+                      props: {
+                        ...block.props,
+                        queryLimit: value,
+                      },
+                    })
+                  }}
+                  placeholder="Item Count"
+                />
+              ) : null}
+              <YStack gap="$2" marginTop="$-1">
+                <Separator background="$color11" />
+
+                <XStack justifyContent="flex-end">
+                  <Button
+                    size="$3"
+                    icon={<Trash size={16} />}
+                    chromeless
+                    onPress={() => {
+                      editor.removeBlocks([block.id])
+                    }}
+                  />
+                </XStack>
+              </YStack>
             </YStack>
           </>
         ) : null}

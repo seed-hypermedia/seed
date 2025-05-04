@@ -106,12 +106,12 @@ export function SelectField({
 
   if (label) {
     return (
-      <YStack gap="$1" w="100%">
+      <XStack justifyContent="space-between" ai="center" gap="$2" w="100%">
         <Label htmlFor={id} size="$1" color="$color9">
           {label}
         </Label>
-        {content}
-      </YStack>
+        <YStack width="50%">{content}</YStack>
+      </XStack>
     )
   } else {
     return content
