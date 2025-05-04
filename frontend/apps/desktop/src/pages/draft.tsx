@@ -140,7 +140,7 @@ export default function DraftPage() {
       <OptionsPanel
         draftId={'UPDATE ME'}
         metadata={state.context.metadata}
-        isHomeDoc={false}
+        isHomeDoc={isEditingHomeDoc}
         isNewspaperLayout={isNewspaperLayout}
         onMetadata={(metadata) => {
           if (!metadata) return
