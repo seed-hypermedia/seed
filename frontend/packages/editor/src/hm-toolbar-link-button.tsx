@@ -79,15 +79,22 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   return (
     <XGroup.Item>
       <Popover placement="top-end" open={open} {...popoverProps}>
-        <Theme inverse={open}>
-          <Popover.Trigger asChild>
-            <Button
-              size="$3"
-              icon={Link}
-              bg={'$backgroundFocus'}
-              borderRadius={0}
-            />
-          </Popover.Trigger>
+        <Theme>
+          <XGroup.Item>
+            <Tooltip content="Link (Mod+K)">
+              <Popover.Trigger asChild>
+                <Button
+                  height="100%"
+                  size={props.size}
+                  background={open ? '$color11' : 'transparent'}
+                  color={open ? '$background' : undefined}
+                  icon={Link}
+                  borderRadius="$3"
+                  hoverStyle={{backgroundColor: open ? '$color9' : '$color4'}}
+                />
+              </Popover.Trigger>
+            </Tooltip>
+          </XGroup.Item>
         </Theme>
         <Popover.Content
           p="$1"

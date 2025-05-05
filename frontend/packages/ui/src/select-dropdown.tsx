@@ -1,5 +1,5 @@
 import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
-import {ReactNode} from 'react'
+import {ComponentProps, ReactNode} from 'react'
 import {
   Select,
   SizableText,
@@ -22,6 +22,7 @@ export type SelectDropdownProps<Options extends SelectOptions> = {
   size?: SizeTokens
   placeholder?: string
   width?: XStackProps['width']
+  triggerProps?: ComponentProps<typeof Select.Trigger>
 }
 
 export function SelectDropdown<Options extends SelectOptions>({
@@ -31,6 +32,7 @@ export function SelectDropdown<Options extends SelectOptions>({
   size,
   placeholder = 'Select...',
   width = 140,
+  triggerProps,
 }: SelectDropdownProps<Options>) {
   const selectedOption = options.find((option) => option.value === value)
 
@@ -49,6 +51,7 @@ export function SelectDropdown<Options extends SelectOptions>({
         borderRadius="$3"
         borderWidth={1}
         borderColor="$borderColor"
+        {...triggerProps}
       >
         <XStack gap="$2" ai="center" w="100%">
           {selectedOption ? (

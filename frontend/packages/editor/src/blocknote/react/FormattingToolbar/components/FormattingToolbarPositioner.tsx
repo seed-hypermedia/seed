@@ -58,7 +58,7 @@ export const FormattingToolbarPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'top-start'}
+      placement={'top'}
       sticky={true}
       plugins={tippyPlugins}
     />
