@@ -28,9 +28,15 @@ export function useInlineMentions() {
     const emptyRespose: InlineMentionsResult = {
       Sites: [],
       Documents: [],
-      Recents: recentsRef.current,
+      Recents: [],
     }
-    if (!entities.length) return emptyRespose
+    if (!entities.length) {
+      return {
+        Sites: [],
+        Documents: [],
+        Recents: recentsRef.current,
+      } as InlineMentionsResult
+    }
     const response = entities.reduce((acc: InlineMentionsResult, entity) => {
       if (entity.id?.path?.length) {
         acc.Documents.push({
