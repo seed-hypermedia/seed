@@ -147,7 +147,7 @@ export function getLinkMenuItems({
             key: 'embed',
             name: 'Embed',
             disabled: false,
-            icon: <PanelBottom size={18} />,
+            icon: <FileIcon size={18} />,
             execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
               const {state, schema} = editor._tiptapEditor
               const {selection} = state
@@ -157,6 +157,27 @@ export function getLinkMenuItems({
                 {
                   url: hmRef,
                   view: 'Content',
+                },
+                schema.text(' '),
+              )
+
+              insertNode(editor, sourceUrl || hmRef, node)
+            },
+          },
+          {
+            key: 'card',
+            name: 'Card',
+            disabled: false,
+            icon: <PanelBottom size={18} />,
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+              const {state, schema} = editor._tiptapEditor
+              const {selection} = state
+              if (!selection.empty) return
+              const hmRef = createHMUrl(hmId)
+              const node = schema.nodes.embed.create(
+                {
+                  url: hmRef,
+                  view: 'Card',
                 },
                 schema.text(' '),
               )
