@@ -184,6 +184,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       )
     if (editorBlock.props.querySort)
       blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
+    if (editorBlock.props.queryLimit)
+      blockQuery.attributes.query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
   }
 

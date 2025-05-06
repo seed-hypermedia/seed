@@ -498,7 +498,9 @@ function QuerySettings({
                         space: id.uid,
                         path:
                           id.path && id.path.length ? id.path.join('/') : '',
-                        mode: queryIncludes[0]?.mode,
+                        mode: queryIncludes[0]?.mode
+                          ? queryIncludes[0]?.mode
+                          : 'AllDescendants',
                       },
                     ]
                     // console.log('=== NEW VAL', id, newVal)
