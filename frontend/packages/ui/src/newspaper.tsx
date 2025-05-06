@@ -179,12 +179,14 @@ export function NewspaperCard({
   entity,
   accountsMetadata,
   isWeb = false,
+  navigate = true,
   ...props
 }: Omit<YStackProps, 'id'> & {
   id: UnpackedHypermediaId
   entity: HMEntityContent | null | undefined
   accountsMetadata: HMAccountsMetadata
   isWeb?: boolean
+  navigate?: boolean
 }) {
   const linkProps = useRouteLink(id ? {key: 'document', id} : null)
 
@@ -213,7 +215,7 @@ export function NewspaperCard({
       //   }}
       // this data attribute is used by the hypermedia highlight component
       data-docid={id.id}
-      {...linkProps}
+      {...(navigate ? linkProps : {})}
       {...props}
     >
       <NewspaperCardImage document={entity.document} imageOptimizedSize="L" />

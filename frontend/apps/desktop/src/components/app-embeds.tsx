@@ -301,6 +301,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
+  const route = useNavRoute()
   const doc = useSubscribedEntity(props)
   const authors = useEntities(
     doc.data?.document?.authors?.map((uid) => hmId('d', uid)) || [],
@@ -327,6 +328,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         accountsMetadata={authors
           .map((author) => author.data)
           .filter((d) => !!d)}
+        navigate={route.key === 'document'}
       />
     </EmbedWrapper>
   )
