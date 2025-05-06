@@ -16,6 +16,7 @@ import {XStack, YStack, YStackProps} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
 import {FacePile} from './face-pile'
+import {useIsDark} from './use-is-dark'
 
 export function BannerNewspaperCard({
   item,
@@ -171,7 +172,12 @@ function NewspaperCardContent({
     return plainTextOfContent(entity?.document?.content)
   }, [entity?.document])
   return (
-    <YStack padding={banner ? '$5' : '$3'} gap="$3" f={1}>
+    <YStack
+      padding={banner ? '$5' : '$3'}
+      gap="$3"
+      f={1}
+      data-docid={entity?.id.id}
+    >
       <YStack overflow="hidden" maxHeight={(banner ? 30 : 23) * 3}>
         <SizableText size={banner ? '$8' : '$5'} fontWeight="bold">
           {entity?.document?.metadata?.name}
@@ -197,11 +203,13 @@ function NewspaperCardFooter({
   entity: HMEntityContent | null | undefined
   accountsMetadata: HMAccountsMetadata
 }) {
+  const isDark = useIsDark()
   return (
     <XStack
       jc="space-between"
       alignSelf="stretch"
-      backgroundColor="$background"
+      backgroundColor={isDark ? '$background' : '$backgroundStrong'}
+      data-docid={entity?.id.id}
       paddingHorizontal="$4"
       paddingVertical="$2"
       alignItems="center"
@@ -240,6 +248,7 @@ const baseCardStyles: Parameters<typeof XStack>[0] = {
   shadowRadius: 8,
   overflow: 'hidden',
   hoverStyle: {
-    backgroundColor: '$blue2',
+    backgroundColor: '$brand12',
   },
+  transition: 'background-color 0.3s ease-in-out',
 }
