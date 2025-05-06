@@ -448,7 +448,7 @@ function QuerySettings({
               }
             : undefined
         }
-        y={12}
+        y={queryIncludes.length > 0 ? 12 : 0}
         x={-32}
         width="100%"
         height="100%"
