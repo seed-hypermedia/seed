@@ -63,6 +63,7 @@ export function renderCommentContent(comment: HMComment) {
   return (
     <AppDocContentProvider
       comment
+
       // onReplyBlock={onReplyBlock}
       // onReplyBlock={() => {}}
       // onCopyBlock={(
@@ -326,6 +327,7 @@ function _CommentDraftEditor({
   const sizeObserverdRef = useSizeObserver((rect) => {
     setIsHorizontal(rect.width > 322)
   })
+  const isDark = useIsDark()
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
       onDiscardDraft,
@@ -361,6 +363,7 @@ function _CommentDraftEditor({
       ref={sizeObserverdRef}
       f={1}
       marginTop="$1"
+      bg={isDark ? '$background' : '$backgroundStrong'}
       paddingHorizontal="$4"
       onPress={(e: GestureResponderEvent) => {
         // @ts-expect-error fix this type in the future!
@@ -373,6 +376,7 @@ function _CommentDraftEditor({
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
+      // @ts-expect-error fix this type in the future!
       onKeyDownCapture={(e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault()
@@ -540,6 +544,16 @@ function CommentReference({reference}: {reference: string | null}) {
       borderLeftWidth={2}
       borderLeftColor="$brand5"
       margin="$2"
+      onHoverIn={() => {
+        if (referenceId) {
+          context.onHoverIn?.(referenceId)
+        }
+      }}
+      onHoverOut={() => {
+        if (referenceId) {
+          context.onHoverOut?.(referenceId)
+        }
+      }}
       bg={highlight ? '$brand12' : '$colorTransparent'}
       x={2}
       onPress={() => {

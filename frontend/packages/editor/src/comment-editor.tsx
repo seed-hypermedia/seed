@@ -271,7 +271,7 @@ export default function CommentEditor({
           <HyperMediaEditorView editor={editor} openUrl={openUrl} />
         </EmbedToolbarProvider>
       </YStack>
-      <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
+      <XStack gap="$3" jc="flex-end">
         {onDiscardDraft ? (
           <Tooltip content="Discard Comment Draft">
             <Button

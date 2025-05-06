@@ -80,6 +80,7 @@ export function CommentGroup({
   enableWebSigning?: boolean
   highlightLastComment?: boolean
 }) {
+  const isDark = useIsDark()
   const lastComment = commentGroup.comments.at(-1)
   return (
     <YStack gap="$2">
@@ -90,7 +91,7 @@ export function CommentGroup({
           top={8}
           bottom={-10}
           left={-8}
-          bg="$backgroundStrong"
+          bg={isDark ? '$background' : '$backgroundStrong'}
         />
       ) : null}
       {commentGroup.comments.map((comment, idx) => {

@@ -211,7 +211,10 @@ export function LocalWebCommenting({
             return (
               <Button
                 size="$2"
-                theme="blue"
+                bg="$brand5"
+                color="white"
+                hoverStyle={{bg: '$brand4', borderColor: '$colorTransparent'}}
+                focusStyle={{bg: '$brand3', borderColor: '$colorTransparent'}}
                 className={`plausible-event-name=${
                   userKeyPair ? 'comment' : 'start-create-account'
                 }`}
@@ -220,7 +223,7 @@ export function LocalWebCommenting({
                     <HMIcon
                       id={myAccountId}
                       metadata={myAccount.data?.document?.metadata}
-                      size={24}
+                      size={18}
                     />
                   ) : undefined
                 }

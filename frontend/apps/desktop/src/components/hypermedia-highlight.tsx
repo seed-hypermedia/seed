@@ -48,8 +48,6 @@ export function HypermediaHighlight({
       }
     }
 
-    console.log('selectors', selectors)
-
     return `
       ${selectors.join(',')} {
         transition: background-color 0.3s ease;
