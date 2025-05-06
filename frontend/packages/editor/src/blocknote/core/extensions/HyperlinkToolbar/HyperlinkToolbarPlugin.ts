@@ -126,6 +126,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     if (!target) return
 
+    if (target.closest('.query-settings')) return
+
     this.stopMenuUpdateTimer()
 
     const tiptap = this.editor._tiptapEditor
