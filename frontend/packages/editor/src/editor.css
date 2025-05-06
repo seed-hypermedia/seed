@@ -494,15 +494,6 @@ ol > [data-node-type='block-outer']::marker {
   font-weight: 700;
 }
 
-[data-diff='deleted'] {
-  background-color: rgba(255, 0, 0, 0.2);
-}
-
-[data-diff='added'],
-[data-diff='updated'] {
-  background-color: rgba(0, 255, 0, 0.2);
-}
-
 .side-menu {
   display: none !important;
 }
@@ -516,11 +507,11 @@ ol > [data-node-type='block-outer']::marker {
 ol[data-list-type='Ordered']
   > [data-node-type='block-outer']
   > [data-node-type='blockContainer']
-  > [data-node-type='blockGroup'],
+  > [data-list-type='Group'],
 ul[data-list-type='Unordered']
   > [data-node-type='block-outer']
   > [data-node-type='blockContainer']
-  > [data-node-type='blockGroup'] {
+  > [data-list-type='Group'] {
   margin-left: 0;
 }
 
@@ -528,7 +519,7 @@ ul[data-list-type='Unordered']
 [data-node-type='block-outer']:has(
     > [data-node-type='blockContainer'] > [data-content-type='heading']
   ) {
-  margin-bottom: 20px;
+  margin-bottom: 1em;
 }
 
 /* Reset margin for consecutive headings */
@@ -538,5 +529,5 @@ ul[data-list-type='Unordered']
   + [data-node-type='block-outer']:has(
     > [data-node-type='blockContainer'] > [data-content-type='heading']
   ) {
-  margin-top: -20px; /* Cancel out the previous element's margin */
+  margin-top: -1em; /* Cancel out the previous element's margin */
 }
