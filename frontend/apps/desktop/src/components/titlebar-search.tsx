@@ -4,11 +4,13 @@ import {toast} from '@shm/ui/toast'
 import {Search} from '@tamagui/lucide-icons'
 import {useState} from 'react'
 import {Button, View, XStack, YStack} from 'tamagui'
+import {usePublishSite} from './publish-site'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
 
 export function TitlebarTitleSearch() {
   const [showLauncher, setShowLauncher] = useState(false)
+  const publishSite = usePublishSite()
   useListenAppEvent('open_launcher', () => {
     setShowLauncher(true)
   })
@@ -35,7 +37,8 @@ export function TitlebarTitleSearch() {
           setShowLauncher((v) => !v)
         }}
       />
-      <Title />
+      <Title onPublishSite={publishSite.open} />
+      {publishSite.content}
       {showLauncher ? (
         <LauncherContent
           onClose={() => {

@@ -316,7 +316,7 @@ export function DocOptionsButton({
       {seedHostDialog.content}
       {branchDialog.content}
       {moveDialog.content}
-      <OptionsDropdown menuItems={menuItems} />
+      <OptionsDropdown menuItems={menuItems} placement="bottom-start" />
     </>
   )
 }
@@ -518,7 +518,6 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
       <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
       {isLatest ? <EditDocButton key="editDoc" /> : null}
-      <DocOptionsButton key="options" onPublishSite={publishSite.open} />
       {publishSite.content}
       <AccessorySidebarToggle />
     </TitlebarSection>

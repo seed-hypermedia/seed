@@ -53,8 +53,15 @@ import {
 import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
 import {DNSInstructions} from './publish-site'
+import {DocOptionsButton} from './titlebar-common'
 
-export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
+export function TitleContent({
+  size = '$4',
+  onPublishSite,
+}: {
+  size?: FontSizeTokens
+  onPublishSite: (input: {id: UnpackedHypermediaId}) => void
+}) {
   const route = useNavRoute()
   const titleProps: TextProps = {
     size,
@@ -122,7 +129,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   }
 
   if (route.key === 'document') {
-    return <BreadcrumbTitle entityId={route.id} />
+    return <BreadcrumbTitle entityId={route.id} onPublishSite={onPublishSite} />
   }
   if (route.key === 'draft') {
     return <DraftTitle route={route} />
@@ -145,12 +152,14 @@ function BreadcrumbTitle({
   draftName,
   replaceLastItem = false,
   draft = false,
+  onPublishSite,
 }: {
   entityId: UnpackedHypermediaId
   hideControls?: boolean
   draftName?: string
   replaceLastItem?: boolean
   draft?: boolean
+  onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const latestDoc = useEntity({...entityId, version: null, latest: true})
   const isLatest =
@@ -331,7 +340,7 @@ function BreadcrumbTitle({
           ]
         })}
         {!hideControls ? (
-          <XStack>
+          <XStack ai="center" className="no-window-drag">
             <PendingDomain id={entityId} />
             <FavoriteButton id={entityId} />
             <CopyReferenceButton
@@ -340,6 +349,9 @@ function BreadcrumbTitle({
               latest={isLatest}
               size="$2"
             />
+            {onPublishSite ? (
+              <DocOptionsButton onPublishSite={onPublishSite} />
+            ) : null}
           </XStack>
         ) : null}
       </XStack>
@@ -682,7 +694,13 @@ function URLCardSection({
   )
 }
 
-export function Title({size}: {size?: FontSizeTokens}) {
+export function Title({
+  size,
+  onPublishSite,
+}: {
+  size?: FontSizeTokens
+  onPublishSite: (input: {id: UnpackedHypermediaId}) => void
+}) {
   return (
     <XStack
       gap="$2"
@@ -693,7 +711,7 @@ export function Title({size}: {size?: FontSizeTokens}) {
       minWidth={240}
       f={1}
     >
-      <TitleContent size={size} />
+      <TitleContent size={size} onPublishSite={onPublishSite} />
     </XStack>
   )
 }

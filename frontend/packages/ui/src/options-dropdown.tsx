@@ -5,7 +5,7 @@ import {XStack} from '@tamagui/stacks'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Separator} from 'tamagui'
+import {PopoverProps, Separator} from 'tamagui'
 import {MenuItem} from './menu-item'
 import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
@@ -23,11 +23,13 @@ export function OptionsDropdown({
   menuItems,
   hiddenUntilItemHover,
   button,
+  placement = 'bottom-end',
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
   hover?: boolean
   button?: JSX.Element
+  placement?: PopoverProps['placement']
 }) {
   const popoverState = usePopoverState()
   return (
@@ -37,7 +39,7 @@ export function OptionsDropdown({
         opacity: 1,
       }}
     >
-      <Popover {...popoverState} placement="bottom-end">
+      <Popover {...popoverState} placement={placement}>
         <Popover.Trigger asChild>
           {button || (
             <Button
