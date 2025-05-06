@@ -160,6 +160,7 @@ export function SystemMenu() {
                 createDraft({
                   key: 'draft',
                   id: nanoid(10),
+                  accessory: {key: 'options'},
                 }),
               icon: AddSquare,
             },

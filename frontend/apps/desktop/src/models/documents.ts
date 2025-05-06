@@ -610,6 +610,7 @@ export function useDraftEditor() {
             key: 'draft',
             id,
             deps: route.deps || undefined,
+            accessory: {key: 'options'},
           })
           return {}
         },
@@ -1450,6 +1451,7 @@ export function useCreateDraft(
     navigate({
       key: 'draft',
       id,
+      accessory: {key: 'options'},
       ...draftParams,
     })
   }

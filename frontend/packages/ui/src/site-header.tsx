@@ -291,6 +291,7 @@ function HeaderLinkItem({
       ? {
           key: 'draft',
           id: draftId,
+          accessory: {key: 'options'},
         }
       : id
       ? {

@@ -43,8 +43,8 @@ export function DocumentSmallListItem({
   isPublished?: boolean
 }) {
   const route: NavRoute | undefined = draftId
-    ? {key: 'draft', id: draftId}
-    : id && {key: 'document', id}
+    ? {key: 'draft', id: draftId, accessory: {key: 'options'}}
+    : id && {key: 'document', id, accessory: {key: 'options'}}
   if (!route) {
     throw new Error(
       'No route for DocumentSmallListItem. Must provide either id or draftId',

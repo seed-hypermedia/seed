@@ -366,6 +366,7 @@ function EditDocButton() {
           navigate({
             key: 'draft',
             id: existingDraft.id,
+            accessory: {key: 'options'},
           })
         } else {
           navigate({
@@ -374,6 +375,7 @@ function EditDocButton() {
             editUid: route.id.uid,
             editPath: route.id.path || [],
             deps: route.id.version ? [route.id.version] : undefined,
+            accessory: {key: 'options'},
           })
         }
       }}

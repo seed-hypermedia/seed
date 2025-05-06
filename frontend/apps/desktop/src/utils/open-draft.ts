@@ -8,6 +8,7 @@ export function useOpenDraft(navigateMode: NavMode = 'spawn') {
     const draftRoute: DraftRoute = {
       key: 'draft',
       id: opts.id,
+      accessory: {key: 'options'},
     }
     navigate(draftRoute)
   }

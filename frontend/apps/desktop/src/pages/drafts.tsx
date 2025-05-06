@@ -102,7 +102,7 @@ export function DraftItem({
       paddingHorizontal="$3"
       paddingVertical="$2"
       onPress={() => {
-        navigate({key: 'draft', id: item.id})
+        navigate({key: 'draft', id: item.id, accessory: {key: 'options'}})
       }}
       h="auto"
       ai="center"

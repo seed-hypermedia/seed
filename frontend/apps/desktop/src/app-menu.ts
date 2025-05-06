@@ -66,7 +66,9 @@ export function createAppMenu() {
           click: () => {
             // Get the initial route to create a draft document
             trpc.createAppWindow({
-              routes: [{key: 'draft', id: nanoid(10)}],
+              routes: [
+                {key: 'draft', id: nanoid(10), accessory: {key: 'options'}},
+              ],
             })
           },
         },
