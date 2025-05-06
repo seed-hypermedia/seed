@@ -91,11 +91,11 @@ export function SiteHeader({
     <YStack
       position="relative"
       overflow="hidden"
-      $gtSm={{overflow: 'visible'}}
-      h="100%"
-      minHeight="calc(100vh - 78px)"
+      height="100%"
+      // This onscroll is important for when we render it for drafts. this will dismiss the blockside menu when we scroll
       // @ts-ignore
       onScroll={onScroll}
+      $gtSm={{overflow: onScroll ? 'scroll' : 'visible'}}
     >
       <YStack
         borderBottomWidth={1}
