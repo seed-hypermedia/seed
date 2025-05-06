@@ -29,6 +29,7 @@ import {
   HMDraftContent,
   HMDraftMeta,
   HMEntityContent,
+  HMQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
@@ -1301,13 +1302,20 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'view',
     'width',
     'banner',
+    'query',
   ]
 
-  const result = attributesToCompare.every(
-    (attr) =>
+  const result = attributesToCompare.every((attr) => {
+    if (attr === 'query') {
+      console.log(`== ~ changes a1.query:`, a1.query)
+      console.log(`== ~ changes a2.query:`, a2.query)
+      return isQueryEqual(a1.query, a2.query)
+    }
+    return (
       (a1[attr] === undefined && a2[attr] === undefined) ||
-      a1[attr] === a2[attr],
-  )
+      a1[attr] === a2[attr]
+    )
+  })
 
   if (!result) {
     console.log('Block attributes not equal. Differences found:', {
@@ -1550,4 +1558,39 @@ export function getDraftEditId(
       path: draftData.destinationPath,
     })
   }
+}
+
+function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
+  if (!q1 && !q2) return true
+  if (!q1 || !q2) return false
+
+  // Compare limit
+  if (q1.limit !== q2.limit) return false
+
+  // Compare sorting arrays
+  if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
+
+  // Compare includes arrays
+  if (q1.includes.length !== q2.includes.length) return false
+
+  // Deep compare each include item
+  for (let i = 0; i < q1.includes.length; i++) {
+    const include1 = q1.includes[i]
+    const include2 = q2.includes[i]
+
+    if (include1.mode !== include2.mode) return false
+    if (include1.path !== include2.path) return false
+    if (include1.space !== include2.space) return false
+  }
+
+  if (q1.sort?.length !== q2.sort?.length) return false
+
+  for (let i = 0; i < q1.sort!.length; i++) {
+    const sort1 = q1.sort![i]
+    const sort2 = q2.sort![i]
+
+    if (sort1.reverse !== sort2.reverse) return false
+    if (sort1.term !== sort2.term) return false
+  }
+  return true
 }

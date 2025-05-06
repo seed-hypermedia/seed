@@ -719,7 +719,7 @@ describe('EditorBlock to HMBlock', () => {
           queryIncludes:
             '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
           querySort: '[{"term": "UpdateTime", "reverse": false}]',
-
+          queryLimit: '10',
           style: 'Card',
           columnCount: '1',
         },
@@ -737,6 +737,7 @@ describe('EditorBlock to HMBlock', () => {
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
             sort: [{term: 'UpdateTime', reverse: false}],
+            limit: 10,
           },
         },
       }

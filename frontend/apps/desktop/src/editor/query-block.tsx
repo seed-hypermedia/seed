@@ -523,7 +523,7 @@ function QuerySettings({
                   let newVal = [
                     {
                       ...queryIncludes[0],
-                      mode: value ? 'AllDescendants' : 'Children',
+                      mode: value,
                     },
                   ]
                   onValuesChange({
