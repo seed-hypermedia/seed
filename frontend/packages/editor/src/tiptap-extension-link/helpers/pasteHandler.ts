@@ -444,7 +444,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         slice.content.forEach((node) => {
           fragmentLinks = find(node.textContent)
-          tr.insert(currentPos - 1, node)
+          tr.insert(currentPos, node.content)
 
           if (fragmentLinks.length > 0) {
             deleteOnly = false
