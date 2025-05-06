@@ -644,12 +644,36 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
 
 function AccessorySidebarToggle() {
   const route = useNavRoute()
-
-  console.log(`== ~ AccessorySidebarToggle ~ route:`, route)
   const replace = useNavigate('replace')
+  const [currentAccessory, setCurrentAccessory] = useState<
+    DocumentRoute['accessory'] | null | undefined
+  >(() => {
+    if (route.key === 'document' || route.key == 'draft') {
+      if (typeof route.accessory == 'undefined' || route.accessory == null) {
+        return {key: 'discussions'}
+      } else {
+        return route.accessory
+      }
+    } else {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (route.key === 'document' || route.key == 'draft') {
+      if (typeof route.accessory == 'undefined' || route.accessory == null) {
+        // setCurrentAccessory({key: 'discussions'})
+      } else {
+        setCurrentAccessory(route.accessory)
+      }
+
+      console.log('== ~ useEffect ~ currentAccessory:', currentAccessory)
+    }
+  }, [route])
+
   if (route.key == 'document') {
-    return route.accessory ? (
-      <Tooltip content="Hide Accessory Sidebar">
+    return (
+      <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
         <Button
           size="$2"
           chromeless
@@ -661,18 +685,16 @@ function AccessorySidebarToggle() {
             if (route.key === 'document') {
               replace({
                 ...route,
-                accessory: null,
+                accessory: route.accessory ? null : currentAccessory,
               })
             }
           }}
         />
       </Tooltip>
-    ) : null
+    )
   } else if (route.key == 'draft') {
     return (
-      <Tooltip
-        content={route.accessory ? 'Hide Options Panel' : 'Show Options Panel'}
-      >
+      <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
         <Button
           size="$2"
           chromeless
