@@ -448,8 +448,8 @@ function QuerySettings({
               }
             : undefined
         }
-        y={0}
-        x={-16}
+        y={12}
+        x={-32}
         width="100%"
         height="100%"
         jc="flex-start"
