@@ -299,7 +299,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
 			if err := n.db.WithTx(ctxStore, func(conn *sqlite.Conn) error {
 				return sqlitex.ExecTransient(conn, sqlStr, nil, vals...)
-			}); err != nil {
+			}); err != nil && !errors.Is(err, sqlitex.ErrBeginImmediateTx) {
 				return err
 			}
 		}

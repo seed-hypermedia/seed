@@ -2,16 +2,20 @@ package sqlitex
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"seed/backend/util/sqlite"
 )
 
+// ErrBeginImmediateTx is returned when an immediate transaction cannot be started.
+var ErrBeginImmediateTx = errors.New("Failed to begin immediate transaction")
+
 // WithTx executes fn within an immediate transaction, and commits
 // or rolls back accordingly.
 func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if err := Exec(conn, "BEGIN IMMEDIATE TRANSACTION;", nil); err != nil {
-		return err
+		return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 	}
 
 	if err := fn(); err != nil {
