@@ -89,7 +89,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
                 const itemId = hmId('d', item.account, {path: item.path})
                 return (
                   <NewspaperCard
-                    id={itemId}
+                    docId={itemId}
                     entity={getEntity(item.path)}
                     key={itemId.id}
                     accountsMetadata={accountsMetadata}

@@ -21,10 +21,14 @@ export function BannerNewspaperCard({
   item,
   entity,
   accountsMetadata,
+  onHoverIn,
+  onHoverOut,
 }: {
   item: HMDocumentInfo
   entity: HMEntityContent | null | undefined
   accountsMetadata: HMAccountsMetadata
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
   const id = hmId('d', item.account, {path: item.path})
   // const navigate = useNavigate()
@@ -37,6 +41,8 @@ export function BannerNewspaperCard({
       flexDirection="column"
       marginTop="$4"
       minHeight={200}
+      onHoverIn={onHoverIn ? () => onHoverIn?.(id) : undefined}
+      onHoverOut={onHoverOut ? () => onHoverOut?.(id) : undefined}
       $gtMd={{flexDirection: 'row', maxHeight: 300}}
       {...linkProps}
       // this data attribute is used by the hypermedia highlight component
@@ -60,6 +66,69 @@ export function BannerNewspaperCard({
         />
       </YStack>
     </View>
+  )
+}
+
+export function NewspaperCard({
+  docId,
+  entity,
+  accountsMetadata,
+  isWeb = false,
+  navigate = true,
+  onHoverIn,
+  onHoverOut,
+  ...props
+}: Omit<YStackProps, 'id'> & {
+  docId: UnpackedHypermediaId
+  entity: HMEntityContent | null | undefined
+  accountsMetadata: HMAccountsMetadata
+  isWeb?: boolean
+  navigate?: boolean
+  onHoverIn?: any
+  onHoverOut?: any
+}) {
+  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+
+  // const navigate = useNavigate()
+  if (!entity?.document) return null
+  const cardProps = !isWeb
+    ? {
+        flexGrow: 0,
+        flexShrink: 0,
+        flexBasis: '100%' as any,
+        $gtSm: {flexBasis: '47.9%' as any},
+        $gtMd: {flexBasis: '31.1%' as any},
+      }
+    : {}
+  return (
+    <YStack
+      {...cardProps}
+      {...baseCardStyles}
+      onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
+      onMouseLeave={docId ? () => onHoverOut?.(docId) : undefined}
+      // marginTop="$5"
+      //   marginTop="$4"
+
+      //   maxWidth={208}
+      //   f={1}
+      //   onPress={() => {
+      //     //   navigate({key: 'document', id})
+      //   }}
+      // this data attribute is used by the hypermedia highlight component
+      data-docid={docId.id}
+      {...(navigate ? linkProps : {})}
+      {...props}
+    >
+      <NewspaperCardImage document={entity.document} imageOptimizedSize="L" />
+      <NewspaperCardContent entity={entity} />
+
+      {!isWeb && (
+        <NewspaperCardFooter
+          entity={entity}
+          accountsMetadata={accountsMetadata}
+        />
+      )}
+    </YStack>
   )
 }
 
@@ -173,60 +242,4 @@ const baseCardStyles: Parameters<typeof XStack>[0] = {
   hoverStyle: {
     backgroundColor: '$blue2',
   },
-}
-export function NewspaperCard({
-  id,
-  entity,
-  accountsMetadata,
-  isWeb = false,
-  navigate = true,
-  ...props
-}: Omit<YStackProps, 'id'> & {
-  id: UnpackedHypermediaId
-  entity: HMEntityContent | null | undefined
-  accountsMetadata: HMAccountsMetadata
-  isWeb?: boolean
-  navigate?: boolean
-}) {
-  const linkProps = useRouteLink(id ? {key: 'document', id} : null)
-
-  // const navigate = useNavigate()
-  if (!entity?.document) return null
-  const cardProps = !isWeb
-    ? {
-        flexGrow: 0,
-        flexShrink: 0,
-        flexBasis: '100%',
-        $gtSm: {flexBasis: '47.9%'},
-        $gtMd: {flexBasis: '31.1%'},
-      }
-    : {}
-  return (
-    <YStack
-      {...cardProps}
-      {...baseCardStyles}
-      // marginTop="$5"
-      //   marginTop="$4"
-
-      //   maxWidth={208}
-      //   f={1}
-      //   onPress={() => {
-      //     //   navigate({key: 'document', id})
-      //   }}
-      // this data attribute is used by the hypermedia highlight component
-      data-docid={id.id}
-      {...(navigate ? linkProps : {})}
-      {...props}
-    >
-      <NewspaperCardImage document={entity.document} imageOptimizedSize="L" />
-      <NewspaperCardContent entity={entity} />
-
-      {!isWeb && (
-        <NewspaperCardFooter
-          entity={entity}
-          accountsMetadata={accountsMetadata}
-        />
-      )}
-    </YStack>
-  )
 }

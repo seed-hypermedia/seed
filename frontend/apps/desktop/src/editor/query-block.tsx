@@ -274,9 +274,9 @@ function CardView({
 
   return (
     <>
-      {firstItem ? (
+      {firstItem && firstItem.data ? (
         <NewspaperCard
-          id={firstItem.data?.id}
+          docId={firstItem.data.id}
           entity={firstItem.data}
           key={firstItem.data?.id.id}
           accountsMetadata={{}}
@@ -297,7 +297,7 @@ function CardView({
             .map((item) => (
               <XStack {...columnProps} p="$3" key={item.data?.id.id}>
                 <NewspaperCard
-                  id={item.data?.id}
+                  docId={item.data?.id}
                   entity={item.data}
                   key={item.data?.id.id}
                   accountsMetadata={{}}

@@ -232,7 +232,7 @@ export default function CreateComment() {
           <View paddingHorizontal="$4">
             <NewspaperCard
               overflow="hidden"
-              id={targetId}
+              docId={targetId}
               entity={{
                 id: targetId,
                 document: targetDocument,

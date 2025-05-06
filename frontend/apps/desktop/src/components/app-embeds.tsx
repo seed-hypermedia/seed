@@ -324,7 +324,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
           id,
           document: doc.data.document,
         }}
-        id={id}
+        docId={id}
         accountsMetadata={authors
           .map((author) => author.data)
           .filter((d) => !!d)}
@@ -527,6 +527,7 @@ function QueryStyleCard({
   getEntity: any
   accountsMetadata: HMAccountsMetadata
 }) {
+  const {onHoverIn, onHoverOut} = useDocContentContext()
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {
       case 2:
@@ -557,6 +558,8 @@ function QueryStyleCard({
     <YStack width="100%">
       {firstItem ? (
         <BannerNewspaperCard
+          onHoverIn={onHoverIn}
+          onHoverOut={onHoverOut}
           item={firstItem}
           entity={getEntity(firstItem.path)}
           key={firstItem.path.join('/')}
@@ -582,7 +585,9 @@ function QueryStyleCard({
                 key={item.account + '/' + item.path.join('/')}
               >
                 <NewspaperCard
-                  id={id}
+                  onHoverIn={onHoverIn}
+                  onHoverOut={onHoverOut}
+                  docId={id}
                   entity={getEntity(item.path)}
                   key={item.path.join('/')}
                   accountsMetadata={accountsMetadata}

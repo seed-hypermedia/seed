@@ -80,7 +80,7 @@ export function NewspaperLayout({
           })
           return (
             <NewspaperCard
-              id={id}
+              docId={id}
               entity={getEntity(item.path)}
               key={item.path.join('/')}
               accountsMetadata={accountsMetadata}

@@ -140,7 +140,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
           id,
           document: doc.data.document,
         }}
-        id={props}
+        docId={props.id}
         accountsMetadata={Object.fromEntries(
           authors
             .map((d) => d.data)
@@ -330,7 +330,7 @@ function QueryStyleCard({
                 key={item.account + '/' + item.path.join('/')}
               >
                 <NewspaperCard
-                  id={id}
+                  docId={id}
                   entity={getEntity(item.path)}
                   key={item.path.join('/')}
                   accountsMetadata={accountsMetadata}
