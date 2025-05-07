@@ -1,6 +1,8 @@
 import {
   formattedDateDayOnly,
   HMAccountsMetadata,
+  HMBlock,
+  HMBlockNode,
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
@@ -142,7 +144,7 @@ function NewspaperCardImage({
   height?: number | string
   imageOptimizedSize?: OptimizedImageSize
 }) {
-  const coverImage = document.metadata.cover
+  const coverImage = getDocumentCardImage(document)
   const imageUrl = useImageUrl()
   return (
     <View
@@ -159,6 +161,40 @@ function NewspaperCardImage({
       ) : null}
     </View>
   )
+}
+
+function getDocumentCardImage(document: HMDocument): string | null {
+  const coverImage = document.metadata.cover
+  if (coverImage) return coverImage
+  const firstImageBlock = findFirstBlock(
+    document.content,
+    (block) => block.type === 'Image' && !!block.link,
+  )
+  if (firstImageBlock) return firstImageBlock.link || null
+  return null
+}
+
+function findFirstBlock(
+  content: HMBlockNode[],
+  test: (block: HMBlock) => boolean,
+): HMBlock | null {
+  let found: HMBlock | null = null
+  let index = 0
+  while (!found && index < content.length) {
+    const blockNode = content[index]
+    if (test(blockNode.block)) {
+      found = blockNode.block
+      break
+    }
+    const foundChild =
+      blockNode.children && findFirstBlock(blockNode.children, test)
+    if (foundChild) {
+      found = foundChild
+      break
+    }
+    index++
+  }
+  return found
 }
 
 function NewspaperCardContent({
