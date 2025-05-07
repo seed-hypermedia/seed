@@ -112,7 +112,7 @@ export function SiteHeader({
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"
-          ai="center"
+          ai={isCenterLayout ? undefined : 'center'}
           paddingHorizontal="$4"
           minHeight={56}
           gap="$2"
@@ -141,7 +141,11 @@ export function SiteHeader({
           > */}
           <XStack f={1}>
             {items?.length ? (
-              <SiteHeaderMenu items={items} docId={docId} />
+              <SiteHeaderMenu
+                items={items}
+                docId={docId}
+                isCenterLayout={isCenterLayout}
+              />
             ) : null}
           </XStack>
           {/* </XStack> */}
@@ -434,9 +438,11 @@ function GotoLatestBanner({isLatest = true}: {isLatest: boolean}) {
 export function SiteHeaderMenu({
   items,
   docId,
+  isCenterLayout = false,
 }: {
   items?: DocNavigationDocument[]
   docId: UnpackedHypermediaId | null
+  isCenterLayout?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
@@ -571,11 +577,12 @@ export function SiteHeaderMenu({
       gap="$5"
       w="100%"
       padding="$2"
-      jc="flex-end"
+      jc={isCenterLayout ? 'center' : 'flex-end'}
       display="none"
       flex={1}
       overflow="hidden"
       $gtSm={{display: 'flex'}}
+      // bg="red"
     >
       {/* Hidden measurement container */}
       <XStack

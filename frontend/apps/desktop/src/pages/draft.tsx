@@ -28,6 +28,7 @@ import {
   HMBlockNode,
   HMDocument,
   HMEntityContent,
+  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -236,8 +237,13 @@ export default function DraftPage() {
               {locationId || editId ? (
                 <DraftAppHeader
                   siteHomeEntity={homeEntity.data}
+                  isEditingHomeDoc={
+                    homeEntity.data?.id.id == locationId?.id ||
+                    homeEntity.data?.id.id == editId?.id
+                  }
                   docId={locationId || editId}
                   document={homeEntity.data?.document}
+                  draftMetadata={state.context.metadata}
                 >
                   <DocumentEditor
                     editor={editor}
@@ -559,11 +565,15 @@ function DraftAppHeader({
   docId,
   children,
   document,
+  draftMetadata,
+  isEditingHomeDoc = false,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
+  draftMetadata: HMMetadata
+  isEditingHomeDoc: boolean
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
@@ -576,7 +586,9 @@ function DraftAppHeader({
     drafts: drafts.data,
   })
 
-  const siteHomeMetadata = siteHomeEntity.document?.metadata
+  const siteHomeMetadata = isEditingHomeDoc
+    ? draftMetadata
+    : siteHomeEntity.document?.metadata
   // const draft = useDraft(docId)
   return (
     <SiteHeader
@@ -585,7 +597,11 @@ function DraftAppHeader({
       }}
       originHomeId={siteHomeEntity.id}
       items={navItems}
-      document={document || undefined}
+      document={
+        isEditingHomeDoc
+          ? {...document, metadata: draftMetadata}
+          : document || undefined
+      }
       docId={docId}
       isCenterLayout={
         siteHomeMetadata?.theme?.headerLayout === 'Center' ||

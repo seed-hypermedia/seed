@@ -261,10 +261,9 @@ function EmbedControl({
   unpackedId,
   assign,
   // hovered,
-  selected,
-} // activeId,
-// setActiveId,
-: {
+  selected, // activeId,
+  // setActiveId,
+}: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
