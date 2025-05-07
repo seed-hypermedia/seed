@@ -11,7 +11,6 @@ import {useEffect, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
-import {EmbedToolbarProvider} from './embed-toolbar-context'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
@@ -267,9 +266,7 @@ export default function CommentEditor({
         }}
         onDrop={onDrop}
       >
-        <EmbedToolbarProvider>
-          <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-        </EmbedToolbarProvider>
+        <HyperMediaEditorView editor={editor} openUrl={openUrl} />
       </YStack>
       <XStack gap="$3" jc="flex-end">
         {onDiscardDraft ? (

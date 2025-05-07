@@ -9,7 +9,6 @@ import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {getDocumentTitle} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
@@ -391,9 +390,7 @@ function _CommentDraftEditor({
       className="comment-editor"
     >
       <AppDocContentProvider comment>
-        <EmbedToolbarProvider>
-          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
-        </EmbedToolbarProvider>
+        <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
       </AppDocContentProvider>
       <View
         alignSelf="flex-end"

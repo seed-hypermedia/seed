@@ -19,7 +19,6 @@ import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
-import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -399,21 +398,19 @@ function DocumentEditor({
                     setShowCover={setShowCover}
                   />
                 ) : null}
-                <EmbedToolbarProvider>
-                  <Container
-                    paddingLeft="$4"
-                    marginBottom={300}
-                    onPress={(e: GestureResponderEvent) => {
-                      // this prevents to fire handleFocusAtMousePos on click
-                      e.stopPropagation()
-                      // editor?._tiptapEditor.commands.focus()
-                    }}
-                  >
-                    {editor ? (
-                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                    ) : null}
-                  </Container>
-                </EmbedToolbarProvider>
+                <Container
+                  paddingLeft="$4"
+                  marginBottom={300}
+                  onPress={(e: GestureResponderEvent) => {
+                    // this prevents to fire handleFocusAtMousePos on click
+                    e.stopPropagation()
+                    // editor?._tiptapEditor.commands.focus()
+                  }}
+                >
+                  {editor ? (
+                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                  ) : null}
+                </Container>
               </YStack>
               {showSidebars ? <YStack {...sidebarProps} /> : null}
             </XStack>

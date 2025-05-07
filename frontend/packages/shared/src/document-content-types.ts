@@ -43,6 +43,8 @@ export type DocContentContextValue = {
   supportQueries?: HMQueryResult[]
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
+  collapsedBlocks: Set<string>
+  setCollapsedBlocks: (id: string, val: boolean) => void
 }
 
 export type EntityComponentsRecord = {

@@ -1,6 +1,5 @@
 import {Block, BlockNoteEditor} from '@/blocknote'
 import {createReactBlockSpec} from '@/blocknote/react'
-import {useEmbedToolbarContext} from '@/embed-toolbar-context'
 import {LauncherItem, RecentLauncherItem, SwitcherItem} from '@/launcher-item'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
@@ -191,8 +190,7 @@ const display = ({
   setSelected,
 }: DisplayComponentProps) => {
   const unpackedId = unpackHmId(block.props.url)
-  const [hovered, setHovered] = useState(false)
-  const {activeId, setActiveId} = useEmbedToolbarContext()
+  // const [hovered, setHovered] = useState(false)
 
   return (
     <MediaContainer
@@ -202,31 +200,31 @@ const display = ({
       selected={selected}
       setSelected={setSelected}
       assign={assign}
-      styleProps={{
-        pointerEvents: activeId && activeId !== block.id ? 'none' : '',
-      }}
-      onHoverIn={() => {
-        if (!activeId) {
-          setHovered(true)
-          setActiveId(block.id)
-        }
-      }}
-      onHoverOut={() => {
-        setHovered(false)
-        if (activeId && activeId === block.id) {
-          setActiveId(null)
-        }
-      }}
+      // styleProps={{
+      //   pointerEvents: activeId && activeId !== block.id ? 'none' : '',
+      // }}
+      // onHoverIn={() => {
+      //   if (!activeId) {
+      //     setHovered(true)
+      //     setActiveId(block.id)
+      //   }
+      // }}
+      // onHoverOut={() => {
+      //   setHovered(false)
+      //   if (activeId && activeId === block.id) {
+      //     setActiveId(null)
+      //   }
+      // }}
     >
       <EmbedControl
         editor={editor}
         block={block}
         unpackedId={unpackedId}
         assign={assign}
-        hovered={hovered}
+        // hovered={hovered}
         selected={selected}
-        activeId={activeId}
-        setActiveId={setActiveId}
+        // activeId={activeId}
+        // setActiveId={setActiveId}
       />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
@@ -262,19 +260,19 @@ function EmbedControl({
   block,
   unpackedId,
   assign,
-  hovered,
+  // hovered,
   selected,
-  activeId,
-  setActiveId,
-}: {
+} // activeId,
+// setActiveId,
+: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
   assign: any
-  hovered: boolean
+  // hovered: boolean
   selected: boolean
-  activeId: string | null
-  setActiveId: (id: string | null) => void
+  // activeId: string | null
+  // setActiveId: (id: string | null) => void
 }) {
   const [url, setUrl] = useState<string>(block.props.url || '')
   const {openUrl} = useDocContentContext()
@@ -289,20 +287,20 @@ function EmbedControl({
   const hasBlockRef = unpackedId?.blockRef
   const isLatestVersion = isEmbedUrlLatest(block.props.url)
 
-  useEffect(() => {
-    return () => {
-      if (activeId === block.id) {
-        setActiveId(null)
-      }
-    }
-  }, [activeId, setActiveId])
+  // useEffect(() => {
+  //   return () => {
+  //     if (activeId === block.id) {
+  //       setActiveId(null)
+  //     }
+  //   }
+  // }, [activeId, setActiveId])
 
-  const setHovered = (isHovered: boolean) => {
-    if (isHovered && !activeId) setActiveId(block.id)
-    else if (!isHovered && activeId === block.id && !selected) {
-      setActiveId(null)
-    }
-  }
+  // const setHovered = (isHovered: boolean) => {
+  //   if (isHovered && !activeId) setActiveId(block.id)
+  //   else if (!isHovered && activeId === block.id && !selected) {
+  //     setActiveId(null)
+  //   }
+  // }
 
   function isEmbedUrlLatest(url: string): boolean {
     const queryParams = parseCustomURL(url)
@@ -524,7 +522,7 @@ function EmbedControl({
       width="100%"
       ai="flex-end"
       jc="flex-end"
-      opacity={hovered || selected ? 1 : 0}
+      opacity={selected ? 1 : 0}
       // opacity={popoverState.open ? 1 : 0}
       padding="$2"
       gap="$0.5"

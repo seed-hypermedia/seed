@@ -120,6 +120,20 @@ export function DocContentProvider({
   const [lUnit, setLUnit] = useState(layoutUnit)
   const [debug, setDebug] = useState(false)
   const [ffSerif, toggleSerif] = useState(true)
+  const [collapsedBlocks, setCollapsed] = useState<Set<string>>(new Set())
+
+  const setCollapsedBlocks = (id: string, val: boolean) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (val) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }
+
   return (
     <docContentContext.Provider
       value={{
@@ -130,6 +144,8 @@ export function DocContentProvider({
         ffSerif,
         comment,
         routeParams,
+        collapsedBlocks,
+        setCollapsedBlocks,
       }}
     >
       {showDevMenu ? (
@@ -1774,6 +1790,12 @@ export function ContentEmbed({
 }) {
   const context = useDocContentContext()
 
+  const [isExpanded, setExpanded] = useState(props.blockRange?.expanded ?? true)
+
+  useEffect(() => {
+    setExpanded(!context.collapsedBlocks.has(props.block.id) ?? isExpanded)
+  }, [context.collapsedBlocks])
+
   const embedData = useMemo(() => {
     const selectedBlock =
       props.blockRef && document?.content
@@ -1853,7 +1875,7 @@ export function ContentEmbed({
               parentBlockId={props.parentBlockId}
               isFirstChild
               depth={props.depth}
-              expanded
+              expanded={isExpanded}
               blockNode={{
                 block: {
                   type: 'Heading',
