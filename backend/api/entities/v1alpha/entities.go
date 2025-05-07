@@ -190,6 +190,7 @@ SELECT
     fts.type,
     fts.block_id,
 	fts.version,
+	fts.blob_id,
     resources.iri,
     structural_blobs.ts,
     fts.rank
@@ -208,6 +209,7 @@ SELECT
     fts_data.type,
 	fts_data.block_id,
 	fts_data.version,
+	fts_data.blob_id,
     resources.iri,
     public_keys.principal AS author,
     blobs.codec,
@@ -249,14 +251,17 @@ var qGetParentsMetadata = dqb.Str(`
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
 	var contents []string
+	var rawContent []string
 	var icons []string
 	var iris []string
 	var owners []string
 	var blockIDs []string
 	var docIDs []string
-	var blobIDs []string
+	var blobCIDs []string
+	var blobIDs []int64
 	var contentType []string
 	var versions []string
+	var latestVersions []string
 	var limit = 30
 	type value struct {
 		Value string `json:"v"`
@@ -272,9 +277,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-	if in.Query == "" {
+	re := regexp.MustCompile(`[^A-Za-z0-9_*]+`)
+	cleanQuery := re.ReplaceAllString(in.Query, "")
+	if cleanQuery == "" {
 		return nil, nil
 	}
+
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var title title
@@ -292,9 +300,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			docIDs = append(docIDs, iri)
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
+			rawContent = append(rawContent, title.Name.Value)
 			blockIDs = append(blockIDs, "")
-			blobIDs = append(blobIDs, "")
+			blobCIDs = append(blobCIDs, "")
 			versions = append(versions, "")
+			latestVersions = append(latestVersions, "")
+			blobIDs = append(blobIDs, 0)
 			contentType = append(contentType, "title")
 			return nil
 		})
@@ -308,31 +319,33 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 				var icon icon
 				var heads []head
-				matchStr := stmt.ColumnText(0)
-				firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(matchStr, in.Query)
+				fullMatchStr := stmt.ColumnText(0)
+				rawContent = append(rawContent, fullMatchStr)
+				firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(fullMatchStr, cleanQuery)
 				if firstRuneOffset == -1 {
 					return nil
 				}
 				var contextStart int
-				var contextEnd = len(matchStr)
+				var contextEnd = len(fullMatchStr)
 				if firstCharOffset > 12 {
 					contextStart = firstCharOffset - 12
 				}
-				if firstCharOffset+matchedChars < len(matchStr)-24 {
+				if firstCharOffset+matchedChars < len(fullMatchStr)-24 {
 					contextEnd = firstCharOffset + matchedChars + 24
 				}
-				matchStr = matchStr[contextStart:min(contextEnd, len(matchStr))]
+				matchStr := fullMatchStr[contextStart:min(contextEnd, len(fullMatchStr))]
 				contents = append(contents, matchStr)
-				if err := json.Unmarshal(stmt.ColumnBytes(8), &icon); err != nil {
+				if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
 					return nil
 				}
 				icons = append(icons, icon.Icon.Value)
-				blobID := cid.NewCidV1(uint64(stmt.ColumnInt64(6)), stmt.ColumnBytesUnsafe(7)).String()
-				blobIDs = append(blobIDs, blobID)
+				blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(7)), stmt.ColumnBytesUnsafe(8)).String()
+				blobCIDs = append(blobCIDs, blobCID)
+				blobIDs = append(blobIDs, stmt.ColumnInt64(4))
 				cType := stmt.ColumnText(1)
-				iri := stmt.ColumnText(4)
+				iri := stmt.ColumnText(5)
 				docIDs = append(docIDs, iri)
-				if err := json.Unmarshal(stmt.ColumnBytes(9), &heads); err != nil {
+				if err := json.Unmarshal(stmt.ColumnBytes(10), &heads); err != nil {
 					return err
 				}
 
@@ -346,20 +359,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 				latestVersion := docmodel.NewVersion(cids...).String()
 				version := stmt.ColumnText(3)
-				if version != latestVersion && cType == "document" {
-					versions = append(versions, version)
-				} else {
-					versions = append(versions, "")
-				}
+				latestVersions = append(latestVersions, latestVersion)
+				versions = append(versions, version)
 
 				if cType == "comment" {
-					iris = append(iris, "hm://c/"+blobID)
+					iris = append(iris, "hm://c/"+blobCID)
 				} else {
 					iris = append(iris, iri)
 				}
 				contentType = append(contentType, cType)
 				blockIDs = append(blockIDs, stmt.ColumnText(2))
-				ownerID := core.Principal(stmt.ColumnBytes(4)).String()
+				ownerID := core.Principal(stmt.ColumnBytes(6)).String()
 				owners = append(owners, ownerID)
 				offsets := []int{firstRuneOffset}
 				for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
@@ -372,12 +382,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					MatchedIndexes: offsets,
 				})
 				return nil
-			}, in.Query)
+			}, cleanQuery)
 		}); err != nil {
 			return nil, err
 		}
 	}
-	titleMatches := fuzzy.Find(in.Query, contents[:numTitles])
+	titleMatches := fuzzy.Find(cleanQuery, contents[:numTitles])
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -433,7 +443,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
 			BlockId:     blockIDs[match.Index],
-			BlobId:      blobIDs[match.Index],
+			BlobId:      blobCIDs[match.Index],
 			Version:     versions[match.Index],
 			Content:     match.Str,
 			Type:        contentType[match.Index],
@@ -452,10 +462,26 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		for j, off := range match.MatchedIndexes {
 			offsets[j] = int64(off)
 		}
+		if versions[match.Index] != "" {
+			var version string
+			if latestVersions[match.Index] == versions[match.Index] {
+				versions[match.Index] = ""
+			} else {
+				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
+						version = stmt.ColumnText(0)
+						return nil
+					}, blobIDs[match.Index], blockIDs[match.Index], rawContent[match.Index])
+				}); err != nil {
+					return nil, err
+				}
+				versions[match.Index] = version
+			}
+		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
 			BlockId:     blockIDs[match.Index],
-			BlobId:      blobIDs[match.Index],
+			BlobId:      blobCIDs[match.Index],
 			Version:     versions[match.Index],
 			Type:        contentType[match.Index],
 			Content:     match.Str,
@@ -466,6 +492,48 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
+
+var qGetLatestBlockChange = dqb.Str(`
+WITH doc_changes AS (
+SELECT 
+blob_id,
+block_id,
+raw_content,
+version
+FROM fts
+WHERE blob_id in (
+SELECT
+id
+FROM structural_blobs
+WHERE structural_blobs.ts IN (SELECT ts from structural_blobs WHERE resource in (
+WITH resource_data AS (
+SELECT
+    structural_blobs.resource,
+    structural_blobs.ts
+    
+FROM structural_blobs
+WHERE id = :blob_id
+)
+SELECT
+structural_blobs.resource
+FROM structural_blobs 
+JOIN resource_data ON resource_data.ts=structural_blobs.ts
+WHERE structural_blobs.resource IS NOT NULL
+LIMIT 1
+)) AND structural_blobs.type = 'Change')
+), latest_changes AS(
+SELECT 
+version,
+blob_id
+FROM doc_changes 
+WHERE blob_id > :blob_id AND (block_id = :block_id OR raw_content = :raw_content)
+ORDER BY blob_id ASC LIMIT 1
+)
+SELECT version, blob_id 
+FROM doc_changes
+WHERE blob_id BETWEEN :blob_id and (select blob_id from latest_changes)-1
+ORDER BY blob_id DESC LIMIT 1;
+`)
 
 // DeleteEntity implements the corresponding gRPC method.
 // func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {
