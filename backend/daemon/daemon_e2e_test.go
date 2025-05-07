@@ -1006,6 +1006,13 @@ func TestKeyDelegation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	bobAcc, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: bob.String(),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, alice.String(), bobAcc.AliasAccount, "bob must have alice as alias")
+
 	// Now Bob edits alice's home document.
 	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "bob",
