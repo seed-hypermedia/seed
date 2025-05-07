@@ -38,6 +38,7 @@ export function BannerNewspaperCard({
   const linkProps = useRouteLink({key: 'document', id})
 
   if (!entity?.document) return null
+  const coverImage = getDocumentCardImage(entity?.document)
   return (
     <View
       {...baseCardStyles}
@@ -51,11 +52,11 @@ export function BannerNewspaperCard({
       // this data attribute is used by the hypermedia highlight component
       data-docid={id.id}
     >
-      {entity.document.metadata.cover ? (
+      {coverImage && (
         <View height={200} width="100%" $gtMd={{width: '50%', height: 'auto'}}>
-          <NewspaperCardImage document={entity.document} height="100%" />
+          <NewspaperCardImage coverImage={coverImage} height="100%" />
         </View>
-      ) : null}
+      )}
       <YStack
         flex={1}
         width="100%"
@@ -91,9 +92,9 @@ export function NewspaperCard({
   onHoverOut?: any
 }) {
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
-
   // const navigate = useNavigate()
   if (!entity?.document) return null
+  const coverImage = getDocumentCardImage(entity?.document)
   const cardProps = !isWeb
     ? {
         flexGrow: 0,
@@ -122,7 +123,7 @@ export function NewspaperCard({
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      <NewspaperCardImage document={entity.document} imageOptimizedSize="L" />
+      <NewspaperCardImage coverImage={coverImage} imageOptimizedSize="L" />
       <NewspaperCardContent entity={entity} />
 
       {!isWeb && (
@@ -136,16 +137,16 @@ export function NewspaperCard({
 }
 
 function NewspaperCardImage({
-  document,
+  coverImage,
   height = 120,
   imageOptimizedSize = 'L',
 }: {
-  document: HMDocument
+  coverImage: string | null
   height?: number | string
   imageOptimizedSize?: OptimizedImageSize
 }) {
-  const coverImage = getDocumentCardImage(document)
   const imageUrl = useImageUrl()
+  if (!coverImage) return null
   return (
     <View
       height={height}
