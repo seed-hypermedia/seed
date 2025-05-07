@@ -5,49 +5,28 @@ import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {useHover} from '@shm/shared/use-hover'
 import {
   hmIdWithVersion,
   HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
-  packHmId,
-  parseCustomURL,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Popover} from '@shm/ui/TamaguiPopover'
 import {
   BlockContentEmbed,
   ErrorBlock,
   useDocContentContext,
 } from '@shm/ui/document-content'
-import {
-  Check,
-  ChevronDown,
-  Forward as ChevronRight,
-  ExternalLink,
-} from '@shm/ui/icons'
-import {usePopoverState} from '@shm/ui/use-popover-state'
+import {ExternalLink} from '@shm/ui/icons'
 import {Fragment} from '@tiptap/pm/model'
-import {useCallback, useEffect, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {GestureResponderEvent} from 'react-native'
-import {
-  Button,
-  Input,
-  Label,
-  ListItem,
-  Separator,
-  SizableText,
-  Tooltip,
-  YGroup,
-  YStack,
-} from 'tamagui'
+import {Input, Separator, SizableText, YStack} from 'tamagui'
 import {toast} from '../../ui/src/toast'
 
 function EmbedError() {
@@ -216,16 +195,6 @@ const display = ({
       //   }
       // }}
     >
-      <EmbedControl
-        editor={editor}
-        block={block}
-        unpackedId={unpackedId}
-        assign={assign}
-        // hovered={hovered}
-        selected={selected}
-        // activeId={activeId}
-        // setActiveId={setActiveId}
-      />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
           <BlockContentEmbed
@@ -252,354 +221,6 @@ const display = ({
         </ErrorBoundary>
       )}
     </MediaContainer>
-  )
-}
-
-function EmbedControl({
-  editor,
-  block,
-  unpackedId,
-  assign,
-  // hovered,
-  selected, // activeId,
-} // setActiveId,
-: {
-  editor: BlockNoteEditor<HMBlockSchema>
-  block: Block<HMBlockSchema>
-  unpackedId: UnpackedHypermediaId | null
-  assign: any
-  // hovered: boolean
-  selected: boolean
-  // activeId: string | null
-  // setActiveId: (id: string | null) => void
-}) {
-  const [url, setUrl] = useState<string>(block.props.url || '')
-  const {openUrl} = useDocContentContext()
-  const popoverState = usePopoverState()
-  const popoverViewState = usePopoverState()
-  const popoverLatestState = usePopoverState()
-  const popoverToDocumentState = usePopoverState()
-  const expandButtonHover = useHover()
-
-  const allowViewSwitcher = unpackedId?.type == 'd' && !unpackedId?.blockRef
-  const allowVersionSwitcher = unpackedId?.type == 'd'
-  const hasBlockRef = unpackedId?.blockRef
-  const isLatestVersion = isEmbedUrlLatest(block.props.url)
-
-  // useEffect(() => {
-  //   return () => {
-  //     if (activeId === block.id) {
-  //       setActiveId(null)
-  //     }
-  //   }
-  // }, [activeId, setActiveId])
-
-  // const setHovered = (isHovered: boolean) => {
-  //   if (isHovered && !activeId) setActiveId(block.id)
-  //   else if (!isHovered && activeId === block.id && !selected) {
-  //     setActiveId(null)
-  //   }
-  // }
-
-  function isEmbedUrlLatest(url: string): boolean {
-    const queryParams = parseCustomURL(url)
-
-    return (
-      (queryParams?.query &&
-        (queryParams.query.l === null || queryParams.query.l === '')) ||
-      false
-    )
-  }
-
-  const handleViewSelect = useCallback((view: 'Content' | 'Card') => {
-    return () => {
-      assign({props: {view}})
-      popoverViewState.onOpenChange(false)
-    }
-  }, [])
-
-  const isBlockExpanded =
-    unpackedId &&
-    unpackedId?.blockRef &&
-    unpackedId.blockRange &&
-    'expanded' in unpackedId.blockRange &&
-    unpackedId.blockRange?.expanded
-
-  const handleVersionSelect = useCallback(
-    (versionMode: 'exact' | 'latest') => {
-      return () => {
-        popoverLatestState.onOpenChange(false)
-        if (unpackedId) {
-          let url = packHmId({...unpackedId, latest: versionMode == 'latest'})
-          assign({
-            props: {
-              url,
-            },
-          })
-        }
-      }
-    },
-    [block.props.url, unpackedId],
-  )
-
-  const handleBlockToDocument = useCallback(() => {
-    if (unpackedId) {
-      assign({
-        props: {
-          url: packHmId({...unpackedId, blockRef: null, blockRange: null}),
-          view: 'Content',
-        },
-      })
-    }
-  }, [block.props.url, unpackedId])
-
-  function EmbedLinkComponents() {
-    return (
-      <YStack gap="$0.25">
-        {allowViewSwitcher && (
-          <Popover
-            {...popoverViewState}
-            onOpenChange={(open) => {
-              popoverState.onOpenChange(open)
-              popoverViewState.onOpenChange(open)
-            }}
-            placement="bottom"
-          >
-            <YStack>
-              <Label fontSize={13} marginBottom="$-2">
-                View
-              </Label>
-              <Popover.Trigger asChild>
-                <Button
-                  borderColor="$borderColorFocus"
-                  borderWidth="$1"
-                  borderRadius="$2"
-                  size="$2"
-                  iconAfter={popoverViewState.open ? ChevronDown : ChevronRight}
-                >
-                  {block.props.view}
-                </Button>
-              </Popover.Trigger>
-            </YStack>
-            <Popover.Content asChild>
-              <YGroup padding={0} width={250} zIndex={99999}>
-                <YGroup.Item>
-                  <ListItem
-                    size="$2"
-                    title="as Content"
-                    onPress={handleViewSelect('Content')}
-                    iconAfter={block.props.view == 'Content' ? Check : null}
-                    hoverStyle={{
-                      bg: '$backgroundHover',
-                    }}
-                  />
-                </YGroup.Item>
-                <Separator />
-                <YGroup.Item>
-                  <ListItem
-                    size="$2"
-                    title="as Card"
-                    onPress={handleViewSelect('Card')}
-                    iconAfter={block.props.view == 'Card' ? Check : null}
-                    hoverStyle={{
-                      bg: '$backgroundHover',
-                    }}
-                  />
-                </YGroup.Item>
-              </YGroup>
-            </Popover.Content>
-          </Popover>
-        )}
-        {allowVersionSwitcher && (
-          <Popover
-            {...popoverLatestState}
-            onOpenChange={(open) => {
-              popoverState.onOpenChange(open)
-              popoverLatestState.onOpenChange(open)
-            }}
-            placement="bottom"
-          >
-            <YStack>
-              <Label fontSize={13} marginBottom="$-2">
-                Version
-              </Label>
-              <Popover.Trigger asChild>
-                <Button
-                  borderColor="$borderColorFocus"
-                  borderWidth="$1"
-                  borderRadius="$2"
-                  size="$2"
-                  iconAfter={
-                    popoverLatestState.open ? ChevronDown : ChevronRight
-                  }
-                >
-                  {isLatestVersion ? 'Latest Version' : 'Exact Version'}
-                </Button>
-              </Popover.Trigger>
-            </YStack>
-            <Popover.Content asChild>
-              <YGroup padding={0} width={250} elevation="$4" zIndex={99999}>
-                <YGroup.Item>
-                  <ListItem
-                    size="$2"
-                    title="Latest Version"
-                    onPress={handleVersionSelect('latest')}
-                    iconAfter={isLatestVersion ? Check : null}
-                    hoverStyle={{
-                      bg: '$backgroundHover',
-                    }}
-                  />
-                </YGroup.Item>
-                <Separator />
-                <YGroup.Item>
-                  <ListItem
-                    size="$2"
-                    title="Exact Version"
-                    onPress={handleVersionSelect('exact')}
-                    iconAfter={isLatestVersion ? null : Check}
-                    hoverStyle={{
-                      bg: '$backgroundHover',
-                    }}
-                  />
-                </YGroup.Item>
-              </YGroup>
-            </Popover.Content>
-          </Popover>
-        )}
-        {/* {hasBlockRef ? (
-              <Popover {...popoverToDocumentState} placement="bottom-start">
-                <Popover.Trigger asChild>
-                  <Button
-                    icon={MoreHorizontal}
-                    size="$1"
-                    onPress={(e: GestureResponderEvent) => e.stopPropagation()}
-                    circular
-                  />
-                </Popover.Trigger>
-                <Popover.Content
-                  padding={0}
-                  elevation="$2"
-                  animation={[
-                    'fast',
-                    {
-                      opacity: {
-                        overshootClamping: true,
-                      },
-                    },
-                  ]}
-                  enterStyle={{y: -10, opacity: 0}}
-                  exitStyle={{y: -10, opacity: 0}}
-                  elevate={true}
-                >
-                  <YGroup>
-                    <YGroup.Item>
-                      {hasBlockRef ? (
-                        <MenuItem
-                          onPress={(e: GestureResponderEvent) => {
-                            e.stopPropagation()
-                            handleBlockToDocument()
-                          }}
-                          title="Convert to Document Embed"
-                          // icon={item.icon}
-                        />
-                      ) : null}
-                    </YGroup.Item>
-                  </YGroup>
-                </Popover.Content>
-              </Popover>
-            ) : null} */}
-      </YStack>
-    )
-  }
-
-  return (
-    <YStack
-      position="absolute"
-      x={0}
-      y={0}
-      zIndex="$zIndex.4"
-      width="100%"
-      ai="flex-end"
-      jc="flex-end"
-      opacity={selected ? 1 : 0}
-      // opacity={popoverState.open ? 1 : 0}
-      padding="$2"
-      gap="$0.5"
-    >
-      {/* <HypermediaLinkSwitchToolbar
-        url={url}
-        text={''}
-        openUrl={openUrl}
-        editHyperlink={(url: string, _text: string) => {
-          setUrl(url)
-          assign({props: {url: url}})
-        }}
-        updateHyperlink={() => {}}
-        deleteHyperlink={() => {
-          setUrl('')
-          assign({props: {url: ''}})
-        }}
-        startHideTimer={() => {}}
-        stopHideTimer={() => {}}
-        resetHyperlink={() => {}}
-        onChangeLink={(key: 'url' | 'text', value: string) => {
-          if (key == 'url') {
-            setUrl(value)
-          }
-        }}
-        editor={editor}
-        stopEditing={!hovered && !selected}
-        formComponents={EmbedLinkComponents}
-        type="embed"
-        id={block.id}
-        setHovered={setHovered}
-      /> */}
-      {hasBlockRef ? (
-        <Tooltip
-          content={
-            isBlockExpanded
-              ? `Embed only the block's content`
-              : `Embed the block and its children`
-          }
-        >
-          <Button
-            {...expandButtonHover}
-            size="$2"
-            icon={
-              isBlockExpanded
-                ? expandButtonHover.hover
-                  ? ChevronRight
-                  : ChevronDown
-                : expandButtonHover.hover
-                ? ChevronDown
-                : ChevronRight
-            }
-            backgroundColor="$backgroundStrong"
-            onPress={(e: GestureResponderEvent) => {
-              e.stopPropagation()
-              let url = packHmId({
-                ...unpackedId,
-                blockRange: {expanded: !isBlockExpanded},
-              })
-
-              assign({
-                props: {
-                  url,
-                },
-              })
-            }}
-          >
-            {isBlockExpanded
-              ? expandButtonHover.hover
-                ? 'Collapse'
-                : 'Expand'
-              : expandButtonHover.hover
-              ? 'Expand'
-              : 'Collapse'}
-          </Button>
-        </Tooltip>
-      ) : null}
-    </YStack>
   )
 }
 
