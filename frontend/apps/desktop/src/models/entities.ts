@@ -4,10 +4,16 @@ import {
   HMAccountsMetadata,
   HMDocument,
   HMDocumentInfo,
+  HMDocumentMetadataSchema,
   HMEntityContent,
+  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
+import {
+  setAccountQuery,
+  setEntityQuery,
+  useEntities,
+} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
@@ -149,6 +155,25 @@ setEntityQuery(async (hmId) => {
 
   return serverDocument as HMDocument // zod validation is done by the entity model
 })
+
+async function getAccount(accountUid: string) {
+  const grpcAccount = await grpcClient.documents.getAccount({
+    id: accountUid,
+  })
+
+  const serverAccount = toPlainMessage(grpcAccount)
+  if (serverAccount.aliasAccount) {
+    return await getAccount(serverAccount.aliasAccount)
+  }
+  const serverMetadata = grpcAccount.metadata?.toJson() || {}
+  const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+  return {
+    id: hmId('d', accountUid),
+    metadata,
+  } as HMMetadataPayload
+}
+
+setAccountQuery(getAccount)
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null
