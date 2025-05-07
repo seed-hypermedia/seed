@@ -3,13 +3,12 @@ import {
   HMCitationsPayload,
   HMCommentsPayload,
   HMDocument,
-  HMMetadataPayload,
   packHmId,
   queryKeys,
   setSearchQuery,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {setAccountQuery, setEntityQuery} from '@shm/shared/models/entity'
+import {setEntityQuery} from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
@@ -91,13 +90,6 @@ export function searchQuery(input: string, accountUid?: string) {
   return queryAPI<SearchPayload>(`/hm/api/search?q=${input}&a=${accountUid}`)
 }
 
-async function accountQuery(accountUid: string) {
-  const response = await queryAPI<HMMetadataPayload>(
-    `/hm/api/account/${accountUid}`,
-  )
-  return response
-}
-
 export function useCitations(id: UnpackedHypermediaId) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
   return response
@@ -124,5 +116,4 @@ export function injectModels() {
   setEntityQuery(entityQuery)
   setRecentsQuery(getRecents)
   setDeleteRecents(deleteRecent)
-  setAccountQuery(accountQuery)
 }

@@ -14,7 +14,7 @@ export function useLinkDevice() {
     }) => {
       const result = await grpcClient.daemon.createDeviceLinkSession({
         signingKeyName: accountUid,
-        label,
+        label: label,
       })
 
       const {accountId, secretToken, addrInfo} = toPlainMessage(result)
@@ -28,7 +28,7 @@ export function useLinkDevice() {
         secretToken,
         addrInfo: {
           peerId: addrInfo.peerId,
-          addrs: addrInfo.addrs.filter((addr) => addr.match('webrtc-direct')),
+          addrs: addrInfo.addrs,
         },
       } satisfies DeviceLinkSession
     },

@@ -1,5 +1,5 @@
 import {yamux} from '@chainsafe/libp2p-yamux'
-import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
+import * as cbor from '@ipld/dag-cbor'
 import {circuitRelayTransport} from '@libp2p/circuit-relay-v2'
 import {identify} from '@libp2p/identify'
 import {ping} from '@libp2p/ping'
@@ -10,8 +10,6 @@ import {lpStream} from 'it-length-prefixed-stream'
 import {createLibp2p} from 'libp2p'
 import {base58btc} from 'multiformats/bases/base58'
 
-import {Stream} from '@libp2p/interface'
-import {postCBOR} from './api'
 import {
   AgentCapability,
   generateAndStoreKeyPair,
@@ -20,7 +18,7 @@ import {
 } from './auth'
 import {preparePublicKey} from './auth-utils'
 import {getStoredLocalKeys} from './local-db'
-import type {DelegateDevicePayload} from './routes/hm.api.delegate-device'
+import {Stream} from '@libp2p/interface'
 
 export type DeviceLinkCompletion = {
   browserAccountId: string
@@ -35,6 +33,8 @@ export async function linkDevice(
     keyPair = await generateAndStoreKeyPair()
   }
   const publicKey = await preparePublicKey(keyPair.publicKey)
+  console.log('Will link device', session)
+  console.log('Public key for session:', publicKey)
 
   const protocolId = '/hypermedia/devicelink/0.1.0'
 
@@ -58,6 +58,8 @@ export async function linkDevice(
       },
     },
   })
+
+  console.log('node =', node)
 
   const addrs = session.addrInfo.addrs
     // We can only dial webrtc-direct addresses, so we filter out the rest.
@@ -101,7 +103,7 @@ export async function linkDevice(
 
     // Receive the app's capability
     const msg = await lp.read()
-    const appToBrowserCap = cborDecode<AgentCapability>(msg.subarray())
+    const appToBrowserCap = cbor.decode<AgentCapability>(msg.subarray())
 
     // Sign our capability and send it back
     const browserToAppCap = await signAgentCapability(
@@ -109,8 +111,7 @@ export async function linkDevice(
       appToBrowserCap.signer,
       BigInt(appToBrowserCap.ts) + 1n, // Increment the timestamp
     )
-    const browserToAppCapBlob = cborEncode(browserToAppCap)
-    await lp.write(browserToAppCapBlob)
+    await lp.write(cbor.encode(browserToAppCap))
 
     // Sign and send the profile alias
     const profileAlias = await signProfileAlias(
@@ -118,18 +119,12 @@ export async function linkDevice(
       appToBrowserCap.signer,
       BigInt(appToBrowserCap.ts) + 2n, // Increment the timestamp
     )
-    const profileAliasBlob = cborEncode(profileAlias)
-    await lp.write(profileAliasBlob)
+    await lp.write(cbor.encode(profileAlias))
 
     console.log('Device linking successful')
     console.log('App capability:', appToBrowserCap)
     console.log('Browser capability:', browserToAppCap)
     console.log('Profile alias:', profileAlias)
-
-    await storeDeviceDelegation({
-      profileAlias: profileAliasBlob,
-      browserToAppCap: browserToAppCapBlob,
-    })
 
     await stream.close()
 
@@ -142,11 +137,7 @@ export async function linkDevice(
       appAccountId,
     }
   } finally {
+    console.log('stopping libp2p node')
     await node.stop()
   }
-}
-
-async function storeDeviceDelegation(payload: DelegateDevicePayload) {
-  const result = await postCBOR('/hm/api/delegate-device', cborEncode(payload))
-  console.log('delegateDevice result', result)
 }

@@ -5,7 +5,6 @@ import {
   HMDocument,
   HMDocumentSchema,
   HMEntityContent,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
@@ -18,15 +17,6 @@ export function setEntityQuery(
   handler: (hmId: UnpackedHypermediaId) => Promise<HMDocument>,
 ) {
   queryEntity = handler
-}
-
-let queryAccount: ((accountUid: string) => Promise<HMMetadataPayload>) | null =
-  null
-
-export function setAccountQuery(
-  handler: (accountUid: string) => Promise<HMMetadataPayload>,
-) {
-  queryAccount = handler
 }
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -74,13 +64,6 @@ export async function loadEntity(
   }
 }
 
-export async function loadAccount(
-  accountUid: string,
-): Promise<HMMetadataPayload> {
-  if (!queryAccount) throw new Error('queryAccount not injected')
-  return await queryAccount(accountUid)
-}
-
 export async function loadResolvedEntity(
   id: UnpackedHypermediaId,
 ): Promise<HMEntityContent | null> {
@@ -107,21 +90,6 @@ export function getEntityQuery(
   }
 }
 
-export function getAccountQuery(
-  id: string | null | undefined,
-  options?: UseQueryOptions<HMMetadataPayload | null>,
-): UseQueryOptions<HMMetadataPayload | null> {
-  return {
-    ...options,
-    enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ACCOUNT, id],
-    queryFn: async (): Promise<HMMetadataPayload | null> => {
-      if (!id) return null
-      return await loadAccount(id)
-    },
-  }
-}
-
 export function getResolvedEntityQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
@@ -143,13 +111,6 @@ export function useEntity(
   options?: UseQueryOptions<HMEntityContent | null>,
 ) {
   return useQuery(getEntityQuery(id, options))
-}
-
-export function useAccount(
-  id: string | null | undefined,
-  options?: UseQueryOptions<HMMetadataPayload | null>,
-) {
-  return useQuery(getAccountQuery(id, options))
 }
 
 export function useResolvedEntity(

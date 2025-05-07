@@ -71,12 +71,10 @@ export function getRoleCapabilityType(role: Role): HMRole | null {
 }
 
 export type HMCapability = {
-  id: string
   accountUid: string
   role: HMRole
   capabilityId?: string
   grantId: UnpackedHypermediaId
-  label?: string | undefined
 }
 
 const CapabilityInheritance: Readonly<HMRole[]> =
@@ -98,7 +96,6 @@ function isGreaterOrEqualRole(referenceRole: HMRole, role: HMRole) {
 
 function roleToHMRole(role: Role): HMRole {
   if (role === Role.WRITER) return 'writer'
-  if (role === Role.AGENT) return 'agent'
   if (role === Role.ROLE_UNSPECIFIED) return 'none'
   return 'none'
 }
@@ -199,12 +196,7 @@ export function useMyCapability(
   const capabilities = useAllDocumentCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     // owner is the highest role so we don't need to check for minimumRole
-    return {
-      id: '_owner',
-      accountUid: id.uid,
-      role: 'owner',
-      grantId: hmId('d', id.uid),
-    } satisfies HMCapability
+    return {accountUid: id.uid, role: 'owner', grantId: hmId('d', id.uid)}
   }
   const myCapability = [...(capabilities.data || [])]
     ?.sort(
@@ -234,7 +226,6 @@ export function useMyCapabilities(
     myAccounts.data && myAccounts.data.indexOf(id.uid) > -1
       ? [
           {
-            id: '_owner',
             accountUid: id.uid,
             role: 'owner',
             grantId: hmId('d', id.uid),
@@ -293,22 +284,18 @@ export function useAllDocumentCapabilities(
         outputCaps.push(cap)
       }
       const grantedCaps = outputCaps.map((cap) => ({
-        id: cap.id,
         accountUid: cap.delegate,
         grantId: hmId('d', cap.account, {
           path: entityQueryPathToHmIdPath(cap.path),
         }),
         role: roleToHMRole(cap.role),
-        label: cap.label,
       })) satisfies HMCapability[]
       return [
         ...grantedCaps,
         {
-          id: '_owner',
           accountUid: id.uid,
           grantId: hmId('d', id.uid),
           role: 'owner',
-          label: 'Owner',
         },
       ] satisfies HMCapability[]
     },

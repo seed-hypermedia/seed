@@ -675,7 +675,7 @@ export type HMQueryResult = {
   mode?: 'Children' | 'AllDescendants'
 }
 
-export type HMRole = 'owner' | 'writer' | 'agent' | 'none'
+export type HMRole = 'owner' | 'writer' | 'none'
 
 export const HMDraftMetaSchema = z.object({
   id: z.string(),

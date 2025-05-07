@@ -5,7 +5,6 @@ import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -64,7 +63,6 @@ import copyTextToClipboard from 'copy-text-to-clipboard'
 import {base58btc} from 'multiformats/bases/base58'
 import React, {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import QRCode from 'react-native-qrcode-svg'
 import {
   AlertDialog,
   Button,
@@ -632,9 +630,9 @@ function AccountKeys() {
                 onOpenWallet={(walletId) => setWalletId(walletId)}
               />
             </SettingsSection>
-            <SettingsSection title="Linked Devices">
+            {/* <SettingsSection title="Linked Devices"> // disable during development of this feature
               <LinkedDevices accountUid={selectedAccount} />
-            </SettingsSection>
+            </SettingsSection> */}
           </YStack>
         </ScrollView>
       </YStack>
@@ -678,21 +676,9 @@ function AccountKeys() {
 
 function LinkedDevices({accountUid}: {accountUid: string}) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
-  const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <YStack>
-      {devices?.length ? (
-        <YStack>
-          {devices.map((d) => (
-            <SizableText key={d.id}>
-              {d.role} - {d.id} - {d.label}
-            </SizableText>
-          ))}
-        </YStack>
-      ) : (
-        <Paragraph>No linked devices found</Paragraph>
-      )}
+      <Paragraph>No linked devices found</Paragraph>
       <Button onPress={() => linkDevice.open({accountUid})}>
         Link Web Session
       </Button>
@@ -716,30 +702,23 @@ function LinkDeviceDialog({
     <>
       <DialogTitle>Link Web Session</DialogTitle>
       {linkDeviceUrl ? (
-        <YStack gap="$4">
-          <QRCode value={linkDeviceUrl} size={465} />
-          <XStack gap="$3" jc="center">
-            <Button
-              onPress={() => {
-                copyTextToClipboard(linkDeviceUrl)
-                toast.success('Device Link URL copied to clipboard')
-              }}
-              size="$2"
-              icon={Copy}
-            >
-              Copy URL
-            </Button>
-            <Button
-              onPress={() => {
-                externalOpen(linkDeviceUrl)
-              }}
-              size="$2"
-              icon={ExternalLink}
-            >
-              Open
-            </Button>
-          </XStack>
-        </YStack>
+        <XStack>
+          <Button
+            onPress={() => {
+              copyTextToClipboard(linkDeviceUrl)
+              toast.success('Device Link URL copied to clipboard')
+            }}
+          >
+            Copy URL
+          </Button>
+          <Button
+            onPress={() => {
+              externalOpen(linkDeviceUrl)
+            }}
+          >
+            Open
+          </Button>
+        </XStack>
       ) : (
         <DeviceLabelForm
           onSubmit={async (label) => {
@@ -775,7 +754,7 @@ function DeviceLabelForm({
       z.object({label: z.string().min(1, 'Device label is required')}),
     ),
     defaultValues: {
-      label: 'Web Device',
+      label: '',
     },
   })
 
