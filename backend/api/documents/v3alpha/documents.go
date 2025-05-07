@@ -610,7 +610,7 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 			"subs.id IS NOT NULL AS is_subscribed",
 			"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
 			"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
-			"(SELECT extra_attrs->>'alias' FROM structural_blobs WHERE author = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) AND type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL) AS alias",
+			"(SELECT extra_attrs->>'alias' FROM structural_blobs WHERE author = (SELECT resources.owner FROM resources WHERE iri = 'hm://' || spaces.id) AND type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL) AS alias",
 		).
 		From("spaces").
 		LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id")
