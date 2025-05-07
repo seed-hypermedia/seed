@@ -338,7 +338,6 @@ function FirstPublishDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
-  console.log('~~ pathInvalid', pathInvalid)
   return (
     <YStack>
       <DialogTitle>Publish Document</DialogTitle>

@@ -301,10 +301,12 @@ function SearchContent({
   const search = useSearch(searchQ)
   let searchedLocations: HMMetadataPayload[] = []
   if (searchQ === '') {
-    searchedLocations = writableDocuments.map((d) => ({
-      id: d.entity.id,
-      metadata: d.entity.document?.metadata || null,
-    }))
+    searchedLocations = writableDocuments
+      .filter((d) => !d.entity.id.path?.length)
+      .map((d) => ({
+        id: d.entity.id,
+        metadata: d.entity.document?.metadata || null,
+      }))
   } else {
     searchedLocations =
       search.data?.entities

@@ -13,11 +13,7 @@ import {
 import {useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  hmId,
-  isIdParentOfOrEqual,
-  isPathParentOfOrEqual,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
 import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
@@ -113,9 +109,19 @@ function useAccountsCapabilities(accountIds: string[]) {
             delegate: accountId,
             pageSize: BIG_INT,
           })
+
         return {
           accountId,
-          capabilities: result.capabilities.map(toPlainMessage),
+          capabilities: result.capabilities.map((serverCap) => {
+            return {
+              id: serverCap.id,
+              accountUid: serverCap.account,
+              role: roleToHMRole(serverCap.role),
+              grantId: hmId('d', serverCap.account, {
+                path: entityQueryPathToHmIdPath(serverCap.path),
+              }),
+            } satisfies HMCapability
+          }),
         }
       },
     })),
@@ -134,21 +140,13 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
   function addWritableId(id: UnpackedHypermediaId) {
     // if writableDocumentIds already has this id, don't add it
     if (writableDocumentIds.find((doc) => doc.id === id.id)) return
-    // if id is a parent of any of the ids in writableDocumentIds, remove the child
-    writableDocumentIds.forEach((doc) => {
-      if (isIdParentOfOrEqual(id, doc)) {
-        writableDocumentIds.splice(writableDocumentIds.indexOf(doc), 1)
-      }
-    })
     // add the parent
     writableDocumentIds.push(id)
   }
   accountsCaps?.forEach(({capabilities}) => {
     capabilities?.forEach((cap) => {
-      if (roleCanWrite(roleToHMRole(cap.role))) {
-        addWritableId(
-          hmId('d', cap.account, {path: entityQueryPathToHmIdPath(cap.path)}),
-        )
+      if (roleCanWrite(cap.role)) {
+        addWritableId(cap.grantId)
       }
     })
   })
@@ -159,23 +157,21 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
     .map((doc) => doc.data)
     .filter((doc) => !!doc)
   if (!accountsCaps) return []
-  return writableDocuments.map((doc) => ({
+  const allWritableDocuments = writableDocuments.map((doc) => ({
     entity: doc,
     accountsWithWrite: accountsCaps
       .filter(({accountId, capabilities}) => {
         if (doc.id.uid === accountId) return true
         return !!capabilities?.find(
           (cap) =>
-            roleCanWrite(roleToHMRole(cap.role)) &&
-            cap.account === doc.id.uid &&
-            isPathParentOfOrEqual(
-              entityQueryPathToHmIdPath(cap.path),
-              doc.id.path,
-            ),
+            roleCanWrite(cap.role) &&
+            cap.grantId.uid === doc.id.uid &&
+            isPathParentOfOrEqual(cap.grantId.path, doc.id.path),
         )
       })
       .map(({accountId}) => accountId),
   }))
+  return allWritableDocuments
 }
 
 export function useMyAccountsCapabilities() {
