@@ -1,4 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Button} from '@tamagui/button'
 import {AlertCircle} from '@tamagui/lucide-icons'
@@ -99,4 +100,17 @@ export function ErrorDot({error}: {error?: boolean}) {
       <AlertCircle size={16} />
     </YStack>
   ) : null
+}
+
+export function LoadedHMIcon({
+  id,
+  size,
+}: {
+  id: UnpackedHypermediaId
+  size?: number
+}) {
+  const entity = useEntity(id)
+  return (
+    <HMIcon id={id} metadata={entity?.data?.document?.metadata} size={size} />
+  )
 }

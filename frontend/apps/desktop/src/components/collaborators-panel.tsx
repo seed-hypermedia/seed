@@ -12,13 +12,13 @@ import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Capability, Role} from '@shm/shared/client/grpc-types'
 import {getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {DocumentRoute} from '@shm/shared/routes'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {UIAvatar} from '@shm/ui/avatar'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, X} from '@shm/ui/icons'
 import {RadioButtons} from '@shm/ui/radio-buttons'
 import {toast} from '@shm/ui/toast'
@@ -90,6 +90,7 @@ type SearchResult = {
   id: UnpackedHypermediaId
   label: string
   unresolved?: boolean
+  metadata?: HMMetadata
 }
 
 function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
@@ -494,7 +495,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                   <UnresolvedItem value={value} />
                 ) : (
                   <>
-                    <UIAvatar label={value.label} id={value.id.id} />
+                    <LoadedHMIcon id={value.id} size={20} />
                     <SizableText size="$3">{value.label}</SizableText>
                     {/* <span className="tag-remove"></span> */}
                   </>
