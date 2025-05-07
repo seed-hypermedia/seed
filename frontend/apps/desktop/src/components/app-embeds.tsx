@@ -7,6 +7,7 @@ import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
   HMAccountsMetadata,
   HMBlockQuery,
+  HMDocumentInfo,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntities} from '@shm/shared/models/entity'
@@ -440,19 +441,33 @@ export function QueryBlockDesktop({
   id: UnpackedHypermediaId
 }) {
   useSubscribedEntity(id, true)
+
   const directoryItems = useListDirectory(id, {
     mode: block.attributes.query.includes[0].mode,
   })
 
   const sortedItems = useMemo(() => {
+    let items: Array<HMDocumentInfo> = []
+
     if (directoryItems.data && block.attributes.query.sort) {
-      return queryBlockSortedItems({
+      let sorted = queryBlockSortedItems({
         entries: directoryItems.data || [],
         sort: block.attributes.query.sort,
       })
+
+      items = sorted
     }
-    return []
-  }, [block.attributes.query.sort, directoryItems])
+
+    if (block.attributes.query.limit) {
+      items = items.slice(0, block.attributes.query.limit)
+    }
+
+    return items
+  }, [
+    directoryItems,
+    block.attributes.query.sort,
+    block.attributes.query.limit,
+  ])
 
   const docIds =
     sortedItems.map((item) =>

@@ -239,10 +239,15 @@ export function QueryBlockWeb({
   // queryResults?.results.map(resu)
   // return queryResults?.results
 
-  const sortedItems = queryBlockSortedItems({
+  let sortedItems = queryBlockSortedItems({
     entries: queryResults?.results || [],
     sort: block.attributes.query.sort || [{term: 'UpdateTime', reverse: false}],
   })
+
+  if (block.attributes.query.limit) {
+    sortedItems = sortedItems.slice(0, block.attributes.query.limit)
+  }
+
   const DataComponent =
     block.attributes.style == 'List' ? QueryListStyle : QueryStyleCard
 
