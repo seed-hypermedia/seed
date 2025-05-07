@@ -159,7 +159,7 @@ export function LocationPicker({
       </Field>
       {location ? (
         <Field label={`${capitalize(actionLabel)} to Location`} id="location">
-          <XStack jc="space-between" ai="center">
+          <XStack jc="space-between" ai="center" flexWrap="wrap">
             {location ? (
               <LocationPreview
                 location={location}
@@ -373,7 +373,13 @@ function LocationPreview({
   }, [location.uid, location.path])
   const locationBreadcrumbs = useEntities(locationBreadcrumbIds)
   return (
-    <XStack paddingVertical="$2" ai="center" gap="$3">
+    <XStack
+      paddingVertical="$2"
+      ai="center"
+      gap="$3"
+      flexWrap="wrap"
+      maxWidth="100%"
+    >
       <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
       <SizableText
         fontWeight="bold"
