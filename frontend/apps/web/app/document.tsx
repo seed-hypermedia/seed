@@ -51,7 +51,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Separator, useMedia, View} from 'tamagui'
+import {Separator, Sheet, useMedia, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
@@ -60,7 +60,6 @@ import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
-import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
@@ -193,6 +192,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+
   let panel: any = null
   const {
     document,
@@ -248,17 +249,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
         enableWebSigning={enableWebSigning}
       />
     )
-  if (document.metadata.layout == 'Seed/Experimental/Newspaper') {
-    return (
-      <WebSiteProvider
-        origin={origin}
-        originHomeId={props.originHomeId}
-        siteHost={siteHost}
-      >
-        <NewspaperPage {...props} />;
-      </WebSiteProvider>
-    )
-  }
 
   const isHomeDoc = !id.path?.length
   const isShowOutline =
@@ -373,6 +363,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
     )
   }
 
+  console.log('media', media.gtSm)
+
   return (
     <WebSiteProvider
       origin={origin}
@@ -394,37 +386,45 @@ export function DocumentPage(props: SiteDocumentPayload) {
               <YStack f={1}>
                 <DocumentCover cover={document.metadata.cover} id={id} />
                 <YStack w="100%" ref={elementRef} f={1} position="relative">
-                  {panel == null ? (
-                    <DocInteractionsSummary
-                      docId={id}
-                      citations={citations.data}
-                      comments={comments.data}
-                      onCitationsOpen={() => {
-                        setActivePanel({type: 'citations', blockId: null})
-                        if (!media.gtSm) {
-                          const mainPanel = mainPanelRef.current
+                  {!media.gtSm ? null : panel == null ? (
+                    <XStack
+                      position="absolute"
+                      top={0}
+                      right={8}
+                      zIndex="$zIndex.7"
+                      padding="$4"
+                    >
+                      <DocInteractionsSummary
+                        docId={id}
+                        citations={citations.data}
+                        comments={comments.data}
+                        onCitationsOpen={() => {
+                          setActivePanel({type: 'citations', blockId: null})
+                          if (!media.gtSm) {
+                            const mainPanel = mainPanelRef.current
 
-                          if (!mainPanel) return
-                          console.log('COLLAPSE PANEL')
+                            if (!mainPanel) return
+                            console.log('COLLAPSE PANEL')
 
-                          setTimeout(() => {
-                            mainPanel.collapse()
-                          }, 1)
-                        }
-                      }}
-                      onCommentsOpen={() => {
-                        setActivePanel({type: 'comments', blockId: null})
-                        if (!media.gtSm) {
-                          const mainPanel = mainPanelRef.current
-                          if (!mainPanel) return
-                          console.log('COLLAPSE PANEL')
-                          setTimeout(() => {
-                            mainPanel.collapse()
-                          }, 1)
-                        }
-                      }}
-                      // onVersionOpen={() => {}}
-                    />
+                            setTimeout(() => {
+                              mainPanel.collapse()
+                            }, 1)
+                          }
+                        }}
+                        onCommentsOpen={() => {
+                          setActivePanel({type: 'comments', blockId: null})
+                          if (!media.gtSm) {
+                            const mainPanel = mainPanelRef.current
+                            if (!mainPanel) return
+                            console.log('COLLAPSE PANEL')
+                            setTimeout(() => {
+                              mainPanel.collapse()
+                            }, 1)
+                          }
+                        }}
+                        // onVersionOpen={() => {}}
+                      />
+                    </XStack>
                   ) : null}
                   <XStack {...wrapperProps}>
                     {showSidebars ? (
@@ -529,7 +529,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               </YStack>
             </XStack>
           </Panel>
-          {panel ? (
+          {!media.gtSm ? null : panel ? (
             <>
               <PanelResizeHandle className="panel-resize-handle" />
 
@@ -579,6 +579,125 @@ export function DocumentPage(props: SiteDocumentPayload) {
           ) : null}
         </PanelGroup>
       </WebSiteHeader>
+      {media.gtSm ? null : (
+        <>
+          <XStack
+            // @ts-expect-error tamagui mistake
+            position="fixed"
+            bottom={0}
+            left={0}
+            right={0}
+            zIndex="$zIndex.9"
+            bg={isDark ? '$background' : '$backgroundStrong'}
+            p="$4"
+            boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
+            height={56}
+            jc="flex-end"
+            borderRadius="$4"
+            borderBottomLeftRadius={0}
+            borderBottomRightRadius={0}
+            overflow="hidden"
+            onPress={() => {
+              if (!panel) {
+                setActivePanel({type: 'comments', blockId: null})
+              }
+              setIsSheetOpen(true)
+            }}
+          >
+            <DocInteractionsSummary
+              docId={id}
+              citations={citations.data}
+              comments={comments.data}
+              onCitationsOpen={() => {
+                setActivePanel({type: 'citations', blockId: null})
+                if (!media.gtSm) {
+                  const mainPanel = mainPanelRef.current
+
+                  if (!mainPanel) return
+                  console.log('COLLAPSE PANEL')
+
+                  setTimeout(() => {
+                    mainPanel.collapse()
+                  }, 1)
+                }
+              }}
+              onCommentsOpen={() => {
+                setActivePanel({type: 'comments', blockId: null})
+                if (!media.gtSm) {
+                  const mainPanel = mainPanelRef.current
+                  if (!mainPanel) return
+                  console.log('COLLAPSE PANEL')
+                  setTimeout(() => {
+                    mainPanel.collapse()
+                  }, 1)
+                }
+              }}
+              // onVersionOpen={() => {}}
+            />
+          </XStack>
+
+          <Sheet
+            snapPoints={[92]}
+            onOpenChange={setIsSheetOpen}
+            modal
+            open={isSheetOpen}
+          >
+            <Sheet.Overlay
+              height="100vh"
+              bg={'#00000088'}
+              width="100vw"
+              animation="fast"
+              opacity={0.8}
+              enterStyle={{opacity: 0}}
+              exitStyle={{opacity: 0}}
+            />
+            <Sheet.Handle />
+            <Sheet.Frame
+              bg="$background"
+              gap="$5"
+              borderColor="$borderColor"
+              borderWidth={1}
+              borderRadius="$4"
+            >
+              <Sheet.ScrollView padding="$4">
+                <XStack jc="flex-end">
+                  <DocInteractionsSummary
+                    docId={id}
+                    citations={citations.data}
+                    comments={comments.data}
+                    onCitationsOpen={() => {
+                      setActivePanel({type: 'citations', blockId: null})
+                      if (!media.gtSm) {
+                        const mainPanel = mainPanelRef.current
+
+                        if (!mainPanel) return
+                        console.log('COLLAPSE PANEL')
+
+                        setTimeout(() => {
+                          mainPanel.collapse()
+                        }, 1)
+                      }
+                    }}
+                    onCommentsOpen={() => {
+                      setActivePanel({type: 'comments', blockId: null})
+                      if (!media.gtSm) {
+                        const mainPanel = mainPanelRef.current
+                        if (!mainPanel) return
+                        console.log('COLLAPSE PANEL')
+                        setTimeout(() => {
+                          mainPanel.collapse()
+                        }, 1)
+                      }
+                    }}
+                    // onVersionOpen={() => {}}
+                  />
+                </XStack>
+                {panel}
+              </Sheet.ScrollView>
+            </Sheet.Frame>
+          </Sheet>
+        </>
+      )}
     </WebSiteProvider>
   )
 }
@@ -867,14 +986,7 @@ function _DocInteractionsSummary({
 }) {
   const changes = useDocumentChanges(docId)
   return (
-    <XStack
-      position="absolute"
-      top={0}
-      right={8}
-      padding="$4"
-      gap="$1.5"
-      zIndex="$zIndex.7"
-    >
+    <XStack gap="$1.5">
       {onCitationsOpen && (
         <InteractionSummaryItem
           label="citation"

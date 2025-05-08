@@ -1793,7 +1793,7 @@ export function ContentEmbed({
   const [isExpanded, setExpanded] = useState(props.blockRange?.expanded ?? true)
 
   useEffect(() => {
-    setExpanded(!context.collapsedBlocks.has(props.block.id) ?? isExpanded)
+    setExpanded(context.collapsedBlocks.has(props.block.id) ? isExpanded : true)
   }, [context.collapsedBlocks])
 
   const embedData = useMemo(() => {
