@@ -5,6 +5,8 @@ import {
   useNavRoute,
 } from '@/utils/navigation'
 import {PanelContainer} from '@shm/ui/container'
+import {CollaboratorsIcon} from '@shm/ui/icons'
+import {FileClock} from '@tamagui/lucide-icons'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -13,80 +15,15 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Button, ScrollView, SizableText, View, XStack, YStack} from 'tamagui'
-
-export function AccessoryWrapper({
-  children,
-  title,
-  ...props
-}: {
-  children?: React.ReactNode
-  title?: string
-} & ComponentProps<typeof YStack>) {
-  return (
-    <PanelContainer {...props}>
-      {title ? <AccessoryTitle title={title} /> : null}
-      <YStack flex={1} gap="$3">
-        {children}
-      </YStack>
-    </PanelContainer>
-  )
-}
-
-export function AccessoryContent({
-  children,
-  footer,
-  title,
-  ...props
-}: {
-  children?: React.ReactNode
-  footer?: React.ReactNode
-  title?: string
-} & ComponentProps<typeof YStack>) {
-  return (
-    <YStack gap="$2" flex={1}>
-      <ScrollView f={1} paddingHorizontal="$3">
-        {children}
-      </ScrollView>
-      {footer ? (
-        <YStack borderTopWidth={1} borderColor="$color6">
-          {footer}
-        </YStack>
-      ) : null}
-    </YStack>
-  )
-}
-
-export function AccessoryTitle({title}: {title: string}) {
-  return (
-    <XStack minHeight={40} ai="center" paddingHorizontal="$3">
-      <SizableText userSelect="none" size="$3" fontWeight="600">
-        {title}
-      </SizableText>
-    </XStack>
-  )
-}
-
-export function AccessorySection({
-  children,
-  title,
-}: {
-  children: React.ReactNode
-  title: string
-}) {
-  return (
-    <YStack gap="$3">
-      <AccessoryTitle title={title} />
-      <YStack gap="$5">{children}</YStack>
-    </YStack>
-  )
-}
-
-type AccessoryOptions = Array<{
-  key: string
-  label: string
-  icon?: null | React.FC<{color: string; size?: number}>
-}>
+import {
+  Button,
+  ScrollView,
+  SizableText,
+  View,
+  XGroup,
+  XStack,
+  YStack,
+} from 'tamagui'
 
 export function AccessoryLayout<Options extends AccessoryOptions>({
   children,
@@ -100,7 +37,7 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
   accessory: React.ReactNode | null
   accessoryKey: Options[number]['key'] | undefined
   accessoryOptions: Options
-  onAccessorySelect: (key: Options[number]['key'] | undefined) => void
+  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
   mainPanelRef?: React.RefObject<HTMLDivElement>
 }) {
   const route = useNavRoute()
@@ -120,7 +57,6 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
         }
       },
       setItem(name: string, value: string) {
-        console.log('setItem', {name, value})
         try {
           const data = JSON.parse(value)
           // Extract the first value from the layout array which represents the sidebar width percentage
@@ -168,20 +104,22 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
           }}
         >
           <PanelContainer>
-            <View
-              style={{
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                flex: 1,
-                height: '100%',
-              }}
+            <div
               ref={mainPanelRef}
-              onScroll={() => {
-                dispatchScroll(true)
-              }}
+              style={{flex: 1, height: '100%', overflow: 'hidden'}}
+              onScroll={() => dispatchScroll(true)}
             >
-              {children}
-            </View>
+              <View
+                style={{
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  flex: 1,
+                  height: '100%',
+                }}
+              >
+                {children}
+              </View>
+            </div>
           </PanelContainer>
         </Panel>
         {accessoryKey !== undefined ? (
@@ -199,10 +137,17 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
           }}
         >
           <AccessoryWrapper
+            onAccessorySelect={onAccessorySelect}
             padding={0}
-            title={route.key == 'document' ? 'Activity' : 'Document Options'}
+            title={
+              route.key == 'document'
+                ? accessoryKey == 'collaborators'
+                  ? 'Collaborators'
+                  : 'Activity'
+                : 'Document Options'
+            }
           >
-            {route.key == 'document' ? (
+            {route.key == 'document' && accessoryKey != 'collaborators' ? (
               <AccessoryTabs
                 options={accessoryOptions}
                 accessoryKey={accessoryKey}
@@ -213,46 +158,142 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
           </AccessoryWrapper>
         </Panel>
       </PanelGroup>
-      {/* <YStack>
-        {accessoryOptions.map((option) => {
-          const isActive = accessoryKey === option.key
-          return (
-            <Tooltip key={option.key} placement="left" content={option.label}>
-              <Button
-                size="$3"
-                bg="$backgroundTransparent"
-                hoverStyle={{
-                  backgroundColor: '$backgroundTransparent',
-                  borderColor: '$colorTransparent',
-                }}
-                focusStyle={{
-                  backgroundColor: '$backgroundTransparent',
-                  borderColor: '$colorTransparent',
-                }}
-                onPress={() => {
-                  if (isActive) onAccessorySelect(undefined)
-                  else onAccessorySelect(option.key)
-                }}
-                width={AccessoryButtonSize}
-                height={AccessoryButtonSize}
-                padding={0}
-                outlineColor="$colorTransparent"
-                borderColor="$colorTransparent"
-              >
-                {option.icon ? (
-                  <option.icon
-                    size={20}
-                    color={isActive ? theme.brand5.val : theme.color.val}
-                  />
-                ) : null}
-              </Button>
-            </Tooltip>
-          )
-        })}
-      </YStack> */}
     </XStack>
   )
 }
+
+export function AccessoryWrapper({
+  children,
+  title,
+  onAccessorySelect,
+  ...props
+}: {
+  children?: React.ReactNode
+  title?: string
+  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+} & ComponentProps<typeof YStack>) {
+  return (
+    <PanelContainer {...props}>
+      {title ? (
+        <AccessoryTitle title={title} onAccessorySelect={onAccessorySelect} />
+      ) : null}
+      <YStack flex={1} gap="$3">
+        {children}
+      </YStack>
+    </PanelContainer>
+  )
+}
+
+export function AccessoryContent({
+  children,
+  footer,
+  title,
+  ...props
+}: {
+  children?: React.ReactNode
+  footer?: React.ReactNode
+  title?: string
+} & ComponentProps<typeof YStack>) {
+  return (
+    <YStack gap="$2" flex={1} {...props}>
+      <ScrollView f={1} paddingHorizontal="$3">
+        <YStack gap="$2">{children}</YStack>
+      </ScrollView>
+      {footer ? (
+        <YStack borderTopWidth={1} borderColor="$color6">
+          {footer}
+        </YStack>
+      ) : null}
+    </YStack>
+  )
+}
+
+export function AccessoryTitle({
+  title,
+  onAccessorySelect,
+}: {
+  title: string
+  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+}) {
+  const route = useNavRoute()
+  const activeKey = route.accessory?.key
+
+  return (
+    <XStack minHeight={56} ai="center" padding="$2">
+      <SizableText
+        userSelect="none"
+        size="$3"
+        fontWeight="600"
+        paddingHorizontal="$1"
+        f={1}
+      >
+        {title}
+      </SizableText>
+      <XGroup
+        alignSelf="flex-start"
+        borderColor="$borderColor"
+        borderWidth={1}
+        borderRadius="$2"
+      >
+        <XGroup.Item>
+          <Button
+            borderRadius="$2"
+            bg={
+              activeKey != 'collaborators'
+                ? '$brand11'
+                : '$backgroundTransparent'
+            }
+            size="$2"
+            icon={FileClock}
+            onPress={
+              activeKey == 'collaborators'
+                ? () => onAccessorySelect('discussions')
+                : undefined
+            }
+          />
+        </XGroup.Item>
+        <XGroup.Item>
+          <Button
+            borderRadius="$2"
+            bg={
+              activeKey == 'collaborators'
+                ? '$brand11'
+                : '$backgroundTransparent'
+            }
+            size="$2"
+            icon={CollaboratorsIcon}
+            onPress={
+              activeKey != 'collaborators'
+                ? () => onAccessorySelect('collaborators')
+                : undefined
+            }
+          />
+        </XGroup.Item>
+      </XGroup>
+    </XStack>
+  )
+}
+
+export function AccessorySection({
+  children,
+  title,
+}: {
+  children: React.ReactNode
+  title: string
+}) {
+  return (
+    <YStack gap="$3">
+      <AccessoryTitle title={title} />
+      <YStack gap="$5">{children}</YStack>
+    </YStack>
+  )
+}
+
+type AccessoryOptions = Array<{
+  key: string
+  label: string
+  icon?: null | React.FC<{color: string; size?: number}>
+}>
 
 function AccessoryTabs({
   options,
@@ -263,9 +304,10 @@ function AccessoryTabs({
   options: AccessoryOptions
   onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
 }) {
+  const _options = options.filter((o) => o.key != 'collaborators')
   return (
     <XStack gap="$3" paddingVertical="$2" paddingHorizontal="$3">
-      {options.map((option) => {
+      {_options.map((option) => {
         const isActive = accessoryKey === option.key
         return (
           <Button

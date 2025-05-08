@@ -33,6 +33,11 @@ export type DocumentAllDocumentsAccessory = z.infer<
   typeof documentAllDocumentsAccessorySchema
 >
 
+export const documentAllAccessorySchema = z.object({
+  key: z.literal('all-activity'),
+})
+export type DocumentAllAccessory = z.infer<typeof documentAllAccessorySchema>
+
 export const documentContactsAccessorySchema = z.object({
   key: z.literal('contacts'),
 })
@@ -90,6 +95,7 @@ export const documentRouteSchema = z.object({
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
       documentOptionsAccessorySchema,
+      documentAllAccessorySchema,
     ])
     .nullable()
     .optional(),
@@ -114,6 +120,7 @@ export const draftRouteSchema = z.object({
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
       documentOptionsAccessorySchema,
+      documentAllAccessorySchema,
     ])
     .nullable()
     .optional(),
@@ -175,7 +182,14 @@ export function getRecentsRouteEntityUrl(route: NavRoute) {
 }
 
 export type DocAccessoryOption = {
-  key: 'versions' | 'collaborators' | 'discussions' | 'citations'
+  key:
+    | 'versions'
+    | 'collaborators'
+    | 'discussions'
+    | 'citations'
+    | 'all-activity'
+    | 'options'
+    | 'all-documents'
   label: string
   icon: null | React.FC<{color: string; size?: number}>
 }

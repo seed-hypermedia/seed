@@ -9,8 +9,7 @@ import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Capability, Role} from '@shm/shared/client/grpc-types'
+import {Role} from '@shm/shared/client/grpc-types'
 import {getDocumentTitle} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -53,14 +52,16 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   if (!id || !entity.data) return null
 
   return (
-    <YStack marginHorizontal={-8}>
+    <YStack>
       <ListItem
         bg="$colorTransparent"
         hoverTheme
         pressTheme
         focusTheme
         outlineColor="transparent"
-        hoverStyle={{backgroundColor: '$color7'}}
+        borderWidth={1}
+        borderColor="$borderColor"
+        hoverStyle={{backgroundColor: '$hoverColor'}}
         borderRadius="$2"
         paddingHorizontal="$3"
         paddingVertical={0}
@@ -245,10 +246,6 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const parentCapabilities =
     capabilities.data?.filter((cap) => cap.grantId.id !== id.id) || []
 
-  // if (tab == 'pending') {
-  //   content = <PendingCollabs capabilities={capabilities.data || []} />
-  // }
-
   return (
     <YStack gap="$3">
       {parentCapabilities ? (
@@ -284,7 +281,7 @@ function GrantedCollabs({
   id: UnpackedHypermediaId
 }) {
   return (
-    <YStack marginHorizontal={-8}>
+    <YStack>
       {capabilities?.map((capability) => {
         return (
           <CollaboratorItem
@@ -296,23 +293,6 @@ function GrantedCollabs({
       })}
     </YStack>
   )
-}
-
-function PendingCollabs({
-  capabilities = [],
-}: {
-  capabilities: Array<PlainMessage<Capability>>
-}) {
-  // return (
-  //   <YStack marginHorizontal={-8}>
-  //     {capabilities?.map((capability) => {
-  //       return (
-  //         <CollaboratorItem key={capability.account} capability={capability} />
-  //       )
-  //     })}
-  //   </YStack>
-  // )
-  return null
 }
 
 function CollaboratorItem({
