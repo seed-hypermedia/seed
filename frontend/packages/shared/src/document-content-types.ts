@@ -1,10 +1,9 @@
 import {
   BlockRange,
   ExpandedBlockRange,
-  HMBlock,
-  HMBlockQuery,
   HMCitation,
   HMEntityContent,
+  HMLoadedBlock,
   HMQueryResult,
 } from './hm-types'
 
@@ -12,7 +11,6 @@ import {UnpackedHypermediaId} from './hm-types'
 
 export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
-  entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void
@@ -47,18 +45,10 @@ export type DocContentContextValue = {
   setCollapsedBlocks: (id: string, val: boolean) => void
 }
 
-export type EntityComponentsRecord = {
-  Document: React.FC<EntityComponentProps>
-  Comment: React.FC<EntityComponentProps>
-  Inline: React.FC<EntityComponentProps>
-  Query: React.FC<{
-    id: UnpackedHypermediaId
-    block: HMBlockQuery
-  }>
-}
 export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
-export type BlockContentProps = {
-  block: HMBlock
+
+export type BlockContentProps<T = HMLoadedBlock> = {
+  block: T
   parentBlockId: string | null
   depth: number
   onHoverIn?: (id: UnpackedHypermediaId) => void

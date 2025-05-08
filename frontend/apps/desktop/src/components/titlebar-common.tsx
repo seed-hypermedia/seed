@@ -668,8 +668,6 @@ function AccessorySidebarToggle() {
       } else {
         setCurrentAccessory(route.accessory)
       }
-
-      console.log('== ~ useEffect ~ currentAccessory:', currentAccessory)
     }
   }, [route])
 

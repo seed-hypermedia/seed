@@ -13,6 +13,7 @@ import {
   useListDirectory,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {useDesktopLoadedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
@@ -26,12 +27,11 @@ import {
 } from '@shm/editor/utils'
 import {
   HMBlockNode,
-  HMDocument,
   HMEntityContent,
+  HMLoadedDocument,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
@@ -45,7 +45,6 @@ import {Options, Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
-import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
@@ -54,7 +53,6 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {
   Button,
-  Heading,
   Input,
   Separator,
   SizableText,
@@ -72,8 +70,6 @@ export default function DraftPage() {
     (route as DraftRoute).accessory?.key || undefined,
   )
   const {data, editor, send, state, actor} = useDraftEditor()
-  const isNewspaperLayout =
-    data?.metadata?.layout === 'Seed/Experimental/Newspaper'
   const locationId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
@@ -113,7 +109,7 @@ export default function DraftPage() {
     return undefined
   }, [locationId, editId])
 
-  const homeEntity = useEntity(homeId)
+  const homeEntity = useDesktopLoadedEntity(homeId)
 
   const accessoryOptions: {
     key: 'options'
@@ -136,10 +132,9 @@ export default function DraftPage() {
     // TODO update options panel flow of updating from newspaper layout
     accessory = (
       <OptionsPanel
-        draftId={'UPDATE ME'}
+        draftId={data?.id || ''}
         metadata={state.context.metadata}
         isHomeDoc={isEditingHomeDoc}
-        isNewspaperLayout={isNewspaperLayout}
         onMetadata={(metadata) => {
           if (!metadata) return
           actor.send({type: 'change', metadata})
@@ -216,57 +211,38 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          {isNewspaperLayout ? (
-            <YStack f={1} ai="center" jc="center" h="100%">
-              <YStack
-                theme="red"
-                gap="$4"
-                padding="$4"
-                backgroundColor="$red3"
-                borderRadius="$4"
-                boxShadow={dialogBoxShadow}
-              >
-                <Heading size="$3" fontSize="$4">
-                  Document Model Outdated. Upgrade using version 2025.3.7
-                </Heading>
-              </YStack>
-            </YStack>
+          <DraftRebaseBanner />
+          {locationId || editId ? (
+            <DraftAppHeader
+              siteHomeEntity={homeEntity.data}
+              isEditingHomeDoc={
+                homeEntity.data?.id.id == locationId?.id ||
+                homeEntity.data?.id.id == editId?.id
+              }
+              docId={locationId || editId}
+              document={homeEntity.data?.document}
+              draftMetadata={state.context.metadata}
+            >
+              <DocumentEditor
+                editor={editor}
+                state={state}
+                actor={actor}
+                data={data}
+                send={send}
+                handleFocusAtMousePos={handleFocusAtMousePos}
+                isHomeDoc={isEditingHomeDoc}
+              />
+            </DraftAppHeader>
           ) : (
-            <>
-              <DraftRebaseBanner />
-              {locationId || editId ? (
-                <DraftAppHeader
-                  siteHomeEntity={homeEntity.data}
-                  isEditingHomeDoc={
-                    homeEntity.data?.id.id == locationId?.id ||
-                    homeEntity.data?.id.id == editId?.id
-                  }
-                  docId={locationId || editId}
-                  document={homeEntity.data?.document}
-                  draftMetadata={state.context.metadata}
-                >
-                  <DocumentEditor
-                    editor={editor}
-                    state={state}
-                    actor={actor}
-                    data={data}
-                    send={send}
-                    handleFocusAtMousePos={handleFocusAtMousePos}
-                    isHomeDoc={isEditingHomeDoc}
-                  />
-                </DraftAppHeader>
-              ) : (
-                <DocumentEditor
-                  editor={editor}
-                  state={state}
-                  actor={actor}
-                  data={data}
-                  send={send}
-                  handleFocusAtMousePos={handleFocusAtMousePos}
-                  isHomeDoc={isEditingHomeDoc}
-                />
-              )}
-            </>
+            <DocumentEditor
+              editor={editor}
+              state={state}
+              actor={actor}
+              data={data}
+              send={send}
+              handleFocusAtMousePos={handleFocusAtMousePos}
+              isHomeDoc={isEditingHomeDoc}
+            />
           )}
         </AccessoryLayout>
       </XStack>
@@ -571,7 +547,7 @@ function DraftAppHeader({
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
-  document?: HMDocument
+  document?: HMLoadedDocument
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
 }) {
@@ -603,19 +579,8 @@ function DraftAppHeader({
           : document || undefined
       }
       docId={docId}
-      isCenterLayout={
-        siteHomeMetadata?.theme?.headerLayout === 'Center' ||
-        siteHomeMetadata?.layout === 'Seed/Experimental/Newspaper'
-      }
-      // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
+      isCenterLayout={siteHomeMetadata?.theme?.headerLayout === 'Center'}
       children={children}
-      supportQueries={[
-        {
-          in: siteHomeEntity.id,
-          results: dir.data || [],
-        },
-      ]}
-      supportDocuments={[siteHomeEntity]}
     />
   )
 }

@@ -6,7 +6,6 @@ import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
 import {VersionsPanel} from '@/components/versions-panel'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
@@ -28,11 +27,10 @@ import {
   DocAccessoryOption,
   DocumentRoute,
   getDocumentTitle,
-  HMDocument,
   HMEntityContent,
   hmId,
+  HMLoadedDocument,
   HMMetadata,
-  HMQueryResult,
   pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -56,7 +54,7 @@ import {
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
-import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {DocNavigationDocument} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -71,7 +69,6 @@ import {
   XStack,
   XStackProps,
   YStack,
-  YStackProps,
 } from 'tamagui'
 import {CitationsPanel} from '../components/citations-panel'
 import {AppDocContentProvider} from './document-content-provider'
@@ -218,17 +215,6 @@ function BaseDocContainer({
   )
 }
 
-function NewspaperDocContainer({
-  children,
-  ...props
-}: YStackProps & {children: ReactNode}) {
-  return (
-    <YStack padding={0} {...props}>
-      {children}
-    </YStack>
-  )
-}
-
 function _MainDocumentPage({
   id,
   isBlockFocused,
@@ -267,17 +253,11 @@ function _MainDocumentPage({
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
-  const docIsNewspaperLayout =
-    metadata?.layout === 'Seed/Experimental/Newspaper'
   const isHomeDoc = !id.path?.length
   const isShowOutline =
     (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
     !isHomeDoc
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
-
-  const DocContainer = docIsNewspaperLayout
-    ? NewspaperDocContainer
-    : BaseDocContainer
 
   const capability = useMyCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
@@ -316,7 +296,7 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       >
-        {!docIsNewspaperLayout && <DocumentCover docId={id} />}
+        <DocumentCover docId={id} />
 
         <YStack
           w="100%"
@@ -342,7 +322,7 @@ function _MainDocumentPage({
               </YStack>
             ) : null}
 
-            <DocContainer
+            <BaseDocContainer
               {...mainContentProps}
               $gtSm={{marginRight: 40, marginLeft: 0}}
             >
@@ -363,7 +343,7 @@ function _MainDocumentPage({
                 docId={id}
                 onAccessory={onAccessory}
               />
-            </DocContainer>
+            </BaseDocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
           </XStack>
           <DocInteractionsSummary docId={id} />
@@ -443,14 +423,12 @@ function _AppDocSiteHeader({
   docId,
   children,
   document,
-  supportDocuments,
   onScrollParamSet,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
-  document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  document?: HMLoadedDocument
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const homeDir = useListDirectory(siteHomeEntity?.id)
@@ -460,23 +438,15 @@ function _AppDocSiteHeader({
   const docDir = useListDirectory(docId, {mode: 'Children'})
   const replace = useNavigate('replace')
   const route = useNavRoute()
-  const supportQueries = useMemo(() => {
-    const q: HMQueryResult[] = []
-    if (docDir.data) {
-      q.push({in: docId, results: docDir.data})
-    }
-    if (homeDir.data && siteHomeEntity?.id) {
-      q.push({in: siteHomeEntity.id, results: homeDir.data})
-    }
-    return q
-  }, [docId, docDir.data, homeDir.data, siteHomeEntity?.id])
+
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
-  const navItems = getSiteNavDirectory({
-    id: siteHomeEntity.id,
-    supportQueries,
-    drafts: drafts.data,
-  })
+  const navItems: DocNavigationDocument[] = [] // TODO
+  // getSiteNavDirectory({
+  //   id: siteHomeEntity.id,
+  //   supportQueries,
+  //   drafts: drafts.data,
+  // })
   return (
     <SiteHeader
       originHomeId={hmId('d', siteHomeEntity.id.uid)}
@@ -491,8 +461,6 @@ function _AppDocSiteHeader({
       onBlockFocus={(blockId) => {
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
-      supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
-      supportQueries={supportQueries}
       children={children}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
@@ -510,7 +478,7 @@ export function NewSubDocumentButton({
 }) {
   const createDraft = useCreateDraft({
     locationUid: locationId.uid,
-    locationPath: locationId.path,
+    locationPath: locationId.path || undefined,
   })
   return (
     <>
@@ -810,16 +778,14 @@ function DocPageContent({
   const route = useNavRoute()
   const citations = useEntityCitations(entity.id)
   const docRoute = route.key === 'document' ? route : null
-  if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
-    return (
-      <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
-    )
+  if (!docRoute) {
+    return null
   }
   return (
     <AppDocContentProvider
       routeParams={{
-        uid: route.id?.uid || undefined,
-        version: route.id?.version || undefined,
+        uid: docRoute.id?.uid || undefined,
+        version: docRoute.id?.version || undefined,
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}

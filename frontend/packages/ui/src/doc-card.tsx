@@ -20,7 +20,7 @@ import {useMemo} from 'react'
 import {FacePile} from './face-pile'
 import {useIsDark} from './use-is-dark'
 
-export function BannerNewspaperCard({
+export function HMDocCardBanner({
   item,
   entity,
   accountsMetadata,
@@ -54,7 +54,7 @@ export function BannerNewspaperCard({
     >
       {coverImage && (
         <View height={200} width="100%" $gtMd={{width: '50%', height: 'auto'}}>
-          <NewspaperCardImage coverImage={coverImage} height="100%" />
+          <HMDocCardImage coverImage={coverImage} height="100%" />
         </View>
       )}
       <YStack
@@ -63,17 +63,14 @@ export function BannerNewspaperCard({
         $gtMd={{width: '50%', height: 'auto'}}
         jc="space-between"
       >
-        <NewspaperCardContent banner entity={entity} />
-        <NewspaperCardFooter
-          entity={entity}
-          accountsMetadata={accountsMetadata}
-        />
+        <HMDocCardContent banner entity={entity} />
+        <HMDocCardFooter entity={entity} accountsMetadata={accountsMetadata} />
       </YStack>
     </View>
   )
 }
 
-export function NewspaperCard({
+export function HMDocCard({
   docId,
   entity,
   accountsMetadata,
@@ -123,20 +120,17 @@ export function NewspaperCard({
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      <NewspaperCardImage coverImage={coverImage} imageOptimizedSize="L" />
-      <NewspaperCardContent entity={entity} />
+      <HMDocCardImage coverImage={coverImage} imageOptimizedSize="L" />
+      <HMDocCardContent entity={entity} />
 
       {!isWeb && (
-        <NewspaperCardFooter
-          entity={entity}
-          accountsMetadata={accountsMetadata}
-        />
+        <HMDocCardFooter entity={entity} accountsMetadata={accountsMetadata} />
       )}
     </YStack>
   )
 }
 
-function NewspaperCardImage({
+function HMDocCardImage({
   coverImage,
   height = 120,
   imageOptimizedSize = 'L',
@@ -198,7 +192,7 @@ function findFirstBlock(
   return found
 }
 
-function NewspaperCardContent({
+function HMDocCardContent({
   entity,
   banner = false,
 }: {
@@ -233,7 +227,7 @@ function NewspaperCardContent({
   )
 }
 
-function NewspaperCardFooter({
+function HMDocCardFooter({
   entity,
   accountsMetadata,
 }: {

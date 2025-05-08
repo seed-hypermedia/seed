@@ -33,9 +33,9 @@ import {
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Comment} from '@shm/ui/discussion'
+import {HMDocCard} from '@shm/ui/doc-card'
 import {BlocksContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {NewspaperCard} from '@shm/ui/newspaper'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
@@ -230,7 +230,7 @@ export default function CreateComment() {
           paddingHorizontal={0}
         >
           <View paddingHorizontal="$4">
-            <NewspaperCard
+            <HMDocCard
               overflow="hidden"
               docId={targetId}
               entity={{

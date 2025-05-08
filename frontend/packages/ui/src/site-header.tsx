@@ -1,7 +1,6 @@
 import {
   getMetadataName,
-  HMDocument,
-  HMEntityContent,
+  HMLoadedDocument,
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
@@ -34,10 +33,10 @@ export function SiteHeader({
   isCenterLayout = false,
   children,
   document,
-  supportDocuments,
+  homeMetadata,
+  homeId,
   onBlockFocus,
   onShowMobileMenu,
-  supportQueries,
   origin,
   onScroll,
 }: {
@@ -46,11 +45,11 @@ export function SiteHeader({
   items?: DocNavigationDocument[]
   isCenterLayout?: boolean
   children?: React.ReactNode
-  document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  document?: HMLoadedDocument
+  homeMetadata?: HMMetadata
+  homeId?: UnpackedHypermediaId
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
-  supportQueries?: HMQueryResult[]
   origin?: string
   onScroll?: () => void
 }) {
@@ -60,11 +59,6 @@ export function SiteHeader({
     _setIsMobileMenuOpen(isOpen)
     onShowMobileMenu?.(isOpen)
   }
-  const homeDoc = !docId?.path?.length
-    ? {document, id: docId}
-    : supportDocuments?.find(
-        (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length,
-      )
   const headerSearch = (
     <>
       <Button
@@ -84,9 +78,7 @@ export function SiteHeader({
     </>
   )
   const isHomeDoc = !docId?.path?.length
-  if (!homeDoc) return null
-  const headerHomeId = homeDoc.id
-  if (!headerHomeId) return null
+  if (!homeId) return null
   const mainHeader = (
     <YStack
       position="relative"
@@ -108,7 +100,7 @@ export function SiteHeader({
         left={0}
         backgroundColor={isDark ? '$background' : '$backgroundStrong'}
         // this data attribute is used by the hypermedia highlight component
-        data-docid={headerHomeId.id}
+        data-docid={homeId.id}
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"
@@ -125,10 +117,7 @@ export function SiteHeader({
             flexShrink={0}
           >
             <XStack f={1} jc="center">
-              <SiteLogo
-                id={headerHomeId}
-                metadata={homeDoc.document?.metadata}
-              />
+              <SiteLogo id={homeId} metadata={homeMetadata} />
             </XStack>
             {isCenterLayout ? headerSearch : null}
           </XStack>
@@ -183,8 +172,6 @@ export function SiteHeader({
                 }}
                 document={document}
                 id={docId}
-                // onCloseNav={() => {}}
-                supportDocuments={supportDocuments}
                 activeBlockId={docId.blockRef}
               />
             )}

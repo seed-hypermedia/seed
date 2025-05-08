@@ -1,27 +1,13 @@
 import {useNavigate} from '@remix-run/react'
-import {
-  BlockRange,
-  HMCitationsPayload,
-  HMEntityContent,
-  HMQueryResult,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {BlockRange, HMCitationsPayload, UnpackedHypermediaId} from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {getHref} from './href'
-import {
-  EmbedComment,
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockWeb,
-} from './web-embeds'
 
 export function WebDocContentProvider({
   children,
   id,
   originHomeId,
   siteHost,
-  supportDocuments,
-  supportQueries,
   routeParams,
   comment,
   citations,
@@ -34,8 +20,6 @@ export function WebDocContentProvider({
   id?: UnpackedHypermediaId | undefined
   originHomeId: UnpackedHypermediaId | undefined
   children: React.ReactNode | JSX.Element
-  supportDocuments?: HMEntityContent[]
-  supportQueries?: HMQueryResult[]
   routeParams?: {
     uid?: string
     version?: string
@@ -52,15 +36,7 @@ export function WebDocContentProvider({
   const navigate = useNavigate()
   return (
     <DocContentProvider
-      entityComponents={{
-        Document: EmbedDocument,
-        Comment: EmbedComment,
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-      }}
       entityId={id}
-      supportDocuments={supportDocuments}
-      supportQueries={supportQueries}
       onCopyBlock={
         id
           ? (blockId, blockRange) => {

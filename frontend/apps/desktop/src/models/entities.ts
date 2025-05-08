@@ -6,6 +6,7 @@ import {
   HMDocumentInfo,
   HMDocumentMetadataSchema,
   HMEntityContent,
+  HMLoadedDocument,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -13,6 +14,7 @@ import {
   setAccountQuery,
   setEntityQuery,
   useEntities,
+  useEntity,
 } from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -334,6 +336,36 @@ export function useSubscribedEntity(
     // todo: handle deleted
   }, [result.data?.redirectTarget])
   return result
+}
+
+export function useDesktopLoadedEntity(
+  id: UnpackedHypermediaId | undefined,
+  opts: {
+    subscribed?: boolean
+    recursive?: boolean
+    onRedirectOrDeleted?: (opts: {
+      isDeleted: boolean
+      redirectTarget: UnpackedHypermediaId | null
+    }) => void
+  } = {},
+) {
+  const useTheEntity = opts.subscribed ? useSubscribedEntity : useEntity
+  const entity = useTheEntity(id, opts.recursive, opts.onRedirectOrDeleted)
+  if (!entity.data) return entity
+  const {document} = entity.data
+  if (!document) return entity
+  return {
+    ...entity,
+    data: {
+      id: entity.data.id,
+      version: document.version,
+      content: document.content,
+      metadata: document.metadata,
+      authors: document.authors,
+    } satisfies HMLoadedDocument,
+  } satisfies {
+    data: HMLoadedDocument
+  }
 }
 
 export function useIdEntities(

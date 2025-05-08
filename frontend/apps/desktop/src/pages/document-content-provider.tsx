@@ -1,16 +1,9 @@
 import {useAppContext} from '@/app-context'
-import {
-  EmbedComment,
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockDesktop,
-} from '@/components/app-embeds'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -51,12 +44,6 @@ export function AppDocContentProvider({
         textUnit={contentTextUnit}
         entityId={docId}
         debug={false}
-        entityComponents={{
-          Document: EmbedDocument,
-          Comment: EmbedComment,
-          Inline: EmbedInline,
-          Query: QueryBlockDesktop,
-        }}
         onCopyBlock={
           reference
             ? (
@@ -119,7 +106,6 @@ export function AppDocContentProvider({
 
 export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
-  entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void

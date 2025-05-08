@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {useSizeObserver} from '@/components/app-embeds'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
@@ -32,6 +31,7 @@ import {
   X,
 } from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {useSizeObserver} from '@shm/ui/size-observer'
 import {Spinner} from '@shm/ui/spinner'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'

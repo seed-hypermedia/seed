@@ -39,7 +39,6 @@ import type {
   CommentPayload,
   CommentResponsePayload,
 } from './routes/hm.api.comment'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 injectModels()
 
 export type WebCommentingProps = {
@@ -392,12 +391,6 @@ function CommentDocContentProvider({
   // const navigate = useNavigate()
   return (
     <DocContentProvider
-      entityComponents={{
-        Document: EmbedDocument,
-        Comment: () => null,
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-      }}
       importWebFile={importWebFile}
       // entityId={id}
       // supportDocuments={supportDocuments}

@@ -1,9 +1,12 @@
 import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
 import {
+  HMBlock,
+  HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
   HMDocumentInfo,
+  HMLoadedDocument,
   HMMetadata,
 } from './hm-types'
 import {UnpackedHypermediaId, unpackHmId} from './utils'
@@ -45,6 +48,14 @@ export function getDocumentTitle(document?: HMDocument | null) {
   }
 
   return document.metadata?.name || document.account! + document.path!
+}
+
+export function getLoadedDocumentTitle(document?: HMLoadedDocument | null) {
+  if (!document) {
+    return 'Error: document not found'
+  }
+
+  return document.metadata?.name || document.id.id
 }
 
 export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
@@ -189,4 +200,20 @@ export function plainTextOfContent(content?: HMBlockNode[]): string {
     }
   })
   return textContent
+}
+
+export function getChildrenType(
+  block: HMBlock,
+): HMBlockChildrenType | undefined {
+  if (block.type === 'Paragraph') return block.attributes.childrenType
+  if (block.type === 'Heading') return block.attributes.childrenType
+  if (block.type === 'Embed') return block.attributes.childrenType
+  if (block.type === 'Video') return block.attributes.childrenType
+  if (block.type === 'File') return block.attributes.childrenType
+  if (block.type === 'Image') return block.attributes.childrenType
+  if (block.type === 'Query') return block.attributes.childrenType
+  if (block.type === 'Math') return block.attributes.childrenType
+  if (block.type === 'Code') return block.attributes.childrenType
+  if (block.type === 'Button') return block.attributes.childrenType
+  return undefined
 }

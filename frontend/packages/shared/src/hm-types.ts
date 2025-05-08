@@ -720,13 +720,11 @@ export const HMMetadataPayloadSchema = z
     metadata: HMDocumentMetadataSchema.or(z.null()),
   })
   .strict()
-export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>
 
 export const HMAccountsMetadataSchema = z.record(
   z.string(), // account uid
   HMMetadataPayloadSchema,
 )
-export type HMAccountsMetadata = z.infer<typeof HMAccountsMetadataSchema>
 
 export const HMLoadedTextContentNodeSchema = z
   .object({
@@ -816,6 +814,7 @@ export const HMLoadedEmbedSchema = z
     type: z.literal('Embed'),
     id: z.string(),
     link: z.string(),
+    embedId: unpackedHmIdSchema,
     view: z.union([z.literal('Content'), z.literal('Card')]).optional(),
     authors: HMAccountsMetadataSchema,
     updateTime: HMTimestampSchema.nullable(),
@@ -839,18 +838,14 @@ export const HMQuerySortSchema = z.object({
     z.literal('UpdateTime'),
   ]),
 })
-export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
   limit: z.number().optional(),
 })
-export type HMQuery = z.infer<typeof HMQuerySchema>
 
-export type HMTimestamp = z.infer<typeof HMTimestampSchema>
-
-const HMLoadedQueryBlockResultSchema = z.object({
+export const HMLoadedQueryBlockResultSchema = z.object({
   type: z.literal('document'),
   path: z.array(z.string()),
   metadata: HMDocumentMetadataSchema.nullable(),
@@ -863,9 +858,6 @@ const HMLoadedQueryBlockResultSchema = z.object({
   breadcrumbs: z.any(), // todo
   activitySummary: z.any(),
 })
-export type HMLoadedQueryBlockResult = z.infer<
-  typeof HMLoadedQueryBlockResultSchema
->
 
 export const HMLoadedQuerySchema = z.object({
   type: z.literal('Query'),
@@ -874,7 +866,48 @@ export const HMLoadedQuerySchema = z.object({
   results: z.array(HMLoadedQueryBlockResultSchema).nullable(),
 })
 
-export type HMLoadedQuery = z.infer<typeof HMLoadedQuerySchema>
+export const HMLoadedMathSchema = z
+  .object({
+    type: z.literal('Math'),
+    id: z.string(),
+    text: z.string(),
+  })
+  .strict()
+
+export const HMLoadedCodeSchema = z
+  .object({
+    type: z.literal('Code'),
+    id: z.string(),
+    text: z.string(),
+    language: z.string().optional(),
+  })
+  .strict()
+
+export const HMLoadedButtonSchema = z
+  .object({
+    type: z.literal('Button'),
+    id: z.string(),
+    text: z.string().optional(),
+    link: z.string(),
+    alignment: HMBlockButtonAlignmentSchema,
+  })
+  .strict()
+
+export const HMLoadedWebEmbedSchema = z
+  .object({
+    type: z.literal('WebEmbed'),
+    id: z.string(),
+    link: z.string(),
+  })
+  .strict()
+
+export const HMLoadedErrorBlockSchema = z
+  .object({
+    type: z.literal('Error'),
+    id: z.string(),
+    message: z.string(),
+  })
+  .strict()
 
 export const HMLoadedBlockSchema: z.ZodType = z.discriminatedUnion('type', [
   HMLoadedParagraphSchema,
@@ -884,7 +917,11 @@ export const HMLoadedBlockSchema: z.ZodType = z.discriminatedUnion('type', [
   HMLoadedFileSchema,
   HMLoadedImageSchema,
   HMLoadedQuerySchema,
-  z.object({type: z.literal('Unsupported'), id: z.string()}).strict(),
+  HMLoadedMathSchema,
+  HMLoadedCodeSchema,
+  HMLoadedButtonSchema,
+  HMLoadedWebEmbedSchema,
+  HMLoadedErrorBlockSchema,
 ])
 
 export const HMLoadedBlockNodeSchema: z.ZodType = z.lazy(() =>
@@ -920,16 +957,32 @@ export type HMLoadedHeading = z.infer<typeof HMLoadedHeadingSchema>
 export type HMLoadedVideo = z.infer<typeof HMLoadedVideoSchema>
 export type HMLoadedFile = z.infer<typeof HMLoadedFileSchema>
 export type HMLoadedImage = z.infer<typeof HMLoadedImageSchema>
+export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>
+export type HMAccountsMetadata = z.infer<typeof HMAccountsMetadataSchema>
+export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
+export type HMQuery = z.infer<typeof HMQuerySchema>
+export type HMTimestamp = z.infer<typeof HMTimestampSchema>
 export type HMLoadedEmbed = {
   type: 'Embed'
   id: string
   link: string
+  embedId: UnpackedHypermediaId
   view?: 'Content' | 'Card'
   authors: HMAccountsMetadata
   updateTime: HMTimestamp | null
   metadata: HMMetadata | null
   content: HMLoadedBlockNode[] | null
 }
+export type HMLoadedMath = z.infer<typeof HMLoadedMathSchema>
+export type HMLoadedCode = z.infer<typeof HMLoadedCodeSchema>
+export type HMLoadedButton = z.infer<typeof HMLoadedButtonSchema>
+export type HMLoadedQuery = z.infer<typeof HMLoadedQuerySchema>
+export type HMLoadedQueryBlockResult = z.infer<
+  typeof HMLoadedQueryBlockResultSchema
+>
+
+export type HMLoadedWebEmbed = z.infer<typeof HMLoadedWebEmbedSchema>
+export type HMLoadedErrorBlock = z.infer<typeof HMLoadedErrorBlockSchema>
 export type HMLoadedBlock =
   | HMLoadedParagraph
   | HMLoadedHeading
@@ -938,7 +991,11 @@ export type HMLoadedBlock =
   | HMLoadedFile
   | HMLoadedImage
   | HMLoadedQuery
-  | {type: 'Unsupported'; id: string}
+  | HMLoadedMath
+  | HMLoadedCode
+  | HMLoadedButton
+  | HMLoadedWebEmbed
+  | HMLoadedErrorBlock
 
 export type HMLoadedBlockNode = {
   block: HMLoadedBlock

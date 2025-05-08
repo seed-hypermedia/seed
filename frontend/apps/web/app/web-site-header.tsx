@@ -1,7 +1,6 @@
 import {
-  HMDocument,
-  HMEntityContent,
   hmId,
+  HMLoadedDocument,
   HMMetadata,
   HMQueryResult,
   normalizeDate,
@@ -11,22 +10,17 @@ import {SiteHeader} from '@shm/ui/site-header'
 
 export function WebSiteHeader(
   props: React.PropsWithChildren<{
-    homeMetadata: HMMetadata | null
+    homeMetadata: HMMetadata | undefined
     originHomeId: UnpackedHypermediaId | null
     docId: UnpackedHypermediaId | null
-    document?: HMDocument
-    supportDocuments?: HMEntityContent[]
-    supportQueries?: HMQueryResult[]
+    homeId: UnpackedHypermediaId
+    document?: HMLoadedDocument
     origin?: string
+    rootQuery?: HMQueryResult
   }>,
 ) {
-  const isCenterLayout =
-    props.homeMetadata?.theme?.headerLayout === 'Center' ||
-    props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
-  const supportQuery = props.supportQueries?.find(
-    (q) => q.in.uid === props.docId?.uid && !q.in.path?.length,
-  )
-  const items = supportQuery?.results
+  const isCenterLayout = props.homeMetadata?.theme?.headerLayout === 'Center'
+  const items = props.rootQuery?.results
     ?.filter((item) => {
       return item.path.length === 1
     })

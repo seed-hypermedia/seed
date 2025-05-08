@@ -31,13 +31,13 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {useSizeObserver} from '@shm/ui/size-observer'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {Button, View, XStack, YStack} from 'tamagui'
-import {useSizeObserver} from './app-embeds'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {

@@ -2,11 +2,11 @@ import {
   getDraftNodesOutline,
   getMetadataName,
   getNodesOutline,
-  HMDocument,
   HMDraft,
   HMEntityContent,
   hmId,
   HMListedDraft,
+  HMLoadedDocument,
   HMMetadata,
   HMQueryResult,
   NavRoute,
@@ -248,7 +248,7 @@ export function DocumentOutline({
   activeBlockId,
   onCloseNav,
 }: {
-  document: HMDocument
+  document: HMLoadedDocument
   indented?: number
   onActivateBlock: (blockId: string) => void
   onPress?: () => void

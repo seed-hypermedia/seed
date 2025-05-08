@@ -1,23 +1,36 @@
-import {PlainMessage} from '@bufbuild/protobuf'
+import {useNavigate} from '@remix-run/react'
 import {
-  BlockNode,
   CONTENT_HIGHLIGHT_COLOR_DARK,
   CONTENT_HIGHLIGHT_COLOR_LIGHT,
+  createWebHMUrl,
+  formatBytes,
+  formattedDate,
+  getDocumentTitle,
+  HMAccountsMetadata,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
-  HMDocument,
-  HMInlineContent,
-  UnpackedHypermediaId,
-  clipContentBlocks,
-  formatBytes,
-  getDocumentTitle,
   hmBlockToEditorBlock,
+  HMDocument,
+  HMDocumentInfo,
   hmId,
+  hmIdPathToEntityQueryPath,
+  HMInlineContent,
+  HMLoadedBlockNode,
+  HMLoadedButton,
+  HMLoadedCode,
+  HMLoadedDocument,
+  HMLoadedEmbed,
+  HMLoadedFile,
+  HMLoadedInlineEmbedNode,
+  HMLoadedMath,
+  HMLoadedQuery,
   isHypermediaScheme,
   narrowHmId,
   packHmId,
   pluralS,
+  queryBlockSortedItems,
+  UnpackedHypermediaId,
   unpackHmId,
   useHover,
   useLowlight,
@@ -25,15 +38,26 @@ import {
   useRangeSelection,
   useRouteLink,
   useRouteLinkHref,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {
   BlockContentProps,
   DocContentContextValue,
-  EntityComponentProps,
 } from '@shm/shared/document-content-types'
+import {HMDocCard, HMDocCardBanner} from '@shm/ui/doc-card'
+import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Spinner} from '@shm/ui/spinner'
 import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
-import {SizeTokens, Text, TextProps, Theme, useThemeName} from '@tamagui/core'
+import {
+  SizeTokens,
+  StackProps,
+  Text,
+  TextProps,
+  Theme,
+  useThemeName,
+} from '@tamagui/core'
 import {ColorProp} from '@tamagui/helpers-tamagui'
 import {Label} from '@tamagui/label'
 import {
@@ -50,14 +74,6 @@ import {
   Undo2,
 } from '@tamagui/lucide-icons'
 import {RadioGroup} from '@tamagui/radio-group'
-import {
-  extractIpfsUrlCid,
-  getDaemonFileUrl,
-  isIpfsUrl,
-  useFileUrl,
-  useImageUrl,
-} from './get-file-url'
-
 import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
 import {SizableText, SizableTextProps} from '@tamagui/text'
 import katex from 'katex'
@@ -65,10 +81,10 @@ import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
 import {
   ComponentProps,
-  PropsWithChildren,
   createContext,
   createElement,
   memo,
+  PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
@@ -76,6 +92,13 @@ import {
   useRef,
   useState,
 } from 'react'
+import {
+  extractIpfsUrlCid,
+  getDaemonFileUrl,
+  isIpfsUrl,
+  useFileUrl,
+  useImageUrl,
+} from './get-file-url'
 // import {
 //   QuotedTweet,
 //   TweetBody,
@@ -88,13 +111,12 @@ import {
 // } from "react-tweet";
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
-import {BlankQueryBlockMessage} from './entity-card'
 import {SeedHeading} from './heading'
 import {BlockQuote} from './icons'
-import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
+import {EntityComponentProps} from '@shm/shared/document-content-types'
 
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
@@ -230,46 +252,29 @@ function debugStyles(debug: boolean = false, color: ColorProp = '$color7') {
     : {}
 }
 
-function getFocusedBlocks(blocks: HMBlockNode[], blockId?: string) {
+function getFocusedBlocks(blocks: HMLoadedBlockNode[], blockId?: string) {
   if (!blockId) return blocks
   const focused = getBlockNodeById(blocks, blockId)
   if (focused) return [focused]
   return null
 }
 
-// Get attribute from plain JSON format (document) and protobuff format (comments)
-function getBlockAttribute(attributes: any, key: string): any {
-  if (!attributes) return undefined
-
-  // JSON
-  if (key in attributes) return attributes[key]
-
-  // Protobuf Struct
-  const field = attributes?.fields?.[key]
-  return field?.kind?.value ?? undefined
-}
-
 export function DocContent({
   document,
   focusBlockId,
-  maxBlockCount,
   marginVertical = '$5',
   handleBlockReplace,
   ...props
 }: XStackProps & {
-  document: HMDocument
+  document: HMLoadedDocument
   focusBlockId?: string | undefined
-  maxBlockCount?: number
   marginVertical?: any
   handleBlockReplace?: () => boolean
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection()
   const {layoutUnit, onCopyBlock} = useDocContentContext()
   const allBlocks = document?.content || []
-  const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
-  const displayBlocks = maxBlockCount
-    ? clipContentBlocks(focusedBlocks || [], maxBlockCount)
-    : focusedBlocks
+  const displayBlocks = getFocusedBlocks(allBlocks, focusBlockId)
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -365,7 +370,7 @@ function _BlocksContent({
   hideCollapseButtons = false,
   expanded = true,
 }: {
-  blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null
+  blocks?: Array<HMLoadedBlockNode> | null
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
   hideCollapseButtons?: boolean
@@ -384,10 +389,7 @@ function _BlocksContent({
               key={bn.block?.id}
               blockNode={bn}
               depth={1}
-              childrenType={getBlockAttribute(
-                bn.block?.attributes,
-                'childrenType',
-              )}
+              childrenType={bn.childrenType}
               listLevel={1}
               index={idx}
               handleBlockReplace={handleBlockReplace}
@@ -504,7 +506,7 @@ export function BlockNodeContent({
   hideCollapseButtons = false,
 }: {
   isFirstChild: boolean
-  blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
+  blockNode: HMLoadedBlockNode
   index: number
   depth?: number
   listLevel?: number
@@ -553,10 +555,9 @@ export function BlockNodeContent({
           depth={depth + 1}
           isFirstChild={index == 0}
           blockNode={bn}
-          childrenType={bn.block!.attributes?.childrenType}
+          childrenType={bn.childrenType}
           listLevel={
-            childrenType === 'Unordered' &&
-            bn.block!.attributes?.childrenType === 'Unordered'
+            childrenType === 'Unordered' && bn.childrenType === 'Unordered'
               ? listLevel + 1
               : listLevel
           }
@@ -592,7 +593,7 @@ export function BlockNodeContent({
 
     const clonedBlock = {
       ...blockNode.block,
-      annotations: [...(blockNode!.block!.annotations || [])],
+      annotations: [...(blockNode.block.annotations || [])],
     }
 
     // Add the highlight annotation
@@ -751,7 +752,9 @@ export function BlockNodeContent({
               zIndex="$zIndex.5"
               left={0}
               top={
-                ['Unordered', 'Ordered'].includes(childrenType) ? 12 : undefined
+                ['Unordered', 'Ordered'].includes(childrenType || '')
+                  ? 12
+                  : undefined
               }
               opacity={_expanded ? 0 : 1}
               hoverStyle={{
@@ -936,7 +939,7 @@ export function BlockNodeContent({
       {bnChildren && _expanded ? (
         <BlockNodeList
           paddingLeft={layoutUnit}
-          childrenType={blockNode.block?.attributes?.childrenType}
+          childrenType={blockNode.childrenType}
           listLevel={listLevel}
           display="block"
         >
@@ -987,60 +990,60 @@ function inlineContentSize(unit: number): TextProps {
   }
 }
 
-function BlockContent(props: BlockContentProps) {
+function BlockContent({block, ...props}: BlockContentProps) {
   const dataProps = {
     depth: props.depth || 1,
-    'data-blockid': props.block.id,
+    'data-blockid': block.id,
   }
-  if (props.block.type == 'Paragraph') {
-    return <BlockContentParagraph {...props} {...dataProps} />
-  }
-
-  if (props.block.type == 'Heading') {
-    return <BlockContentHeading {...props} {...dataProps} />
+  if (block.type == 'Paragraph') {
+    return <BlockContentParagraph block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Image') {
-    return <BlockContentImage {...props} {...dataProps} />
+  if (block.type == 'Heading') {
+    return <BlockContentHeading block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Video') {
-    return <BlockContentVideo {...props} {...dataProps} />
+  if (block.type == 'Image') {
+    return <BlockContentImage block={block} {...props} {...dataProps} />
+  }
+
+  if (block.type == 'Video') {
+    return <BlockContentVideo block={block} {...props} {...dataProps} />
   }
 
   // if (props.block.type == "nostr") {
   //   return <BlockContentNostr {...props} {...dataProps} />;
   // }
 
-  if (props.block.type == 'File') {
-    return <BlockContentFile {...props} {...dataProps} />
+  if (block.type == 'File') {
+    return <BlockContentFile block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Button') {
-    return <BlockContentButton {...props} {...dataProps} />
+  if (block.type == 'Button') {
+    return <BlockContentButton block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'WebEmbed') {
-    return <BlockContentXPost {...props} {...dataProps} />
+  if (block.type == 'WebEmbed') {
+    return <BlockContentXPost block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Embed') {
-    return <BlockContentEmbed {...props} {...dataProps} />
+  if (block.type == 'Embed') {
+    return <BlockContentEmbed block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Code') {
-    return <BlockContentCode {...props} {...dataProps} />
+  if (block.type == 'Code') {
+    return <BlockContentCode block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Math') {
-    return <BlockContentMath {...props} block={props.block} />
+  if (block.type == 'Math') {
+    return <BlockContentMath block={block} {...props} {...dataProps} />
   }
 
-  if (props.block.type == 'Query') {
-    return <BlockContentQuery {...props} block={props.block} />
+  if (block.type == 'Query') {
+    return <BlockContentQuery block={block} {...props} {...dataProps} />
   }
 
-  return <BlockContentUnknown {...props} />
+  return <BlockContentUnknown block={block} {...props} {...dataProps} />
 }
 
 function BlockContentParagraph({
@@ -1306,8 +1309,8 @@ function BlockContentImage({
       className="block-content block-image"
       data-content-type="image"
       data-url={block?.link}
-      data-name={block?.attributes?.name}
-      data-width={getBlockAttribute(block.attributes, 'width')}
+      data-name={block?.name}
+      data-width={block?.width}
       maxWidth="100%"
       paddingVertical="$3"
       gap="$2"
@@ -1315,15 +1318,11 @@ function BlockContentImage({
       width="100%"
     >
       <YStack
-        width={
-          getBlockAttribute(block.attributes, 'width')
-            ? `${getBlockAttribute(block.attributes, 'width')}px`
-            : undefined
-        }
+        width={block?.width ? `${block.width}px` : undefined}
         maxWidth="100%"
       >
         <img
-          alt={block?.attributes?.name}
+          alt={block?.name}
           src={imageUrl(block?.link, 'L')}
           style={{
             width: '100%',
@@ -1362,18 +1361,14 @@ function BlockContentVideo({
       gap="$2"
       data-content-type="video"
       data-url={link}
-      data-name={getBlockAttribute(block.attributes, 'name')}
+      data-name={block?.name}
       position="relative"
       width="100%"
       ai="center"
     >
       {link ? (
         <YStack
-          width={
-            getBlockAttribute(block.attributes, 'width')
-              ? `${getBlockAttribute(block.attributes, 'width')}px`
-              : '100%'
-          }
+          width={block?.width ? `${block.width}px` : '100%'}
           maxWidth="100%"
           position="relative"
           paddingBottom={isIpfs || link.startsWith('http') ? '56.25%' : 'auto'}
@@ -1393,12 +1388,7 @@ function BlockContentVideo({
               controls
               preload="auto"
             >
-              <source
-                src={fileUrl(link)}
-                type={getSourceType(
-                  getBlockAttribute(block.attributes, 'name'),
-                )}
-              />
+              <source src={fileUrl(link)} type={getSourceType(block?.name)} />
             </XStack>
           ) : (
             <XStack
@@ -1465,10 +1455,7 @@ function InlineContentView({
   rangeOffset?: number
   isRange?: boolean
 }) {
-  const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
-    useDocContentContext()
-
-  const InlineEmbed = entityComponents.Inline
+  const {textUnit, comment, onHoverIn, onHoverOut} = useDocContentContext()
 
   let contentOffset = rangeOffset || 0
   const theme = useThemeName()
@@ -1642,8 +1629,8 @@ function InlineContentView({
         if (content.type == 'inline-embed') {
           const unpackedRef = unpackHmId(content.link)
           return (
-            <InlineEmbed
-              comment={comment}
+            <DocInlineEmbed
+              // comment={comment}
               key={content.link}
               {...unpackedRef}
             />
@@ -1699,16 +1686,12 @@ function HrefLink({
   )
 }
 
-export function BlockContentEmbed(props: BlockContentProps) {
-  const EmbedTypes = useDocContentContext().entityComponents
-  if (props.block.type !== 'Embed')
-    throw new Error('BlockContentEmbed requires an embed block type')
-  const id = unpackHmId(props.block.link)
-  if (id?.type == 'd') {
-    return <EmbedTypes.Document {...props} {...id} />
+export function BlockContentEmbed(props: BlockContentProps<HMLoadedEmbed>) {
+  if (props.block.embedId?.type == 'd') {
+    return <BlockContentEmbedDocument {...props} />
   }
-  if (id?.type == 'c') {
-    return <EmbedTypes.Comment {...props} {...id} />
+  if (props.block.embedId?.type == 'c') {
+    return <BlockContentEmbedComment {...props} />
   }
   return <BlockContentUnknown {...props} />
 }
@@ -1790,7 +1773,9 @@ export function ContentEmbed({
 }) {
   const context = useDocContentContext()
 
-  const [isExpanded, setExpanded] = useState(props.blockRange?.expanded ?? true)
+  const [isExpanded, setExpanded] = useState(
+    props.block.embedId?.expanded ?? true,
+  )
 
   useEffect(() => {
     setExpanded(!context.collapsedBlocks.has(props.block.id) ?? isExpanded)
@@ -1968,24 +1953,6 @@ export function ContentEmbed({
   )
 }
 
-// document -> BlockContentQuery -> EntityTypes.Query(block, id) -> QueryBlockDesktop / QueryBlockWeb
-// editor -> QueryBlock -> EditorQueryBlock
-export function BlockContentQuery({block}: {block: HMBlockQuery}) {
-  const EntityTypes = useDocContentContext().entityComponents
-  if (block.type !== 'Query')
-    throw new Error('BlockContentQuery requires a Query block type')
-
-  const query = block.attributes.query
-  const id =
-    query.includes[0].space &&
-    hmId('d', query.includes[0].space, {
-      path: query.includes[0].path ? query.includes[0].path.split('/') : null,
-      latest: true,
-    })
-  if (!id) return <BlankQueryBlockMessage message="Empty Query" />
-  return <EntityTypes.Query block={block} id={id} />
-}
-
 export function BlockNotFoundError({
   message,
   children,
@@ -2041,7 +2008,7 @@ export function getBlockNodeById(
   return res || null
 }
 
-export function BlockContentFile({block}: BlockContentProps) {
+export function BlockContentFile({block}: BlockContentProps<HMLoadedFile>) {
   const {hover, ...hoverProps} = useHover()
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
@@ -2059,8 +2026,8 @@ export function BlockContentFile({block}: BlockContentProps) {
       className="block-content block-file"
       data-content-type="file"
       data-url={block.link}
-      data-name={getBlockAttribute(block.attributes, 'name')}
-      data-size={getBlockAttribute(block.attributes, 'size')}
+      data-name={block?.name}
+      data-size={block?.size}
       hoverStyle={{
         backgroundColor: '$backgroundHover',
       }}
@@ -2086,20 +2053,16 @@ export function BlockContentFile({block}: BlockContentProps) {
           userSelect="text"
           flex={1}
         >
-          {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
+          {block?.name || 'Untitled File'}
         </SizableText>
-        {getBlockAttribute(block.attributes, 'size') && (
+        {block?.size && (
           <SizableText paddingTop="$1" color="$color10" size="$2">
-            {formatBytes(parseInt(getBlockAttribute(block.attributes, 'size')))}
+            {formatBytes(parseInt(String(block.size)))}
           </SizableText>
         )}
 
         {fileCid && (
-          <Tooltip
-            content={`Download ${
-              getBlockAttribute(block.attributes, 'name') || 'File'
-            }`}
-          >
+          <Tooltip content={`Download ${block?.name || 'File'}`}>
             <Button
               position="absolute"
               right={0}
@@ -2109,16 +2072,12 @@ export function BlockContentFile({block}: BlockContentProps) {
               {...(saveCidAsFile
                 ? {
                     onPress: () => {
-                      saveCidAsFile(
-                        fileCid,
-                        getBlockAttribute(block.attributes, 'name') || 'File',
-                      )
+                      saveCidAsFile(fileCid, block?.name || 'File')
                     },
                   }
                 : {
                     tag: 'a',
-                    download:
-                      getBlockAttribute(block.attributes, 'name') || true,
+                    download: block?.name || true,
                     href: getDaemonFileUrl(fileCid),
                     style: {
                       textDecoration: 'none',
@@ -2138,7 +2097,7 @@ export function BlockContentButton({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMLoadedButton>) {
   const {hover, ...hoverProps} = useHover()
   const buttonLink = block.type === 'Button' ? block.link : null
   const linkProps = useRouteLinkHref(buttonLink || '')
@@ -2149,15 +2108,13 @@ export function BlockContentButton({
   return (
     <XStack
       width="100%"
-      justifyContent={
-        getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
-      }
+      justifyContent={block?.alignment || 'flex-start'}
       userSelect="none"
       className="block-content block-file"
       data-content-type="file"
       maxWidth="100%"
       data-url={block.link}
-      data-name={getBlockAttribute(block.attributes, 'name')}
+      data-name={block?.name}
       {...props}
       {...hoverProps}
     >
@@ -2195,7 +2152,7 @@ export function BlockContentButton({
             fontWeight="bold"
             color="white"
           >
-            {getBlockAttribute(block.attributes, 'name')}
+            {block?.name}
           </SizableText>
         </Button>
       </XStack>
@@ -2203,111 +2160,11 @@ export function BlockContentButton({
   )
 }
 
-// export function BlockContentNostr({
-//   block,
-//   parentBlockId,
-//   ...props
-// }: BlockContentProps) {
-//   console.log("BlockContentNostr", block);
-//   const {layoutUnit} = useDocContentContext();
-//   const name = getBlockAttribute(block.attributes, 'name') ?? "";
-//   const nostrNpud = nip19.npubEncode(name) ?? "";
-
-//   const [verified, setVerified] = useState<boolean>();
-//   const [content, setContent] = useState<string>();
-
-//   const uri = `nostr:${nostrNpud}`;
-//   const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`;
-
-//   if (
-//     block.ref &&
-//     block.ref !== "" &&
-//     (content === undefined || verified === undefined)
-//   ) {
-//     fetch(getDaemonFileUrl(block.ref), { // TODO WHEN BRINGING BACK NOSTR: use useImageUrl
-//       method: "GET",
-//     }).then((response) => {
-//       if (response) {
-//         response.text().then((text) => {
-//           if (text) {
-//             const fileEvent = JSON.parse(text);
-//             if (content === undefined) setContent(fileEvent.content);
-//             if (verified === undefined && validateEvent(fileEvent)) {
-//               setVerified(verifySignature(fileEvent));
-//             }
-//           }
-//         });
-//       }
-//     });
-//   }
-
-//   return (
-//     <YStack
-//       // backgroundColor="$color3"
-//       borderColor="$color6"
-//       borderWidth={1}
-//       borderRadius={layoutUnit / 4}
-//       padding={layoutUnit / 2}
-//       overflow="hidden"
-//       width="100%"
-//       className="block-content block-nostr"
-//       hoverStyle={{
-//         backgroundColor: "$backgroundHover",
-//       }}
-//       {...props}
-//     >
-//       <XStack justifyContent="space-between">
-//         <SizableText
-//           size="$5"
-//           maxWidth="17em"
-//           overflow="hidden"
-//           textOverflow="ellipsis"
-//           whiteSpace="nowrap"
-//           userSelect="text"
-//           flex={1}
-//         >
-//           {"Public Key: "}
-//           {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
-//         </SizableText>
-//         <Tooltip
-//           content={
-//             verified === undefined
-//               ? ""
-//               : verified
-//               ? "Signature verified"
-//               : "Invalid signature"
-//           }
-//         >
-//           <Button
-//             size="$2"
-//             disabled
-//             theme={
-//               verified === undefined ? "blue" : verified ? "green" : "orange"
-//             }
-//             icon={
-//               verified === undefined
-//                 ? RiRefreshLine
-//                 : verified
-//                 ? RiCheckFill
-//                 : RiCloseCircleLine
-//             }
-//           />
-//         </Tooltip>
-//       </XStack>
-//       <XStack justifyContent="space-between">
-//         <Text size="$6" fontWeight="bold">
-//           {content}
-//         </Text>
-//       </XStack>
-//     </YStack>
-//   );
-// }
-
 export function BlockContentXPost({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMLoadedWebEmbed>) {
   const {layoutUnit} = useDocContentContext()
   const openUrl = useOpenUrl()
   const urlArray = block.link?.split('/')
@@ -2380,7 +2237,7 @@ export function BlockContentCode({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMLoadedCode>) {
   const {layoutUnit, debug, textUnit} = useDocContentContext()
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
@@ -2409,10 +2266,7 @@ export function BlockContentCode({
     return null
   }
   const lowlight = useLowlight(common)
-  const language =
-    block.type === 'Code'
-      ? getBlockAttribute(block.attributes, 'language')
-      : null
+  const language = block.language
   const nodes: any[] =
     language && language.length > 0
       ? getHighlightNodes(lowlight.highlight(language, block.text))
@@ -2461,7 +2315,7 @@ export function BlockContentMath({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMLoadedMath>) {
   const {layoutUnit} = useDocContentContext()
   const [tex, setTex] = useState<string>()
   const [error, setError] = useState<string>()
@@ -2579,12 +2433,14 @@ export function BlockContentMath({
       marginHorizontal={(-1 * layoutUnit) / 2}
       ref={containerRef}
     >
-      <SizableText
-        ref={mathRef}
-        ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
-        ac={isContentSmallerThanContainer ? 'center' : 'flex-start'}
-        dangerouslySetInnerHTML={{__html: tex}}
-      />
+      {tex ? (
+        <SizableText
+          ref={mathRef}
+          ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
+          ac={isContentSmallerThanContainer ? 'center' : 'flex-start'}
+          dangerouslySetInnerHTML={{__html: tex}}
+        />
+      ) : null}
     </YStack>
   )
 }
@@ -2636,8 +2492,9 @@ function CheckboxWithLabel({
 export function InlineEmbedButton({
   children,
   entityId,
-  ...props
-}: BlockContentProps & {
+  onHoverIn,
+  onHoverOut,
+}: ContentHoverProps & {
   children: string
   entityId: UnpackedHypermediaId
 }) {
@@ -2645,8 +2502,8 @@ export function InlineEmbedButton({
   return (
     <ButtonText
       {...buttonProps}
-      onHoverIn={() => props.onHoverIn?.(entityId)}
-      onHoverOut={() => props.onHoverOut?.(entityId)}
+      onHoverIn={() => onHoverIn?.(entityId)}
+      onHoverOut={() => onHoverOut?.(entityId)}
       textDecorationColor={'$brand5'}
       // style={{textDecorationLine: "underline"}}
       color="$brand5"
@@ -2691,4 +2548,370 @@ export function getBlockNode(
     }
   }
   return null
+}
+
+function EmbedWrapper({
+  id,
+  hideBorder = false,
+  children,
+}: React.PropsWithChildren<{
+  id: UnpackedHypermediaId
+  hideBorder?: boolean
+}>) {
+  const docContext = useDocContentContext()
+  const {originHomeId} = useUniversalAppContext()
+  const navigate = useNavigate()
+  return (
+    <YStack
+      width="100%"
+      borderRadius={0}
+      borderLeftWidth={hideBorder ? 0 : 3}
+      borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
+      onPress={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const destUrl = createWebHMUrl(id.type, id.uid, {
+          hostname: null,
+          blockRange: id.blockRange,
+          blockRef: id.blockRef,
+          version: id.version,
+          latest: id.latest,
+          path: id.path,
+          originHomeId,
+        })
+        navigate(destUrl)
+      }}
+      onHoverIn={() => docContext?.onHoverIn?.(id)}
+      onHoverOut={() => docContext?.onHoverOut?.(id)}
+    >
+      {children}
+    </YStack>
+  )
+}
+
+export type ContentHoverProps = {
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
+}
+
+export function EmbedDocument({
+  embed,
+  ...props
+}: {embed: HMLoadedEmbed} & ContentHoverProps) {
+  if (embed.view == 'Card') {
+    return <EmbedDocumentCard {...props} embed={embed} />
+  } else {
+    return <EmbedDocumentContent {...props} embed={embed} />
+  }
+}
+
+export function EmbedComment(props: {embed: HMLoadedEmbed}) {
+  return <SizableText>Comment</SizableText>
+}
+
+function DocInlineEmbed({
+  embed,
+  onHoverIn,
+  onHoverOut,
+}: {embed: HMLoadedInlineEmbedNode} & ContentHoverProps) {
+  if (!embed.id) throw new Error('Invalid props at DocInlineEmbed (embed.id)')
+  return (
+    <InlineEmbedButton
+      entityId={embed.id}
+      // parentBlockId={props.parentBlockId}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+    >
+      {`@${embed.text || '...'}`}
+    </InlineEmbedButton>
+  )
+}
+
+export function EmbedDocumentCard({
+  embed,
+  ...props
+}: {embed: HMLoadedEmbed} & ContentHoverProps) {
+  return (
+    <EmbedWrapper id={embed.embedId} hideBorder>
+      <HMDocCard
+        isWeb
+        entity={{
+          id: embed.embedId,
+          document: embed.document,
+        }}
+        docId={props.id}
+        accountsMetadata={Object.fromEntries(
+          embed.authors
+            .map((d) => d.data)
+            .filter((d) => !!d)
+            .map((authorDoc) => [
+              authorDoc.id.uid,
+              {
+                id: authorDoc.id,
+                metadata: authorDoc.document?.metadata,
+              },
+            ])
+            .filter(([_, metadata]) => !!metadata),
+        )}
+      />
+    </EmbedWrapper>
+  )
+}
+
+export function EmbedDocumentContent({
+  embed,
+  ...props
+}: {embed: HMLoadedEmbed} & ContentHoverProps) {
+  const [showReferenced, setShowReferenced] = useState(false)
+  const {entityId} = useDocContentContext()
+  if (props.id && entityId && props.id === entityId.id) {
+    return (
+      // avoid recursive embeds!
+      <SizableText color="$color9">
+        Embed: Parent document (skipped)
+      </SizableText>
+    )
+  }
+  // return <div>{JSON.stringify(doc.data)}</div>;
+  return (
+    <ContentEmbed
+      props={props}
+      isLoading={doc.isLoading}
+      showReferenced={showReferenced}
+      onShowReferenced={setShowReferenced}
+      document={doc.data?.document}
+      EmbedWrapper={EmbedWrapper}
+      parentBlockId={props.parentBlockId}
+      renderOpenButton={
+        () => null
+        //   <Button
+        //     size="$2"
+        //     icon={ArrowUpRightSquare}
+        //     onPress={() => {
+        //       if (!props.id) return
+        //       navigate({
+        //         key: 'document',
+        //         id: props,
+        //       })
+        //     }}
+        //   >
+        //     Open Document
+        //   </Button>
+      }
+    />
+  )
+}
+
+export function BlockContentQuery({block}: BlockContentProps<HMLoadedQuery>) {
+  const query = block.attributes.query
+  const includes = query.includes || []
+  const id =
+    includes[0].space &&
+    hmId('d', includes[0].space, {
+      path: includes[0].path ? includes[0].path.split('/') : null,
+      latest: true,
+    })
+  if (!id) return <BlankQueryBlockMessage message="Empty Query" />
+
+  if (includes.length == 0) return null
+  const queryInclude = includes[0]
+  if (!queryInclude || includes.length !== 1)
+    return (
+      <ErrorBlock message="Only one QueryBlock.attributes.query.includes is supported for now" />
+    )
+  if (!queryInclude.space) return <ErrorBlock message="Empty Query" />
+
+  const queryResults = supportQueries?.find((q) => {
+    if (q.in.uid !== queryInclude.space) return false
+    const path = hmIdPathToEntityQueryPath(q.in.path)
+
+    let comparePath =
+      queryInclude.path?.[0] === '/'
+        ? queryInclude.path
+        : queryInclude.path
+        ? `/${queryInclude.path}`
+        : ''
+    if (path !== comparePath) return false
+    if (q.mode !== queryInclude.mode) return false
+    return true
+  })
+
+  let displayItems = queryBlockSortedItems({
+    entries: queryResults?.results || [],
+    sort: block.attributes.query.sort || [{term: 'UpdateTime', reverse: false}],
+  })
+
+  if (block.attributes.query.limit) {
+    displayItems = displayItems.slice(0, block.attributes.query.limit)
+  }
+
+  const DataComponent =
+    block.attributes.style == 'List' ? QueryListStyle : QueryStyleCard
+
+  return <DataComponent block={block} items={displayItems} />
+}
+
+function QueryStyleCard({
+  block,
+  items,
+}: {
+  block: HMBlockQuery
+  items: Array<HMDocumentInfo>
+}) {
+  const ctx = useDocContentContext()
+
+  function getEntity(path: string[]) {
+    return supportDocuments?.find(
+      (entity) => entity?.id?.path?.join('/') === path?.join('/'),
+    )
+  }
+  const columnProps = useMemo(() => {
+    switch (block.attributes.columnCount) {
+      case 2:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '50%'},
+        } as StackProps
+      case 3:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '33.333%'},
+        } as StackProps
+      default:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '100%'},
+          $gtMd: {flexBasis: '100%'},
+        } as StackProps
+    }
+  }, [block.attributes.columnCount])
+
+  const firstItem = block.attributes.banner ? items[0] : null
+  const restItems = block.attributes.banner ? items.slice(1) : items
+
+  const accountsMetadata =
+    ctx.supportDocuments?.reduce((acc, d) => {
+      if (!d.document?.metadata) return acc
+      if (d.id.path?.length) return acc
+      acc[d.id.uid] = {
+        id: d.id,
+        metadata: d.document.metadata,
+      }
+      return acc
+    }, {} as HMAccountsMetadata) || {}
+
+  return (
+    <YStack width="100%">
+      {firstItem ? (
+        <HMDocCardBanner
+          item={firstItem}
+          entity={getEntity(firstItem.path)}
+          key={firstItem.path.join('/')}
+          accountsMetadata={accountsMetadata}
+        />
+      ) : null}
+      {restItems?.length ? (
+        <XStack
+          f={1}
+          flexWrap="wrap"
+          marginHorizontal="$-3"
+          justifyContent="center"
+        >
+          {restItems.map((item) => {
+            const id = hmId('d', item.account, {
+              path: item.path,
+              latest: true,
+            })
+            return (
+              <YStack
+                {...columnProps}
+                p="$3"
+                key={item.account + '/' + item.path.join('/')}
+              >
+                <HMDocCard
+                  docId={id}
+                  entity={getEntity(item.path)}
+                  key={item.path.join('/')}
+                  accountsMetadata={accountsMetadata}
+                  flexBasis="100%"
+                  $gtSm={{flexBasis: '100%'}}
+                  $gtMd={{flexBasis: '100%'}}
+                />
+              </YStack>
+            )
+          })}
+        </XStack>
+      ) : null}
+      {items.length == 0 ? (
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
+      ) : null}
+    </YStack>
+  )
+}
+
+function QueryListStyle({
+  block,
+  items,
+}: {
+  block: HMBlockQuery
+  items: Array<HMDocumentInfo>
+}) {
+  const navigate = useNavigate()
+
+  return (
+    <YStack gap="$3" w="100%">
+      {items?.map((item) => {
+        const id = hmId('d', item.account, {
+          path: item.path,
+          latest: true,
+        })
+        const icon =
+          id.path?.length == 0 || item.metadata?.icon ? (
+            <HMIcon size={28} id={id} metadata={item.metadata} />
+          ) : null
+        return (
+          <Button
+            borderWidth={0}
+            backgroundColor="$colorTransparent"
+            hoverStyle={{
+              backgroundColor: '$color5',
+            }}
+            elevation="$1"
+            paddingHorizontal={16}
+            paddingVertical="$1"
+            h={60}
+            icon={icon}
+            onPress={() => {
+              navigate(
+                createWebHMUrl(id.type, id.uid, {
+                  hostname: null,
+                  blockRange: id.blockRange,
+                  blockRef: id.blockRef,
+                  version: id.version,
+                  latest: id.latest,
+                  path: id.path,
+                }),
+              )
+            }}
+          >
+            <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
+              <SizableText
+                fontWeight="bold"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+                overflow="hidden"
+              >
+                {item.metadata.name}
+              </SizableText>
+            </XStack>
+            <SizableText size="$1" color="$color10">
+              {formattedDate(item.updateTime)}
+            </SizableText>
+          </Button>
+        )
+      })}
+    </YStack>
+  )
 }

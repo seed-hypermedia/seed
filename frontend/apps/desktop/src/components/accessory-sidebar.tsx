@@ -120,7 +120,6 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
         }
       },
       setItem(name: string, value: string) {
-        console.log('setItem', {name, value})
         try {
           const data = JSON.parse(value)
           // Extract the first value from the layout array which represents the sidebar width percentage
@@ -269,6 +268,7 @@ function AccessoryTabs({
         const isActive = accessoryKey === option.key
         return (
           <Button
+            key={option.key}
             size="$1"
             borderRadius={0}
             bg="$backgroundTransparent"

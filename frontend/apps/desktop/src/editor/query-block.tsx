@@ -21,9 +21,9 @@ import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
+import {HMDocCard} from '@shm/ui/doc-card'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
-import {NewspaperCard} from '@shm/ui/newspaper'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
@@ -275,7 +275,7 @@ function CardView({
   return (
     <>
       {firstItem && firstItem.data ? (
-        <NewspaperCard
+        <HMDocCard
           docId={firstItem.data.id}
           entity={firstItem.data}
           key={firstItem.data?.id.id}
@@ -296,7 +296,7 @@ function CardView({
             .filter((item) => !!item.data)
             .map((item) => (
               <XStack {...columnProps} p="$3" key={item.data?.id.id}>
-                <NewspaperCard
+                <HMDocCard
                   docId={item.data?.id}
                   entity={item.data}
                   key={item.data?.id.id}

@@ -4,9 +4,9 @@ import {
   EditorText,
   extractQueryBlocks,
   extractRefs,
+  getChildrenType,
   getParentPaths,
   HMBlock,
-  HMBlockChildrenType,
   HMBlockNode,
   hmBlockToEditorBlock,
   HMDocument,
@@ -80,12 +80,10 @@ export async function getComment(id: string): Promise<HMComment> {
 }
 
 export type WebBaseDocumentPayload = {
-  document: HMDocument
+  document: HMLoadedDocument
   accountsMetadata: HMAccountsMetadata
   id: UnpackedHypermediaId
   siteHost: string | undefined
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
-  supportQueries?: HMQueryResult[]
   enableWebSigning?: boolean
 }
 
@@ -273,10 +271,11 @@ export async function getBaseDocument(
     )),
   )
 
+  const loadedDocument = await loadDocument(entityId)
   return {
-    document,
-    supportDocuments,
-    supportQueries,
+    document: loadedDocument,
+    // supportDocuments,
+    // supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
@@ -421,14 +420,9 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
     const id = unpackHmId(block.link)
     if (!id) {
       return {
-        type: 'Embed',
+        type: 'Error',
         id: block.id,
-        link: block.link,
-        authors: {},
-        view: block.attributes.view,
-        updateTime: null,
-        metadata: null,
-        content: null,
+        message: 'Embed Block: Invalid id to embed',
       }
     }
     try {
@@ -441,6 +435,7 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
         return {
           type: 'Embed',
           id: block.id,
+          embedId: id,
           link: block.link,
           authors: await loadAuthors(document.authors),
           view: block.attributes.view,
@@ -452,6 +447,7 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       return {
         type: 'Embed',
         id: block.id,
+        embedId: id,
         link: block.link,
         authors: await loadAuthors(document.authors),
         view: block.attributes.view,
@@ -464,6 +460,7 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       return {
         type: 'Embed',
         id: block.id,
+        embedId: id,
         link: block.link,
         authors: {},
         view: block.attributes.view,
@@ -516,24 +513,42 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
         : null,
     }
   }
-  return {
-    type: 'Unsupported',
-    id: block.id,
+  if (block.type === 'Button') {
+    return {
+      type: 'Button',
+      id: block.id,
+      link: block.link,
+      text: block.attributes.name,
+      alignment: block.attributes.alignment || 'flex-start',
+    }
   }
-}
-
-function getChildrenType(block: HMBlock): HMBlockChildrenType | undefined {
-  if (block.type === 'Paragraph') return block.attributes.childrenType
-  if (block.type === 'Heading') return block.attributes.childrenType
-  if (block.type === 'Embed') return block.attributes.childrenType
-  if (block.type === 'Video') return block.attributes.childrenType
-  if (block.type === 'File') return block.attributes.childrenType
-  if (block.type === 'Image') return block.attributes.childrenType
-  if (block.type === 'Query') return block.attributes.childrenType
-  if (block.type === 'Math') return block.attributes.childrenType
-  if (block.type === 'Code') return block.attributes.childrenType
-  if (block.type === 'Button') return block.attributes.childrenType
-  return undefined
+  if (block.type === 'Math') {
+    return {
+      type: 'Math',
+      id: block.id,
+      text: block.text || '',
+    }
+  }
+  if (block.type === 'Code') {
+    return {
+      type: 'Code',
+      id: block.id,
+      text: block.text || '',
+      language: block.attributes.language,
+    }
+  }
+  if (block.type === 'WebEmbed') {
+    return {
+      type: 'WebEmbed',
+      id: block.id,
+      link: block.link,
+    }
+  }
+  return {
+    type: 'Error',
+    id: block.id,
+    message: 'Unsupported block type',
+  }
 }
 
 async function loadDocumentBlockNode(
@@ -614,20 +629,10 @@ export async function loadSiteDocument<T>(
   }
   try {
     const docContent = await getDocument(id, parsedRequest)
-    let supportQueries = docContent.supportQueries
-    if (
-      originHomeId &&
-      homeMetadata?.layout === 'Seed/Experimental/Newspaper' &&
-      !docContent.supportQueries?.find((q) => q.in.uid === originHomeId.uid)
-    ) {
-      const results = await getDirectory(originHomeId)
-      supportQueries = [...(supportQueries || []), {in: originHomeId, results}]
-    }
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...docContent,
       homeMetadata,
-      supportQueries,
       origin,
       originHomeId,
     }

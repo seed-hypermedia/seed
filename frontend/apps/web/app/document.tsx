@@ -8,12 +8,13 @@ import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
   formattedDateMedium,
-  getDocumentTitle,
+  getLoadedDocumentTitle,
   HMCitationsPayload,
   HMComment,
   HMCommentsPayload,
-  HMDocument,
+  hmId,
   hmIdPathToEntityQueryPath,
+  HMLoadedDocument,
   HMMetadata,
   hostnameStripProtocol,
   pluralS,
@@ -60,7 +61,6 @@ import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
-import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
@@ -100,7 +100,7 @@ export const documentPageMeta: MetaFunction = ({
       content: siteDocument.id.id,
     })
   if (siteDocument.document) {
-    const documentTitle = getDocumentTitle(siteDocument.document)
+    const documentTitle = getLoadedDocumentTitle(siteDocument.document)
     const documentDescription = ''
     const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
       siteDocument.id.uid
@@ -200,8 +200,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     homeMetadata,
     id,
     siteHost,
-    supportDocuments,
-    supportQueries,
     accountsMetadata,
     enableWebSigning,
     origin,
@@ -248,17 +246,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
         enableWebSigning={enableWebSigning}
       />
     )
-  if (document.metadata.layout == 'Seed/Experimental/Newspaper') {
-    return (
-      <WebSiteProvider
-        origin={origin}
-        originHomeId={props.originHomeId}
-        siteHost={siteHost}
-      >
-        <NewspaperPage {...props} />;
-      </WebSiteProvider>
-    )
-  }
 
   const isHomeDoc = !id.path?.length
   const isShowOutline =
@@ -382,10 +369,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
       <WebSiteHeader
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
+        homeId={hmId('d', id.uid)}
         docId={id}
         document={document}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
         origin={origin}
       >
         <PanelGroup direction="horizontal">
@@ -444,16 +430,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                               onActivateBlock={onActivateBlock}
                               document={document}
                               id={id}
-                              // onCloseNav={() => {}}
-                              supportDocuments={props.supportDocuments}
                               activeBlockId={id.blockRef}
                             />
-                            <DocDirectory
-                              // supportDocuments={props.supportDocuments}
-                              supportQueries={props.supportQueries}
-                              // documentMetadata={document.metadata}
-                              id={id}
-                            />
+                            <DocDirectory id={id} />
                           </DocNavigationWrapper>
                         </YStack>
                       </YStack>
@@ -477,8 +456,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         originHomeId={originHomeId}
                         id={{...id, version: document.version}}
                         siteHost={siteHost}
-                        supportDocuments={supportDocuments}
-                        supportQueries={supportQueries}
                         citations={citations.data}
                         routeParams={{
                           uid: id.uid,
@@ -692,7 +669,7 @@ function DocumentAppendix({
   isCommentingPanelOpen,
 }: {
   id: UnpackedHypermediaId
-  document: HMDocument
+  document: HMLoadedDocument
   originHomeId: UnpackedHypermediaId
   siteHost: string | undefined
   enableWebSigning?: boolean
@@ -738,7 +715,7 @@ function DocumentActivity({
 }: {
   id: UnpackedHypermediaId
   originHomeId: UnpackedHypermediaId
-  document: HMDocument
+  document: HMLoadedDocument
   siteHost: string | undefined
   enableReplies: boolean | undefined
   enableWebSigning: boolean

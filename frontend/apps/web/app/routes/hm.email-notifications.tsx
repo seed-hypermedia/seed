@@ -50,8 +50,6 @@ export default function EmailNotificationsPage() {
     homeMetadata,
     id,
     document,
-    supportDocuments,
-    supportQueries,
     origin,
     enableWebSigning,
   } = data
@@ -65,9 +63,8 @@ export default function EmailNotificationsPage() {
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
         docId={id}
+        homeId={hmId('d', id.uid)}
         document={document}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
         origin={origin}
       >
         <Container gap="$4" paddingHorizontal="$6" f={1}>

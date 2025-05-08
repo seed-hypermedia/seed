@@ -117,8 +117,6 @@ export default function DownloadPage() {
     homeMetadata,
     id,
     document,
-    supportDocuments,
-    supportQueries,
     origin,
     enableWebSigning,
   } = data
@@ -187,9 +185,8 @@ export default function DownloadPage() {
           originHomeId={originHomeId}
           docId={id}
           document={document}
-          supportDocuments={supportDocuments}
-          supportQueries={supportQueries}
           origin={origin}
+          homeId={hmId('d', id.uid)}
         >
           <YStack
             minHeight="45vh"

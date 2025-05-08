@@ -17,6 +17,7 @@ import {
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {HMDocCard, HMDocCardBanner} from '@shm/ui/doc-card'
 import {
   ContentEmbed,
   ErrorBlock,
@@ -25,7 +26,6 @@ import {
 } from '@shm/ui/document-content'
 import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {StackProps, Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
@@ -134,7 +134,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const id = narrowHmId(props)
   return (
     <EmbedWrapper id={id} parentBlockId={props.parentBlockId} hideBorder>
-      <NewspaperCard
+      <HMDocCard
         isWeb
         entity={{
           id,
@@ -309,7 +309,7 @@ function QueryStyleCard({
   return (
     <YStack width="100%">
       {firstItem ? (
-        <BannerNewspaperCard
+        <HMDocCardBanner
           item={firstItem}
           entity={getEntity(firstItem.path)}
           key={firstItem.path.join('/')}
@@ -334,7 +334,7 @@ function QueryStyleCard({
                 p="$3"
                 key={item.account + '/' + item.path.join('/')}
               >
-                <NewspaperCard
+                <HMDocCard
                   docId={id}
                   entity={getEntity(item.path)}
                   key={item.path.join('/')}
