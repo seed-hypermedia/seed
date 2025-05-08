@@ -9,6 +9,8 @@ export type DelegateDevicePayload = {
 
 export type DelegateDeviceResponsePayload = {
   message: string
+  profileAliasCid: string
+  browserToAppCapCid: string
 }
 
 async function storeBlob(blob: Uint8Array) {
@@ -33,13 +35,13 @@ export const action: ActionFunction = async ({request}) => {
     new Uint8Array(cborData),
   ) as DelegateDevicePayload
   const profileAliasCid = await storeBlob(delegateDevicePayload.profileAlias)
-  console.log('~~ profileAliasCid', profileAliasCid)
   const browserToAppCapCid = await storeBlob(
     delegateDevicePayload.browserToAppCap,
   )
-  console.log('~~ browserToAppCapCid', browserToAppCapCid)
 
   return json({
     message: 'Success',
+    profileAliasCid,
+    browserToAppCapCid,
   } satisfies DelegateDeviceResponsePayload)
 }

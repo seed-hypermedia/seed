@@ -1,11 +1,10 @@
 import {queryClient} from '@/client'
-import {getMetadata} from '@/loaders'
+import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {
   BIG_INT,
   getCommentGroups,
-  hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
@@ -41,7 +40,7 @@ export const loader = async ({
 
     const accounts = await Promise.all(
       Array.from(allAccounts).map(async (accountUid) => {
-        return await getMetadata(hmId('d', accountUid))
+        return await getAccount(accountUid)
       }),
     )
 

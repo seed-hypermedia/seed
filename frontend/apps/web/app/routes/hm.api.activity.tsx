@@ -1,5 +1,5 @@
 import {queryClient} from '@/client'
-import {getMetadata} from '@/loaders'
+import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {
   BIG_INT,
@@ -12,7 +12,6 @@ import {
   HMCommentGroup,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
-  hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
@@ -106,7 +105,7 @@ export const loader = async ({
       .filter((change) => change.createTime.seconds !== 0n)
     const accounts = await Promise.all(
       Array.from(allAccounts).map(async (accountUid) => {
-        return await getMetadata(hmId('d', accountUid))
+        return await getAccount(accountUid)
       }),
     )
     const activity: (HMCommentGroup | HMChangeSummary | HMDocumentInfo)[] = [

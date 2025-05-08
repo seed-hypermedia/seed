@@ -1,5 +1,5 @@
 import {queryClient} from '@/client'
-import {getMetadata} from '@/loaders'
+import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
@@ -7,7 +7,6 @@ import {
   HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
-  hmId,
   hmIdPathToEntityQueryPath,
   ListDocumentsResponse,
   unpackHmId,
@@ -51,7 +50,7 @@ export const loader = async ({
     })
     const commentAuthors = await Promise.all(
       Array.from(commentGroupAuthors).map(async (authorUid) => {
-        return await getMetadata(hmId('d', authorUid))
+        return await getAccount(authorUid)
       }),
     )
     result = {

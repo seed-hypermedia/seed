@@ -16,7 +16,7 @@ import {
   useUniversalAppContext,
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -105,11 +105,9 @@ export function LocalWebCommenting({
         '/hm/api/comment',
         cborEncode(commentPayload),
       )
-      console.log('end of local commenting mutation', result)
       return result as CommentResponsePayload
     },
     onSuccess: (result, commentPayload) => {
-      console.log('LocalWebCommenting onSuccess', result, commentPayload)
       onSuccess?.({
         response: result,
         commentPayload: commentPayload,
@@ -134,8 +132,8 @@ export function LocalWebCommenting({
     createAccount,
   } = useCreateAccount()
   const myAccountId = userKeyPair ? hmId('d', userKeyPair.id) : null
-  const myAccount = useEntity(myAccountId || undefined)
-  const myName = myAccount.data?.document?.metadata?.name
+  const myAccount = useAccount(userKeyPair?.id || undefined)
+  const myName = myAccount.data?.metadata?.name
   const authenticatedActionMessage = myName
     ? `Comment as ${myName}`
     : 'Submit Comment'
@@ -222,7 +220,7 @@ export function LocalWebCommenting({
                   myAccountId ? (
                     <HMIcon
                       id={myAccountId}
-                      metadata={myAccount.data?.document?.metadata}
+                      metadata={myAccount.data?.metadata}
                       size={18}
                     />
                   ) : undefined

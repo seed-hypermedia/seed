@@ -1,5 +1,5 @@
 import {useLocalKeyPair} from '@/auth'
-import {DeviceLinkCompletion, linkDevice} from '@/device-linking'
+import {DeviceLinkCompletion, useLinkDevice} from '@/device-linking'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {injectModels} from '@/models'
@@ -141,6 +141,11 @@ export function HMDeviceLink() {
   const localId = localIdentity ? hmId('d', localIdentity.id) : null
   const {data: browserAccount} = useEntity(localId)
   const {data: existingAccount} = useAccount(localIdentity?.id)
+  const isLinkedAlready =
+    deviceLinkSession &&
+    existingAccount &&
+    deviceLinkSession.accountId === existingAccount.id.uid
+  const linkDevice = useLinkDevice(localIdentity)
 
   if (error) {
     return <div>Error: {error}</div>
@@ -149,31 +154,41 @@ export function HMDeviceLink() {
     return <Spinner />
   }
 
-  if (completion) {
-    completion.browserAccountId
-    completion.appAccountId
-    return <div>you did it!! {JSON.stringify(completion)}</div>
+  if (completion || isLinkedAlready) {
+    return (
+      <YStack>
+        <Heading>Signed in as {existingAccount?.metadata?.name}</Heading>
+      </YStack>
+    )
   }
 
   const linkAccountName =
     desktopAccount?.document?.metadata?.name || 'Unknown Account'
-  const browserAccountName =
-    browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
+  let heading = `Sign in to ${linkAccountName}`
+  let description = `You can access your desktop account from this browser`
+  let actionLabel = 'Sign in'
+  if (browserAccount?.document) {
+    const browserAccountName =
+      browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
+    heading = `Merge ${browserAccountName} to ${linkAccountName}`
+    description = `HMDeviceLink ${browserAccountName} to ${linkAccountName}`
+    actionLabel = 'Merge Identity'
+  }
   return (
     <YStack>
-      <Paragraph>
-        HMDeviceLink {browserAccountName} to {linkAccountName}
-      </Paragraph>
-      {existingAccount && (
+      <Heading>{heading}</Heading>
+      <Paragraph>{description}</Paragraph>
+      {/* {existingAccount && (
         <Paragraph>{JSON.stringify(existingAccount)}</Paragraph>
-      )}
+      )} */}
       <Button
         onPress={() => {
           if (!deviceLinkSession) {
             setError('No device link session found')
             return
           }
-          linkDevice(deviceLinkSession)
+          linkDevice
+            .mutateAsync(deviceLinkSession)
             .then((completion) => {
               setCompletion(completion)
             })
@@ -182,7 +197,7 @@ export function HMDeviceLink() {
             })
         }}
       >
-        Merge Identity
+        {actionLabel}
       </Button>
     </YStack>
   )

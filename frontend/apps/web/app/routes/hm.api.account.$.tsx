@@ -12,7 +12,6 @@ async function getAccount(accountUid: string) {
   })
 
   const serverAccount = toPlainMessage(grpcAccount)
-  console.log('~~ serverAccount', accountUid, serverAccount)
   if (serverAccount.aliasAccount) {
     return await getAccount(serverAccount.aliasAccount)
   }

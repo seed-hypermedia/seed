@@ -1,3 +1,4 @@
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
@@ -69,6 +70,28 @@ export async function getMetadata(
     }
   } catch (e) {
     return {id, metadata: {}}
+  }
+}
+
+export async function getAccount(
+  accountUid: string,
+): Promise<HMMetadataPayload> {
+  try {
+    const grpcAccount = await queryClient.documents.getAccount({
+      id: accountUid,
+    })
+    const serverAccount = toPlainMessage(grpcAccount)
+    if (serverAccount.aliasAccount) {
+      return await getAccount(serverAccount.aliasAccount)
+    }
+    const serverMetadata = grpcAccount.metadata?.toJson() || {}
+    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+    return {
+      id: hmId('d', accountUid),
+      metadata,
+    } as HMMetadataPayload
+  } catch (e) {
+    return {id: hmId('d', accountUid), metadata: {}}
   }
 }
 

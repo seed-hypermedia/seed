@@ -2,19 +2,21 @@ import {yamux} from '@chainsafe/libp2p-yamux'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import {circuitRelayTransport} from '@libp2p/circuit-relay-v2'
 import {identify} from '@libp2p/identify'
+import {Stream} from '@libp2p/interface'
 import {ping} from '@libp2p/ping'
 import {webRTC, webRTCDirect} from '@libp2p/webrtc'
 import {multiaddr} from '@multiformats/multiaddr'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {lpStream} from 'it-length-prefixed-stream'
 import {createLibp2p} from 'libp2p'
 import {base58btc} from 'multiformats/bases/base58'
-
-import {Stream} from '@libp2p/interface'
 import {postCBOR} from './api'
 import {
   AgentCapability,
   generateAndStoreKeyPair,
+  LocalWebIdentity,
   signAgentCapability,
   signProfileAlias,
 } from './auth'
@@ -149,4 +151,19 @@ export async function linkDevice(
 async function storeDeviceDelegation(payload: DelegateDevicePayload) {
   const result = await postCBOR('/hm/api/delegate-device', cborEncode(payload))
   console.log('delegateDevice result', result)
+}
+
+export function useLinkDevice(localIdentity: LocalWebIdentity | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (session: DeviceLinkSession) => {
+      if (!localIdentity) {
+        await generateAndStoreKeyPair()
+      }
+      return await linkDevice(session)
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries([queryKeys.ACCOUNT])
+    },
+  })
 }
