@@ -14,7 +14,6 @@ import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
 export type HyperlinkToolbarProps = Pick<
   HyperlinkToolbarProsemirrorPlugin<any>,
-  | 'editHyperlink'
   | 'deleteHyperlink'
   | 'startHideTimer'
   | 'stopHideTimer'
@@ -81,7 +80,6 @@ export const HyperlinkToolbarPositioner = <
       <HyperlinkToolbar
         url={url ?? ''}
         text={text ?? ''}
-        editHyperlink={props.editor.hyperlinkToolbar.editHyperlink}
         updateHyperlink={props.editor.hyperlinkToolbar.updateHyperlink}
         deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}
         startHideTimer={props.editor.hyperlinkToolbar.startHideTimer}

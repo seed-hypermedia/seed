@@ -147,7 +147,6 @@ export function HypermediaLinkPreview(
             url={props.url}
             text={props.text}
             updateLink={props.updateHyperlink}
-            editLink={props.editHyperlink}
             openUrl={props.openUrl}
             onChangeType={(type) => {
               handleChangeBlockType(type)

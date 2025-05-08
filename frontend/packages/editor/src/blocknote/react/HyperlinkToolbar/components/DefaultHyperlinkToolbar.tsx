@@ -20,7 +20,7 @@ export const DefaultHyperlinkToolbar = (
         url={props.url}
         text={props.text}
         update={(url, text, latest) => {
-          props.editHyperlink(url, text)
+          props.updateHyperlink(url, text, false)
         }}
         // TODO: Better way of waiting for fade out
         onBlur={(event) =>

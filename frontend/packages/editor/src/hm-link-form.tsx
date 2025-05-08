@@ -1,4 +1,5 @@
 import {LauncherItem, SwitcherItem} from '@/launcher-item'
+import {useEntity} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {
   HMEntityType,
@@ -58,8 +59,7 @@ export type HypermediaLinkFormProps = {
   url: string
   text: string
   type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
-  updateLink: (url: string, text: string) => void
-  editLink: (url: string, text: string) => void
+  updateLink: (url: string, text: string, hideMenu: boolean) => void
   resetLink: () => void
   seedEntityType?: HMEntityType
   hasName?: boolean
@@ -89,7 +89,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' || event.key == 'Enter') {
       event.preventDefault()
-      props.editLink(_url, _text)
+      props.updateLink(_url, _text, true)
     }
   }
 
@@ -131,12 +131,33 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             onKeyPress={handleKeydown}
             onChangeText={(val) => {
               setText(val)
-              props.updateLink(_url, val)
+              props.updateLink(_url, val, false)
             }}
           />
         </XStack>
       )}
-      {props.hasSearch ? (
+      <XStack
+        paddingHorizontal="$2"
+        ai="center"
+        gap="$2"
+        background="$background"
+        borderColor="$borderColorFocus"
+        borderRadius="$2"
+        borderWidth="$1"
+        hoverStyle={{borderColor: '$borderColorHover'}}
+        focusStyle={{borderColor: '$borderColorHover'}}
+      >
+        <Search size={16} />
+        <SearchInput
+          updateLink={props.updateLink}
+          link={_url}
+          text={_text}
+          type={props.type}
+          setLink={setUrl}
+          title={props.type === 'inline-embed' ? true : false}
+        />
+      </XStack>
+      {/* {props.hasSearch ? (
         <XStack
           paddingHorizontal="$2"
           ai="center"
@@ -186,7 +207,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             }}
           />
         </XStack>
-      )}
+      )} */}
       {(props.type === 'embed' || props.type === 'card') && isSeedLink && (
         <YStack gap="$3" marginVertical="$3">
           <SwitchField
@@ -197,7 +218,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             onCheckedChange={(checked) => {
               const newUrl = packHmId({...unpacked, latest: checked})
               setUrl(newUrl)
-              props.updateLink(newUrl, _text)
+              props.updateLink(newUrl, _text, false)
             }}
           />
           {props.type === 'embed' && (
@@ -361,19 +382,27 @@ const SearchInput = ({
   text,
   setLink,
   title,
+  type,
 }: {
-  updateLink: (url: string, text: string) => void
+  updateLink: (url: string, text: string, hideMenu: boolean) => void
   link: string
   text: string
   setLink: any
   title: boolean
+  type: string
 }) => {
-  const [search, setSearch] = useState(link)
   const [focused, setFocused] = useState(false)
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const viewportHeight = window.innerHeight
   const portalRoot = document.body
+
+  const unpackedId = unpackHmId(link)
+  const currentEntity = useEntity(unpackedId)
+
+  const [search, setSearch] = useState(() => {
+    return currentEntity.data?.document?.metadata.name ?? link
+  })
 
   // const recents = useRecents()
   const searchResults = useSearch(search, {})
@@ -385,15 +414,16 @@ const SearchInput = ({
           title: item.title || item.id.uid,
           key: item.id.id,
           onSelect: () => {
-            // assign({props: {url: id.id}} as ButtonType)
+            const newText = type === 'link' ? text : title ? item.title : text
             setLink(item.id.id)
             setSearch(item.id.id)
-            updateLink(item.id.id, title ? item.title : text)
+            updateLink(item.id.id, newText, true)
           },
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
       .filter(Boolean) || []
+
   // const recentItems =
   //   recents.data?.map(({url, title, subtitle, type}) => {
   //     return {
@@ -501,9 +531,12 @@ const SearchInput = ({
         }}
         autoFocus={false}
         value={search}
-        onChangeText={(text: string) => {
-          setSearch(text)
-          setLink(text)
+        onChangeText={(val: string) => {
+          setSearch(val)
+          setLink(val)
+          if (type === 'link' || type === 'button') {
+            updateLink(val, text, false)
+          }
         }}
         placeholder="Open Seed Document..."
         // disabled={!!actionPromise}
@@ -511,7 +544,7 @@ const SearchInput = ({
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)
             e.preventDefault()
-            updateLink(link, text)
+            updateLink(link, text, true)
             return
           }
           if (e.nativeEvent.key === 'Enter') {
@@ -520,7 +553,7 @@ const SearchInput = ({
               item.onSelect()
             } else {
               e.preventDefault()
-              updateLink(link, text)
+              updateLink(link, text, true)
             }
           }
           if (e.nativeEvent.key === 'ArrowDown') {

@@ -205,61 +205,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       }
     }
   }
-  // the latest param here is to change the latest HM param without closing the link modal.
-  // it should be TRUE if you DON't want to close the modal when called.
-  editHyperlink(url: string, text: string) {
-    let tr = this.pmView.state.tr
-    let markOrNode = this.selectedNode || this.hoveredNode
-    let range = this.selectedNodeRange || this.hoveredNodeRange
-    const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
 
-    const nodeAndRange = getNodeAndRange(markOrNode, range, nodeId, this.pmView)
-    markOrNode = nodeAndRange.markOrNode
-    range = nodeAndRange.range
-    if (this.hyperlinkToolbarState) {
-      const pos = range!.from
-      if (this.hyperlinkToolbarState.type === 'inline-embed') {
-        tr = tr.setNodeMarkup(pos, null, {
-          link: url,
-        })
-      } else if (this.hyperlinkToolbarState.type === 'button') {
-        tr = tr.setNodeMarkup(pos, null, {
-          url: url,
-          name: text,
-        })
-      } else if (
-        this.hyperlinkToolbarState.type === 'embed' ||
-        this.hyperlinkToolbarState.type === 'card'
-      ) {
-        tr = tr.setNodeMarkup(pos, null, {
-          url: url,
-          view: this.hyperlinkToolbarState.type === 'card' ? 'Card' : 'Content',
-        })
-      }
-    } else {
-      tr = this.pmView.state.tr.insertText(
-        text.length ? text : ' ',
-        range!.from,
-        range!.to,
-      )
-      tr.addMark(
-        range!.from,
-        range!.from + (text.length ? text.length : 1),
-        this.pmView.state.schema.mark('link', {href: url}),
-      )
-    }
-
-    this.pmView.dispatch(tr)
-
-    this.pmView.focus()
-
-    if (this.hyperlinkToolbarState?.show) {
-      this.hyperlinkToolbarState.show = false
-      this.updateHyperlinkToolbar()
-    }
-  }
-
-  updateHyperlink(url: string, text: string) {
+  updateHyperlink(url: string, text: string, hideMenu: boolean) {
     let tr = this.pmView.state.tr
     let markOrNode = this.selectedNode || this.hoveredNode
     let range = this.selectedNodeRange || this.hoveredNodeRange
@@ -304,6 +251,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     this.pmView.dispatch(tr)
+
+    if (hideMenu) {
+      if (this.hyperlinkToolbarState?.show) {
+        this.hyperlinkToolbarState.show = false
+        this.updateHyperlinkToolbar()
+      }
+    }
   }
 
   highlightHyperlink() {}
@@ -705,15 +659,8 @@ export class HyperlinkToolbarProsemirrorPlugin<
   /**
    * Edit the currently hovered hyperlink.
    */
-  public editHyperlink = (url: string, text: string) => {
-    this.view!.editHyperlink(url, text)
-  }
-
-  /**
-   * Edit the currently hovered hyperlink.
-   */
-  public updateHyperlink = (url: string, text: string) => {
-    this.view!.updateHyperlink(url, text)
+  public updateHyperlink = (url: string, text: string, hideMenu: boolean) => {
+    this.view!.updateHyperlink(url, text, hideMenu)
   }
 
   /**

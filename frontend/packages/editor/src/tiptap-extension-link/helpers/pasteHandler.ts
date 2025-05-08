@@ -443,6 +443,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         let fragmentLinks = []
 
         slice.content.forEach((node) => {
+          if (node.type.name === 'blockGroup') return
           fragmentLinks = find(node.textContent)
           let textNodes = node.content
           if (!node.isTextblock) {
