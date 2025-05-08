@@ -447,7 +447,7 @@ function MediaForm({
                   height="$3"
                   width="100%"
                   placeholder={`Input ${
-                    mediaType === 'web-embed' ? 'X.com' : mediaType
+                    mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType
                   } URL here...`}
                   hoverStyle={{
                     borderColor: '$color11',

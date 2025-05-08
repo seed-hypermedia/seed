@@ -12,11 +12,11 @@ import {
   RiFunctions,
   RiHeading,
   RiImage2Fill,
+  RiPagesFill,
   RiRadioButtonFill,
   RiText,
   RiVideoAddFill,
 } from 'react-icons/ri'
-import {TwitterXIcon} from '../../ui/src/icons'
 import {HMBlockSchema} from './schema'
 
 export function getSlashMenuItems() {
@@ -260,11 +260,11 @@ export function getSlashMenuItems() {
     //   },
     // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
     {
-      name: 'X Post',
-      aliases: ['tweet', 'twitter', 'web embed', 'x.com'],
+      name: 'Web Embed',
+      aliases: ['tweet', 'twitter', 'web embed', 'x.com', 'instagram'],
       group: 'Web embeds',
-      icon: <TwitterXIcon width={18} height={18} />,
-      hint: 'Insert an X Post embed',
+      icon: <RiPagesFill size={18} />,
+      hint: 'Insert an Instagram or X post embed',
       execute: (editor) => {
         insertOrUpdateBlock(
           editor,

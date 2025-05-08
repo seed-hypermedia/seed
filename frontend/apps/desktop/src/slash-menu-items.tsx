@@ -6,7 +6,6 @@ import {
   PropSchema,
 } from '@shm/editor/blocknote'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
-import {TwitterXIcon} from '@shm/ui/icons'
 import {
   RiArticleFill,
   RiCodeBoxFill,
@@ -16,6 +15,7 @@ import {
   RiHeading,
   RiImage2Fill,
   RiMessage2Fill,
+  RiPagesFill,
   RiRadioButtonFill,
   RiText,
   RiVideoAddFill,
@@ -312,11 +312,11 @@ export function getSlashMenuItems({
     })
   }
   slashMenuItems.push({
-    name: 'X Post',
-    aliases: ['tweet', 'twitter', 'web embed', 'x.com'],
+    name: 'Web Embed',
+    aliases: ['tweet', 'twitter', 'web embed', 'x.com', 'instagram'],
     group: 'Web embeds',
-    icon: <TwitterXIcon width={18} height={18} />,
-    hint: 'Insert an X Post embed',
+    icon: <RiPagesFill size={18} />,
+    hint: 'Insert an Instagram or X post embed',
     execute: (editor) => {
       insertOrUpdateBlock(
         editor,

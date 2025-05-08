@@ -1021,7 +1021,7 @@ function BlockContent(props: BlockContentProps) {
   }
 
   if (props.block.type == 'WebEmbed') {
-    return <BlockContentXPost {...props} {...dataProps} />
+    return <BlockContentWebEmbed {...props} {...dataProps} />
   }
 
   if (props.block.type == 'Embed') {
@@ -2303,18 +2303,22 @@ export function BlockContentButton({
 //   );
 // }
 
-export function BlockContentXPost({
+export function BlockContentWebEmbed({
   block,
   parentBlockId,
   ...props
 }: BlockContentProps) {
   const {layoutUnit} = useDocContentContext()
   const openUrl = useOpenUrl()
-  const urlArray = block.link?.split('/')
-  const xPostId = urlArray?.[urlArray.length - 1].split('?')[0]
+  const url = block.link || ''
+  const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
+  const isInstagram = /instagram\.com/.test(url)
   const containerRef = useRef(null)
   const isInitialized = useRef(false)
   const [loading, setLoading] = useState(false)
+  const createdTweets = useRef(new Set())
+
+  const xPostId = url.split('/').pop()?.split('?')[0]
 
   const loadTwitterScript = () => {
     return new Promise((resolve) => {
@@ -2330,22 +2334,69 @@ export function BlockContentXPost({
     })
   }
 
+  const loadInstagramScript = () => {
+    if (!document.getElementById('instagram-embed-script')) {
+      const script = document.createElement('script')
+      script.id = 'instagram-embed-script'
+      script.src = 'https://www.instagram.com/embed.js'
+      script.async = true
+      script.defer = true
+      document.body.appendChild(script)
+    }
+  }
+
   useEffect(() => {
-    const initializeTweet = async () => {
-      const twttr = await loadTwitterScript()
-      if (!isInitialized.current && twttr) {
-        twttr.widgets.createTweet(xPostId, containerRef.current, {
-          theme: 'dark',
-          align: 'center',
-        })
-        isInitialized.current = true
+    const initializeEmbed = async () => {
+      setLoading(true)
+
+      try {
+        if (isTwitter) {
+          const twttr = await loadTwitterScript()
+          if (!isInitialized.current && twttr && containerRef.current) {
+            if (!createdTweets.current.has(block.id)) {
+              createdTweets.current.add(block.id)
+              const result = await twttr.widgets.createTweet(
+                xPostId!,
+                containerRef.current,
+                {
+                  theme: 'dark',
+                  align: 'center',
+                },
+              )
+              isInitialized.current = true
+              if (!result) console.log('error???')
+            }
+          }
+        } else if (isInstagram) {
+          if (containerRef.current) {
+            containerRef.current.innerHTML = `
+              <blockquote class="instagram-media"
+                data-instgrm-permalink="${url}"
+                data-instgrm-version="14"
+              ></blockquote>
+            `
+            loadInstagramScript()
+            setTimeout(() => {
+              try {
+                ;(window as any).instgrm?.Embeds?.process()
+              } catch (e) {
+                console.warn('Instagram embed error:', e)
+              }
+            }, 300)
+          }
+        }
+      } catch (e) {
+        console.error('Web embed error:', e)
+      } finally {
+        setLoading(false)
       }
     }
-    setLoading(true)
-    initializeTweet()
-      .then((res) => setLoading(false))
-      .catch((e) => setLoading(false))
-  }, [xPostId])
+
+    initializeEmbed()
+    return () => {
+      isInitialized.current = false
+    }
+  }, [url])
 
   return (
     <YStack
@@ -2371,7 +2422,14 @@ export function BlockContentXPost({
       }}
     >
       {loading && <Spinner />}
-      <div ref={containerRef} />
+      <div
+        ref={containerRef}
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          width: '100%',
+        }}
+      />
     </YStack>
   )
 }

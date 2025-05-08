@@ -53,18 +53,26 @@ const Render = (
 ) => {
   const theme = useTheme()
 
-  const submitTwitterLink = (url: string, assign: any, setFileName: any) => {
-    if (isValidUrl(url)) {
-      if (url.includes('twitter') || url.includes('x.com')) {
-        assign({props: {url: url}} as MediaType)
-      } else {
-        setFileName({
-          name: `The provided URL is not a twitter URL`,
-          color: 'red',
-        })
-        return
-      }
-    } else setFileName({name: 'The provided URL is invalid.', color: 'red'})
+  const submitWebEmbedLink = (url: string, assign: any, setFileName: any) => {
+    if (!isValidUrl(url)) {
+      setFileName({name: 'The provided URL is invalid.', color: 'red'})
+      return
+    }
+
+    if (
+      !url.includes('twitter') &&
+      !url.includes('x.com') &&
+      !url.includes('instagram.com')
+    ) {
+      setFileName({
+        name: 'Only Twitter/X and Instagram embeds are supported.',
+        color: 'red',
+      })
+      return
+    }
+
+    assign({props: {url: url}} as MediaType)
+
     const cursorPosition = editor.getTextCursorPosition()
     editor.focus()
     if (cursorPosition.block.id === block.id) {
@@ -89,7 +97,7 @@ const Render = (
       hideForm={!!block.props.url}
       editor={editor}
       mediaType="web-embed"
-      submit={submitTwitterLink}
+      submit={submitWebEmbedLink}
       DisplayComponent={display}
       icon={<TwitterXIcon fill={theme.color12?.get()} />}
     />
@@ -103,28 +111,18 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const urlArray = block.props.url.split('/')
-  const xPostId = urlArray[urlArray.length - 1].split('?')[0]
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const {openUrl} = useDocContentContext()
 
-  // const iframeRef = useRef(null)
-
-  // useEffect(() => {
-  //   const handleResize = (event: MessageEvent) => {
-  //     if (
-  //       event.origin === 'https://platform.twitter.com' &&
-  //       iframeRef.current
-  //     ) {
-  //       const {height} = event.data
-  //       console.log(height, event.data)
-  //       iframeRef.current.style.height = `${height}px`
-  //     }
-  //   }
-
   const containerRef = useRef(null)
   const isInitialized = useRef(false)
+
+  const url = block.props.url
+  const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
+  const isInstagram = /instagram\.com/.test(url)
+  const tweetId = url.split('/').pop()?.split('?')[0]
+
   const scriptId = 'twitter-widgets-script'
   const createdTweets = useRef(new Set())
 
@@ -169,40 +167,74 @@ const display = ({
     return scriptLoadPromise
   }
 
+  const loadInstagramScript = () => {
+    if (!document.getElementById('instagram-embed-script')) {
+      const script = document.createElement('script')
+      script.id = 'instagram-embed-script'
+      script.src = 'https://www.instagram.com/embed.js'
+      script.async = true
+      script.defer = true
+      document.body.appendChild(script)
+    }
+  }
+
   useEffect(() => {
-    const initializeTweet = async () => {
-      const twttr = await loadTwitterScript()
-      if (!isInitialized.current && twttr) {
-        if (!createdTweets.current.has(block.id)) {
-          createdTweets.current.add(block.id)
-          const result = await twttr.widgets.createTweet(
-            xPostId,
-            containerRef.current,
-            {
-              theme: 'dark',
-              align: 'center',
-            },
-          )
-          isInitialized.current = true
-          if (!result) setError(true)
+    const initEmbed = async () => {
+      setLoading(true)
+      try {
+        if (isTwitter) {
+          const twttr = await loadTwitterScript()
+          if (!isInitialized.current && twttr && containerRef.current) {
+            if (!createdTweets.current.has(block.id)) {
+              createdTweets.current.add(block.id)
+              const result = await twttr.widgets.createTweet(
+                tweetId!,
+                containerRef.current,
+                {
+                  theme: 'dark',
+                  align: 'center',
+                },
+              )
+              isInitialized.current = true
+              if (!result) setError(true)
+            }
+          }
+        } else if (isInstagram) {
+          if (containerRef.current) {
+            containerRef.current.innerHTML = `
+              <blockquote class="instagram-media" 
+                data-instgrm-permalink="${url}" 
+                data-instgrm-version="14">
+              </blockquote>
+            `
+            loadInstagramScript()
+            setTimeout(() => {
+              // Retry to process embed
+              try {
+                ;(window as any).instgrm?.Embeds?.process()
+              } catch (e) {
+                console.error('Instagram embed error:', e)
+                setError(true)
+              }
+            }, 300)
+          }
+        } else {
+          setError(true)
         }
+      } catch (err) {
+        console.error('Web Embed load error:', err)
+        setError(true)
+      } finally {
+        setLoading(false)
       }
     }
 
-    setLoading(true)
-    initializeTweet()
-      .then(() => {
-        setLoading(false)
-      })
-      .catch((err) => {
-        console.error('Error initializing tweet:', err)
-        setLoading(false)
-      })
+    initEmbed()
 
     return () => {
       isInitialized.current = false
     }
-  }, [block.props.url])
+  }, [url])
 
   return (
     <MediaContainer
@@ -213,9 +245,7 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
-        // open URl disabled for now
         openUrl(block.props.link)
-        // console.log('openUrl: IMPLEMENT ME', block.props.link)
       }}
       styleProps={{
         padding: '$3',
@@ -223,7 +253,6 @@ const display = ({
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto',
         fontWeight: '400',
       }}
-      // className="x-post-container"
     >
       {/* <iframe
         // ref={iframeRef}
@@ -242,11 +271,18 @@ const display = ({
             // borderRadius="$3"
             // borderColor="$color8"
           >
-            Error loading tweet, please check the tweet ID!
+            Error loading embed, please check the link!
           </SizableText>
         </YStack>
       )}
-      <div ref={containerRef} />
+      <div
+        ref={containerRef}
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          width: '100%',
+        }}
+      />
     </MediaContainer>
   )
 }
