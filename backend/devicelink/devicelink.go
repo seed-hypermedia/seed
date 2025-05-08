@@ -192,7 +192,7 @@ func (svc *Service) handleLibp2pStream(ctx context.Context, r msgio.Reader, w ms
 	}
 
 	// Forward capability.
-	fcap, err := blob.NewCapability(me, remoteKey, me.Principal(), "", blob.RoleAgent, "", cclock.New().MustNow())
+	fcap, err := blob.NewCapability(me, remoteKey, me.Principal(), "", blob.RoleAgent, sess.Label, cclock.New().MustNow())
 	if err != nil {
 		return err
 	}
