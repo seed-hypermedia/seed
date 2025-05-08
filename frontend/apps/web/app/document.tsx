@@ -382,7 +382,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
       >
         <PanelGroup direction="horizontal">
           <Panel ref={mainPanelRef} collapsible id="main-panel">
-            <XStack w="100%" bg={isDark ? '$background' : '$backgroundStrong'}>
+            <XStack
+              w="100%"
+              bg={isDark ? '$background' : '$backgroundStrong'}
+              marginBottom={56}
+              $gtSm={{
+                marginBottom: 0,
+              }}
+            >
               <YStack f={1}>
                 <DocumentCover cover={document.metadata.cover} id={id} />
                 <YStack w="100%" ref={elementRef} f={1} position="relative">

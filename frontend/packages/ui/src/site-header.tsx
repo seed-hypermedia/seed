@@ -12,6 +12,7 @@ import {ButtonText} from '@tamagui/button'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useMedia} from 'tamagui'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {Close, Menu, X} from './icons'
@@ -54,6 +55,7 @@ export function SiteHeader({
   origin?: string
   onScroll?: () => void
 }) {
+  const media = useMedia()
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
@@ -112,11 +114,12 @@ export function SiteHeader({
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"
-          ai={isCenterLayout ? undefined : 'center'}
           paddingHorizontal="$4"
           minHeight={56}
           gap="$2"
+          ai={isCenterLayout ? undefined : 'center'}
           flexDirection={isCenterLayout ? 'column' : 'row'}
+          jc={isCenterLayout ? 'center' : 'flex-start'}
         >
           <XStack
             ai="center"
@@ -139,7 +142,15 @@ export function SiteHeader({
             maxWidth="100%"
             width="100%"
           > */}
-          <XStack f={1}>
+
+          <XStack
+            display={isCenterLayout ? 'none' : 'flex'}
+            $gtSm={{
+              display: 'flex',
+            }}
+            overflow="hidden"
+            f={1}
+          >
             {items?.length ? (
               <SiteHeaderMenu
                 items={items}
@@ -148,6 +159,7 @@ export function SiteHeader({
               />
             ) : null}
           </XStack>
+
           {/* </XStack> */}
 
           {isCenterLayout ? null : headerSearch}
@@ -444,6 +456,7 @@ export function SiteHeaderMenu({
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
 }) {
+  const media = useMedia()
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
   const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
@@ -570,18 +583,20 @@ export function SiteHeaderMenu({
 
   if (!items?.length) return null
 
+  if (!media.gtSm) return null
+
   return (
     <XStack
       ref={containerRef}
       ai="center"
       gap="$5"
       w="100%"
-      padding="$2"
+      padding={0}
       jc={isCenterLayout ? 'center' : 'flex-end'}
       display="none"
       flex={1}
       overflow="hidden"
-      $gtSm={{display: 'flex'}}
+      $gtSm={{display: 'flex', padding: '$2'}}
       // bg="red"
     >
       {/* Hidden measurement container */}

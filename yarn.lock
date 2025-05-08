@@ -7984,9 +7984,9 @@ __metadata:
   linkType: hard
 
 "@opentelemetry/semantic-conventions@npm:^1.17.0, @opentelemetry/semantic-conventions@npm:^1.27.0":
-  version: 1.32.0
-  resolution: "@opentelemetry/semantic-conventions@npm:1.32.0"
-  checksum: 6470d26eae9d6f18fb195f6456207751eb35a3654e4e59d8260b38bf0e35399cedfd1eb14259f2f9c1d94f9c8ed00beed46c69299b9f35b956f08c17de71bfbf
+  version: 1.33.0
+  resolution: "@opentelemetry/semantic-conventions@npm:1.33.0"
+  checksum: 7377ceac753425d9137d891d8969272088a865197557a58b568f00d1f79c147625e8ca2cb146423e4a1353c6791762d9655845ed869f6154cf816c27599eee3d
   languageName: node
   linkType: hard
 
@@ -8232,9 +8232,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@puppeteer/browsers@npm:2.10.3":
-  version: 2.10.3
-  resolution: "@puppeteer/browsers@npm:2.10.3"
+"@puppeteer/browsers@npm:2.10.4":
+  version: 2.10.4
+  resolution: "@puppeteer/browsers@npm:2.10.4"
   dependencies:
     debug: ^4.4.0
     extract-zip: ^2.0.1
@@ -8245,7 +8245,7 @@ __metadata:
     yargs: ^17.7.2
   bin:
     browsers: lib/cjs/main-cli.js
-  checksum: 34bd9c915a6c05577e8bbe0ae3118b275a467cc53233843d531663a716e6bcd7ab36cb320ae8fed31872f0706beeb24afb975576f11ecd80d1937e8e44f2c473
+  checksum: 8e2a33de486c178da35da63ff317daa7f0e91ccdb316960a174d71f32d611e3f3b2ee5febf7c0388740e279efa1fa5c36be8d7934c04ad46f1e898925ec7999d
   languageName: node
   linkType: hard
 
@@ -14464,11 +14464,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:*":
-  version: 22.15.15
-  resolution: "@types/node@npm:22.15.15"
+  version: 22.15.16
+  resolution: "@types/node@npm:22.15.16"
   dependencies:
     undici-types: ~6.21.0
-  checksum: 6e1d1c55728a25dd4268aaac62d1a4a6dd3355a9cb76300a9d44f88a3894f39210a4eff471f6ef79c0ae759049a512582e5ca21fe344c6a02e553d02e8d43835
+  checksum: a90136c365f47da329cc41814dedfb9e8484c1429baf8d8f99c2d427181319bce933371940eb1377b9f73ab0f8c4d40621fece878eee36222283b9982ddf7227
   languageName: node
   linkType: hard
 
@@ -14508,20 +14508,20 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:^18.16.3":
-  version: 18.19.98
-  resolution: "@types/node@npm:18.19.98"
+  version: 18.19.99
+  resolution: "@types/node@npm:18.19.99"
   dependencies:
     undici-types: ~5.26.4
-  checksum: 5644a61300266c8959ecdc37e10c0f108a6f1df0b623efc6f9ac9a420c517d5f6df5d1b41be155fca099d49e15a9f9c55fd89e53e743831b78ded9f4ce5f1693
+  checksum: 59a77f2cd576e852b320d9e4c769cd50ffcad03da6b7311584d56aaf49d007b5fc942492e67cb6bdd5e737d1b5fde56f81c604c4a625e208e19d5828900c079f
   languageName: node
   linkType: hard
 
 "@types/node@npm:^20.9.0":
-  version: 20.17.44
-  resolution: "@types/node@npm:20.17.44"
+  version: 20.17.45
+  resolution: "@types/node@npm:20.17.45"
   dependencies:
     undici-types: ~6.19.2
-  checksum: 46ae4504ee490705ce9b19973ec9dc6581f3cbbd987bc64b939d7c24b1b401a55412de2376004790649b58551e098c6fb8077050c8acd4b5d9357678cfbca3b4
+  checksum: c9b53f6ae28c9e492e8fc8eb71102c1d90ef8327055c3ab2d51225179f025b20706b430665f86d0be3d1096a31cc1b4f15e4d256cab9f4757e6a6f04dfd49e6e
   languageName: node
   linkType: hard
 
@@ -16813,13 +16813,13 @@ __metadata:
   linkType: hard
 
 "better-sqlite3@npm:^11.8.1":
-  version: 11.9.1
-  resolution: "better-sqlite3@npm:11.9.1"
+  version: 11.10.0
+  resolution: "better-sqlite3@npm:11.10.0"
   dependencies:
     bindings: ^1.5.0
     node-gyp: latest
     prebuild-install: ^7.1.1
-  checksum: 7a96555ba42aa9143d3f9b5218f4736f425a9f96b24cb9f6de0d52444b9d8c1c710b14ad859981101850cb9562fabf8fcc0dd72c3b04e23aa5620c8cd4ae597a
+  checksum: 4ee0d0f4eee88028f82a2ac104411c72ca6672e1046bbab11844090f719aa2ca2eff167440952310875cef8ae0ec9e3e30e2e94a212933b6e37372375b317357
   languageName: node
   linkType: hard
 
@@ -20078,9 +20078,9 @@ __metadata:
   linkType: hard
 
 "electron-to-chromium@npm:^1.5.149":
-  version: 1.5.150
-  resolution: "electron-to-chromium@npm:1.5.150"
-  checksum: 0d0dd1e045f293b4c2598910734ddc7a1ccd5bba1bd7f3319242e531e7f4d9f87f3a667593f49ec0d36662b50933efb76b7addf952c90f95cae18bb3b01327e5
+  version: 1.5.151
+  resolution: "electron-to-chromium@npm:1.5.151"
+  checksum: 50e272c418a8faea6bf33f15476a28f13af28ecbde95defaae5d9eb511083beebc5f3a7d19e2b4c2eb401cb2b7c924298933820f791f6da5e4b6e930d81d71eb
   languageName: node
   linkType: hard
 
@@ -24046,9 +24046,9 @@ __metadata:
   linkType: hard
 
 "idb-keyval@npm:^6.2.1":
-  version: 6.2.1
-  resolution: "idb-keyval@npm:6.2.1"
-  checksum: 7c0836f832096086e99258167740181132a71dd2694c8b8454a4f5ec69114ba6d70983115153306f0b6de1c8d3bad04f67eed3dff8f50c96815b9985d6d78470
+  version: 6.2.2
+  resolution: "idb-keyval@npm:6.2.2"
+  checksum: 5ac99363d346dd849fda82057301b95c8a79d4d8f5435f84fb921c6f5f471d6a2bdf89599bbe075ea3466612d0a58b787a1698ef5e8f1fbb9a5d629be96523fa
   languageName: node
   linkType: hard
 
@@ -31852,16 +31852,16 @@ __metadata:
   linkType: hard
 
 "puppeteer-core@npm:^24.6.1":
-  version: 24.8.1
-  resolution: "puppeteer-core@npm:24.8.1"
+  version: 24.8.2
+  resolution: "puppeteer-core@npm:24.8.2"
   dependencies:
-    "@puppeteer/browsers": 2.10.3
+    "@puppeteer/browsers": 2.10.4
     chromium-bidi: 5.1.0
     debug: ^4.4.0
     devtools-protocol: 0.0.1439962
     typed-query-selector: ^2.12.0
     ws: ^8.18.2
-  checksum: c2e7e72d02dc0cc6f6017fb9fb2d78b22c4f58017ad0d17bc8193a727619c3d3c7096385ddd204e250187c2ebcc7dab2e519589ff0e3632a3903c1cee5736fe0
+  checksum: 7448faa24c4cce89ad1dded24f828559b517d8a88be578288e90b5a148f80521d37a445c48b4b0727ae631da19aeb0cc919ebf951b8086b89d048a3fbeefdae8
   languageName: node
   linkType: hard
 
@@ -37368,9 +37368,9 @@ __metadata:
   linkType: hard
 
 "urlpattern-polyfill@npm:^10.0.0":
-  version: 10.0.0
-  resolution: "urlpattern-polyfill@npm:10.0.0"
-  checksum: 61d890f151ea4ecf34a3dcab32c65ad1f3cda857c9d154af198260c6e5b2ad96d024593409baaa6d4428dd1ab206c14799bf37fe011117ac93a6a44913ac5aa4
+  version: 10.1.0
+  resolution: "urlpattern-polyfill@npm:10.1.0"
+  checksum: 81c1098493dce8789f31940a96f290754b5ee5d589fd4d0a194567f3ca99bd483c66a476e7df84bb6961e4cb44e0e8c265bcb2452f74018edcbbf8677c2fa811
   languageName: node
   linkType: hard
 
