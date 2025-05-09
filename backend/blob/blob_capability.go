@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -25,7 +24,7 @@ func init() {
 	cbornode.RegisterCborType(Capability{})
 }
 
-var labelPattern = regexp.MustCompile(`^[a-zA-Z0-9\s]+$`)
+const labelLimitBytes = 512
 
 // Role is a type for roles in capabilities.
 type Role string
@@ -87,17 +86,12 @@ func ValidateCapabilityLabel(label string) error {
 		return nil
 	}
 
-	const labelLimit = 512
-	if len(label) > labelLimit {
-		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", label, labelLimit)
+	if len(label) > labelLimitBytes {
+		return fmt.Errorf("capability label '%s' exceeds the maximum allowed limit of %d bytes", label, labelLimitBytes)
 	}
 
 	if strings.TrimSpace(label) != label {
 		return fmt.Errorf("capability label '%s' must not contain leading or trailing spaces", label)
-	}
-
-	if label != "" && !labelPattern.MatchString(label) {
-		return fmt.Errorf("capability label '%s' contains invalid characters", label)
 	}
 
 	return nil
