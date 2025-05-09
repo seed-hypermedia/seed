@@ -279,7 +279,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	re := regexp.MustCompile(`[^A-Za-z0-9_* ]+`)
 	cleanQuery := re.ReplaceAllString(in.Query, "")
-	if cleanQuery == "" {
+	if strings.Replace(cleanQuery, " ", "", -1) == "" {
 		return nil, nil
 	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
