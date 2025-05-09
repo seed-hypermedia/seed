@@ -54,13 +54,16 @@ export default function ContactsPage() {
         <Container centered>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
             {accounts.data?.accounts.length ? (
-              accounts.data.accounts.map((account) => (
-                <ContactListItem
-                  key={account.id}
-                  account={account}
-                  accountsMetadata={accounts.data.accountsMetadata}
-                />
-              ))
+              accounts.data.accounts.map((account) => {
+                if (account.aliasAccount) return null
+                return (
+                  <ContactListItem
+                    key={account.id}
+                    account={account}
+                    accountsMetadata={accounts.data.accountsMetadata}
+                  />
+                )
+              })
             ) : (
               <YStack gap="$3">
                 {[...Array(5)].map((_, index) => (
