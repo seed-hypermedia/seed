@@ -69,13 +69,23 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           setIsLocked(nextIsLocked)
         }
         function onLockSidebarOpen() {
-          dispatch({type: 'sidebarLocked', value: true})
-          setIsLocked(true)
+          console.log('debug == onLockSidebarOpen')
+          const currentState = isLocked.get()
+          // Only update if not already locked
+          if (!currentState) {
+            dispatch({type: 'sidebarLocked', value: true})
+            setIsLocked(true)
+          }
         }
         function onCloseSidebar() {
-          dispatch({type: 'sidebarLocked', value: false})
-          setIsLocked(false)
-          setIsHoverVisible(false)
+          console.log('debug == onCloseSidebar')
+          const currentState = isLocked.get()
+          // Only update if currently locked
+          if (currentState) {
+            dispatch({type: 'sidebarLocked', value: false})
+            setIsLocked(false)
+            setIsHoverVisible(false)
+          }
         }
         function onSidebarResize(width: number) {
           dispatch({type: 'sidebarWidth', value: width})

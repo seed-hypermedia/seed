@@ -58,7 +58,7 @@ import {
   PanelRight,
 } from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
-import {ReactNode, useContext, useEffect, useState} from 'react'
+import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
 import {
   Button,
   ColorProp,
@@ -588,6 +588,21 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
     icon = !isLocked ? ArrowRightFromLine : ArrowLeftFromLine
   }
 
+  // Add a state to track the last click time to debounce clicks
+  const lastClickTime = useRef(0)
+
+  const handleClick = () => {
+    if (onPress) {
+      const now = Date.now()
+      // Only process click if it's been more than 300ms since the last click
+      if (now - lastClickTime.current > 300) {
+        console.log('debug == menu panel button clicked')
+        onPress()
+        lastClickTime.current = now
+      }
+    }
+  }
+
   return (
     <XStack marginLeft="$2" flex={1} ai="center">
       {left || <View />}
@@ -612,7 +627,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
               }}
               onMouseEnter={ctx.onMenuHover}
               onMouseLeave={ctx.onMenuHoverLeave}
-              onPress={onPress}
+              onPress={handleClick}
             />
           </Tooltip>
         </XStack>
