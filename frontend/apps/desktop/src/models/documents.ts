@@ -1304,6 +1304,7 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'width',
     'banner',
     'query',
+    'columnCount',
   ]
 
   const result = attributesToCompare.every((attr) => {
