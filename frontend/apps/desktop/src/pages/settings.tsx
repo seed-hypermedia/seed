@@ -1,4 +1,4 @@
-import {useAppContext, useIPC} from '@/app-context'
+import {useIPC} from '@/app-context'
 import {DialogTitle} from '@/components/dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
@@ -13,6 +13,10 @@ import {
   useMyAccountIds,
   useSavedMnemonics,
 } from '@/models/daemon'
+import {
+  useEmailNotifications,
+  useSetEmailNotifications,
+} from '@/models/email-notifications'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
@@ -36,10 +40,10 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
-import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -62,11 +66,11 @@ import {
   RadioTower,
   Trash,
   UserRoundPlus,
+  X,
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {base58btc} from 'multiformats/bases/base58'
-import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
-import {useForm} from 'react-hook-form'
+import {useEffect, useState} from 'react'
 import QRCode from 'react-qr-code'
 import {
   AlertDialog,
@@ -83,9 +87,6 @@ import {
   SizableText,
   Spinner,
   Tabs,
-  TabsContentProps,
-  TabsProps,
-  TamaguiTextElement,
   Text,
   TextArea,
   View,
@@ -93,7 +94,6 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-import {z} from 'zod'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -390,13 +390,7 @@ function AccountKeys() {
   return keys.data?.length && selectedAccount ? (
     <XStack style={{flex: 1}} gap="$3" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
-        <YStack
-          f={1}
-          borderColor="$borderColor"
-          borderWidth={1}
-          borderRadius="$3"
-          bg={isDark ? '$background' : '$backgroundStrong'}
-        >
+        <YStack f={1}>
           <ScrollView>
             {keys.data?.map((key) => (
               <KeyItem
@@ -411,7 +405,7 @@ function AccountKeys() {
           <Button
             f={1}
             icon={Plus}
-            size="$2"
+            size="$3"
             onPress={() => dispatchOnboardingDialog(true)}
             color="white"
             bg="$brand5"
@@ -642,6 +636,7 @@ function AccountKeys() {
                 accountName={getMetadataName(profile?.document?.metadata)}
               />
             </SettingsSection>
+            <EmailNotificationSettings accountUid={selectedAccount} />
           </YStack>
         </ScrollView>
       </YStack>
@@ -679,6 +674,90 @@ function AccountKeys() {
       >
         Create a new Profile
       </Button>
+    </YStack>
+  )
+}
+
+function EmailNotificationSettings({accountUid}: {accountUid: string}) {
+  const emailNotifs = useEmailNotifications(accountUid)
+  console.log('~~ RESULT emailNotifs', emailNotifs.data)
+  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
+  const hasNoNotifs =
+    emailNotifs.data &&
+    !emailNotifs.data.account.notifyAllMentions &&
+    !emailNotifs.data.account.notifyAllReplies
+  return (
+    <SettingsSection title="Email Notifications">
+      {emailNotifs.data ? (
+        <YStack gap="$3">
+          <SizableText>
+            Recipient Email:{' '}
+            <Text fontWeight="bold">{emailNotifs.data.account.email}</Text>
+          </SizableText>
+          {emailNotifs.data.account.notifyAllMentions && (
+            <CheckmarkRow checked label="Notify when someone mentions me" />
+          )}
+          {emailNotifs.data.account.notifyAllReplies && (
+            <CheckmarkRow checked label="Notify when someone replies to me" />
+          )}
+          {hasNoNotifs ? (
+            <XStack gap="$3" ai="center">
+              <X color="$color9" size={24} />
+              <SizableText color="$color9">
+                No notifications enabled
+              </SizableText>
+            </XStack>
+          ) : null}
+        </YStack>
+      ) : null}
+      {/* <Text>{JSON.stringify(emailNotifs.data)}</Text> */}
+      <XStack>
+        <Button
+          icon={Pencil}
+          size="$2"
+          onPress={() => notifSettingsDialog.open({accountUid})}
+        >
+          Edit Notification Settings
+        </Button>
+      </XStack>
+      {notifSettingsDialog.content}
+    </SettingsSection>
+  )
+}
+
+function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
+  return (
+    <XStack gap="$3" ai="center">
+      <View width={24}>{checked ? <Check color="$brand3" /> : null}</View>
+      <SizableText fontWeight={checked ? 'bold' : 'normal'}>
+        {label}
+      </SizableText>
+    </XStack>
+  )
+}
+
+export function NotifSettingsDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {accountUid: string}
+}) {
+  const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
+    useEmailNotifications(input.accountUid)
+  console.log('emailNotifications', emailNotifications)
+  const setEmailNotifications = useSetEmailNotifications(input.accountUid)
+  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  return (
+    <YStack gap="$4">
+      <DialogTitle>Email Notification Settings</DialogTitle>
+      <UIEmailNotificationsForm
+        onClose={onClose}
+        onComplete={onClose}
+        defaultValues={emailNotifications?.account}
+        setEmailNotifications={setEmailNotifications.mutateAsync}
+        isLoading={setEmailNotifications.isLoading}
+      />
     </YStack>
   )
 }
@@ -942,7 +1021,7 @@ function KeyItem({
       subTitle={item.substring(item.length - 8)}
       hoverTheme
       pressTheme
-      bg={isActive ? '$color5' : undefined}
+      backgroundColor={isActive ? '$brand12' : undefined}
       onPress={onSelect}
       cursor="default"
       hoverStyle={{cursor: 'default', backgroundColor: '$color6'}}

@@ -5,7 +5,7 @@ import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 const GATEWAY_URL_KEY = 'GatewayUrl'
-let gatewayUrl =
+let gatewayUrl: string =
   (appStore.get(GATEWAY_URL_KEY) as string) || DEFAULT_GATEWAY_URL
 function writeGatewayUrl(url: string) {
   gatewayUrl = url

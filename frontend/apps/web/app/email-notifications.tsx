@@ -1,11 +1,7 @@
-import {zodResolver} from '@hookform/resolvers/zod'
-import {Button} from '@shm/ui/button'
-import {FormCheckbox, FormInput} from '@shm/ui/form-input'
-import {FormField} from '@shm/ui/forms'
+import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {DialogTitle} from '@shm/ui/universal-dialog'
-import {useEffect} from 'react'
-import {Control, useController, useForm} from 'react-hook-form'
-import {Form, SizableText, Spinner, XStack, YStack} from 'tamagui'
+import {Control, useController} from 'react-hook-form'
+import {SizableText, Spinner, YStack} from 'tamagui'
 import {z} from 'zod'
 import {
   useEmailNotifications,
@@ -27,75 +23,15 @@ export function EmailNotificationsForm({
   onComplete: () => void
   defaultValues?: z.infer<typeof emailNotificationsSchema>
 }) {
-  const {mutateAsync: setEmailNotifications, isLoading} =
-    useSetEmailNotifications()
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<z.infer<typeof emailNotificationsSchema>>({
-    resolver: zodResolver(emailNotificationsSchema),
-    defaultValues: defaultValues || {
-      email: '',
-      notifyAllMentions: true,
-      notifyAllReplies: true,
-    },
-  })
-  function onSubmit(data: z.infer<typeof emailNotificationsSchema>) {
-    console.log('data', data)
-    setEmailNotifications(data).then(() => {
-      // onClose()
-      onComplete()
-    })
-  }
-  useEffect(() => {
-    setFocus('email')
-  }, [setFocus])
+  const {mutateAsync, isLoading} = useSetEmailNotifications()
   return (
-    <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-      <FormField
-        name="email"
-        label="Notification Email"
-        errors={errors}
-        paddingHorizontal={0}
-      >
-        <FormInput
-          name="email"
-          control={control}
-          placeholder="me@example.com"
-        />
-      </FormField>
-      <YStack gap="$3">
-        <SizableText>Notify me when:</SizableText>
-        <FormCheckbox
-          name="notifyAllMentions"
-          label="Someone mentions me"
-          control={control}
-        />
-        <FormCheckbox
-          name="notifyAllReplies"
-          label="Someone replies to me"
-          control={control}
-        />
-      </YStack>
-      <EmptyNotifWarning control={control} />
-      <XStack jc="flex-end" gap="$3">
-        <Spinner opacity={isLoading ? 1 : 0} />
-        <Button
-          // @ts-expect-error
-          type="button" // Prevent form submission
-          onPress={() => {
-            onClose()
-          }}
-        >
-          Cancel
-        </Button>
-        <Form.Trigger asChild>
-          <Button theme="blue">Save Notification Settings</Button>
-        </Form.Trigger>
-      </XStack>
-    </Form>
+    <UIEmailNotificationsForm
+      setEmailNotifications={mutateAsync}
+      isLoading={isLoading}
+      onClose={onClose}
+      onComplete={onComplete}
+      defaultValues={defaultValues}
+    />
   )
 }
 

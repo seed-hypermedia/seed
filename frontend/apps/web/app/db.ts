@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import crypto from 'crypto'
 import {join} from 'path'
 
-type BaseAccount = {
+export type BaseAccount = {
   id: string
   email: string | null
   createdAt: string

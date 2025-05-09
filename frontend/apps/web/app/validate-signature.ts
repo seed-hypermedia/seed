@@ -150,8 +150,36 @@ export async function validateSignature(
   data: Uint8Array,
 ): Promise<boolean> {
   try {
-    const publicKey = await decompressPublicKey(compressedPublicKey)
+    // Check if it's an Ed25519 key (first byte is 0xED)
+    if (compressedPublicKey[0] === 0xed) {
+      // For Ed25519, we need exactly 32 bytes after the prefix
+      const keyData = compressedPublicKey.slice(2, 34)
+      if (keyData.length !== 32) {
+        throw new Error(`Invalid Ed25519 key length: ${keyData.length}`)
+      }
+      const rawKey = new Uint8Array(32)
+      rawKey.set(keyData)
+      const publicKey = await webcrypto.subtle.importKey(
+        'raw',
+        rawKey,
+        {
+          name: 'Ed25519',
+        },
+        true,
+        ['verify'],
+      )
+      return await webcrypto.subtle.verify(
+        {
+          name: 'Ed25519',
+        },
+        publicKey,
+        signature,
+        data,
+      )
+    }
 
+    // P-256 key handling
+    const publicKey = await decompressPublicKey(compressedPublicKey)
     const isValid = await webcrypto.subtle.verify(
       {
         name: 'ECDSA',
@@ -161,7 +189,6 @@ export async function validateSignature(
       signature,
       data,
     )
-
     return isValid
   } catch (error) {
     console.error('Signature validation error:', error)
