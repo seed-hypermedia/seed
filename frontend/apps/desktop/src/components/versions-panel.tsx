@@ -3,16 +3,15 @@ import {useDocumentChanges, useVersionChanges} from '@/models/versions'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {DocumentChangeInfo} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {getAccountName} from '@shm/shared/content'
+import {getMetadataName} from '@shm/shared/content'
 import {HMChangeInfo, HMDraftChange} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Version} from '@shm/ui/icons'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {ButtonText, SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function VersionsPanel({route}: {route: DocumentRoute | DraftRoute}) {
@@ -65,9 +64,9 @@ export function ChangeItem({
   isCurrent: boolean
 }) {
   const iconSize = 20
-  const authorEntity = useEntity(hmId('d', change.author))
-  const authorId = authorEntity.data?.id
-
+  const author = useAccount(change.author)
+  const authorId = author.data?.id
+  const navigate = useNavigate()
   const isDraft = (c: HMChangeInfo): c is HMDraftChange =>
     'type' in c && c.type === 'draftChange'
   const getChangeTime = (c: HMChangeInfo) => {
@@ -124,7 +123,7 @@ export function ChangeItem({
           flexShrink={0}
           size={iconSize}
           id={authorId}
-          metadata={authorEntity.data?.document?.metadata}
+          metadata={author.data?.metadata}
         />
       )}
       <YStack f={1}>
@@ -135,16 +134,29 @@ export function ChangeItem({
           overflow="hidden"
           width="100%"
         >
-          <SizableText
+          <ButtonText
             size="$2"
             flexShrink={1}
             textOverflow="ellipsis"
             overflow="hidden"
             whiteSpace="nowrap"
+            fontWeight="bold"
+            hoverStyle={{
+              bg: '$color3',
+            }}
+            onPress={(e) => {
+              e.stopPropagation()
+              const id = author.data?.id
+              if (!id) return
+              navigate({
+                key: 'document',
+                id,
+              })
+            }}
           >
-            {getAccountName(authorEntity.data?.document)}
-          </SizableText>
-          <SizableText size="$2" fontWeight={700} flexShrink={0}>
+            {getMetadataName(author.data?.metadata)}
+          </ButtonText>
+          <SizableText size="$2" flexShrink={0}>
             {isCurrent ? 'current version' : 'version'}
           </SizableText>
         </XStack>
