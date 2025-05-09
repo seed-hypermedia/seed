@@ -744,13 +744,33 @@ function LinkDeviceDialog({
   onClose: () => void
 }) {
   const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
+  const [linkSession, setLinkSession] = useState<null | DeviceLinkSession>(null)
   const linkDeviceStatus = useLinkDeviceStatus()
   const gatewayUrl = useGatewayUrl()
-  const externalOpen = useAppContext().externalOpen
-  if (linkDeviceStatus.data?.redeemTime) {
+  if (
+    linkDeviceStatus.data?.redeemTime &&
+    linkSession &&
+    linkDeviceStatus.data?.secretToken === linkSession.secretToken
+  ) {
     return (
-      <YStack>
-        <Paragraph>Redeemed!</Paragraph>
+      <YStack gap="$4">
+        <Heading>Device Linked!</Heading>
+        <Paragraph>
+          You have signed in to{' '}
+          <Text fontWeight="bold">{input.accountName}</Text> in the web browser.
+        </Paragraph>
+        <XStack jc="center">
+          <Button
+            backgroundColor="$color3"
+            size="$2"
+            iconAfter={Check}
+            onPress={() => {
+              onClose()
+            }}
+          >
+            Close
+          </Button>
+        </XStack>
       </YStack>
     )
   }
@@ -781,6 +801,7 @@ function LinkDeviceDialog({
         <DeviceLabelForm
           accountUid={input.accountUid}
           onSuccess={async (linkSession) => {
+            setLinkSession(linkSession)
             setLinkDeviceUrl(
               `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
                 cborEncode(linkSession),
@@ -863,10 +884,7 @@ function DeviceLabelForm({
       z.object({label: z.string().min(1, 'Device label is required')}),
     ),
     defaultValues: {
-      label: `Web Device ${new Date()
-        .toLocaleDateString()
-        .split('/')
-        .join(' ')}`,
+      label: `Web Device ${new Date().toLocaleDateString()}`,
     },
   })
 
