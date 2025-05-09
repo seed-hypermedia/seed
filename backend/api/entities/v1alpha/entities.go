@@ -277,12 +277,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-	re := regexp.MustCompile(`[^A-Za-z0-9_*]+`)
+	re := regexp.MustCompile(`[^A-Za-z0-9_* ]+`)
 	cleanQuery := re.ReplaceAllString(in.Query, "")
 	if cleanQuery == "" {
 		return nil, nil
 	}
-
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var title title
@@ -382,7 +381,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					MatchedIndexes: offsets,
 				})
 				return nil
-			}, cleanQuery)
+			}, strings.Replace(cleanQuery, " ", "+", -1))
 		}); err != nil {
 			return nil, err
 		}
