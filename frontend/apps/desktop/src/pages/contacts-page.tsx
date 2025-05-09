@@ -1,6 +1,6 @@
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useAccounts} from '@/models/accounts'
+import {useAccountList} from '@/models/accounts'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
@@ -30,7 +30,7 @@ function ErrorPage({}: {error: any}) {
 }
 
 export default function ContactsPage() {
-  const accounts = useAccounts()
+  const accounts = useAccountList()
   const ref = useRef(null)
   useShowTitleObserver(ref.current)
   if (accounts.isLoading) {

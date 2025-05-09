@@ -25,13 +25,11 @@ import {Version} from './icons'
 
 export function SubDocumentItem({
   item,
-  originHomeId,
   accountsMetadata,
   markedAsRead,
 }: {
   item: HMLibraryDocument
   accountsMetadata: HMAccountsMetadata
-  originHomeId?: UnpackedHypermediaId
   markedAsRead?: boolean
 }) {
   const metadata = item?.metadata
@@ -39,7 +37,7 @@ export function SubDocumentItem({
     path: item.path,
   })
   const isRead = markedAsRead || !item.activitySummary?.isUnread
-  const linkProps = useRouteLink({key: 'document', id}, originHomeId)
+  const linkProps = useRouteLink({key: 'document', id})
   return (
     <Button
       group="item"

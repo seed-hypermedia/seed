@@ -1,7 +1,9 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {invalidateQueries, queryKeys} from '@shm/shared'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
-import {useMutation} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
+import {useEffect} from 'react'
 
 export function useLinkDevice() {
   return useMutation({
@@ -33,4 +35,21 @@ export function useLinkDevice() {
       } satisfies DeviceLinkSession
     },
   })
+}
+
+export function useLinkDeviceStatus() {
+  const devicelinkStatus = useQuery({
+    queryKey: ['linkDeviceStatus'],
+    queryFn: async () => {
+      const result = await grpcClient.daemon.getDeviceLinkSession({})
+      return toPlainMessage(result)
+    },
+    refetchInterval: 1000,
+  })
+  useEffect(() => {
+    if (devicelinkStatus.data?.redeemTime) {
+      invalidateQueries([queryKeys.CAPABILITIES])
+    }
+  }, [devicelinkStatus.data?.redeemTime])
+  return devicelinkStatus
 }

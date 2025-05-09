@@ -16,7 +16,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
-import {useAccounts} from './accounts'
+import {useAccountList} from './accounts'
 import {useComments} from './comments'
 import {useFavorites} from './favorites'
 import {HMSubscription, useListSubscriptions} from './subscription'
@@ -86,7 +86,7 @@ export function useLibrary({
   grouping: 'site' | 'none'
   displayMode: 'all' | 'subscribed' | 'favorites'
 }) {
-  const accounts = useAccounts()
+  const accounts = useAccountList()
   const favorites = useFavorites()
   const subscriptions = useListSubscriptions()
   const allDocuments = useAllDocuments(grouping === 'none')

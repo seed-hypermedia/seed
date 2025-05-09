@@ -22,7 +22,7 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
-import {useLinkDevice} from '@/models/linked-devices'
+import {useLinkDevice, useLinkDeviceStatus} from '@/models/linked-devices'
 import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -710,8 +710,16 @@ function LinkDeviceDialog({
 }) {
   const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
   const linkDevice = useLinkDevice()
+  const linkDeviceStatus = useLinkDeviceStatus()
   const gatewayUrl = useGatewayUrl()
   const externalOpen = useAppContext().externalOpen
+  if (linkDeviceStatus.data?.redeemTime) {
+    return (
+      <YStack>
+        <Paragraph>Redeemed!</Paragraph>
+      </YStack>
+    )
+  }
   return (
     <>
       <DialogTitle>Link Web Session</DialogTitle>

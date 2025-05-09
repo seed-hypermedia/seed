@@ -169,6 +169,16 @@ export function useEntities(
   })
 }
 
+export function useAccounts(
+  ids: (string | null | undefined)[],
+  options?: UseQueryOptions<HMMetadataPayload | null>,
+) {
+  return useQueries({
+    queries: ids.map((id) => getAccountQuery(id)),
+    ...(options || {}),
+  })
+}
+
 export function useResolvedEntities(
   ids: (UnpackedHypermediaId | null | undefined)[],
   options?: UseQueryOptions<HMEntityContent | null>,

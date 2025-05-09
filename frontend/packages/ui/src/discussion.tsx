@@ -108,6 +108,7 @@ export function CommentGroup({
               rootReplyCommentId || commentGroup.comments[0].id || null
             }
             authorMetadata={authors?.[comment.author]?.metadata}
+            authorId={authors?.[comment.author]?.id.uid}
             renderCommentContent={renderCommentContent}
             replyCount={
               isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
@@ -138,6 +139,7 @@ export function Comment({
   rootReplyCommentId,
   homeId,
   authorMetadata,
+  authorId,
   renderCommentContent,
   RepliesEditor,
   onReplyClick,
@@ -157,6 +159,7 @@ export function Comment({
   isNested?: boolean
   rootReplyCommentId: string | null
   authorMetadata?: HMMetadata | null
+  authorId?: string | null
   renderCommentContent: (comment: HMComment) => ReactNode
   homeId?: UnpackedHypermediaId
   enableWebSigning: boolean
@@ -194,9 +197,10 @@ export function Comment({
 }) {
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isReplying, setIsReplying] = useState(false)
-  const authorId = comment.author ? hmId('d', comment.author) : null
+  const authorHmId =
+    comment.author || authorId ? hmId('d', authorId || comment.author) : null
   const authorLink = useRouteLink(
-    authorId ? {key: 'document', id: authorId} : null,
+    authorHmId ? {key: 'document', id: authorHmId} : null,
   )
   const theme = useTheme()
   const isDark = useIsDark()

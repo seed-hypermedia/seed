@@ -18,7 +18,7 @@ export function useAccount_deprecated() {
   throw new Error('useAccount_deprecated is fully broken')
 }
 
-export function useAccounts() {
+export function useAccountList() {
   const q = useQuery({
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {

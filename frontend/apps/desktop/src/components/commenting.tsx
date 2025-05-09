@@ -4,7 +4,7 @@ import {
   useDocumentCommentGroups,
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
-import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
@@ -20,7 +20,8 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useAccounts} from '@shm/shared/models/entity'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {CommentGroup} from '@shm/ui/discussion'
 import {
@@ -134,18 +135,12 @@ export function useCommentGroupAuthors(
       commentGroupAuthors.add(comment.author)
     })
   })
-  const authorEntities = useSubscribedEntities(
-    Array.from(commentGroupAuthors).map((uid) => ({id: hmId('d', uid)})),
-  )
+  const commentGroupAuthorsList = Array.from(commentGroupAuthors)
+  const authorEntities = useAccounts(commentGroupAuthorsList)
   return Object.fromEntries(
-    authorEntities
-      .map((q) => q.data)
-      .filter((a) => !!a)
-      .map((author) => [
-        author.id.uid,
-        {id: author.id, metadata: author.document?.metadata},
-      ])
-      .filter((author) => !!author[1]),
+    commentGroupAuthorsList
+      .map((uid, index) => [uid, authorEntities[index].data])
+      .filter(([k, v]) => !!v),
   )
 }
 

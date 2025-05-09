@@ -467,7 +467,7 @@ export async function createRef({
   if (path) {
     unsignedRef.path = path
   }
-  if (space) {
+  if (space && !uint8Equals(space, signerKey)) {
     unsignedRef.space = space
   }
   const signature = await signObject(keyPair, unsignedRef)
@@ -475,4 +475,12 @@ export async function createRef({
     ...unsignedRef,
     sig: signature,
   } satisfies SignedRef
+}
+
+function uint8Equals(a: Uint8Array, b: Uint8Array) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
 }

@@ -48,20 +48,17 @@ export const loader = async ({
         commentGroupAuthors.add(comment.author)
       })
     })
-    const commentAuthors = await Promise.all(
-      Array.from(commentGroupAuthors).map(async (authorUid) => {
-        return await getAccount(authorUid)
-      }),
+    const commentAuthors: HMAccountsMetadata = Object.fromEntries(
+      await Promise.all(
+        Array.from(commentGroupAuthors).map(async (authorUid) => {
+          return [authorUid, await getAccount(authorUid)]
+        }),
+      ),
     )
     result = {
       commentGroups,
-      commentAuthors: Object.fromEntries(
-        commentAuthors.map((author) => [
-          author.id.uid,
-          {id: author.id, metadata: author.metadata},
-        ]),
-      ) as HMAccountsMetadata,
-    }
+      commentAuthors,
+    } satisfies DiscussionPayload
   } catch (e: any) {
     result = {error: e.message}
   }

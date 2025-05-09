@@ -1,9 +1,10 @@
-import {useAccounts} from '@/models/accounts'
+import {useAccountList} from '@/models/accounts'
 import {useDocumentCommentGroups} from '@/models/comments'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
 import {
+  HMAccountsMetadata,
   HMChangeGroup,
   HMChangeSummary,
   HMCommentGroup,
@@ -11,10 +12,9 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useAccounts, useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {CommentGroup} from '@shm/ui/discussion'
@@ -76,7 +76,7 @@ function ActivityList({
   const commentGroups = useDocumentCommentGroups(docId)
   const activeChangeIds = useVersionChanges(docId)
   const childrenActivity = useChildrenActivity(docId)
-  const accounts = useAccounts()
+  const accounts = useAccountList()
   const changes = useDocumentPublishedChanges(docId)
   const [visibleCount, setVisibleCount] = useState(10)
   const authors = useCommentGroupAuthors(commentGroups.data)
@@ -135,12 +135,16 @@ function ActivityList({
   if (currentChangeGroup) {
     activityWithGroups.push(currentChangeGroup)
   }
-  const changeAuthors = new Set<string>()
+  const changeAuthorIdsSet = new Set<string>()
   changes.data?.forEach((item) => {
-    item?.author && changeAuthors.add(item?.author)
+    item?.author && changeAuthorIdsSet.add(item?.author)
   })
-  const authorAccounts = useEntities(
-    Array.from(changeAuthors).map((uid) => hmId('d', uid)),
+  const changeAuthorIds = Array.from(changeAuthorIdsSet)
+  const changeAuthorQueries = useAccounts(changeAuthorIds)
+  const changeAuthors: HMAccountsMetadata = Object.fromEntries(
+    changeAuthorIds
+      .map((uid, index) => [uid, changeAuthorQueries[index].data])
+      .filter(([k, v]) => !!v),
   )
   if (route.key !== 'document') return null
   const isInitialLoad =
@@ -213,9 +217,7 @@ function ActivityList({
           )
         }
         if (activityItem.type === 'changeGroup') {
-          const author = authorAccounts.find(
-            (a) => a.data?.id?.uid === activityItem.changes[0].author,
-          )?.data
+          const author = changeAuthors[activityItem.changes[0].author]
           if (!author) return null
           return (
             <ChangeGroup
@@ -224,7 +226,7 @@ function ActivityList({
               latestDocChanges={latestDocChanges}
               activeChangeIds={activeChangeIds}
               docId={docId}
-              author={{id: author.id, metadata: author.document?.metadata}}
+              author={author}
             />
           )
         }

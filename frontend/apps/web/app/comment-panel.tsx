@@ -1,5 +1,6 @@
 import {WEB_IDENTITY_ENABLED} from '@shm/shared'
 import {
+  HMAccountsMetadata,
   HMComment,
   HMCommentsPayload,
   UnpackedHypermediaId,
@@ -50,14 +51,12 @@ export function WebCommentsPanel({
     return comments?.allComments.find((c) => c.id === focusedCommentId)
   }, [focusedCommentId, focusedComments])
 
-  const commentAuthors = useMemo(() => {
-    if (!focusedCommentId) return comments?.commentAuthors || {}
+  const commentAuthors: HMAccountsMetadata = useMemo(() => {
     return {
       ...(comments?.commentAuthors || {}),
       ...(focusedComments?.data?.commentAuthors || {}),
     }
-  }, [focusedCommentId, focusedComments, comments])
-
+  }, [focusedCommentId, focusedComments?.data, comments])
   const parentThread = useMemo(() => {
     if (!focusedCommentId) return null
     let selectedComment: HMComment | null = focusedComment || null
@@ -144,7 +143,7 @@ export function WebCommentsPanel({
                   type: 'commentGroup',
                 }}
                 isLastGroup
-                authors={commentAuthors as any}
+                authors={commentAuthors}
                 renderCommentContent={renderCommentContent}
                 rootReplyCommentId={null}
                 highlightLastComment

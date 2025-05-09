@@ -77,6 +77,7 @@ export function useSiteRegistration(accountUid: string) {
     },
     onSuccess: (result, input) => {
       invalidateQueries([queryKeys.ENTITY, accountId.id])
+      invalidateQueries([queryKeys.ACCOUNT, accountId.uid])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, accountId.id])
     },
   })
@@ -106,6 +107,7 @@ export function useRemoveSite(id: UnpackedHypermediaId) {
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.ACCOUNT, id.uid])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
     },
   })

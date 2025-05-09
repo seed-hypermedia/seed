@@ -9,7 +9,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount, useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
@@ -352,6 +352,7 @@ export async function updateProfile({
   const changeBlock = await encodeBlock(changePayload)
   const refPayload = await createRef({
     keyPair,
+    space: base58btc.decode(document.account),
     genesisCid: genesisChangeCid,
     head: changeBlock.cid,
     generation: lastDepth + 1,
@@ -618,10 +619,9 @@ function EditProfileDialog({
   const keyPair = useLocalKeyPair()
   const id = hmId('d', input.accountUid)
   console.log('id', id)
-  const account = useEntity(id)
+  const account = useAccount(input.accountUid)
+  const accountDocument = useEntity(account?.data?.id)
   const queryClient = useQueryClient()
-  const document = account.data?.document
-  console.log('account doc', document)
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
       if (!keyPair) {
@@ -630,7 +630,11 @@ function EditProfileDialog({
       if (!document) {
         throw new Error('No document found')
       }
-      return updateProfile({keyPair, document, updates})
+      return updateProfile({
+        keyPair,
+        document: accountDocument?.data?.document,
+        updates,
+      })
     },
     onSuccess: () => {
       // invalidate the activity and discussion for all documents because they may be affected by the profile change
@@ -654,8 +658,8 @@ function EditProfileDialog({
       {document && (
         <EditProfileForm
           defaultValues={{
-            name: account.data?.document?.metadata?.name || '?',
-            icon: account.data?.document?.metadata?.icon || null,
+            name: account.data?.metadata?.name || '?',
+            icon: account.data?.metadata?.icon || null,
           }}
           onSubmit={(newValues) => {
             update.mutateAsync(newValues).then(() => onClose())

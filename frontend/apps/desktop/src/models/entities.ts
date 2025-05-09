@@ -87,6 +87,7 @@ export function useUndeleteEntity(
       const hmId = unpackHmId(variables.id)
       if (hmId?.type === 'd') {
         invalidateQueries([queryKeys.ENTITY, variables.id])
+        invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
         invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
@@ -157,20 +158,27 @@ setEntityQuery(async (hmId) => {
 })
 
 async function getAccount(accountUid: string) {
-  const grpcAccount = await grpcClient.documents.getAccount({
-    id: accountUid,
-  })
+  try {
+    const grpcAccount = await grpcClient.documents.getAccount({
+      id: accountUid,
+    })
 
-  const serverAccount = toPlainMessage(grpcAccount)
-  if (serverAccount.aliasAccount) {
-    return await getAccount(serverAccount.aliasAccount)
+    const serverAccount = toPlainMessage(grpcAccount)
+    if (serverAccount.aliasAccount) {
+      return await getAccount(serverAccount.aliasAccount)
+    }
+    const serverMetadata = grpcAccount.metadata?.toJson() || {}
+    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+    return {
+      id: hmId('d', accountUid),
+      metadata,
+    } as HMMetadataPayload
+  } catch (error) {
+    return {
+      id: hmId('d', accountUid),
+      metadata: {},
+    } as HMMetadataPayload
   }
-  const serverMetadata = grpcAccount.metadata?.toJson() || {}
-  const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
-  return {
-    id: hmId('d', accountUid),
-    metadata,
-  } as HMMetadataPayload
 }
 
 setAccountQuery(getAccount)
@@ -190,6 +198,7 @@ function invalidateEntityWithVersion(id: string, version?: string) {
   if (lastEntity && lastEntity.document?.version !== version) {
     // console.log('[sync] new version discovered for entity', id, version)
     invalidateQueries([queryKeys.ENTITY, id])
+    invalidateQueries([queryKeys.ACCOUNT, id.uid])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, id])
   }
 }

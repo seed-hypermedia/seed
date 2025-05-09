@@ -102,11 +102,13 @@ export const loader = async ({
           type: 'change',
         } as HMChangeSummary
       })
-      .filter((change) => change.createTime.seconds !== 0n)
-    const accounts = await Promise.all(
-      Array.from(allAccounts).map(async (accountUid) => {
-        return await getAccount(accountUid)
-      }),
+      .filter((change) => change.createTime?.seconds !== 0n)
+    const accounts: HMAccountsMetadata = Object.fromEntries(
+      await Promise.all(
+        Array.from(allAccounts).map(async (accountUid) => {
+          return [accountUid, await getAccount(accountUid)]
+        }),
+      ),
     )
     const activity: (HMCommentGroup | HMChangeSummary | HMDocumentInfo)[] = [
       ...commentGroups,
@@ -158,12 +160,7 @@ export const loader = async ({
     }
     result = {
       activity: activityWithGroups,
-      accountsMetadata: Object.fromEntries(
-        accounts.map((account) => [
-          account.id.uid,
-          {id: account.id, metadata: account.metadata},
-        ]),
-      ) as HMAccountsMetadata,
+      accountsMetadata: accounts,
       latestVersion: latestDoc?.version,
     }
   } catch (e: any) {

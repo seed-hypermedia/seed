@@ -148,7 +148,18 @@ export function HMDeviceLink() {
   const linkDevice = useLinkDevice(localIdentity)
 
   if (error) {
-    return <div>Error: {error}</div>
+    return (
+      <YStack
+        theme="red"
+        borderRadius="$3"
+        padding="$4"
+        borderColor="$red10"
+        backgroundColor="$red3"
+      >
+        <Heading>Error linking device</Heading>
+        <Paragraph>{error}</Paragraph>
+      </YStack>
+    )
   }
   if (!deviceLinkSession) {
     return <Spinner />
@@ -167,12 +178,12 @@ export function HMDeviceLink() {
   let heading = `Sign in to ${linkAccountName}`
   let description = `You can access your desktop account from this browser`
   let actionLabel = 'Sign in'
-  if (browserAccount?.document) {
+  if (localId) {
     const browserAccountName =
       browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
     heading = `Merge ${browserAccountName} to ${linkAccountName}`
-    description = `HMDeviceLink ${browserAccountName} to ${linkAccountName}`
-    actionLabel = 'Merge Identity'
+    description = `Your "${browserAccountName}" web identity will become "${linkAccountName}", and this browser will gain full access to this desktop account.`
+    actionLabel = 'Merge Account'
   }
   return (
     <YStack>

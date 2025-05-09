@@ -1058,9 +1058,10 @@ function RecoveryStep({
         if (doc) {
           console.log('✅ Document changes created:', doc)
           console.log('Invalidating queries...')
-          const entityId = hmId('d', createdAccount!.accountId).id
-          invalidateQueries([queryKeys.ENTITY, entityId])
-          invalidateQueries([queryKeys.RESOLVED_ENTITY, entityId])
+          const id = hmId('d', createdAccount!.accountId)
+          invalidateQueries([queryKeys.ENTITY, id.id])
+          invalidateQueries([queryKeys.ACCOUNT, id.uid])
+          invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
           invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
           console.log('✅ Queries invalidated')
         }

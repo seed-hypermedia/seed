@@ -8,7 +8,11 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
-import {HMCitationsPayload, HMComment} from '@shm/shared/hm-types'
+import {
+  HMCitationsPayload,
+  HMComment,
+  HMCommentsPayload,
+} from '@shm/shared/hm-types'
 
 export const loader = async ({
   request,
@@ -55,7 +59,7 @@ export const loader = async ({
           {id: account.id, metadata: account.metadata},
         ]),
       ),
-    }
+    } satisfies HMCommentsPayload
   } catch (e: any) {
     result = {error: e.message}
   }
