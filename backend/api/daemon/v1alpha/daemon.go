@@ -285,7 +285,7 @@ func (srv *Server) sessionToProto(sess devicelink.Session) *daemon.DeviceLinkSes
 	}
 
 	if !sess.RedeemTime.IsZero() {
-		pb.ExpireTime = timestamppb.New(sess.RedeemTime)
+		pb.RedeemTime = timestamppb.New(sess.RedeemTime)
 	}
 
 	return pb
