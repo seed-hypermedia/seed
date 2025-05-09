@@ -527,17 +527,33 @@ type Entity struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// EID of the entity.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Title of the entity, depending on the type:
+	// Blob Id of the resource containing the matching record.
+	BlobId string `protobuf:"bytes,2,opt,name=blob_id,json=blobId,proto3" json:"blob_id,omitempty"`
+	// In the case of documents and comments, the block id
+	// containing the entity.
+	BlockId string `protobuf:"bytes,3,opt,name=block_id,json=blockId,proto3" json:"block_id,omitempty"`
+	// The version of the document containing the entity.
+	// Empty string means latest version.
+	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	// In the case of comments, the document id
+	// containing the comment.
+	DocId string `protobuf:"bytes,5,opt,name=doc_id,json=docId,proto3" json:"doc_id,omitempty"`
+	// Content of the entity, depending on the type:
 	// Alias in the case of account.
-	// Title in the case of groups and documents
-	// Empty in the case of comments.
-	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	// Title/Body in the case of groups and documents.
+	// Body in the case of comments.
+	Content string `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`
+	// where the matching string is found in the content.
+	// This is a char offset in the content for each matching char.
+	MatchOffset []int64 `protobuf:"varint,7,rep,packed,name=match_offset,json=matchOffset,proto3" json:"match_offset,omitempty"`
 	// The owner of the entity
-	Owner string `protobuf:"bytes,3,opt,name=owner,proto3" json:"owner,omitempty"`
+	Owner string `protobuf:"bytes,8,opt,name=owner,proto3" json:"owner,omitempty"`
+	// The type of the entity it coud be Title, Document or Comment
+	Type string `protobuf:"bytes,9,opt,name=type,proto3" json:"type,omitempty"`
 	// Icon of the document containing that entity
-	Icon string `protobuf:"bytes,4,opt,name=icon,proto3" json:"icon,omitempty"`
+	Icon string `protobuf:"bytes,10,opt,name=icon,proto3" json:"icon,omitempty"`
 	// Parent document names
-	ParentNames   []string `protobuf:"bytes,5,rep,name=parent_names,json=parentNames,proto3" json:"parent_names,omitempty"`
+	ParentNames   []string `protobuf:"bytes,11,rep,name=parent_names,json=parentNames,proto3" json:"parent_names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -579,16 +595,58 @@ func (x *Entity) GetId() string {
 	return ""
 }
 
-func (x *Entity) GetTitle() string {
+func (x *Entity) GetBlobId() string {
 	if x != nil {
-		return x.Title
+		return x.BlobId
 	}
 	return ""
+}
+
+func (x *Entity) GetBlockId() string {
+	if x != nil {
+		return x.BlockId
+	}
+	return ""
+}
+
+func (x *Entity) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *Entity) GetDocId() string {
+	if x != nil {
+		return x.DocId
+	}
+	return ""
+}
+
+func (x *Entity) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *Entity) GetMatchOffset() []int64 {
+	if x != nil {
+		return x.MatchOffset
+	}
+	return nil
 }
 
 func (x *Entity) GetOwner() string {
 	if x != nil {
 		return x.Owner
+	}
+	return ""
+}
+
+func (x *Entity) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -683,10 +741,13 @@ func (x *DeletedEntity) GetMetadata() string {
 // Request to
 type SearchEntitiesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Query to find. Since we use
-	// Fuzzy search, a single query may return multiple
-	// entities.
-	Query         string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Query to find. We Ssupport wildcards and phrases.
+	// See https://sqlite.org/fts5.html#full_text_query_syntax.
+	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Whether to look into all content available or just the titles.
+	// If false, comments are not included in the search.
+	// Default is false.
+	IncludeBody   bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -726,6 +787,13 @@ func (x *SearchEntitiesRequest) GetQuery() string {
 		return x.Query
 	}
 	return ""
+}
+
+func (x *SearchEntitiesRequest) GetIncludeBody() bool {
+	if x != nil {
+		return x.IncludeBody
+	}
+	return false
 }
 
 // A list of entities matching the request.
@@ -1353,21 +1421,29 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05heads\x18\x02 \x03(\tR\x05heads\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12=\n" +
-	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"{\n" +
+	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"\x9b\x02\n" +
 	"\x06Entity\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
-	"\x05owner\x18\x03 \x01(\tR\x05owner\x12\x12\n" +
-	"\x04icon\x18\x04 \x01(\tR\x04icon\x12!\n" +
-	"\fparent_names\x18\x05 \x03(\tR\vparentNames\"\x9f\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\ablob_id\x18\x02 \x01(\tR\x06blobId\x12\x19\n" +
+	"\bblock_id\x18\x03 \x01(\tR\ablockId\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12\x15\n" +
+	"\x06doc_id\x18\x05 \x01(\tR\x05docId\x12\x18\n" +
+	"\acontent\x18\x06 \x01(\tR\acontent\x12!\n" +
+	"\fmatch_offset\x18\a \x03(\x03R\vmatchOffset\x12\x14\n" +
+	"\x05owner\x18\b \x01(\tR\x05owner\x12\x12\n" +
+	"\x04type\x18\t \x01(\tR\x04type\x12\x12\n" +
+	"\x04icon\x18\n" +
+	" \x01(\tR\x04icon\x12!\n" +
+	"\fparent_names\x18\v \x03(\tR\vparentNames\"\x9f\x01\n" +
 	"\rDeletedEntity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"-\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"P\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\"\x7f\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
+	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +

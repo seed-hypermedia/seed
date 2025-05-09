@@ -468,33 +468,79 @@ export class Entity extends Message<Entity> {
   id = "";
 
   /**
-   * Title of the entity, depending on the type:
-   * Alias in the case of account.
-   * Title in the case of groups and documents
-   * Empty in the case of comments.
+   * Blob Id of the resource containing the matching record.
    *
-   * @generated from field: string title = 2;
+   * @generated from field: string blob_id = 2;
    */
-  title = "";
+  blobId = "";
+
+  /**
+   * In the case of documents and comments, the block id
+   * containing the entity.
+   *
+   * @generated from field: string block_id = 3;
+   */
+  blockId = "";
+
+  /**
+   * The version of the document containing the entity.
+   * Empty string means latest version.
+   *
+   * @generated from field: string version = 4;
+   */
+  version = "";
+
+  /**
+   * In the case of comments, the document id
+   * containing the comment.
+   *
+   * @generated from field: string doc_id = 5;
+   */
+  docId = "";
+
+  /**
+   * Content of the entity, depending on the type:
+   * Alias in the case of account.
+   * Title/Body in the case of groups and documents.
+   * Body in the case of comments.
+   *
+   * @generated from field: string content = 6;
+   */
+  content = "";
+
+  /**
+   * where the matching string is found in the content.
+   * This is a char offset in the content for each matching char.
+   *
+   * @generated from field: repeated int64 match_offset = 7;
+   */
+  matchOffset: bigint[] = [];
 
   /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 3;
+   * @generated from field: string owner = 8;
    */
   owner = "";
 
   /**
+   * The type of the entity it coud be Title, Document or Comment
+   *
+   * @generated from field: string type = 9;
+   */
+  type = "";
+
+  /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 4;
+   * @generated from field: string icon = 10;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 5;
+   * @generated from field: repeated string parent_names = 11;
    */
   parentNames: string[] = [];
 
@@ -507,10 +553,16 @@ export class Entity extends Message<Entity> {
   static readonly typeName = "com.seed.entities.v1alpha.Entity";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "match_offset", kind: "scalar", T: 3 /* ScalarType.INT64 */, repeated: true },
+    { no: 8, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
@@ -602,13 +654,21 @@ export class DeletedEntity extends Message<DeletedEntity> {
  */
 export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   /**
-   * Query to find. Since we use
-   * Fuzzy search, a single query may return multiple
-   * entities.
+   * Query to find. We Ssupport wildcards and phrases.
+   * See https://sqlite.org/fts5.html#full_text_query_syntax.
    *
    * @generated from field: string query = 1;
    */
   query = "";
+
+  /**
+   * Whether to look into all content available or just the titles.
+   * If false, comments are not included in the search.
+   * Default is false.
+   *
+   * @generated from field: bool include_body = 2;
+   */
+  includeBody = false;
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
@@ -619,6 +679,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

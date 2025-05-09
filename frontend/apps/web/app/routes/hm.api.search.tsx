@@ -8,6 +8,7 @@ export const loader = async ({request}: {request: Request}) => {
   const accountUid = url.searchParams.get('a') || ''
   const result = await queryClient.entities.searchEntities({
     query: searchQuery,
+    includeBody: true,
   })
 
   return wrapJSON<SearchPayload>({
@@ -18,7 +19,7 @@ export const loader = async ({request}: {request: Request}) => {
         return (
           id && {
             id,
-            title: entity.title,
+            title: entity.content,
             icon: entity.icon,
             parentNames: entity.parentNames,
           }
