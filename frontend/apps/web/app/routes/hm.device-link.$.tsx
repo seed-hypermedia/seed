@@ -11,7 +11,12 @@ import {unwrap, wrapJSON} from '@/wrapping'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {DeviceLinkSessionSchema, hmId} from '@shm/shared'
+import {
+  DeviceLinkSessionSchema,
+  hmId,
+  useRouteLink,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {
   DeviceLinkSession,
   HMMetadata,
@@ -19,11 +24,22 @@ import {
 } from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
+import {ArrowRight, Check} from '@tamagui/lucide-icons'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
-import {Button, Heading, Paragraph, View, YStack} from 'tamagui'
+import {
+  Button,
+  Heading,
+  Paragraph,
+  styled,
+  Text,
+  View,
+  XStack,
+  YStack,
+} from 'tamagui'
 
 injectModels()
 // export async function loader({request}: LoaderFunctionArgs) {
@@ -112,6 +128,14 @@ export default function DeviceLinkPage() {
   )
 }
 
+const DeviceLinkContainer = styled(YStack, {
+  gap: '$5',
+  ai: 'center',
+  borderRadius: '$3',
+  padding: '$4',
+  backgroundColor: '$backgroundStrong',
+})
+
 export function HMDeviceLink() {
   const [error, setError] = useState<string | null>(null)
   const [completion, setCompletion] = useState<DeviceLinkCompletion | null>(
@@ -149,46 +173,105 @@ export function HMDeviceLink() {
 
   if (error) {
     return (
-      <YStack
-        theme="red"
-        borderRadius="$3"
-        padding="$4"
-        borderColor="$red10"
-        backgroundColor="$red3"
-      >
-        <Heading>Error linking device</Heading>
-        <Paragraph>{error}</Paragraph>
-      </YStack>
+      <DeviceLinkContainer>
+        <YStack
+          theme="red"
+          borderRadius="$3"
+          padding="$4"
+          borderColor="$red10"
+          backgroundColor="$red3"
+        >
+          <Heading>Error linking device</Heading>
+          <Paragraph>{error}</Paragraph>
+        </YStack>
+      </DeviceLinkContainer>
     )
   }
-  if (!deviceLinkSession) {
-    return <Spinner />
+  if (!deviceLinkSession || linkDevice.isLoading) {
+    return (
+      <DeviceLinkContainer>
+        <Spinner />
+      </DeviceLinkContainer>
+    )
   }
 
   if (completion || isLinkedAlready) {
     return (
-      <YStack>
-        <Heading>Signed in as {existingAccount?.metadata?.name}</Heading>
-      </YStack>
+      <DeviceLinkContainer>
+        {existingAccount && (
+          <HMIcon
+            metadata={existingAccount.metadata}
+            id={existingAccount.id}
+            size={48}
+          />
+        )}
+        <Heading>
+          {existingAccount?.metadata?.name ? (
+            <>
+              You are signed in as{' '}
+              <Text fontWeight="bold">{existingAccount?.metadata?.name}</Text>
+            </>
+          ) : (
+            'You are signed in'
+          )}
+        </Heading>
+        <XStack jc="center">
+          <GoHomeButton />
+        </XStack>
+      </DeviceLinkContainer>
     )
   }
 
   const linkAccountName =
     desktopAccount?.document?.metadata?.name || 'Unknown Account'
-  let heading = `Sign in to ${linkAccountName}`
+  let heading: React.ReactNode = (
+    <>
+      Sign in to <Text fontWeight="bold">{linkAccountName}</Text>
+    </>
+  )
   let description = `You can access your desktop account from this browser`
-  let actionLabel = 'Sign in'
+  let actionLabel = 'Approve Sign In'
+  let extraContent: React.ReactNode | null = desktopAccount?.document
+    ?.metadata ? (
+    <HMIcon
+      size={48}
+      metadata={desktopAccount.document.metadata}
+      id={desktopAccount.id}
+    />
+  ) : null
   if (localId) {
     const browserAccountName =
       browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
-    heading = `Merge ${browserAccountName} to ${linkAccountName}`
-    description = `Your "${browserAccountName}" web identity will become "${linkAccountName}", and this browser will gain full access to this desktop account.`
-    actionLabel = 'Merge Account'
+    heading = (
+      <>
+        Merge <Text fontWeight="bold">{browserAccountName}</Text> to{' '}
+        <Text fontWeight="bold">{linkAccountName}</Text>
+      </>
+    )
+    description = `Your "${browserAccountName}" web identity will be merged into "${linkAccountName}", and this browser will gain full access to this desktop account.`
+    actionLabel = 'Approve Account Merge'
+    extraContent =
+      browserAccount && desktopAccount ? (
+        <XStack gap="$4">
+          <HMIcon
+            metadata={browserAccount.document?.metadata}
+            id={browserAccount?.id}
+            size={36}
+          />
+          <ArrowRight size={36} />
+          <HMIcon
+            metadata={desktopAccount.document?.metadata}
+            id={desktopAccount?.id}
+            size={36}
+          />
+        </XStack>
+      ) : null
   }
   return (
-    <YStack>
+    <DeviceLinkContainer>
       <Heading>{heading}</Heading>
       <Paragraph>{description}</Paragraph>
+      {extraContent}
       {/* {existingAccount && (
         <Paragraph>{JSON.stringify(existingAccount)}</Paragraph>
       )} */}
@@ -207,9 +290,51 @@ export function HMDeviceLink() {
               setError(e.message)
             })
         }}
+        disabled={linkDevice.isLoading}
+        color="$color1"
+        iconAfter={Check}
+        backgroundColor="$brand5"
+        hoverStyle={{
+          backgroundColor: '$brand6',
+        }}
+        pressStyle={{
+          backgroundColor: '$brand7',
+        }}
       >
         {actionLabel}
       </Button>
-    </YStack>
+    </DeviceLinkContainer>
+  )
+}
+
+function GoHomeButton() {
+  const {originHomeId} = useUniversalAppContext()
+  const routeLink = useRouteLink(
+    originHomeId
+      ? {
+          key: 'document',
+          id: originHomeId,
+        }
+      : null,
+  )
+  if (!originHomeId) {
+    return null
+  }
+  return (
+    <Button
+      {...routeLink}
+      size="$2"
+      color="$color1"
+      iconAfter={ArrowRight}
+      backgroundColor="$brand5"
+      hoverStyle={{
+        backgroundColor: '$brand6',
+      }}
+      pressStyle={{
+        backgroundColor: '$brand7',
+      }}
+    >
+      Go Home
+    </Button>
   )
 }

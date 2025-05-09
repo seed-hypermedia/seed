@@ -28,6 +28,7 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import {useUniversalAppContext} from '@shm/shared'
 import {
   COMMIT_HASH,
   LIGHTNING_API_URL,
@@ -35,6 +36,7 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
+import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -46,6 +48,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {
@@ -62,7 +65,7 @@ import {
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {base58btc} from 'multiformats/bases/base58'
-import React, {useEffect, useId, useMemo, useState} from 'react'
+import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {
@@ -82,8 +85,9 @@ import {
   Tabs,
   TabsContentProps,
   TabsProps,
+  TamaguiTextElement,
+  Text,
   TextArea,
-  Tooltip,
   View,
   XGroup,
   XStack,
@@ -633,7 +637,10 @@ function AccountKeys() {
               />
             </SettingsSection>
             <SettingsSection title="Linked Devices">
-              <LinkedDevices accountUid={selectedAccount} />
+              <LinkedDevices
+                accountUid={selectedAccount}
+                accountName={getMetadataName(profile?.document?.metadata)}
+              />
             </SettingsSection>
           </YStack>
         </ScrollView>
@@ -676,26 +683,54 @@ function AccountKeys() {
   )
 }
 
-function LinkedDevices({accountUid}: {accountUid: string}) {
+function LinkedDevices({
+  accountUid,
+  accountName,
+}: {
+  accountUid: string
+  accountName: string
+}) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
   const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
-    <YStack>
+    <YStack gap="$3">
       {devices?.length ? (
-        <YStack>
+        <YStack gap="$2">
           {devices.map((d) => (
-            <SizableText key={d.id}>
-              {d.role} - {d.id} - {d.label}
-            </SizableText>
+            <Tooltip content={`Copy ID of ${d.label}`}>
+              <Button
+                size="$2"
+                onPress={() => {
+                  copyTextToClipboard(hmId('d', d.accountUid).id)
+                  toast('Device ID copied to clipboard')
+                }}
+              >
+                <XStack f={1}>
+                  <SizableText>{d.label}</SizableText>
+                </XStack>
+              </Button>
+            </Tooltip>
           ))}
         </YStack>
-      ) : (
-        <Paragraph>No linked devices found</Paragraph>
-      )}
-      <Button onPress={() => linkDevice.open({accountUid})}>
-        Link Web Session
-      </Button>
+      ) : // <Paragraph>No linked devices found</Paragraph>
+      null}
+      <XStack>
+        <Button
+          onPress={() => linkDevice.open({accountUid, accountName})}
+          color="$color1"
+          icon={Plus}
+          backgroundColor="$brand5"
+          hoverStyle={{
+            backgroundColor: '$brand6',
+          }}
+          pressStyle={{
+            backgroundColor: '$brand7',
+          }}
+        >
+          Link Web Session
+        </Button>
+      </XStack>
       {linkDevice.content}
     </YStack>
   )
@@ -705,11 +740,10 @@ function LinkDeviceDialog({
   input,
   onClose,
 }: {
-  input: {accountUid: string}
+  input: {accountUid: string; accountName: string}
   onClose: () => void
 }) {
   const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
-  const linkDevice = useLinkDevice()
   const linkDeviceStatus = useLinkDeviceStatus()
   const gatewayUrl = useGatewayUrl()
   const externalOpen = useAppContext().externalOpen
@@ -722,40 +756,31 @@ function LinkDeviceDialog({
   }
   return (
     <>
-      <DialogTitle>Link Web Session</DialogTitle>
+      <DialogTitle>Link New Web Session</DialogTitle>
+
+      {linkDeviceUrl ? (
+        <Paragraph>
+          Open this URL to log in to{' '}
+          <Text fontWeight="bold">{input.accountName}</Text>
+        </Paragraph>
+      ) : (
+        <Paragraph>
+          You will sign in to <Text fontWeight="bold">{input.accountName}</Text>{' '}
+          from a web browser.
+        </Paragraph>
+      )}
       {linkDeviceUrl ? (
         <YStack gap="$4">
+          <CopyUrlField url={linkDeviceUrl} label="Device Login" />
+          {linkDeviceUrl ? (
+            <Paragraph>Or, scan this code with your smartphone:</Paragraph>
+          ) : null}
           <QRCode value={linkDeviceUrl} size={465} />
-          <XStack gap="$3" jc="center">
-            <Button
-              onPress={() => {
-                copyTextToClipboard(linkDeviceUrl)
-                toast.success('Device Link URL copied to clipboard')
-              }}
-              size="$2"
-              icon={Copy}
-            >
-              Copy URL
-            </Button>
-            <Button
-              onPress={() => {
-                externalOpen(linkDeviceUrl)
-              }}
-              size="$2"
-              icon={ExternalLink}
-            >
-              Open
-            </Button>
-          </XStack>
         </YStack>
       ) : (
         <DeviceLabelForm
-          onSubmit={async (label) => {
-            console.log('new device with label', label)
-            const linkSession = await linkDevice.mutateAsync({
-              label,
-              accountUid: input.accountUid,
-            })
+          accountUid={input.accountUid}
+          onSuccess={async (linkSession) => {
             setLinkDeviceUrl(
               `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
                 cborEncode(linkSession),
@@ -768,11 +793,66 @@ function LinkDeviceDialog({
   )
 }
 
+function CopyUrlField({url, label}: {url: string; label: string}) {
+  const {openUrl} = useUniversalAppContext()
+  const textRef = useRef<TamaguiTextElement>(null)
+  return (
+    <XGroup borderColor="$color8" borderWidth={1}>
+      <XGroup.Item>
+        <XStack flex={1} alignItems="center">
+          <Text
+            onPress={(e) => {
+              e.preventDefault()
+              if (textRef.current) {
+                const range = document.createRange()
+                // @ts-expect-error
+                range.selectNode(textRef.current)
+                window.getSelection()?.removeAllRanges()
+                window.getSelection()?.addRange(range)
+              }
+            }}
+            fontSize={18}
+            color="$color11"
+            ref={textRef}
+            marginHorizontal="$3"
+            overflow="hidden"
+            numberOfLines={1}
+            textOverflow="ellipsis"
+          >
+            {url}
+          </Text>
+          <Tooltip content="Copy URL">
+            <Button
+              chromeless
+              size="$2"
+              margin="$2"
+              icon={Copy}
+              onPress={() => {
+                copyTextToClipboard(url)
+                toast(`Copied ${label} URL`)
+              }}
+            />
+          </Tooltip>
+        </XStack>
+      </XGroup.Item>
+      <XGroup.Item>
+        <Button onPress={() => openUrl(url)} iconAfter={ExternalLink}>
+          Open
+        </Button>
+      </XGroup.Item>
+    </XGroup>
+  )
+}
+
 function DeviceLabelForm({
-  onSubmit,
+  onSuccess,
+  accountUid,
 }: {
-  onSubmit: (label: string) => Promise<void>
+  onSuccess: (linkSession: DeviceLinkSession) => Promise<void>
+  accountUid: string
 }) {
+  const linkDevice = useLinkDevice()
+
   const {
     control,
     handleSubmit,
@@ -783,7 +863,10 @@ function DeviceLabelForm({
       z.object({label: z.string().min(1, 'Device label is required')}),
     ),
     defaultValues: {
-      label: 'Web Device',
+      label: `Web Device ${new Date()
+        .toLocaleDateString()
+        .split('/')
+        .join(' ')}`,
     },
   })
 
@@ -791,9 +874,25 @@ function DeviceLabelForm({
     setFocus('label')
   }, [setFocus])
 
+  if (linkDevice.isLoading) {
+    return <Spinner />
+  }
   return (
-    <Form onSubmit={handleSubmit((data) => onSubmit(data.label))}>
+    <Form
+      onSubmit={handleSubmit(async (data) => {
+        const linkSession = await linkDevice.mutateAsync({
+          label: data.label,
+          accountUid,
+        })
+        onSuccess(linkSession)
+      })}
+    >
       <YStack gap="$4">
+        {linkDevice.error ? (
+          <Paragraph color="$red10">
+            Error linking device: {linkDevice.error.message}
+          </Paragraph>
+        ) : null}
         <FormField name="label" label="Device Label" errors={errors}>
           <FormInput control={control} name="label" placeholder="My Device" />
         </FormField>

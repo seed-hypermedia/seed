@@ -14,6 +14,7 @@ import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {Spinner} from '@shm/ui/spinner'
 import {
   DialogDescription,
   DialogTitle,
@@ -588,12 +589,18 @@ function ImageField<Fields extends FieldValues>({
 }
 
 function LogoutDialog({onClose}: {onClose: () => void}) {
+  const keyPair = useLocalKeyPair()
+  const account = useAccount(keyPair?.id)
+  if (!keyPair) return <DialogTitle>No session found</DialogTitle>
+  if (account.isLoading) return <Spinner />
+  const isAccountAliased = account.data?.id.uid !== keyPair.id
   return (
     <>
       <DialogTitle>Really Logout?</DialogTitle>
       <DialogDescription>
-        This account key is not saved anywhere else. By logging out, you will
-        loose access to this identity forever.
+        {isAccountAliased
+          ? 'This account will remain accessible on other devices.'
+          : 'This account key is not saved anywhere else. By logging out, you will loose access to this identity forever.'}
       </DialogDescription>
       <Button
         onPress={() => {
@@ -602,7 +609,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
         }}
         theme="red"
       >
-        Log out Forever
+        {isAccountAliased ? 'Log out' : 'Log out Forever'}
       </Button>
     </>
   )

@@ -15,8 +15,10 @@ import {base58btc} from 'multiformats/bases/base58'
 import {postCBOR} from './api'
 import {
   AgentCapability,
+  createAccount,
   generateAndStoreKeyPair,
   LocalWebIdentity,
+  logout,
   signAgentCapability,
   signProfileAlias,
 } from './auth'
@@ -157,13 +159,31 @@ export function useLinkDevice(localIdentity: LocalWebIdentity | null) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (session: DeviceLinkSession) => {
+      let didCreateAccount = false
       if (!localIdentity) {
-        await generateAndStoreKeyPair()
+        // this should be all we need, but instead we have to create a full profile for some reason
+        // await generateAndStoreKeyPair()
+        await createAccount({
+          name: `Web Key of ${session.accountId}`,
+          icon: null,
+        })
+        didCreateAccount = true
       }
-      return await linkDevice(session)
+      try {
+        return await linkDevice(session)
+      } catch (e) {
+        if (didCreateAccount) {
+          logout()
+        }
+        throw e
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries([queryKeys.ACCOUNT])
     },
   })
+}
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
