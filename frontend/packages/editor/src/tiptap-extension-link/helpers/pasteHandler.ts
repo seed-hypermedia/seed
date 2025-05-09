@@ -479,7 +479,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               }
             })
           }
-          currentPos += node.nodeSize
+          currentPos += textNodes.size
         })
 
         const hasFragmentLinks =
