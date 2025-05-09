@@ -54,6 +54,8 @@ export const ImageBlock = createReactBlockSpec({
     {
       tag: 'img[src]',
       getAttrs: (element) => {
+        if (element.closest('[data-content-type="image"]')) return false
+
         const name = element.getAttribute('title')
         const width = element.getAttribute('width') || element.style.width
         const alt = element.getAttribute('alt')

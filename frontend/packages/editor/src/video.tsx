@@ -61,12 +61,14 @@ export const VideoBlock = createReactBlockSpec({
     {
       tag: 'video[src]',
       getAttrs: (element) => {
+        if (element.closest('[data-content-type="video"]')) return false
         return {src: element.getAttribute('src')}
       },
     },
     {
       tag: 'iframe',
       getAttrs: (element) => {
+        if (element.closest('[data-content-type="video"]')) return false
         return {src: element.getAttribute('src')}
       },
     },
