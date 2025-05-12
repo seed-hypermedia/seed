@@ -5,14 +5,12 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {EmptyDiscussion} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {useState} from 'react'
 import {SizableText, useTheme, YStack} from 'tamagui'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
   const directory = childrenActivity.data
   const accounts = useAccountList()
-  const [visibleCount, setVisibleCount] = useState(10)
   const route = useNavRoute()
   const theme = useTheme()
 
@@ -38,7 +36,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <YStack gap="$2" paddingHorizontal="$2">
-      {directory.slice(-visibleCount).map((activityItem) => {
+      {directory.map((activityItem) => {
         if (activityItem.type === 'document') {
           return (
             <SubDocumentItem
