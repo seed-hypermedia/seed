@@ -5,12 +5,14 @@ import {ActionFunction, json} from '@remix-run/node'
 export type DelegateDevicePayload = {
   profileAlias: Uint8Array
   browserToAppCap: Uint8Array
+  appToBrowserCap: Uint8Array
 }
 
 export type DelegateDeviceResponsePayload = {
   message: string
   profileAliasCid: string
   browserToAppCapCid: string
+  appToBrowserCapCid: string
 }
 
 async function storeBlob(blob: Uint8Array) {
@@ -34,14 +36,18 @@ export const action: ActionFunction = async ({request}) => {
   const delegateDevicePayload = cborDecode(
     new Uint8Array(cborData),
   ) as DelegateDevicePayload
-  const profileAliasCid = await storeBlob(delegateDevicePayload.profileAlias)
   const browserToAppCapCid = await storeBlob(
     delegateDevicePayload.browserToAppCap,
   )
+  const appToBrowserCapCid = await storeBlob(
+    delegateDevicePayload.appToBrowserCap,
+  )
+  const profileAliasCid = await storeBlob(delegateDevicePayload.profileAlias)
 
   return json({
     message: 'Success',
     profileAliasCid,
     browserToAppCapCid,
+    appToBrowserCapCid,
   } satisfies DelegateDeviceResponsePayload)
 }

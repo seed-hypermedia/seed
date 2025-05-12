@@ -105,7 +105,8 @@ export async function linkDevice(
 
     // Receive the app's capability
     const msg = await lp.read()
-    const appToBrowserCap = cborDecode<AgentCapability>(msg.subarray())
+    const appToBrowserCapBlob = msg.subarray()
+    const appToBrowserCap = cborDecode<AgentCapability>(appToBrowserCapBlob)
 
     // Sign our capability and send it back
     const browserToAppCap = await signAgentCapability(
@@ -133,6 +134,7 @@ export async function linkDevice(
     await storeDeviceDelegation({
       profileAlias: profileAliasBlob,
       browserToAppCap: browserToAppCapBlob,
+      appToBrowserCap: appToBrowserCapBlob,
     })
 
     await stream.close()
