@@ -362,7 +362,7 @@ function AccessoryTabs({
             padding={0}
           >
             <YStack gap="$1">
-              <SizableText size="$1">{option.key}</SizableText>
+              <SizableText size="$1">{option.label}</SizableText>
               <XStack
                 w="100%"
                 h={2}

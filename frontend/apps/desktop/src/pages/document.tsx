@@ -143,12 +143,12 @@ export default function DocumentPage() {
   // }
   accessoryOptions.push({
     key: 'activity',
-    label: 'all',
+    label: 'All',
     icon: CommentsIcon,
   })
   accessoryOptions.push({
     key: 'versions',
-    label: 'Version History',
+    label: 'Versions',
     icon: HistoryIcon,
   })
   if (docId.type === 'd') {
