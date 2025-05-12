@@ -30,7 +30,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
       <YStack padding="$4" jc="center" ai="center" gap="$4">
         <EmptyDiscussion color={theme.color6.val} />
         <SizableText color="$color7" fontWeight="500" size="$5">
-          There is no activity yet.
+          There are no children documents
         </SizableText>
       </YStack>
     )
