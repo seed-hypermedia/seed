@@ -254,7 +254,7 @@ export function AccessoryTitle({
               size="$2"
               icon={FileClock}
               onPress={
-                activeKey == 'collaborators'
+                activeKey == 'collaborators' || activeKey == 'directory'
                   ? () => onAccessorySelect('discussions')
                   : undefined
               }
