@@ -2,4 +2,5 @@
 * text=auto eol=lf
 # GitHub syntax highlighting
 pixi.lock linguist-language=YAML
+backend/storage/dbext/** linguist-vendored=true
 
