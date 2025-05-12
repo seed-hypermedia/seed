@@ -335,6 +335,20 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
+            case 'instagram':
+              view.dispatch(
+                view.state.tr.setMeta(linkMenuPluginKey, {
+                  link: link.href,
+                  items: getLinkMenuItems({
+                    isLoading: false,
+                    media: 'instagram',
+                    sourceUrl: link.href,
+                    fileName: fileName,
+                    gwUrl: options.gwUrl,
+                  }),
+                }),
+              )
+              break
             case 'web': {
               const metaPromise = resolveHypermediaUrl(link.href)
                 .then((linkMetaResult) => {
@@ -497,7 +511,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
   function checkMediaUrl(
     url: string,
-  ): ['file' | 'image' | 'video' | 'web' | 'twitter', string] {
+  ): ['file' | 'image' | 'video' | 'web' | 'twitter' | 'instagram', string] {
     const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/)
     if (matchResult) {
       const extensionArray = matchResult[0].split('.')
@@ -513,6 +527,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       return ['video', '']
     } else if (['twitter', 'x.com'].some((value) => url.includes(value))) {
       return ['twitter', '']
+    } else if (['instagram'].some((value) => url.includes(value))) {
+      return ['instagram', '']
     }
     return ['web', '']
   }

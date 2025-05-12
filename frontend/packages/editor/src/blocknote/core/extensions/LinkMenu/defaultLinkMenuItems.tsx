@@ -12,6 +12,7 @@ import {
   CircleDot,
   File as FileIcon,
   ImageIcon,
+  Instagram,
   Link,
   PanelBottom,
   Quote,
@@ -256,6 +257,9 @@ export function getLinkMenuItems({
         case 'twitter':
           mediaIcon = <TwitterXIcon width={18} height={18} />
           break
+        case 'instagram':
+          mediaIcon = <Instagram width={18} height={18} />
+          break
         case 'video':
           mediaIcon = <VideoIcon width={18} height={18} />
           break
@@ -266,11 +270,13 @@ export function getLinkMenuItems({
           mediaIcon = <FileIcon width={18} height={18} />
           break
       }
+      const mediaNames: Record<string, string> = {
+        twitter: 'X.com embed',
+        instagram: 'Instagram embed',
+      }
       const mediaItem = {
         name:
-          media === 'twitter'
-            ? 'X Post embed'
-            : media.charAt(0).toUpperCase() + media.slice(1),
+          mediaNames[media] ?? media.charAt(0).toUpperCase() + media.slice(1),
         disabled: false,
         icon: mediaIcon,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
@@ -297,7 +303,7 @@ export function getLinkMenuItems({
           }
 
           const node =
-            media !== 'twitter'
+            media !== 'twitter' && media !== 'instagram'
               ? schema.nodes[media].create({
                   url: embedUrl ? embedUrl : '',
                   src: embedUrl ? '' : link ? link : sourceUrl ? sourceUrl : '',

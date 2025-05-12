@@ -59,6 +59,7 @@ export {
   Home,
   ImagePlus as ImageIcon,
   Info,
+  Instagram,
   Library,
   Link,
   Menu,
