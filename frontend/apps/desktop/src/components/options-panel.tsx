@@ -72,7 +72,12 @@ export function OptionsPanel({
             />
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
-            <AccessorySection title="Document Options">
+            <AccessorySection
+              title="Document Options"
+              onAccessorySelect={() => {
+                // TODO, allow navigation between accessories in draft
+              }}
+            >
               <CoverImage
                 draftId={draftId}
                 metadata={metadata}

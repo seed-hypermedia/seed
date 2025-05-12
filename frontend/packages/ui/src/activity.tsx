@@ -27,10 +27,12 @@ export function SubDocumentItem({
   item,
   accountsMetadata,
   markedAsRead,
+  hideIcon,
 }: {
   item: HMLibraryDocument
   accountsMetadata: HMAccountsMetadata
   markedAsRead?: boolean
+  hideIcon?: boolean
 }) {
   const metadata = item?.metadata
   const id = hmId('d', item.account, {
@@ -54,20 +56,22 @@ export function SubDocumentItem({
       alignItems="center"
       {...linkProps}
     >
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        width={20}
-        height={20}
-        zIndex="$zIndex.2"
-        alignItems="center"
-        backgroundColor={'#2C2C2C'}
-        justifyContent="center"
-        borderRadius={10}
-        padding={1}
-      >
-        <Version size={16} color="white" />
-      </XStack>
+      {!hideIcon && (
+        <XStack
+          flexGrow={0}
+          flexShrink={0}
+          width={20}
+          height={20}
+          zIndex="$zIndex.2"
+          alignItems="center"
+          backgroundColor={'#2C2C2C'}
+          justifyContent="center"
+          borderRadius={10}
+          padding={1}
+        >
+          <Version size={16} color="white" />
+        </XStack>
+      )}
       <YStack f={1}>
         <XStack gap="$3" ai="center">
           <SizableText

@@ -1,6 +1,7 @@
-import {AccessoryLayout, AccessoryWrapper} from '@/components/accessory-sidebar'
+import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {DiscussionsPanel} from '@/components/comments-panel'
+import {DirectoryPanel} from '@/components/directory-panel'
 import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
@@ -99,8 +100,6 @@ export default function DocumentPage() {
     accessory = <VersionsPanel route={route} />
   } else if (accessoryKey === 'collaborators') {
     accessory = <CollaboratorsPanel route={route} />
-  } else if (accessoryKey === 'suggested-changes') {
-    accessory = <AccessoryWrapper title="Suggested Changes" />
   } else if (route.accessory?.key === 'discussions') {
     accessory = (
       <DiscussionsPanel
@@ -111,10 +110,8 @@ export default function DocumentPage() {
         }}
       />
     )
-  } else if (accessoryKey === 'all-documents') {
-    accessory = <AccessoryWrapper title="All Documents" />
-  } else if (accessoryKey === 'contacts') {
-    accessory = <AccessoryWrapper title="Contacts" />
+  } else if (accessoryKey === 'directory') {
+    accessory = <DirectoryPanel docId={route.id} />
   }
 
   const accessoryOptions: Array<DocAccessoryOption> = []

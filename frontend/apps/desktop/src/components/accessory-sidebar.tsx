@@ -6,7 +6,8 @@ import {
 } from '@/utils/navigation'
 import {PanelContainer} from '@shm/ui/container'
 import {CollaboratorsIcon} from '@shm/ui/icons'
-import {FileClock} from '@tamagui/lucide-icons'
+import {Tooltip} from '@shm/ui/tooltip'
+import {FileClock, Folder} from '@tamagui/lucide-icons'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -87,6 +88,13 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
     }
   }, [state?.accessoryWidth])
 
+  let accessoryTitle = 'Activity'
+  if (accessoryKey == 'collaborators') {
+    accessoryTitle = 'Collaborators'
+  } else if (accessoryKey == 'directory') {
+    accessoryTitle = 'Directory'
+  }
+
   return (
     <XStack f={1} height="100%">
       <PanelGroup
@@ -139,15 +147,11 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
           <AccessoryWrapper
             onAccessorySelect={onAccessorySelect}
             padding={0}
-            title={
-              route.key == 'document'
-                ? accessoryKey == 'collaborators'
-                  ? 'Collaborators'
-                  : 'Activity'
-                : 'Document Options'
-            }
+            title={accessoryTitle}
           >
-            {route.key == 'document' && accessoryKey != 'collaborators' ? (
+            {route.key == 'document' &&
+            accessoryKey != 'collaborators' &&
+            accessoryKey !== 'directory' ? (
               <AccessoryTabs
                 options={accessoryOptions}
                 accessoryKey={accessoryKey}
@@ -216,7 +220,10 @@ export function AccessoryTitle({
   onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
 }) {
   const route = useNavRoute()
-  const activeKey = route.accessory?.key
+  const docRoute = route.key == 'document' ? route : null
+  const draftRoute = route.key == 'draft' ? route : null
+  const activeKey = docRoute?.accessory?.key || draftRoute?.accessory?.key
+  if (!activeKey) return null
 
   return (
     <XStack minHeight={56} ai="center" padding="$2">
@@ -236,38 +243,59 @@ export function AccessoryTitle({
         borderRadius="$2"
       >
         <XGroup.Item>
-          <Button
-            borderRadius="$2"
-            bg={
-              activeKey != 'collaborators'
-                ? '$brand11'
-                : '$backgroundTransparent'
-            }
-            size="$2"
-            icon={FileClock}
-            onPress={
-              activeKey == 'collaborators'
-                ? () => onAccessorySelect('discussions')
-                : undefined
-            }
-          />
+          <Tooltip content="Activity">
+            <Button
+              borderRadius="$2"
+              bg={
+                activeKey != 'collaborators' && activeKey != 'directory'
+                  ? '$brand11'
+                  : '$backgroundTransparent'
+              }
+              size="$2"
+              icon={FileClock}
+              onPress={
+                activeKey == 'collaborators'
+                  ? () => onAccessorySelect('discussions')
+                  : undefined
+              }
+            />
+          </Tooltip>
         </XGroup.Item>
         <XGroup.Item>
-          <Button
-            borderRadius="$2"
-            bg={
-              activeKey == 'collaborators'
-                ? '$brand11'
-                : '$backgroundTransparent'
-            }
-            size="$2"
-            icon={CollaboratorsIcon}
-            onPress={
-              activeKey != 'collaborators'
-                ? () => onAccessorySelect('collaborators')
-                : undefined
-            }
-          />
+          <Tooltip content="Collaborators">
+            <Button
+              borderRadius="$2"
+              bg={
+                activeKey == 'collaborators'
+                  ? '$brand11'
+                  : '$backgroundTransparent'
+              }
+              size="$2"
+              icon={CollaboratorsIcon}
+              onPress={
+                activeKey != 'collaborators'
+                  ? () => onAccessorySelect('collaborators')
+                  : undefined
+              }
+            />
+          </Tooltip>
+        </XGroup.Item>
+        <XGroup.Item>
+          <Tooltip content="Directory">
+            <Button
+              borderRadius="$2"
+              bg={
+                activeKey == 'directory' ? '$brand11' : '$backgroundTransparent'
+              }
+              size="$2"
+              icon={Folder}
+              onPress={
+                activeKey != 'directory'
+                  ? () => onAccessorySelect('directory')
+                  : undefined
+              }
+            />
+          </Tooltip>
         </XGroup.Item>
       </XGroup>
     </XStack>
@@ -277,13 +305,15 @@ export function AccessoryTitle({
 export function AccessorySection({
   children,
   title,
+  onAccessorySelect,
 }: {
   children: React.ReactNode
   title: string
+  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
 }) {
   return (
     <YStack gap="$3">
-      <AccessoryTitle title={title} />
+      <AccessoryTitle title={title} onAccessorySelect={onAccessorySelect} />
       <YStack gap="$5">{children}</YStack>
     </YStack>
   )

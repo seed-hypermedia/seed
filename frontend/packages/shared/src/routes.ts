@@ -18,6 +18,13 @@ export type DocumentVersionsAccessory = z.infer<
   typeof documentVersionsAccessorySchema
 >
 
+export const documentDirectoryAccessorySchema = z.object({
+  key: z.literal('directory'),
+})
+export type DocumentDirectoryAccessory = z.infer<
+  typeof documentDirectoryAccessorySchema
+>
+
 export const documentCitationsAccessorySchema = z.object({
   key: z.literal('citations'),
   openBlockId: z.string().nullable().optional(),
@@ -88,6 +95,7 @@ export const documentRouteSchema = z.object({
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
+      documentDirectoryAccessorySchema,
       documentCitationsAccessorySchema,
       documentCollaboratorsAccessorySchema,
       documentSuggestedChangesAccessorySchema,
@@ -113,6 +121,7 @@ export const draftRouteSchema = z.object({
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,
+      documentDirectoryAccessorySchema,
       documentCitationsAccessorySchema,
       documentCollaboratorsAccessorySchema,
       documentSuggestedChangesAccessorySchema,
