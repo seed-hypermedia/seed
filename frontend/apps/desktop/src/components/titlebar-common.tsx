@@ -275,6 +275,7 @@ export function DocOptionsButton({
         importDialog.open({
           onImportFile: importing.importFile,
           onImportDirectory: importing.importDirectory,
+          onImportWebSite: importing.importWebSite,
         })
       },
     })

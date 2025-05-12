@@ -4,6 +4,7 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
   MarkdownToBlocks,
@@ -14,20 +15,20 @@ import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
-import {FileInput, FolderInput} from '@shm/ui/icons'
+import {FormInput} from '@shm/ui/form-input'
+import {FormField} from '@shm/ui/forms'
+import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useMemo} from 'react'
-import {XStack} from 'tamagui'
-import {
-  DialogCloseButton,
-  DialogDescription,
-  DialogTitle,
-  useAppDialog,
-} from './dialog'
+import {useForm} from 'react-hook-form'
+import {Form, YStack} from 'tamagui'
+import {z} from 'zod'
+import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
 
 export function useImportDialog() {
@@ -38,7 +39,11 @@ export function ImportDialog({
   input,
   onClose,
 }: {
-  input: {onImportFile: () => void; onImportDirectory: () => void}
+  input: {
+    onImportFile: () => void
+    onImportDirectory: () => void
+    onImportWebSite: () => void
+  }
   onClose: () => void
 }) {
   return (
@@ -48,8 +53,9 @@ export function ImportDialog({
         You can import a single Markdown file, or a folder of Markdown files.
       </DialogDescription>
       <DialogCloseButton />
-      <XStack>
+      <YStack gap="$4" theme="blue">
         <Button
+          icon={File}
           onPress={() => {
             onClose()
             input.onImportFile()
@@ -58,6 +64,7 @@ export function ImportDialog({
           Import File
         </Button>
         <Button
+          icon={Folder}
           onPress={() => {
             onClose()
             input.onImportDirectory()
@@ -65,7 +72,16 @@ export function ImportDialog({
         >
           Import Directory
         </Button>
-      </XStack>
+        <Button
+          icon={Globe}
+          onPress={() => {
+            onClose()
+            input.onImportWebSite()
+          }}
+        >
+          Import Web Site
+        </Button>
+      </YStack>
     </>
   )
 }
@@ -192,11 +208,68 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     )
   }
 
+  const webImporting = useWebImporting()
+
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
-    content: importDialog.content,
+    importWebSite: () => webImporting.open({}),
+    content: (
+      <>
+        {importDialog.content}
+        {webImporting.content}
+      </>
+    ),
   }
+}
+
+function useWebImporting() {
+  return useAppDialog(WebImportDialog)
+}
+
+function WebImportDialog() {
+  return (
+    <>
+      <DialogTitle>Import Web Site</DialogTitle>
+      <ImportURLForm
+        onSubmit={(url) => {
+          toast('Import Started.')
+          console.log('url', url)
+        }}
+      />
+    </>
+  )
+}
+
+const ImportURLSchema = z.object({
+  url: z.string().url(),
+})
+type ImportURLFields = z.infer<typeof ImportURLSchema>
+function ImportURLForm({onSubmit}: {onSubmit: (url: string) => void}) {
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<ImportURLFields>({
+    resolver: zodResolver(ImportURLSchema),
+  })
+  return (
+    <Form onSubmit={handleSubmit(({url}) => onSubmit(url))} gap="$4">
+      <FormField name="url" label="Web URL" errors={errors} width={400}>
+        <FormInput
+          // disabled={isSendingEmail}
+          control={control}
+          name="url"
+          placeholder="https://example.com"
+        />
+      </FormField>
+      <Form.Trigger asChild>
+        <Button>Import Site</Button>
+      </Form.Trigger>
+      {/* <AnimatedSpinner isVisible={isSendingEmail} /> */}
+    </Form>
+  )
 }
 
 const ImportDocumentsWithFeedback = (
