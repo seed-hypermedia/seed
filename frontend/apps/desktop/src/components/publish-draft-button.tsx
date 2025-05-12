@@ -1,7 +1,7 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
-import {trpc} from '@/trpc'
+import {client, trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
@@ -208,6 +208,10 @@ export default function PublishDraftButton() {
                 invalidateQueries(['trpc.drafts.listAccount'])
               })
           if (resultDocId) {
+            const hasAlreadyPrompted =
+              await client.prompting.getPromptedKey.query(
+                `account-email-notifs-${resultDocId.uid}`,
+              )
             navigate({
               key: 'document',
               accessory:
@@ -215,6 +219,7 @@ export default function PublishDraftButton() {
                   ? route.accessory
                   : null,
               id: resultDocId,
+              immediatelyPromptNotifs: !hasAlreadyPrompted,
             })
           } else {
             console.error(`can't navigate to document`)

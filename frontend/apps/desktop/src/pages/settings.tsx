@@ -1,6 +1,7 @@
 import {useIPC} from '@/app-context'
 import {DialogTitle} from '@/components/dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
+import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
 import {dispatchOnboardingDialog} from '@/components/onboarding'
@@ -13,10 +14,7 @@ import {
   useMyAccountIds,
   useSavedMnemonics,
 } from '@/models/daemon'
-import {
-  useEmailNotifications,
-  useSetEmailNotifications,
-} from '@/models/email-notifications'
+import {useEmailNotifications} from '@/models/email-notifications'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
@@ -44,7 +42,6 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -740,32 +737,6 @@ function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
         {label}
       </SizableText>
     </XStack>
-  )
-}
-
-export function NotifSettingsDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: {accountUid: string}
-}) {
-  const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
-    useEmailNotifications(input.accountUid)
-  console.log('emailNotifications', emailNotifications)
-  const setEmailNotifications = useSetEmailNotifications(input.accountUid)
-  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
-  return (
-    <YStack gap="$4">
-      <DialogTitle>Email Notification Settings</DialogTitle>
-      <UIEmailNotificationsForm
-        onClose={onClose}
-        onComplete={onClose}
-        defaultValues={emailNotifications?.account}
-        setEmailNotifications={setEmailNotifications.mutateAsync}
-        isLoading={setEmailNotifications.isLoading}
-      />
-    </YStack>
   )
 }
 

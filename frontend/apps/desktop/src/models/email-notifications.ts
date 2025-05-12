@@ -15,10 +15,12 @@ type SetEmailNotificationsInput = {
   notifyAllReplies: boolean
 }
 
-export function useEmailNotifierRequest(accountUid: string) {
-  const gatewayUrl = useGatewayUrl()
-  async function notifierRequest(action: Omit<EmailNotifierAction, 'sig'>) {
-    if (!gatewayUrl.data) return null
+export function createNotifierRequester(gatewayUrl: string | undefined) {
+  async function notifierRequest(
+    accountUid: string,
+    action: Omit<EmailNotifierAction, 'sig'>,
+  ) {
+    if (!gatewayUrl || !accountUid) return null
     const cborData = cborEncode(action)
     const signResponse = await grpcClient.daemon.signData({
       signingKeyName: accountUid,
@@ -26,7 +28,7 @@ export function useEmailNotifierRequest(accountUid: string) {
     })
     const signedPayload = {...action, sig: signResponse.signature}
     const response = await fetch(
-      `${gatewayUrl.data}/hm/api/email-notifier/${accountUid}`,
+      `${gatewayUrl}/hm/api/email-notifier/${accountUid}`,
       {
         method: 'POST',
         body: cborEncode(signedPayload),
@@ -45,19 +47,19 @@ export function useEmailNotifierRequest(accountUid: string) {
     }
     return response.json()
   }
+  return notifierRequest
+}
+
+export function useEmailNotifierRequest(accountUid: string) {
+  const gatewayUrl = useGatewayUrl()
+  const notifierRequest =
+    gatewayUrl.data && createNotifierRequester(gatewayUrl.data)
   async function getNotifs() {
-    const publicKey = base58btc.decode(accountUid)
-    const payload = {
-      action: 'get-email-notifications',
-      signer: publicKey,
-      time: Date.now(),
-    } as const
-    const notifsResult = (await notifierRequest(
-      payload,
-    )) as EmailNotifierAccountState
-    return notifsResult
+    if (!notifierRequest) return null
+    return await getAccountNotifs(notifierRequest, accountUid)
   }
   async function setNotifs(input: SetEmailNotificationsInput) {
+    if (!notifierRequest) return null
     const publicKey = base58btc.decode(accountUid)
     const payload = {
       action: 'set-email-notifications',
@@ -65,9 +67,36 @@ export function useEmailNotifierRequest(accountUid: string) {
       time: Date.now(),
       ...input,
     } as const
-    return await notifierRequest(payload)
+    return await notifierRequest(accountUid, payload)
   }
   return {getNotifs, setNotifs}
+}
+
+export async function getAccountNotifs(
+  requester: ReturnType<typeof createNotifierRequester>,
+  accountUid: string,
+) {
+  const publicKey = base58btc.decode(accountUid)
+  const payload = {
+    action: 'get-email-notifications',
+    signer: publicKey,
+    time: Date.now(),
+  } as const
+  const notifsResult = (await requester(
+    accountUid,
+    payload,
+  )) as EmailNotifierAccountState
+  return notifsResult
+}
+export async function getAccountNotifsSafe(
+  requester: ReturnType<typeof createNotifierRequester>,
+  accountUid: string,
+) {
+  try {
+    return await getAccountNotifs(requester, accountUid)
+  } catch (e) {
+    return null
+  }
 }
 
 export function useEmailNotifications(accountUid: string) {

@@ -7,6 +7,7 @@ import {DocNavigation} from '@/components/doc-navigation'
 import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
+import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
@@ -19,9 +20,15 @@ import {
   useDocumentRead,
   useListDirectory,
 } from '@/models/documents'
+import {
+  createNotifierRequester,
+  getAccountNotifsSafe,
+} from '@/models/email-notifications'
 import {useSubscribedEntity} from '@/models/entities'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
+import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
@@ -62,9 +69,10 @@ import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquare, Plus} from '@tamagui/lucide-icons'
-import React, {ReactNode, useCallback, useMemo, useRef} from 'react'
+import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {
   ButtonText,
   SizableText,
@@ -178,6 +186,36 @@ export default function DocumentPage() {
   //     icon: Contact,
   //   })
   // }
+
+  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
+  const immediatePromptNotifs =
+    route.immediatelyPromptNotifs && !route.id?.path?.length
+
+  const gatewayUrl = useGatewayUrl()
+  const markPromptedKey = trpc.prompting.markPromptedKey.useMutation()
+  useEffect(() => {
+    if (immediatePromptNotifs) {
+      getAccountNotifsSafe(
+        createNotifierRequester(gatewayUrl.data),
+        route.id.uid,
+      ).then((result) => {
+        if (result && !result.account?.email) {
+          notifSettingsDialog.open({
+            accountUid: route.id.uid,
+            title: 'Get Emailed when Important Things Happen Here',
+          })
+          markPromptedKey.mutate({
+            key: `account-email-notifs-${route.id.uid}`,
+            isPrompted: true,
+          })
+        } else {
+          // 'notifs already set on server! or disconnected from server',
+        }
+      })
+      replace({...route, immediatelyPromptNotifs: false})
+    }
+  }, [immediatePromptNotifs])
+
   const mainPanelRef = useRef<HTMLDivElement>(null)
   const templateDialogContent = useTemplateDialog(route)
   return (
@@ -214,6 +252,7 @@ export default function DocumentPage() {
         </AccessoryLayout>
       </XStack>
       {templateDialogContent}
+      {notifSettingsDialog.content}
     </>
   )
 }

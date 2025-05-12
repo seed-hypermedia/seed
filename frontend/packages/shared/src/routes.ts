@@ -113,6 +113,7 @@ export const documentRouteSchema = z.object({
   id: unpackedHmIdSchema,
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
+  immediatelyPromptNotifs: z.boolean().optional(),
   immediatelyPromptTemplate: z.boolean().optional(),
   accessory: documentAccessorySchema.nullable().optional(),
 })

@@ -25,6 +25,7 @@ import {favoritesApi} from './app-favorites'
 import {gatewaySettingsApi} from './app-gateway-settings'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
+import {promptingApi} from './app-prompting'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 
@@ -234,6 +235,7 @@ export const router = t.router({
   secureStorage: secureStorageApi,
   recents: recentsApi,
   sites: sitesApi,
+  prompting: promptingApi,
   appSettings: appSettingsApi,
   closeAppWindow: t.procedure.input(z.string()).mutation(async ({input}) => {
     closeAppWindow(input)
