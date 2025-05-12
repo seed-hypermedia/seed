@@ -86,28 +86,37 @@ export type DocumentOptionsAccessory = z.infer<
   typeof documentOptionsAccessorySchema
 >
 
+export const documentActivityAccessorySchema = z.object({
+  key: z.literal('activity'),
+})
+export type DocumentActivityAccessory = z.infer<
+  typeof documentActivityAccessorySchema
+>
+
+const documentAccessorySchema = z.discriminatedUnion('key', [
+  documentActivityAccessorySchema,
+  documentVersionsAccessorySchema,
+  documentDirectoryAccessorySchema,
+  documentCitationsAccessorySchema,
+  documentCollaboratorsAccessorySchema,
+  documentSuggestedChangesAccessorySchema,
+  documentDiscussionsAccessorySchema,
+  documentAllDocumentsAccessorySchema,
+  documentContactsAccessorySchema,
+  documentOptionsAccessorySchema,
+  documentAllAccessorySchema,
+])
+export type DocumentAccessory = z.infer<typeof documentAccessorySchema>
+
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptTemplate: z.boolean().optional(),
-  accessory: z
-    .discriminatedUnion('key', [
-      documentVersionsAccessorySchema,
-      documentDirectoryAccessorySchema,
-      documentCitationsAccessorySchema,
-      documentCollaboratorsAccessorySchema,
-      documentSuggestedChangesAccessorySchema,
-      documentDiscussionsAccessorySchema,
-      documentAllDocumentsAccessorySchema,
-      documentContactsAccessorySchema,
-      documentOptionsAccessorySchema,
-      documentAllAccessorySchema,
-    ])
-    .nullable()
-    .optional(),
+  accessory: documentAccessorySchema.nullable().optional(),
 })
+
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
@@ -118,21 +127,7 @@ export const draftRouteSchema = z.object({
   editUid: z.string().optional(),
   editPath: z.array(z.string()).optional(),
   deps: z.array(z.string()).optional(),
-  accessory: z
-    .discriminatedUnion('key', [
-      documentVersionsAccessorySchema,
-      documentDirectoryAccessorySchema,
-      documentCitationsAccessorySchema,
-      documentCollaboratorsAccessorySchema,
-      documentSuggestedChangesAccessorySchema,
-      documentDiscussionsAccessorySchema,
-      documentAllDocumentsAccessorySchema,
-      documentContactsAccessorySchema,
-      documentOptionsAccessorySchema,
-      documentAllAccessorySchema,
-    ])
-    .nullable()
-    .optional(),
+  accessory: documentAccessorySchema.nullable().optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
@@ -195,7 +190,9 @@ export type DocAccessoryOption = {
     | 'versions'
     | 'collaborators'
     | 'discussions'
+    | 'directory'
     | 'citations'
+    | 'activity'
     | 'all-activity'
     | 'options'
     | 'all-documents'

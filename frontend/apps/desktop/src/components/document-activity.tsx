@@ -13,7 +13,7 @@ import {
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
 import {useAccounts, useEntity} from '@shm/shared/models/entity'
-import {DocumentRoute} from '@shm/shared/routes'
+import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
@@ -38,7 +38,7 @@ export function DocumentActivity({
 }: {
   docId: UnpackedHypermediaId
   isCommentingPanelOpen: boolean
-  onAccessory: (accessory: DocumentRoute['accessory']) => void
+  onAccessory: (accessory: DocumentAccessory) => void
 }) {
   return (
     <ActivitySection>
@@ -62,7 +62,7 @@ export function DocumentActivity({
   )
 }
 
-function ActivityList({
+export function ActivityList({
   docId,
   onCommentFocus,
 }: {

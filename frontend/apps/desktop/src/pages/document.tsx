@@ -1,4 +1,5 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {ActivityPanel} from '@/components/activity-panel'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {DiscussionsPanel} from '@/components/comments-panel'
 import {DirectoryPanel} from '@/components/directory-panel'
@@ -98,6 +99,15 @@ export default function DocumentPage() {
     )
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel route={route} />
+  } else if (accessoryKey === 'activity') {
+    accessory = (
+      <ActivityPanel
+        docId={route.id}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
   } else if (accessoryKey === 'collaborators') {
     accessory = <CollaboratorsPanel route={route} />
   } else if (route.accessory?.key === 'discussions') {
@@ -123,7 +133,11 @@ export default function DocumentPage() {
   //     icon: Contact,
   //   })
   // }
-
+  accessoryOptions.push({
+    key: 'activity',
+    label: 'all',
+    icon: CommentsIcon,
+  })
   accessoryOptions.push({
     key: 'versions',
     label: 'Version History',
