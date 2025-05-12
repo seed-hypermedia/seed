@@ -6,8 +6,10 @@ import {
   Event,
   HMBlockNode,
   HMBlockNodeSchema,
+  HMDocumentMetadataSchema,
   hmId,
   HMMetadata,
+  HMMetadataPayload,
   SITE_BASE_URL,
   unpackHmId,
 } from '@shm/shared'
@@ -158,10 +160,21 @@ async function handleEventsForEmailNotifications(
       for (const parentComment of parentComments) {
         parentAuthors.add(parentComment.author)
       }
+      const resolvedParentAuthors: Set<string> = new Set()
+      for (const parentAuthor of parentAuthors) {
+        const account = await resolveAccount(parentAuthor)
+        resolvedParentAuthors.add(account.id.uid)
+      }
+      const explicitMentions = getMentions(comment)
+      const mentions: Set<string> = new Set()
+      for (const mentionedAuthor of explicitMentions) {
+        const account = await resolveAccount(mentionedAuthor)
+        mentions.add(account.id.uid)
+      }
       newComments.push({
         comment: toPlainMessage(comment),
         parentComments,
-        parentAuthors,
+        parentAuthors: resolvedParentAuthors,
         commentAuthorMeta: (await getMetadata(hmId('d', comment.author)))
           .metadata,
         targetMeta: (
@@ -171,7 +184,7 @@ async function handleEventsForEmailNotifications(
             }),
           )
         ).metadata,
-        mentions: getMentions(comment),
+        mentions,
       })
     }
   }
@@ -299,4 +312,16 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
   }
 
   return eventsAfterBlobCid
+}
+
+async function resolveAccount(accountId: string) {
+  const account = await queryClient.documents.getAccount({id: accountId})
+  if (account.aliasAccount) {
+    return await resolveAccount(account.aliasAccount)
+  }
+  const result: HMMetadataPayload = {
+    id: hmId('d', accountId),
+    metadata: HMDocumentMetadataSchema.parse(account.metadata),
+  }
+  return result
 }

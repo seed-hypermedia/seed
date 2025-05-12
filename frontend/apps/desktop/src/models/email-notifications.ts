@@ -25,7 +25,6 @@ export function useEmailNotifierRequest(accountUid: string) {
       data: cborData,
     })
     const signedPayload = {...action, sig: signResponse.signature}
-    console.log('~~ signedPayload', signedPayload)
     const response = await fetch(
       `${gatewayUrl.data}/hm/api/email-notifier/${accountUid}`,
       {
@@ -36,6 +35,14 @@ export function useEmailNotifierRequest(accountUid: string) {
         },
       },
     )
+    if (!response.ok) {
+      try {
+        const error = await response.json()
+        throw new Error('Error fetching email notifications: ' + error.error)
+      } catch (e) {
+        throw new Error('Failed to fetch email notifications')
+      }
+    }
     return response.json()
   }
   async function getNotifs() {
@@ -45,7 +52,10 @@ export function useEmailNotifierRequest(accountUid: string) {
       signer: publicKey,
       time: Date.now(),
     } as const
-    return (await notifierRequest(payload)) as EmailNotifierAccountState
+    const notifsResult = (await notifierRequest(
+      payload,
+    )) as EmailNotifierAccountState
+    return notifsResult
   }
   async function setNotifs(input: SetEmailNotificationsInput) {
     const publicKey = base58btc.decode(accountUid)

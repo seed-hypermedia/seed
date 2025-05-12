@@ -40,6 +40,7 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
+import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -70,7 +71,8 @@ import {
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect, useState} from 'react'
+import {useEffect, useId, useMemo, useRef, useState} from 'react'
+import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {
   AlertDialog,
@@ -87,6 +89,9 @@ import {
   SizableText,
   Spinner,
   Tabs,
+  TabsContentProps,
+  TabsProps,
+  TamaguiTextElement,
   Text,
   TextArea,
   View,
@@ -94,6 +99,7 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
+import {z} from 'zod'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -636,7 +642,10 @@ function AccountKeys() {
                 accountName={getMetadataName(profile?.document?.metadata)}
               />
             </SettingsSection>
-            <EmailNotificationSettings accountUid={selectedAccount} />
+            <EmailNotificationSettings
+              key={selectedAccount}
+              accountUid={selectedAccount}
+            />
           </YStack>
         </ScrollView>
       </YStack>
@@ -680,15 +689,14 @@ function AccountKeys() {
 
 function EmailNotificationSettings({accountUid}: {accountUid: string}) {
   const emailNotifs = useEmailNotifications(accountUid)
-  console.log('~~ RESULT emailNotifs', emailNotifs.data)
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const hasNoNotifs =
-    emailNotifs.data &&
+    emailNotifs.data?.account &&
     !emailNotifs.data.account.notifyAllMentions &&
     !emailNotifs.data.account.notifyAllReplies
   return (
     <SettingsSection title="Email Notifications">
-      {emailNotifs.data ? (
+      {emailNotifs.data?.account ? (
         <YStack gap="$3">
           <SizableText>
             Recipient Email:{' '}
@@ -710,7 +718,6 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           ) : null}
         </YStack>
       ) : null}
-      {/* <Text>{JSON.stringify(emailNotifs.data)}</Text> */}
       <XStack>
         <Button
           icon={Pencil}
@@ -905,7 +912,6 @@ function CopyUrlField({url, label}: {url: string; label: string}) {
               e.preventDefault()
               if (textRef.current) {
                 const range = document.createRange()
-                // @ts-expect-error
                 range.selectNode(textRef.current)
                 window.getSelection()?.removeAllRanges()
                 window.getSelection()?.addRange(range)

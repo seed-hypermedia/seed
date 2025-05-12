@@ -1,4 +1,6 @@
-import {BaseAccount, getAccount, getEmail, setAccount} from '@/db'
+import {queryClient} from '@/client'
+import type {BaseAccount} from '@/db'
+import {getAccount, getEmail, setAccount} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
 import {getMetadata} from '@/loaders'
 import {BadRequestError, cborApiAction} from '@/server-api'
@@ -7,7 +9,7 @@ import {validateSignature} from '@/validate-signature'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
-import {hmId} from '@shm/shared'
+import {hmId, Role} from '@shm/shared'
 import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
 
@@ -43,7 +45,7 @@ const emailNotifierAction = z.discriminatedUnion('action', [
 export type EmailNotifierAction = z.infer<typeof emailNotifierAction>
 
 export type EmailNotifierAccountState = {
-  account: BaseAccount
+  account: BaseAccount | null
 }
 
 export const action = cborApiAction<EmailNotifierAction, any>(
@@ -51,9 +53,6 @@ export const action = cborApiAction<EmailNotifierAction, any>(
     const accountId = pathParts[3]
     if (!accountId) {
       throw new BadRequestError('No user ID provided')
-    }
-    if (base58btc.encode(signedPayload.signer) !== accountId) {
-      throw new BadRequestError('Mismatched signer and account ID')
     }
     const {sig, ...restPayload} = signedPayload
     const isValid = await validateSignature(
@@ -64,6 +63,20 @@ export const action = cborApiAction<EmailNotifierAction, any>(
     if (!isValid) {
       throw new BadRequestError('Invalid signature')
     }
+    const signerId = base58btc.encode(signedPayload.signer)
+    if (signerId !== accountId) {
+      const caps = await queryClient.accessControl.listCapabilitiesForDelegate({
+        delegate: signerId,
+      })
+      const agentCap = caps.capabilities.find(
+        (cap) => cap.role === Role.AGENT && cap.issuer === accountId,
+      )
+      if (!agentCap) {
+        throw new BadRequestError(
+          'Mismatched signer and account ID, with no matching agent capability found',
+        )
+      }
+    }
     const now = Date.now()
     const timeDiff = Math.abs(now - restPayload.time)
     if (timeDiff > 20_000) {
@@ -71,6 +84,9 @@ export const action = cborApiAction<EmailNotifierAction, any>(
     }
     if (restPayload.action === 'get-email-notifications') {
       const account = getAccount(accountId)
+      if (!account) {
+        return {account: null} satisfies EmailNotifierAccountState
+      }
       return {
         account,
       } satisfies EmailNotifierAccountState

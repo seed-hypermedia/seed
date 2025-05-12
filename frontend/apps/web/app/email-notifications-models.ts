@@ -1,3 +1,4 @@
+import {useAccount} from '@shm/shared/models/entity'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {cborEncode, postCBOR, signObject} from './api'
 import {useLocalKeyPair} from './auth'
@@ -6,11 +7,12 @@ import type {EmailNotifierAction} from './routes/hm.api.email-notifier.$.tsx'
 
 export function useEmailNotifications() {
   const keyPair = useLocalKeyPair()
+  const account = useAccount(keyPair?.id)
 
   return useQuery({
-    queryKey: ['email-notifications', keyPair?.id],
+    queryKey: ['email-notifications', account.data?.id.uid],
     queryFn: async () => {
-      if (!keyPair) {
+      if (!keyPair || !account.data?.id) {
         return null
       }
       const publicKey = await preparePublicKey(keyPair.publicKey)
@@ -21,7 +23,7 @@ export function useEmailNotifications() {
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(
-        `/hm/api/email-notifier/${keyPair.id}`,
+        `/hm/api/email-notifier/${account.data?.id.uid}`,
         cborEncode({
           ...payload,
           sig: new Uint8Array(sig),
@@ -40,6 +42,8 @@ export function useEmailNotifications() {
 
 export function useSetEmailNotifications() {
   const keyPair = useLocalKeyPair()
+  const account = useAccount(keyPair?.id)
+
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -65,7 +69,7 @@ export function useSetEmailNotifications() {
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(
-        `/hm/api/email-notifier/${keyPair.id}`,
+        `/hm/api/email-notifier/${account.data?.id.uid}`,
         cborEncode({
           ...payload,
           sig: new Uint8Array(sig),
