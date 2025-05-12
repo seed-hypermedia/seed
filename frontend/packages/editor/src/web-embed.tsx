@@ -6,6 +6,11 @@ import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {isValidUrl} from '@/utils'
+import {
+  generateInstagramEmbedHtml,
+  loadInstagramScript,
+  loadTwitterScript,
+} from '@shm/shared/utils/web-embed-scripts'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {YStack} from '@tamagui/stacks'
@@ -123,60 +128,7 @@ const display = ({
   const isInstagram = /instagram\.com/.test(url)
   const tweetId = url.split('/').pop()?.split('?')[0]
 
-  const scriptId = 'twitter-widgets-script'
   const createdTweets = useRef(new Set())
-
-  let scriptLoadPromise: Promise<any> | null = null
-
-  const loadTwitterScript = () => {
-    // Check if the script was already added to the document
-    const script = document.getElementById(scriptId) as HTMLScriptElement | null
-
-    if (scriptLoadPromise) {
-      return scriptLoadPromise
-    }
-
-    if (script && window.twttr) {
-      // If the script is loaded and window.twttr is ready, resolve immediately
-      return Promise.resolve(window.twttr)
-    }
-
-    // If the script exists but window.twttr is not ready, wait for it
-    if (script) {
-      scriptLoadPromise = new Promise((resolve) => {
-        const checkTwttr = setInterval(() => {
-          if (window.twttr) {
-            clearInterval(checkTwttr)
-            resolve(window.twttr)
-          }
-        }, 50) // Retry every 50 ms
-      })
-      return scriptLoadPromise
-    }
-
-    // Load the script
-    scriptLoadPromise = new Promise((resolve) => {
-      const newScript = document.createElement('script')
-      newScript.id = scriptId
-      newScript.src = 'https://platform.twitter.com/widgets.js'
-      newScript.async = true
-      newScript.onload = () => resolve(window.twttr)
-      document.body.appendChild(newScript)
-    })
-
-    return scriptLoadPromise
-  }
-
-  const loadInstagramScript = () => {
-    if (!document.getElementById('instagram-embed-script')) {
-      const script = document.createElement('script')
-      script.id = 'instagram-embed-script'
-      script.src = 'https://www.instagram.com/embed.js'
-      script.async = true
-      script.defer = true
-      document.body.appendChild(script)
-    }
-  }
 
   useEffect(() => {
     const initEmbed = async () => {
@@ -201,12 +153,7 @@ const display = ({
           }
         } else if (isInstagram) {
           if (containerRef.current) {
-            containerRef.current.innerHTML = `
-              <blockquote class="instagram-media" 
-                data-instgrm-permalink="${url}" 
-                data-instgrm-version="14">
-              </blockquote>
-            `
+            containerRef.current.innerHTML = generateInstagramEmbedHtml(url)
             loadInstagramScript()
             setTimeout(() => {
               // Retry to process embed
@@ -263,10 +210,10 @@ const display = ({
       ></iframe> */}
       {loading && <Spinner />}
       {error && (
-        <YStack p="$7" ai="center" ac="center">
+        <YStack padding="$7" alignItems="center" alignContent="center">
           <SizableText
             color="$red11"
-            p="$1"
+            padding="$1"
             // borderWidth="$1.5"
             // borderRadius="$3"
             // borderColor="$color8"

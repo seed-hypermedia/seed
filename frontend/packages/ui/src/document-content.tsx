@@ -31,6 +31,11 @@ import {
   DocContentContextValue,
   EntityComponentProps,
 } from '@shm/shared/document-content-types'
+import {
+  generateInstagramEmbedHtml,
+  loadInstagramScript,
+  loadTwitterScript,
+} from '@shm/shared/utils/web-embed-scripts'
 import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
 import {SizeTokens, Text, TextProps, Theme, useThemeName} from '@tamagui/core'
@@ -2320,31 +2325,6 @@ export function BlockContentWebEmbed({
 
   const xPostId = url.split('/').pop()?.split('?')[0]
 
-  const loadTwitterScript = () => {
-    return new Promise((resolve) => {
-      if (window.twttr) {
-        resolve(window.twttr)
-      } else {
-        const script = document.createElement('script')
-        script.src = 'https://platform.twitter.com/widgets.js'
-        script.async = true
-        script.onload = () => resolve(window.twttr)
-        document.body.appendChild(script)
-      }
-    })
-  }
-
-  const loadInstagramScript = () => {
-    if (!document.getElementById('instagram-embed-script')) {
-      const script = document.createElement('script')
-      script.id = 'instagram-embed-script'
-      script.src = 'https://www.instagram.com/embed.js'
-      script.async = true
-      script.defer = true
-      document.body.appendChild(script)
-    }
-  }
-
   useEffect(() => {
     const initializeEmbed = async () => {
       setLoading(true)
@@ -2369,12 +2349,7 @@ export function BlockContentWebEmbed({
           }
         } else if (isInstagram) {
           if (containerRef.current) {
-            containerRef.current.innerHTML = `
-              <blockquote class="instagram-media"
-                data-instgrm-permalink="${url}"
-                data-instgrm-version="14"
-              ></blockquote>
-            `
+            containerRef.current.innerHTML = generateInstagramEmbedHtml(url)
             loadInstagramScript()
             setTimeout(() => {
               try {
