@@ -573,7 +573,7 @@ export function CommentEditor2({
         bg="$color4"
         width="100%"
         borderRadius="$4"
-        paddingHorizontal="$2"
+        paddingHorizontal="$3"
       >
         <YStack
           justifyContent={isEditorFocused ? 'flex-start' : 'center'}
@@ -631,7 +631,7 @@ export function CommentEditor2({
           )}
         </YStack>
         {isEditorFocused ? (
-          <XStack alignSelf="flex-end" bg="green">
+          <XStack alignSelf="flex-end">
             {submitButton({
               reset,
               getContent,

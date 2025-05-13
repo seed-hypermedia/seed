@@ -213,6 +213,7 @@ export function useAppDialog<DialogInput>(
               onPress={close}
             />
             <Component.Content
+              zIndex={10000000}
               backgroundColor={'$background'}
               animation={[
                 'fast',

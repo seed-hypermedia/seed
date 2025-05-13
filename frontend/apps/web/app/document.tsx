@@ -52,6 +52,7 @@ import {
   PanelResizeHandle,
 } from 'react-resizable-panels'
 import {Separator, Sheet, useMedia, View} from 'tamagui'
+import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -718,14 +719,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     // onVersionOpen={() => {}}
                   />
                 </XStack>
-                <Sheet.ScrollView
-                  f={1}
-                  bg="blue"
-                  h="100%"
-                  overflow="scroll"
-                  flex={1}
-                >
-                  {/* <YStack f={1} bg="green">
+                <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                  {/* <YStack f={1}>
                     {new Array(2000).fill(0).map((_, i) => (
                       <SizableText key={i} h={20} w="100%">
                         {i}

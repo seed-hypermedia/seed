@@ -101,7 +101,7 @@ export function WebCommentsPanel({
   )
 
   return (
-    <YStack gap="$4" bg="red">
+    <YStack gap="$4">
       <XStack
         paddingHorizontal="$4"
         paddingVertical="$3"
