@@ -68,7 +68,8 @@ export const webImportingApi = t.router({
       pagesFound: Math.round(Math.random() * 100),
       paths: ['/foo', '/bar'],
       status: 'ready',
-    }
+      // location: 'hm://'
+    } as const
   }),
   importWebSiteConfirm: t.procedure
     .input(z.object({id: z.string(), signAccountUid: z.string()}).strict())

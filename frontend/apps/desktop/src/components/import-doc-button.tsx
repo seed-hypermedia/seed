@@ -1,6 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
+import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -24,9 +25,9 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
-import {ReactElement, useMemo} from 'react'
+import {ReactElement, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {Form, YStack} from 'tamagui'
+import {Form, SizableText, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
@@ -227,17 +228,71 @@ function useWebImporting() {
   return useAppDialog(WebImportDialog)
 }
 
-function WebImportDialog() {
+function WebImportDialog({onClose}: {onClose: () => void}) {
+  const [importId, setImportId] = useState<string | null>(null)
+  const startImport = trpc.webImporting.importWebSite.useMutation()
+
   return (
     <>
       <DialogTitle>Import Web Site</DialogTitle>
-      <ImportURLForm
-        onSubmit={(url) => {
-          toast('Import Started.')
-          console.log('url', url)
-        }}
-      />
+      {importId ? (
+        <WebImportInProgress id={importId} onComplete={onClose} />
+      ) : (
+        <ImportURLForm
+          onSubmit={(url) => {
+            startImport.mutateAsync({url}).then(({importId}) => {
+              setImportId(importId)
+            })
+
+            toast('Import Started.')
+            console.log('url', url)
+          }}
+        />
+      )}
     </>
+  )
+}
+
+function WebImportInProgress({
+  id,
+  onComplete,
+}: {
+  id: string
+  onComplete: () => void
+}) {
+  const {data} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
+    refetchInterval: 800,
+  })
+  const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
+  const myAccounts = useMyAccountIds()
+
+  return (
+    <YStack gap="$4">
+      <SizableText>Importing...</SizableText>
+      <SizableText>{data?.pagesFound} pages found</SizableText>
+      {data?.status === 'ready' && (
+        <Button
+          onPress={() => {
+            const signAccountUid = myAccounts.data?.[0]
+            if (!signAccountUid) {
+              toast.error('No account found')
+              return
+            }
+            confirmImport
+              .mutateAsync({
+                id,
+                signAccountUid,
+              })
+              .then(() => {
+                toast.success('Import Complete.')
+                onComplete()
+              })
+          }}
+        >
+          {`Import & Publish ${data?.pagesFound} pages`}
+        </Button>
+      )}
+    </YStack>
   )
 }
 
