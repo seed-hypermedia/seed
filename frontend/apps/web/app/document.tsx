@@ -37,7 +37,6 @@ import {
   DocNavigationWrapper,
   DocumentOutline,
 } from '@shm/ui/navigation'
-import {ActivitySection} from '@shm/ui/page-components'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
@@ -52,7 +51,6 @@ import {
   PanelResizeHandle,
 } from 'react-resizable-panels'
 import {Separator, Sheet, useMedia, View} from 'tamagui'
-import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
 import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
@@ -830,7 +828,7 @@ function DocumentAppendix({
   }
   return (
     <Container>
-      <ActivitySection>
+      {/* <ActivitySection>
         <DocumentActivity
           id={docIdWithVersion}
           document={document}
@@ -849,7 +847,7 @@ function DocumentAppendix({
             enableWebSigning={enableWebSigning || false}
           />
         ) : null}
-      </ActivitySection>
+      </ActivitySection> */}
     </Container>
   )
 }

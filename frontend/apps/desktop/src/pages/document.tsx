@@ -4,7 +4,6 @@ import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {DiscussionsPanel} from '@/components/comments-panel'
 import {DirectoryPanel} from '@/components/directory-panel'
 import {DocNavigation} from '@/components/doc-navigation'
-import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
@@ -951,13 +950,13 @@ function DocPageAppendix({
   return (
     <Container centered={centered}>
       {/* <Discussion docId={docId} /> */}
-      {metadata && metadata.showActivity === false ? null : (
+      {/* {metadata && metadata.showActivity === false ? null : (
         <DocumentActivity
           docId={docId}
           isCommentingPanelOpen={isCommentingPanelOpen}
           onAccessory={onAccessory}
         />
-      )}
+      )} */}
     </Container>
   )
 }

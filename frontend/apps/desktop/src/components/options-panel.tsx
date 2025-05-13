@@ -88,7 +88,7 @@ export function OptionsPanel({
                 onMetadata={onMetadata}
               />
               <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-              <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+              {/* <ActivityVisibility metadata={metadata} onMetadata={onMetadata} /> */}
             </AccessorySection>
           </>
         ) : (
@@ -106,7 +106,7 @@ export function OptionsPanel({
             />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-            <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+            {/* <ActivityVisibility metadata={metadata} onMetadata={onMetadata} /> */}
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
           </>
         )}
