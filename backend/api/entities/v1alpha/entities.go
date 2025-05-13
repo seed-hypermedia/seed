@@ -192,7 +192,7 @@ SELECT
 	fts.version,
 	fts.blob_id,
     resources.iri,
-    structural_blobs.ts,
+    structural_blobs.genesis_blob,
     fts.rank
     
 FROM fts
@@ -229,12 +229,19 @@ SELECT
   	) AS heads
     
 FROM fts_data
-JOIN structural_blobs ON fts_data.ts = structural_blobs.ts
+JOIN structural_blobs ON (fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref'
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 JOIN document_generations ON document_generations.resource = resources.id
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resources.iri IS NOT NULL
+GROUP BY fts_data.raw_content, 
+fts_data.type, 
+fts_data.block_id, 
+fts_data.version, 
+fts_data.blob_id, 
+resources.iri, 
+author 
 ORDER BY fts_data.rank;`)
 
 var qGetMetadata = dqb.Str(`
