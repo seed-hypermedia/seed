@@ -1,4 +1,5 @@
 import {getMarkRange, posToDOMRect, Range} from '@tiptap/core'
+import {MarkType} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
 import {Mark, Node as PMNode} from 'prosemirror-model'
 import {Plugin, PluginKey} from 'prosemirror-state'
@@ -610,6 +611,24 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       !this.hoveredId &&
       !this.isHoveringToolbar
     ) {
+      const {markOrNode, range} = getNodeAndRange(
+        undefined,
+        undefined,
+        this.hyperlinkToolbarState.id,
+        this.pmView,
+      )
+
+      if (
+        this.hyperlinkToolbarState.type === 'link' &&
+        markOrNode?.attrs.href.length === 0
+      ) {
+        if (range && markOrNode)
+          this.pmView.dispatch(
+            this.pmView.state.tr
+              .removeMark(range.from, range.to, markOrNode.type as MarkType)
+              .setMeta('preventAutolink', true),
+          )
+      }
       this.hyperlinkToolbarState.show = false
 
       this.updateHyperlinkToolbar()
