@@ -5,7 +5,7 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {EmptyDiscussion} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText, useTheme, YStack} from 'tamagui'
+import {ScrollView, SizableText, useTheme, YStack} from 'tamagui'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
@@ -35,20 +35,22 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   }
 
   return (
-    <YStack gap="$2" paddingHorizontal="$2">
-      {directory.map((activityItem) => {
-        if (activityItem.type === 'document') {
-          return (
-            <SubDocumentItem
-              hideIcon
-              item={activityItem}
-              key={activityItem.account + '/' + activityItem.path.join('/')}
-              accountsMetadata={accounts.data?.accountsMetadata || {}}
-            />
-          )
-        }
-        return null
-      })}
-    </YStack>
+    <ScrollView>
+      <YStack gap="$2" paddingHorizontal="$2">
+        {directory.map((activityItem) => {
+          if (activityItem.type === 'document') {
+            return (
+              <SubDocumentItem
+                hideIcon
+                item={activityItem}
+                key={activityItem.account + '/' + activityItem.path.join('/')}
+                accountsMetadata={accounts.data?.accountsMetadata || {}}
+              />
+            )
+          }
+          return null
+        })}
+      </YStack>
+    </ScrollView>
   )
 }
