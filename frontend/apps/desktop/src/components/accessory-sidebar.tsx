@@ -261,6 +261,7 @@ export function AccessoryTitle({
             />
           </Tooltip>
         </XGroup.Item>
+
         <XGroup.Item>
           <Tooltip content="Collaborators">
             <Button

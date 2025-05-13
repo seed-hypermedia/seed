@@ -4,7 +4,6 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
 import {
-  BlockRange,
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hmId,
@@ -56,6 +55,9 @@ export type WebCommentingProps = {
   commentingOriginUrl?: string
 }
 
+/**
+ * This is the main commenting component. It is used to create a new comment.
+ */
 export default function WebCommenting(props: WebCommentingProps) {
   if (!props.enableWebSigning) {
     return (
@@ -95,6 +97,7 @@ export function LocalWebCommenting({
   commentingOriginUrl,
 }: WebCommentingProps) {
   const userKeyPair = useLocalKeyPair()
+  const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const postComment = useMutation({
     mutationFn: async (commentPayload: {
@@ -199,9 +202,18 @@ export function LocalWebCommenting({
 
   return (
     <>
-      <CommentDocContentProvider
-        handleFileAttachment={handleFileAttachment}
+      <DocContentProvider
+        entityComponents={{
+          Document: EmbedDocument,
+          Comment: () => null,
+          Inline: EmbedInline,
+          Query: QueryBlockWeb,
+        }}
         importWebFile={importWebFile}
+        openUrl={openUrl}
+        handleFileAttachment={handleFileAttachment}
+        debug={false}
+        comment
       >
         <CommentEditor
           handleSubmit={handleSubmit}
@@ -233,7 +245,7 @@ export function LocalWebCommenting({
           }}
           onDiscardDraft={onDiscardDraft}
         />
-      </CommentDocContentProvider>
+      </DocContentProvider>
       {createAccountContent}
       {emailNotificationsPromptContent}
     </>
@@ -358,80 +370,6 @@ export function useOpenUrlWeb() {
       window.location.href = newUrl
     }
   }
-}
-
-function CommentDocContentProvider({
-  handleFileAttachment,
-  importWebFile,
-  children,
-
-  routeParams,
-}: {
-  children: React.ReactNode | JSX.Element
-  // TODO: specify return type
-  handleFileAttachment: (
-    file: Blob,
-  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
-  importWebFile: any
-  // siteHost: string | undefined
-  // id: UnpackedHypermediaId
-  // originHomeId: UnpackedHypermediaId
-  // supportDocuments?: HMEntityContent[]
-  // supportQueries?: HMQueryResult[]
-  routeParams?: {
-    uid?: string
-    version?: string
-    blockRef?: string
-    blockRange?: BlockRange
-  }
-}) {
-  const openUrl = useOpenUrlWeb()
-  // const importWebFile = trpc.webImporting.importWebFile.useMutation()
-  // const navigate = useNavigate()
-  return (
-    <DocContentProvider
-      entityComponents={{
-        Document: EmbedDocument,
-        Comment: () => null,
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-      }}
-      importWebFile={importWebFile}
-      // entityId={id}
-      // supportDocuments={supportDocuments}
-      // supportQueries={supportQueries}
-      // onCopyBlock={(blockId, blockRange) => {
-      //   const blockHref = getHref(
-      //     originHomeId,
-      //     {
-      //       ...id,
-      //       hostname: siteHost || null,
-      //       blockRange: blockRange || null,
-      //       blockRef: blockId,
-      //     },
-      //     id.version || undefined,
-      //   )
-      //   window.navigator.clipboard.writeText(blockHref)
-      //   navigate(
-      //     window.location.pathname +
-      //       window.location.search +
-      //       `#${blockId}${
-      //         'start' in blockRange && 'end' in blockRange
-      //           ? `[${blockRange.start}:${blockRange.end}]`
-      //           : ''
-      //       }`,
-      //     {replace: true, preventScrollReset: true},
-      //   )
-      // }}
-      routeParams={routeParams}
-      openUrl={openUrl}
-      handleFileAttachment={handleFileAttachment}
-      debug={false}
-      comment
-    >
-      {children}
-    </DocContentProvider>
-  )
 }
 
 function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {

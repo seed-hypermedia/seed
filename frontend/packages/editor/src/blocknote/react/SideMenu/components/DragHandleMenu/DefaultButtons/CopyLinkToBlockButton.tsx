@@ -8,12 +8,12 @@ import {DragHandleMenuItem} from '../DragHandleMenuItem'
 export const CopyLinkToBlockButton = <BSchema extends BlockSchema>({
   block,
 }: DragHandleMenuProps<BSchema>) => {
-  const {onCopyBlock} = useDocContentContext()
-  if (!onCopyBlock) return null
+  const {onBlockCopy} = useDocContentContext()
+  if (!onBlockCopy) return null
   return (
     <DragHandleMenuItem
       onClick={() => {
-        onCopyBlock(block.id)
+        onBlockCopy(block.id)
       }}
     >
       <XStack gap="$2">

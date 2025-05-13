@@ -20,6 +20,7 @@ import {
   UnpackedHypermediaId,
   WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
+import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -52,7 +53,6 @@ import {
 } from 'react-resizable-panels'
 import {Separator, Sheet, useMedia, View} from 'tamagui'
 import {WebCommentsPanel} from './comment-panel'
-import {CommentReplies, CommentRepliesEditor} from './comment-rendering'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
@@ -179,11 +179,13 @@ export const documentPageMeta: MetaFunction = ({
 type WebAccessory =
   | {
       type: 'citations'
-      blockId: string | null
+      blockId?: string
     }
   | {
-      type: 'comments'
-      blockId?: string | null
+      type: 'discussions'
+      blockId?: string
+      commentId?: string
+      rootReplyCommentId?: string
     }
 
 export function DocumentPage(props: SiteDocumentPayload) {
@@ -213,7 +215,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, [id, document?.metadata?.name])
 
   useEffect(() => {
-    if (comment) setActivePanel({type: 'comments'})
+    if (comment) setActivePanel({type: 'discussions', commentId: comment.id})
   }, [comment])
 
   useEffect(() => {
@@ -277,7 +279,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, [location.hash])
 
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    if (comment) return {type: 'comments'}
+    if (comment) return {type: 'discussions', commentId: comment.id}
     return null
   })
 
@@ -310,8 +312,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const comments = useComments(id)
 
   function onBlockCitationClick(blockId?: string | null) {
-    console.log('~ onBlockCitationClick', blockId, media.gtSm)
-
     setActivePanel({type: 'citations', blockId: blockId || null})
 
     if (!media.gtSm) {
@@ -325,20 +325,55 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   function onBlockCommentClick(blockId?: string | null) {
     console.log('~ onBlockCommentClick', blockId, media.gtSm)
-    setActivePanel({type: 'comments', blockId: blockId || null})
+    setActivePanel({type: 'discussions', blockId: blockId || null})
     if (!media.gtSm) {
-      const mainPanel = mainPanelRef.current
-      if (!mainPanel) return
-      setTimeout(() => {
-        mainPanel.collapse()
-      }, 1)
+      setIsSheetOpen(true)
     }
   }
 
-  if (activePanel?.type == 'comments') {
+  const onReplyCountClick = useCallback(
+    (commentId: string, rootReplyCommentId: string) => {
+      setActivePanel({
+        type: 'discussions',
+        commentId: commentId,
+        rootReplyCommentId,
+      })
+    },
+    [],
+  )
+
+  const onReplyClick = useCallback(
+    (commentId: string, rootReplyCommentId: string) => {
+      if (enableWebSigning) {
+        setActivePanel({
+          type: 'discussions',
+          commentId,
+          rootReplyCommentId,
+        })
+        if (!media.gtSm) {
+          setIsSheetOpen(true)
+        }
+      } else {
+        redirectToWebIdentityCommenting(id, commentId, rootReplyCommentId)
+      }
+    },
+    [enableWebSigning],
+  )
+
+  if (activePanel?.type == 'discussions') {
     panel = (
       <WebCommentsPanel
         blockId={activePanel.blockId}
+        commentId={activePanel.commentId}
+        rootReplyCommentId={activePanel.rootReplyCommentId}
+        handleBack={() =>
+          setActivePanel({
+            ...activePanel,
+            commentId: undefined,
+            blockId: undefined,
+            rootReplyCommentId: undefined,
+          })
+        }
         setBlockId={onBlockCommentClick}
         comments={comments.data}
         docId={id}
@@ -347,6 +382,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
         originHomeId={originHomeId}
         siteHost={siteHost}
         enableWebSigning={enableWebSigning || false}
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
       />
     )
   }
@@ -361,311 +398,289 @@ export function DocumentPage(props: SiteDocumentPayload) {
     )
   }
 
-  console.log('media', media.gtSm)
-
   return (
     <WebSiteProvider
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
     >
-      <WebSiteHeader
-        homeMetadata={homeMetadata}
-        originHomeId={originHomeId}
-        docId={id}
-        document={document}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
-        origin={origin}
+      <DiscussionsProvider
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
       >
-        <PanelGroup direction="horizontal">
-          <Panel ref={mainPanelRef} collapsible id="main-panel">
-            <XStack
-              w="100%"
-              bg={isDark ? '$background' : '$backgroundStrong'}
-              marginBottom={56}
-              $gtSm={{
-                marginBottom: 0,
-              }}
-            >
-              <YStack f={1}>
-                <DocumentCover cover={document.metadata.cover} id={id} />
-                <YStack w="100%" ref={elementRef} f={1} position="relative">
-                  {!media.gtSm ? null : panel == null ? (
-                    <XStack
-                      position="absolute"
-                      top={0}
-                      right={8}
-                      zIndex="$zIndex.7"
-                      padding="$4"
-                    >
-                      <DocInteractionsSummary
-                        docId={id}
-                        citations={citations.data}
-                        comments={comments.data}
-                        onCitationsOpen={() => {
-                          setActivePanel({type: 'citations', blockId: null})
-                          if (!media.gtSm) {
-                            const mainPanel = mainPanelRef.current
-
-                            if (!mainPanel) return
-                            console.log('COLLAPSE PANEL')
-
-                            setTimeout(() => {
-                              mainPanel.collapse()
-                            }, 1)
-                          }
-                        }}
-                        onCommentsOpen={() => {
-                          setActivePanel({type: 'comments', blockId: null})
-                          if (!media.gtSm) {
-                            const mainPanel = mainPanelRef.current
-                            if (!mainPanel) return
-                            console.log('COLLAPSE PANEL')
-                            setTimeout(() => {
-                              mainPanel.collapse()
-                            }, 1)
-                          }
-                        }}
-                        // onVersionOpen={() => {}}
-                      />
-                    </XStack>
-                  ) : null}
-                  <XStack {...wrapperProps}>
-                    {showSidebars ? (
-                      <YStack
-                        marginTop={document.metadata?.cover ? 152 : 220}
-                        {...sidebarProps}
+        <WebSiteHeader
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
+          origin={origin}
+        >
+          <PanelGroup direction="horizontal">
+            <Panel ref={mainPanelRef} collapsible id="main-panel">
+              <XStack
+                w="100%"
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                marginBottom={56}
+                $gtSm={{
+                  marginBottom: 0,
+                }}
+              >
+                <YStack f={1}>
+                  <DocumentCover cover={document.metadata.cover} id={id} />
+                  <YStack w="100%" ref={elementRef} f={1} position="relative">
+                    {!media.gtSm ? null : panel == null ? (
+                      <XStack
+                        position="absolute"
+                        top={0}
+                        right={8}
+                        zIndex="$zIndex.7"
+                        padding="$4"
                       >
-                        <YStack
-                          className="hide-scrollbar"
-                          overflow="scroll"
-                          height="100%"
-                          // paddingTop={32}
-                          paddingBottom={32}
-                        >
-                          <DocNavigationWrapper showCollapsed={showCollapsed}>
-                            <DocumentOutline
-                              onActivateBlock={onActivateBlock}
-                              document={document}
-                              id={id}
-                              // onCloseNav={() => {}}
-                              supportDocuments={props.supportDocuments}
-                              activeBlockId={id.blockRef}
-                            />
-                            <DocDirectory
-                              // supportDocuments={props.supportDocuments}
-                              supportQueries={props.supportQueries}
-                              // documentMetadata={document.metadata}
-                              id={id}
-                            />
-                          </DocNavigationWrapper>
-                        </YStack>
-                      </YStack>
-                    ) : null}
-                    <YStack {...mainContentProps}>
-                      {isHomeDoc ? null : (
-                        <PageHeader
-                          originHomeId={originHomeId}
-                          breadcrumbs={props.breadcrumbs}
-                          docMetadata={document.metadata}
+                        <DocInteractionsSummary
                           docId={id}
-                          authors={document.authors.map(
-                            (author) => accountsMetadata[author],
-                          )}
-                          updateTime={document.updateTime}
+                          citations={citations.data}
+                          comments={comments.data}
+                          onCitationsOpen={() => {
+                            setActivePanel({type: 'citations', blockId: null})
+                            if (!media.gtSm) {
+                              setIsSheetOpen(true)
+                            }
+                          }}
+                          onCommentsOpen={() => {
+                            setActivePanel({type: 'discussions', blockId: null})
+                            if (!media.gtSm) {
+                              setIsSheetOpen(true)
+                            }
+                          }}
+                          // onVersionOpen={() => {}}
                         />
-                      )}
-                      <WebDocContentProvider
-                        onBlockCitationClick={onBlockCitationClick}
-                        onBlockCommentClick={onBlockCommentClick}
-                        originHomeId={originHomeId}
-                        id={{...id, version: document.version}}
-                        siteHost={siteHost}
-                        supportDocuments={supportDocuments}
-                        supportQueries={supportQueries}
-                        citations={citations.data}
-                        routeParams={{
-                          uid: id.uid,
-                          version: id.version || undefined,
-                          blockRef: blockRef,
-                          blockRange: blockRange,
-                        }}
-                        onHoverIn={(id) => {
-                          console.log('=== BLOCK HOVER EFFECT: hover in', id)
-                        }}
-                        onHoverOut={(id) => {
-                          console.log('=== BLOCK HOVER EFFECT: hover out', id)
-                        }}
-                      >
-                        <DocContent
-                          document={document}
-                          handleBlockReplace={() => {
-                            // Replace the URL to not include fragment.
-                            replace(
-                              window.location.pathname + window.location.search,
-                              {
-                                replace: true,
-                                preventScrollReset: true,
-                              },
-                            )
-                            return true
+                      </XStack>
+                    ) : null}
+                    <XStack {...wrapperProps}>
+                      {showSidebars ? (
+                        <YStack
+                          marginTop={document.metadata?.cover ? 152 : 220}
+                          {...sidebarProps}
+                        >
+                          <YStack
+                            className="hide-scrollbar"
+                            overflow="scroll"
+                            height="100%"
+                            // paddingTop={32}
+                            paddingBottom={32}
+                          >
+                            <DocNavigationWrapper showCollapsed={showCollapsed}>
+                              <DocumentOutline
+                                onActivateBlock={onActivateBlock}
+                                document={document}
+                                id={id}
+                                // onCloseNav={() => {}}
+                                supportDocuments={props.supportDocuments}
+                                activeBlockId={id.blockRef}
+                              />
+                              <DocDirectory
+                                // supportDocuments={props.supportDocuments}
+                                supportQueries={props.supportQueries}
+                                // documentMetadata={document.metadata}
+                                id={id}
+                              />
+                            </DocNavigationWrapper>
+                          </YStack>
+                        </YStack>
+                      ) : null}
+                      <YStack {...mainContentProps}>
+                        {isHomeDoc ? null : (
+                          <PageHeader
+                            originHomeId={originHomeId}
+                            breadcrumbs={props.breadcrumbs}
+                            docMetadata={document.metadata}
+                            docId={id}
+                            authors={document.authors.map(
+                              (author) => accountsMetadata[author],
+                            )}
+                            updateTime={document.updateTime}
+                          />
+                        )}
+                        <WebDocContentProvider
+                          onBlockCitationClick={onBlockCitationClick}
+                          onBlockCommentClick={onBlockCommentClick}
+                          originHomeId={originHomeId}
+                          id={{...id, version: document.version}}
+                          siteHost={siteHost}
+                          supportDocuments={supportDocuments}
+                          supportQueries={supportQueries}
+                          citations={citations.data}
+                          routeParams={{
+                            uid: id.uid,
+                            version: id.version || undefined,
+                            blockRef: blockRef,
+                            blockRange: blockRange,
+                          }}
+                          onHoverIn={(id) => {
+                            console.log('=== BLOCK HOVER EFFECT: hover in', id)
+                          }}
+                          onHoverOut={(id) => {
+                            console.log('=== BLOCK HOVER EFFECT: hover out', id)
+                          }}
+                        >
+                          <DocContent
+                            document={document}
+                            handleBlockReplace={() => {
+                              // Replace the URL to not include fragment.
+                              replace(
+                                window.location.pathname +
+                                  window.location.search,
+                                {
+                                  replace: true,
+                                  preventScrollReset: true,
+                                },
+                              )
+                              return true
+                            }}
+                          />
+                        </WebDocContentProvider>
+                        {document.metadata &&
+                        document.metadata.showActivity === false ? null : (
+                          <DocumentAppendix
+                            id={id}
+                            document={document}
+                            originHomeId={originHomeId}
+                            siteHost={siteHost}
+                            enableWebSigning={enableWebSigning}
+                            isCommentingPanelOpen={
+                              activePanel?.type == 'discussions'
+                            }
+                          />
+                        )}
+                      </YStack>
+                      {showSidebars ? <YStack {...sidebarProps} /> : null}
+                    </XStack>
+                  </YStack>
+                  <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                </YStack>
+              </XStack>
+            </Panel>
+            {!media.gtSm ? null : panel ? (
+              <>
+                <PanelResizeHandle className="panel-resize-handle" />
+
+                <Panel
+                  defaultSize={media.gtSm ? 30 : 100}
+                  maxSize={media.gtSm ? 40 : 100}
+                  minSize={media.gtSm ? 20 : 100}
+                >
+                  <YStack
+                    bg={isDark ? '$background' : '$backgroundStrong'}
+                    borderLeftWidth={1}
+                    borderLeftColor="$borderColor"
+                    minHeight="100%"
+                    top={0}
+                    right={0}
+                  >
+                    <XStack
+                      paddingHorizontal="$2"
+                      paddingVertical="$2"
+                      alignItems="center"
+                      position="absolute"
+                      w={56}
+                      h={56}
+                      top={0}
+                      right={12}
+                      $gtMd={{
+                        right: 0,
+                      }}
+                      zIndex="$zIndex.2"
+                    >
+                      <View flex={1} />
+                      <Tooltip content="Close Panel">
+                        <Button
+                          chromeless
+                          size="$2"
+                          icon={<X size={20} />}
+                          onPress={() => {
+                            setActivePanel(null)
                           }}
                         />
-                      </WebDocContentProvider>
-                      {document.metadata &&
-                      document.metadata.showActivity === false ? null : (
-                        <DocumentAppendix
-                          id={id}
-                          document={document}
-                          originHomeId={originHomeId}
-                          siteHost={siteHost}
-                          enableWebSigning={enableWebSigning}
-                          isCommentingPanelOpen={
-                            activePanel?.type == 'comments'
-                          }
-                        />
-                      )}
-                    </YStack>
-                    {showSidebars ? <YStack {...sidebarProps} /> : null}
-                  </XStack>
-                </YStack>
-                <PageFooter enableWebSigning={enableWebSigning} id={id} />
-              </YStack>
-            </XStack>
-          </Panel>
-          {!media.gtSm ? null : panel ? (
-            <>
-              <PanelResizeHandle className="panel-resize-handle" />
-
-              <Panel
-                defaultSize={media.gtSm ? 30 : 100}
-                maxSize={media.gtSm ? 40 : 100}
-                minSize={media.gtSm ? 20 : 100}
-              >
-                <YStack
-                  bg={isDark ? '$background' : '$backgroundStrong'}
-                  borderLeftWidth={1}
-                  borderLeftColor="$borderColor"
-                  minHeight="100%"
-                  top={0}
-                  right={0}
-                >
-                  <XStack
-                    paddingHorizontal="$2"
-                    paddingVertical="$2"
-                    alignItems="center"
-                    position="absolute"
-                    w={56}
-                    h={56}
-                    top={0}
-                    right={12}
-                    $gtMd={{
-                      right: 0,
-                    }}
-                    zIndex="$zIndex.2"
-                  >
-                    <View flex={1} />
-                    <Tooltip content="Close Panel">
-                      <Button
-                        chromeless
-                        size="$2"
-                        icon={<X size={20} />}
-                        onPress={() => {
-                          setActivePanel(null)
-                        }}
-                      />
-                    </Tooltip>
-                  </XStack>
-                  {panel}
-                </YStack>
-              </Panel>
-            </>
-          ) : null}
-        </PanelGroup>
-      </WebSiteHeader>
-      {media.gtSm ? null : (
-        <>
-          <XStack
-            // @ts-expect-error tamagui mistake
-            position="fixed"
-            bottom={0}
-            left={0}
-            right={0}
-            zIndex="$zIndex.9"
-            bg={isDark ? '$background' : '$backgroundStrong'}
-            p="$4"
-            boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
-            height={56}
-            jc="flex-end"
-            borderRadius="$4"
-            borderBottomLeftRadius={0}
-            borderBottomRightRadius={0}
-            overflow="hidden"
-            onPress={() => {
-              if (!panel) {
-                setActivePanel({type: 'comments', blockId: null})
-              }
-              setIsSheetOpen(true)
-            }}
-          >
-            <DocInteractionsSummary
-              docId={id}
-              citations={citations.data}
-              comments={comments.data}
-              onCitationsOpen={() => {
-                setActivePanel({type: 'citations', blockId: null})
-                if (!media.gtSm) {
-                  const mainPanel = mainPanelRef.current
-
-                  if (!mainPanel) return
-                  console.log('COLLAPSE PANEL')
-
-                  setTimeout(() => {
-                    mainPanel.collapse()
-                  }, 1)
-                }
-              }}
-              onCommentsOpen={() => {
-                setActivePanel({type: 'comments', blockId: null})
-                if (!media.gtSm) {
-                  const mainPanel = mainPanelRef.current
-                  if (!mainPanel) return
-                  console.log('COLLAPSE PANEL')
-                  setTimeout(() => {
-                    mainPanel.collapse()
-                  }, 1)
-                }
-              }}
-              // onVersionOpen={() => {}}
-            />
-          </XStack>
-
-          <Sheet
-            snapPoints={[92]}
-            onOpenChange={setIsSheetOpen}
-            modal
-            open={isSheetOpen}
-          >
-            <Sheet.Overlay
-              height="100vh"
-              bg={'#00000088'}
-              width="100vw"
-              animation="fast"
-              opacity={0.8}
-              enterStyle={{opacity: 0}}
-              exitStyle={{opacity: 0}}
-            />
-            <Sheet.Handle />
-            <Sheet.Frame
-              bg="$background"
-              gap="$5"
-              borderColor="$borderColor"
-              borderWidth={1}
+                      </Tooltip>
+                    </XStack>
+                    {panel}
+                  </YStack>
+                </Panel>
+              </>
+            ) : null}
+          </PanelGroup>
+        </WebSiteHeader>
+        {media.gtSm ? null : (
+          <>
+            <XStack
+              // @ts-expect-error tamagui mistake
+              position="fixed"
+              bottom={0}
+              left={0}
+              right={0}
+              zIndex="$zIndex.9"
+              bg={isDark ? '$background' : '$backgroundStrong'}
+              p="$4"
+              boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
+              height={56}
+              jc="flex-end"
               borderRadius="$4"
+              borderBottomLeftRadius={0}
+              borderBottomRightRadius={0}
+              overflow="hidden"
+              onPress={() => {
+                if (!panel) {
+                  setActivePanel({type: 'discussions', blockId: null})
+                }
+                setIsSheetOpen(true)
+              }}
             >
-              <Sheet.ScrollView padding="$4">
-                <XStack jc="flex-end">
+              <DocInteractionsSummary
+                docId={id}
+                citations={citations.data}
+                comments={comments.data}
+                onCitationsOpen={() => {
+                  setActivePanel({type: 'citations', blockId: null})
+                  if (!media.gtSm) {
+                    setIsSheetOpen(true)
+                  }
+                }}
+                onCommentsOpen={() => {
+                  setActivePanel({type: 'discussions', blockId: null})
+                  if (!media.gtSm) {
+                    setIsSheetOpen(true)
+                  }
+                }}
+                // onVersionOpen={() => {}}
+              />
+            </XStack>
+
+            <Sheet
+              snapPoints={[92]}
+              onOpenChange={setIsSheetOpen}
+              modal
+              open={isSheetOpen}
+              dismissOnSnapToBottom
+            >
+              <Sheet.Overlay
+                height="100vh"
+                bg={'#00000088'}
+                width="100vw"
+                animation="fast"
+                opacity={0.8}
+                enterStyle={{opacity: 0}}
+                exitStyle={{opacity: 0}}
+              />
+              <Sheet.Handle />
+              <Sheet.Frame
+                bg="$background"
+                borderColor="$borderColor"
+                borderWidth={1}
+                borderRadius="$4"
+              >
+                <XStack jc="flex-end" padding="$4">
                   <DocInteractionsSummary
                     docId={id}
                     citations={citations.data}
@@ -673,36 +688,24 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     onCitationsOpen={() => {
                       setActivePanel({type: 'citations', blockId: null})
                       if (!media.gtSm) {
-                        const mainPanel = mainPanelRef.current
-
-                        if (!mainPanel) return
-                        console.log('COLLAPSE PANEL')
-
-                        setTimeout(() => {
-                          mainPanel.collapse()
-                        }, 1)
+                        setIsSheetOpen(true)
                       }
                     }}
                     onCommentsOpen={() => {
-                      setActivePanel({type: 'comments', blockId: null})
+                      setActivePanel({type: 'discussions', blockId: null})
                       if (!media.gtSm) {
-                        const mainPanel = mainPanelRef.current
-                        if (!mainPanel) return
-                        console.log('COLLAPSE PANEL')
-                        setTimeout(() => {
-                          mainPanel.collapse()
-                        }, 1)
+                        setIsSheetOpen(true)
                       }
                     }}
                     // onVersionOpen={() => {}}
                   />
                 </XStack>
-                {panel}
-              </Sheet.ScrollView>
-            </Sheet.Frame>
-          </Sheet>
-        </>
-      )}
+                <Sheet.ScrollView>{panel}</Sheet.ScrollView>
+              </Sheet.Frame>
+            </Sheet>
+          </>
+        )}
+      </DiscussionsProvider>
     </WebSiteProvider>
   )
 }
@@ -914,29 +917,11 @@ function DocumentActivity({
           return (
             <CommentGroup
               key={activityItem.id}
-              docId={id}
               commentGroup={activityItem}
-              isLastGroup={index === activityItems.length - 1}
               authors={activity.data?.accountsMetadata}
               renderCommentContent={renderCommentContent}
-              CommentReplies={CommentReplies}
-              homeId={originHomeId}
               rootReplyCommentId={null}
-              siteHost={siteHost}
               enableReplies={enableReplies}
-              RepliesEditor={CommentRepliesEditor}
-              enableWebSigning={enableWebSigning}
-              onReplyClick={
-                !enableWebSigning && WEB_IDENTITY_ENABLED
-                  ? (replyCommentId, rootReplyCommentId) => {
-                      redirectToWebIdentityCommenting(
-                        id,
-                        replyCommentId,
-                        rootReplyCommentId,
-                      )
-                    }
-                  : undefined
-              }
             />
           )
         }

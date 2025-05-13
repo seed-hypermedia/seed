@@ -35,6 +35,12 @@ export function Layout({children}: {children: React.ReactNode}) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        <Styles />
+      </head>
+      <body>
+        <Providers>{children}</Providers>
+        <ScrollRestoration />
+        <Scripts />
         {process.env.MONITORING_DOMAIN && (
           <>
             <script
@@ -50,12 +56,6 @@ export function Layout({children}: {children: React.ReactNode}) {
             </script>
           </>
         )}
-        <Styles />
-      </head>
-      <body>
-        <Providers>{children}</Providers>
-        <ScrollRestoration />
-        <Scripts />
       </body>
     </html>
   )

@@ -1,8 +1,9 @@
 import {useAccountList} from '@/models/accounts'
-import {useDocumentCommentGroups} from '@/models/comments'
+import {useAllDocumentComments} from '@/models/comments'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
+import {useCommentGroups} from '@shm/shared/discussion'
 import {
   HMAccountsMetadata,
   HMChangeGroup,
@@ -24,10 +25,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {useState} from 'react'
 import {SizableText, useTheme, YStack} from 'tamagui'
 import {
-  CommentDraft,
-  CommentReplies,
+  CommentBox,
   renderCommentContent,
-  RepliesEditor,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -57,7 +56,7 @@ export function DocumentActivity({
             : undefined
         }
       />
-      {isCommentingPanelOpen ? null : <CommentDraft docId={docId} />}
+      {isCommentingPanelOpen ? null : <CommentBox docId={docId} />}
     </ActivitySection>
   )
 }
@@ -73,7 +72,8 @@ export function ActivityList({
   const latestDocChanges = new Set<string>(
     latestDoc?.data?.document?.version?.split('.') || [],
   )
-  const commentGroups = useDocumentCommentGroups(docId)
+  const comments = useAllDocumentComments(docId)
+  const commentGroups = useCommentGroups(comments.data)
   const activeChangeIds = useVersionChanges(docId)
   const childrenActivity = useChildrenActivity(docId)
   const accounts = useAccountList()
@@ -191,27 +191,27 @@ export function ActivityList({
               <CommentGroup
                 rootReplyCommentId={null}
                 key={activityItem.id}
-                docId={docId}
                 commentGroup={activityItem}
-                isLastGroup={activityItem === activity[activity.length - 1]}
                 authors={authors}
                 renderCommentContent={renderCommentContent}
-                RepliesEditor={onCommentFocus ? undefined : RepliesEditor}
-                CommentReplies={CommentReplies}
-                onReplyClick={
-                  onCommentFocus
-                    ? (replyCommentId) => {
-                        onCommentFocus(replyCommentId, true)
-                      }
-                    : undefined
+                enableReplies={true}
+                highlightLastComment={
+                  activityItem === activity[activity.length - 1]
                 }
-                onReplyCountClick={
-                  onCommentFocus
-                    ? (replyCommentId) => {
-                        onCommentFocus(replyCommentId, false)
-                      }
-                    : undefined
-                }
+                // onReplyClick={
+                //   onCommentFocus
+                //     ? (replyCommentId) => {
+                //         onCommentFocus(replyCommentId, true)
+                //       }
+                //     : undefined
+                // }
+                // onReplyCountClick={
+                //   onCommentFocus
+                //     ? (replyCommentId) => {
+                //         onCommentFocus(replyCommentId, false)
+                //       }
+                //     : undefined
+                // }
               />
             </YStack>
           )

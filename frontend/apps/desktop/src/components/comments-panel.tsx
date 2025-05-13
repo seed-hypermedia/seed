@@ -1,15 +1,11 @@
 import {useEntityCitations} from '@/models/citations'
-import {
-  useAllDocumentComments,
-  useCommentGroups,
-  useCommentParents,
-  useDocumentCommentGroups,
-} from '@/models/comments'
+import {useAllDocumentComments} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
+import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -25,8 +21,7 @@ import {LinearGradient} from 'tamagui/linear-gradient'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
-  CommentDraft,
-  CommentReplies,
+  CommentBox,
   renderCommentContent,
   triggerCommentDraftFocus,
   useCommentGroupAuthors,
@@ -76,8 +71,6 @@ function _DiscussionsPanel({
         docId={docId}
         onBack={() => onAccessory({key: 'discussions'})}
         commentId={openComment}
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
         isReplying={isReplying}
       />
     )
@@ -89,40 +82,22 @@ function _DiscussionsPanel({
         blockId={openBlockId}
         autoFocus={autoFocus}
         onBack={() => onAccessory({key: 'discussions'})}
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
       />
     )
   }
-  return (
-    <AllComments
-      docId={docId}
-      onReplyClick={onReplyClick}
-      onReplyCountClick={onReplyCountClick}
-    />
-  )
+  return <AllComments docId={docId} />
 }
 
-function AllComments({
-  docId,
-  onReplyClick,
-  onReplyCountClick,
-}: {
-  docId: UnpackedHypermediaId
-  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
-  onReplyCountClick: (
-    commentId: string,
-    rootReplyCommentId?: string | null,
-  ) => void
-}) {
-  const commentGroups = useDocumentCommentGroups(docId)
+function AllComments({docId}: {docId: UnpackedHypermediaId}) {
+  const comments = useAllDocumentComments(docId)
+  const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
 
   return (
     <AccessoryContent
       footer={
         <View paddingVertical="$2">
-          <CommentDraft docId={docId} backgroundColor="$colorTransparent" />
+          <CommentBox docId={docId} backgroundColor="$colorTransparent" />
         </View>
       }
     >
@@ -137,14 +112,10 @@ function AllComments({
               <CommentGroup
                 rootReplyCommentId={null}
                 key={cg.id}
-                docId={docId}
                 commentGroup={cg}
-                isLastGroup={cg === commentGroups.data?.at(-1)}
                 authors={authors}
                 renderCommentContent={renderCommentContent}
-                CommentReplies={CommentReplies}
-                onReplyCountClick={onReplyCountClick}
-                onReplyClick={onReplyClick}
+                enableReplies={true}
               />
               {commentGroups.data?.length - 1 > idx && <Separator />}
             </YStack>
@@ -160,18 +131,11 @@ function CommentBlockAccessory({
   blockId,
   autoFocus,
   onBack,
-  onReplyClick,
-  onReplyCountClick,
 }: {
   docId: UnpackedHypermediaId
   blockId: string
   autoFocus?: boolean
   onBack: () => void
-  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
-  onReplyCountClick: (
-    commentId: string,
-    rootReplyCommentId?: string | null,
-  ) => void
 }) {
   const citations = useEntityCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
@@ -189,7 +153,7 @@ function CommentBlockAccessory({
     <AccessoryContent
       footer={
         <View padding="$3">
-          <CommentDraft docId={docId} quotingBlockId={blockId} />
+          <CommentBox docId={docId} quotingBlockId={blockId} />
         </View>
       }
     >
@@ -201,8 +165,6 @@ function CommentBlockAccessory({
             citation={citation}
             key={citation.source.id.id}
             accounts={accounts}
-            onReplyClick={onReplyClick}
-            onReplyCountClick={onReplyCountClick}
           />
         )
       })}
@@ -302,21 +264,15 @@ function CommentReplyAccessory({
   docId,
   onBack,
   commentId,
-  onReplyClick,
-  onReplyCountClick,
   isReplying,
 }: {
   docId: UnpackedHypermediaId
   onBack: () => void
   commentId: string
-  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
-  onReplyCountClick: (
-    commentId: string,
-    rootReplyCommentId?: string | null,
-  ) => void
   isReplying?: boolean
 }) {
-  const parentThread = useCommentParents(docId, commentId)
+  const comments = useAllDocumentComments(docId)
+  const parentThread = useCommentParents(comments.data, commentId)
   const commentAuthors = useAccountsMetadata(
     useMemo(() => {
       return parentThread?.map((doc) => doc.author) || []
@@ -328,7 +284,7 @@ function CommentReplyAccessory({
       footer={
         isReplying ? (
           <View padding="$3">
-            <CommentDraft
+            <CommentBox
               docId={docId}
               autoFocus={isReplying}
               replyCommentId={commentId}
@@ -340,20 +296,16 @@ function CommentReplyAccessory({
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
       {rootCommentId && parentThread ? (
         <CommentGroup
-          docId={docId}
           commentGroup={{
             id: rootCommentId,
             comments: parentThread,
             moreCommentsCount: 0,
             type: 'commentGroup',
           }}
-          isLastGroup
           authors={commentAuthors}
           renderCommentContent={renderCommentContent}
           rootReplyCommentId={null}
           highlightLastComment
-          onReplyClick={onReplyClick}
-          onReplyCountClick={onReplyCountClick}
         />
       ) : null}
 
@@ -361,8 +313,6 @@ function CommentReplyAccessory({
         defaultOpen={!isReplying}
         docId={docId}
         commentId={commentId}
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
       />
     </AccessoryContent>
   )
@@ -372,17 +322,10 @@ function FocusedCommentReplies({
   defaultOpen,
   docId,
   commentId,
-  onReplyClick,
-  onReplyCountClick,
 }: {
   defaultOpen: boolean
   docId: UnpackedHypermediaId
   commentId: string
-  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
-  onReplyCountClick: (
-    commentId: string,
-    rootReplyCommentId?: string | null,
-  ) => void
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const comments = useAllDocumentComments(docId)
@@ -390,14 +333,14 @@ function FocusedCommentReplies({
     setIsOpen(defaultOpen)
   }, [commentId, defaultOpen])
   const replies = useCommentGroups(comments.data, commentId)
-  const commentAuthors = useCommentGroupAuthors(replies)
+  const commentAuthors = useCommentGroupAuthors(replies.data)
   if (!replies) return null
-  if (replies.length == 0) return null
+  if (replies.data.length == 0) return null
   if (!isOpen)
     return (
       <Button onPress={() => setIsOpen(true)} size="$1">
-        <SizableText size="$1">{`Show ${replies?.length} ${pluralS(
-          replies?.length,
+        <SizableText size="$1">{`Show ${replies.data.length} ${pluralS(
+          replies.data.length,
           'Reply',
           'Replies',
         )}`}</SizableText>
@@ -405,17 +348,14 @@ function FocusedCommentReplies({
     )
   return (
     <YStack>
-      {replies.map((r) => {
+      {replies.data.map((r) => {
         return (
           <CommentGroup
             key={r.id}
-            docId={docId}
             commentGroup={r}
             renderCommentContent={renderCommentContent}
             rootReplyCommentId={null}
             authors={commentAuthors}
-            onReplyClick={onReplyClick}
-            onReplyCountClick={onReplyCountClick}
           />
         )
       })}

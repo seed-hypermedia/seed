@@ -132,16 +132,9 @@ function DocumentPreview({
 export function CommentCitationEntry({
   citation,
   accounts,
-  onReplyClick,
-  onReplyCountClick,
 }: {
   citation: HMCitation
   accounts: HMAccountsMetadata
-  onReplyClick: (commentId: string, rootReplyCommentId?: string | null) => void
-  onReplyCountClick: (
-    commentId: string,
-    rootReplyCommentId?: string | null,
-  ) => void
 }) {
   const citationTargetFragment = citation.targetFragment
   const citationTarget = citation.targetId
@@ -180,19 +173,13 @@ export function CommentCitationEntry({
   if (!focusedComment) return null
   return (
     <Comment
-      isFirst={false}
       isLast={false}
-      isNested={false}
       key={comment.data.id}
-      docId={docId}
       comment={focusedComment}
       rootReplyCommentId={comment.data.threadRoot ?? null}
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
       replyCount={replies?.length}
-      enableWebSigning={true}
-      onReplyClick={onReplyClick}
-      onReplyCountClick={onReplyCountClick}
     />
   )
 }

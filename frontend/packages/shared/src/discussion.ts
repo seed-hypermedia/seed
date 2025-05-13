@@ -1,10 +1,12 @@
+import {useMemo} from 'react'
 import {HMComment, HMCommentGroup} from '.'
 
 export function getCommentGroups(
-  comments: HMComment[] | undefined,
-  targetCommentId: string | null,
+  comments?: Array<HMComment>,
+  targetCommentId?: string,
 ): HMCommentGroup[] {
   const groups: HMCommentGroup[] = []
+  if (!comments) return groups
   comments?.forEach((comment) => {
     if (
       comment.replyParent === targetCommentId ||
@@ -52,4 +54,41 @@ export function getCommentGroups(
   })
 
   return groups
+}
+
+export function useCommentParents(
+  comments: Array<any>,
+  focusedCommentId: string,
+) {
+  return useMemo(() => {
+    const focusedComment = comments?.find((c) => c.id === focusedCommentId)
+    if (!focusedComment) return null
+    let selectedComment: HMComment | null = focusedComment
+    const parentThread: HMComment[] = [focusedComment]
+    while (selectedComment?.replyParent) {
+      const parentComment: HMComment | null | undefined = selectedComment
+        ? comments.find((c) => c.id === selectedComment?.replyParent)
+        : null
+      if (!parentComment) {
+        selectedComment = null
+        break
+      }
+      parentThread.unshift(parentComment)
+      selectedComment = parentComment
+    }
+    return parentThread
+  }, [comments, focusedCommentId])
+}
+
+export function useCommentGroups(
+  comments?: Array<HMComment>,
+  targetCommentId?: string,
+) {
+  // we are using the data object here for future migration to react-query
+  return useMemo(
+    () => ({
+      data: getCommentGroups(comments, targetCommentId),
+    }),
+    [comments, targetCommentId],
+  )
 }

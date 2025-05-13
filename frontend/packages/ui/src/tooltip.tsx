@@ -17,7 +17,7 @@ export function Tooltip({
 }) {
   return content ? (
     <TTooltip placement={placement} delay={delay} open={open}>
-      <TTooltip.Trigger asChild>{children}</TTooltip.Trigger>
+      <TTooltip.Trigger>{children}</TTooltip.Trigger>
 
       <Theme inverse>
         <TTooltip.Content

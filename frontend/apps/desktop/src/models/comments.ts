@@ -14,13 +14,11 @@ import {packHmId} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT} from '@shm/shared/constants'
-import {getCommentGroups} from '@shm/shared/discussion'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
-  HMCommentGroup,
   HMDocumentMetadataSchema,
   HMEntityContent,
   UnpackedHypermediaId,
@@ -45,15 +43,6 @@ import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
 import {siteDiscover} from './web-links'
-
-export function useCommentGroups(
-  comments: HMComment[] | undefined,
-  targetCommentId: string | null,
-): HMCommentGroup[] {
-  return useMemo(() => {
-    return getCommentGroups(comments, targetCommentId)
-  }, [comments, targetCommentId])
-}
 
 export function useCommentReplies(
   targetCommentId: string,
@@ -139,42 +128,6 @@ export function useAllDocumentComments(
     refetchInterval: 10_000,
     queryKey: [queryKeys.DOCUMENT_COMMENTS, docId?.uid, ...(docId?.path || [])],
   })
-}
-
-export function useCommentParents(
-  docId: UnpackedHypermediaId,
-  focusedCommentId: string,
-) {
-  const comments = useAllDocumentComments(docId)
-  return useMemo(() => {
-    const focusedComment = comments.data?.find((c) => c.id === focusedCommentId)
-    if (!focusedComment) return null
-    let selectedComment: HMComment | null = focusedComment
-    const parentThread: HMComment[] = [focusedComment]
-    while (selectedComment?.replyParent) {
-      const parentComment: HMComment | null = selectedComment
-        ? comments.data?.find((c) => c.id === selectedComment?.replyParent)
-        : null
-      if (!parentComment) {
-        selectedComment = null
-        break
-      }
-      parentThread.unshift(parentComment)
-      selectedComment = parentComment
-    }
-    return parentThread
-  }, [comments, focusedCommentId])
-}
-
-export function useDocumentCommentGroups(
-  docId: UnpackedHypermediaId | undefined,
-  commentId: string | null = null,
-) {
-  const comments = useAllDocumentComments(docId)
-  return {
-    ...comments,
-    data: useCommentGroups(comments.data, commentId),
-  }
 }
 
 export function useCommentEditor(

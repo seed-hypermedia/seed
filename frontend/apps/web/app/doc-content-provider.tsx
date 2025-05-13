@@ -61,7 +61,7 @@ export function WebDocContentProvider({
       entityId={id}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
-      onCopyBlock={
+      onBlockCopy={
         id
           ? (blockId, blockRange) => {
               const blockHref = getHref(

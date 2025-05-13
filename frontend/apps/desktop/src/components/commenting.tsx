@@ -1,8 +1,4 @@
-import {
-  useCommentDraft,
-  useCommentEditor,
-  useDocumentCommentGroups,
-} from '@/models/comments'
+import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
@@ -13,7 +9,6 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
   HMBlockEmbed,
-  HMBlockNode,
   HMComment,
   HMCommentDraft,
   HMCommentGroup,
@@ -23,7 +18,6 @@ import {
 import {useAccounts} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
-import {CommentGroup} from '@shm/ui/discussion'
 import {
   BlocksContent,
   getBlockNodeById,
@@ -64,9 +58,9 @@ export function renderCommentContent(comment: HMComment) {
     <AppDocContentProvider
       comment
 
-      // onReplyBlock={onReplyBlock}
-      // onReplyBlock={() => {}}
-      // onCopyBlock={(
+      // onBlockReply={onBlockReply}
+      // onBlockReply={() => {}}
+      // onBlockCopy={(
       //   blockId: string,
       //   blockRange: BlockRange | ExpandedBlockRange | undefined,
       // ) => {
@@ -81,48 +75,6 @@ export function renderCommentContent(comment: HMComment) {
         <BlocksContent blocks={data.content} parentBlockId={null} />
       </YStack>
     </AppDocContentProvider>
-  )
-}
-
-export function CommentReplies({
-  docId,
-  replyCommentId,
-  rootReplyCommentId,
-  onReplyClick,
-  onReplyCountClick,
-}: {
-  docId: UnpackedHypermediaId
-  replyCommentId: string
-  rootReplyCommentId: string | null
-  onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
-  onReplyCountClick?: (
-    replyCommentId: string,
-    rootReplyCommentId: string,
-  ) => void
-}) {
-  const commentGroupQueries = useDocumentCommentGroups(docId, replyCommentId)
-  const comments = commentGroupQueries.data
-  const authors = useCommentGroupAuthors(comments)
-  return (
-    <YStack paddingLeft={22}>
-      {comments.map((commentGroup) => {
-        return (
-          <CommentGroup
-            isNested
-            key={commentGroup.id}
-            docId={docId}
-            authors={authors}
-            renderCommentContent={renderCommentContent}
-            commentGroup={commentGroup}
-            isLastGroup={commentGroup === comments[comments.length - 1]}
-            CommentReplies={CommentReplies}
-            rootReplyCommentId={rootReplyCommentId}
-            onReplyClick={onReplyClick}
-            onReplyCountClick={onReplyCountClick}
-          />
-        )
-      })}
-    </YStack>
   )
 }
 
@@ -144,49 +96,8 @@ export function useCommentGroupAuthors(
   )
 }
 
-export function RepliesEditor({
-  isReplying,
-  replyCommentId,
-  docId,
-  onDiscardDraft,
-  onSuccess,
-}: {
-  isReplying: boolean
-  docId: UnpackedHypermediaId
-  replyCommentId: string
-  onDiscardDraft: () => void
-  onSuccess: (commentId: {id: string}) => void
-}) {
-  const isDark = useIsDark()
-  const myAccountsQuery = useMyAccounts()
-  const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
-  const draft = useCommentDraft(docId, replyCommentId)
-
-  if (accounts.length === 0) return null
-  if (!isReplying && !draft.data) return null
-  return (
-    <XStack
-      borderRadius="$4"
-      borderWidth={2}
-      borderColor="$color8"
-      minHeight={120}
-      bg={isDark ? '$background' : '$backgroundStrong'}
-    >
-      <CommentDraftEditor
-        docId={docId}
-        replyCommentId={replyCommentId}
-        accounts={accounts}
-        autoFocus={isReplying}
-        initCommentDraft={draft.data}
-        onDiscardDraft={onDiscardDraft}
-        onSuccess={onSuccess}
-      />
-    </XStack>
-  )
-}
-
-export const CommentDraft = memo(_CommentDraft)
-function _CommentDraft({
+export const CommentBox = memo(_CommentBox)
+function _CommentBox({
   docId,
   backgroundColor = '$color4',
   quotingBlockId,
@@ -579,20 +490,4 @@ function CommentReference({reference}: {reference: string | null}) {
       </View>
     </XStack>
   )
-}
-
-function commentReferenceContent({content}: {content: Array<HMBlockNode>}) {
-  let text = ''
-  content.forEach((bn) => {
-    if (bn.block.text) {
-      text += bn.block.text
-      text += ' '
-    }
-    if (bn.children?.length) {
-      text += commentReferenceContent({content: bn.children})
-    }
-    text += ' '
-  })
-
-  return text
 }
