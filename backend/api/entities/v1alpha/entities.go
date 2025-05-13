@@ -465,8 +465,15 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		for j, off := range match.MatchedIndexes {
 			offsets[j] = int64(off)
 		}
+		id := iris[match.Index]
 		if versions[match.Index] != "" {
 			var version string
+			id += "?v=" + versions[match.Index]
+
+			if blockIDs[match.Index] != "" {
+				id += "#" + blockIDs[match.Index]
+			}
+
 			if latestVersions[match.Index] == versions[match.Index] {
 				versions[match.Index] = ""
 			} else {
@@ -482,7 +489,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
-			Id:          iris[match.Index],
+			Id:          id,
 			BlockId:     blockIDs[match.Index],
 			BlobId:      blobCIDs[match.Index],
 			Version:     versions[match.Index],
