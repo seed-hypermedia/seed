@@ -314,6 +314,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var numTitles = len(contents)
 	var bodyMatches []fuzzy.Match
 	if in.IncludeBody {
+		ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
+		if !strings.HasSuffix(ftsStr, "*") {
+			ftsStr += "*"
+		}
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 				var icon icon
@@ -326,8 +330,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 				var contextStart int
 				var contextEnd = len(fullMatchStr)
-				if firstCharOffset > 12 {
-					contextStart = firstCharOffset - 12
+				if firstCharOffset > 16 {
+					contextStart = firstCharOffset - 16
 				}
 				if firstCharOffset+matchedChars < len(fullMatchStr)-24 {
 					contextEnd = firstCharOffset + matchedChars + 24
@@ -381,7 +385,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					MatchedIndexes: offsets,
 				})
 				return nil
-			}, strings.Replace(cleanQuery, " ", "+", -1))
+			}, ftsStr)
 		}); err != nil {
 			return nil, err
 		}
