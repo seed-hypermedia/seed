@@ -2,6 +2,7 @@ import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import * as cheerio from 'cheerio'
 import http from 'http'
 import https from 'https'
+import {nanoid} from 'nanoid'
 import z from 'zod'
 import {t} from './app-trpc'
 
@@ -55,6 +56,25 @@ export function extractMetaTags(html: string) {
 }
 
 export const webImportingApi = t.router({
+  importWebSite: t.procedure
+    .input(z.object({url: z.string()}).strict())
+    .mutation(async ({}) => {
+      const importId = nanoid(10)
+
+      return {importId}
+    }),
+  importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {
+    return {
+      pagesFound: Math.round(Math.random() * 100),
+      paths: ['/foo', '/bar'],
+      status: 'ready',
+    }
+  }),
+  importWebSiteConfirm: t.procedure
+    .input(z.object({id: z.string(), signAccountUid: z.string()}).strict())
+    .mutation(async ({input}) => {
+      return {}
+    }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const file = await downloadFile(input)
     const uploadedCID = await uploadFile(file)
