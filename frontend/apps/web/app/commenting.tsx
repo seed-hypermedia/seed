@@ -2,7 +2,7 @@ import {createComment, postCBOR} from '@/api'
 import {LocalWebIdentity, useCreateAccount, useLocalKeyPair} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import CommentEditor from '@shm/editor/comment-editor'
+import {CommentEditor2} from '@shm/editor/comment-editor'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
@@ -20,7 +20,9 @@ import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
+import {Plus, SendHorizontal} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
@@ -141,7 +143,7 @@ export function LocalWebCommenting({
     ? `Comment as ${myName}`
     : 'Submit Comment'
   const unauthenticatedActionMessage = enableWebSigning
-    ? 'Create Account'
+    ? 'Create Account & Start commenting'
     : `Submit Comment`
   const commentActionMessage = userKeyPair
     ? authenticatedActionMessage
@@ -201,7 +203,7 @@ export function LocalWebCommenting({
   }
 
   return (
-    <>
+    <XStack width="100%">
       <DocContentProvider
         entityComponents={{
           Document: EmbedDocument,
@@ -215,32 +217,48 @@ export function LocalWebCommenting({
         debug={false}
         comment
       >
-        <CommentEditor
+        <CommentEditor2
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
             return (
               <Button
-                size="$2"
-                bg="$brand5"
-                color="white"
-                hoverStyle={{bg: '$brand4', borderColor: '$colorTransparent'}}
-                focusStyle={{bg: '$brand3', borderColor: '$colorTransparent'}}
-                className={`plausible-event-name=${
-                  userKeyPair ? 'comment' : 'start-create-account'
-                }`}
-                icon={
-                  myAccountId ? (
-                    <HMIcon
-                      id={myAccountId}
-                      metadata={myAccount.data?.metadata}
-                      size={18}
-                    />
-                  ) : undefined
+                className={`plausible-event-name=start-create-account`}
+                size="$3"
+                chromeless
+                onPress={
+                  userKeyPair
+                    ? () => handleSubmit(getContent, reset)
+                    : undefined
                 }
-                onPress={() => handleSubmit(getContent, reset)}
-              >
-                {commentActionMessage}
-              </Button>
+                icon={SendHorizontal}
+              />
+            )
+          }}
+          accountButton={({getContent, reset}) => {
+            return (
+              <Tooltip content={commentActionMessage}>
+                <Button
+                  size="$2"
+                  w={40}
+                  h={40}
+                  p={0}
+                  bg="$backgroundTransparent"
+                  borderRadius={40}
+                  onPress={() => handleSubmit(getContent, reset)}
+                  className={`plausible-event-name=comment`}
+                  icon={
+                    myAccountId ? (
+                      <HMIcon
+                        id={myAccountId}
+                        metadata={myAccount.data?.metadata}
+                        size={32}
+                      />
+                    ) : (
+                      <Plus size={32} />
+                    )
+                  }
+                />
+              </Tooltip>
             )
           }}
           onDiscardDraft={onDiscardDraft}
@@ -248,7 +266,7 @@ export function LocalWebCommenting({
       </DocContentProvider>
       {createAccountContent}
       {emailNotificationsPromptContent}
-    </>
+    </XStack>
   )
 }
 

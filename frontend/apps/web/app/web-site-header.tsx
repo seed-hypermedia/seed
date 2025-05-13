@@ -11,6 +11,7 @@ import {SiteHeader} from '@shm/ui/site-header'
 
 export function WebSiteHeader(
   props: React.PropsWithChildren<{
+    noScroll?: boolean
     homeMetadata: HMMetadata | null
     originHomeId: UnpackedHypermediaId | null
     docId: UnpackedHypermediaId | null

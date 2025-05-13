@@ -2,8 +2,6 @@ import {useEntityCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
 import {useAccountsMetadata} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {useNavRoute} from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -23,7 +21,6 @@ import {CommentCitationEntry} from './citations-panel'
 import {
   CommentBox,
   renderCommentContent,
-  triggerCommentDraftFocus,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -38,33 +35,6 @@ function _DiscussionsPanel({
   accessory: DocumentDiscussionsAccessory
   onAccessory: (acc: DocumentDiscussionsAccessory) => void
 }) {
-  const route = useNavRoute()
-  const navigate = useNavigate('replace')
-
-  function focusComment(commentId: string, isReplying?: boolean) {
-    if (route.key != 'document') return
-    navigate({
-      ...route,
-      id: {...route.id},
-      accessory: {
-        ...route.accessory,
-        key: 'discussions',
-        openComment: commentId,
-        openBlockId: undefined,
-        isReplying,
-      },
-    })
-  }
-
-  function onReplyClick(commentId: string) {
-    focusComment(commentId, true)
-    triggerCommentDraftFocus(docId.id, commentId)
-  }
-
-  function onReplyCountClick(commentId: string) {
-    focusComment(commentId, false)
-  }
-
   if (openComment) {
     return (
       <CommentReplyAccessory

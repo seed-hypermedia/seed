@@ -101,7 +101,7 @@ export function WebCommentsPanel({
   )
 
   return (
-    <YStack gap="$4">
+    <YStack gap="$4" bg="red">
       <XStack
         paddingHorizontal="$4"
         paddingVertical="$3"
@@ -115,7 +115,7 @@ export function WebCommentsPanel({
         </SizableText>
       </XStack>
       <YStack gap="$2" paddingHorizontal="$3">
-        {commentId ? (
+        {commentId || blockId ? (
           <AccessoryBackButton onPress={handleBack} label="All Discussions" />
         ) : null}
         <YStack gap="$4">

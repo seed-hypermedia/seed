@@ -209,6 +209,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
     comment,
   } = props
 
+  console.log('--- enableWebSigning', enableWebSigning)
+
   useEffect(() => {
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '')
@@ -279,8 +281,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, [location.hash])
 
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    if (comment) return {type: 'discussions', commentId: comment.id}
-    return null
+    return {type: 'discussions', commentId: comment ? comment.id : undefined}
   })
 
   const onActivateBlock = useCallback((blockId: string) => {
@@ -360,6 +361,18 @@ export function DocumentPage(props: SiteDocumentPayload) {
     [enableWebSigning],
   )
 
+  const commentEditor = (
+    <XStack paddingHorizontal="$4" w="100%">
+      {enableWebSigning || WEB_IDENTITY_ENABLED ? (
+        <WebCommenting
+          docId={id}
+          replyCommentId={null}
+          rootReplyCommentId={null}
+          enableWebSigning={enableWebSigning || false}
+        />
+      ) : null}
+    </XStack>
+  )
   if (activePanel?.type == 'discussions') {
     panel = (
       <WebCommentsPanel
@@ -382,8 +395,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
         originHomeId={originHomeId}
         siteHost={siteHost}
         enableWebSigning={enableWebSigning || false}
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
       />
     )
   }
@@ -393,7 +404,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
       <WebCitationsPanel
         citations={citations.data}
         blockId={activePanel.blockId}
-        setBlockId={onBlockCitationClick}
+        handleBack={() =>
+          setActivePanel({
+            ...activePanel,
+            blockId: undefined,
+          })
+        }
       />
     )
   }
@@ -578,6 +594,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     minHeight="100%"
                     top={0}
                     right={0}
+                    gap="$4"
                   >
                     <XStack
                       paddingHorizontal="$2"
@@ -606,6 +623,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       </Tooltip>
                     </XStack>
                     {panel}
+                    {commentEditor}
                   </YStack>
                 </Panel>
               </>
@@ -642,13 +660,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 citations={citations.data}
                 comments={comments.data}
                 onCitationsOpen={() => {
-                  setActivePanel({type: 'citations', blockId: null})
+                  setActivePanel({type: 'citations', blockId: undefined})
                   if (!media.gtSm) {
                     setIsSheetOpen(true)
                   }
                 }}
                 onCommentsOpen={() => {
-                  setActivePanel({type: 'discussions', blockId: null})
+                  setActivePanel({type: 'discussions', blockId: undefined})
                   if (!media.gtSm) {
                     setIsSheetOpen(true)
                   }
@@ -675,7 +693,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               />
               <Sheet.Handle />
               <Sheet.Frame
-                bg="$background"
+                bg={isDark ? '$background' : '$backgroundStrong'}
                 borderColor="$borderColor"
                 borderWidth={1}
                 borderRadius="$4"
@@ -686,13 +704,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     citations={citations.data}
                     comments={comments.data}
                     onCitationsOpen={() => {
-                      setActivePanel({type: 'citations', blockId: null})
+                      setActivePanel({type: 'citations', blockId: undefined})
                       if (!media.gtSm) {
                         setIsSheetOpen(true)
                       }
                     }}
                     onCommentsOpen={() => {
-                      setActivePanel({type: 'discussions', blockId: null})
+                      setActivePanel({type: 'discussions', blockId: undefined})
                       if (!media.gtSm) {
                         setIsSheetOpen(true)
                       }
@@ -700,7 +718,23 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     // onVersionOpen={() => {}}
                   />
                 </XStack>
-                <Sheet.ScrollView>{panel}</Sheet.ScrollView>
+                <Sheet.ScrollView
+                  f={1}
+                  bg="blue"
+                  h="100%"
+                  overflow="scroll"
+                  flex={1}
+                >
+                  {/* <YStack f={1} bg="green">
+                    {new Array(2000).fill(0).map((_, i) => (
+                      <SizableText key={i} h={20} w="100%">
+                        {i}
+                      </SizableText>
+                    ))}
+                  </YStack> */}
+                  {panel}
+                </Sheet.ScrollView>
+                <XStack paddingVertical="$2">{commentEditor}</XStack>
               </Sheet.Frame>
             </Sheet>
           </>
@@ -1036,11 +1070,11 @@ function InteractionSummaryItem({
 function WebCitationsPanel({
   citations,
   blockId,
-  setBlockId,
+  handleBack,
 }: {
   citations?: HMCitationsPayload
-  blockId: string | null
-  setBlockId: (blockId: string | null) => void
+  blockId?: string
+  handleBack: () => void
 }) {
   const filteredCitations = useMemo(() => {
     if (!blockId || !citations) return citations
@@ -1065,10 +1099,7 @@ function WebCitationsPanel({
       </XStack>
       <YStack gap="$2" padding="$3">
         {blockId ? (
-          <AccessoryBackButton
-            onPress={() => setBlockId(null)}
-            label="All Citations"
-          />
+          <AccessoryBackButton onPress={handleBack} label="All Citations" />
         ) : null}
         {filteredCitations ? (
           filteredCitations.map((citation) => {

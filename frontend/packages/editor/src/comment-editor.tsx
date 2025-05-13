@@ -8,6 +8,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
+import {SizableText} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -225,7 +226,7 @@ export default function CommentEditor({
   }
 
   return (
-    <YStack gap="$3">
+    <YStack gap="$3" width="100%">
       <YStack
         className="comment-editor"
         marginTop="$1"
@@ -340,4 +341,304 @@ export function useCommentEditor() {
   return {
     editor,
   }
+}
+
+export function CommentEditor2({
+  onDiscardDraft,
+  accountButton,
+  submitButton,
+  handleSubmit,
+}: {
+  onDiscardDraft?: () => void
+
+  submitButton: (opts: {
+    reset: () => void
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>
+  }) => JSX.Element
+  accountButton: (opts: {
+    reset: () => void
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>
+  }) => JSX.Element
+  handleSubmit: (
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>,
+    reset: () => void,
+  ) => void
+}) {
+  const {editor} = useCommentEditor()
+  const [isEditorFocused, setIsEditorFocused] = useState(false)
+  const {openUrl, handleFileAttachment} = useDocContentContext()
+  const [isDragging, setIsDragging] = useState(false)
+
+  const reset = () => {
+    editor.removeBlocks(editor.topLevelBlocks)
+  }
+
+  const getContent = async (
+    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+      blobs: {cid: string; data: Uint8Array}[]
+      resultCIDs: string[]
+    }>,
+  ) => {
+    const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+    const blocksWithAttachments = crawlEditorBlocks(
+      editorBlocks,
+      (block) => !!block.props?.fileBinary,
+    )
+    const {blobs, resultCIDs} = await prepareAttachments(
+      blocksWithAttachments.map((block) => block.props.fileBinary),
+    )
+    blocksWithAttachments.forEach((block, i) => {
+      block.props.url = `ipfs://${resultCIDs[i]}`
+    })
+    const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+    return {
+      blockNodes: blocks.map((b) => b.toJson()) as HMBlockNode[],
+      blobs,
+    }
+  }
+
+  useEffect(() => {
+    function handleSelectAll(event: KeyboardEvent) {
+      if (event.key == 'a' && event.metaKey) {
+        if (editor && editor._tiptapEditor.isFocused) {
+          event.preventDefault()
+          editor._tiptapEditor.commands.focus()
+          editor._tiptapEditor.commands.selectAll()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSelectAll)
+
+    return () => {
+      window.removeEventListener('keydown', handleSelectAll)
+    }
+  }, [])
+
+  function onDrop(event: DragEvent) {
+    if (!isDragging) return
+    const dataTransfer = event.dataTransfer
+
+    if (dataTransfer) {
+      const ttEditor = editor._tiptapEditor
+      const files: File[] = []
+
+      if (dataTransfer.files.length) {
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+          files.push(dataTransfer.files[i])
+        }
+      } else if (dataTransfer.items.length) {
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i].getAsFile()
+          if (item) {
+            files.push(item)
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        const editorElement = document.getElementsByClassName(
+          'mantine-Editor-root',
+        )[0]
+        const editorBoundingBox = editorElement.getBoundingClientRect()
+        const posAtCoords = ttEditor.view.posAtCoords({
+          left: editorBoundingBox.left + editorBoundingBox.width / 2,
+          top: event.clientY,
+        })
+        let pos: number | null
+        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+        else if (event.clientY > editorBoundingBox.bottom)
+          pos = ttEditor.view.state.doc.content.size - 4
+
+        let lastId: string
+
+        // using reduce so files get inserted sequentially
+        files
+          // @ts-expect-error
+          .reduce((previousPromise, file, index) => {
+            return previousPromise.then(() => {
+              event.preventDefault()
+              event.stopPropagation()
+
+              if (pos) {
+                return handleDragMedia(file, handleFileAttachment).then(
+                  (props) => {
+                    if (!props) return false
+
+                    const {state} = ttEditor.view
+                    let blockNode
+                    const newId = generateBlockId()
+
+                    if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                      blockNode = {
+                        id: newId,
+                        type: 'image',
+                        props: {
+                          displaySrc: props.displaySrc,
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                        },
+                      }
+                    } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                      blockNode = {
+                        id: newId,
+                        type: 'video',
+                        props: {
+                          displaySrc: props.displaySrc,
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                        },
+                      }
+                    } else {
+                      blockNode = {
+                        id: newId,
+                        type: 'file',
+                        props: {
+                          fileBinary: props.fileBinary,
+                          name: props.name,
+                          size: props.size,
+                        },
+                      }
+                    }
+
+                    const blockInfo = getBlockInfoFromPos(state, pos)
+
+                    if (index === 0) {
+                      ;(editor as BlockNoteEditor).insertBlocks(
+                        [blockNode],
+                        blockInfo.block.node.attrs.id,
+                        // blockInfo.node.textContent ? 'after' : 'before',
+                        'after',
+                      )
+                    } else {
+                      ;(editor as BlockNoteEditor).insertBlocks(
+                        [blockNode],
+                        lastId,
+                        'after',
+                      )
+                    }
+
+                    lastId = newId
+                  },
+                )
+              }
+            })
+          }, Promise.resolve())
+        // .then(() => true) // TODO: @horacio ask Iskak about this
+        setIsDragging(false)
+        return true
+      }
+      setIsDragging(false)
+      return false
+    }
+    setIsDragging(false)
+
+    return false
+  }
+
+  return (
+    <XStack gap="$2" width="100%" alignItems="flex-start">
+      <XStack flexShrink={0} flexGrow={0}>
+        {accountButton({
+          reset,
+          getContent,
+        })}
+      </XStack>
+      <YStack
+        flex={1}
+        bg="$color4"
+        width="100%"
+        borderRadius="$4"
+        paddingHorizontal="$2"
+      >
+        <YStack
+          justifyContent={isEditorFocused ? 'flex-start' : 'center'}
+          flex={1}
+          className="comment-editor"
+          // marginTop="$1"
+
+          minHeight={isEditorFocused ? 105 : 40}
+          // paddingHorizontal="$4"
+          onPress={(e: MouseEvent) => {
+            const target = e.target as HTMLElement
+
+            // Check if the clicked element is not an input, button, or textarea
+            if (target.closest('input, textarea, select, button')) {
+              return // Don't focus the editor in this case
+            }
+            e.stopPropagation()
+            editor._tiptapEditor.commands.focus()
+          }}
+          onKeyDownCapture={(e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              editor._tiptapEditor.commands.blur()
+              handleSubmit(getContent, reset)
+              return true
+            }
+          }}
+          onDragStart={() => {
+            setIsDragging(true)
+          }}
+          onDragEnd={() => {
+            setIsDragging(false)
+          }}
+          onDragOver={(event: DragEvent) => {
+            event.preventDefault()
+            setIsDragging(true)
+          }}
+          onDrop={onDrop}
+          // gap="$4"
+          // paddingBottom="$2"
+          // bg="$color4"
+          // paddingHorizontal="$4"
+        >
+          {isEditorFocused ? (
+            <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+          ) : (
+            <SizableText
+              size="$2"
+              onPress={() => setIsEditorFocused(true)}
+              color="$color8"
+            >
+              Start a Comment
+            </SizableText>
+          )}
+        </YStack>
+        {isEditorFocused ? (
+          <XStack alignSelf="flex-end" bg="green">
+            {submitButton({
+              reset,
+              getContent,
+            })}
+          </XStack>
+        ) : null}
+      </YStack>
+    </XStack>
+  )
 }
