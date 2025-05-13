@@ -91,6 +91,20 @@ function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
 }
 
+function displayPublishTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
+  return displayPublishTimeOfEntry(b) - displayPublishTimeOfEntry(a)
+}
+
+function displayPublishTimeOfEntry(entry: HMDocumentInfo): number {
+  const dateStr = entry.metadata.displayPublishTime
+  if (dateStr) {
+    const timestamp = Date.parse(dateStr)
+    if (!isNaN(timestamp)) return timestamp
+  }
+
+  return entry.updateTime?.seconds ? Number(entry.updateTime.seconds) * 1000 : 0
+}
+
 function titleOfEntry(entry: HMDocumentInfo) {
   return entry.metadata.name
 }
@@ -127,6 +141,10 @@ export function queryBlockSortedItems({
 
   if (sortTerm == 'UpdateTime') {
     res = [...entries].sort(lastUpdateSort)
+  }
+
+  if (sortTerm === 'DisplayTime') {
+    res = [...entries].sort(displayPublishTimeSort)
   }
 
   // if (sortTerm == 'Path') {

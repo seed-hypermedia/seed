@@ -600,6 +600,10 @@ function QuerySettings({
                     label: 'Create time',
                     value: 'CreateTime',
                   },
+                  {
+                    label: 'Display time',
+                    value: 'DisplayTime',
+                  },
                   // {
                   //   label: 'By Path',
                   //   value: 'Path',
