@@ -1,6 +1,7 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {ActivityPanel} from '@/components/activity-panel'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
+import {triggerCommentDraftFocus} from '@/components/commenting'
 import {DiscussionsPanel} from '@/components/comments-panel'
 import {DirectoryPanel} from '@/components/directory-panel'
 import {DocNavigation} from '@/components/doc-navigation'
@@ -44,6 +45,7 @@ import {
   pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
@@ -217,41 +219,65 @@ export default function DocumentPage() {
 
   const mainPanelRef = useRef<HTMLDivElement>(null)
   const templateDialogContent = useTemplateDialog(route)
+
   return (
     <>
-      <XStack flex={1} height="100%">
-        <AccessoryLayout
-          mainPanelRef={mainPanelRef}
-          accessory={accessory}
-          accessoryKey={accessoryKey}
-          onAccessorySelect={(key: typeof accessoryKey) => {
-            if (key === accessoryKey || key === undefined)
-              return replace({...route, accessory: null})
-            replace({...route, accessory: {key}})
-          }}
-          accessoryOptions={accessoryOptions}
-        >
-          <MainDocumentPage
-            id={route.id}
-            isBlockFocused={route.isBlockFocused || false}
-            onScrollParamSet={useCallback((isFrozen) => {
-              mainPanelRef.current?.style.setProperty(
-                'overflow',
-                isFrozen ? 'hidden' : 'auto',
-              )
-            }, [])}
-            isCommentingPanelOpen={route.accessory?.key === 'discussions'}
-            onAccessory={useCallback(
-              (accessory) => {
-                replace({...route, accessory})
-              },
-              [route, replace],
-            )}
-          />
-        </AccessoryLayout>
-      </XStack>
-      {templateDialogContent}
-      {notifSettingsDialog.content}
+      <DiscussionsProvider
+        onReplyClick={(commentId, rootReplyCommentId) => {
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: commentId,
+              isReplying: true,
+            },
+          })
+          triggerCommentDraftFocus(docId.id, commentId)
+        }}
+        onReplyCountClick={(commentId, rootReplyCommentId) => {
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: commentId,
+            },
+          })
+        }}
+      >
+        <XStack flex={1} height="100%">
+          <AccessoryLayout
+            mainPanelRef={mainPanelRef}
+            accessory={accessory}
+            accessoryKey={accessoryKey}
+            onAccessorySelect={(key: typeof accessoryKey) => {
+              if (key === accessoryKey || key === undefined)
+                return replace({...route, accessory: null})
+              replace({...route, accessory: {key}})
+            }}
+            accessoryOptions={accessoryOptions}
+          >
+            <MainDocumentPage
+              id={route.id}
+              isBlockFocused={route.isBlockFocused || false}
+              onScrollParamSet={useCallback((isFrozen) => {
+                mainPanelRef.current?.style.setProperty(
+                  'overflow',
+                  isFrozen ? 'hidden' : 'auto',
+                )
+              }, [])}
+              isCommentingPanelOpen={route.accessory?.key === 'discussions'}
+              onAccessory={useCallback(
+                (accessory) => {
+                  replace({...route, accessory})
+                },
+                [route, replace],
+              )}
+            />
+          </AccessoryLayout>
+        </XStack>
+        {templateDialogContent}
+        {notifSettingsDialog.content}
+      </DiscussionsProvider>
     </>
   )
 }

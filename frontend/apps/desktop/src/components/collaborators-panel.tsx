@@ -435,7 +435,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
           <XStack
             // borderColor="$borderColor"
             // borderWidth={1}
-            bg="red"
             flex={1}
             borderRadius="$2"
             padding="$1"

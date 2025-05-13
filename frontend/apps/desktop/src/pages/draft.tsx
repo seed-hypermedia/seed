@@ -367,7 +367,7 @@ function DocumentEditor({
         onPress={handleFocusAtMousePos}
       >
         <AppDocContentProvider
-          // onCopyBlock={onCopyBlock} // todo: allow copy block when editing doc
+          // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
           importWebFile={importWebFile}
         >
           <DraftCover
@@ -540,7 +540,7 @@ function DocumentEditor({
     return false
   }
 
-  // function onCopyBlock(
+  // function onBlockCopy(
   //   blockId: string,
   //   blockRange: BlockRange | ExpandedBlockRange | undefined,
   // ) {

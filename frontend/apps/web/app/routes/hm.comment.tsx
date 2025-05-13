@@ -1,6 +1,5 @@
 import {cborDecode, SignedComment} from '@/api'
 import {WebCommenting} from '@/client-lazy'
-import {CommentReplies} from '@/comment-rendering'
 import {WebDocContentProvider} from '@/doc-content-provider'
 import {
   getComment,
@@ -243,15 +242,11 @@ export default function CreateComment() {
           <YStack flex={1} paddingHorizontal="$4">
             {replyComment ? (
               <Comment
-                isFirst={true}
                 isLast={!publishedComment}
                 comment={replyComment.comment}
-                docId={targetId}
                 rootReplyCommentId={rootReplyCommentId}
                 renderCommentContent={renderCommentContent}
-                enableWebSigning={false}
                 authorMetadata={replyComment.author.metadata}
-                CommentReplies={CommentReplies}
               />
             ) : null}
             {publishedComment ? (
@@ -420,12 +415,8 @@ function PublishedComment({
         () => signedCommentToHMComment(commentId, rawComment.c),
         [commentId, rawComment],
       )}
-      docId={targetId}
       rootReplyCommentId={rootReplyCommentId}
       renderCommentContent={renderCommentContent}
-      enableWebSigning={enableWebSigning}
-      CommentReplies={() => null}
-      isFirst={isFirst}
       isLast={isLast}
       authorMetadata={author.data?.document?.metadata ?? undefined}
     />

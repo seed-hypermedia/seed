@@ -1,5 +1,5 @@
 import {useDocHistory} from '@/models/changes'
-import {UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Theme, YStack} from 'tamagui'
@@ -16,9 +16,6 @@ export function EntityVersionsAccessory({
 }) {
   const changes = useDocHistory(id?.id, variantVersion)
   const authors = new Set<string>()
-  const routingContext = useRouteLink({
-    key: 'document',
-  })
   changes.forEach((item) => {
     item?.change?.author && authors.add(item?.change?.author)
   })

@@ -153,6 +153,7 @@ export function DocContentProvider({
         setCollapsedBlocks,
       }}
     >
+      {children}
       {showDevMenu ? (
         <YStack
           zIndex="$zIndex.4"
@@ -211,7 +212,6 @@ export function DocContentProvider({
           </RadioGroup>
         </YStack>
       ) : null}
-      {children}
     </docContentContext.Provider>
   )
 }
@@ -269,7 +269,7 @@ export function DocContent({
   handleBlockReplace?: () => boolean
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection()
-  const {layoutUnit, onCopyBlock} = useDocContentContext()
+  const {layoutUnit, onBlockCopy} = useDocContentContext()
   const allBlocks = document?.content || []
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
   const displayBlocks = maxBlockCount
@@ -309,13 +309,13 @@ export function DocContent({
         elevation="$4"
         userSelect="none"
       >
-        {onCopyBlock ? (
+        {onBlockCopy ? (
           <Tooltip content="Copy Block Range">
             <Button
               size="$2"
               icon={Link}
               onPress={() => {
-                onCopyBlock(
+                onBlockCopy(
                   state.context.blockId,
                   typeof state.context.rangeStart == 'number' &&
                     typeof state.context.rangeEnd == 'number'
@@ -525,8 +525,8 @@ export function BlockNodeContent({
     routeParams,
     onBlockCitationClick,
     onBlockCommentClick,
-    onCopyBlock,
-    onReplyBlock,
+    onBlockCopy,
+    onBlockReply,
     debug,
     comment,
   } = useDocContentContext()
@@ -844,7 +844,7 @@ export function BlockNodeContent({
             </Tooltip>
           ) : null}
 
-          {onReplyBlock ? (
+          {onBlockReply ? (
             <Tooltip content="Reply to block" delay={800}>
               <Button
                 userSelect="none"
@@ -859,9 +859,9 @@ export function BlockNodeContent({
                 icon={Reply}
                 onPress={() => {
                   if (blockNode.block?.id) {
-                    onReplyBlock(blockNode.block.id)
+                    onBlockReply(blockNode.block.id)
                   } else {
-                    console.error('onReplyBlock Error: no blockId available')
+                    console.error('onBlockReply Error: no blockId available')
                   }
                 }}
               />
@@ -909,7 +909,7 @@ export function BlockNodeContent({
               </Button>
             </Tooltip>
           ) : null}
-          {onCopyBlock ? (
+          {onBlockCopy ? (
             <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
               <Button
                 userSelect="none"
@@ -924,9 +924,9 @@ export function BlockNodeContent({
                 icon={<Link size={12} color="$color9" />}
                 onPress={() => {
                   if (blockNode.block?.id) {
-                    onCopyBlock(blockNode.block.id, {expanded: true})
+                    onBlockCopy(blockNode.block.id, {expanded: true})
                   } else {
-                    console.error('onCopyBlock Error: no blockId available')
+                    console.error('onBlockCopy Error: no blockId available')
                   }
                 }}
               >

@@ -55,7 +55,6 @@ export function SiteHeader({
   origin?: string
   onScroll?: () => void
 }) {
-  const media = useMedia()
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {

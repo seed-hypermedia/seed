@@ -57,7 +57,7 @@ export function AppDocContentProvider({
           Inline: EmbedInline,
           Query: QueryBlockDesktop,
         }}
-        onCopyBlock={
+        onBlockCopy={
           reference
             ? (
                 blockId: string,
@@ -123,10 +123,10 @@ export type DocContentContextValue = {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void
-  onCopyBlock:
+  onBlockCopy:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
-  onReplyBlock?: null | ((blockId: string) => void)
+  onBlockReply?: null | ((blockId: string) => void)
   onBlockCommentClick?:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
