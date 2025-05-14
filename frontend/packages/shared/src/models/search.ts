@@ -36,7 +36,11 @@ export function useSearch(
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       out.entities.forEach((result) => {
-        if (!alreadySeenIds.has(result.id.id)) {
+        if (
+          !alreadySeenIds.has(
+            result.id.id + '?v=' + result.id.version + '#' + result.id.blockRef,
+          )
+        ) {
           alreadySeenIds.add(result.id.id)
           entities.push(result)
         }
