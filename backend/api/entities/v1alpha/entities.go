@@ -463,7 +463,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
-			MatchOffset: offsets,
 			Owner:       owners[match.Index]})
 	}
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil

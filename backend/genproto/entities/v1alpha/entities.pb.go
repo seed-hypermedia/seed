@@ -539,17 +539,14 @@ type Entity struct {
 	// Title/Body in the case of groups and documents.
 	// Body in the case of comments.
 	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
-	// where the matching string is found in the content.
-	// This is a char offset in the content for each matching char.
-	MatchOffset []int64 `protobuf:"varint,6,rep,packed,name=match_offset,json=matchOffset,proto3" json:"match_offset,omitempty"`
 	// The owner of the entity
-	Owner string `protobuf:"bytes,7,opt,name=owner,proto3" json:"owner,omitempty"`
+	Owner string `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`
 	// The type of the entity it coud be Title, Document or Comment
-	Type string `protobuf:"bytes,8,opt,name=type,proto3" json:"type,omitempty"`
+	Type string `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
 	// Icon of the document containing that entity
-	Icon string `protobuf:"bytes,9,opt,name=icon,proto3" json:"icon,omitempty"`
+	Icon string `protobuf:"bytes,8,opt,name=icon,proto3" json:"icon,omitempty"`
 	// Parent document names
-	ParentNames   []string `protobuf:"bytes,10,rep,name=parent_names,json=parentNames,proto3" json:"parent_names,omitempty"`
+	ParentNames   []string `protobuf:"bytes,9,rep,name=parent_names,json=parentNames,proto3" json:"parent_names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -617,13 +614,6 @@ func (x *Entity) GetContent() string {
 		return x.Content
 	}
 	return ""
-}
-
-func (x *Entity) GetMatchOffset() []int64 {
-	if x != nil {
-		return x.MatchOffset
-	}
-	return nil
 }
 
 func (x *Entity) GetOwner() string {
@@ -1410,19 +1400,17 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05heads\x18\x02 \x03(\tR\x05heads\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12=\n" +
-	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"\xa5\x02\n" +
+	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"\x82\x02\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\ablob_id\x18\x02 \x01(\tR\x06blobId\x12=\n" +
 	"\fversion_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\x12\x15\n" +
 	"\x06doc_id\x18\x04 \x01(\tR\x05docId\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\x12!\n" +
-	"\fmatch_offset\x18\x06 \x03(\x03R\vmatchOffset\x12\x14\n" +
-	"\x05owner\x18\a \x01(\tR\x05owner\x12\x12\n" +
-	"\x04type\x18\b \x01(\tR\x04type\x12\x12\n" +
-	"\x04icon\x18\t \x01(\tR\x04icon\x12!\n" +
-	"\fparent_names\x18\n" +
-	" \x03(\tR\vparentNames\"\x9f\x01\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12\x14\n" +
+	"\x05owner\x18\x06 \x01(\tR\x05owner\x12\x12\n" +
+	"\x04type\x18\a \x01(\tR\x04type\x12\x12\n" +
+	"\x04icon\x18\b \x01(\tR\x04icon\x12!\n" +
+	"\fparent_names\x18\t \x03(\tR\vparentNames\"\x9f\x01\n" +
 	"\rDeletedEntity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +

@@ -22,6 +22,7 @@ export const loader = async ({request}: {request: Request}) => {
             title: entity.content,
             icon: entity.icon,
             parentNames: entity.parentNames,
+            ts: entity.versionTime,
           }
         )
       })
