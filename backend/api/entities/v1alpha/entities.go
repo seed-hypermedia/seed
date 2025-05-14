@@ -16,6 +16,7 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -440,10 +441,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 			if blockIDs[match.Index] != "" {
 				id += "#" + blockIDs[match.Index]
+				if len(offsets) > 1 {
+					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
+				}
 			}
 
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
+			DocId:       docIDs[match.Index],
 			Id:          id,
 			BlobId:      blobCIDs[match.Index],
 			Type:        contentType[match.Index],
