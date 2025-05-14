@@ -6,7 +6,6 @@ import {CommentEditor2} from '@shm/editor/comment-editor'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
-  hmId,
   hostnameStripProtocol,
   idToUrl,
   queryKeys,
@@ -53,6 +52,7 @@ export type WebCommentingProps = {
   }) => void
   enableWebSigning: boolean
   commentingOriginUrl?: string
+  autoFocus?: boolean
 }
 
 /**
@@ -60,31 +60,33 @@ export type WebCommentingProps = {
  */
 export default function WebCommenting(props: WebCommentingProps) {
   if (!props.enableWebSigning) {
-    return (
-      <Button
-        onPress={() => {
-          redirectToWebIdentityCommenting(
-            props.docId,
-            props.replyCommentId,
-            props.rootReplyCommentId,
-          )
-          // const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
-          // url.searchParams.set(
-          //   'target',
-          //   `${props.docId.uid}${hmIdPathToEntityQueryPath(props.docId.path)}`,
-          // )
-          // url.searchParams.set('targetVersion', props.docId.version || '')
-          // url.searchParams.set('reply', props.replyCommentId || '')
-          // url.searchParams.set('rootReply', props.rootReplyCommentId || '')
-          // url.searchParams.set('originUrl', window.location.toString())
-          // window.open(url.toString(), '_blank')
-        }}
-      >
-        {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}
-      </Button>
-    )
+    return <ExternalWebCommenting {...props} />
   }
   return <LocalWebCommenting {...props} />
+}
+
+export function ExternalWebCommenting(props: {
+  docId: UnpackedHypermediaId
+  replyCommentId?: string
+  rootReplyCommentId?: string
+}) {
+  return (
+    <Button
+      bg="$brand5"
+      color="white"
+      hoverStyle={{bg: '$brand4'}}
+      focusStyle={{bg: '$brand4'}}
+      onPress={() => {
+        redirectToWebIdentityCommenting(
+          props.docId,
+          props.replyCommentId || null,
+          props.rootReplyCommentId || null,
+        )
+      }}
+    >
+      {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}
+    </Button>
+  )
 }
 
 export function LocalWebCommenting({
@@ -95,13 +97,8 @@ export function LocalWebCommenting({
   onSuccess,
   enableWebSigning,
   commentingOriginUrl,
+  autoFocus,
 }: WebCommentingProps) {
-  console.log(
-    '=== LocalWebCommenting',
-    docId,
-    replyCommentId,
-    rootReplyCommentId,
-  )
   const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
@@ -140,18 +137,9 @@ export function LocalWebCommenting({
 
   const {content: createAccountContent, createDefaultAccount} =
     useCreateAccount()
-  const myAccountId = userKeyPair ? hmId('d', userKeyPair.id) : null
+
   const myAccount = useAccount(userKeyPair?.id || undefined)
-  const myName = myAccount.data?.metadata?.name
-  const authenticatedActionMessage = myName
-    ? `Comment as ${myName}`
-    : 'Submit Comment'
-  const unauthenticatedActionMessage = enableWebSigning
-    ? 'Create Account & Start commenting'
-    : `Submit Comment`
-  const commentActionMessage = userKeyPair
-    ? authenticatedActionMessage
-    : unauthenticatedActionMessage
+
   const {
     content: emailNotificationsPromptContent,
     open: openEmailNotificationsPrompt,
@@ -195,7 +183,7 @@ export function LocalWebCommenting({
       },
       commentingOriginUrl,
     )
-    const result = await postComment.mutateAsync(commentPayload)
+    await postComment.mutateAsync(commentPayload)
     reset()
     onDiscardDraft?.()
     await promptEmailNotifications()
@@ -217,6 +205,7 @@ export function LocalWebCommenting({
         comment
       >
         <CommentEditor2
+          autoFocus={autoFocus}
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
             return (

@@ -100,7 +100,6 @@ export function SiteHeader({
       // @ts-ignore
       onScroll={onScroll}
       $gtSm={{overflow: onScroll ? 'scroll' : 'visible'}}
-      className="SITE-HEADER-WRAPPER"
     >
       <YStack
         borderBottomWidth={1}

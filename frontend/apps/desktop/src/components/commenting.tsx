@@ -118,17 +118,12 @@ function _CommentBox({
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
-  const [editorAutoFocus, setEditorAutoFocus] = useState(false)
   // useEffect(() => {
   //   triggerCommentDraftFocus(docId.id, replyCommentId)
   // })
 
   function focusEditor() {
-    console.log(' editorAutoFocus focusEditor', isStartingComment, draft.data)
-    if (!isStartingComment) {
-      setIsStartingComment(true)
-    }
-    setEditorAutoFocus(true)
+    setIsStartingComment(true)
   }
 
   useEffect(() => {
@@ -141,7 +136,6 @@ function _CommentBox({
     }
   }, [docId.id, replyCommentId])
 
-  console.log('editorAutoFocus', draft.data, isStartingComment, editorAutoFocus)
   if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
@@ -149,7 +143,7 @@ function _CommentBox({
       <CommentDraftEditor
         docId={docId}
         accounts={accounts}
-        autoFocus={isStartingComment || editorAutoFocus}
+        autoFocus={isStartingComment}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
         replyCommentId={replyCommentId}

@@ -185,6 +185,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [editorAutoFocus, setEditorAutoFocus] = useState(false)
 
   let panel: any = null
   const {
@@ -316,7 +317,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   function onBlockCommentClick(blockId?: string | null) {
     console.log('~ onBlockCommentClick', blockId, media.gtSm)
-    setActivePanel({type: 'discussions', blockId: blockId})
+    setActivePanel({type: 'discussions', blockId: blockId || undefined})
     if (!media.gtSm) {
       setIsSheetOpen(true)
     }
@@ -362,6 +363,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       >
         {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
+            autoFocus={editorAutoFocus}
             docId={id}
             replyCommentId={activePanel.commentId}
             rootReplyCommentId={activePanel.rootReplyCommentId}
@@ -379,6 +381,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
   if (activePanel?.type == 'discussions') {
     panel = (
       <WebCommentsPanel
+        handleStartDiscussion={() => {
+          setEditorAutoFocus(true)
+        }}
         blockId={activePanel.blockId}
         commentId={activePanel.commentId}
         rootReplyCommentId={activePanel.rootReplyCommentId}
@@ -620,7 +625,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         />
                       </Tooltip>
                     </XStack>
-                    <ScrollView f={1}>{panel}</ScrollView>
+                    <ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                      {panel}
+                    </ScrollView>
                     {commentEditor}
                   </YStack>
                 </Panel>

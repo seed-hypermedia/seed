@@ -8,24 +8,25 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {MessageSquareOff} from '@tamagui/lucide-icons'
 import {useCallback, useMemo} from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {EmptyDiscussions} from './commenting'
+import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useDiscussion} from './models'
 
 export function WebCommentsPanel({
   docId,
   homeId,
-  blockId,
-  setBlockId,
-  comments,
-  document,
-  originHomeId,
-  siteHost,
-  enableWebSigning,
   commentId,
-  rootReplyCommentId,
+  blockId,
+  comments,
+  siteHost,
   handleBack,
+  enableWebSigning,
+  rootReplyCommentId,
+  handleStartDiscussion,
 }: {
   docId: UnpackedHypermediaId
   homeId: UnpackedHypermediaId
@@ -39,6 +40,7 @@ export function WebCommentsPanel({
   rootReplyCommentId?: string
   blockId?: string
   handleBack: () => void
+  handleStartDiscussion?: () => void
 }) {
   const isDark = useIsDark()
   const focusedComments = useDiscussion(docId, commentId)
@@ -51,7 +53,6 @@ export function WebCommentsPanel({
 
   const focusedComment =
     comments?.allComments.find((c) => c.id === commentId) || null
-  console.log(`== ~ focusedComment:`, focusedComment)
   const commentAuthors: HMAccountsMetadata = useMemo(() => {
     return {
       ...(comments?.commentAuthors || {}),
@@ -122,7 +123,7 @@ export function WebCommentsPanel({
           Discussions
         </SizableText>
       </XStack>
-      <YStack gap="$2" paddingHorizontal="$3">
+      <YStack gap="$2">
         {commentId || blockId ? (
           <AccessoryBackButton onPress={handleBack} label="All Discussions" />
         ) : null}
@@ -145,29 +146,80 @@ export function WebCommentsPanel({
             </YStack>
           ) : null}
           <YStack>
-            {commentGroups?.map((cg, idx) => {
-              return (
-                <YStack
-                  key={cg.id}
-                  paddingHorizontal="$3"
-                  marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
-                  borderBottomWidth={1}
-                  borderBottomColor="$borderColor"
-                >
-                  <CommentGroup
+            {commentGroups?.length > 0 ? (
+              commentGroups?.map((cg, idx) => {
+                return (
+                  <YStack
                     key={cg.id}
-                    commentGroup={cg}
-                    authors={commentAuthors as any}
-                    renderCommentContent={renderCommentContent}
-                    enableReplies
-                    rootReplyCommentId={null}
-                  />
-                </YStack>
-              )
-            })}
+                    paddingHorizontal="$3"
+                    marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
+                    borderBottomWidth={1}
+                    borderBottomColor="$borderColor"
+                  >
+                    <CommentGroup
+                      key={cg.id}
+                      commentGroup={cg}
+                      authors={commentAuthors as any}
+                      renderCommentContent={renderCommentContent}
+                      enableReplies
+                      rootReplyCommentId={null}
+                    />
+                  </YStack>
+                )
+              })
+            ) : (
+              <EmptyDiscussions
+                onStartDiscussion={handleStartDiscussion}
+                enableWebSigning={enableWebSigning}
+                docId={docId}
+                commentId={commentId}
+                rootReplyCommentId={rootReplyCommentId}
+              />
+            )}
           </YStack>
         </YStack>
       </YStack>
+    </YStack>
+  )
+}
+
+export function EmptyDiscussions({
+  docId,
+  commentId,
+  rootReplyCommentId,
+  enableWebSigning,
+  onStartDiscussion,
+}: {
+  docId: UnpackedHypermediaId
+  commentId?: string
+  rootReplyCommentId?: string
+  enableWebSigning: boolean
+  onStartDiscussion?: () => void
+}) {
+  return (
+    <YStack alignItems="center" gap="$4" paddingVertical="$4">
+      <MessageSquareOff size={48} color="$color8" />
+      <SizableText size="$3">No discussions</SizableText>
+      <Button
+        size="$3"
+        onPress={() => {
+          if (enableWebSigning) {
+            onStartDiscussion?.()
+          } else {
+            redirectToWebIdentityCommenting(
+              docId,
+              commentId || null,
+              rootReplyCommentId || null,
+            )
+          }
+        }}
+        bg="$brand5"
+        color="white"
+        hoverStyle={{bg: '$brand4'}}
+        focusStyle={{bg: '$brand4'}}
+      >
+        Start a discussion
+      </Button>
     </YStack>
   )
 }

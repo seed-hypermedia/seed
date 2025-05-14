@@ -350,9 +350,11 @@ export function CommentEditor2({
   submitButton,
   handleSubmit,
   account,
+  autoFocus,
 }: {
   onDiscardDraft?: () => void
   account?: ReturnType<typeof useAccount>['data']
+  autoFocus?: boolean
   submitButton: (opts: {
     reset: () => void
     getContent: (
@@ -379,13 +381,24 @@ export function CommentEditor2({
   ) => void
 }) {
   const {editor} = useCommentEditor()
-  const [isEditorFocused, setIsEditorFocused] = useState(false)
+  const [isEditorFocused, setIsEditorFocused] = useState(
+    () => autoFocus || false,
+  )
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
 
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
   }
+
+  useEffect(() => {
+    if (autoFocus) {
+      setIsEditorFocused(true)
+      setTimeout(() => {
+        editor._tiptapEditor.commands.focus()
+      }, 100)
+    }
+  }, [autoFocus])
 
   const getContent = async (
     prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -550,33 +563,19 @@ export function CommentEditor2({
     return false
   }
 
-  console.log('=== account', account)
-
   return (
     <XStack gap="$2" width="100%" alignItems="flex-start">
       <XStack flexShrink={0} flexGrow={0}>
-        <Button
-          size="$2"
-          w={40}
-          h={40}
-          p={0}
-          bg="$backgroundTransparent"
-          borderRadius={40}
-          onPress={() => handleSubmit(getContent, reset)}
-          className={`plausible-event-name=comment`}
-          icon={
-            account?.metadata ? (
-              <HMIcon
-                color={'$color8'}
-                id={account.id}
-                metadata={account.metadata}
-                size={32}
-              />
-            ) : (
-              <Plus size={24} />
-            )
-          }
-        />
+        {account?.metadata ? (
+          <HMIcon
+            color={'$color8'}
+            id={account.id}
+            metadata={account.metadata}
+            size={32}
+          />
+        ) : (
+          <Plus size={24} />
+        )}
       </XStack>
       <YStack flex={1} bg="$color4" width="100%" borderRadius="$4">
         <YStack
