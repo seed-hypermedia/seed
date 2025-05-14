@@ -238,28 +238,34 @@ export function DocDirectory({
   )
 }
 
+export function useNodesOutline(
+  document: HMDocument | null | undefined,
+  id: UnpackedHypermediaId,
+  supportDocuments?: HMEntityContent[],
+) {
+  return useMemo(
+    () => getNodesOutline(document?.content || [], id, supportDocuments),
+    [document?.content, id, supportDocuments],
+  )
+}
+
 export function DocumentOutline({
-  document,
+  outline,
   indented,
   onActivateBlock,
   onPress,
   id,
-  supportDocuments,
   activeBlockId,
   onCloseNav,
 }: {
-  document: HMDocument
+  outline: NodeOutline[]
   indented?: number
   onActivateBlock: (blockId: string) => void
   onPress?: () => void
   id: UnpackedHypermediaId
-  supportDocuments?: HMEntityContent[]
   activeBlockId: string | null
   onCloseNav?: () => void
 }) {
-  const outline = useMemo(() => {
-    return getNodesOutline(document.content, id, supportDocuments)
-  }, [id, document.content, supportDocuments])
   return outline.map((node) => {
     const outlineProps = useRouteLink(
       {

@@ -15,23 +15,15 @@ import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {SmallListItem} from '@shm/ui/list-item'
 import {
-  DocDirectory,
   DocNavigationWrapper,
   DocumentOutline,
   DraftOutline,
+  useNodesOutline,
 } from '@shm/ui/navigation'
 import {Plus as Add} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
-  return (
-    <DocNavigationWrapper showCollapsed={showCollapsed}>
-      <DocNavigationLoader />
-    </DocNavigationWrapper>
-  )
-}
-
-export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('DocNavigation only supports document route')
@@ -64,13 +56,14 @@ export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
   }
   const drafts = useAccountDraftList(id?.uid)
 
-  if (!document || !siteListQuery) return null
+  const outline = useNodesOutline(document, id, embeds)
+  console.log('outline', outline)
+  if (!document || !siteListQuery || !outline.length) return null
 
   return (
-    <>
+    <DocNavigationWrapper showCollapsed={showCollapsed}>
       <DocumentOutline
         onActivateBlock={(blockId) => {
-          onPress?.()
           navigate({
             key: 'document',
             id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
@@ -82,12 +75,11 @@ export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
             console.error('Element not found:', blockId)
           }
         }}
-        document={document}
+        outline={outline}
         id={id}
-        supportDocuments={embeds}
         activeBlockId={id.blockRef}
       />
-      {!isHome && (
+      {/* {!isHome && (
         <DocDirectory
           id={id}
           drafts={drafts.data}
@@ -95,8 +87,8 @@ export function DocNavigationLoader({onPress}: {onPress?: () => void}) {
           createDirItem={createDirItem}
           onPress={onPress}
         />
-      )}
-    </>
+      )} */}
+    </DocNavigationWrapper>
   )
 }
 
@@ -140,8 +132,6 @@ export function DocNavigationDraftLoader({
       : null
   const embeds = useDocumentEmbeds(document)
 
-  const drafts = useAccountDraftList(id?.uid)
-
   if (!siteListQuery || !metadata) return null
 
   return (
@@ -155,13 +145,6 @@ export function DocNavigationDraftLoader({
           id={id}
           supportDocuments={embeds}
           onPress={() => {}}
-        />
-      ) : null}
-      {id && (route.editUid || draftQuery.data?.editUid) && siteListQuery ? (
-        <DocDirectory
-          id={id}
-          drafts={drafts.data}
-          supportQueries={[siteListQuery]}
         />
       ) : null}
     </DocNavigationWrapper>

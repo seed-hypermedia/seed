@@ -13,6 +13,7 @@ import {
   HMComment,
   HMCommentsPayload,
   HMDocument,
+  HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
   hostnameStripProtocol,
@@ -34,9 +35,9 @@ import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {BlockQuote, HistoryIcon, IconComponent} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
-  DocDirectory,
   DocNavigationWrapper,
   DocumentOutline,
+  useNodesOutline,
 } from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -488,7 +489,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
                             // paddingTop={32}
                             paddingBottom={32}
                           >
-                            <DocNavigationWrapper showCollapsed={showCollapsed}>
+                            <WebDocumentOutline
+                              showCollapsed={showCollapsed}
+                              supportDocuments={props.supportDocuments}
+                              onActivateBlock={onActivateBlock}
+                              id={id}
+                              document={document}
+                            />
+                            {/* <DocNavigationWrapper showCollapsed={showCollapsed}>
                               <DocumentOutline
                                 onActivateBlock={onActivateBlock}
                                 document={document}
@@ -497,13 +505,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                                 supportDocuments={props.supportDocuments}
                                 activeBlockId={id.blockRef}
                               />
-                              <DocDirectory
-                                // supportDocuments={props.supportDocuments}
-                                supportQueries={props.supportQueries}
-                                // documentMetadata={document.metadata}
-                                id={id}
-                              />
-                            </DocNavigationWrapper>
+                            </DocNavigationWrapper> */}
                           </YStack>
                         </YStack>
                       ) : null}
@@ -836,6 +838,33 @@ function DocumentDiscoveryPage({
       </YStack>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </YStack>
+  )
+}
+
+function WebDocumentOutline({
+  showCollapsed,
+  document,
+  id,
+  onActivateBlock,
+  supportDocuments,
+}: {
+  showCollapsed: boolean
+  document: HMDocument | null | undefined
+  id: UnpackedHypermediaId
+  onActivateBlock: (blockId: string) => void
+  supportDocuments: HMEntityContent[] | undefined
+}) {
+  const outline = useNodesOutline(document, id, supportDocuments)
+  if (!outline.length) return null
+  return (
+    <DocNavigationWrapper showCollapsed={showCollapsed}>
+      <DocumentOutline
+        onActivateBlock={onActivateBlock}
+        id={id}
+        outline={outline}
+        activeBlockId={id.blockRef}
+      />
+    </DocNavigationWrapper>
   )
 }
 

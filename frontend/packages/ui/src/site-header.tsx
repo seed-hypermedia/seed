@@ -21,6 +21,7 @@ import {
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
+  useNodesOutline,
 } from './navigation'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {HeaderSearch, MobileSearch} from './search'
@@ -187,19 +188,19 @@ export function SiteHeader({
             )}
 
             {docId && document && !isHomeDoc && (
-              <DocumentOutline
+              <MobileMenuOutline
                 onActivateBlock={(blockId) => {
                   setIsMobileMenuOpen(false)
                   onBlockFocus?.(blockId)
                 }}
                 document={document}
-                id={docId}
-                // onCloseNav={() => {}}
+                docId={docId}
                 supportDocuments={supportDocuments}
-                activeBlockId={docId.blockRef}
               />
             )}
-            {docId && <NavItems id={docId} supportQueries={supportQueries} />}
+            {docId && isHomeDoc && (
+              <NavItems id={docId} supportQueries={supportQueries} />
+            )}
           </YStack>
         )}
       />
@@ -258,6 +259,29 @@ function NavItems({
           ))
         : null}
     </YStack>
+  )
+}
+
+function MobileMenuOutline({
+  onActivateBlock,
+  document,
+  docId,
+  supportDocuments,
+}: {
+  onActivateBlock: (blockId: string) => void
+  document: HMDocument
+  docId: UnpackedHypermediaId
+  supportDocuments: HMEntityContent[] | undefined
+}) {
+  const outline = useNodesOutline(document, docId, supportDocuments)
+
+  return (
+    <DocumentOutline
+      onActivateBlock={onActivateBlock}
+      outline={outline}
+      id={docId}
+      activeBlockId={docId.blockRef}
+    />
   )
 }
 

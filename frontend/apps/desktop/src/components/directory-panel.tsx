@@ -1,11 +1,12 @@
 import {useAccountList} from '@/models/accounts'
 import {useChildrenActivity} from '@/models/library'
+import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {EmptyDiscussion} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {ScrollView, SizableText, useTheme, YStack} from 'tamagui'
+import {ScrollView, SizableText, useTheme, XStack, YStack} from 'tamagui'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
@@ -50,6 +51,9 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
           }
           return null
         })}
+        <XStack padding="$3">
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+        </XStack>
       </YStack>
     </ScrollView>
   )
