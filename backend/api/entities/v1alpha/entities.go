@@ -229,7 +229,7 @@ SELECT
   	) AS heads
     
 FROM fts_data
-JOIN structural_blobs ON (fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref'
+JOIN structural_blobs ON ((fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (fts_data.blob_id = structural_blobs.id AND structural_blobs.type = 'Comment')
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 JOIN document_generations ON document_generations.resource = resources.id
@@ -418,7 +418,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			offsets[j] = int64(off)
 		}
 		id := iris[match.Index]
-		if versions[match.Index] != "" {
+		if versions[match.Index] != "" && contentType[match.Index] != "comment" {
 			var version string
 			if latestVersions[match.Index] == versions[match.Index] {
 				versions[match.Index] = ""
