@@ -11,7 +11,7 @@ import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
 import {CitationsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
+import {ChevronsDown, ChevronsUp, MessageSquareOff} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useEffect, useMemo, useRef, useState} from 'react'
 import {Button, Separator, SizableText, Spinner, View, XStack} from 'tamagui'
@@ -21,6 +21,7 @@ import {CommentCitationEntry} from './citations-panel'
 import {
   CommentBox,
   renderCommentContent,
+  triggerCommentDraftFocus,
   useCommentGroupAuthors,
 } from './commenting'
 
@@ -72,25 +73,29 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
       }
     >
       <YStack>
-        {commentGroups.data?.map((cg, idx) => {
-          return (
-            <YStack
-              key={cg.id}
-              paddingHorizontal="$1.5"
-              marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
-            >
-              <CommentGroup
-                rootReplyCommentId={null}
+        {commentGroups.data?.length > 0 ? (
+          commentGroups.data?.map((cg, idx) => {
+            return (
+              <YStack
                 key={cg.id}
-                commentGroup={cg}
-                authors={authors}
-                renderCommentContent={renderCommentContent}
-                enableReplies={true}
-              />
-              {commentGroups.data?.length - 1 > idx && <Separator />}
-            </YStack>
-          )
-        })}
+                paddingHorizontal="$1.5"
+                marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
+              >
+                <CommentGroup
+                  rootReplyCommentId={null}
+                  key={cg.id}
+                  commentGroup={cg}
+                  authors={authors}
+                  renderCommentContent={renderCommentContent}
+                  enableReplies={true}
+                />
+                {commentGroups.data?.length - 1 > idx && <Separator />}
+              </YStack>
+            )
+          })
+        ) : (
+          <EmptyDiscussions docId={docId} />
+        )}
       </YStack>
     </AccessoryContent>
   )
@@ -129,15 +134,19 @@ function CommentBlockAccessory({
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
       <QuotedDocBlock docId={docId} blockId={blockId} />
-      {citationsForBlock?.map((citation) => {
-        return (
-          <CommentCitationEntry
-            citation={citation}
-            key={citation.source.id.id}
-            accounts={accounts}
-          />
-        )
-      })}
+      {citationsForBlock?.length > 0 ? (
+        citationsForBlock?.map((citation) => {
+          return (
+            <CommentCitationEntry
+              citation={citation}
+              key={citation.source.id.id}
+              accounts={accounts}
+            />
+          )
+        })
+      ) : (
+        <EmptyDiscussions docId={docId} commentId={blockId} />
+      )}
     </AccessoryContent>
   )
 }
@@ -265,18 +274,22 @@ function CommentReplyAccessory({
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
       {rootCommentId && parentThread ? (
-        <CommentGroup
-          commentGroup={{
-            id: rootCommentId,
-            comments: parentThread,
-            moreCommentsCount: 0,
-            type: 'commentGroup',
-          }}
-          authors={commentAuthors}
-          renderCommentContent={renderCommentContent}
-          rootReplyCommentId={null}
-          highlightLastComment
-        />
+        parentThread.length > 0 ? (
+          <CommentGroup
+            commentGroup={{
+              id: rootCommentId,
+              comments: parentThread,
+              moreCommentsCount: 0,
+              type: 'commentGroup',
+            }}
+            authors={commentAuthors}
+            renderCommentContent={renderCommentContent}
+            rootReplyCommentId={null}
+            highlightLastComment
+          />
+        ) : (
+          <EmptyDiscussions />
+        )
       ) : null}
 
       <FocusedCommentReplies
@@ -318,17 +331,46 @@ function FocusedCommentReplies({
     )
   return (
     <YStack>
-      {replies.data.map((r) => {
-        return (
-          <CommentGroup
-            key={r.id}
-            commentGroup={r}
-            renderCommentContent={renderCommentContent}
-            rootReplyCommentId={null}
-            authors={commentAuthors}
-          />
-        )
-      })}
+      {replies.data.length > 0 ? (
+        replies.data.map((r) => {
+          return (
+            <CommentGroup
+              key={r.id}
+              commentGroup={r}
+              renderCommentContent={renderCommentContent}
+              rootReplyCommentId={null}
+              authors={commentAuthors}
+            />
+          )
+        })
+      ) : (
+        <EmptyDiscussions docId={docId} commentId={commentId} />
+      )}
+    </YStack>
+  )
+}
+
+function EmptyDiscussions({
+  docId,
+  commentId,
+}: {
+  docId: UnpackedHypermediaId
+  commentId?: string
+}) {
+  return (
+    <YStack alignItems="center" gap="$4" paddingVertical="$4">
+      <MessageSquareOff size={48} color="$color8" />
+      <SizableText size="$3">No discussions</SizableText>
+      <Button
+        size="$3"
+        onPress={() => triggerCommentDraftFocus(docId.id, commentId)}
+        bg="$brand5"
+        color="white"
+        hoverStyle={{bg: '$brand4'}}
+        focusStyle={{bg: '$brand4'}}
+      >
+        Start a discussion
+      </Button>
     </YStack>
   )
 }

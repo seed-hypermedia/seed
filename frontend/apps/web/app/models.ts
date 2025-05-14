@@ -104,7 +104,9 @@ export function useCitations(id: UnpackedHypermediaId) {
 }
 
 export function useComments(id: UnpackedHypermediaId) {
-  const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`)
+  const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`, {
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, id.id],
+  })
   return response
 }
 

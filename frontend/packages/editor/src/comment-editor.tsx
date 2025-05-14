@@ -2,9 +2,12 @@ import {EditorBlock, writeableStateStream} from '@shm/shared'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
+import {useAccount} from '@shm/shared/src/models/entity'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
+import {Plus} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
@@ -344,26 +347,13 @@ export function useCommentEditor() {
 }
 
 export function CommentEditor2({
-  onDiscardDraft,
-  accountButton,
   submitButton,
   handleSubmit,
+  account,
 }: {
   onDiscardDraft?: () => void
-
+  account?: ReturnType<typeof useAccount>['data']
   submitButton: (opts: {
-    reset: () => void
-    getContent: (
-      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-        blobs: {cid: string; data: Uint8Array}[]
-        resultCIDs: string[]
-      }>,
-    ) => Promise<{
-      blockNodes: HMBlockNode[]
-      blobs: {cid: string; data: Uint8Array}[]
-    }>
-  }) => JSX.Element
-  accountButton: (opts: {
     reset: () => void
     getContent: (
       prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -560,28 +550,43 @@ export function CommentEditor2({
     return false
   }
 
+  console.log('=== account', account)
+
   return (
     <XStack gap="$2" width="100%" alignItems="flex-start">
       <XStack flexShrink={0} flexGrow={0}>
-        {accountButton({
-          reset,
-          getContent,
-        })}
+        <Button
+          size="$2"
+          w={40}
+          h={40}
+          p={0}
+          bg="$backgroundTransparent"
+          borderRadius={40}
+          onPress={() => handleSubmit(getContent, reset)}
+          className={`plausible-event-name=comment`}
+          icon={
+            account?.metadata ? (
+              <HMIcon
+                color={'$color8'}
+                id={account.id}
+                metadata={account.metadata}
+                size={32}
+              />
+            ) : (
+              <Plus size={24} />
+            )
+          }
+        />
       </XStack>
-      <YStack
-        flex={1}
-        bg="$color4"
-        width="100%"
-        borderRadius="$4"
-        paddingHorizontal="$3"
-      >
+      <YStack flex={1} bg="$color4" width="100%" borderRadius="$4">
         <YStack
           justifyContent={isEditorFocused ? 'flex-start' : 'center'}
           flex={1}
           className="comment-editor"
+          paddingHorizontal="$3"
           // marginTop="$1"
 
-          minHeight={isEditorFocused ? 105 : 40}
+          // minHeight={isEditorFocused ? 105 : 40}
           // paddingHorizontal="$4"
           onPress={(e: MouseEvent) => {
             const target = e.target as HTMLElement
@@ -617,6 +622,7 @@ export function CommentEditor2({
           // paddingBottom="$2"
           // bg="$color4"
           // paddingHorizontal="$4"
+          minHeight={40}
         >
           {isEditorFocused ? (
             <HyperMediaEditorView editor={editor} openUrl={openUrl} />

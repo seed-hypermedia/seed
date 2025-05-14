@@ -7,6 +7,7 @@ import {
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
+import {useIsDark} from '@shm/ui/use-is-dark'
 import {useCallback, useMemo} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -39,15 +40,18 @@ export function WebCommentsPanel({
   blockId?: string
   handleBack: () => void
 }) {
+  const isDark = useIsDark()
   const focusedComments = useDiscussion(docId, commentId)
+
   const commentGroups = useMemo(() => {
     if (!commentId) return comments?.commentGroups || []
+
     return focusedComments?.data?.commentGroups || []
   }, [commentId, focusedComments, comments])
 
   const focusedComment =
     comments?.allComments.find((c) => c.id === commentId) || null
-
+  console.log(`== ~ focusedComment:`, focusedComment)
   const commentAuthors: HMAccountsMetadata = useMemo(() => {
     return {
       ...(comments?.commentAuthors || {}),
@@ -106,9 +110,13 @@ export function WebCommentsPanel({
         paddingHorizontal="$4"
         paddingVertical="$3"
         alignItems="center"
+        position="sticky"
+        top={0}
+        zIndex="$zIndex.9"
         h={56}
         borderBottomWidth={1}
         borderBottomColor="$borderColor"
+        bg={isDark ? '$background' : '$backgroundStrong'}
       >
         <SizableText size="$3" fontWeight="bold">
           Discussions

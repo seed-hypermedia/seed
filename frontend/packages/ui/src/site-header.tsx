@@ -42,6 +42,7 @@ export function SiteHeader({
   supportQueries,
   origin,
   onScroll,
+  noScroll = false,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -55,6 +56,7 @@ export function SiteHeader({
   supportQueries?: HMQueryResult[]
   origin?: string
   onScroll?: () => void
+  noScroll?: boolean
 }) {
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
@@ -93,11 +95,12 @@ export function SiteHeader({
     <YStack
       position="relative"
       overflow="hidden"
-      height="100%"
+      height={noScroll ? '100vh' : '100%'}
       // This onscroll is important for when we render it for drafts. this will dismiss the blockside menu when we scroll
       // @ts-ignore
       onScroll={onScroll}
       $gtSm={{overflow: onScroll ? 'scroll' : 'visible'}}
+      className="SITE-HEADER-WRAPPER"
     >
       <YStack
         borderBottomWidth={1}

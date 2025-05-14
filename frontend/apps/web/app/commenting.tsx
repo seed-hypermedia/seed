@@ -18,11 +18,9 @@ import {
 import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
-import {Plus, SendHorizontal} from '@tamagui/lucide-icons'
+import {SendHorizontal} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
@@ -45,8 +43,8 @@ injectModels()
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
-  replyCommentId: string | null
-  rootReplyCommentId: string | null
+  replyCommentId?: string
+  rootReplyCommentId?: string
   onDiscardDraft?: () => void
   onSuccess?: (successData: {
     id: string
@@ -98,6 +96,12 @@ export function LocalWebCommenting({
   enableWebSigning,
   commentingOriginUrl,
 }: WebCommentingProps) {
+  console.log(
+    '=== LocalWebCommenting',
+    docId,
+    replyCommentId,
+    rootReplyCommentId,
+  )
   const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
@@ -120,6 +124,9 @@ export function LocalWebCommenting({
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS, docId.id],
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id],
@@ -188,7 +195,7 @@ export function LocalWebCommenting({
       },
       commentingOriginUrl,
     )
-    await postComment.mutateAsync(commentPayload)
+    const result = await postComment.mutateAsync(commentPayload)
     reset()
     onDiscardDraft?.()
     await promptEmailNotifications()
@@ -222,33 +229,7 @@ export function LocalWebCommenting({
               />
             )
           }}
-          accountButton={({getContent, reset}) => {
-            return (
-              <Tooltip content={commentActionMessage}>
-                <Button
-                  size="$2"
-                  w={40}
-                  h={40}
-                  p={0}
-                  bg="$backgroundTransparent"
-                  borderRadius={40}
-                  onPress={() => handleSubmit(getContent, reset)}
-                  className={`plausible-event-name=comment`}
-                  icon={
-                    myAccountId ? (
-                      <HMIcon
-                        id={myAccountId}
-                        metadata={myAccount.data?.metadata}
-                        size={32}
-                      />
-                    ) : (
-                      <Plus size={32} />
-                    )
-                  }
-                />
-              </Tooltip>
-            )
-          }}
+          account={myAccount.data}
           onDiscardDraft={onDiscardDraft}
         />
       </DocContentProvider>

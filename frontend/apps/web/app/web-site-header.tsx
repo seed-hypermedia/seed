@@ -47,6 +47,7 @@ export function WebSiteHeader(
 
   return (
     <SiteHeader
+      noScroll={props.noScroll}
       {...props}
       isCenterLayout={isCenterLayout}
       items={items}

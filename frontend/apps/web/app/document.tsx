@@ -1,16 +1,9 @@
-import {
-  useActivity,
-  useCitations,
-  useComments,
-  useDocumentChanges,
-} from '@/models'
+import {useCitations, useComments, useDocumentChanges} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
-  formattedDateMedium,
   getDocumentTitle,
   HMCitationsPayload,
-  HMComment,
   HMCommentsPayload,
   HMDocument,
   HMEntityContent,
@@ -22,15 +15,12 @@ import {
   WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
-import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
 import {AccessoryBackButton} from '@shm/ui/accessories'
-import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Container} from '@shm/ui/container'
-import {CommentGroup} from '@shm/ui/discussion'
-import {BlocksContent, DocContent} from '@shm/ui/document-content'
+import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {BlockQuote, HistoryIcon, IconComponent} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -42,7 +32,7 @@ import {
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {ChevronUp, MessageSquare, X} from '@tamagui/lucide-icons'
+import {MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -52,7 +42,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Separator, Sheet, useMedia, View} from 'tamagui'
+import {ScrollView, Separator, Sheet, useMedia, View} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebCommentsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
@@ -312,8 +302,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const citations = useCitations(id)
   const comments = useComments(id)
 
-  function onBlockCitationClick(blockId?: string | null) {
-    setActivePanel({type: 'citations', blockId: blockId || null})
+  function onBlockCitationClick(blockId?: string) {
+    setActivePanel({type: 'citations', blockId: blockId})
 
     if (!media.gtSm) {
       const mainPanel = mainPanelRef.current
@@ -326,7 +316,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   function onBlockCommentClick(blockId?: string | null) {
     console.log('~ onBlockCommentClick', blockId, media.gtSm)
-    setActivePanel({type: 'discussions', blockId: blockId || null})
+    setActivePanel({type: 'discussions', blockId: blockId})
     if (!media.gtSm) {
       setIsSheetOpen(true)
     }
@@ -361,18 +351,31 @@ export function DocumentPage(props: SiteDocumentPayload) {
     [enableWebSigning],
   )
 
-  const commentEditor = (
-    <XStack paddingHorizontal="$4" w="100%">
-      {enableWebSigning || WEB_IDENTITY_ENABLED ? (
-        <WebCommenting
-          docId={id}
-          replyCommentId={null}
-          rootReplyCommentId={null}
-          enableWebSigning={enableWebSigning || false}
-        />
-      ) : null}
-    </XStack>
-  )
+  const commentEditor =
+    activePanel?.type == 'discussions' ? (
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$2"
+        w="100%"
+        borderTopWidth={1}
+        borderTopColor="$borderColor"
+      >
+        {enableWebSigning || WEB_IDENTITY_ENABLED ? (
+          <WebCommenting
+            docId={id}
+            replyCommentId={activePanel.commentId}
+            rootReplyCommentId={activePanel.rootReplyCommentId}
+            enableWebSigning={enableWebSigning || false}
+            onSuccess={(data) => {
+              setActivePanel({
+                ...activePanel,
+                commentId: data.id,
+              })
+            }}
+          />
+        ) : null}
+      </XStack>
+    ) : null
   if (activePanel?.type == 'discussions') {
     panel = (
       <WebCommentsPanel
@@ -425,6 +428,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         onReplyCountClick={onReplyCountClick}
       >
         <WebSiteHeader
+          noScroll={!!panel}
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
           docId={id}
@@ -434,7 +438,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
           origin={origin}
         >
           <PanelGroup direction="horizontal">
-            <Panel ref={mainPanelRef} collapsible id="main-panel">
+            <Panel
+              ref={mainPanelRef}
+              collapsible
+              id="main-panel"
+              style={{overflowY: panel ? 'scroll' : undefined}}
+            >
               <XStack
                 w="100%"
                 bg={isDark ? '$background' : '$backgroundStrong'}
@@ -558,19 +567,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
                             }}
                           />
                         </WebDocContentProvider>
-                        {document.metadata &&
-                        document.metadata.showActivity === false ? null : (
-                          <DocumentAppendix
-                            id={id}
-                            document={document}
-                            originHomeId={originHomeId}
-                            siteHost={siteHost}
-                            enableWebSigning={enableWebSigning}
-                            isCommentingPanelOpen={
-                              activePanel?.type == 'discussions'
-                            }
-                          />
-                        )}
                       </YStack>
                       {showSidebars ? <YStack {...sidebarProps} /> : null}
                     </XStack>
@@ -593,6 +589,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     borderLeftWidth={1}
                     borderLeftColor="$borderColor"
                     minHeight="100%"
+                    height="100%"
                     top={0}
                     right={0}
                     gap="$4"
@@ -601,9 +598,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       paddingHorizontal="$2"
                       paddingVertical="$2"
                       alignItems="center"
-                      position="absolute"
                       w={56}
                       h={56}
+                      position="absolute"
                       top={0}
                       right={12}
                       $gtMd={{
@@ -623,7 +620,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         />
                       </Tooltip>
                     </XStack>
-                    {panel}
+                    <ScrollView f={1}>{panel}</ScrollView>
                     {commentEditor}
                   </YStack>
                 </Panel>
@@ -863,153 +860,6 @@ function WebDocumentOutline({
         activeBlockId={id.blockRef}
       />
     </DocNavigationWrapper>
-  )
-}
-
-function DocumentAppendix({
-  id,
-  document,
-  originHomeId,
-  siteHost,
-  enableWebSigning,
-  isCommentingPanelOpen,
-}: {
-  id: UnpackedHypermediaId
-  document: HMDocument
-  originHomeId: UnpackedHypermediaId
-  siteHost: string | undefined
-  enableWebSigning?: boolean
-  isCommentingPanelOpen: boolean
-}) {
-  const docIdWithVersion: UnpackedHypermediaId = {
-    ...id,
-    version: document.version,
-  }
-  return (
-    <Container>
-      {/* <ActivitySection>
-        <DocumentActivity
-          id={docIdWithVersion}
-          document={document}
-          originHomeId={originHomeId}
-          siteHost={siteHost}
-          enableReplies={enableWebSigning || WEB_IDENTITY_ENABLED}
-          enableWebSigning={enableWebSigning || false}
-        />
-
-        {isCommentingPanelOpen ? null : enableWebSigning ||
-          WEB_IDENTITY_ENABLED ? (
-          <WebCommenting
-            docId={docIdWithVersion}
-            replyCommentId={null}
-            rootReplyCommentId={null}
-            enableWebSigning={enableWebSigning || false}
-          />
-        ) : null}
-      </ActivitySection> */}
-    </Container>
-  )
-}
-
-function DocumentActivity({
-  id,
-  originHomeId,
-  document,
-  siteHost,
-  enableReplies,
-  enableWebSigning,
-}: {
-  id: UnpackedHypermediaId
-  originHomeId: UnpackedHypermediaId
-  document: HMDocument
-  siteHost: string | undefined
-  enableReplies: boolean | undefined
-  enableWebSigning: boolean
-}) {
-  const activity = useActivity(id)
-  const renderCommentContent = useCallback(
-    (comment: HMComment) => {
-      return (
-        <WebDocContentProvider
-          key={comment.id}
-          originHomeId={originHomeId}
-          // id={hmId('c', comment.id)}
-          siteHost={siteHost}
-          comment={true}
-        >
-          <BlocksContent blocks={comment.content} parentBlockId={null} />
-        </WebDocContentProvider>
-      )
-    },
-    [originHomeId],
-  )
-  const [visibleCount, setVisibleCount] = useState(10)
-  const activeChangeIds = new Set<string>(document.version?.split('.') || [])
-  const activityItems = activity.data?.activity
-  const accountsMetadata = activity.data?.accountsMetadata
-  const latestDocChanges = new Set<string>(
-    activity.data?.latestVersion?.split('.') || [],
-  )
-  if (!activityItems || !accountsMetadata) return null
-  if (!activity) return null
-  const prevActivity = activityItems.at(-visibleCount)
-  const prevActivityTime = prevActivity && getActivityTime(prevActivity)
-
-  return (
-    <>
-      {visibleCount < activityItems.length && prevActivity && (
-        <Button
-          onPress={() => setVisibleCount((count) => count + 10)}
-          size="$2"
-          icon={ChevronUp}
-        >
-          {prevActivityTime
-            ? `Activity before ${formattedDateMedium(prevActivityTime)}`
-            : 'Previous Activity'}
-        </Button>
-      )}
-      {activityItems.slice(-visibleCount).map((activityItem, index) => {
-        if (activityItem.type === 'commentGroup') {
-          return (
-            <CommentGroup
-              key={activityItem.id}
-              commentGroup={activityItem}
-              authors={activity.data?.accountsMetadata}
-              renderCommentContent={renderCommentContent}
-              rootReplyCommentId={null}
-              enableReplies={enableReplies}
-            />
-          )
-        }
-        if (activityItem.type === 'document') {
-          return (
-            <SubDocumentItem
-              key={activityItem.account + '/' + activityItem.path.join('/')}
-              item={activityItem}
-              originHomeId={originHomeId}
-              accountsMetadata={accountsMetadata}
-              markedAsRead
-            />
-          )
-        }
-        if (activityItem.type === 'changeGroup') {
-          const author =
-            activity.data?.accountsMetadata?.[activityItem.changes[0].author]
-          if (!author) return null
-          return (
-            <ChangeGroup
-              item={activityItem}
-              key={activityItem.id}
-              latestDocChanges={latestDocChanges}
-              activeChangeIds={activeChangeIds}
-              docId={id}
-              author={author}
-            />
-          )
-        }
-        return null
-      })}
-    </>
   )
 }
 

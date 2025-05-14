@@ -99,7 +99,7 @@ export function useCommentGroupAuthors(
 export const CommentBox = memo(_CommentBox)
 function _CommentBox({
   docId,
-  backgroundColor = '$color4',
+  backgroundColor = '$colorTransparent',
   quotingBlockId,
   replyCommentId,
   autoFocus,
@@ -118,6 +118,30 @@ function _CommentBox({
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
+  const [editorAutoFocus, setEditorAutoFocus] = useState(false)
+  // useEffect(() => {
+  //   triggerCommentDraftFocus(docId.id, replyCommentId)
+  // })
+
+  function focusEditor() {
+    console.log(' editorAutoFocus focusEditor', isStartingComment, draft.data)
+    if (!isStartingComment) {
+      setIsStartingComment(true)
+    }
+    setEditorAutoFocus(true)
+  }
+
+  useEffect(() => {
+    const focusKey = `${docId.id}-${replyCommentId || quotingBlockId}`
+    const subscribers = focusSubscribers.get(focusKey)
+    if (subscribers) {
+      subscribers.add(focusEditor)
+    } else {
+      focusSubscribers.set(focusKey, new Set([focusEditor]))
+    }
+  }, [docId.id, replyCommentId])
+
+  console.log('editorAutoFocus', draft.data, isStartingComment, editorAutoFocus)
   if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
@@ -125,7 +149,7 @@ function _CommentBox({
       <CommentDraftEditor
         docId={docId}
         accounts={accounts}
-        autoFocus={autoFocus || isStartingComment}
+        autoFocus={isStartingComment || editorAutoFocus}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
         replyCommentId={replyCommentId}
@@ -243,7 +267,9 @@ function _CommentDraftEditor({
     })
   const openUrl = useOpenUrl()
   useEffect(() => {
-    if (autoFocus) editor._tiptapEditor.commands.focus()
+    if (autoFocus) {
+      editor._tiptapEditor.commands.focus()
+    }
   }, [
     autoFocus,
     editor,
@@ -251,18 +277,7 @@ function _CommentDraftEditor({
     docId.id,
     replyCommentId,
   ])
-  useEffect(() => {
-    const focusKey = `${docId.id}-${replyCommentId}`
-    const subscribers = focusSubscribers.get(focusKey)
-    if (subscribers) {
-      subscribers.add(editor._tiptapEditor.commands.focus)
-    } else {
-      focusSubscribers.set(
-        focusKey,
-        new Set([editor._tiptapEditor.commands.focus]),
-      )
-    }
-  }, [docId.id, replyCommentId])
+
   return (
     <YStack
       ref={sizeObserverdRef}
