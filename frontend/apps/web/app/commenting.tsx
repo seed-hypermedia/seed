@@ -131,11 +131,8 @@ export function LocalWebCommenting({
 
   if (!docVersion) return null
 
-  const {
-    content: createAccountContent,
-    canCreateAccount,
-    createAccount,
-  } = useCreateAccount()
+  const {content: createAccountContent, createDefaultAccount} =
+    useCreateAccount()
   const myAccountId = userKeyPair ? hmId('d', userKeyPair.id) : null
   const myAccount = useAccount(userKeyPair?.id || undefined)
   const myName = myAccount.data?.metadata?.name
@@ -180,17 +177,12 @@ export function LocalWebCommenting({
       return
     }
 
-    if (canCreateAccount || !userKeyPair) {
-      createAccount()
-      return
-    }
-
     const commentPayload = await prepareComment(
       getContent,
       {
         docId,
         docVersion,
-        keyPair: userKeyPair,
+        keyPair: userKeyPair || (await createDefaultAccount()),
         replyCommentId,
         rootReplyCommentId,
       },
@@ -225,11 +217,7 @@ export function LocalWebCommenting({
                 className={`plausible-event-name=start-create-account`}
                 size="$3"
                 chromeless
-                onPress={
-                  userKeyPair
-                    ? () => handleSubmit(getContent, reset)
-                    : undefined
-                }
+                onPress={() => handleSubmit(getContent, reset)}
                 icon={SendHorizontal}
               />
             )

@@ -211,8 +211,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     comment,
   } = props
 
-  console.log('--- enableWebSigning', enableWebSigning)
-
   useEffect(() => {
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '')

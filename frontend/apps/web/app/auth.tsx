@@ -46,6 +46,7 @@ import {
   rawCodec,
 } from './api'
 import {preparePublicKey} from './auth-utils'
+import {createDefaultAccountName} from './default-account-name'
 import {NotifSettingsDialog} from './email-notifications'
 import {
   deleteLocalKeys,
@@ -122,7 +123,7 @@ export async function createAccount({
 }: {
   name: string
   icon: string | Blob | null
-}) {
+}): Promise<LocalWebIdentity> {
   if (typeof icon === 'string') {
     throw new Error('Must provide an image or null for account creation')
   }
@@ -188,7 +189,10 @@ export async function createAccount({
     ...keyPair,
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
   })
-  return keyPair
+  return {
+    ...keyPair,
+    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
+  }
 }
 
 /**
@@ -386,6 +390,9 @@ export function useCreateAccount() {
     canCreateAccount: !userKeyPair,
     createAccount: () => createAccountDialog.open({}),
     content: createAccountDialog.content,
+    createDefaultAccount: async () => {
+      return await createAccount({name: createDefaultAccountName(), icon: null})
+    },
     userKeyPair,
   }
 }
