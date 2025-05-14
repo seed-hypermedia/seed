@@ -168,21 +168,17 @@ message Entity {
   // Body in the case of comments.
   string content = 5;
 
-  // where the matching string is found in the content.
-  // This is a char offset in the content for each matching char.
-  repeated int64 match_offset = 6;
-
   // The owner of the entity
-  string owner = 7;
+  string owner = 6;
 
   // The type of the entity it coud be Title, Document or Comment
-  string type = 8;
+  string type = 7;
 
   // Icon of the document containing that entity
-  string icon = 9;
+  string icon = 8;
 
   // Parent document names
-  repeated string parent_names = 10;
+  repeated string parent_names = 9;
 }
 
 // Publication that has been deleted

@@ -500,38 +500,30 @@ export class Entity extends Message<Entity> {
   content = "";
 
   /**
-   * where the matching string is found in the content.
-   * This is a char offset in the content for each matching char.
-   *
-   * @generated from field: repeated int64 match_offset = 6;
-   */
-  matchOffset: bigint[] = [];
-
-  /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 7;
+   * @generated from field: string owner = 6;
    */
   owner = "";
 
   /**
    * The type of the entity it coud be Title, Document or Comment
    *
-   * @generated from field: string type = 8;
+   * @generated from field: string type = 7;
    */
   type = "";
 
   /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 9;
+   * @generated from field: string icon = 8;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 10;
+   * @generated from field: repeated string parent_names = 9;
    */
   parentNames: string[] = [];
 
@@ -548,11 +540,10 @@ export class Entity extends Message<Entity> {
     { no: 3, name: "version_time", kind: "message", T: Timestamp },
     { no: 4, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "match_offset", kind: "scalar", T: 3 /* ScalarType.INT64 */, repeated: true },
-    { no: 7, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 10, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
