@@ -452,9 +452,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          iris[match.Index],
-			BlockId:     blockIDs[match.Index],
 			BlobId:      blobCIDs[match.Index],
-			Version:     versions[match.Index],
 			Content:     match.Str,
 			Type:        contentType[match.Index],
 			ParentNames: parentTitles,
@@ -475,13 +473,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		id := iris[match.Index]
 		if versions[match.Index] != "" {
 			var version string
-			id += "?v=" + versions[match.Index]
-
-			if blockIDs[match.Index] != "" {
-				id += "#" + blockIDs[match.Index]
-			}
-
 			if latestVersions[match.Index] == versions[match.Index] {
+				fmt.Println("latest version", latestVersions[match.Index])
 				versions[match.Index] = ""
 			} else {
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -492,14 +485,23 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}); err != nil {
 					return nil, err
 				}
+				fmt.Println("Inside latest version", version)
+				fmt.Println("blobIDs", blobIDs[match.Index], "blockIDs", blockIDs[match.Index], "rawContent", rawContent[match.Index])
 				versions[match.Index] = version
 			}
+
+			if versions[match.Index] != "" {
+				id += "?v=" + versions[match.Index]
+			}
+
+			if blockIDs[match.Index] != "" {
+				id += "#" + blockIDs[match.Index]
+			}
+
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			Id:          id,
-			BlockId:     blockIDs[match.Index],
 			BlobId:      blobCIDs[match.Index],
-			Version:     versions[match.Index],
 			Type:        contentType[match.Index],
 			Content:     match.Str,
 			ParentNames: parentTitles,
@@ -522,11 +524,13 @@ WHERE blob_id in (
 SELECT
 id
 FROM structural_blobs
-WHERE structural_blobs.ts IN (SELECT ts from structural_blobs WHERE resource in (
+WHERE (structural_blobs.genesis_blob IN (SELECT genesis_blob from structural_blobs WHERE resource in (
 WITH resource_data AS (
 SELECT
     structural_blobs.resource,
-    structural_blobs.ts
+    structural_blobs.id,
+    structural_blobs.genesis_blob,
+    structural_blobs.type
     
 FROM structural_blobs
 WHERE id = :blob_id
@@ -534,10 +538,10 @@ WHERE id = :blob_id
 SELECT
 structural_blobs.resource
 FROM structural_blobs 
-JOIN resource_data ON resource_data.ts=structural_blobs.ts
+JOIN resource_data ON (resource_data.genesis_blob = structural_blobs.genesis_blob OR resource_data.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref'
 WHERE structural_blobs.resource IS NOT NULL
 LIMIT 1
-)) AND structural_blobs.type = 'Change')
+)) OR structural_blobs.id = :blob_id ) AND structural_blobs.type = 'Change')
 ), latest_changes AS(
 SELECT 
 version,

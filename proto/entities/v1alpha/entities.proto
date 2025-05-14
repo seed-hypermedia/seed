@@ -149,45 +149,37 @@ message AuthorVersion {
 
 // An entity record found
 message Entity {
-  // EID of the entity.
+  // EID of the entity, including version and block id.
   string id = 1;
 
   // Blob Id of the resource containing the matching record.
   string blob_id = 2;
 
-  // In the case of documents and comments, the block id
-  // containing the entity.
-  string block_id = 3;
-
-  // The version of the document containing the entity.
-  // Empty string means latest version.
-  string version = 4;
-
   // In the case of comments, the document id
   // containing the comment.
-  string doc_id = 5;
+  string doc_id = 3;
 
   // Content of the entity, depending on the type:
   // Alias in the case of account.
   // Title/Body in the case of groups and documents.
   // Body in the case of comments.
-  string content = 6;
+  string content = 4;
 
   // where the matching string is found in the content.
   // This is a char offset in the content for each matching char.
-  repeated int64 match_offset = 7;
+  repeated int64 match_offset = 5;
 
   // The owner of the entity
-  string owner = 8;
+  string owner = 6;
 
   // The type of the entity it coud be Title, Document or Comment
-  string type = 9;
+  string type = 7;
 
   // Icon of the document containing that entity
-  string icon = 10;
+  string icon = 8;
 
   // Parent document names
-  repeated string parent_names = 11;
+  repeated string parent_names = 9;
 }
 
 // Publication that has been deleted
