@@ -227,7 +227,8 @@ SELECT
     FROM json_each(document_generations.heads) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
-  	) AS heads
+  	) AS heads,
+	structural_blobs.ts
     
 FROM fts_data
 JOIN structural_blobs ON ((fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (fts_data.blob_id = structural_blobs.id AND structural_blobs.type = 'Comment')
@@ -269,6 +270,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var blobIDs []int64
 	var contentType []string
 	var versions []string
+	var versionTimes []*timestamppb.Timestamp
+
 	var latestVersions []string
 	type value struct {
 		Value string `json:"v"`
@@ -348,7 +351,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			version := stmt.ColumnText(3)
 			latestVersions = append(latestVersions, latestVersion)
 			versions = append(versions, version)
-
+			ts := hlc.Timestamp(stmt.ColumnInt64(11) * 1000).Time()
+			versionTimes = append(versionTimes, timestamppb.New(ts))
 			if cType == "comment" {
 				iris = append(iris, "hm://c/"+blobCID)
 			} else {
@@ -427,12 +431,15 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
+						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
+						versionTimes[match.Index] = timestamppb.New(ts)
 						return nil
 					}, blobIDs[match.Index], blockIDs[match.Index], rawContent[match.Index])
 				}); err != nil {
 					return nil, err
 				}
 				versions[match.Index] = version
+
 			}
 
 			if versions[match.Index] != "" {
@@ -452,6 +459,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Id:          id,
 			BlobId:      blobCIDs[match.Index],
 			Type:        contentType[match.Index],
+			VersionTime: versionTimes[match.Index],
 			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
@@ -499,8 +507,9 @@ FROM doc_changes
 WHERE blob_id > :blob_id AND (block_id = :block_id OR raw_content = :raw_content)
 ORDER BY blob_id ASC LIMIT 1
 )
-SELECT version, blob_id 
+SELECT version, blob_id, structural_blobs.ts
 FROM doc_changes
+JOIN structural_blobs ON structural_blobs.id = doc_changes.blob_id
 WHERE blob_id BETWEEN :blob_id and (select blob_id from latest_changes)-1
 ORDER BY blob_id DESC LIMIT 1;
 `)
