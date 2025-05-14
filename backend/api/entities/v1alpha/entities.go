@@ -201,7 +201,7 @@ JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE fts.raw_content MATCH :ftsStr AND
-fts.type IN ('document', 'comment') ORDER BY rank
+fts.type IN (:entityTitle , :entityDoc , :entityComment) ORDER BY rank
 )
 
 SELECT
@@ -269,7 +269,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var contentType []string
 	var versions []string
 	var latestVersions []string
-	var limit = 30
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -289,115 +288,91 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	if strings.Replace(cleanQuery, " ", "", -1) == "" {
 		return nil, nil
 	}
+
+	var bodyMatches []fuzzy.Match
+	const entityTypeTitle = "title"
+	var entityTypeDoc, entityTypeComment interface{}
+
+	if in.IncludeBody {
+		entityTypeDoc = "document"
+		entityTypeComment = "comment"
+	}
+	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
+	if !strings.HasSuffix(ftsStr, "*") {
+		ftsStr += "*"
+	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
-			var title title
+		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var icon icon
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
+			var heads []head
+			fullMatchStr := stmt.ColumnText(0)
+			rawContent = append(rawContent, fullMatchStr)
+			firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(fullMatchStr, cleanQuery)
+			if firstRuneOffset == -1 {
 				return nil
 			}
-			contents = append(contents, title.Name.Value)
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &icon); err != nil {
+			var contextStart int
+			var contextEnd = len(fullMatchStr)
+			if firstCharOffset > 16 {
+				contextStart = firstCharOffset - 16
+			}
+			if firstCharOffset+matchedChars < len(fullMatchStr)-24 {
+				contextEnd = firstCharOffset + matchedChars + 24
+			}
+			matchStr := fullMatchStr[contextStart:min(contextEnd, len(fullMatchStr))]
+			contents = append(contents, matchStr)
+			if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
 				return nil
 			}
 			icons = append(icons, icon.Icon.Value)
-			iri := stmt.ColumnText(1)
-			iris = append(iris, iri)
+			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(7)), stmt.ColumnBytesUnsafe(8)).String()
+			blobCIDs = append(blobCIDs, blobCID)
+			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
+			cType := stmt.ColumnText(1)
+			iri := stmt.ColumnText(5)
 			docIDs = append(docIDs, iri)
-			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
+			if err := json.Unmarshal(stmt.ColumnBytes(10), &heads); err != nil {
+				return err
+			}
+
+			cids := make([]cid.Cid, len(heads))
+			for i, h := range heads {
+				mhBinary, err := hex.DecodeString(h.Multihash)
+				if err != nil {
+					return err
+				}
+				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
+			}
+			latestVersion := docmodel.NewVersion(cids...).String()
+			version := stmt.ColumnText(3)
+			latestVersions = append(latestVersions, latestVersion)
+			versions = append(versions, version)
+
+			if cType == "comment" {
+				iris = append(iris, "hm://c/"+blobCID)
+			} else {
+				iris = append(iris, iri)
+			}
+			contentType = append(contentType, cType)
+			blockIDs = append(blockIDs, stmt.ColumnText(2))
+			ownerID := core.Principal(stmt.ColumnBytes(6)).String()
 			owners = append(owners, ownerID)
-			rawContent = append(rawContent, title.Name.Value)
-			blockIDs = append(blockIDs, "")
-			blobCIDs = append(blobCIDs, "")
-			versions = append(versions, "")
-			latestVersions = append(latestVersions, "")
-			blobIDs = append(blobIDs, 0)
-			contentType = append(contentType, "title")
+			offsets := []int{firstRuneOffset}
+			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
+				offsets = append(offsets, i)
+			}
+			bodyMatches = append(bodyMatches, fuzzy.Match{
+				Str:            matchStr,
+				Index:          len(contents) - 1,
+				Score:          1,
+				MatchedIndexes: offsets,
+			})
 			return nil
-		})
+		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment)
 	}); err != nil {
 		return nil, err
 	}
-	var numTitles = len(contents)
-	var bodyMatches []fuzzy.Match
-	if in.IncludeBody {
-		ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
-		if !strings.HasSuffix(ftsStr, "*") {
-			ftsStr += "*"
-		}
-		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
-				var icon icon
-				var heads []head
-				fullMatchStr := stmt.ColumnText(0)
-				rawContent = append(rawContent, fullMatchStr)
-				firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(fullMatchStr, cleanQuery)
-				if firstRuneOffset == -1 {
-					return nil
-				}
-				var contextStart int
-				var contextEnd = len(fullMatchStr)
-				if firstCharOffset > 16 {
-					contextStart = firstCharOffset - 16
-				}
-				if firstCharOffset+matchedChars < len(fullMatchStr)-24 {
-					contextEnd = firstCharOffset + matchedChars + 24
-				}
-				matchStr := fullMatchStr[contextStart:min(contextEnd, len(fullMatchStr))]
-				contents = append(contents, matchStr)
-				if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
-					return nil
-				}
-				icons = append(icons, icon.Icon.Value)
-				blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(7)), stmt.ColumnBytesUnsafe(8)).String()
-				blobCIDs = append(blobCIDs, blobCID)
-				blobIDs = append(blobIDs, stmt.ColumnInt64(4))
-				cType := stmt.ColumnText(1)
-				iri := stmt.ColumnText(5)
-				docIDs = append(docIDs, iri)
-				if err := json.Unmarshal(stmt.ColumnBytes(10), &heads); err != nil {
-					return err
-				}
 
-				cids := make([]cid.Cid, len(heads))
-				for i, h := range heads {
-					mhBinary, err := hex.DecodeString(h.Multihash)
-					if err != nil {
-						return err
-					}
-					cids[i] = cid.NewCidV1(h.Codec, mhBinary)
-				}
-				latestVersion := docmodel.NewVersion(cids...).String()
-				version := stmt.ColumnText(3)
-				latestVersions = append(latestVersions, latestVersion)
-				versions = append(versions, version)
-
-				if cType == "comment" {
-					iris = append(iris, "hm://c/"+blobCID)
-				} else {
-					iris = append(iris, iri)
-				}
-				contentType = append(contentType, cType)
-				blockIDs = append(blockIDs, stmt.ColumnText(2))
-				ownerID := core.Principal(stmt.ColumnBytes(6)).String()
-				owners = append(owners, ownerID)
-				offsets := []int{firstRuneOffset}
-				for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
-					offsets = append(offsets, i)
-				}
-				bodyMatches = append(bodyMatches, fuzzy.Match{
-					Str:            matchStr,
-					Index:          len(contents) - 1,
-					Score:          1,
-					MatchedIndexes: offsets,
-				})
-				return nil
-			}, ftsStr)
-		}); err != nil {
-			return nil, err
-		}
-	}
-	titleMatches := fuzzy.Find(cleanQuery, contents[:numTitles])
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -432,34 +407,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		return parentTitles, nil
 	}
 
-	for i, match := range titleMatches {
-		if match.Score < 0 {
-			limit++
-			continue
-		}
-		if i >= limit {
-			break
-		}
-
-		parentTitles, err := getParentsFcn(match)
-		if err != nil {
-			return nil, err
-		}
-
-		offsets := make([]int64, len(match.MatchedIndexes))
-		for j, off := range match.MatchedIndexes {
-			offsets[j] = int64(off)
-		}
-		matchingEntities = append(matchingEntities, &entities.Entity{
-			Id:          iris[match.Index],
-			BlobId:      blobCIDs[match.Index],
-			Content:     match.Str,
-			Type:        contentType[match.Index],
-			ParentNames: parentTitles,
-			Icon:        icons[match.Index],
-			MatchOffset: offsets,
-			Owner:       owners[match.Index]})
-	}
 	for _, match := range bodyMatches {
 		parentTitles, err := getParentsFcn(match)
 		if err != nil {
@@ -474,7 +421,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if versions[match.Index] != "" {
 			var version string
 			if latestVersions[match.Index] == versions[match.Index] {
-				fmt.Println("latest version", latestVersions[match.Index])
 				versions[match.Index] = ""
 			} else {
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -485,8 +431,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}); err != nil {
 					return nil, err
 				}
-				fmt.Println("Inside latest version", version)
-				fmt.Println("blobIDs", blobIDs[match.Index], "blockIDs", blockIDs[match.Index], "rawContent", rawContent[match.Index])
 				versions[match.Index] = version
 			}
 
