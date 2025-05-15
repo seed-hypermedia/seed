@@ -749,13 +749,14 @@ var qEntitiesLookupID = dqb.Str(`
 `)
 
 const qListMentionsTpl = `
-WITH ts_changes AS (
+WITH changes AS (
 SELECT
-    structural_blobs.ts,
+    structural_blobs.genesis_blob,
     resource_links.id AS link_id,
     resource_links.is_pinned,
     blobs.codec,
     blobs.multihash,
+	blobs.id,
 	public_keys.principal AS author,
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
@@ -798,18 +799,17 @@ SELECT
     public_keys.principal AS author,
     structural_blobs.ts,
     'Ref' AS blob_type,
-    ts_changes.is_pinned,
-    ts_changes.anchor,
-	ts_changes.target_version,
-	ts_changes.target_fragment,
+    changes.is_pinned,
+    changes.anchor,
+	changes.target_version,
+	changes.target_fragment,
     blobs.id AS blob_id,
-    ts_changes.link_id
+    changes.link_id
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN ts_changes on ts_changes.ts = structural_blobs.ts
-AND structural_blobs.type IN ('Ref')
+JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
 AND blobs.id %s :blob_id
 ORDER BY blobs.id %s
 LIMIT :page_size + 1;
