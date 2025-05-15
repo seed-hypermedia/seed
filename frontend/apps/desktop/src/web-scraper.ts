@@ -1,0 +1,575 @@
+import * as cheerio from 'cheerio'
+import * as crypto from 'crypto'
+import * as fs from 'fs/promises'
+import fetch from 'node-fetch'
+import * as path from 'path'
+import {userDataPath} from './app-paths'
+
+const CACHE_PATH = path.join(userDataPath, 'importer', 'cache')
+
+export interface CacheMetadata {
+  url: string
+  timestamp: number
+  statusCode: number
+  headers: Record<string, string>
+}
+
+export interface CrawlSummary {
+  crawlDate: string
+  totalPages: number
+  freshRequests: number
+  pages: {
+    path: string
+    title?: string
+    timestamp: number
+    statusCode: number
+    images: string[]
+    internalLinks: string[]
+  }[]
+}
+
+export interface StorageContext {
+  cacheDir: string
+  metadataFile: string
+  metadata: Map<string, CacheMetadata>
+  cacheDurationDays: number
+}
+
+function cleanUrlStorage(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.delete('fbclid')
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+function getFilePath(
+  storage: StorageContext,
+  url: string,
+  type: 'html' | 'image' = 'html',
+): string {
+  const hash = crypto.createHash('md5').update(url).digest('hex')
+  const ext = type === 'image' ? path.extname(url) || '.jpg' : '.html'
+  return path.join(
+    storage.cacheDir,
+    type === 'image' ? 'images' : '',
+    `${hash}${ext}`,
+  )
+}
+
+async function ensureDir(storage: StorageContext) {
+  await fs.mkdir(storage.cacheDir, {recursive: true})
+  await fs.mkdir(path.join(storage.cacheDir, 'images'), {recursive: true})
+  await fs.mkdir(path.join(storage.cacheDir, 'assets'), {recursive: true})
+}
+
+async function downloadAsset(
+  storage: StorageContext,
+  url: string,
+): Promise<string | null> {
+  const assetPath = path.join(storage.cacheDir, 'assets', path.basename(url))
+  try {
+    try {
+      await fs.access(assetPath)
+      return assetPath
+    } catch {}
+
+    console.log(`Downloading asset: ${url}`)
+    const response = await fetch(url)
+    const buffer = await response.arrayBuffer()
+    await fs.writeFile(assetPath, new Uint8Array(buffer))
+    return assetPath
+  } catch (error) {
+    const err = error as any
+    console.log(
+      `Failed to download asset ${url}:`,
+      err && err.message ? err.message : err,
+    )
+    return null
+  }
+}
+
+async function downloadImage(
+  storage: StorageContext,
+  url: string,
+): Promise<string | null> {
+  const imagePath = getFilePath(storage, url, 'image')
+  try {
+    try {
+      await fs.access(imagePath)
+      return imagePath
+    } catch {}
+
+    console.log(`Image cache miss: ${url}`)
+    const response = await fetch(url)
+    const buffer = await response.arrayBuffer()
+    await fs.writeFile(imagePath, new Uint8Array(buffer))
+    return imagePath
+  } catch (error) {
+    const err = error as any
+    console.log(
+      `Failed to download image ${url}:`,
+      err && err.message ? err.message : err,
+    )
+    return null
+  }
+}
+
+async function loadMetadata(storage: StorageContext) {
+  try {
+    const data = await fs.readFile(storage.metadataFile, 'utf-8')
+    const entries = JSON.parse(data)
+    storage.metadata = new Map(entries)
+  } catch (error) {
+    storage.metadata = new Map()
+  }
+}
+
+async function saveMetadata(storage: StorageContext) {
+  const entries = Array.from(storage.metadata.entries())
+  await fs.writeFile(storage.metadataFile, JSON.stringify(entries, null, 2))
+}
+
+async function initStorage(storage: StorageContext) {
+  await ensureDir(storage)
+  await loadMetadata(storage)
+}
+
+async function getCachedContent(
+  storage: StorageContext,
+  url: string,
+): Promise<string | null> {
+  const cleaned = cleanUrlStorage(url)
+  const metadata = storage.metadata.get(cleaned)
+
+  if (!metadata) return null
+
+  const age = (Date.now() - metadata.timestamp) / (1000 * 60 * 60 * 24)
+  if (age > storage.cacheDurationDays) return null
+
+  try {
+    return await fs.readFile(getFilePath(storage, cleaned), 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+async function saveContent(
+  storage: StorageContext,
+  url: string,
+  content: string,
+  metadata: Omit<CacheMetadata, 'url' | 'timestamp'>,
+) {
+  const cleaned = cleanUrlStorage(url)
+  const filePath = getFilePath(storage, cleaned)
+
+  await fs.writeFile(filePath, content)
+  await updateMetadata(storage, cleaned, metadata)
+}
+
+async function updateMetadata(
+  storage: StorageContext,
+  url: string,
+  metadata: Omit<CacheMetadata, 'url' | 'timestamp'>,
+) {
+  const cleaned = cleanUrlStorage(url)
+  storage.metadata.set(cleaned, {
+    url: cleaned,
+    timestamp: Date.now(),
+    ...metadata,
+  })
+  await saveMetadata(storage)
+}
+
+async function exportToFolder(
+  storage: StorageContext,
+  outputPath: string,
+  posts: string[],
+) {
+  await fs.rm(outputPath, {recursive: true, force: true})
+  await fs.mkdir(outputPath, {recursive: true})
+  await fs.mkdir(path.join(outputPath, 'pages'), {recursive: true})
+  await fs.mkdir(path.join(outputPath, 'images'), {recursive: true})
+  await fs.mkdir(path.join(outputPath, 'assets'), {recursive: true})
+
+  const imagesDir = path.join(storage.cacheDir, 'images')
+  const assetsDir = path.join(storage.cacheDir, 'assets')
+
+  const images = await fs.readdir(imagesDir)
+  for (const image of images) {
+    await fs.copyFile(
+      path.join(imagesDir, image),
+      path.join(outputPath, 'images', image),
+    )
+  }
+
+  const assets = await fs.readdir(assetsDir)
+  for (const asset of assets) {
+    await fs.copyFile(
+      path.join(assetsDir, asset),
+      path.join(outputPath, 'assets', asset),
+    )
+  }
+
+  for (const url of posts) {
+    const content = await getCachedContent(storage, url)
+    if (!content) continue
+
+    const urlObj = new URL(url)
+    let filename = urlObj.pathname
+    if (filename === '/') filename = 'index'
+    filename = filename.replace(/\//g, '-').replace(/^-|-$/g, '')
+    if (!filename.endsWith('.html')) filename += '.html'
+
+    const $ = cheerio.load(content)
+
+    $('div.post-item-metadata').remove()
+    $('nav.post-navigation').remove()
+
+    const mainContent = $('.entry-content').html() || content
+
+    let processedContent = `<html>\n<body>\n${mainContent}\n</body>\n</html>`
+
+    const imageRegex = /src="([^"]+)"/g
+    processedContent = processedContent.replace(imageRegex, (match, imgUrl) => {
+      try {
+        const hash = crypto.createHash('md5').update(imgUrl).digest('hex')
+        const ext = path.extname(imgUrl) || '.jpg'
+        return `src="../images/${hash}${ext}"`
+      } catch {
+        return match
+      }
+    })
+
+    const assetRegex = /href="([^"]+\.pdf)"/g
+    processedContent = processedContent.replace(
+      assetRegex,
+      (match, assetUrl) => {
+        try {
+          const assetName = path.basename(assetUrl)
+          return `href="../assets/${assetName}"`
+        } catch {
+          return match
+        }
+      },
+    )
+
+    await fs.writeFile(
+      path.join(outputPath, 'pages', filename),
+      processedContent,
+    )
+  }
+}
+
+function cleanUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.delete('fbclid')
+    parsed.searchParams.delete('replytocom')
+    parsed.protocol = 'https:'
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+interface CrawlerContext {
+  visited: Set<string>
+  queue: string[]
+  baseUrl: string
+  storage: StorageContext
+  freshRequests: number
+}
+
+function createCrawler(
+  baseUrl: string,
+  cacheDurationDays: number = 7,
+): CrawlerContext {
+  return {
+    visited: new Set<string>(),
+    queue: [baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl],
+    baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl,
+    storage: {
+      cacheDir: CACHE_PATH,
+      metadataFile: path.join(CACHE_PATH, 'metadata.json'),
+      metadata: new Map(),
+      cacheDurationDays: 7,
+    },
+    freshRequests: 0,
+  }
+}
+
+function isValidUrl(baseUrl: string, url: string): boolean {
+  try {
+    const parsedUrl = new URL(url)
+    return parsedUrl.hostname === new URL(baseUrl).hostname
+  } catch {
+    return false
+  }
+}
+
+function normalizeUrl(baseUrl: string, url: string): string {
+  url = cleanUrl(url)
+  if (url.startsWith('//')) {
+    url = `https:${url}`
+  } else if (url.startsWith('/')) {
+    url = `${baseUrl}${url}`
+  }
+  return url.split('#')[0]
+}
+
+async function crawlPage(
+  crawler: CrawlerContext,
+  url: string,
+): Promise<{links: string[]; images: string[]; localPath: string}> {
+  try {
+    let content: string
+    let statusCode = 200
+    let responseHeaders: Record<string, string> = {}
+    let response
+
+    const cachedContent = await getCachedContent(crawler.storage, url)
+    if (cachedContent) {
+      content = cachedContent
+    } else {
+      console.log(`Cache miss: ${url}`)
+      crawler.freshRequests++
+      response = await fetch(url)
+      content = await response.text()
+      statusCode = response.status
+      responseHeaders = Object.fromEntries(response.headers.entries())
+    }
+
+    const $ = cheerio.load(content)
+    const links: string[] = []
+    const images: string[] = []
+
+    $('a').each((_, element) => {
+      const href = $(element).attr('href')
+      if (href) {
+        const normalizedUrl = normalizeUrl(crawler.baseUrl, href)
+        if (isValidUrl(crawler.baseUrl, normalizedUrl)) {
+          links.push(normalizedUrl)
+        }
+      }
+    })
+
+    $('img').each((_, element) => {
+      const src = $(element).attr('src')
+      if (src) {
+        const normalizedSrc = normalizeUrl(crawler.baseUrl, src)
+        images.push(normalizedSrc)
+      }
+    })
+
+    const downloadedImages = await Promise.all(
+      images.map(async (imgUrl) => {
+        const localPath = await downloadImage(crawler.storage, imgUrl)
+        return localPath
+      }),
+    )
+
+    const localPath = getFilePath(crawler.storage, url)
+
+    const metadata = {
+      statusCode,
+      headers: responseHeaders,
+    }
+
+    if (!cachedContent) {
+      await saveContent(crawler.storage, url, content, metadata)
+    } else {
+      await updateMetadata(crawler.storage, url, metadata)
+    }
+
+    return {links, images, localPath}
+  } catch (error: any) {
+    console.log(`✗ Error crawling ${url}: ${error.message}`)
+    return {links: [], images: [], localPath: ''}
+  }
+}
+
+async function crawl(crawler: CrawlerContext): Promise<Set<string>> {
+  await initStorage(crawler.storage)
+  console.log('Starting crawler...')
+  let processed = 0
+
+  while (crawler.queue.length > 0) {
+    const currentUrl = crawler.queue.shift()!
+    const cleanedUrl = cleanUrl(currentUrl)
+
+    if (crawler.visited.has(cleanedUrl)) {
+      continue
+    }
+
+    crawler.visited.add(cleanedUrl)
+    const {links: newLinks, images} = await crawlPage(crawler, cleanedUrl)
+    processed++
+
+    for (const link of newLinks) {
+      const cleanedLink = cleanUrl(link)
+      if (!crawler.visited.has(cleanedLink)) {
+        crawler.queue.push(link)
+      }
+    }
+  }
+
+  return crawler.visited
+}
+
+async function extractPosts(
+  crawler: CrawlerContext,
+  pages: Set<string>,
+  assets: string[],
+): Promise<PostsFile> {
+  const posts = Array.from(pages)
+    .filter((path) => !assets.includes(path))
+    .filter((path) => {
+      const segments = new URL(path).pathname.split('/')
+      return (
+        segments.length > 1 &&
+        !segments.includes('tag') &&
+        !segments.includes('page') &&
+        !segments.includes('author') &&
+        !segments.includes('category') &&
+        !segments.includes('sample-page') &&
+        !segments[1].match(/^\d{4}$/)
+      )
+    })
+  return (
+    await Promise.all(
+      posts.map(async (path) => {
+        let title = ''
+        const html = await getCachedContent(crawler.storage, path)
+        if (!html) return null
+        const $ = cheerio.load(html)
+        title = $('h1.entry-title').text().trim()
+        return {path, title}
+      }),
+    )
+  ).filter((p) => !!p)
+}
+
+export type ScrapeStatus = {
+  scrapeMode: 'downloading' | 'processing'
+  pagesDiscovered: number
+  pagesProcessed: number
+}
+
+export type PostsFile = {
+  path: string
+  title: string
+}[]
+
+export async function scrapeUrl(
+  targetSite: string,
+  scrapeId: string,
+  onStatus: (status: ScrapeStatus) => void,
+) {
+  const cacheDays = 7
+  const outputDir = path.join(userDataPath, 'importer', 'scrapes', scrapeId)
+
+  if (!targetSite) {
+    console.log('Please provide a WordPress site URL as an argument')
+    process.exit(1)
+  }
+
+  console.log(`Starting crawler for ${targetSite} (cache: ${cacheDays} days)`)
+  const crawler = createCrawler(targetSite, cacheDays)
+  const pages = await crawl(crawler)
+  console.log('\nCrawl complete!')
+
+  const metadata = Array.from(crawler.storage.metadata.entries())
+  const stats = {
+    totalPages: pages.size,
+    totalHeaders: metadata.reduce(
+      (acc, [_, m]) => acc + Object.keys(m.headers).length,
+      0,
+    ),
+    statusCodes: metadata.reduce(
+      (acc, [_, m]) => {
+        acc[m.statusCode] = (acc[m.statusCode] || 0) + 1
+        return acc
+      },
+      {} as Record<number, number>,
+    ),
+  }
+
+  console.log('\n\n\n\n\n\n\nCrawl Summary:')
+  console.log(`Total Pages: ${stats.totalPages}`)
+  console.log(`Fresh Requests: ${crawler.freshRequests}`)
+  console.log(`Total Headers: ${stats.totalHeaders}`)
+  console.log('Status Codes:', JSON.stringify(stats.statusCodes))
+
+  const summary = {
+    crawlDate: new Date().toISOString(),
+    totalPages: pages.size,
+    freshRequests: crawler.freshRequests,
+    pages: metadata.map(([url, data]) => ({
+      path: url,
+      timestamp: data.timestamp,
+      statusCode: data.statusCode,
+      headers: data.headers,
+    })),
+  }
+
+  // Create output directory first
+  await fs.mkdir(outputDir, {recursive: true})
+
+  // Export posts to output folder
+  await exportToFolder(crawler.storage, outputDir, Array.from(pages))
+  console.log('\nExported posts to output folder')
+
+  const crawlMetadataPath = path.join(outputDir, 'crawl-metadata.json')
+  console.log('About to write metadata to:', crawlMetadataPath)
+  console.log('Summary data:', JSON.stringify(summary, null, 2))
+  try {
+    await fs.writeFile(crawlMetadataPath, JSON.stringify(summary, null, 2))
+    console.log('\nMetadata exported to', crawlMetadataPath)
+  } catch (error) {
+    console.error('Failed to write metadata:', error)
+    throw error
+  }
+
+  // Separate assets from pages and download PDFs
+  const assets = await Promise.all(
+    Array.from(pages).map(async (path) => {
+      const url = new URL(path)
+      const ext = url.pathname.split('.').pop()?.toLowerCase()
+      const isAsset =
+        ext === 'pdf' ||
+        ext === 'jpg' ||
+        ext === 'jpeg' ||
+        ext === 'png' ||
+        ext === 'gif' ||
+        ext === 'webp' ||
+        ext === 'avif'
+
+      if (isAsset && ext === 'pdf') {
+        await downloadAsset(crawler.storage, path)
+      }
+
+      return isAsset ? path : null
+    }),
+  ).then((results) => results.filter(Boolean) as string[])
+
+  const posts = await extractPosts(crawler, pages, assets)
+
+  console.log('posts', posts)
+  console.log('assets', assets)
+
+  await fs.writeFile(
+    path.join(outputDir, 'assets.json'),
+    JSON.stringify(assets, null, 2),
+  )
+  console.log(`\nFound ${assets.length} assets saved to output/assets.json`)
+
+  await fs.writeFile(
+    path.join(outputDir, 'posts.json'),
+    JSON.stringify(posts, null, 2),
+  )
+  console.log(`\nFound ${posts.length} posts saved to output/posts.json`)
+  return {posts, assets, summary}
+}

@@ -1,10 +1,14 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import * as cheerio from 'cheerio'
+import {readFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
+import {join} from 'path'
 import z from 'zod'
+import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
+import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -55,25 +59,109 @@ export function extractMetaTags(html: string) {
   return metaTags
 }
 
+type ImportStatus =
+  | {
+      mode: 'importing'
+    }
+  | {
+      mode: 'error'
+      error: string
+    }
+  | {
+      mode: 'ready'
+      result: Awaited<ReturnType<typeof scrapeUrl>>
+    }
+
+let importingStatus: Record<
+  string,
+  (ScrapeStatus & {mode: 'scraping'}) | ImportStatus
+> = {}
+
+async function importSite(url: string, importId: string) {
+  return await scrapeUrl(url, importId, (status) => {
+    importingStatus[importId] = {...status, mode: 'scraping'}
+  })
+}
+
+async function startImport(url: string, importId: string) {
+  importingStatus[importId] = {mode: 'importing'}
+  importSite(url, importId)
+    .then((result) => {
+      importingStatus[importId] = {mode: 'ready', result}
+      console.log('Imported site', importId)
+    })
+    .catch((error) => {
+      importingStatus[importId] = {mode: 'error', error: error.message}
+      console.error('Error importing site', importId, error)
+    })
+}
+
+async function importPost({
+  destinationId,
+  signAccountUid,
+  title,
+  path,
+  importId,
+}: {
+  destinationId: string
+  signAccountUid: string
+  title: string
+  path: string
+  importId: string
+}) {
+  const postOrigUrl = new URL(path)
+  console.log('postOrigUrl pathname', postOrigUrl.pathname)
+  const postHtml = await readFile(
+    join(
+      userDataPath,
+      'importer',
+      'imports',
+      importId,
+      'pages',
+      postOrigUrl.pathname,
+    ),
+  )
+  console.log('postHtml', !!postHtml)
+}
+
 export const webImportingApi = t.router({
   importWebSite: t.procedure
     .input(z.object({url: z.string()}).strict())
-    .mutation(async ({}) => {
+    .mutation(async ({input}) => {
       const importId = nanoid(10)
-
+      startImport(input.url, importId)
       return {importId}
     }),
   importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {
-    return {
-      pagesFound: Math.round(Math.random() * 100),
-      paths: ['/foo', '/bar'],
-      status: 'ready',
-      // location: 'hm://'
-    } as const
+    return importingStatus[input]
   }),
   importWebSiteConfirm: t.procedure
-    .input(z.object({id: z.string(), signAccountUid: z.string()}).strict())
+    .input(
+      z
+        .object({
+          importId: z.string(),
+          destinationId: z.string(),
+          signAccountUid: z.string(),
+        })
+        .strict(),
+    )
     .mutation(async ({input}) => {
+      const {importId, destinationId, signAccountUid} = input
+      const postsData = await readFile(
+        join(userDataPath, 'importer', 'imports', importId, 'posts.json'),
+      )
+      const posts = JSON.parse(postsData.toString()) as PostsFile
+      for (const post of posts) {
+        const {path, title} = post
+        await importPost({
+          destinationId,
+          signAccountUid,
+          title,
+          path,
+        })
+      }
+      console.log('Will import', posts.length, 'posts')
+      console.log({importId, destinationId, signAccountUid})
       return {}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {

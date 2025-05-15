@@ -105,11 +105,11 @@ export async function startMainDaemon(): Promise<{
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
-      log.rawMessage(line)
+      // log.rawMessage(line)
     })
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
-      log.rawMessage(line)
+      // log.rawMessage(line)
     })
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
