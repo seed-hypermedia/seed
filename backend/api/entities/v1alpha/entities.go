@@ -425,9 +425,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		id := iris[match.Index]
 		if versions[match.Index] != "" && contentType[match.Index] != "comment" {
 			var version string
-			if latestVersions[match.Index] == versions[match.Index] {
-				versions[match.Index] = ""
-			} else {
+			versions[match.Index] += "&l"
+			if latestVersions[match.Index] != versions[match.Index] {
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
@@ -438,8 +437,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}); err != nil {
 					return nil, err
 				}
-				versions[match.Index] = version
-
+				if version != "" {
+					versions[match.Index] = version
+				}
 			}
 
 			if versions[match.Index] != "" {
