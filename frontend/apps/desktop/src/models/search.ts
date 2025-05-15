@@ -25,7 +25,8 @@ export async function querySearch(
               title: entity.content,
               parentNames: entity.parentNames,
               icon: entity.icon,
-              ts: entity.versionTime,
+              versionTime: entity.versionTime,
+              searchQuery: searchQuery,
             }
           : undefined
       })

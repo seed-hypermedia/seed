@@ -1,12 +1,15 @@
 import {useQuery} from '@tanstack/react-query'
 import {UnpackedHypermediaId} from '../hm-types'
 import {queryKeys} from './query-keys'
+import { Timestamp } from '@bufbuild/protobuf'
 
 export type SearchResultItem = {
   id: UnpackedHypermediaId
   title: string
   icon: string
   parentNames: string[]
+  versionTime: Timestamp
+  searchQuery: string
 }
 
 export type SearchPayload = {
@@ -36,12 +39,11 @@ export function useSearch(
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       out.entities.forEach((result) => {
+        const key = result.id.id + '?v=' + result.id.version + '#' + result.id.blockRef
         if (
-          !alreadySeenIds.has(
-            result.id.id + '?v=' + result.id.version + '#' + result.id.blockRef,
-          )
+          !alreadySeenIds.has(key)
         ) {
-          alreadySeenIds.add(result.id.id)
+          alreadySeenIds.add(key)
           entities.push(result)
         }
       })
