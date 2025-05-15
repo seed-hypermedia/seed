@@ -214,7 +214,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
-    importWebSite: () => webImporting.open({}),
+    importWebSite: () => webImporting.open({destinationId: parentId}),
     content: (
       <>
         {importDialog.content}
@@ -228,7 +228,15 @@ function useWebImporting() {
   return useAppDialog(WebImportDialog)
 }
 
-function WebImportDialog({onClose}: {onClose: () => void}) {
+function WebImportDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {
+    destinationId?: UnpackedHypermediaId
+  }
+}) {
   const [importId, setImportId] = useState<string | null>(null)
   const startImport = trpc.webImporting.importWebSite.useMutation()
 
@@ -236,7 +244,11 @@ function WebImportDialog({onClose}: {onClose: () => void}) {
     <>
       <DialogTitle>Import Web Site</DialogTitle>
       {importId ? (
-        <WebImportInProgress id={importId} onComplete={onClose} />
+        <WebImportInProgress
+          id={importId}
+          onComplete={onClose}
+          destinationId={input.destinationId}
+        />
       ) : (
         <ImportURLForm
           onSubmit={(url) => {
@@ -256,21 +268,26 @@ function WebImportDialog({onClose}: {onClose: () => void}) {
 function WebImportInProgress({
   id,
   onComplete,
+  destinationId,
 }: {
   id: string
   onComplete: () => void
+  destinationId: UnpackedHypermediaId
 }) {
   const {data} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
     refetchInterval: 800,
   })
   const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
   const myAccounts = useMyAccountIds()
+  const result = data?.mode === 'ready' ? data.result : undefined
 
   return (
     <YStack gap="$4">
       <SizableText>Importing...</SizableText>
-      <SizableText>{data?.pagesFound} pages found</SizableText>
-      {data?.status === 'ready' && (
+      {result ? (
+        <SizableText>{result.posts.length} posts ready for import</SizableText>
+      ) : null}
+      {data?.mode === 'ready' && (
         <Button
           onPress={() => {
             const signAccountUid = myAccounts.data?.[0]
@@ -280,7 +297,8 @@ function WebImportInProgress({
             }
             confirmImport
               .mutateAsync({
-                id,
+                importId: id,
+                destinationId,
                 signAccountUid,
               })
               .then(() => {
