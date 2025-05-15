@@ -6,6 +6,7 @@ import {
   HMCitationsPayload,
   HMCommentsPayload,
   HMDocument,
+  HMDocumentCitation,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -42,9 +43,9 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {ScrollView, Separator, Sheet, useMedia, View} from 'tamagui'
+import {ScrollView, Separator, Sheet, useMedia} from 'tamagui'
 import {WebCommenting} from './client-lazy'
-import {WebCommentsPanel} from './comment-panel'
+import {WebDiscussionsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
@@ -213,7 +214,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   useEffect(() => {
     if (media.gtSm) {
-      console.log('EXPAND PANEL')
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
       if (panel) {
@@ -221,7 +221,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
         mainPanel.expand()
       }
     } else {
-      console.log('COLLAPSE PANEL')
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
       if (panel) {
@@ -300,7 +299,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  const citations = useCitations(id)
+  const allCitations = useCitations(id)
+  const citations: Array<HMDocumentCitation> = useMemo(() => {
+    return (
+      allCitations.data?.filter((citation) => citation.source.type === 'd') ||
+      []
+    )
+  }, [allCitations.data])
+
   const comments = useComments(id)
 
   function onBlockCitationClick(blockId?: string) {
@@ -380,13 +386,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
     ) : null
   if (activePanel?.type == 'discussions') {
     panel = (
-      <WebCommentsPanel
+      <WebDiscussionsPanel
         handleStartDiscussion={() => {
           setEditorAutoFocus(true)
         }}
         blockId={activePanel.blockId}
         commentId={activePanel.commentId}
         rootReplyCommentId={activePanel.rootReplyCommentId}
+        handleClose={() => {
+          setActivePanel(null)
+        }}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
@@ -397,6 +406,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         }
         setBlockId={onBlockCommentClick}
         comments={comments.data}
+        citations={allCitations.data}
         docId={id}
         homeId={originHomeId}
         document={document}
@@ -410,8 +420,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
   if (activePanel?.type == 'citations') {
     panel = (
       <WebCitationsPanel
-        citations={citations.data}
-        blockId={activePanel.blockId}
+        handleClose={() => {
+          setActivePanel(null)
+        }}
+        citations={citations}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
@@ -470,16 +482,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       >
                         <DocInteractionsSummary
                           docId={id}
-                          citations={citations.data}
+                          citations={citations}
                           comments={comments.data}
                           onCitationsOpen={() => {
-                            setActivePanel({type: 'citations', blockId: null})
+                            setActivePanel({type: 'citations'})
                             if (!media.gtSm) {
                               setIsSheetOpen(true)
                             }
                           }}
                           onCommentsOpen={() => {
-                            setActivePanel({type: 'discussions', blockId: null})
+                            setActivePanel({type: 'discussions'})
                             if (!media.gtSm) {
                               setIsSheetOpen(true)
                             }
@@ -542,19 +554,19 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           siteHost={siteHost}
                           supportDocuments={supportDocuments}
                           supportQueries={supportQueries}
-                          citations={citations.data}
+                          citations={allCitations.data}
                           routeParams={{
                             uid: id.uid,
                             version: id.version || undefined,
                             blockRef: blockRef,
                             blockRange: blockRange,
                           }}
-                          onHoverIn={(id) => {
-                            console.log('=== BLOCK HOVER EFFECT: hover in', id)
-                          }}
-                          onHoverOut={(id) => {
-                            console.log('=== BLOCK HOVER EFFECT: hover out', id)
-                          }}
+                          // onHoverIn={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover in', id)
+                          // }}
+                          // onHoverOut={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover out', id)
+                          // }}
                         >
                           <DocContent
                             document={document}
@@ -599,32 +611,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     right={0}
                     gap="$4"
                   >
-                    <XStack
-                      paddingHorizontal="$2"
-                      paddingVertical="$2"
-                      alignItems="center"
-                      w={56}
-                      h={56}
-                      position="absolute"
-                      top={0}
-                      right={12}
-                      $gtMd={{
-                        right: 0,
-                      }}
-                      zIndex="$zIndex.2"
-                    >
-                      <View flex={1} />
-                      <Tooltip content="Close Panel">
-                        <Button
-                          chromeless
-                          size="$2"
-                          icon={<X size={20} />}
-                          onPress={() => {
-                            setActivePanel(null)
-                          }}
-                        />
-                      </Tooltip>
-                    </XStack>
                     <ScrollView f={1} h="100%" overflow="scroll" flex={1}>
                       {panel}
                     </ScrollView>
@@ -950,10 +936,12 @@ function WebCitationsPanel({
   citations,
   blockId,
   handleBack,
+  handleClose,
 }: {
-  citations?: HMCitationsPayload
+  citations?: Array<HMDocumentCitation>
   blockId?: string
   handleBack: () => void
+  handleClose: () => void
 }) {
   const filteredCitations = useMemo(() => {
     if (!blockId || !citations) return citations
@@ -962,19 +950,26 @@ function WebCitationsPanel({
         citation.targetFragment && citation.targetFragment?.blockId === blockId,
     )
   }, [citations, blockId])
+  const isDark = useIsDark()
   return (
     <YStack gap="$4">
       <XStack
         paddingHorizontal="$4"
         paddingVertical="$3"
         alignItems="center"
-        h={57}
+        position="sticky"
+        top={0}
+        zIndex="$zIndex.8"
+        h={56}
         borderBottomWidth={1}
         borderBottomColor="$borderColor"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+        justifyContent="space-between"
       >
         <SizableText size="$3" fontWeight="bold">
           Citations
         </SizableText>
+        <Button alignSelf="center" icon={X} chromeless onPress={handleClose} />
       </XStack>
       <YStack gap="$2" padding="$3">
         {blockId ? (

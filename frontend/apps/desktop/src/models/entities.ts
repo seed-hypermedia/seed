@@ -94,7 +94,7 @@ export function useUndeleteEntity(
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
       } else if (hmId?.type === 'c') {
         invalidateQueries([queryKeys.COMMENT, variables.id])
-        invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+        invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       }
       invalidateQueries([queryKeys.FEED])
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])

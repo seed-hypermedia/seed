@@ -6,18 +6,28 @@ import {
   HMCommentGroup,
   hmId,
   HMMetadata,
+  UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
+import {useEntity} from '@shm/shared/models/entity'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
-import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronsDown,
+  ChevronsUp,
+} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {ReactNode, useEffect, useState} from 'react'
+import {ReactNode, useEffect, useMemo, useRef, useState} from 'react'
+import {LinearGradient} from 'react-native-svg'
 import {copyTextToClipboard} from './copy-to-clipboard'
+import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
-import {ReplyArrow} from './icons'
+import {CitationsIcon, ReplyArrow} from './icons'
+import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
@@ -331,5 +341,91 @@ export function Comment({
           </Tooltip>
         )} */}
     </XStack>
+  )
+}
+
+const BLOCK_DEFAULT_HEIGHT = 180
+
+export function QuotedDocBlock({
+  docId,
+  blockId,
+}: {
+  docId: UnpackedHypermediaId
+  blockId: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(false)
+  const doc = useEntity(docId)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const blockContent = useMemo(() => {
+    if (!doc.data?.document?.content) return null
+    return getBlockNodeById(doc.data?.document?.content, blockId)
+  }, [doc.data?.document?.content, blockId])
+
+  useEffect(() => {
+    setExpanded(false)
+    setCanExpand(true)
+    if (contentRef.current) {
+      const height = contentRef.current?.getBoundingClientRect?.().height
+
+      setCanExpand(height > BLOCK_DEFAULT_HEIGHT)
+    }
+  }, [contentRef.current, blockId])
+
+  if (doc.isInitialLoading) {
+    return <Spinner />
+  }
+  return (
+    <YStack marginLeft={12} bg="$brand12" borderRadius="$2">
+      <XStack
+        borderRadius="$2"
+        padding="$2"
+        gap="$1"
+        maxHeight={
+          canExpand ? (expanded ? 'none' : BLOCK_DEFAULT_HEIGHT) : 'none'
+        }
+        overflow="hidden"
+        position="relative"
+        animation="fast"
+      >
+        <XStack flexShrink={0} paddingVertical="$1.5">
+          <CitationsIcon color="#000" size={23} />
+        </XStack>
+        <YStack f={1} ref={contentRef}>
+          {blockContent && (
+            <BlocksContent
+              blocks={[blockContent]}
+              parentBlockId={blockId}
+              hideCollapseButtons
+            />
+          )}
+        </YStack>
+        {canExpand && !expanded ? (
+          <LinearGradient
+            colors={['$brand12', 'transparent']}
+            start={[0, 1]}
+            end={[0, 0]}
+            w="100%"
+            position="absolute"
+            bottom={0}
+            left={0}
+            right={0}
+            height={32}
+          />
+        ) : null}
+      </XStack>
+      {canExpand && (
+        <Tooltip content={expanded ? 'Collapse' : 'Expand'}>
+          <Button
+            flexShrink={0}
+            size="$2"
+            onPress={() => setExpanded(!expanded)}
+            chromeless
+            hoverStyle={{bg: '$brand11'}}
+            icon={expanded ? ChevronsUp : ChevronsDown}
+          />
+        </Tooltip>
+      )}
+    </YStack>
   )
 }

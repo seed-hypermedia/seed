@@ -2,12 +2,7 @@ import {queryClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {
-  BIG_INT,
-  getCommentGroups,
-  hmIdPathToEntityQueryPath,
-  unpackHmId,
-} from '@shm/shared'
+import {BIG_INT, getCommentGroups, unpackHmId} from '@shm/shared'
 import {
   HMCitationsPayload,
   HMComment,
@@ -26,16 +21,25 @@ export const loader = async ({
   if (!id) throw new Error('id is required')
   // TODO: fix types of comments here
   let result: any | {error: string}
+
   try {
-    const res = await queryClient.comments.listComments({
-      targetAccount: id.uid,
-      targetPath: hmIdPathToEntityQueryPath(id.path),
+    const res = await queryClient.entities.listEntityMentions({
+      id: id.id,
       pageSize: BIG_INT,
     })
 
-    const allComments = res.comments.map(
-      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
-    )
+    const allComments: HMComment[] = []
+
+    for (const mention of res.mentions) {
+      const sourceId = unpackHmId(mention.source)
+      if (!sourceId) continue
+      if (sourceId.type !== 'c') continue
+      const comment = await queryClient.comments.getComment({
+        id: mention.sourceBlob?.cid,
+      })
+      if (!comment) continue
+      allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
+    }
 
     const allAccounts = new Set<string>()
     allComments.forEach((comment) => {
@@ -48,7 +52,7 @@ export const loader = async ({
       }),
     )
 
-    const commentGroups = getCommentGroups(allComments, null)
+    const commentGroups = getCommentGroups(allComments, undefined)
 
     result = {
       allComments,

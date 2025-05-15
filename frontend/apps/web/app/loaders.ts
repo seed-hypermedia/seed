@@ -688,6 +688,6 @@ export async function loadComment(
   const c = await queryClient.comments.getComment({
     id: id.uid,
   })
-  const comment = c.toJson() as unknown as HMComment
+  const comment = c.toJson({emitDefaultValues: true}) as unknown as HMComment
   return comment
 }

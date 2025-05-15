@@ -168,7 +168,7 @@ export function CommentCitationEntry({
       })
     : undefined
   const replies = useCommentReplies(citation.source.id.uid, docId)
-  console.log('~~ useCommentReplies', citation.source.id.uid, docId, replies)
+
   if (!comment.data || !docId) return null
   if (!focusedComment) return null
   return (

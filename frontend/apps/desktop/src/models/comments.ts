@@ -126,7 +126,11 @@ export function useAllDocumentComments(
     },
     enabled: !!docId,
     refetchInterval: 10_000,
-    queryKey: [queryKeys.DOCUMENT_COMMENTS, docId?.uid, ...(docId?.path || [])],
+    queryKey: [
+      queryKeys.DOCUMENT_DISCUSSION,
+      docId?.uid,
+      ...(docId?.path || []),
+    ],
   })
 }
 
@@ -338,7 +342,7 @@ export function useCommentEditor(
     },
     onSuccess: (newComment: HMComment) => {
       invalidateQueries([
-        queryKeys.DOCUMENT_COMMENTS,
+        queryKeys.DOCUMENT_DISCUSSION,
         targetDocId.uid,
         ...(targetDocId.path || []),
       ])

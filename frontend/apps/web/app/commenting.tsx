@@ -123,9 +123,6 @@ export function LocalWebCommenting({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS, docId.id],
-      })
-      queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id],
       })
     },

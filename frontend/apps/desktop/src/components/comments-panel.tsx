@@ -5,17 +5,12 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
-import {CommentGroup} from '@shm/ui/discussion'
-import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
-import {CitationsIcon} from '@shm/ui/icons'
-import {Tooltip} from '@shm/ui/tooltip'
-import {ChevronsDown, ChevronsUp, MessageSquareOff} from '@tamagui/lucide-icons'
+import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
+import {MessageSquareOff} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
-import {memo, useEffect, useMemo, useRef, useState} from 'react'
-import {Button, Separator, SizableText, Spinner, View, XStack} from 'tamagui'
-import {LinearGradient} from 'tamagui/linear-gradient'
+import {memo, useEffect, useMemo, useState} from 'react'
+import {Button, Separator, SizableText, View} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -133,7 +128,9 @@ function CommentBlockAccessory({
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
-      <QuotedDocBlock docId={docId} blockId={blockId} />
+      <AppDocContentProvider docId={docId}>
+        <QuotedDocBlock docId={docId} blockId={blockId} />
+      </AppDocContentProvider>
       {citationsForBlock?.length > 0 ? (
         citationsForBlock?.map((citation) => {
           return (
@@ -148,94 +145,6 @@ function CommentBlockAccessory({
         <EmptyDiscussions docId={docId} commentId={blockId} />
       )}
     </AccessoryContent>
-  )
-}
-
-const BLOCK_DEFAULT_HEIGHT = 180
-
-function QuotedDocBlock({
-  docId,
-  blockId,
-}: {
-  docId: UnpackedHypermediaId
-  blockId: string
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [canExpand, setCanExpand] = useState(false)
-  const doc = useEntity(docId)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const blockContent = useMemo(() => {
-    if (!doc.data?.document?.content) return null
-    return getBlockNodeById(doc.data?.document?.content, blockId)
-  }, [doc.data?.document?.content, blockId])
-
-  useEffect(() => {
-    setExpanded(false)
-    setCanExpand(true)
-    if (contentRef.current) {
-      const height = contentRef.current?.getBoundingClientRect?.().height
-
-      setCanExpand(height > BLOCK_DEFAULT_HEIGHT)
-    }
-  }, [contentRef.current, blockId])
-
-  if (doc.isInitialLoading) {
-    return <Spinner />
-  }
-  return (
-    <YStack marginLeft={12} bg="$brand12" borderRadius="$2">
-      <XStack
-        borderRadius="$2"
-        padding="$2"
-        gap="$1"
-        maxHeight={
-          canExpand ? (expanded ? 'none' : BLOCK_DEFAULT_HEIGHT) : 'none'
-        }
-        overflow="hidden"
-        position="relative"
-        animation="fast"
-      >
-        <XStack flexShrink={0} paddingVertical="$1.5">
-          <CitationsIcon color="#000" size={23} />
-        </XStack>
-        <YStack f={1} ref={contentRef}>
-          {blockContent && (
-            <AppDocContentProvider>
-              <BlocksContent
-                blocks={[blockContent]}
-                parentBlockId={blockId}
-                hideCollapseButtons
-              />
-            </AppDocContentProvider>
-          )}
-        </YStack>
-        {canExpand && !expanded ? (
-          <LinearGradient
-            colors={['$brand12', 'transparent']}
-            start={[0, 1]}
-            end={[0, 0]}
-            w="100%"
-            position="absolute"
-            bottom={0}
-            left={0}
-            right={0}
-            height={32}
-          />
-        ) : null}
-      </XStack>
-      {canExpand && (
-        <Tooltip content={expanded ? 'Collapse' : 'Expand'}>
-          <Button
-            flexShrink={0}
-            size="$2"
-            onPress={() => setExpanded(!expanded)}
-            chromeless
-            hoverStyle={{bg: '$brand11'}}
-            icon={expanded ? ChevronsUp : ChevronsDown}
-          />
-        </Tooltip>
-      )}
-    </YStack>
   )
 }
 
@@ -288,7 +197,7 @@ function CommentReplyAccessory({
             highlightLastComment
           />
         ) : (
-          <EmptyDiscussions />
+          <EmptyDiscussions docId={docId} commentId={commentId} />
         )
       ) : null}
 

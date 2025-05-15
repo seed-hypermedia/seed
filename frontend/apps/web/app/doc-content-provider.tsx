@@ -44,8 +44,8 @@ export function WebDocContentProvider({
   }
   comment?: boolean
   citations?: HMCitationsPayload
-  onBlockCitationClick?: (blockId?: string | null) => void
-  onBlockCommentClick?: (blockId?: string | null) => void
+  onBlockCitationClick?: (blockId?: string) => void
+  onBlockCommentClick?: (blockId?: string) => void
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {

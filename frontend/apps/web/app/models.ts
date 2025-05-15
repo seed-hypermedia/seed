@@ -100,12 +100,13 @@ async function accountQuery(accountUid: string) {
 
 export function useCitations(id: UnpackedHypermediaId) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
+
   return response
 }
 
 export function useComments(id: UnpackedHypermediaId) {
   const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`, {
-    queryKey: [queryKeys.DOCUMENT_COMMENTS, id.id],
+    queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
   })
   return response
 }
