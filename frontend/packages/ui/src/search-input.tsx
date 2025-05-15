@@ -196,11 +196,10 @@ export function SearchResultItem({
               numberOfLines={1}
               fontWeight={300}
               fontSize="$2"
-              color={ unpackHmId(item.key)?.version ? undefined : '$green10' }
+              color={ unpackHmId(item.key)?.latest ? '$green10' : undefined }
             >
-              { unpackHmId(item.key)?.version
-                  ? item.versionTime+' Version'
-                  : '[LATEST]'
+              { unpackHmId(item.key)?.latest ? 'Latest Version' : item.versionTime? item.versionTime +' Version' :''
+
               }
             </SizableText>
           </YStack>

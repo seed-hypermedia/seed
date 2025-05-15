@@ -3,6 +3,7 @@ import {
   idToUrl,
   SearchResult,
   UnpackedHypermediaId,
+  packHmId,
   unpackHmId,
   useRouteLink,
   useSearch,
@@ -35,7 +36,7 @@ export function MobileSearch({
         const title = item.title || item.id.uid
         return {
           id: item.id,
-          key: item.id.id,
+          key: packHmId(item.id),
           title,
           path: [...item.parentNames, title],
           icon: item.icon,
@@ -43,6 +44,10 @@ export function MobileSearch({
           onMouseEnter: () => {},
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : "",
         }
       })
       .filter(Boolean) ?? []
@@ -122,7 +127,7 @@ export function HeaderSearch({
         const title = item.title || item.id.uid
         return {
           id: item.id,
-          key: item.id.id,
+          key: packHmId(item.id),
           title,
           path: [...item.parentNames, title],
           icon: item.icon,
@@ -130,6 +135,10 @@ export function HeaderSearch({
           onMouseEnter: () => {},
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : "",
         }
       })
       .filter(Boolean) ?? []

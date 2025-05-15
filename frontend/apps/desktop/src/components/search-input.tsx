@@ -18,6 +18,7 @@ import {
   parseCustomURL,
   parseFragment,
   unpackHmId,
+  packHmId
 } from '@shm/shared/utils/entity-id-url'
 import {
   RecentSearchResultItem,
@@ -104,18 +105,16 @@ export function SearchInput({
       ?.map((item) => {
         const title = item.title || item.id.uid
         return {
-          key: item.id.version
-            ? item.id.id + "?v=" + item.id.version
-            : item.id.id,
+          key: packHmId(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
-          searchQuery: item.searchQuery,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () =>
             onSelect({ id: item.id, route: appRouteOfId(item.id) }),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
             : "",
@@ -132,7 +131,7 @@ export function SearchInput({
       })
       .map(({id, name}, index) => {
         return {
-          key: id.id,
+          key: packHmId(id),
           title: name,
           id,
           path: id.path || [],

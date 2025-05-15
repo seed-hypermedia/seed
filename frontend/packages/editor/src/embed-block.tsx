@@ -15,6 +15,7 @@ import {
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
+  packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
@@ -248,7 +249,7 @@ const EmbedLauncherInput = ({
       ?.map((item) => {
         const title = item.title || item.id.uid
         return {
-          key: item.id.id,
+          key: packHmId(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
@@ -256,6 +257,10 @@ const EmbedLauncherInput = ({
           onMouseEnter: () => {},
           onSelect: () => assign({props: {url: item.id.id}} as MediaType),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : "",
         }
       })
       .filter(Boolean) || []
