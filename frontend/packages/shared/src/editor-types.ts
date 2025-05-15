@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf'
+import {Timestamp} from '@bufbuild/protobuf'
 import {HMBlockChildrenType} from './hm-types'
 
 export type EditorBlock =

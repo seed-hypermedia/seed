@@ -412,7 +412,11 @@ const SearchInput = ({
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.id,
+          key: packHmId(item.id),
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : "",
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
             setLink(item.id.id)
