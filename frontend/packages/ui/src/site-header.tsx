@@ -95,7 +95,13 @@ export function SiteHeader({
     <YStack
       position="relative"
       overflow="hidden"
-      height={noScroll ? '100vh' : '100%'}
+      height={
+        noScroll
+          ? `calc(100vh - ${
+              originHomeId && origin && originHomeId.uid !== docId?.uid ? 34 : 0
+            }px)`
+          : '100%'
+      }
       // This onscroll is important for when we render it for drafts. this will dismiss the blockside menu when we scroll
       // @ts-ignore
       onScroll={onScroll}
