@@ -102,13 +102,41 @@ export function SearchInput({
     </YStack>
   )
 }
+function escapeRegExp(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function highlightText(
+  text: string,
+  highlight: string = '',
+  normalProps = {},
+  highlightProps = { color: '$yellow10', fontWeight: '800' }
+) {
+  if (!highlight) return <SizableText {...normalProps}>{text}</SizableText>
+  const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'))
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isMatch = part.toLowerCase() === highlight.toLowerCase()
+        return (
+          <SizableText
+            key={i}
+            {...(isMatch ? highlightProps : normalProps)}
+          >
+            {part}
+          </SizableText>
+        )
+      })}
+    </>
+  )
+}
 
 export function SearchResultItem({
   item,
   selected = false,
 }: {
   item: SearchResult
-  selected: boolean
+  selected: boolean,
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
@@ -153,15 +181,28 @@ export function SearchResultItem({
             <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
           <YStack f={1} justifyContent="space-between">
-            <SizableText numberOfLines={1} fontWeight={600}>
-              {item.title}
-            </SizableText>
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
                 {collapsedPath.join(' / ')}
               </SizableText>
             ) : null}
+            <SizableText numberOfLines={1} fontWeight={600}>
+            {highlightText(item.title, item.searchQuery, { fontWeight: 600 })}
+            </SizableText>
             {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
+          </YStack>
+          <YStack f={1} justifyContent="flex-start" alignItems="flex-end">
+            <SizableText
+              numberOfLines={1}
+              fontWeight={300}
+              fontSize="$2"
+              color={ unpackHmId(item.key)?.version ? undefined : '$green10' }
+            >
+              { unpackHmId(item.key)?.version
+                  ? item.versionTime+' Version'
+                  : '[LATEST]'
+              }
+            </SizableText>
           </YStack>
         </XStack>
       </Button>

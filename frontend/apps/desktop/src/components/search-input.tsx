@@ -104,14 +104,21 @@ export function SearchInput({
       ?.map((item) => {
         const title = item.title || item.id.uid
         return {
-          key: item.id.id,
+          key: item.id.version
+            ? item.id.id + "?v=" + item.id.version
+            : item.id.id,
           title,
           path: item.parentNames,
           icon: item.icon,
+          searchQuery: item.searchQuery,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
+          onSelect: () =>
+            onSelect({ id: item.id, route: appRouteOfId(item.id) }),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : "",
         }
       })
       .filter(Boolean) ?? []
