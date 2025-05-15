@@ -648,7 +648,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
             >
               <DocInteractionsSummary
                 docId={id}
-                citations={citations.data}
+                citations={citations}
                 comments={comments.data}
                 onCitationsOpen={() => {
                   setActivePanel({type: 'citations', blockId: undefined})
@@ -692,7 +692,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 <XStack jc="flex-end" padding="$4">
                   <DocInteractionsSummary
                     docId={id}
-                    citations={citations.data}
+                    citations={citations}
                     comments={comments.data}
                     onCitationsOpen={() => {
                       setActivePanel({type: 'citations', blockId: undefined})
@@ -969,7 +969,14 @@ function WebCitationsPanel({
         <SizableText size="$3" fontWeight="bold">
           Citations
         </SizableText>
-        <Button alignSelf="center" icon={X} chromeless onPress={handleClose} />
+        <Button
+          alignSelf="center"
+          display="none"
+          $gtSm={{display: 'flex'}}
+          icon={X}
+          chromeless
+          onPress={handleClose}
+        />
       </XStack>
       <YStack gap="$2" padding="$3">
         {blockId ? (

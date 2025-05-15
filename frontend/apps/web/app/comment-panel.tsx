@@ -63,6 +63,8 @@ export function WebDiscussionsPanel(props: DiscussionsPanelProps) {
     [homeId],
   )
 
+  let content = null
+
   if (blockId) {
     content = (
       <BlockDiscussions
@@ -83,7 +85,7 @@ export function WebDiscussionsPanel(props: DiscussionsPanelProps) {
     )
   }
 
-  let content = (
+  content = (
     <AllDiscussions
       {...props}
       isDark={isDark}
@@ -109,7 +111,14 @@ export function WebDiscussionsPanel(props: DiscussionsPanelProps) {
         <SizableText size="$3" fontWeight="bold">
           Discussions
         </SizableText>
-        <Button alignSelf="center" icon={X} chromeless onPress={handleClose} />
+        <Button
+          alignSelf="center"
+          display="none"
+          $gtSm={{display: 'flex'}}
+          icon={X}
+          chromeless
+          onPress={handleClose}
+        />
       </XStack>
       <YStack gap="$2">
         {commentId || blockId ? (
