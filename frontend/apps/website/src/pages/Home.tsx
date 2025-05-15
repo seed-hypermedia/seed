@@ -1,19 +1,17 @@
-import React from 'react';
-import Navbar from '../components/Navbar';
-import Hero from '../components/Hero';
-import Footer from '../components/Footer';
+import React from "react";
+import Hero from "../components/Hero";
+import Publishing from "../components/Publishing";
+import Footer from "../layout/Footer";
+import Navbar from "../layout/Navbar";
 
 const Home: React.FC = () => {
   return (
-    <><div className="bg-red-500 text-white p-4 text-center">
-    Tailwind is working!
-  </div><div>
+    <div>
       <Navbar />
       <Hero />
+      <Publishing />
       <Footer />
     </div>
-    </>
-    
   );
 };
 
