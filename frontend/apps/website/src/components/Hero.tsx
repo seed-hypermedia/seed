@@ -1,13 +1,35 @@
-import React from 'react';
-
-const Hero: React.FC = () => {
+export default function Hero() {
   return (
-    <section className="bg-gray-100 text-center py-20">
-      <h1 className="text-4xl font-bold text-blue-600 mb-4">Welcome to Seed</h1>
-      <p className="text-xl text-gray-600">Publish your content to the web like never before!</p>
-      <a href="#get-started" className="bg-blue-600 text-white py-2 px-4 rounded mt-6 inline-block">Get Started</a>
+    <section className="w-full px-4 py-16 text-center bg-white">
+      <div className="max-w-4xl mx-auto mb-12">
+        <h1 className="text-3xl md:text-5xl font-bold text-gray-900 leading-tight">
+          Humanity Deserves A{" "}
+          <span className="text-brand-5">Better Medium</span> <br />
+          For <span className="text-brand-5">Thinking</span> And{" "}
+          <span className="text-brand-5">Communication</span>
+        </h1>
+        <p className="mt-5 max-w-2xl mx-auto text-xl pt-3 text-gray-700">
+          Your website should be a dynamic space for ideas, projects, and
+          community building.
+        </p>
+        <a
+          href="#download" // to-do
+          className="mt-8 inline-block text-brand-5 font-semibold px-6 py-2 rounded-md transition"
+        >
+          Download the Seed App
+        </a>
+      </div>
+
+      <div className="max-w-5xl mx-auto shadow-lg rounded-xl overflow-hidden">
+        <video
+          src="/videos/app-demo.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="w-full h-auto object-contain"
+        />
+      </div>
     </section>
   );
-};
-
-export default Hero;
+}
