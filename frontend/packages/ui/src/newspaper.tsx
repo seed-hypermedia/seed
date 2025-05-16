@@ -16,9 +16,36 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {View} from '@tamagui/core'
 import {XStack, YStack, YStackProps} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {useMemo} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {FacePile} from './face-pile'
 import {useIsDark} from './use-is-dark'
+
+// Custom hook for resize observer
+function useResizeObserver<T extends HTMLElement>() {
+  const [width, setWidth] = useState(0)
+  const elementRef = useRef<T>(null)
+
+  const callback = useCallback((entries: ResizeObserverEntry[]) => {
+    const [entry] = entries
+    if (entry) {
+      setWidth(entry.contentRect.width)
+    }
+  }, [])
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const observer = new ResizeObserver(callback)
+    observer.observe(element)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [callback])
+
+  return {ref: elementRef, width}
+}
 
 export function BannerNewspaperCard({
   item,
@@ -41,19 +68,26 @@ export function BannerNewspaperCard({
   const coverImage = getDocumentCardImage(entity?.document)
   return (
     <View
+      bg="red"
       {...baseCardStyles}
       flexDirection="column"
       marginTop="$4"
       minHeight={200}
       onHoverIn={onHoverIn ? () => onHoverIn?.(id) : undefined}
       onHoverOut={onHoverOut ? () => onHoverOut?.(id) : undefined}
-      $gtMd={{flexDirection: 'row', maxHeight: 300}}
+      $gtMd={{flexDirection: 'row', maxHeight: 350}}
+      $gtLg={{maxHeight: 400}}
       {...linkProps}
       // this data attribute is used by the hypermedia highlight component
       data-docid={id.id}
     >
       {coverImage && (
-        <View height={200} width="100%" $gtMd={{width: '50%', height: 'auto'}}>
+        <View
+          height={300}
+          $gtSm={{height: 350}}
+          width="100%"
+          $gtMd={{width: '50%', height: 'auto', minHeight: 400}}
+        >
           <NewspaperCardImage coverImage={coverImage} height="100%" />
         </View>
       )}
@@ -91,9 +125,13 @@ export function NewspaperCard({
   onHoverIn?: any
   onHoverOut?: any
 }) {
-  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
-  // const navigate = useNavigate()
   if (!entity?.document) return null
+  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+  const {ref, width} = useResizeObserver<HTMLDivElement>()
+  const isCardBig = useMemo(() => {
+    return width > 600
+  }, [width])
+
   const coverImage = getDocumentCardImage(entity?.document)
   const cardProps = !isWeb
     ? {
@@ -104,34 +142,46 @@ export function NewspaperCard({
         $gtMd: {flexBasis: '31.1%' as any},
       }
     : {}
+
   return (
     <YStack
+      ref={ref}
       {...cardProps}
       {...baseCardStyles}
+      flexDirection={isCardBig ? 'row' : 'column'}
       onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
       onMouseLeave={docId ? () => onHoverOut?.(docId) : undefined}
-      // marginTop="$5"
-      //   marginTop="$4"
-
-      //   maxWidth={208}
-      //   f={1}
-      //   onPress={() => {
-      //     //   navigate({key: 'document', id})
-      //   }}
-      // this data attribute is used by the hypermedia highlight component
       data-docid={docId.id}
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      <NewspaperCardImage coverImage={coverImage} imageOptimizedSize="L" />
-      <NewspaperCardContent entity={entity} />
-
-      {!isWeb && (
-        <NewspaperCardFooter
-          entity={entity}
-          accountsMetadata={accountsMetadata}
-        />
+      {coverImage && (
+        <View
+          height={isCardBig ? 'auto' : 300}
+          width={isCardBig ? '50%' : '100%'}
+          maxHeight={isCardBig ? undefined : 200}
+        >
+          <NewspaperCardImage
+            coverImage={coverImage}
+            imageOptimizedSize="L"
+            height="100%"
+          />
+        </View>
       )}
+      <YStack
+        flex={1}
+        width={isCardBig ? '50%' : '100%'}
+        height={isCardBig ? 'auto' : undefined}
+        jc="space-between"
+      >
+        <NewspaperCardContent entity={entity} />
+        {!isWeb && (
+          <NewspaperCardFooter
+            entity={entity}
+            accountsMetadata={accountsMetadata}
+          />
+        )}
+      </YStack>
     </YStack>
   )
 }
