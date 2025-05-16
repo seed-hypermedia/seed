@@ -56,14 +56,20 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
     case 'push':
       return {
         ...state,
-        routes: [...state.routes.slice(0, state.routeIndex + 1), action.route],
+        routes: [
+          ...state.routes.slice(0, state.routeIndex + 1),
+          spreadRouteIfPossible(state.routes, action.route),
+        ],
         routeIndex: state.routeIndex + 1,
         lastAction: action.type,
       }
     case 'replace':
       return {
         ...state,
-        routes: [...state.routes.slice(0, state.routeIndex), action.route],
+        routes: [
+          ...state.routes.slice(0, state.routeIndex),
+          spreadRouteIfPossible(state.routes, action.route),
+        ],
         routeIndex: state.routeIndex,
         lastAction: action.type,
       }
@@ -216,4 +222,21 @@ export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
 
 export function isHttpUrl(url: string) {
   return /^https?:\/\//.test(url)
+}
+
+function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
+  if (nextRoute.key !== 'document') return nextRoute
+  if (routes.length === 0) return nextRoute
+  const prevRoute = routes[routes.length - 1]
+  if (prevRoute.key == 'document' && nextRoute.key == 'document') {
+    return {
+      ...nextRoute,
+      accessory: prevRoute.accessory
+        ? {
+            key: prevRoute.accessory.key,
+          }
+        : undefined,
+    }
+  }
+  return nextRoute
 }
