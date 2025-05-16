@@ -2,7 +2,7 @@ import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {useCollapsedPath} from '@shm/ui/search-input'
+import {useCollapsedPath, highlightSearchMatch} from '@shm/ui/search-input'
 import {useLayoutEffect, useRef} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
@@ -14,6 +14,8 @@ export type SwitcherItem = {
   subtitle?: string
   icon?: string
   path?: string[] | null
+  versionTime?: string | undefined
+  searchQuery?: string | undefined
   onSelect: () => void
 }
 
@@ -68,9 +70,30 @@ export function LauncherItem({
             <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
           <YStack flex={1} justifyContent="space-between">
-            <SizableText numberOfLines={1} fontWeight={600}>
-              {item.title}
-            </SizableText>
+            <XStack
+              flex={1}
+              gap="$3"
+              justifyContent="flex-start"
+              alignItems="center"
+            >
+
+              <SizableText numberOfLines={1} fontWeight={600}>
+                {highlightSearchMatch(item.title, item.searchQuery, { fontWeight: 600 })}
+              </SizableText>
+              <YStack flex={1} justifyContent="flex-start" alignItems="flex-end">
+                <SizableText
+                  numberOfLines={1}
+                  fontWeight={300}
+                  fontSize="$2"
+                  color={ unpackHmId(item.key)?.latest ? '$green10' : undefined }
+                >
+                  { unpackHmId(item.key)?.latest ? 'Latest Version' : item.versionTime ? item.versionTime +' Version' :''
+
+                  }
+                </SizableText>
+              </YStack>
+            </XStack>
+            
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
                 {collapsedPath.join(' / ')}
