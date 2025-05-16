@@ -317,28 +317,120 @@ function normalizeUrl(baseUrl: string, url: string): string {
   return url.split('#')[0]
 }
 
+async function getUrlContent(
+  crawler: CrawlerContext,
+  url: string,
+): Promise<{
+  content: string
+  statusCode: number
+  responseHeaders: Record<string, string>
+  fetchedContent: string | null
+  cachedContent: string | null
+}> {
+  let content: string
+  let fetchedContent: string | null = null
+  let cachedContent: string | null = null
+  let statusCode = 200
+  let responseHeaders: Record<string, string> = {}
+  cachedContent = await getCachedContent(crawler.storage, url)
+  if (cachedContent) {
+    content = cachedContent
+  } else {
+    console.log(`Cache miss: ${url}`)
+    crawler.freshRequests++
+    const response = await fetch(url)
+    fetchedContent = await response.text()
+    content = fetchedContent
+    statusCode = response.status
+    responseHeaders = Object.fromEntries(response.headers.entries())
+  }
+  return {content, statusCode, responseHeaders, fetchedContent, cachedContent}
+}
+
+function isProbablyWordPress(html: string): boolean {
+  const patterns = [
+    /\/wp-content\//i,
+    /\/wp-includes\//i,
+    /\/wp-json\//i,
+    /<meta[^>]+name=["']generator["'][^>]+content=["']WordPress/i,
+    /wp-embed\.min\.js/i,
+    /xmlrpc\.php/i,
+  ]
+  return patterns.some((p) => p.test(html))
+}
+
+function extractWordPressSlugFromHTML(
+  url: string,
+  html: string,
+): string | undefined {
+  const $ = cheerio.load(html)
+
+  const canonical =
+    $('link[rel="canonical"]').attr('href') ||
+    $('meta[property="og:url"]').attr('content')
+  if (!canonical) {
+    // find the slug from the last non-empty path term
+    const path = new URL(url).pathname
+    const slug = path.split('/').filter(Boolean).pop()
+    if (slug) {
+      return slug
+    }
+    return undefined
+  }
+
+  return canonical.split('/').filter(Boolean).pop()
+}
+
 async function crawlPage(
   crawler: CrawlerContext,
   url: string,
-): Promise<{links: string[]; images: string[]; localPath: string}> {
+): Promise<{
+  links: string[]
+  images: string[]
+  localPath: string
+  metadata?: {
+    postWPMeta?: any
+    statusCode: number
+    headers: Record<string, string>
+  }
+}> {
   try {
-    let content: string
-    let statusCode = 200
-    let responseHeaders: Record<string, string> = {}
-    let response
+    const {
+      content,
+      statusCode,
+      responseHeaders,
+      fetchedContent,
+      cachedContent,
+    } = await getUrlContent(crawler, url)
 
-    const cachedContent = await getCachedContent(crawler.storage, url)
-    if (cachedContent) {
-      content = cachedContent
-    } else {
-      console.log(`Cache miss: ${url}`)
-      crawler.freshRequests++
-      response = await fetch(url)
-      content = await response.text()
-      statusCode = response.status
-      responseHeaders = Object.fromEntries(response.headers.entries())
+    let postWPMeta: any | null = null
+
+    if (isProbablyWordPress(content)) {
+      const slug = extractWordPressSlugFromHTML(url, content)
+      if (slug) {
+        const wpAPIUrlUrl = new URL(url)
+        wpAPIUrlUrl.pathname = `/wp-json/wp/v2/posts`
+        wpAPIUrlUrl.searchParams.set('slug', slug)
+        const wpAPIUrl = wpAPIUrlUrl.toString()
+        const {
+          content: postContent,
+          fetchedContent: postFetchedContent,
+          statusCode: postStatusCode,
+          responseHeaders: postResponseHeaders,
+        } = await getUrlContent(crawler, wpAPIUrl)
+        if (postFetchedContent) {
+          await saveContent(crawler.storage, wpAPIUrl, postFetchedContent, {
+            statusCode: postStatusCode,
+            headers: postResponseHeaders,
+          })
+        }
+        try {
+          postWPMeta = JSON.parse(postContent)
+        } catch {
+          postWPMeta = null
+        }
+      }
     }
-
     const $ = cheerio.load(content)
     const links: string[] = []
     const images: string[] = []
@@ -373,22 +465,26 @@ async function crawlPage(
     const metadata = {
       statusCode,
       headers: responseHeaders,
-    }
+      postWPMeta,
+    } as const
 
-    if (!cachedContent) {
-      await saveContent(crawler.storage, url, content, metadata)
+    if (fetchedContent) {
+      await saveContent(crawler.storage, url, fetchedContent, metadata)
     } else {
       await updateMetadata(crawler.storage, url, metadata)
     }
 
-    return {links, images, localPath}
+    return {links, images, localPath, metadata}
   } catch (error: any) {
     console.log(`✗ Error crawling ${url}: ${error.message}`)
     return {links: [], images: [], localPath: ''}
   }
 }
 
-async function crawl(crawler: CrawlerContext): Promise<Set<string>> {
+async function crawl(
+  crawler: CrawlerContext,
+  onStatus: (status: ScrapeStatus) => void,
+): Promise<Set<string>> {
   await initStorage(crawler.storage)
   console.log('Starting crawler...')
   let processed = 0
@@ -411,6 +507,11 @@ async function crawl(crawler: CrawlerContext): Promise<Set<string>> {
         crawler.queue.push(link)
       }
     }
+    onStatus({
+      crawlQueueCount: crawler.queue.length,
+      visitedCount: crawler.visited.size,
+      scrapeMode: 'downloading',
+    })
   }
 
   return crawler.visited
@@ -456,14 +557,17 @@ async function extractPosts(
 
 export type ScrapeStatus = {
   scrapeMode: 'downloading' | 'processing'
-  pagesDiscovered: number
-  pagesProcessed: number
+  pagesDiscovered?: number
+  pagesProcessed?: number
+  crawlQueueCount: number
+  visitedCount: number
 }
 
 export type PostsFile = {
   path: string
   title: string
   htmlFile: string
+  wordpressMetadataFile?: string
 }[]
 
 export async function scrapeUrl(
@@ -481,7 +585,7 @@ export async function scrapeUrl(
 
   console.log(`Starting crawler for ${targetSite} (cache: ${cacheDays} days)`)
   const crawler = createCrawler(targetSite, cacheDays)
-  const pages = await crawl(crawler)
+  const pages = await crawl(crawler, onStatus)
   console.log('\nCrawl complete!')
 
   const metadata = Array.from(crawler.storage.metadata.entries())
