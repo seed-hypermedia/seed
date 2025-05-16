@@ -103,11 +103,9 @@ async function startImport(url: string, importId: string) {
   importSite(url, importId)
     .then((result) => {
       importingStatus[importId] = {mode: 'ready', result}
-      console.log('Imported site', importId)
     })
     .catch((error) => {
       importingStatus[importId] = {mode: 'error', error: error.message}
-      console.error('Error importing site', importId, error)
     })
 }
 
@@ -131,7 +129,25 @@ async function importPost({
     post.htmlFile,
   )
   const postHtml = await readFile(postHtmlPath)
-
+  const postWpMetadataJsonPath = post.wordpressMetadataFile
+    ? join(
+        userDataPath,
+        'importer',
+        'scrapes',
+        importId,
+        'metadata',
+        post.wordpressMetadataFile,
+      )
+    : null
+  const postWpMetadataJson =
+    postWpMetadataJsonPath && (await readFile(postWpMetadataJsonPath))
+  const postWpMetadata = postWpMetadataJson
+    ? (JSON.parse(postWpMetadataJson.toString()) as {
+        id?: number
+        date?: string
+        date_gmt?: string
+      }[])
+    : []
   const $ = cheerio.load(postHtml)
   const elements: Array<
     {type: 'Text'; text: string} | {type: 'Image'; link: string | null}
@@ -154,7 +170,6 @@ async function importPost({
             const src = img.attr('src')
             if (src) {
               const absoluteImageUrl = resolve(postHtmlPath, '..', src)
-              console.log('absoluteImageUrl', absoluteImageUrl)
               const uploadedCID = await uploadLocalFile(absoluteImageUrl)
               if (uploadedCID) {
                 elements.push({type: 'Image', link: `ipfs://${uploadedCID}`})
@@ -164,6 +179,7 @@ async function importPost({
         }
       }),
   )
+
   const parentId = unpackHmId(destinationId)
   if (!parentId) {
     throw new Error('Invalid destination id')
@@ -173,7 +189,9 @@ async function importPost({
     ...(parentId.path || []),
     ...postUrl.pathname.split('/').filter((s) => !!s),
   ]
-  console.log('docPath', docPath)
+  let displayPublishTime: string | null = postWpMetadata?.[0]?.date_gmt
+    ? new Date(postWpMetadata?.[0]?.date_gmt).toDateString()
+    : null
   const changes: DocumentChange[] = []
   function addChange(op: PartialMessage<DocumentChange>['op']) {
     changes.push(
@@ -189,6 +207,15 @@ async function importPost({
       value: post.title,
     },
   })
+  if (displayPublishTime) {
+    addChange({
+      case: 'setMetadata',
+      value: {
+        key: 'displayPublishTime',
+        value: displayPublishTime,
+      },
+    })
+  }
   const blocks: PartialMessage<Block>[] = elements
     .map((element) => {
       if (element.type === 'Text') {
@@ -216,9 +243,6 @@ async function importPost({
     })
     .filter((block) => block !== null)
   let lastPlacedBlockId = ''
-  console.log('postHtml', !!postHtml, post)
-  console.log('blocks', blocks)
-  console.log('elements', elements)
 
   blocks.forEach((block) => {
     addChange({
@@ -242,7 +266,7 @@ async function importPost({
     changes,
   })
   if (resp) {
-    console.log('Document created', resp)
+    // console.log('Document created', resp)
   }
 }
 

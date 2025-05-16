@@ -12,6 +12,7 @@ export interface CacheMetadata {
   timestamp: number
   statusCode: number
   headers: Record<string, string>
+  postWPMeta?: any
 }
 
 export interface CrawlSummary {
@@ -76,17 +77,17 @@ async function downloadAsset(
       return assetPath
     } catch {}
 
-    console.log(`Downloading asset: ${url}`)
+    // console.log(`Downloading asset: ${url}`)
     const response = await fetch(url)
     const buffer = await response.arrayBuffer()
     await fs.writeFile(assetPath, new Uint8Array(buffer))
     return assetPath
   } catch (error) {
     const err = error as any
-    console.log(
-      `Failed to download asset ${url}:`,
-      err && err.message ? err.message : err,
-    )
+    // console.log(
+    //   `Failed to download asset ${url}:`,
+    //   err && err.message ? err.message : err,
+    // )
     return null
   }
 }
@@ -102,17 +103,17 @@ async function downloadImage(
       return imagePath
     } catch {}
 
-    console.log(`Image cache miss: ${url}`)
+    // console.log(`Image cache miss: ${url}`)
     const response = await fetch(url)
     const buffer = await response.arrayBuffer()
     await fs.writeFile(imagePath, new Uint8Array(buffer))
     return imagePath
   } catch (error) {
     const err = error as any
-    console.log(
-      `Failed to download image ${url}:`,
-      err && err.message ? err.message : err,
-    )
+    // console.log(
+    //   `Failed to download image ${url}:`,
+    //   err && err.message ? err.message : err,
+    // )
     return null
   }
 }
@@ -193,9 +194,11 @@ async function exportToFolder(
   await fs.mkdir(path.join(outputPath, 'pages'), {recursive: true})
   await fs.mkdir(path.join(outputPath, 'images'), {recursive: true})
   await fs.mkdir(path.join(outputPath, 'assets'), {recursive: true})
+  await fs.mkdir(path.join(outputPath, 'metadata'), {recursive: true})
 
   const imagesDir = path.join(storage.cacheDir, 'images')
   const assetsDir = path.join(storage.cacheDir, 'assets')
+  const wpMetadataDir = path.join(storage.cacheDir, 'wp-metadata')
 
   const images = await fs.readdir(imagesDir)
   for (const image of images) {
@@ -211,6 +214,19 @@ async function exportToFolder(
       path.join(assetsDir, asset),
       path.join(outputPath, 'assets', asset),
     )
+  }
+
+  // Copy WordPress metadata files
+  try {
+    const wpMetadataFiles = await fs.readdir(wpMetadataDir)
+    for (const file of wpMetadataFiles) {
+      await fs.copyFile(
+        path.join(wpMetadataDir, file),
+        path.join(outputPath, 'metadata', file),
+      )
+    }
+  } catch (error) {
+    // Ignore if wp-metadata directory doesn't exist
   }
 
   for (const url of posts) {
@@ -278,6 +294,7 @@ interface CrawlerContext {
   baseUrl: string
   storage: StorageContext
   freshRequests: number
+  posts: PostsFile
 }
 
 function createCrawler(
@@ -295,6 +312,7 @@ function createCrawler(
       cacheDurationDays: 7,
     },
     freshRequests: 0,
+    posts: [],
   }
 }
 
@@ -336,7 +354,7 @@ async function getUrlContent(
   if (cachedContent) {
     content = cachedContent
   } else {
-    console.log(`Cache miss: ${url}`)
+    // console.log(`Cache miss: ${url}`)
     crawler.freshRequests++
     const response = await fetch(url)
     fetchedContent = await response.text()
@@ -465,7 +483,6 @@ async function crawlPage(
     const metadata = {
       statusCode,
       headers: responseHeaders,
-      postWPMeta,
     } as const
 
     if (fetchedContent) {
@@ -474,9 +491,41 @@ async function crawlPage(
       await updateMetadata(crawler.storage, url, metadata)
     }
 
-    return {links, images, localPath, metadata}
+    // Extract post information if this is a post page
+    const urlObj = new URL(url)
+    if (
+      urlObj.pathname !== '/' &&
+      !urlObj.pathname.match(/^\/(tag|page|author|category|sample-page|\d{4})/)
+    ) {
+      const title = $('h1.entry-title').text().trim()
+      if (title) {
+        const hash = crypto.createHash('md5').update(url).digest('hex')
+        const htmlFile = `${hash}.html`
+        crawler.posts.push({
+          path: url,
+          title,
+          htmlFile,
+          wordpressMetadataFile: postWPMeta ? `${hash}-wp.json` : undefined,
+        })
+        // Save WordPress metadata separately if it exists
+        if (postWPMeta) {
+          const wpMetadataPath = path.join(
+            crawler.storage.cacheDir,
+            'wp-metadata',
+            `${hash}-wp.json`,
+          )
+          await fs.mkdir(path.dirname(wpMetadataPath), {recursive: true})
+          await fs.writeFile(
+            wpMetadataPath,
+            JSON.stringify(postWPMeta, null, 2),
+          )
+        }
+      }
+    }
+
+    return {links, images, localPath, metadata: {...metadata, postWPMeta}}
   } catch (error: any) {
-    console.log(`✗ Error crawling ${url}: ${error.message}`)
+    // console.log(`✗ Error crawling ${url}: ${error.message}`)
     return {links: [], images: [], localPath: ''}
   }
 }
@@ -484,9 +533,9 @@ async function crawlPage(
 async function crawl(
   crawler: CrawlerContext,
   onStatus: (status: ScrapeStatus) => void,
-): Promise<Set<string>> {
+): Promise<{pages: Set<string>; posts: PostsFile}> {
   await initStorage(crawler.storage)
-  console.log('Starting crawler...')
+  // console.log('Starting crawler...')
   let processed = 0
 
   while (crawler.queue.length > 0) {
@@ -514,45 +563,7 @@ async function crawl(
     })
   }
 
-  return crawler.visited
-}
-
-async function extractPosts(
-  crawler: CrawlerContext,
-  pages: Set<string>,
-  assets: string[],
-): Promise<PostsFile> {
-  const posts = Array.from(pages)
-    .filter((path) => !assets.includes(path))
-    .filter((path) => {
-      const segments = new URL(path).pathname.split('/')
-      return (
-        segments.length > 1 &&
-        !segments.includes('tag') &&
-        !segments.includes('page') &&
-        !segments.includes('author') &&
-        !segments.includes('category') &&
-        !segments.includes('sample-page') &&
-        !segments[1].match(/^\d{4}$/)
-      )
-    })
-  return (
-    await Promise.all(
-      posts.map(async (path) => {
-        let title = ''
-        const url = new URL(path)
-        if (url.pathname === '/') return null
-        const html = await getCachedContent(crawler.storage, path)
-        if (!html) return null
-        const $ = cheerio.load(html)
-        title = $('h1.entry-title').text().trim()
-
-        const hash = crypto.createHash('md5').update(path).digest('hex')
-        const htmlFile = `${hash}.html`
-        return {path, title, htmlFile}
-      }),
-    )
-  ).filter((p) => !!p)
+  return {pages: crawler.visited, posts: crawler.posts}
 }
 
 export type ScrapeStatus = {
@@ -585,8 +596,8 @@ export async function scrapeUrl(
 
   console.log(`Starting crawler for ${targetSite} (cache: ${cacheDays} days)`)
   const crawler = createCrawler(targetSite, cacheDays)
-  const pages = await crawl(crawler, onStatus)
-  console.log('\nCrawl complete!')
+  const {pages, posts} = await crawl(crawler, onStatus)
+  // console.log('\nCrawl complete!')
 
   const metadata = Array.from(crawler.storage.metadata.entries())
   const stats = {
@@ -604,11 +615,11 @@ export async function scrapeUrl(
     ),
   }
 
-  console.log('\n\n\n\n\n\n\nCrawl Summary:')
-  console.log(`Total Pages: ${stats.totalPages}`)
-  console.log(`Fresh Requests: ${crawler.freshRequests}`)
-  console.log(`Total Headers: ${stats.totalHeaders}`)
-  console.log('Status Codes:', JSON.stringify(stats.statusCodes))
+  // console.log('\n\n\n\n\n\n\nCrawl Summary:')
+  // console.log(`Total Pages: ${stats.totalPages}`)
+  // console.log(`Fresh Requests: ${crawler.freshRequests}`)
+  // console.log(`Total Headers: ${stats.totalHeaders}`)
+  // console.log('Status Codes:', JSON.stringify(stats.statusCodes))
 
   const summary = {
     crawlDate: new Date().toISOString(),
@@ -627,16 +638,16 @@ export async function scrapeUrl(
 
   // Export posts to output folder
   await exportToFolder(crawler.storage, outputDir, Array.from(pages))
-  console.log('\nExported posts to output folder')
+  // console.log('\nExported posts to output folder')
 
   const crawlMetadataPath = path.join(outputDir, 'crawl-metadata.json')
-  console.log('About to write metadata to:', crawlMetadataPath)
-  console.log('Summary data:', JSON.stringify(summary, null, 2))
+  // console.log('About to write metadata to:', crawlMetadataPath)
+  // console.log('Summary data:', JSON.stringify(summary, null, 2))
   try {
     await fs.writeFile(crawlMetadataPath, JSON.stringify(summary, null, 2))
-    console.log('\nMetadata exported to', crawlMetadataPath)
+    // console.log('\nMetadata exported to', crawlMetadataPath)
   } catch (error) {
-    console.error('Failed to write metadata:', error)
+    // console.error('Failed to write metadata:', error)
     throw error
   }
 
@@ -662,21 +673,19 @@ export async function scrapeUrl(
     }),
   ).then((results) => results.filter(Boolean) as string[])
 
-  const posts = await extractPosts(crawler, pages, assets)
-
-  console.log('posts', posts)
-  console.log('assets', assets)
+  // console.log('posts', posts)
+  // console.log('assets', assets)
 
   await fs.writeFile(
     path.join(outputDir, 'assets.json'),
     JSON.stringify(assets, null, 2),
   )
-  console.log(`\nFound ${assets.length} assets saved to output/assets.json`)
+  // console.log(`\nFound ${assets.length} assets saved to output/assets.json`)
 
   await fs.writeFile(
     path.join(outputDir, 'posts.json'),
     JSON.stringify(posts, null, 2),
   )
-  console.log(`\nFound ${posts.length} posts saved to output/posts.json`)
+  // console.log(`\nFound ${posts.length} posts saved to output/posts.json`)
   return {posts, assets, summary}
 }

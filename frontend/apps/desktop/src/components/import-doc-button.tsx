@@ -297,59 +297,36 @@ function WebImportInProgress({
     }
   }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
   const result = status?.mode === 'ready' ? status.result : undefined
-  const scrapeStatus = status?.mode === 'scraping' ? status : undefined
-  let content = null
-  if (result) {
-    content = (
-      <SizableText>{result.posts.length} posts ready for import</SizableText>
-    )
-  } else if (scrapeStatus) {
-    content = (
+
+  if (result && !confirmImport.isLoading) {
+    return (
       <YStack gap="$4">
-        <DialogTitle>Importing from {hostname}...</DialogTitle>
-        {scrapeStatus?.crawlQueueCount ? (
-          <SizableText>
-            {scrapeStatus?.crawlQueueCount} pages discovered
-          </SizableText>
-        ) : null}
-        {scrapeStatus?.visitedCount ? (
-          <SizableText>{scrapeStatus?.visitedCount} pages visited</SizableText>
-        ) : null}
-        <Spinner size="small" />
-      </YStack>
-    )
-  } else if (status?.mode === 'importing') {
-    content = <SizableText>Processing...</SizableText>
-  } else if (status?.mode === 'error') {
-    content = <SizableText color="$red10">Error: {status.error}</SizableText>
-  }
-  return (
-    <YStack gap="$4">
-      {content}
-      {selectedAccount && result && (
-        <SelectDropdown
-          value={selectedAccount}
-          options={accounts
-            .map((a) => {
-              const id = a.data?.id
-              if (!id) return null
-              return {
-                label: a.data?.document?.metadata.name || '',
-                icon: (
-                  <HMIcon
-                    size={24}
-                    id={id}
-                    metadata={a.data?.document?.metadata}
-                  />
-                ),
-                value: id.uid,
-              }
-            })
-            .filter((a) => !!a)}
-          onValue={setSelectedAccount}
-        />
-      )}
-      {result && (
+        <DialogTitle>Ready to import from {hostname}</DialogTitle>
+        <SizableText>{result.posts.length} posts ready for import</SizableText>
+        {selectedAccount && (
+          <SelectDropdown
+            value={selectedAccount}
+            options={accounts
+              .map((a) => {
+                const id = a.data?.id
+                if (!id) return null
+                return {
+                  label: a.data?.document?.metadata.name || '',
+                  icon: (
+                    <HMIcon
+                      size={24}
+                      id={id}
+                      metadata={a.data?.document?.metadata}
+                    />
+                  ),
+                  value: id.uid,
+                }
+              })
+              .filter((a) => !!a)}
+            onValue={setSelectedAccount}
+          />
+        )}
+
         <Button
           onPress={() => {
             if (!selectedAccount) {
@@ -370,7 +347,48 @@ function WebImportInProgress({
         >
           {`Import & Publish ${result?.posts.length} pages`}
         </Button>
-      )}
+      </YStack>
+    )
+  } else if (
+    status?.mode === 'importing' ||
+    status?.mode === 'scraping' ||
+    confirmImport.isLoading
+  ) {
+    const scrapeStatus = status?.mode === 'scraping' ? status : undefined
+    return (
+      <YStack gap="$4">
+        <DialogTitle>Importing from {hostname}...</DialogTitle>
+        {scrapeStatus?.crawlQueueCount ? (
+          <SizableText>
+            {scrapeStatus?.crawlQueueCount} pages discovered
+          </SizableText>
+        ) : null}
+        {scrapeStatus?.visitedCount ? (
+          <SizableText>{scrapeStatus?.visitedCount} pages visited</SizableText>
+        ) : null}
+        {status?.mode === 'scraping' ? (
+          <SizableText>Downloading...</SizableText>
+        ) : null}
+        {status?.mode === 'importing' ? (
+          <SizableText>Preparing...</SizableText>
+        ) : null}
+        {confirmImport.isLoading ? (
+          <SizableText>Importing...</SizableText>
+        ) : null}
+        <Spinner size="small" />
+      </YStack>
+    )
+  } else if (status?.mode === 'error') {
+    return (
+      <YStack gap="$4">
+        <DialogTitle>Error importing from {hostname}</DialogTitle>
+        <SizableText color="$red10">Error: {status.error}</SizableText>
+      </YStack>
+    )
+  }
+  return (
+    <YStack gap="$4">
+      <DialogTitle color="$red10">Unexpected Importer Situation</DialogTitle>
     </YStack>
   )
 }
