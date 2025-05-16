@@ -26,7 +26,7 @@ import {LinearGradient} from 'react-native-svg'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
-import {CitationsIcon, ReplyArrow} from './icons'
+import {BlockQuote, ReplyArrow} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
@@ -179,12 +179,14 @@ export function Comment({
           {...authorLink}
         />
         {authorId && (
-          <HMIcon
-            zi="$zIndex.2"
-            id={authorId}
-            metadata={authorMetadata}
-            size={16}
-          />
+          <View w={16} h={16}>
+            <HMIcon
+              zi="$zIndex.2"
+              id={authorId}
+              metadata={authorMetadata}
+              size={16}
+            />
+          </View>
         )}
       </Stack>
       <YStack f={1} gap="$1">
@@ -376,7 +378,7 @@ export function QuotedDocBlock({
     return <Spinner />
   }
   return (
-    <YStack marginLeft={12} bg="$brand12" borderRadius="$2">
+    <YStack bg="$brand12" borderRadius="$2">
       <XStack
         borderRadius="$2"
         padding="$2"
@@ -389,7 +391,7 @@ export function QuotedDocBlock({
         animation="fast"
       >
         <XStack flexShrink={0} paddingVertical="$1.5">
-          <CitationsIcon color="#000" size={23} />
+          <BlockQuote size={23} />
         </XStack>
         <YStack f={1} ref={contentRef}>
           {blockContent && (

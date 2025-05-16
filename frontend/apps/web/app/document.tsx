@@ -301,9 +301,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const allCitations = useCitations(id)
   const citations: Array<HMDocumentCitation> = useMemo(() => {
-    return (
-      allCitations.data?.filter((citation) => citation.source.type === 'd') ||
-      []
+    if (!allCitations.data) return []
+    return allCitations.data.filter(
+      (c): c is HMDocumentCitation => c.source.type === 'd',
     )
   }, [allCitations.data])
 
@@ -322,7 +322,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }
 
   function onBlockCommentClick(blockId?: string | null) {
-    console.log('~ onBlockCommentClick', blockId, media.gtSm)
     setActivePanel({type: 'discussions', blockId: blockId || undefined})
     if (!media.gtSm) {
       setIsSheetOpen(true)
