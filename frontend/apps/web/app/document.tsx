@@ -462,8 +462,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
             >
               <XStack
                 w="100%"
+                minHeight="100%"
                 bg={isDark ? '$background' : '$backgroundStrong'}
-                minHeight="calc(100vh - 58px)"
                 marginBottom={56}
                 $gtSm={{
                   marginBottom: 0,
