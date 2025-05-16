@@ -404,7 +404,7 @@ export function MobileMenu({
         position="sticky"
         top={0}
       >
-        <XStack p="$4" alignItems="center">
+        <XStack p="$4" alignItems="center" justifyContent="flex-end">
           <Button
             icon={<Close size={24} />}
             chromeless
