@@ -782,7 +782,6 @@ function DraftMetadataEditor({
                 onEnter()
               }
             }}
-            style={{height: 38}}
             size="$9"
             borderRadius="$1"
             borderWidth={0}
@@ -946,13 +945,8 @@ function DraftRebaseBanner() {
 }
 
 function applyTitleResize(target: HTMLTextAreaElement) {
-  // without this, the scrollHeight doesn't shrink, so when the user deletes a long title it doesnt shrink back
-  target.style.height = ''
-  // console.log(
-  //   `== ~ applyTitleResize ~ target.scrollHeight:`,
-  //   target.scrollHeight,
-  // )
-  // here is the actual auto-resize
-  // target.style.height = `${target.scrollHeight}px`
-  target.style.height = 'auto'
+  // Reset the height first to get the correct scrollHeight
+  target.style.height = '0'
+  // Set the height to the scrollHeight to fit the content
+  target.style.height = `${target.scrollHeight}px`
 }
