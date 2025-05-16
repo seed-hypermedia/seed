@@ -577,6 +577,7 @@ function BreadcrumbItem({
             <PathItemCard details={details} homeMetadata={homeMetadata} />
           )
         }
+        contentProps={{padding: 0}}
       >
         {content}
       </HoverCard>
@@ -610,7 +611,12 @@ function PathItemCard({
     drafts: drafts.data,
   })
   return (
-    <YStack maxWidth={600}>
+    <YStack
+      maxWidth={600}
+      maxHeight="calc(100vh - 100px)"
+      overflow="scroll"
+      padding="$2"
+    >
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       <YStack paddingVertical="$2" gap="$3">
         <YStack gap="$1">
