@@ -297,7 +297,7 @@ function WebImportInProgress({
       ) : (
         <SizableText>Importing...</SizableText>
       )}
-      {selectedAccount && (
+      {selectedAccount && data?.mode === 'ready' && (
         <SelectDropdown
           value={selectedAccount}
           options={accounts
