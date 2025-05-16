@@ -1,13 +1,14 @@
 import {PartialMessage} from '@bufbuild/protobuf'
-import {Block, DocumentChange} from '@shm/shared/client/grpc-types'
+import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@shm/shared/utils'
 import * as cheerio from 'cheerio'
 import {readFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
-import {join, resolve} from 'path'
+import {join} from 'path'
 import z from 'zod'
 import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
@@ -128,7 +129,7 @@ async function importPost({
     'pages',
     post.htmlFile,
   )
-  const postHtml = await readFile(postHtmlPath)
+  const postHtml = await readFile(postHtmlPath, {encoding: 'utf-8'})
   const postWpMetadataJsonPath = post.wordpressMetadataFile
     ? join(
         userDataPath,
@@ -148,37 +149,8 @@ async function importPost({
         date_gmt?: string
       }[])
     : []
-  const $ = cheerio.load(postHtml)
-  const elements: Array<
-    {type: 'Text'; text: string} | {type: 'Image'; link: string | null}
-  > = []
 
-  await Promise.all(
-    $('body')
-      .children()
-      .map(async (_, el) => {
-        const $el = $(el)
-
-        if ($el.is('p')) {
-          const text = $el.text().trim()
-          if (text) {
-            elements.push({type: 'Text', text})
-          }
-        } else if ($el.is('figure')) {
-          const img = $el.find('img')
-          if (img.length) {
-            const src = img.attr('src')
-            if (src) {
-              const absoluteImageUrl = resolve(postHtmlPath, '..', src)
-              const uploadedCID = await uploadLocalFile(absoluteImageUrl)
-              if (uploadedCID) {
-                elements.push({type: 'Image', link: `ipfs://${uploadedCID}`})
-              }
-            }
-          }
-        }
-      }),
-  )
+  const blocks = await htmlToBlocks(postHtml, postHtmlPath, uploadLocalFile)
 
   const parentId = unpackHmId(destinationId)
   if (!parentId) {
@@ -216,32 +188,6 @@ async function importPost({
       },
     })
   }
-  const blocks: PartialMessage<Block>[] = elements
-    .map((element) => {
-      if (element.type === 'Text') {
-        return {
-          id: nanoid(8),
-          type: 'Paragraph',
-          text: element.text,
-          revision: '',
-          link: '',
-          attributes: {},
-          annotations: [],
-        }
-      } else if (element.type === 'Image') {
-        return {
-          id: nanoid(8),
-          type: 'Image',
-          link: element.link || '',
-          revision: '',
-          text: '',
-          attributes: {},
-          annotations: [],
-        }
-      }
-      return null
-    })
-    .filter((block) => block !== null)
   let lastPlacedBlockId = ''
 
   blocks.forEach((block) => {
