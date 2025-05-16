@@ -9,10 +9,11 @@ import {
 export async function querySearch(
   searchQuery: string,
   accountUid?: string,
+  includeBody?: boolean,
 ): Promise<SearchPayload> {
   const result = await grpcClient.entities.searchEntities({
     query: searchQuery,
-    includeBody: true,
+    includeBody: includeBody,
   })
   return {
     searchQuery,
