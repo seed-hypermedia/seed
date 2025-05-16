@@ -311,19 +311,28 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			var heads []head
 			fullMatchStr := stmt.ColumnText(0)
 			rawContent = append(rawContent, fullMatchStr)
-			firstRuneOffset, firstCharOffset, matchedRunes, matchedChars := indexOfQueryPattern(fullMatchStr, cleanQuery)
+			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(fullMatchStr, cleanQuery)
 			if firstRuneOffset == -1 {
 				return nil
 			}
-			var contextStart int
-			var contextEnd = len(fullMatchStr)
-			if firstCharOffset > 16 {
-				contextStart = firstCharOffset - 16
+			// before extracting matchStr, convert fullMatchStr to runes
+			fullRunes := []rune(fullMatchStr)
+			nRunes := len(fullRunes)
+
+			var contextStart, contextEndRune int
+			// default to full slice
+			contextEndRune = nRunes
+
+			if firstRuneOffset > 16 {
+				contextStart = firstRuneOffset - 16
 			}
-			if firstCharOffset+matchedChars < len(fullMatchStr)-24 {
-				contextEnd = firstCharOffset + matchedChars + 24
+			if firstRuneOffset+matchedRunes < nRunes-24 {
+				contextEndRune = firstRuneOffset + matchedRunes + 24
 			}
-			matchStr := fullMatchStr[contextStart:min(contextEnd, len(fullMatchStr))]
+
+			// build substring on rune boundaries
+			matchStr := string(fullRunes[contextStart:contextEndRune])
+			fmt.Println("matchStr", matchStr)
 			contents = append(contents, matchStr)
 			if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
 				return nil
