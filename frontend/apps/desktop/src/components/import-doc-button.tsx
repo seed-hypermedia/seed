@@ -28,7 +28,7 @@ import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {Form, SizableText, YStack} from 'tamagui'
+import {Form, SizableText, Spinner, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
@@ -235,34 +235,40 @@ function WebImportDialog({
 }: {
   onClose: () => void
   input: {
-    destinationId?: UnpackedHypermediaId
+    destinationId: UnpackedHypermediaId
     defaultUrl?: string
   }
 }) {
   const [importId, setImportId] = useState<string | null>(null)
+  const [hostname, setHostname] = useState<string | null>(null)
   const startImport = trpc.webImporting.importWebSite.useMutation()
 
   return (
     <>
-      <DialogTitle>Import Web Site</DialogTitle>
-      {importId ? (
+      {importId && hostname ? (
         <WebImportInProgress
           id={importId}
           onComplete={onClose}
           destinationId={input.destinationId}
+          hostname={hostname}
         />
       ) : (
-        <ImportURLForm
-          defaultUrl={input.defaultUrl}
-          onSubmit={(url) => {
-            startImport.mutateAsync({url}).then(({importId}) => {
-              setImportId(importId)
-            })
+        <YStack gap="$3">
+          <DialogTitle>Import Web Site</DialogTitle>
+          <ImportURLForm
+            defaultUrl={input.defaultUrl}
+            onSubmit={(url) => {
+              const hostname = new URL(url).host
+              setHostname(hostname)
+              startImport.mutateAsync({url}).then(({importId}) => {
+                setImportId(importId)
+              })
 
-            toast('Import Started.')
-            console.log('url', url)
-          }}
-        />
+              toast('Import Started.')
+              console.log('url', url)
+            }}
+          />
+        </YStack>
       )}
     </>
   )
@@ -272,12 +278,14 @@ function WebImportInProgress({
   id,
   onComplete,
   destinationId,
+  hostname,
 }: {
   id: string
   onComplete: () => void
   destinationId: UnpackedHypermediaId
+  hostname: string
 }) {
-  const {data} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
+  const {data: status} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
     refetchInterval: 800,
   })
   const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
@@ -288,16 +296,37 @@ function WebImportInProgress({
       setSelectedAccount(accounts[0].data?.id.uid)
     }
   }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
-  const result = data?.mode === 'ready' ? data.result : undefined
-
+  const result = status?.mode === 'ready' ? status.result : undefined
+  const scrapeStatus = status?.mode === 'scraping' ? status : undefined
+  let content = null
+  if (result) {
+    content = (
+      <SizableText>{result.posts.length} posts ready for import</SizableText>
+    )
+  } else if (scrapeStatus) {
+    content = (
+      <YStack gap="$4">
+        <DialogTitle>Importing from {hostname}...</DialogTitle>
+        {scrapeStatus?.crawlQueueCount ? (
+          <SizableText>
+            {scrapeStatus?.crawlQueueCount} pages discovered
+          </SizableText>
+        ) : null}
+        {scrapeStatus?.visitedCount ? (
+          <SizableText>{scrapeStatus?.visitedCount} pages visited</SizableText>
+        ) : null}
+        <Spinner size="small" />
+      </YStack>
+    )
+  } else if (status?.mode === 'importing') {
+    content = <SizableText>Processing...</SizableText>
+  } else if (status?.mode === 'error') {
+    content = <SizableText color="$red10">Error: {status.error}</SizableText>
+  }
   return (
     <YStack gap="$4">
-      {result ? (
-        <SizableText>{result.posts.length} posts ready for import</SizableText>
-      ) : (
-        <SizableText>Importing...</SizableText>
-      )}
-      {selectedAccount && data?.mode === 'ready' && (
+      {content}
+      {selectedAccount && result && (
         <SelectDropdown
           value={selectedAccount}
           options={accounts
@@ -320,7 +349,7 @@ function WebImportInProgress({
           onValue={setSelectedAccount}
         />
       )}
-      {data?.mode === 'ready' && (
+      {result && (
         <Button
           onPress={() => {
             if (!selectedAccount) {
