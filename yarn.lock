@@ -10522,7 +10522,6 @@ __metadata:
     "@xstate/react": 4.1.3
     cheerio: 1.0.0-rc.12
     console-log-colors: 0.4.0
-    copy-text-to-clipboard: 3.1.0
     electron: 34.0.0
     electron-context-menu: 3.6.1
     electron-playwright-helpers: 1.6.0
@@ -18582,13 +18581,6 @@ __metadata:
   dependencies:
     is-what: ^4.1.8
   checksum: d39f6601c16b7cbd81cdb1c1f40f2bf0f2ca0297601cf7bfbb4ef1d85374a6a89c559502329f5bada36604464df17623e111fe19a9bb0c3f6b1c92fe2cbe972f
-  languageName: node
-  linkType: hard
-
-"copy-text-to-clipboard@npm:3.1.0":
-  version: 3.1.0
-  resolution: "copy-text-to-clipboard@npm:3.1.0"
-  checksum: d06b1d5ae5a5f60bc27714c5bcb9837ed187a338741130e6b6a156399aa1a15aff5913c8abacbfcbe2132c87b5e8262a705e614a34aa39a151d047bd39b1f307
   languageName: node
   linkType: hard
 
