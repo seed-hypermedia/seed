@@ -6779,7 +6779,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/circuit-relay-v2@npm:^3.2.9":
+"@libp2p/circuit-relay-v2@npm:^3.2.11":
   version: 3.2.11
   resolution: "@libp2p/circuit-relay-v2@npm:3.2.11"
   dependencies:
@@ -6821,7 +6821,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/identify@npm:^3.0.28":
+"@libp2p/identify@npm:^3.0.29":
   version: 3.0.29
   resolution: "@libp2p/identify@npm:3.0.29"
   dependencies:
@@ -6855,7 +6855,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/interface@npm:^2.0.0, @libp2p/interface@npm:^2.8.0, @libp2p/interface@npm:^2.9.0":
+"@libp2p/interface@npm:^2.0.0, @libp2p/interface@npm:^2.9.0":
   version: 2.9.0
   resolution: "@libp2p/interface@npm:2.9.0"
   dependencies:
@@ -6928,7 +6928,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/peer-id@npm:^5.0.0, @libp2p/peer-id@npm:^5.1.1, @libp2p/peer-id@npm:^5.1.2":
+"@libp2p/peer-id@npm:^5.0.0, @libp2p/peer-id@npm:^5.1.2":
   version: 5.1.2
   resolution: "@libp2p/peer-id@npm:5.1.2"
   dependencies:
@@ -6978,7 +6978,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/ping@npm:^2.0.28":
+"@libp2p/ping@npm:^2.0.29":
   version: 2.0.29
   resolution: "@libp2p/ping@npm:2.0.29"
   dependencies:
@@ -7021,7 +7021,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/webrtc@npm:^5.2.10":
+"@libp2p/webrtc@npm:^5.2.12":
   version: 5.2.12
   resolution: "@libp2p/webrtc@npm:5.2.12"
   dependencies:
@@ -10801,12 +10801,12 @@ __metadata:
     "@emotion/react": ^11.14.0
     "@faire/mjml-react": ^3.5.0
     "@ipld/dag-cbor": ^9.2.2
-    "@libp2p/circuit-relay-v2": ^3.2.9
-    "@libp2p/identify": ^3.0.28
-    "@libp2p/interface": ^2.8.0
-    "@libp2p/peer-id": ^5.1.1
-    "@libp2p/ping": ^2.0.28
-    "@libp2p/webrtc": ^5.2.10
+    "@libp2p/circuit-relay-v2": ^3.2.11
+    "@libp2p/identify": ^3.0.29
+    "@libp2p/interface": ^2.9.0
+    "@libp2p/peer-id": ^5.1.2
+    "@libp2p/ping": ^2.0.29
+    "@libp2p/webrtc": ^5.2.12
     "@mantine/core": 6.0.13
     "@mantine/hooks": 6.0.13
     "@manuscripts/prosemirror-recreate-steps": 0.1.4
@@ -10860,7 +10860,7 @@ __metadata:
     ipfs-unixfs-importer: ^15.3.2
     isbot: 4
     it-length-prefixed-stream: ^2.0.1
-    libp2p: ^2.8.3
+    libp2p: ^2.8.5
     mjml: ^4.15.3
     multiformats: ^13.3.2
     nodemailer: ^6.10.0
@@ -14040,6 +14040,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/bun@npm:latest":
+  version: 1.2.13
+  resolution: "@types/bun@npm:1.2.13"
+  dependencies:
+    bun-types: 1.2.13
+  checksum: a7b3815fe9995c0fec72fe5ef9f81f1f44fe9a5dfd9809c78f6d5489007bb90905d9df34a779a54e9c2e721e49f57436275ce4269dd80a9614ef87664b5985ff
+  languageName: node
+  linkType: hard
+
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -17170,6 +17179,15 @@ __metadata:
   version: 1.0.3
   resolution: "builtins@npm:1.0.3"
   checksum: 47ce94f7eee0e644969da1f1a28e5f29bd2e48b25b2bbb61164c345881086e29464ccb1fb88dbc155ea26e8b1f5fc8a923b26c8c1ed0935b67b644d410674513
+  languageName: node
+  linkType: hard
+
+"bun-types@npm:1.2.13":
+  version: 1.2.13
+  resolution: "bun-types@npm:1.2.13"
+  dependencies:
+    "@types/node": "*"
+  checksum: 16fe069241b297106261373528e34066816b6bac384f6c7a2f6b43668904e86c29f7f2e40cc0c891646af8d85bfd15b41979c04ccc9b7587eb5c08a52a182d8f
   languageName: node
   linkType: hard
 
@@ -25951,7 +25969,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"libp2p@npm:^2.8.3":
+"libp2p@npm:^2.8.5":
   version: 2.8.5
   resolution: "libp2p@npm:2.8.5"
   dependencies:
@@ -33964,6 +33982,7 @@ __metadata:
     "@connectrpc/protoc-gen-connect-es": 1.6.1
     "@manypkg/cli": 0.19.2
     "@nderscore/tamagui-typescript-plugin": 0.5.4
+    "@types/bun": latest
     "@types/glob": ^8.1.0
     asar: ^3.2.0
     babel-plugin-react-native-web: 0.19.9

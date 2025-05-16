@@ -1,5 +1,5 @@
 import {yamux} from '@chainsafe/libp2p-yamux'
-import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
+import * as cbor from '@ipld/dag-cbor'
 import {circuitRelayTransport} from '@libp2p/circuit-relay-v2'
 import {identify} from '@libp2p/identify'
 import {Stream} from '@libp2p/interface'
@@ -7,40 +7,70 @@ import {ping} from '@libp2p/ping'
 import {webRTC, webRTCDirect} from '@libp2p/webrtc'
 import {multiaddr} from '@multiformats/multiaddr'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {lpStream} from 'it-length-prefixed-stream'
 import {createLibp2p} from 'libp2p'
 import {base58btc} from 'multiformats/bases/base58'
-import {postCBOR} from './api'
 import {
   AgentCapability,
-  createAccount,
-  generateAndStoreKeyPair,
-  LocalWebIdentity,
-  logout,
+  Profile,
   signAgentCapability,
   signProfileAlias,
-} from './auth'
-import {preparePublicKey} from './auth-utils'
-import {getStoredLocalKeys} from './local-db'
-import type {DelegateDevicePayload} from './routes/hm.api.delegate-device'
+} from './auth-utils'
 
-export type DeviceLinkCompletion = {
-  browserAccountId: string
-  appAccountId: string
+import {preparePublicKey} from './auth-utils'
+
+/**
+ * EncodedBlob contains the decoded blob data, and its encoded raw form.
+ */
+export type EncodedBlob<T> = {
+  data: T
+  raw: Uint8Array
 }
 
+/** LinkingResult is the result of the device linking process. */
+export type LinkingResult = {
+  browserAccountId: string
+  appAccountId: string
+  profileAlias: EncodedBlob<Profile>
+  browserToAppCap: EncodedBlob<AgentCapability>
+  appToBrowserCap: EncodedBlob<AgentCapability>
+}
+
+export const protocolId = '/hypermedia/devicelink/0.1.0'
+
+export type EventDialing = {
+  type: 'dialing'
+  addr: string
+}
+
+export type EventDialError = {
+  type: 'dial-error'
+  addr: string
+  error: Error
+}
+
+export type EventDialOK = {
+  type: 'dial-ok'
+  addr: string
+}
+
+/** LinkingEvent describes things that happen during the device linking process. */
+export type LinkingEvent = EventDialing | EventDialError | EventDialOK
+
+/**
+ * Runs the device linking procedure using libp2p to connection to the "parent"
+ * node to which the given key pair is going to be linked.
+ * @param session - Connection details for the device link session.
+ * @param keyPair - The key pair that will be linked to the parent key.
+ * @param onEvent - Callback for handling various events that occur during the linking process.
+ * @returns The result of the linking session, including all the blobs that were created in the process.
+ */
 export async function linkDevice(
   session: DeviceLinkSession,
-): Promise<DeviceLinkCompletion> {
-  let keyPair = await getStoredLocalKeys()
-  if (!keyPair) {
-    keyPair = await generateAndStoreKeyPair()
-  }
+  keyPair: CryptoKeyPair,
+  onEvent: (event: LinkingEvent) => void = () => {},
+): Promise<LinkingResult> {
   const publicKey = await preparePublicKey(keyPair.publicKey)
-
-  const protocolId = '/hypermedia/devicelink/0.1.0'
 
   // Create libp2p node with browser-specific configuration
   const node = await createLibp2p({
@@ -67,12 +97,18 @@ export async function linkDevice(
     // We can only dial webrtc-direct addresses, so we filter out the rest.
     .filter((a) => a.includes('webrtc-direct'))
     // For simplicity we prioritize localhost addresses first,
-    // because this is our common use case.
-    // The other addresses are still available for dialing.
+    // in addition we sort the p2p-circuit addresses last —
+    // our common use case is for both devices to be on the same network,
+    // so we want to exhaust the local addresses first.
     .sort((a, b) => {
       if (a.includes('127.0.0.1') && !b.includes('127.0.0.1')) {
         return -1
       }
+
+      if (!a.includes('p2p-circuit') && b.includes('p2p-circuit')) {
+        return -1
+      }
+
       return +1
     })
 
@@ -84,11 +120,29 @@ export async function linkDevice(
   // and it often times out on the first few addresses.
   for (const a of addrs) {
     const ma = multiaddr(a + '/p2p/' + session.addrInfo.peerId)
+
+    // We do explicit timeout here, because sometimes p2p-circuit
+    // addresses would hang in the middle of the dial — we would connect to the relay node,
+    // but we won't pass through our actual target peer — and in this case the dial would hang forever.
+    // Usually relays should just work, but sometimes they don't.
+    // Because our common use case is for both devices to be on the same network,
+    // connecting via relay is actually not mandatory, so we don't want to get stuck on it,
+    // hence we set an explicit timeout.
+    //
+    // We use a longer timeout for relay addresses because naturally they are slower.
+    // For local addresses we use a shorter timeout, because we want to go over non-relay addresses reasonably fast.
+    const delay = a.includes('p2p-circuit') ? 5000 : 2000
+    const [timeout, timer] = newTimeout(delay)
+
     try {
-      stream = await node.dialProtocol(ma, protocolId)
+      onEvent({type: 'dialing', addr: ma.toString()})
+      stream = await node.dialProtocol(ma, protocolId, {signal: timeout})
+      onEvent({type: 'dial-ok', addr: ma.toString()})
       break
     } catch (e) {
-      console.error('Failed to dial multiaddr', ma.toString(), e)
+      onEvent({type: 'dial-error', addr: ma.toString(), error: e as Error})
+    } finally {
+      clearTimeout(timer)
     }
   }
 
@@ -106,7 +160,7 @@ export async function linkDevice(
     // Receive the app's capability
     const msg = await lp.read()
     const appToBrowserCapBlob = msg.subarray()
-    const appToBrowserCap = cborDecode<AgentCapability>(appToBrowserCapBlob)
+    const appToBrowserCap = cbor.decode<AgentCapability>(appToBrowserCapBlob)
 
     // Sign our capability and send it back
     const browserToAppCap = await signAgentCapability(
@@ -114,7 +168,7 @@ export async function linkDevice(
       appToBrowserCap.signer,
       BigInt(appToBrowserCap.ts) + 1n, // Increment the timestamp
     )
-    const browserToAppCapBlob = cborEncode(browserToAppCap)
+    const browserToAppCapBlob = cbor.encode(browserToAppCap)
     await lp.write(browserToAppCapBlob)
 
     // Sign and send the profile alias
@@ -123,19 +177,8 @@ export async function linkDevice(
       appToBrowserCap.signer,
       BigInt(appToBrowserCap.ts) + 2n, // Increment the timestamp
     )
-    const profileAliasBlob = cborEncode(profileAlias)
+    const profileAliasBlob = cbor.encode(profileAlias)
     await lp.write(profileAliasBlob)
-
-    console.log('Device linking successful')
-    console.log('App capability:', appToBrowserCap)
-    console.log('Browser capability:', browserToAppCap)
-    console.log('Profile alias:', profileAlias)
-
-    await storeDeviceDelegation({
-      profileAlias: profileAliasBlob,
-      browserToAppCap: browserToAppCapBlob,
-      appToBrowserCap: appToBrowserCapBlob,
-    })
 
     await stream.close()
 
@@ -146,46 +189,30 @@ export async function linkDevice(
     return {
       browserAccountId,
       appAccountId,
+      profileAlias: {
+        data: profileAlias,
+        raw: profileAliasBlob,
+      },
+      browserToAppCap: {
+        data: browserToAppCap,
+        raw: browserToAppCapBlob,
+      },
+      appToBrowserCap: {
+        data: appToBrowserCap,
+        raw: appToBrowserCapBlob,
+      },
     }
   } finally {
     await node.stop()
   }
 }
 
-async function storeDeviceDelegation(payload: DelegateDevicePayload) {
-  const result = await postCBOR('/hm/api/delegate-device', cborEncode(payload))
-  console.log('delegateDevice result', result)
-}
-
-export function useLinkDevice(localIdentity: LocalWebIdentity | null) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (session: DeviceLinkSession) => {
-      let didCreateAccount = false
-      if (!localIdentity) {
-        // this should be all we need, but instead we have to create a full profile for some reason
-        // await generateAndStoreKeyPair()
-        await createAccount({
-          name: `Web Key of ${session.accountId}`,
-          icon: null,
-        })
-        didCreateAccount = true
-      }
-      try {
-        return await linkDevice(session)
-      } catch (e) {
-        if (didCreateAccount) {
-          logout()
-        }
-        throw e
-      }
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries([queryKeys.ACCOUNT])
-    },
-  })
-}
-
-async function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function newTimeout(
+  msecs: number,
+): [AbortSignal, ReturnType<typeof setTimeout>] {
+  const abort = new AbortController()
+  const id = setTimeout(() => {
+    abort.abort()
+  }, msecs)
+  return [abort.signal, id]
 }

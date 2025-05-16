@@ -1,5 +1,4 @@
 import {useLocalKeyPair} from '@/auth'
-import {DeviceLinkCompletion, useLinkDevice} from '@/device-linking'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {injectModels} from '@/models'
@@ -8,9 +7,16 @@ import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {postCBOR} from '../api'
+import type {DelegateDevicePayload} from './hm.api.delegate-device'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+import {createAccount, LocalWebIdentity, logout} from '../auth'
+import {linkDevice, LinkingResult, LinkingEvent} from '../device-linking'
+import * as cbor from '@ipld/dag-cbor'
 import {
   DeviceLinkSessionSchema,
   hmId,
@@ -136,13 +142,99 @@ const DeviceLinkContainer = styled(YStack, {
   backgroundColor: '$backgroundStrong',
 })
 
+async function storeDeviceDelegation(payload: DelegateDevicePayload) {
+  const result = await postCBOR('/hm/api/delegate-device', cbor.encode(payload))
+  console.log('delegateDevice result', result)
+}
+
+type LinkingState =
+  | null
+  | {
+      state: 'result'
+      result: LinkingResult
+    }
+  | {
+      state: 'event'
+      event: LinkingEvent
+    }
+  | {
+      state: 'error'
+      error: string
+    }
+
+export function useLinkDevice(
+  localIdentity: LocalWebIdentity | null,
+  setLinkingState: (state: LinkingState) => void = () => {},
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (session: DeviceLinkSession) => {
+      let didCreateAccount = false
+      if (!localIdentity) {
+        // this should be all we need, but instead we have to create a full profile for some reason
+        // await generateAndStoreKeyPair()
+        localIdentity = await createAccount({
+          name: `Web Key of ${session.accountId}`,
+          icon: null,
+        })
+        didCreateAccount = true
+      }
+      try {
+        const result = await linkDevice(
+          session,
+          localIdentity,
+          (e: LinkingEvent) => {
+            setLinkingState({
+              state: 'event',
+              event: e,
+            })
+          },
+        )
+        setLinkingState({
+          state: 'result',
+          result: result,
+        })
+
+        console.log('Device linking successful')
+        console.log('App capability:', result.appToBrowserCap)
+        console.log('Browser capability:', result.browserToAppCap)
+        console.log('Profile alias:', result.profileAlias)
+
+        await storeDeviceDelegation({
+          profileAlias: result.profileAlias.raw,
+          browserToAppCap: result.browserToAppCap.raw,
+          appToBrowserCap: result.appToBrowserCap.raw,
+        })
+        return result
+      } catch (e) {
+        if (didCreateAccount) {
+          logout()
+        }
+        throw e
+      }
+    },
+    onError: (error) => {
+      setLinkingState({
+        state: 'error',
+        error: (error as Error).message,
+      })
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries([queryKeys.ACCOUNT])
+    },
+  })
+}
+
+type Completion = {
+  browserAccountId: string
+  appAccountId: string
+}
+
 export function HMDeviceLink() {
   const [error, setError] = useState<string | null>(null)
-  const [completion, setCompletion] = useState<DeviceLinkCompletion | null>(
-    null,
-  )
-  const [deviceLinkSession, setDeviceLinkSession] =
-    useState<null | DeviceLinkSession>()
+  const [completion, setCompletion] = useState<Completion | null>(null)
+  const [session, setSession] = useState<null | DeviceLinkSession>()
+
   useEffect(() => {
     const fragment = window.location.hash.substring(1)
     try {
@@ -152,24 +244,23 @@ export function HMDeviceLink() {
       const decodedData = cborDecode(base58btc.decode(fragment))
       console.log('decodedData', decodedData)
       const session = DeviceLinkSessionSchema.parse(decodedData)
-      setDeviceLinkSession(session)
+      setSession(session)
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     }
   }, [])
 
   const {data: desktopAccount} = useEntity(
-    deviceLinkSession ? hmId('d', deviceLinkSession.accountId) : undefined,
+    session ? hmId('d', session.accountId) : undefined,
   )
   const localIdentity = useLocalKeyPair()
   const localId = localIdentity ? hmId('d', localIdentity.id) : null
   const {data: browserAccount} = useEntity(localId)
   const {data: existingAccount} = useAccount(localIdentity?.id)
   const isLinkedAlready =
-    deviceLinkSession &&
-    existingAccount &&
-    deviceLinkSession.accountId === existingAccount.id.uid
-  const linkDevice = useLinkDevice(localIdentity)
+    session && existingAccount && session.accountId === existingAccount.id.uid
+  const [linkingState, setLinkingState] = useState<LinkingState>(null)
+  const linkDevice = useLinkDevice(localIdentity, setLinkingState)
 
   if (error) {
     return (
@@ -184,13 +275,6 @@ export function HMDeviceLink() {
           <Heading>Error linking device</Heading>
           <Paragraph>{error}</Paragraph>
         </YStack>
-      </DeviceLinkContainer>
-    )
-  }
-  if (!deviceLinkSession || linkDevice.isLoading) {
-    return (
-      <DeviceLinkContainer>
-        <Spinner />
       </DeviceLinkContainer>
     )
   }
@@ -267,24 +351,45 @@ export function HMDeviceLink() {
         </XStack>
       ) : null
   }
+
+  if (linkingState && linkingState.state === 'error') {
+    description = `Linking Error: ${linkingState.error}`
+  }
+
+  if (linkingState && linkingState.state === 'event') {
+    const event = linkingState.event
+    switch (event.type) {
+      case 'dialing':
+        description = `Dialing ${event.addr}...`
+        break
+      case 'dial-ok':
+        description = `Dialed ${event.addr} successfully`
+    }
+  }
+
   return (
     <DeviceLinkContainer>
       <Heading>{heading}</Heading>
-      <Paragraph>{description}</Paragraph>
+      <Paragraph textWrap="wrap" maxWidth="100%">
+        {description}
+      </Paragraph>
       {extraContent}
       {/* {existingAccount && (
         <Paragraph>{JSON.stringify(existingAccount)}</Paragraph>
       )} */}
       <Button
         onPress={() => {
-          if (!deviceLinkSession) {
+          if (!session) {
             setError('No device link session found')
             return
           }
           linkDevice
-            .mutateAsync(deviceLinkSession)
-            .then((completion) => {
-              setCompletion(completion)
+            .mutateAsync(session)
+            .then((result) => {
+              setCompletion({
+                browserAccountId: result.browserAccountId,
+                appAccountId: result.appAccountId,
+              })
             })
             .catch((e) => {
               setError(e.message)

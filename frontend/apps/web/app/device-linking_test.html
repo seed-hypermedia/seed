@@ -1,0 +1,32 @@
+<!--
+  This is an entrypoint for testing device linking workflow locally on different devices.
+  Testing device linking with the real Remix app is currently very complicated, and feedback loop is slow.
+  The idea of this page is to run it with Bun, and expose Bun's dev server on the local network to test it on a different device.
+  It needs to exposed with HTTPs, because Web Crypto API is only available in secure contexts or localhost,
+  but when you open this page on the phone it's not going to be localhost.
+
+  To expose the server via HTTPs either [mkcert], [ngrok], or something similar.
+  I like to use [Tailscale Serve].
+
+  To run this page use `bun run --hot ./frontend/apps/web/app/device-linking_test.html`.
+
+  [mkcert]: https://github.com/FiloSottile/mkcert.
+  [ngrok]: https://ngrok.com.
+  [Tailscale Serve]: https://tailscale.com/kb/1312/serve.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    />
+    <title>Bun + React</title>
+  </head>
+  <body>
+    <main class="container" id="root"></main>
+    <script type="module" src="./device-linking_test.tsx"></script>
+  </body>
+</html>
