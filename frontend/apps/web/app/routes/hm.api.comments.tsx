@@ -31,14 +31,18 @@ export const loader = async ({
     const allComments: HMComment[] = []
 
     for (const mention of res.mentions) {
-      const sourceId = unpackHmId(mention.source)
-      if (!sourceId) continue
-      if (sourceId.type !== 'c') continue
-      const comment = await queryClient.comments.getComment({
-        id: mention.sourceBlob?.cid,
-      })
-      if (!comment) continue
-      allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
+      try {
+        const sourceId = unpackHmId(mention.source)
+        if (!sourceId) continue
+        if (sourceId.type !== 'c') continue
+        const comment = await queryClient.comments.getComment({
+          id: mention.sourceBlob?.cid,
+        })
+        if (!comment) continue
+        allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
+      } catch (error) {
+        console.error('=== comment error', error)
+      }
     }
 
     const allAccounts = new Set<string>()
