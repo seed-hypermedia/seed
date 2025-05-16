@@ -302,8 +302,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const allCitations = useCitations(id)
   const citations: Array<HMDocumentCitation> = useMemo(() => {
     if (!allCitations.data) return []
-    return allCitations.data.filter(
-      (c): c is HMDocumentCitation => c.source.type === 'd',
+    console.log('=== allCitations.data', allCitations.data)
+    return (
+      allCitations.data?.filter(
+        (c): c is HMDocumentCitation => c.source.type === 'd',
+      ) || []
     )
   }, [allCitations.data])
 
