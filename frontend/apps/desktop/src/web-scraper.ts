@@ -217,11 +217,8 @@ async function exportToFolder(
     const content = await getCachedContent(storage, url)
     if (!content) continue
 
-    const urlObj = new URL(url)
-    let filename = urlObj.pathname
-    if (filename === '/') filename = 'index'
-    filename = filename.replace(/\//g, '-').replace(/^-|-$/g, '')
-    if (!filename.endsWith('.html')) filename += '.html'
+    const hash = crypto.createHash('md5').update(url).digest('hex')
+    const filename = `${hash}.html`
 
     const $ = cheerio.load(content)
 
@@ -442,11 +439,16 @@ async function extractPosts(
     await Promise.all(
       posts.map(async (path) => {
         let title = ''
+        const url = new URL(path)
+        if (url.pathname === '/') return null
         const html = await getCachedContent(crawler.storage, path)
         if (!html) return null
         const $ = cheerio.load(html)
         title = $('h1.entry-title').text().trim()
-        return {path, title}
+
+        const hash = crypto.createHash('md5').update(path).digest('hex')
+        const htmlFile = `${hash}.html`
+        return {path, title, htmlFile}
       }),
     )
   ).filter((p) => !!p)
@@ -461,6 +463,7 @@ export type ScrapeStatus = {
 export type PostsFile = {
   path: string
   title: string
+  htmlFile: string
 }[]
 
 export async function scrapeUrl(
