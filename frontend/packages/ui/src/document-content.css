@@ -93,3 +93,23 @@
 [data-block-type='Heading'] + [data-block-type='Heading'] {
   margin-top: -20px; /* Cancel out the previous element's margin */
 }
+
+.bottom-gradient {
+  position: relative;
+}
+
+.bottom-gradient:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 1) 5%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}

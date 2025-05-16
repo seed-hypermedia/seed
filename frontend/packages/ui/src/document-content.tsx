@@ -7,6 +7,7 @@ import {
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
+  HMEmbedView,
   HMInlineContent,
   UnpackedHypermediaId,
   clipContentBlocks,
@@ -1789,6 +1790,7 @@ export function ContentEmbed({
       id: UnpackedHypermediaId
       depth: number
       parentBlockId: string
+      embedView?: HMEmbedView
     }>
   >
   parentBlockId: string | null
@@ -1963,6 +1965,7 @@ export function ContentEmbed({
       textUnit={context.comment ? 12 : context.textUnit}
     >
       <EmbedWrapper
+        embedView={props.block.attributes?.view}
         depth={props.depth}
         id={narrowHmId(props)}
         parentBlockId={parentBlockId || ''}

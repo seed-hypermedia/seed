@@ -22,7 +22,6 @@ import {
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {ReactNode, useEffect, useMemo, useRef, useState} from 'react'
-import {LinearGradient} from 'react-native-svg'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
@@ -383,12 +382,11 @@ export function QuotedDocBlock({
         borderRadius="$2"
         padding="$2"
         gap="$1"
-        maxHeight={
-          canExpand ? (expanded ? 'none' : BLOCK_DEFAULT_HEIGHT) : 'none'
-        }
-        overflow="hidden"
         position="relative"
         animation="fast"
+        className={canExpand && !expanded ? `bottom-gradient` : undefined}
+        maxHeight={canExpand ? (expanded ? 'none' : 220) : 'none'}
+        overflow="hidden"
       >
         <XStack flexShrink={0} paddingVertical="$1.5">
           <BlockQuote size={23} />
@@ -402,19 +400,6 @@ export function QuotedDocBlock({
             />
           )}
         </YStack>
-        {canExpand && !expanded ? (
-          <LinearGradient
-            colors={['$brand12', 'transparent']}
-            start={[0, 1]}
-            end={[0, 0]}
-            w="100%"
-            position="absolute"
-            bottom={0}
-            left={0}
-            right={0}
-            height={32}
-          />
-        ) : null}
       </XStack>
       {canExpand && (
         <Tooltip content={expanded ? 'Collapse' : 'Expand'}>

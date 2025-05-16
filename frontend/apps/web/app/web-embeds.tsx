@@ -7,6 +7,7 @@ import {
   HMAccountsMetadata,
   HMBlockQuery,
   HMDocumentInfo,
+  HMEmbedView,
   hmId,
   hmIdPathToEntityQueryPath,
   narrowHmId,
@@ -27,50 +28,89 @@ import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
+import {Tooltip} from '@shm/ui/tooltip'
 import {StackProps, Text} from '@tamagui/core'
+import {ChevronsDown, ChevronsUp} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 injectModels()
 
+const BLOCK_DEFAULT_HEIGHT = 180
+
 function EmbedWrapper({
   id,
-  parentBlockId,
   hideBorder = false,
+  embedView,
   children,
 }: React.PropsWithChildren<{
   id: UnpackedHypermediaId
   parentBlockId: string | null
   hideBorder?: boolean
+  embedView?: HMEmbedView
 }>) {
   const docContext = useDocContentContext()
   const {originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(true)
+
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (embedView == 'Content') {
+      if (contentRef.current) {
+        const height = contentRef.current?.getBoundingClientRect?.().height
+
+        setCanExpand(height > BLOCK_DEFAULT_HEIGHT)
+      }
+    } else {
+      setCanExpand(false)
+    }
+  }, [contentRef.current, id.id, embedView])
+
   return (
-    <YStack
-      width="100%"
-      borderRadius={0}
-      borderLeftWidth={hideBorder ? 0 : 3}
-      borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
-      onPress={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const destUrl = createWebHMUrl(id.type, id.uid, {
-          hostname: null,
-          blockRange: id.blockRange,
-          blockRef: id.blockRef,
-          version: id.version,
-          latest: id.latest,
-          path: id.path,
-          originHomeId,
-        })
-        navigate(destUrl)
-      }}
-      onHoverIn={() => docContext?.onHoverIn?.(id)}
-      onHoverOut={() => docContext?.onHoverOut?.(id)}
-    >
-      {children}
+    <YStack width="100%">
+      <YStack
+        width="100%"
+        borderRadius={0}
+        borderLeftWidth={hideBorder ? 0 : 3}
+        borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
+        onPress={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const destUrl = createWebHMUrl(id.type, id.uid, {
+            hostname: null,
+            blockRange: id.blockRange,
+            blockRef: id.blockRef,
+            version: id.version,
+            latest: id.latest,
+            path: id.path,
+            originHomeId,
+          })
+          navigate(destUrl)
+        }}
+        onHoverIn={() => docContext?.onHoverIn?.(id)}
+        onHoverOut={() => docContext?.onHoverOut?.(id)}
+        className={canExpand && !expanded ? `bottom-gradient` : undefined}
+        maxHeight={canExpand ? (expanded ? 'none' : 220) : 'none'}
+        overflow="hidden"
+      >
+        {children}
+      </YStack>
+      {canExpand && (
+        <Tooltip content={expanded ? 'Collapse' : 'Expand'}>
+          <Button
+            flexShrink={0}
+            size="$2"
+            onPress={() => setExpanded(!expanded)}
+            chromeless
+            hoverStyle={{bg: '$brand11'}}
+            icon={expanded ? ChevronsUp : ChevronsDown}
+          />
+        </Tooltip>
+      )}
     </YStack>
   )
 }
