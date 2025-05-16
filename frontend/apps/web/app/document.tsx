@@ -472,7 +472,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 <YStack f={1}>
                   <DocumentCover cover={document.metadata.cover} id={id} />
                   <YStack w="100%" ref={elementRef} f={1} position="relative">
-                    {!media.gtSm ? null : panel == null ? (
+                    {!media.gtSm ? null : (
                       <XStack
                         position="absolute"
                         top={0}
@@ -499,7 +499,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           // onVersionOpen={() => {}}
                         />
                       </XStack>
-                    ) : null}
+                    )}
                     <XStack {...wrapperProps}>
                       {showSidebars ? (
                         <YStack
@@ -634,7 +634,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               p="$4"
               boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
               height={56}
-              jc="flex-end"
+              jc="space-between"
               borderRadius="$4"
               borderBottomLeftRadius={0}
               borderBottomRightRadius={0}
@@ -645,7 +645,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 }
                 setIsSheetOpen(true)
               }}
+              ai="center"
             >
+              <Button size="$3" chromeless icon={MessageSquare} color="$color9">
+                Start a Discussion...
+              </Button>
               <DocInteractionsSummary
                 docId={id}
                 citations={citations}
