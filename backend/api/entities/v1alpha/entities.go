@@ -287,7 +287,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-	re := regexp.MustCompile(`[^A-Za-z0-9_* ]+`)
+	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
 	cleanQuery := re.ReplaceAllString(in.Query, "")
 	if strings.Replace(cleanQuery, " ", "", -1) == "" {
 		return nil, nil
@@ -302,9 +302,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		entityTypeComment = "comment"
 	}
 	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
-	if !strings.HasSuffix(ftsStr, "*") {
-		ftsStr += "*"
+	if ftsStr[len(ftsStr)-1] == '+' {
+		ftsStr = ftsStr[:len(ftsStr)-1]
 	}
+	ftsStr += "*"
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var icon icon
@@ -323,8 +324,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			// default to full slice
 			contextEndRune = nRunes
 
-			if firstRuneOffset > 16 {
-				contextStart = firstRuneOffset - 16
+			if firstRuneOffset > 24 {
+				contextStart = firstRuneOffset - 24
 			}
 			if firstRuneOffset+matchedRunes < nRunes-24 {
 				contextEndRune = firstRuneOffset + matchedRunes + 24
@@ -332,7 +333,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 			// build substring on rune boundaries
 			matchStr := string(fullRunes[contextStart:contextEndRune])
-			fmt.Println("matchStr", matchStr)
 			contents = append(contents, matchStr)
 			if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
 				return nil
