@@ -42,6 +42,7 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -66,7 +67,6 @@ import {
   UserRoundPlus,
   X,
 } from '@tamagui/lucide-icons'
-import copyTextToClipboard from 'copy-text-to-clipboard'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {useForm} from 'react-hook-form'

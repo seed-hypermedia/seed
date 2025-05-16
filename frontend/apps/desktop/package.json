@@ -155,7 +155,6 @@
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
     "@vitejs/plugin-react": "4.0.4",
-    "copy-text-to-clipboard": "3.1.0",
     "electron": "34.0.0",
     "electron-playwright-helpers": "1.6.0",
     "happy-dom": "7.8.1",

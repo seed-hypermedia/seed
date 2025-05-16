@@ -12,9 +12,9 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CheckboxField} from '@shm/ui/checkbox-field'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast} from '@shm/ui/toast'
 import {ArrowLeft} from '@tamagui/lucide-icons'
-import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
@@ -1133,7 +1133,9 @@ function RecoveryStep({
                   Array.isArray(mnemonics.data)
                     ? mnemonics.data.join(', ')
                     : mnemonics.data,
-                )
+                ).then(() => {
+                  toast.success('Copied to clipboard')
+                })
               }
             }}
           >
