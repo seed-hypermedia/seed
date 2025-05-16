@@ -1,7 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
-import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -18,14 +17,16 @@ import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
-import {ReactElement, useMemo, useState} from 'react'
+import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Form, SizableText, YStack} from 'tamagui'
 import {z} from 'zod'
@@ -224,7 +225,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   }
 }
 
-function useWebImporting() {
+export function useWebImporting() {
   return useAppDialog(WebImportDialog)
 }
 
@@ -235,6 +236,7 @@ function WebImportDialog({
   onClose: () => void
   input: {
     destinationId?: UnpackedHypermediaId
+    defaultUrl?: string
   }
 }) {
   const [importId, setImportId] = useState<string | null>(null)
@@ -251,6 +253,7 @@ function WebImportDialog({
         />
       ) : (
         <ImportURLForm
+          defaultUrl={input.defaultUrl}
           onSubmit={(url) => {
             startImport.mutateAsync({url}).then(({importId}) => {
               setImportId(importId)
@@ -278,28 +281,57 @@ function WebImportInProgress({
     refetchInterval: 800,
   })
   const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
-  const myAccounts = useMyAccountIds()
+  const accounts = useMyAccountsWithWriteAccess(destinationId)
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
+  useEffect(() => {
+    if (!selectedAccount && accounts[0]?.data?.id.uid) {
+      setSelectedAccount(accounts[0].data?.id.uid)
+    }
+  }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
   const result = data?.mode === 'ready' ? data.result : undefined
 
   return (
     <YStack gap="$4">
-      <SizableText>Importing...</SizableText>
       {result ? (
         <SizableText>{result.posts.length} posts ready for import</SizableText>
-      ) : null}
+      ) : (
+        <SizableText>Importing...</SizableText>
+      )}
+      {selectedAccount && (
+        <SelectDropdown
+          value={selectedAccount}
+          options={accounts
+            .map((a) => {
+              const id = a.data?.id
+              if (!id) return null
+              return {
+                label: a.data?.document?.metadata.name || '',
+                icon: (
+                  <HMIcon
+                    size={24}
+                    id={id}
+                    metadata={a.data?.document?.metadata}
+                  />
+                ),
+                value: id.uid,
+              }
+            })
+            .filter((a) => !!a)}
+          onValue={setSelectedAccount}
+        />
+      )}
       {data?.mode === 'ready' && (
         <Button
           onPress={() => {
-            const signAccountUid = myAccounts.data?.[0]
-            if (!signAccountUid) {
+            if (!selectedAccount) {
               toast.error('No account found')
               return
             }
             confirmImport
               .mutateAsync({
                 importId: id,
-                destinationId,
-                signAccountUid,
+                destinationId: destinationId.id,
+                signAccountUid: selectedAccount,
               })
               .then(() => {
                 toast.success('Import Complete.')
@@ -307,7 +339,7 @@ function WebImportInProgress({
               })
           }}
         >
-          {`Import & Publish ${data?.pagesFound} pages`}
+          {`Import & Publish ${result?.posts.length} pages`}
         </Button>
       )}
     </YStack>
@@ -318,7 +350,13 @@ const ImportURLSchema = z.object({
   url: z.string().url(),
 })
 type ImportURLFields = z.infer<typeof ImportURLSchema>
-function ImportURLForm({onSubmit}: {onSubmit: (url: string) => void}) {
+function ImportURLForm({
+  onSubmit,
+  defaultUrl,
+}: {
+  onSubmit: (url: string) => void
+  defaultUrl?: string
+}) {
   const {
     control,
     handleSubmit,
@@ -326,6 +364,9 @@ function ImportURLForm({onSubmit}: {onSubmit: (url: string) => void}) {
     formState: {errors},
   } = useForm<ImportURLFields>({
     resolver: zodResolver(ImportURLSchema),
+    defaultValues: {
+      url: defaultUrl,
+    },
   })
   return (
     <Form onSubmit={handleSubmit(({url}) => onSubmit(url))} gap="$4">

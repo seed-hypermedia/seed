@@ -1,11 +1,15 @@
+import {PartialMessage} from '@bufbuild/protobuf'
+import {Block, DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {hmIdPathToEntityQueryPath, unpackHmId} from '@shm/shared/utils'
 import * as cheerio from 'cheerio'
 import {readFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
-import {join} from 'path'
+import {join, resolve} from 'path'
 import z from 'zod'
+import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
@@ -20,6 +24,17 @@ export async function uploadFile(file: Blob | string) {
   })
   const data = await response.text()
   return data
+}
+
+export async function uploadLocalFile(filePath: string) {
+  try {
+    const fileContent = await readFile(filePath)
+    const blob = new Blob([fileContent])
+    return uploadFile(blob)
+  } catch (e) {
+    console.error('Error uploading local file', filePath, e)
+    return null
+  }
 }
 
 function downloadFile(fileUrl: string): Promise<Blob> {
@@ -99,29 +114,136 @@ async function startImport(url: string, importId: string) {
 async function importPost({
   destinationId,
   signAccountUid,
-  title,
-  path,
+  post,
   importId,
 }: {
   destinationId: string
   signAccountUid: string
-  title: string
-  path: string
+  post: PostsFile[number]
   importId: string
 }) {
-  const postOrigUrl = new URL(path)
-  console.log('postOrigUrl pathname', postOrigUrl.pathname)
-  const postHtml = await readFile(
-    join(
-      userDataPath,
-      'importer',
-      'imports',
-      importId,
-      'pages',
-      postOrigUrl.pathname,
-    ),
+  const postHtmlPath = join(
+    userDataPath,
+    'importer',
+    'scrapes',
+    importId,
+    'pages',
+    post.htmlFile,
   )
-  console.log('postHtml', !!postHtml)
+  const postHtml = await readFile(postHtmlPath)
+
+  const $ = cheerio.load(postHtml)
+  const elements: Array<
+    {type: 'Text'; text: string} | {type: 'Image'; link: string | null}
+  > = []
+
+  await Promise.all(
+    $('body')
+      .children()
+      .map(async (_, el) => {
+        const $el = $(el)
+
+        if ($el.is('p')) {
+          const text = $el.text().trim()
+          if (text) {
+            elements.push({type: 'Text', text})
+          }
+        } else if ($el.is('figure')) {
+          const img = $el.find('img')
+          if (img.length) {
+            const src = img.attr('src')
+            if (src) {
+              const absoluteImageUrl = resolve(postHtmlPath, '..', src)
+              console.log('absoluteImageUrl', absoluteImageUrl)
+              const uploadedCID = await uploadLocalFile(absoluteImageUrl)
+              if (uploadedCID) {
+                elements.push({type: 'Image', link: `ipfs://${uploadedCID}`})
+              }
+            }
+          }
+        }
+      }),
+  )
+  const parentId = unpackHmId(destinationId)
+  if (!parentId) {
+    throw new Error('Invalid destination id')
+  }
+  const postUrl = new URL(post.path)
+  const docPath = [
+    ...(parentId.path || []),
+    ...postUrl.pathname.split('/').filter((s) => !!s),
+  ]
+  console.log('docPath', docPath)
+  const changes: DocumentChange[] = []
+  function addChange(op: PartialMessage<DocumentChange>['op']) {
+    changes.push(
+      new DocumentChange({
+        op,
+      }),
+    )
+  }
+  addChange({
+    case: 'setMetadata',
+    value: {
+      key: 'name',
+      value: post.title,
+    },
+  })
+  const blocks: PartialMessage<Block>[] = elements
+    .map((element) => {
+      if (element.type === 'Text') {
+        return {
+          id: nanoid(8),
+          type: 'Paragraph',
+          text: element.text,
+          revision: '',
+          link: '',
+          attributes: {},
+          annotations: [],
+        }
+      } else if (element.type === 'Image') {
+        return {
+          id: nanoid(8),
+          type: 'Image',
+          link: element.link || '',
+          revision: '',
+          text: '',
+          attributes: {},
+          annotations: [],
+        }
+      }
+      return null
+    })
+    .filter((block) => block !== null)
+  let lastPlacedBlockId = ''
+  console.log('postHtml', !!postHtml, post)
+  console.log('blocks', blocks)
+  console.log('elements', elements)
+
+  blocks.forEach((block) => {
+    addChange({
+      case: 'moveBlock',
+      value: {
+        blockId: block.id,
+        parent: '',
+        leftSibling: lastPlacedBlockId,
+      },
+    })
+    addChange({
+      case: 'replaceBlock',
+      value: block,
+    })
+    lastPlacedBlockId = block.id || ''
+  })
+  const resp = await grpcClient.documents.createDocumentChange({
+    signingKeyName: signAccountUid,
+    account: parentId.uid,
+    path: hmIdPathToEntityQueryPath(docPath),
+    changes,
+  })
+  if (resp) {
+    console.log('Document created', resp)
+  }
 }
 
 export const webImportingApi = t.router({
@@ -148,16 +270,15 @@ export const webImportingApi = t.router({
     .mutation(async ({input}) => {
       const {importId, destinationId, signAccountUid} = input
       const postsData = await readFile(
-        join(userDataPath, 'importer', 'imports', importId, 'posts.json'),
+        join(userDataPath, 'importer', 'scrapes', importId, 'posts.json'),
       )
       const posts = JSON.parse(postsData.toString()) as PostsFile
       for (const post of posts) {
-        const {path, title} = post
         await importPost({
+          importId,
           destinationId,
           signAccountUid,
-          title,
-          path,
+          post,
         })
       }
       console.log('Will import', posts.length, 'posts')
