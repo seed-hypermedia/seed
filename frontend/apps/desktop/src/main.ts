@@ -68,6 +68,20 @@ const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
 global.electronTRPC = {}
 
+Sentry.init({
+  debug: false,
+  release: VERSION,
+  environment: process.env.NODE_ENV || 'development',
+  dsn: process.env.SENTRY_DESKTOP_DSN,
+  transportOptions: {
+    maxQueueAgeDays: 30,
+    maxQueueCount: 30,
+    queuedLengthChanged: (length: number) => {
+      logger.debug('[MAIN]: Sentry queue changed ' + length)
+    },
+  },
+})
+
 // Core initialization
 initPaths()
 
@@ -95,20 +109,6 @@ if (IS_PROD_DESKTOP) {
   } else {
     app.setAsDefaultProtocolClient(OS_REGISTER_SCHEME)
   }
-
-  Sentry.init({
-    debug: false,
-    release: VERSION,
-    environment: process.env.NODE_ENV || 'development',
-    dsn: process.env.SENTRY_DESKTOP_DSN,
-    transportOptions: {
-      maxQueueAgeDays: 30,
-      maxQueueCount: 30,
-      queuedLengthChanged: (length: number) => {
-        logger.debug('[MAIN]: Sentry queue changed ' + length)
-      },
-    },
-  })
 }
 
 const gotTheLock = app.requestSingleInstanceLock()
@@ -142,10 +142,9 @@ app.whenReady().then(() => {
   startMainDaemon()
     .then(() => {
       logger.info('DaemonStarted')
-      return initDrafts()
-    })
-    .then(() => {
-      logger.info('Drafts ready')
+      return initDrafts().then(() => {
+        logger.info('Drafts ready')
+      })
     })
     .then(() => {
       // Initialize IPC handlers after the app is ready
