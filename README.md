@@ -3,13 +3,12 @@
 Seed is a decentralized knowledge collaboration application for open
 communities powered by a knowledge graph.
 
-You can read more about the product and why we are here on our website:
-https://seedhypermedia.com.
+You can read more about the product and why we are here on our website: https://seed.hyper.media.
 
 ### Hypermedia Protocol
 
-Seed Hypermedia supports the new [Hypermedia Web Protocol](https://hyper.media/). This
-open protocol supports secure identities, version control, semantic documents, multimedia,
+Seed Hypermedia is powered by the new [Hypermedia Web Protocol](https://hyper.media). This
+open protocol provides secure identities, version control, semantic documents, multimedia,
 and groups/organizations.
 
 ### Desktop App + Web Server
