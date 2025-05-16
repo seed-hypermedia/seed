@@ -231,11 +231,12 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
   if (prevRoute.key == 'document' && nextRoute.key == 'document') {
     return {
       ...nextRoute,
-      accessory: prevRoute.accessory
-        ? {
-            key: prevRoute.accessory.key,
-          }
-        : undefined,
+      accessory:
+        prevRoute.accessory && typeof nextRoute.accessory == 'undefined'
+          ? {
+              key: prevRoute.accessory.key,
+            }
+          : nextRoute.accessory,
     }
   }
   return nextRoute
