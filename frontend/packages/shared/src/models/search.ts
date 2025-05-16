@@ -39,13 +39,16 @@ export function useSearch(
       const out = await searchQuery(query, accountUid || undefined)
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
-      out.entities.forEach((result) => {
+      const limit = query.length <3 ? 30 : Number.MAX_SAFE_INTEGER
+      for (const result of out.entities) {
+        if (entities.length >= limit) break
+
         const key = packHmId(result.id)
         if (!alreadySeenIds.has(key)) {
           alreadySeenIds.add(key)
           entities.push(result)
         }
-      })
+      }
       return {out, entities}
     },
     enabled,
