@@ -405,7 +405,7 @@ const SearchInput = ({
   })
 
   // const recents = useRecents()
-  const searchResults = useSearch(search, {})
+  const searchResults = useSearch(search, {}, true, 20-search.length)
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities
