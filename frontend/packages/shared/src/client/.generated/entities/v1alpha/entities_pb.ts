@@ -493,7 +493,10 @@ export class Entity extends Message<Entity> {
    * Content of the entity, depending on the type:
    * Alias in the case of account.
    * Title/Body in the case of groups and documents.
-   * Body in the case of comments.
+   * Body in the case of comments. We don't fill up the whole
+   * block, just the part that contains the search term, with
+   * the surrounding context. The context size is defined by 
+   * the context_size parameter.
    *
    * @generated from field: string content = 5;
    */
@@ -651,6 +654,15 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   includeBody = false;
 
+  /**
+   * Optional. The size of the text accompanying the search match.
+   * Half of the size is before the match, and half after. 
+   * Default is 48 runes.
+   *
+   * @generated from field: int32 context_size = 3;
+   */
+  contextSize = 0;
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -661,6 +673,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
