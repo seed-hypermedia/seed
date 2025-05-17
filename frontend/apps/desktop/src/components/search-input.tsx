@@ -43,7 +43,7 @@ export function SearchInput({
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
-  const searchResults = useSearch(search, {}, true, 72-search.length)
+  const searchResults = useSearch(search, {}, true, 48-search.length)
 
   let queryItem: null | SearchResult = useMemo(() => {
     if (

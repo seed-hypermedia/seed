@@ -6,6 +6,7 @@ import {useCollapsedPath, highlightSearchMatch} from '@shm/ui/search-input'
 import {useLayoutEffect, useRef} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
+import {Timestamp} from '@bufbuild/protobuf'
 
 export type SwitcherItem = {
   id?: UnpackedHypermediaId
@@ -14,7 +15,7 @@ export type SwitcherItem = {
   subtitle?: string
   icon?: string
   path?: string[] | null
-  versionTime?: string | undefined
+  versionTime?: Timestamp | undefined
   searchQuery?: string | undefined
   onSelect: () => void
 }
