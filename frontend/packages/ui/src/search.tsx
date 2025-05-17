@@ -18,7 +18,7 @@ import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
 import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
-import {useCollapsedPath} from './search-input'
+import {useCollapsedPath, highlightSearchMatch} from './search-input'
 
 export function MobileSearch({
   originHomeId,
@@ -109,7 +109,8 @@ export function HeaderSearch({
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
     accountUid: originHomeId?.uid,
-  })
+  }, true, 32)
+  const MIN_INPUT_WIDTH = 500
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
   const inputWrapperRef = useRef(null)
@@ -129,16 +130,19 @@ export function HeaderSearch({
           id: item.id,
           key: packHmId(item.id),
           title,
-          path: [...item.parentNames, title],
+          path: item.parentNames,
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime
-            ? item.versionTime.toDate().toLocaleString()
-            : "",
+          versionTime:
+            typeof item.versionTime === 'string'
+              ? item.versionTime
+              : item.versionTime
+              ? item.versionTime.toDate().toLocaleString()
+              : '',
         }
       })
       .filter(Boolean) ?? []
@@ -165,7 +169,7 @@ export function HeaderSearch({
           />
         </Popover.Trigger>
         <Popover.Content asChild>
-          <div ref={inputWrapperRef} style={{width: 'fit-content'}}>
+          <div ref={inputWrapperRef} style={{width: 'fit-content', minWidth: MIN_INPUT_WIDTH + 'px',}}>
             <YStack
               gap="$2"
               padding="$2"
@@ -307,10 +311,30 @@ function SearchResultItem({
           ) : item.path?.length === 1 ? (
             <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
-          <YStack f={1} justifyContent="space-between">
-            <SizableText numberOfLines={1} fontWeight={600}>
-              {item.title}
-            </SizableText>
+          <YStack flex={1} justifyContent="space-between">
+            <XStack
+              flex={1}
+              gap="$3"
+              justifyContent="flex-start"
+              alignItems="center"
+            >
+              <SizableText numberOfLines={1} fontWeight={600}>
+                {highlightSearchMatch(item.title, item.searchQuery, { fontWeight: 600 })}
+              </SizableText>
+              <YStack flex={1} justifyContent="flex-start" alignItems="flex-end">
+                <SizableText
+                  numberOfLines={1}
+                  fontWeight={300}
+                  fontSize="$2"
+                  color={ unpackHmId(item.key)?.latest ? '$green10' : undefined }
+                >
+                  { unpackHmId(item.key)?.latest ? 'Latest Version' : item.versionTime ? item.versionTime +' Version' :''
+
+                  }
+                </SizableText>
+              </YStack>
+            </XStack>
+            
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
                 {collapsedPath.join(' / ')}
