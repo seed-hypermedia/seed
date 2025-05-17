@@ -149,23 +149,39 @@ message AuthorVersion {
 
 // An entity record found
 message Entity {
-  // EID of the entity.
+  // EID of the entity, including version, block id and range
   string id = 1;
 
-  // Title of the entity, depending on the type:
+  // Blob Id of the resource containing the matching record.
+  string blob_id = 2;
+
+  // The time of the version of the entity.
+  google.protobuf.Timestamp version_time = 3;
+
+  // In the case of comments, the document id
+  // containing the comment.
+  string doc_id = 4;
+
+  // Content of the entity, depending on the type:
   // Alias in the case of account.
-  // Title in the case of groups and documents
-  // Empty in the case of comments.
-  string title = 2;
+  // Title/Body in the case of groups and documents.
+  // Body in the case of comments. We don't fill up the whole
+  // block, just the part that contains the search term, with
+  // the surrounding context. The context size is defined by 
+  // the context_size parameter.
+  string content = 5;
 
   // The owner of the entity
-  string owner = 3;
+  string owner = 6;
+
+  // The type of the entity it coud be Title, Document or Comment
+  string type = 7;
 
   // Icon of the document containing that entity
-  string icon = 4;
+  string icon = 8;
 
   // Parent document names
-  repeated string parent_names = 5;
+  repeated string parent_names = 9;
 }
 
 // Publication that has been deleted
@@ -184,10 +200,19 @@ message DeletedEntity {
 }
 // Request to
 message SearchEntitiesRequest {
-  // Query to find. Since we use
-  // Fuzzy search, a single query may return multiple
-  // entities.
+  // Query to find. We Ssupport wildcards and phrases.
+  // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
+
+  // Whether to look into all content available or just the titles.
+  // If false, comments are not included in the search.
+  // Default is false.
+  bool include_body = 2;
+
+  // Optional. The size of the text accompanying the search match.
+  // Half of the size is before the match, and half after. 
+  // Default is 48 runes.
+  int32 context_size = 3;
 }
 
 // A list of entities matching the request.

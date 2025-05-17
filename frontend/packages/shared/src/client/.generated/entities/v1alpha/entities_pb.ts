@@ -461,40 +461,72 @@ export class AuthorVersion extends Message<AuthorVersion> {
  */
 export class Entity extends Message<Entity> {
   /**
-   * EID of the entity.
+   * EID of the entity, including version, block id and range
    *
    * @generated from field: string id = 1;
    */
   id = "";
 
   /**
-   * Title of the entity, depending on the type:
-   * Alias in the case of account.
-   * Title in the case of groups and documents
-   * Empty in the case of comments.
+   * Blob Id of the resource containing the matching record.
    *
-   * @generated from field: string title = 2;
+   * @generated from field: string blob_id = 2;
    */
-  title = "";
+  blobId = "";
+
+  /**
+   * The time of the version of the entity.
+   *
+   * @generated from field: google.protobuf.Timestamp version_time = 3;
+   */
+  versionTime?: Timestamp;
+
+  /**
+   * In the case of comments, the document id
+   * containing the comment.
+   *
+   * @generated from field: string doc_id = 4;
+   */
+  docId = "";
+
+  /**
+   * Content of the entity, depending on the type:
+   * Alias in the case of account.
+   * Title/Body in the case of groups and documents.
+   * Body in the case of comments. We don't fill up the whole
+   * block, just the part that contains the search term, with
+   * the surrounding context. The context size is defined by 
+   * the context_size parameter.
+   *
+   * @generated from field: string content = 5;
+   */
+  content = "";
 
   /**
    * The owner of the entity
    *
-   * @generated from field: string owner = 3;
+   * @generated from field: string owner = 6;
    */
   owner = "";
 
   /**
+   * The type of the entity it coud be Title, Document or Comment
+   *
+   * @generated from field: string type = 7;
+   */
+  type = "";
+
+  /**
    * Icon of the document containing that entity
    *
-   * @generated from field: string icon = 4;
+   * @generated from field: string icon = 8;
    */
   icon = "";
 
   /**
    * Parent document names
    *
-   * @generated from field: repeated string parent_names = 5;
+   * @generated from field: repeated string parent_names = 9;
    */
   parentNames: string[] = [];
 
@@ -507,10 +539,14 @@ export class Entity extends Message<Entity> {
   static readonly typeName = "com.seed.entities.v1alpha.Entity";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version_time", kind: "message", T: Timestamp },
+    { no: 4, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
@@ -602,13 +638,30 @@ export class DeletedEntity extends Message<DeletedEntity> {
  */
 export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   /**
-   * Query to find. Since we use
-   * Fuzzy search, a single query may return multiple
-   * entities.
+   * Query to find. We Ssupport wildcards and phrases.
+   * See https://sqlite.org/fts5.html#full_text_query_syntax.
    *
    * @generated from field: string query = 1;
    */
   query = "";
+
+  /**
+   * Whether to look into all content available or just the titles.
+   * If false, comments are not included in the search.
+   * Default is false.
+   *
+   * @generated from field: bool include_body = 2;
+   */
+  includeBody = false;
+
+  /**
+   * Optional. The size of the text accompanying the search match.
+   * Half of the size is before the match, and half after. 
+   * Default is 48 runes.
+   *
+   * @generated from field: int32 context_size = 3;
+   */
+  contextSize = 0;
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
@@ -619,6 +672,8 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
