@@ -165,7 +165,10 @@ message Entity {
   // Content of the entity, depending on the type:
   // Alias in the case of account.
   // Title/Body in the case of groups and documents.
-  // Body in the case of comments.
+  // Body in the case of comments. We don't fill up the whole
+  // block, just the part that contains the search term, with
+  // the surrounding context. The context size is defined by 
+  // the context_size parameter.
   string content = 5;
 
   // The owner of the entity
@@ -205,6 +208,11 @@ message SearchEntitiesRequest {
   // If false, comments are not included in the search.
   // Default is false.
   bool include_body = 2;
+
+  // Optional. The size of the text accompanying the search match.
+  // Half of the size is before the match, and half after. 
+  // Default is 48 runes.
+  int32 context_size = 3;
 }
 
 // A list of entities matching the request.

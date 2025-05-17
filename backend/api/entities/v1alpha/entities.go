@@ -306,6 +306,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		ftsStr = ftsStr[:len(ftsStr)-1]
 	}
 	ftsStr += "*"
+	if in.ContextSize < 2 {
+		in.ContextSize = 48
+	}
+	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
+	contextAfter := int(in.ContextSize) - contextBefore
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var icon icon
@@ -324,11 +329,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			// default to full slice
 			contextEndRune = nRunes
 
-			if firstRuneOffset > 24 {
-				contextStart = firstRuneOffset - 24
+			if firstRuneOffset > contextBefore {
+				contextStart = firstRuneOffset - contextBefore
 			}
-			if firstRuneOffset+matchedRunes < nRunes-24 {
-				contextEndRune = firstRuneOffset + matchedRunes + 24
+			if firstRuneOffset+matchedRunes < nRunes-contextAfter {
+				contextEndRune = firstRuneOffset + matchedRunes + contextAfter
 			}
 
 			// build substring on rune boundaries

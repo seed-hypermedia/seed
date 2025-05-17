@@ -537,7 +537,10 @@ type Entity struct {
 	// Content of the entity, depending on the type:
 	// Alias in the case of account.
 	// Title/Body in the case of groups and documents.
-	// Body in the case of comments.
+	// Body in the case of comments. We don't fill up the whole
+	// block, just the part that contains the search term, with
+	// the surrounding context. The context size is defined by
+	// the context_size parameter.
 	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	// The owner of the entity
 	Owner string `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`
@@ -726,7 +729,11 @@ type SearchEntitiesRequest struct {
 	// Whether to look into all content available or just the titles.
 	// If false, comments are not included in the search.
 	// Default is false.
-	IncludeBody   bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
+	IncludeBody bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
+	// Optional. The size of the text accompanying the search match.
+	// Half of the size is before the match, and half after.
+	// Default is 48 runes.
+	ContextSize   int32 `protobuf:"varint,3,opt,name=context_size,json=contextSize,proto3" json:"context_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -773,6 +780,13 @@ func (x *SearchEntitiesRequest) GetIncludeBody() bool {
 		return x.IncludeBody
 	}
 	return false
+}
+
+func (x *SearchEntitiesRequest) GetContextSize() int32 {
+	if x != nil {
+		return x.ContextSize
+	}
+	return 0
 }
 
 // A list of entities matching the request.
@@ -1416,10 +1430,11 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"P\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"s\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
-	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\"\x7f\n" +
+	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
+	"\fcontext_size\x18\x03 \x01(\x05R\vcontextSize\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
