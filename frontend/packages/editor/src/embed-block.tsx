@@ -242,7 +242,7 @@ const EmbedLauncherInput = ({
   const [focused, setFocused] = useState(false)
   const {comment} = useDocContentContext()
   const recents = useRecents()
-  const searchResults = useSearch(search, {}, true)
+  const searchResults = useSearch(search, {}, true, 30 - search.length)
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities

@@ -10,10 +10,12 @@ export async function querySearch(
   searchQuery: string,
   accountUid?: string,
   includeBody?: boolean,
+  contextSize?: number,
 ): Promise<SearchPayload> {
   const result = await grpcClient.entities.searchEntities({
     query: searchQuery,
     includeBody: includeBody,
+    contextSize: contextSize,
   })
   return {
     searchQuery,
