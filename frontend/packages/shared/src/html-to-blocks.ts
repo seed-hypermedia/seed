@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import {nanoid} from 'nanoid'
 import {resolve} from 'path'
 import {Block} from './client'
+import {codePointLength} from './client/unicode'
 import {HMAnnotation} from './hm-types'
 
 export async function htmlToBlocks(
@@ -31,10 +32,12 @@ export async function htmlToBlocks(
               const boldText = $bold.text()
               const startPos = text.indexOf(boldText, pos)
               if (startPos !== -1) {
+                const startOffset = codePointLength(text.slice(0, startPos))
+                const endOffset = startOffset + codePointLength(boldText)
                 annotations.push({
                   type: 'Bold',
-                  starts: [startPos],
-                  ends: [startPos + boldText.length],
+                  starts: [startOffset],
+                  ends: [endOffset],
                 })
                 pos = startPos + boldText.length
               }
@@ -44,7 +47,7 @@ export async function htmlToBlocks(
               id: nanoid(8),
               type: 'Paragraph',
               text,
-              revision: '',
+              revision: nanoid(8),
               link: '',
               attributes: {},
               annotations,
@@ -62,7 +65,7 @@ export async function htmlToBlocks(
                   id: nanoid(8),
                   type: 'Image',
                   link: `ipfs://${uploadedCID}`,
-                  revision: '',
+                  revision: nanoid(8),
                   text: '',
                   attributes: {},
                   annotations: [],
@@ -80,7 +83,7 @@ export async function htmlToBlocks(
                 id: nanoid(8),
                 type: 'Image',
                 link: `ipfs://${uploadedCID}`,
-                revision: '',
+                revision: nanoid(8),
                 text: '',
                 attributes: {},
                 annotations: [],

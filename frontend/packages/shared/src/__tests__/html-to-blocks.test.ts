@@ -86,6 +86,28 @@ describe('htmlToBlocks', () => {
     } satisfies Partial<HMBlock>)
   })
 
+  it('converts bold text to annotations with utf-8 code point offsets', async () => {
+    const html = '<p>😄<strong>a</strong></p>'
+    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'Paragraph',
+      text: '😄a',
+      link: '',
+      revision: blocks[0].revision as string,
+      id: blocks[0].id as string,
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [1],
+          ends: [2],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
   it('handles empty paragraphs', async () => {
     const html = '<p></p><p>  </p>'
     const mockUploadLocalFile = vi.fn()
