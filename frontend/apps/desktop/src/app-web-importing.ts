@@ -1,6 +1,7 @@
 import {PartialMessage} from '@bufbuild/protobuf'
 import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {HMBlockNode} from '@shm/shared/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import {
   hmId,
@@ -222,23 +223,7 @@ async function importPost({
       },
     })
   }
-  let lastPlacedBlockId = ''
-
-  blocks.forEach((block) => {
-    addChange({
-      case: 'moveBlock',
-      value: {
-        blockId: block.id,
-        parent: '',
-        leftSibling: lastPlacedBlockId,
-      },
-    })
-    addChange({
-      case: 'replaceBlock',
-      value: block,
-    })
-    lastPlacedBlockId = block.id || ''
-  })
+  changes.push(...changesForBlockNodes(blocks, ''))
   const resp = await grpcClient.documents.createDocumentChange({
     signingKeyName: signAccountUid,
     account: parentId.uid,
@@ -329,3 +314,43 @@ export const webImportingApi = t.router({
     return null
   }),
 })
+
+function changesForBlockNodes(
+  nodes: HMBlockNode[],
+  parentId: string,
+): DocumentChange[] {
+  const changes: DocumentChange[] = []
+
+  let lastPlacedBlockId = ''
+
+  nodes.forEach((node) => {
+    const block = node.block
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'moveBlock',
+          value: {
+            blockId: block.id,
+            parent: parentId,
+            leftSibling: lastPlacedBlockId,
+          },
+        },
+      }),
+    )
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: block,
+        },
+      }),
+    )
+    lastPlacedBlockId = block.id || ''
+
+    if (node.children) {
+      changes.push(...changesForBlockNodes(node.children, block.id))
+    }
+  })
+
+  return changes
+}

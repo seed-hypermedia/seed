@@ -10,11 +10,11 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(2)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'Hello world',
     })
-    expect(blocks[1]).toMatchObject({
+    expect(blocks[1].block).toMatchObject({
       type: 'Paragraph',
       text: 'Another paragraph',
     })
@@ -27,7 +27,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
     })
@@ -41,7 +41,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
     })
@@ -54,7 +54,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
       annotations: [
@@ -73,7 +73,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
       annotations: [
@@ -92,12 +92,12 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄a',
       link: '',
-      revision: blocks[0].revision as string,
-      id: blocks[0].id as string,
+      revision: blocks[0].block.revision as string,
+      id: blocks[0].block.id as string,
       annotations: [
         {
           type: 'Bold',
@@ -114,12 +114,12 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄foobar',
       link: '',
-      revision: blocks[0].revision as string,
-      id: blocks[0].id as string,
+      revision: blocks[0].block.revision as string,
+      id: blocks[0].block.id as string,
       annotations: [
         {
           type: 'Link',
@@ -139,12 +139,12 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {resolveHMLink})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄foobar',
       link: '',
-      revision: blocks[0].revision as string,
-      id: blocks[0].id as string,
+      revision: blocks[0].block.revision as string,
+      id: blocks[0].block.id as string,
       annotations: [
         {
           type: 'Link',
@@ -163,7 +163,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo bar baz qux',
       annotations: [
@@ -193,11 +193,11 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(3)
-    expect(blocks[0]).toMatchObject({
+    expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo',
     })
-    expect(blocks[1]).toMatchObject({
+    expect(blocks[1].block).toMatchObject({
       type: 'Paragraph',
       text: 'bar',
       annotations: [
@@ -208,7 +208,7 @@ describe('htmlToBlocks', () => {
         } satisfies HMAnnotation,
       ],
     })
-    expect(blocks[2]).toMatchObject({
+    expect(blocks[2].block).toMatchObject({
       type: 'Paragraph',
       text: 'baz',
     })
@@ -230,5 +230,36 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(0)
+  })
+
+  it('handles main image', async () => {
+    const html = `<div class="main-image">
+      <div class="post-thumbnail full-width-image">
+        <img width="2048" height="1152" src="../images/984ad815087f0d2dc8d8588ca8d5459b.jpg">
+      </div>
+      <span class="aft-image-caption">
+        <p>foo <strong>bar</strong></p>
+      </span>
+    </div>`
+    const uploadLocalFile = vi.fn().mockResolvedValue('TestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Image',
+      link: 'ipfs://TestCID',
+    })
+    expect(blocks[0].children).toHaveLength(1)
+    expect(blocks[0].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo bar',
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [4],
+          ends: [7],
+        } satisfies HMAnnotation,
+      ],
+    })
   })
 })

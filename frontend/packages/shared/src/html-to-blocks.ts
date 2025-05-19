@@ -1,10 +1,8 @@
-import {PartialMessage} from '@bufbuild/protobuf'
 import * as cheerio from 'cheerio'
 import {nanoid} from 'nanoid'
 import {resolve} from 'path'
-import {Block} from './client'
 import {codePointLength} from './client/unicode'
-import {HMAnnotation} from './hm-types'
+import {HMAnnotation, HMBlock, HMBlockNode} from './hm-types'
 
 export async function htmlToBlocks(
   html: string,
@@ -13,10 +11,14 @@ export async function htmlToBlocks(
     uploadLocalFile?: (path: string) => Promise<string | null>
     resolveHMLink?: (href: string) => Promise<string | null>
   } = {},
-): Promise<PartialMessage<Block>[]> {
+): Promise<HMBlockNode[]> {
   const {uploadLocalFile, resolveHMLink} = opts
   const $ = cheerio.load(html)
-  const blocks: PartialMessage<Block>[] = []
+  const blocks: HMBlockNode[] = []
+
+  function pushBlock(block: HMBlock) {
+    blocks.push({block, children: []})
+  }
 
   const children = $('body').children().toArray()
   for (const el of children) {
@@ -88,7 +90,7 @@ export async function htmlToBlocks(
         return 0
       })
       if (text) {
-        blocks.push({
+        pushBlock({
           id: nanoid(8),
           type: 'Paragraph',
           text,
@@ -107,7 +109,7 @@ export async function htmlToBlocks(
           const uploadedCID =
             uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
           if (uploadedCID) {
-            blocks.push({
+            pushBlock({
               id: nanoid(8),
               type: 'Image',
               link: `ipfs://${uploadedCID}`,
@@ -126,7 +128,7 @@ export async function htmlToBlocks(
         const uploadedCID =
           uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
         if (uploadedCID) {
-          blocks.push({
+          pushBlock({
             id: nanoid(8),
             type: 'Image',
             link: `ipfs://${uploadedCID}`,

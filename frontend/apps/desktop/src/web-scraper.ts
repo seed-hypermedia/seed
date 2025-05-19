@@ -258,8 +258,12 @@ async function exportToFolder(
     })
 
     const mainContent = $('.entry-content').html() || content
+    const topImageHtml = $('.read-img').html() || ''
 
-    let processedContent = `<html>\n<body>\n${mainContent}\n</body>\n</html>`
+    let topImage = topImageHtml
+      ? `<div class="main-image">${topImageHtml}</div>`
+      : ''
+    let processedContent = `<html>\n<body>\n${topImage}\n${mainContent}\n</body>\n</html>`
 
     const imageRegex = /src="([^"]+)"/g
     processedContent = processedContent.replace(imageRegex, (match, imgUrl) => {
