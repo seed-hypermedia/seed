@@ -1,5 +1,5 @@
 import {queryClient} from '@/client'
-import {getMetadata, loadComment, resolveHMDocument} from '@/loaders'
+import {getAccount, loadComment, resolveHMDocument} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {BIG_INT, hmId, parseFragment, unpackHmId} from '@shm/shared'
@@ -53,7 +53,7 @@ export const loader = async ({
           }
           const comment = await loadComment(sourceId)
           const author = citation.source.author
-            ? await getMetadata(hmId('d', citation.source.author))
+            ? await getAccount(citation.source.author)
             : null
           const commentCitation: HMCommentCitation = {
             ...citation,
@@ -79,7 +79,7 @@ export const loader = async ({
           }
           const document = await resolveHMDocument(sourceId)
           const author = citation.source.author
-            ? await getMetadata(hmId('d', citation.source.author))
+            ? await getAccount(hmId('d', citation.source.author))
             : null
           if (document) {
             const documentCitation: HMDocumentCitation = {

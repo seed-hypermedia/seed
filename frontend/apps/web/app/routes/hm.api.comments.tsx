@@ -49,9 +49,9 @@ export const loader = async ({
     allComments.forEach((comment) => {
       allAccounts.add(comment.author)
     })
-
+    const allAccountUids = Array.from(allAccounts)
     const accounts = await Promise.all(
-      Array.from(allAccounts).map(async (accountUid) => {
+      allAccountUids.map(async (accountUid) => {
         return await getAccount(accountUid)
       }),
     )
@@ -62,10 +62,7 @@ export const loader = async ({
       allComments,
       commentGroups: commentGroups,
       commentAuthors: Object.fromEntries(
-        accounts.map((account) => [
-          account.id.uid,
-          {id: account.id, metadata: account.metadata},
-        ]),
+        allAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),
     } satisfies HMCommentsPayload
   } catch (e: any) {
