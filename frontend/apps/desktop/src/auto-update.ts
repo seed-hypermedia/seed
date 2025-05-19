@@ -62,13 +62,6 @@ export default function autoUpdate() {
 
 // ======================================
 
-// let feedback = false
-
-function isAutoUpdateSupported() {
-  // TODO: we need to enable a setting so people can disable auto-updates
-  return true
-}
-
 function setup() {
   if (IS_PROD_DEV) {
     updateElectronApp({
@@ -609,6 +602,17 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
                 const backupPath = path.join(tempPath, 'backup')
 
+                // Ensure the downloaded file has the correct extension
+                const fileExt = isRpm ? '.rpm' : '.deb'
+                const finalPackagePath = filePath.endsWith(fileExt)
+                  ? filePath
+                  : `${filePath}${fileExt}`
+
+                // Rename the file if needed
+                if (filePath !== finalPackagePath) {
+                  await fs.rename(filePath, finalPackagePath)
+                }
+
                 log.info(`[AUTO-UPDATE] Variables for Linux update:`)
                 log.info(
                   `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
@@ -618,7 +622,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
                 log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
                 log.info(`[AUTO-UPDATE] - Backup path: ${backupPath}`)
-                log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
+                log.info(`[AUTO-UPDATE] - File path: ${finalPackagePath}`)
 
                 const cleanup = async () => {
                   log.info('[AUTO-UPDATE] Cleaning up...')
@@ -626,7 +630,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                     await fs
                       .rm(tempPath, {recursive: true, force: true})
                       .catch(() => {})
-                    await fs.rm(filePath, {force: true}).catch(() => {})
+                    await fs.rm(finalPackagePath, {force: true}).catch(() => {})
                   } catch (error) {
                     log.error(`[AUTO-UPDATE] Error during cleanup: ${error}`)
                   }
@@ -635,6 +639,24 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 // Create temp directories
                 await fs.mkdir(tempPath, {recursive: true})
                 await fs.mkdir(backupPath, {recursive: true})
+
+                // Validate package format before installation
+                if (!isRpm) {
+                  try {
+                    log.info(
+                      '[AUTO-UPDATE] Validating Debian package format...',
+                    )
+                    await execPromise(`dpkg-deb -I "${finalPackagePath}"`)
+                    log.info(
+                      '[AUTO-UPDATE] Package format validation successful',
+                    )
+                  } catch (error) {
+                    log.error(
+                      `[AUTO-UPDATE] Invalid Debian package format: ${error}`,
+                    )
+                    throw new Error('Invalid Debian package format')
+                  }
+                }
 
                 // Save current package version for rollback
                 const currentVersion = await execPromise(
@@ -660,7 +682,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 
                   // Install new package
                   const result = await execPromise(
-                    `pkexec ${installCmd} "${filePath}"`,
+                    `pkexec ${installCmd} "${finalPackagePath}"`,
                   )
                   log.info(
                     `[AUTO-UPDATE] Installation output: ${result.stdout}`,
