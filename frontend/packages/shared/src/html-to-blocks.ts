@@ -219,6 +219,32 @@ export async function htmlToBlocks(
           annotations: [],
         })
       }
+    } else if ($el.is('blockquote.twitter-tweet')) {
+      // Twitter embed
+      // Find the last <a> inside the blockquote with an href containing '/status/'
+      let link = null
+      $el.find('a[href]').each((_, a) => {
+        const href = $(a).attr('href')
+        if (href && /twitter.com\/[^/]+\/status\//.test(href)) {
+          link = href
+        }
+      })
+      if (link) {
+        // Remove query params for canonical URL
+        try {
+          const url = new URL(link)
+          link = url.origin + url.pathname
+        } catch {}
+        pushBlock({
+          id: nanoid(8),
+          type: 'WebEmbed',
+          link,
+          revision: nanoid(8),
+          text: '',
+          attributes: {},
+          annotations: [],
+        })
+      }
     }
   }
 

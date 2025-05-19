@@ -278,7 +278,21 @@ describe('htmlToBlocks', () => {
     })
   })
 
-  // it('handles twitter embed', async () => {})
+  it('handles twitter embed', async () => {
+    const html = `
+    <blockquote class="twitter-tweet">
+<p dir="ltr" lang="ca">Dispositivo de policial municipal de 4 furgones para desahuciar a una vecina de Lavapiés, Zohra, del número 31 de la calle Zurita. Calle cortada <a href="https://t.co/xY0yflxwfh">pic.twitter.com/xY0yflxwfh</a></p>
+— xLavapiés (@xlavapies) <a href="https://twitter.com/xlavapies/status/1816008976179351682?ref_src=twsrc%5Etfw">July 24, 2024</a></blockquote>
+<p><script async="" src="https://platform.twitter.com/widgets.js" charset="utf-8"></script></p>
+`
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'WebEmbed',
+      link: 'https://twitter.com/xlavapies/status/1816008976179351682',
+    })
+  })
 
   it('handles youtube embed', async () => {
     const html = `
