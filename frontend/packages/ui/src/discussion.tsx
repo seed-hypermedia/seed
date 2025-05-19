@@ -153,7 +153,7 @@ export function Comment({
           }
         />
       ) : null}
-      <Stack position="relative">
+      <Stack position="relative" minWidth={16}>
         <Stack
           position="absolute"
           top={0}
