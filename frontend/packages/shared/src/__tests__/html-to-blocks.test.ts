@@ -191,7 +191,6 @@ describe('htmlToBlocks', () => {
     const html = '<p>foo</p><p><strong>bar</strong></p><p>baz</p>'
     const uploadLocalFile = vi.fn()
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
-    console.log(blocks)
 
     expect(blocks).toHaveLength(3)
     expect(blocks[0]).toMatchObject({
