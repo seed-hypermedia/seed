@@ -158,19 +158,19 @@ describe('htmlToBlocks', () => {
 
   it('handles paragraphs with both links and bolds', async () => {
     const html =
-      '<p>foo <a href="https://github.com">bar</a> <strong>baz</strong></p>'
+      '<p>foo <a href="https://github.com">bar <strong>baz</strong></a> <strong>qux</strong></p>'
     const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
       type: 'Paragraph',
-      text: 'foo bar baz',
+      text: 'foo bar baz qux',
       annotations: [
         {
           type: 'Link',
           starts: [4],
-          ends: [7],
+          ends: [11],
           link: 'https://github.com',
         } satisfies HMAnnotation,
         {
@@ -178,8 +178,41 @@ describe('htmlToBlocks', () => {
           starts: [8],
           ends: [11],
         } satisfies HMAnnotation,
+        {
+          type: 'Bold',
+          starts: [12],
+          ends: [15],
+        } satisfies HMAnnotation,
       ],
     } satisfies Partial<HMBlock>)
+  })
+
+  it('handles multiple paragraphs in correct order', async () => {
+    const html = '<p>foo</p><p><strong>bar</strong></p><p>baz</p>'
+    const uploadLocalFile = vi.fn()
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+    console.log(blocks)
+
+    expect(blocks).toHaveLength(3)
+    expect(blocks[0]).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo',
+    })
+    expect(blocks[1]).toMatchObject({
+      type: 'Paragraph',
+      text: 'bar',
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [0],
+          ends: [3],
+        } satisfies HMAnnotation,
+      ],
+    })
+    expect(blocks[2]).toMatchObject({
+      type: 'Paragraph',
+      text: 'baz',
+    })
   })
 
   it('handles empty paragraphs', async () => {

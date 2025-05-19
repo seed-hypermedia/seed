@@ -25,55 +25,74 @@ export async function htmlToBlocks(
         const $el = $(el)
 
         if ($el.is('p')) {
-          const text = $el.text().trim()
-          if (text) {
-            const annotations: HMAnnotation[] = []
-            let pos = 0
+          // Recursively walk the DOM to build text and annotations
+          const annotations: HMAnnotation[] = []
+          let text = ''
 
-            // Find all bold tags and create annotations
-            $el.find('b, strong').each((_, boldEl) => {
-              const $bold = $(boldEl)
-              const boldText = $bold.text()
-              const startPos = text.indexOf(boldText, pos)
-              if (startPos !== -1) {
-                const startOffset = codePointLength(text.slice(0, startPos))
-                const endOffset = startOffset + codePointLength(boldText)
+          // Helper to walk nodes
+          async function walk(
+            node: any,
+            offset: number,
+            active: {bold?: boolean; link?: string},
+          ) {
+            let localOffset = offset
+            if (node.type === 'text') {
+              const nodeText = node.data || ''
+              text += nodeText
+              return codePointLength(nodeText)
+            }
+            if (node.type === 'tag') {
+              let isBold =
+                active.bold || node.name === 'b' || node.name === 'strong'
+              let linkHref = active.link
+              if (node.name === 'a') {
+                linkHref = node.attribs['href']
+              }
+              let start = codePointLength(text)
+              let childOffset = 0
+              for (const child of node.children || []) {
+                childOffset += await walk(child, localOffset + childOffset, {
+                  bold: isBold,
+                  link: linkHref,
+                })
+              }
+              let end = codePointLength(text)
+              if (
+                (node.name === 'b' || node.name === 'strong') &&
+                end > start
+              ) {
                 annotations.push({
                   type: 'Bold',
-                  starts: [startOffset],
-                  ends: [endOffset],
+                  starts: [start],
+                  ends: [end],
                 })
-                pos = startPos + boldText.length
               }
-            })
-
-            // Find all link tags and create annotations
-            await Promise.all(
-              $el.find('a').map(async (_, linkEl) => {
-                const $link = $(linkEl)
-                const linkText = $link.text()
-                const href = $link.attr('href')
-                const startPos = text.indexOf(linkText, pos)
-                if (startPos !== -1 && href) {
-                  const startOffset = codePointLength(text.slice(0, startPos))
-                  const endOffset = startOffset + codePointLength(linkText)
-                  console.log('~~ found link', href)
-                  const resolvedLink = resolveHMLink
-                    ? await resolveHMLink(href)
-                    : href
-                  if (resolvedLink) {
-                    annotations.push({
-                      type: 'Link',
-                      starts: [startOffset],
-                      ends: [endOffset],
-                      link: resolvedLink,
-                    })
-                  }
-                  pos = startPos + linkText.length
+              if (node.name === 'a' && end > start && linkHref) {
+                let resolvedLink = linkHref
+                if (resolveHMLink) {
+                  resolvedLink = (await resolveHMLink(linkHref)) || linkHref
                 }
-              }),
-            )
+                annotations.push({
+                  type: 'Link',
+                  starts: [start],
+                  ends: [end],
+                  link: resolvedLink,
+                })
+              }
+              return end - start
+            }
+            return 0
+          }
 
+          await walk(el, 0, {})
+          text = text.trim()
+          annotations.sort((a, b) => {
+            if (a.starts[0] !== b.starts[0]) return a.starts[0] - b.starts[0]
+            if (a.ends[0] !== b.ends[0]) return a.ends[0] - b.ends[0]
+            if (a.type !== b.type) return a.type < b.type ? -1 : 1
+            return 0
+          })
+          if (text) {
             blocks.push({
               id: nanoid(8),
               type: 'Paragraph',
