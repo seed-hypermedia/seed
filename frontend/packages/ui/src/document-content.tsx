@@ -1976,6 +1976,21 @@ export function ContentEmbed({
   )
 }
 
+function ErrorBlockMessage({message}: {message: string}) {
+  return (
+    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
+      <SizableText
+        fontSize="$4"
+        color="$color9"
+        fontWeight="bold"
+        fontStyle="italic"
+      >
+        {message}
+      </SizableText>
+    </YStack>
+  )
+}
+
 // document -> BlockContentQuery -> EntityTypes.Query(block, id) -> QueryBlockDesktop / QueryBlockWeb
 // editor -> QueryBlock -> EditorQueryBlock
 export function BlockContentQuery({block}: {block: HMBlockQuery}) {
@@ -1984,8 +1999,11 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     throw new Error('BlockContentQuery requires a Query block type')
 
   const query = block.attributes.query
+  const mainInclude = query.includes[0]
+  if (!mainInclude)
+    return <ErrorBlockMessage message="Query block with nothing included" />
   const id =
-    query.includes[0].space &&
+    mainInclude.space &&
     hmId('d', query.includes[0].space, {
       path: query.includes[0].path ? query.includes[0].path.split('/') : null,
       latest: true,
