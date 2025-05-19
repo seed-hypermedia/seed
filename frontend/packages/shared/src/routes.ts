@@ -198,5 +198,4 @@ export type DocAccessoryOption = {
     | 'options'
     | 'all-documents'
   label: string
-  icon: null | React.FC<{color: string; size?: number}>
 }

@@ -7,7 +7,7 @@ import {
 import {PanelContainer} from '@shm/ui/container'
 import {CollaboratorsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {FileClock, Folder} from '@tamagui/lucide-icons'
+import {FileClock, Folder, Pencil} from '@tamagui/lucide-icons'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -93,6 +93,10 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
     accessoryTitle = 'Collaborators'
   } else if (accessoryKey == 'directory') {
     accessoryTitle = 'Directory'
+  } else if (accessoryKey == 'discussions') {
+    accessoryTitle = 'Discussions'
+  } else if (accessoryKey == 'options') {
+    accessoryTitle = 'Draft Options'
   }
 
   return (
@@ -149,9 +153,7 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
             padding={0}
             title={accessoryTitle}
           >
-            {route.key == 'document' &&
-            accessoryKey != 'collaborators' &&
-            accessoryKey !== 'directory' ? (
+            {accessoryKey != 'collaborators' && accessoryKey !== 'directory' ? (
               <AccessoryTabs
                 options={accessoryOptions}
                 accessoryKey={accessoryKey}
@@ -242,19 +244,43 @@ export function AccessoryTitle({
         borderWidth={1}
         borderRadius="$2"
       >
+        {route.key == 'draft' && (
+          <XGroup.Item>
+            <Tooltip content="Draft Options">
+              <Button
+                borderRadius="$2"
+                bg={
+                  activeKey == 'options' ? '$brand11' : '$backgroundTransparent'
+                }
+                size="$2"
+                icon={Pencil}
+                onPress={
+                  activeKey != 'options'
+                    ? () => onAccessorySelect('options')
+                    : undefined
+                }
+              />
+            </Tooltip>
+          </XGroup.Item>
+        )}
         <XGroup.Item>
           <Tooltip content="Activity">
             <Button
               borderRadius="$2"
               bg={
-                activeKey != 'collaborators' && activeKey != 'directory'
+                activeKey == 'activity' ||
+                activeKey == 'discussions' ||
+                activeKey == 'citations' ||
+                activeKey == 'versions'
                   ? '$brand11'
                   : '$backgroundTransparent'
               }
               size="$2"
               icon={FileClock}
               onPress={
-                activeKey == 'collaborators' || activeKey == 'directory'
+                activeKey == 'collaborators' ||
+                activeKey == 'directory' ||
+                activeKey == 'options'
                   ? () => onAccessorySelect('discussions')
                   : undefined
               }
@@ -323,7 +349,6 @@ export function AccessorySection({
 type AccessoryOptions = Array<{
   key: string
   label: string
-  icon?: null | React.FC<{color: string; size?: number}>
 }>
 
 function AccessoryTabs({

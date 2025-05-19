@@ -4,9 +4,12 @@ import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {DocumentChangeInfo} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {getMetadataName} from '@shm/shared/content'
-import {HMChangeInfo, HMDraftChange} from '@shm/shared/hm-types'
+import {
+  HMChangeInfo,
+  HMDraftChange,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
-import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -14,13 +17,13 @@ import {Version} from '@shm/ui/icons'
 import {ButtonText, SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 
-export function VersionsPanel({route}: {route: DocumentRoute | DraftRoute}) {
+export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
+  console.log('== VERSIONS PANEL', docId)
   const navigate = useNavigate()
-  if (route.key !== 'document')
-    throw new Error('VersionsPanel must have document id')
-  const activeChangeIds = useVersionChanges(route.id)
-  const currentEntity = useSubscribedEntity({...route.id, version: null})
-  const changes = useDocumentChanges(route.id, false)
+
+  const activeChangeIds = useVersionChanges(docId)
+  const currentEntity = useSubscribedEntity({...docId, version: null})
+  const changes = useDocumentChanges(docId, false)
   return (
     <AccessoryContent>
       <YStack>
@@ -32,11 +35,11 @@ export function VersionsPanel({route}: {route: DocumentRoute | DraftRoute}) {
               change={change}
               isActive={isActive}
               onPress={() => {
-                route.id && typeof route.id === 'object'
+                docId && typeof docId === 'object'
                   ? navigate({
-                      ...route,
+                      ...docId,
                       key: 'document',
-                      id: {...route.id, version: change.id},
+                      id: {...docId, version: change.id},
                     })
                   : null
               }}

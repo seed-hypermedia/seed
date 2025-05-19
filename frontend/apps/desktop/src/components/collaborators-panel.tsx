@@ -14,7 +14,6 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
-import {DocumentRoute} from '@shm/shared/routes'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {UIAvatar} from '@shm/ui/avatar'
 import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
@@ -34,12 +33,12 @@ import {
 import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
-export function CollaboratorsPanel({route}: {route: DocumentRoute}) {
+export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <AccessoryContent>
-      <AddCollaboratorForm id={route.id} />
-      <PublisherCollaborator id={route.id} />
-      <CollaboratorsList id={route.id} />
+      <AddCollaboratorForm id={docId} />
+      <PublisherCollaborator id={docId} />
+      <CollaboratorsList id={docId} />
     </AccessoryContent>
   )
 }

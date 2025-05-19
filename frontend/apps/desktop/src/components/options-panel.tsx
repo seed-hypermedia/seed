@@ -1,4 +1,3 @@
-import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {ImageForm} from '@/pages/image-form'
 import {
   HMBlockNode,
@@ -10,7 +9,7 @@ import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useState} from 'react'
-import {Button, ButtonText, Heading, Input, Label, YStack} from 'tamagui'
+import {ButtonText, Input, Label, YStack} from 'tamagui'
 import {AccessoryContent, AccessorySection} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
@@ -20,44 +19,17 @@ export function OptionsPanel({
   metadata,
   onResetContent,
   isHomeDoc,
-  isNewspaperLayout,
 }: {
   draftId: string
   onMetadata: (values: Partial<HMMetadata>) => void
   metadata: HMMetadata
   onResetContent: (blockNodes: HMBlockNode[]) => void
   isHomeDoc: boolean
-  isNewspaperLayout: boolean
 }) {
   return (
     <AccessoryContent>
       <YStack gap="$4">
-        {isNewspaperLayout ? (
-          <>
-            <YStack
-              theme="red"
-              gap="$4"
-              padding="$4"
-              backgroundColor="$red3"
-              borderRadius="$4"
-            >
-              <Heading size="$3" fontSize="$4">
-                Document Model Upgrade Required
-              </Heading>
-              <Button
-                onPress={() => {
-                  upgradeNewspaperLayoutModel(
-                    draftId,
-                    onMetadata,
-                    onResetContent,
-                  )
-                }}
-              >
-                Upgrade Document
-              </Button>
-            </YStack>
-          </>
-        ) : isHomeDoc ? (
+        {isHomeDoc ? (
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
             <DocumentIconForm

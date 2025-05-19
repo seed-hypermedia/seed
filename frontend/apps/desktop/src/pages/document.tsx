@@ -1,17 +1,13 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {ActivityPanel} from '@/components/activity-panel'
-import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {triggerCommentDraftFocus} from '@/components/commenting'
-import {DiscussionsPanel} from '@/components/comments-panel'
-import {DirectoryPanel} from '@/components/directory-panel'
 import {DocNavigation} from '@/components/doc-navigation'
+import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
-import {VersionsPanel} from '@/components/versions-panel'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
@@ -34,7 +30,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
   BlockRange,
-  DocAccessoryOption,
   DocumentRoute,
   getDocumentTitle,
   HMDocument,
@@ -58,9 +53,6 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
   BlockQuote,
-  CitationsIcon,
-  CollaboratorsIcon,
-  CommentsIcon,
   HistoryIcon,
   IconComponent,
   MoreHorizontal,
@@ -84,7 +76,6 @@ import {
   YStack,
   YStackProps,
 } from 'tamagui'
-import {CitationsPanel} from '../components/citations-panel'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -95,98 +86,7 @@ export default function DocumentPage() {
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
 
-  let accessory: ReactNode = null
-  if (route.accessory?.key === 'citations') {
-    accessory = (
-      <CitationsPanel
-        entityId={docId}
-        accessory={route.accessory}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
-  } else if (accessoryKey === 'versions') {
-    accessory = <VersionsPanel route={route} />
-  } else if (accessoryKey === 'activity') {
-    accessory = (
-      <ActivityPanel
-        docId={route.id}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
-  } else if (accessoryKey === 'collaborators') {
-    accessory = <CollaboratorsPanel route={route} />
-  } else if (route.accessory?.key === 'discussions') {
-    accessory = (
-      <DiscussionsPanel
-        docId={route.id}
-        accessory={route.accessory}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
-  } else if (accessoryKey === 'directory') {
-    accessory = <DirectoryPanel docId={route.id} />
-  }
-
-  const accessoryOptions: Array<DocAccessoryOption> = []
-
-  // if (docId.type === 'd' && !docId.path?.length) {
-  //   accessoryOptions.push({
-  //     key: 'options',
-  //     label: 'Options',
-  //     icon: Contact,
-  //   })
-  // }
-  accessoryOptions.push({
-    key: 'activity',
-    label: 'All',
-    icon: CommentsIcon,
-  })
-  accessoryOptions.push({
-    key: 'versions',
-    label: 'Versions',
-    icon: HistoryIcon,
-  })
-  if (docId.type === 'd') {
-    accessoryOptions.push({
-      key: 'collaborators',
-      label: 'Collaborators',
-      icon: CollaboratorsIcon,
-    })
-    // accessoryOptions.push({
-    //   key: 'suggested-changes',
-    //   label: 'Suggested Changes',
-    //   icon: SuggestedChangesIcon,
-    // })
-  }
-
-  accessoryOptions.push({
-    key: 'discussions',
-    label: 'Discussions',
-    icon: CommentsIcon,
-  })
-  accessoryOptions.push({
-    key: 'citations',
-    label: 'Citations',
-    icon: CitationsIcon,
-  })
-  // if (docId.type === 'd' && !docId.path?.length) {
-  //   accessoryOptions.push({
-  //     key: 'all-documents',
-  //     label: 'All Documents',
-  //     icon: Document,
-  //   })
-  //   accessoryOptions.push({
-  //     key: 'contacts',
-  //     label: 'Contacts',
-  //     icon: Contact,
-  //   })
-  // }
+  const {accessory, accessoryOptions} = useDocumentAccessory({docId})
 
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const immediatePromptNotifs =

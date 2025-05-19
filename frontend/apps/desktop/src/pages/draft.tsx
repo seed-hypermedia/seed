@@ -1,9 +1,9 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
+import {useDocumentAccessory} from '@/components/document-accessory'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
-import {OptionsPanel} from '@/components/options-panel'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
@@ -17,6 +17,7 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {
@@ -25,7 +26,6 @@ import {
   generateBlockId,
 } from '@shm/editor/utils'
 import {
-  HMBlockNode,
   HMDocument,
   HMEntityContent,
   HMMetadata,
@@ -41,11 +41,10 @@ import {
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Options, Smile} from '@shm/ui/icons'
+import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
-import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
@@ -54,7 +53,6 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {
   Button,
-  Heading,
   Input,
   Separator,
   SizableText,
@@ -68,12 +66,11 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 export default function DraftPage() {
   const route = useNavRoute()
-  const [accessoryKey, setAccessory] = useState(
-    (route as DraftRoute).accessory?.key || undefined,
-  )
+  const replace = useNavigate('replace')
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+
   const {data, editor, send, state, actor} = useDraftEditor()
-  const isNewspaperLayout =
-    data?.metadata?.layout === 'Seed/Experimental/Newspaper'
+
   const locationId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
@@ -86,9 +83,10 @@ export default function DraftPage() {
     return undefined
   }, [route, data])
 
-  useEffect(() => {
-    setAccessory((route as DraftRoute).accessory?.key || undefined)
-  }, [(route as DraftRoute).accessory])
+  const accessoryKey = useMemo(() => {
+    if (route.key != 'draft') return undefined
+    return (route as DraftRoute).accessory?.key || undefined
+  }, [route])
 
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
@@ -115,41 +113,16 @@ export default function DraftPage() {
 
   const homeEntity = useEntity(homeId)
 
-  const accessoryOptions: {
-    key: 'options'
-    label: string
-    icon?: null | React.FC<{
-      color: string
-      size?: number
-    }>
-  }[] = []
-
-  accessoryOptions.push({
-    key: 'options',
-    label: 'Options',
-    icon: Options,
+  const {accessory, accessoryOptions} = useDocumentAccessory({
+    docId: editId,
+    state,
+    actor,
+    isEditingHomeDoc,
   })
 
-  let accessory = null
-
-  if (accessoryKey == 'options') {
-    // TODO update options panel flow of updating from newspaper layout
-    accessory = (
-      <OptionsPanel
-        draftId={'UPDATE ME'}
-        metadata={state.context.metadata}
-        isHomeDoc={isEditingHomeDoc}
-        isNewspaperLayout={isNewspaperLayout}
-        onMetadata={(metadata) => {
-          if (!metadata) return
-          actor.send({type: 'change', metadata})
-        }}
-        onResetContent={(blockNodes: HMBlockNode[]) => {
-          actor.send({type: 'reset.content'})
-        }}
-      />
-    )
-  }
+  useEffect(() => {
+    console.log('== ACCESSORY: DRAFT', accessoryKey)
+  }, [accessory])
 
   function handleFocusAtMousePos(event: any) {
     let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
@@ -211,62 +184,44 @@ export default function DraftPage() {
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
-          onAccessorySelect={(key: typeof accessoryKey) => {
-            setAccessory(key)
+          onAccessorySelect={(key) => {
+            if (!key) return
+            replace({...route, accessory: {key: key as any}}) // TODO: fix this type
           }}
           accessoryOptions={accessoryOptions}
         >
-          {isNewspaperLayout ? (
-            <YStack f={1} ai="center" jc="center" h="100%">
-              <YStack
-                theme="red"
-                gap="$4"
-                padding="$4"
-                backgroundColor="$red3"
-                borderRadius="$4"
-                boxShadow={dialogBoxShadow}
-              >
-                <Heading size="$3" fontSize="$4">
-                  Document Model Outdated. Upgrade using version 2025.3.7
-                </Heading>
-              </YStack>
-            </YStack>
+          <DraftRebaseBanner />
+          {locationId || editId ? (
+            <DraftAppHeader
+              siteHomeEntity={homeEntity.data}
+              isEditingHomeDoc={
+                homeEntity.data?.id.id == locationId?.id ||
+                homeEntity.data?.id.id == editId?.id
+              }
+              docId={locationId || editId}
+              document={homeEntity.data?.document}
+              draftMetadata={state.context.metadata}
+            >
+              <DocumentEditor
+                editor={editor}
+                state={state}
+                actor={actor}
+                data={data}
+                send={send}
+                handleFocusAtMousePos={handleFocusAtMousePos}
+                isHomeDoc={isEditingHomeDoc}
+              />
+            </DraftAppHeader>
           ) : (
-            <>
-              <DraftRebaseBanner />
-              {locationId || editId ? (
-                <DraftAppHeader
-                  siteHomeEntity={homeEntity.data}
-                  isEditingHomeDoc={
-                    homeEntity.data?.id.id == locationId?.id ||
-                    homeEntity.data?.id.id == editId?.id
-                  }
-                  docId={locationId || editId}
-                  document={homeEntity.data?.document}
-                  draftMetadata={state.context.metadata}
-                >
-                  <DocumentEditor
-                    editor={editor}
-                    state={state}
-                    actor={actor}
-                    data={data}
-                    send={send}
-                    handleFocusAtMousePos={handleFocusAtMousePos}
-                    isHomeDoc={isEditingHomeDoc}
-                  />
-                </DraftAppHeader>
-              ) : (
-                <DocumentEditor
-                  editor={editor}
-                  state={state}
-                  actor={actor}
-                  data={data}
-                  send={send}
-                  handleFocusAtMousePos={handleFocusAtMousePos}
-                  isHomeDoc={isEditingHomeDoc}
-                />
-              )}
-            </>
+            <DocumentEditor
+              editor={editor}
+              state={state}
+              actor={actor}
+              data={data}
+              send={send}
+              handleFocusAtMousePos={handleFocusAtMousePos}
+              isHomeDoc={isEditingHomeDoc}
+            />
           )}
         </AccessoryLayout>
       </XStack>
