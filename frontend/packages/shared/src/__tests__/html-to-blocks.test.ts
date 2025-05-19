@@ -277,4 +277,21 @@ describe('htmlToBlocks', () => {
       link: 'https://www.instagram.com/reel/DHmR21qs2cy/?utm_source=ig_embed&utm_campaign=loading',
     })
   })
+
+  // it('handles twitter embed', async () => {})
+
+  it('handles youtube embed', async () => {
+    const html = `
+      <p><iframe title="YouTube video player" src="https://www.youtube.com/embed/3cWPFs-qGzc?si=fP27uHHxy7AIpa0g" width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"></iframe></p>
+      <p>&nbsp;</p>
+    `
+    const uploadLocalFile = vi.fn()
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Video',
+      link: 'https://www.youtube.com/embed/3cWPFs-qGzc',
+    })
+  })
 })

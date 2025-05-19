@@ -265,16 +265,21 @@ async function exportToFolder(
       : ''
     let processedContent = `<html>\n<body>\n${topImage}\n${mainContent}\n</body>\n</html>`
 
-    const imageRegex = /src="([^"]+)"/g
-    processedContent = processedContent.replace(imageRegex, (match, imgUrl) => {
-      try {
-        const hash = crypto.createHash('md5').update(imgUrl).digest('hex')
-        const ext = path.extname(imgUrl) || '.jpg'
-        return `src="../images/${hash}${ext}"`
-      } catch {
-        return match
+    // Use Cheerio to only rewrite <img> src attributes
+    const $processed = cheerio.load(processedContent)
+    $processed('img').each((_, el) => {
+      const imgUrl = $processed(el).attr('src')
+      if (imgUrl) {
+        try {
+          const hash = crypto.createHash('md5').update(imgUrl).digest('hex')
+          const ext = path.extname(imgUrl) || '.jpg'
+          $processed(el).attr('src', `../images/${hash}${ext}`)
+        } catch {
+          // leave as is
+        }
       }
     })
+    processedContent = $processed.html() || processedContent
 
     const assetRegex = /href="([^"]+\.pdf)"/g
     processedContent = processedContent.replace(

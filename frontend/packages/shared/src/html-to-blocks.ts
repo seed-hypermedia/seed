@@ -102,6 +102,27 @@ export async function htmlToBlocks(
   for (const el of children) {
     const $el = $(el)
 
+    // YouTube iframe embed
+    if ($el.is('p') && $el.find('iframe').length) {
+      const iframe = $el.find('iframe')
+      const src = iframe.attr('src')
+      if (src && src.startsWith('https://www.youtube.com/embed/')) {
+        // Remove query params from src for the block link
+        const url = new URL(src)
+        const cleanSrc = url.origin + url.pathname
+        pushBlock({
+          id: nanoid(8),
+          type: 'Video',
+          link: cleanSrc,
+          revision: nanoid(8),
+          text: '',
+          attributes: {},
+          annotations: [],
+        })
+        continue
+      }
+    }
+
     if ($el.is('p')) {
       const node = await parseParagraphNode(el)
       if (node) pushBlock(node.block)
