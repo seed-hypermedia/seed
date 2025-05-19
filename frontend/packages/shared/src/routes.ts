@@ -33,18 +33,6 @@ export type DocumentCitationsAccessory = z.infer<
   typeof documentCitationsAccessorySchema
 >
 
-export const documentAllDocumentsAccessorySchema = z.object({
-  key: z.literal('all-documents'),
-})
-export type DocumentAllDocumentsAccessory = z.infer<
-  typeof documentAllDocumentsAccessorySchema
->
-
-export const documentAllAccessorySchema = z.object({
-  key: z.literal('all-activity'),
-})
-export type DocumentAllAccessory = z.infer<typeof documentAllAccessorySchema>
-
 export const documentContactsAccessorySchema = z.object({
   key: z.literal('contacts'),
 })
@@ -101,10 +89,8 @@ const documentAccessorySchema = z.discriminatedUnion('key', [
   documentCollaboratorsAccessorySchema,
   documentSuggestedChangesAccessorySchema,
   documentDiscussionsAccessorySchema,
-  documentAllDocumentsAccessorySchema,
   documentContactsAccessorySchema,
   documentOptionsAccessorySchema,
-  documentAllAccessorySchema,
 ])
 export type DocumentAccessory = z.infer<typeof documentAccessorySchema>
 
@@ -194,8 +180,6 @@ export type DocAccessoryOption = {
     | 'directory'
     | 'citations'
     | 'activity'
-    | 'all-activity'
     | 'options'
-    | 'all-documents'
   label: string
 }

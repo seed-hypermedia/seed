@@ -225,10 +225,14 @@ export function isHttpUrl(url: string) {
 }
 
 function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
-  if (nextRoute.key !== 'document') return nextRoute
+  if (nextRoute.key !== 'document' && nextRoute.key !== 'draft')
+    return nextRoute
   if (routes.length === 0) return nextRoute
   const prevRoute = routes[routes.length - 1]
-  if (prevRoute.key == 'document' && nextRoute.key == 'document') {
+  if (
+    prevRoute.key == 'document' ||
+    (prevRoute.key == 'draft' && nextRoute.key == 'document')
+  ) {
     return {
       ...nextRoute,
       accessory:

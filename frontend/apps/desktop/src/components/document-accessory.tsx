@@ -18,11 +18,13 @@ export function useDocumentAccessory({
   state,
   actor,
   isEditingHomeDoc,
+  isNewDraft = false,
 }: {
   docId?: UnpackedHypermediaId
   state?: any // TODO: fix this type
   actor?: ActorRefFrom<typeof draftMachine>
   isEditingHomeDoc?: boolean
+  isNewDraft?: boolean
 }): {
   accessory: ReactNode | null
   accessoryOptions: Array<DocAccessoryOption>
@@ -36,84 +38,82 @@ export function useDocumentAccessory({
   const accessoryKey = route.accessory?.key
   const accessoryOptions: Array<DocAccessoryOption> = []
 
+  if (accessoryKey == 'citations') {
+    accessory = (
+      <CitationsPanel
+        entityId={docId}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
+  } else if (accessoryKey === 'versions') {
+    accessory = <VersionsPanel docId={docId} />
+  } else if (accessoryKey === 'activity') {
+    accessory = (
+      <ActivityPanel
+        docId={docId}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
+  } else if (accessoryKey === 'collaborators') {
+    accessory = <CollaboratorsPanel docId={docId} />
+  } else if (route.accessory?.key === 'discussions') {
+    accessory = (
+      <DiscussionsPanel
+        docId={docId}
+        accessory={route.accessory}
+        onAccessory={(acc) => {
+          replace({...route, accessory: acc})
+        }}
+      />
+    )
+  } else if (accessoryKey === 'directory') {
+    accessory = <DirectoryPanel docId={docId} />
+  } else if (accessoryKey === 'options' || isNewDraft) {
+    // TODO update options panel flow of updating from newspaper layout
+    accessory = (
+      <OptionsPanel
+        draftId={'UPDATE ME'}
+        metadata={state.context.metadata}
+        isHomeDoc={isEditingHomeDoc}
+        onMetadata={(metadata) => {
+          if (!metadata) return
+          actor.send({type: 'change', metadata})
+        }}
+        onResetContent={(blockNodes: HMBlockNode[]) => {
+          actor.send({type: 'reset.content'})
+        }}
+      />
+    )
+  }
+
   if (docId) {
-    if (accessoryKey == 'citations') {
-      accessory = (
-        <CitationsPanel
-          entityId={docId}
-          accessory={route.accessory}
-          onAccessory={(acc) => {
-            replace({...route, accessory: acc})
-          }}
-        />
-      )
-    } else if (accessoryKey === 'versions') {
-      accessory = <VersionsPanel docId={docId} />
-    } else if (accessoryKey === 'activity') {
-      accessory = (
-        <ActivityPanel
-          docId={docId}
-          onAccessory={(acc) => {
-            replace({...route, accessory: acc})
-          }}
-        />
-      )
-    } else if (accessoryKey === 'collaborators') {
-      accessory = <CollaboratorsPanel docId={docId} />
-    } else if (route.accessory?.key === 'discussions') {
-      accessory = (
-        <DiscussionsPanel
-          docId={docId}
-          accessory={route.accessory}
-          onAccessory={(acc) => {
-            replace({...route, accessory: acc})
-          }}
-        />
-      )
-    } else if (accessoryKey === 'directory') {
-      accessory = <DirectoryPanel docId={docId} />
-    } else if (accessoryKey === 'options') {
-      // TODO update options panel flow of updating from newspaper layout
-      accessory = (
-        <OptionsPanel
-          draftId={'UPDATE ME'}
-          metadata={state.context.metadata}
-          isHomeDoc={isEditingHomeDoc}
-          onMetadata={(metadata) => {
-            if (!metadata) return
-            actor.send({type: 'change', metadata})
-          }}
-          onResetContent={(blockNodes: HMBlockNode[]) => {
-            actor.send({type: 'reset.content'})
-          }}
-        />
-      )
-    }
+    accessoryOptions.push({
+      key: 'activity',
+      label: 'All',
+    })
+    accessoryOptions.push({
+      key: 'versions',
+      label: 'Versions',
+    })
 
-    if (docId) {
-      accessoryOptions.push({
-        key: 'activity',
-        label: 'All',
-      })
-      accessoryOptions.push({
-        key: 'versions',
-        label: 'Versions',
-      })
+    accessoryOptions.push({
+      key: 'collaborators',
+      label: 'Collaborators',
+    })
 
-      accessoryOptions.push({
-        key: 'collaborators',
-        label: 'Collaborators',
-      })
-
-      accessoryOptions.push({
-        key: 'discussions',
-        label: 'Discussions',
-      })
-      accessoryOptions.push({
-        key: 'citations',
-        label: 'Citations',
-      })
-    }
+    accessoryOptions.push({
+      key: 'discussions',
+      label: 'Discussions',
+    })
+    accessoryOptions.push({
+      key: 'citations',
+      label: 'Citations',
+    })
   }
 
   return {

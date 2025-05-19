@@ -189,6 +189,7 @@ export default function DraftPage() {
             replace({...route, accessory: {key: key as any}}) // TODO: fix this type
           }}
           accessoryOptions={accessoryOptions}
+          isNewDraft={editId == undefined}
         >
           <DraftRebaseBanner />
           {locationId || editId ? (
