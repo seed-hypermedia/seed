@@ -9,8 +9,12 @@ import {HMAnnotation} from './hm-types'
 export async function htmlToBlocks(
   html: string,
   htmlPath: string,
-  uploadLocalFile: (path: string) => Promise<string | null>,
+  opts: {
+    uploadLocalFile?: (path: string) => Promise<string | null>
+    resolveHMLink?: (href: string) => Promise<string | null>
+  } = {},
 ): Promise<PartialMessage<Block>[]> {
+  const {uploadLocalFile, resolveHMLink} = opts
   const $ = cheerio.load(html)
   const blocks: PartialMessage<Block>[] = []
 
@@ -43,6 +47,33 @@ export async function htmlToBlocks(
               }
             })
 
+            // Find all link tags and create annotations
+            await Promise.all(
+              $el.find('a').map(async (_, linkEl) => {
+                const $link = $(linkEl)
+                const linkText = $link.text()
+                const href = $link.attr('href')
+                const startPos = text.indexOf(linkText, pos)
+                if (startPos !== -1 && href) {
+                  const startOffset = codePointLength(text.slice(0, startPos))
+                  const endOffset = startOffset + codePointLength(linkText)
+                  console.log('~~ found link', href)
+                  const resolvedLink = resolveHMLink
+                    ? await resolveHMLink(href)
+                    : href
+                  if (resolvedLink) {
+                    annotations.push({
+                      type: 'Link',
+                      starts: [startOffset],
+                      ends: [endOffset],
+                      link: resolvedLink,
+                    })
+                  }
+                  pos = startPos + linkText.length
+                }
+              }),
+            )
+
             blocks.push({
               id: nanoid(8),
               type: 'Paragraph',
@@ -59,7 +90,8 @@ export async function htmlToBlocks(
             const src = img.attr('src')
             if (src) {
               const absoluteImageUrl = resolve(htmlPath, '..', src)
-              const uploadedCID = await uploadLocalFile(absoluteImageUrl)
+              const uploadedCID =
+                uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
               if (uploadedCID) {
                 blocks.push({
                   id: nanoid(8),
@@ -77,7 +109,8 @@ export async function htmlToBlocks(
           const src = $el.attr('src')
           if (src) {
             const absoluteImageUrl = resolve(htmlPath, '..', src)
-            const uploadedCID = await uploadLocalFile(absoluteImageUrl)
+            const uploadedCID =
+              uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
             if (uploadedCID) {
               blocks.push({
                 id: nanoid(8),

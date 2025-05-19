@@ -241,6 +241,22 @@ async function exportToFolder(
     $('div.post-item-metadata').remove()
     $('nav.post-navigation').remove()
 
+    $('a').each((_, element) => {
+      const href = $(element).attr('href')
+      if (href) {
+        try {
+          const linkUrl = new URL(href, url)
+          const baseUrl = new URL(url)
+          if (linkUrl.hostname === baseUrl.hostname) {
+            const relativePath = linkUrl.pathname + linkUrl.search
+            $(element).attr('href', relativePath)
+          }
+        } catch {
+          // Invalid URL, leave as is
+        }
+      }
+    })
+
     const mainContent = $('.entry-content').html() || content
 
     let processedContent = `<html>\n<body>\n${mainContent}\n</body>\n</html>`

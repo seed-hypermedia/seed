@@ -3,7 +3,6 @@ import {DialogTitle} from '@/components/dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
-import {useWebImporting} from '@/components/import-doc-button'
 import {ListItem} from '@/components/list-item'
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
@@ -99,29 +98,7 @@ import {
 } from 'tamagui'
 import {z} from 'zod'
 
-export default function SettingsDEVSTUFF() {
-  const importDialog = useWebImporting()
-  return (
-    <>
-      {importDialog.content}
-      <Button
-        onPress={() => {
-          importDialog.open({
-            defaultUrl: 'https://xlavapies.com/',
-            destinationId: hmId(
-              'd',
-              'z6MkuareuNN2h9gJo9551pvfEcUEpGWpSgsxmNRn9mWoQfD7',
-            ),
-          })
-        }}
-      >
-        Test Import
-      </Button>
-    </>
-  )
-}
-
-export function Settings() {
+export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
   const isDark = useIsDark()
   return (

@@ -2,7 +2,12 @@ import {PartialMessage} from '@bufbuild/protobuf'
 import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
-import {hmIdPathToEntityQueryPath, unpackHmId} from '@shm/shared/utils'
+import {
+  hmId,
+  hmIdPathToEntityQueryPath,
+  packHmId,
+  unpackHmId,
+} from '@shm/shared/utils'
 import * as cheerio from 'cheerio'
 import {readFile} from 'fs/promises'
 import http from 'http'
@@ -121,6 +126,10 @@ async function importPost({
   post: PostsFile[number]
   importId: string
 }) {
+  const destinationHmId = unpackHmId(destinationId)
+  if (!destinationHmId) {
+    throw new Error('Invalid destination id')
+  }
   const postHtmlPath = join(
     userDataPath,
     'importer',
@@ -150,7 +159,32 @@ async function importPost({
       }[])
     : []
 
-  const blocks = await htmlToBlocks(postHtml, postHtmlPath, uploadLocalFile)
+  async function resolveHMLink(href: string) {
+    if (!destinationHmId) {
+      throw new Error('Invalid destination id')
+    }
+    if (href[0] === '.') {
+      // handling relative links
+      console.log('~~ relative link', href)
+    } else if (href[0] === '/') {
+      // handling absolute links
+      console.log('~~ absolute site link', href)
+      const path = href.split('/').filter((s) => !!s)
+      const resultLink = packHmId(
+        hmId('d', destinationHmId.uid, {
+          path: [...(destinationHmId.path || []), ...path],
+        }),
+      )
+      console.log('~~ result link', resultLink)
+      return resultLink
+    }
+    return href
+  }
+
+  const blocks = await htmlToBlocks(postHtml, postHtmlPath, {
+    uploadLocalFile,
+    resolveHMLink,
+  })
 
   const parentId = unpackHmId(destinationId)
   if (!parentId) {

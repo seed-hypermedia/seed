@@ -5,9 +5,9 @@ import {htmlToBlocks} from '../html-to-blocks'
 describe('htmlToBlocks', () => {
   it('converts paragraphs to blocks', async () => {
     const html = '<p>Hello world</p><p>Another paragraph</p>'
-    const mockUploadLocalFile = vi.fn()
+    const uploadLocalFile = vi.fn()
 
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(2)
     expect(blocks[0]).toMatchObject({
@@ -22,36 +22,36 @@ describe('htmlToBlocks', () => {
 
   it('converts images to blocks with figure wrapper', async () => {
     const html = '<figure><img src="test.jpg" /></figure>'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
 
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
     })
-    expect(mockUploadLocalFile).toHaveBeenCalledWith('/test/test.jpg')
+    expect(uploadLocalFile).toHaveBeenCalledWith('/test/test.jpg')
   })
 
   it('converts images to blocks', async () => {
     const html = '<img src="test.jpg" />'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
 
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
     })
-    expect(mockUploadLocalFile).toHaveBeenCalledWith('/test/test.jpg')
+    expect(uploadLocalFile).toHaveBeenCalledWith('/test/test.jpg')
   })
 
   it('converts bold text to annotations (b) tag', async () => {
     const html = '<p>hello <b>world</b>!</p>'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
@@ -69,8 +69,8 @@ describe('htmlToBlocks', () => {
 
   it('converts bold text to annotations (strong) tag', async () => {
     const html = '<p>hello <strong>world</strong>!</p>'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
@@ -88,8 +88,8 @@ describe('htmlToBlocks', () => {
 
   it('converts bold text to annotations with utf-8 code point offsets', async () => {
     const html = '<p>😄<strong>a</strong></p>'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0]).toMatchObject({
@@ -108,20 +108,94 @@ describe('htmlToBlocks', () => {
     } satisfies Partial<HMBlock>)
   })
 
+  it('converts text with link to annotation', async () => {
+    const html = '<p>😄<a href="https://github.com">foobar</a></p>'
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'Paragraph',
+      text: '😄foobar',
+      link: '',
+      revision: blocks[0].revision as string,
+      id: blocks[0].id as string,
+      annotations: [
+        {
+          type: 'Link',
+          starts: [1],
+          ends: [7],
+          link: 'https://github.com',
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('converts text with hm link to annotation', async () => {
+    const html = '<p>😄<a href="https://github.com">foobar</a></p>'
+    const resolveHMLink = vi
+      .fn()
+      .mockResolvedValue(Promise.resolve('hm://foobar/baz'))
+    const blocks = await htmlToBlocks(html, '/test/path', {resolveHMLink})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'Paragraph',
+      text: '😄foobar',
+      link: '',
+      revision: blocks[0].revision as string,
+      id: blocks[0].id as string,
+      annotations: [
+        {
+          type: 'Link',
+          starts: [1],
+          ends: [7],
+          link: 'hm://foobar/baz',
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('handles paragraphs with both links and bolds', async () => {
+    const html =
+      '<p>foo <a href="https://github.com">bar</a> <strong>baz</strong></p>'
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo bar baz',
+      annotations: [
+        {
+          type: 'Link',
+          starts: [4],
+          ends: [7],
+          link: 'https://github.com',
+        } satisfies HMAnnotation,
+        {
+          type: 'Bold',
+          starts: [8],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
   it('handles empty paragraphs', async () => {
     const html = '<p></p><p>  </p>'
-    const mockUploadLocalFile = vi.fn()
+    const uploadLocalFile = vi.fn()
 
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(0)
   })
 
   it('handles failed image uploads', async () => {
     const html = '<figure><img src="test.jpg" /></figure>'
-    const mockUploadLocalFile = vi.fn().mockResolvedValue(null)
+    const uploadLocalFile = vi.fn().mockResolvedValue(null)
 
-    const blocks = await htmlToBlocks(html, '/test/path', mockUploadLocalFile)
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(0)
   })
