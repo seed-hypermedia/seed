@@ -1,6 +1,6 @@
 export default function Publishing() {
   return (
-    <section className="w-full px-4 py-20 bg-gradient-to-b from-white to-[#d3f0e8] text-center">
+    <section className="w-full px-4 py-20 bg-green-fade-to text-center">
       <div className="max-w-5xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-left">
           Your Publications With No Barriers
@@ -45,7 +45,7 @@ export default function Publishing() {
         </div>
 
         {/* Demo Video */}
-        <div className="mt-16 max-w-4xl mx-auto overflow-hidden rounded-xl shadow-md">
+        <div className="mt-16 w-full mx-auto overflow-hidden rounded-xl shadow-md">
           <video
             src="/videos/publishing-demo.mp4"
             autoPlay
