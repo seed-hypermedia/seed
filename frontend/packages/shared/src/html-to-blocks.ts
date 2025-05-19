@@ -179,6 +179,25 @@ export async function htmlToBlocks(
         }
         blocks.push(imageBlockNode)
       }
+    } else if ($el.is('blockquote.instagram-media')) {
+      // Instagram embed
+      let link = $el.attr('data-instgrm-permalink')
+      if (!link) {
+        // fallback: try to find the first <a> inside
+        const a = $el.find('a[href]').first()
+        link = a.attr('href')
+      }
+      if (link) {
+        pushBlock({
+          id: nanoid(8),
+          type: 'WebEmbed',
+          link,
+          revision: nanoid(8),
+          text: '',
+          attributes: {},
+          annotations: [],
+        })
+      }
     }
   }
 
