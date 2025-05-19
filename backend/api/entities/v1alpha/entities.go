@@ -289,7 +289,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
 	cleanQuery := re.ReplaceAllString(in.Query, "")
-	if strings.Replace(cleanQuery, " ", "", -1) == "" {
+	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
 
@@ -466,7 +466,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
 			}
-
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			DocId:       docIDs[match.Index],
