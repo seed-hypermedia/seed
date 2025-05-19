@@ -1,9 +1,25 @@
+import {PartialMessage} from '@bufbuild/protobuf'
+import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {htmlToBlocks} from '@shm/shared/html-to-blocks'
+import {
+  hmId,
+  hmIdPathToEntityQueryPath,
+  packHmId,
+  unpackHmId,
+} from '@shm/shared/utils'
 import * as cheerio from 'cheerio'
+import {readFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
+import {nanoid} from 'nanoid'
+import {join} from 'path'
 import z from 'zod'
+import {grpcClient} from './app-grpc'
+import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
+import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -15,6 +31,17 @@ export async function uploadFile(file: Blob | string) {
   })
   const data = await response.text()
   return data
+}
+
+export async function uploadLocalFile(filePath: string) {
+  try {
+    const fileContent = await readFile(filePath)
+    const blob = new Blob([fileContent])
+    return uploadFile(blob)
+  } catch (e) {
+    console.error('Error uploading local file', filePath, e)
+    return null
+  }
 }
 
 function downloadFile(fileUrl: string): Promise<Blob> {
@@ -54,7 +81,199 @@ export function extractMetaTags(html: string) {
   return metaTags
 }
 
+type ImportStatus =
+  | {
+      mode: 'importing'
+    }
+  | {
+      mode: 'error'
+      error: string
+    }
+  | {
+      mode: 'ready'
+      result: Awaited<ReturnType<typeof scrapeUrl>>
+    }
+
+let importingStatus: Record<
+  string,
+  (ScrapeStatus & {mode: 'scraping'}) | ImportStatus
+> = {}
+
+async function importSite(url: string, importId: string) {
+  return await scrapeUrl(url, importId, (status) => {
+    importingStatus[importId] = {...status, mode: 'scraping'}
+  })
+}
+
+async function startImport(url: string, importId: string) {
+  importingStatus[importId] = {mode: 'importing'}
+  importSite(url, importId)
+    .then((result) => {
+      importingStatus[importId] = {mode: 'ready', result}
+    })
+    .catch((error) => {
+      importingStatus[importId] = {mode: 'error', error: error.message}
+    })
+}
+
+async function importPost({
+  destinationId,
+  signAccountUid,
+  post,
+  importId,
+}: {
+  destinationId: string
+  signAccountUid: string
+  post: PostsFile[number]
+  importId: string
+}) {
+  const destinationHmId = unpackHmId(destinationId)
+  if (!destinationHmId) {
+    throw new Error('Invalid destination id')
+  }
+  const postHtmlPath = join(
+    userDataPath,
+    'importer',
+    'scrapes',
+    importId,
+    'pages',
+    post.htmlFile,
+  )
+  const postHtml = await readFile(postHtmlPath, {encoding: 'utf-8'})
+  const postWpMetadataJsonPath = post.wordpressMetadataFile
+    ? join(
+        userDataPath,
+        'importer',
+        'scrapes',
+        importId,
+        'metadata',
+        post.wordpressMetadataFile,
+      )
+    : null
+  const postWpMetadataJson =
+    postWpMetadataJsonPath && (await readFile(postWpMetadataJsonPath))
+  const postWpMetadata = postWpMetadataJson
+    ? (JSON.parse(postWpMetadataJson.toString()) as {
+        id?: number
+        date?: string
+        date_gmt?: string
+      }[])
+    : []
+
+  async function resolveHMLink(href: string) {
+    if (!destinationHmId) {
+      throw new Error('Invalid destination id')
+    }
+    if (href[0] === '.') {
+      // handling relative links
+      console.log('~~ relative link', href)
+    } else if (href[0] === '/') {
+      // handling absolute links
+      console.log('~~ absolute site link', href)
+      const path = href.split('/').filter((s) => !!s)
+      const resultLink = packHmId(
+        hmId('d', destinationHmId.uid, {
+          path: [...(destinationHmId.path || []), ...path],
+        }),
+      )
+      console.log('~~ result link', resultLink)
+      return resultLink
+    }
+    return href
+  }
+
+  const blocks = await htmlToBlocks(postHtml, postHtmlPath, {
+    uploadLocalFile,
+    resolveHMLink,
+  })
+
+  const parentId = unpackHmId(destinationId)
+  if (!parentId) {
+    throw new Error('Invalid destination id')
+  }
+  const postUrl = new URL(post.path)
+  const docPath = [
+    ...(parentId.path || []),
+    ...postUrl.pathname.split('/').filter((s) => !!s),
+  ]
+  let displayPublishTime: string | null = postWpMetadata?.[0]?.date_gmt
+    ? new Date(postWpMetadata?.[0]?.date_gmt).toDateString()
+    : null
+  const changes: DocumentChange[] = []
+  function addChange(op: PartialMessage<DocumentChange>['op']) {
+    changes.push(
+      new DocumentChange({
+        op,
+      }),
+    )
+  }
+  addChange({
+    case: 'setMetadata',
+    value: {
+      key: 'name',
+      value: post.title,
+    },
+  })
+  if (displayPublishTime) {
+    addChange({
+      case: 'setMetadata',
+      value: {
+        key: 'displayPublishTime',
+        value: displayPublishTime,
+      },
+    })
+  }
+  changes.push(...changesForBlockNodes(blocks, ''))
+  const resp = await grpcClient.documents.createDocumentChange({
+    signingKeyName: signAccountUid,
+    account: parentId.uid,
+    path: hmIdPathToEntityQueryPath(docPath),
+    changes,
+  })
+  if (resp) {
+    // console.log('Document created', resp)
+  }
+}
+
 export const webImportingApi = t.router({
+  importWebSite: t.procedure
+    .input(z.object({url: z.string()}).strict())
+    .mutation(async ({input}) => {
+      const importId = nanoid(10)
+      startImport(input.url, importId)
+      return {importId}
+    }),
+  importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {
+    return importingStatus[input]
+  }),
+  importWebSiteConfirm: t.procedure
+    .input(
+      z
+        .object({
+          importId: z.string(),
+          destinationId: z.string(),
+          signAccountUid: z.string(),
+        })
+        .strict(),
+    )
+    .mutation(async ({input}) => {
+      const {importId, destinationId, signAccountUid} = input
+      const postsData = await readFile(
+        join(userDataPath, 'importer', 'scrapes', importId, 'posts.json'),
+      )
+      const posts = JSON.parse(postsData.toString()) as PostsFile
+      for (const post of posts) {
+        await importPost({
+          importId,
+          destinationId,
+          signAccountUid,
+          post,
+        })
+      }
+      console.log('Will import', posts.length, 'posts')
+      console.log({importId, destinationId, signAccountUid})
+      return {}
+    }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const file = await downloadFile(input)
     const uploadedCID = await uploadFile(file)
@@ -95,3 +314,43 @@ export const webImportingApi = t.router({
     return null
   }),
 })
+
+function changesForBlockNodes(
+  nodes: HMBlockNode[],
+  parentId: string,
+): DocumentChange[] {
+  const changes: DocumentChange[] = []
+
+  let lastPlacedBlockId = ''
+
+  nodes.forEach((node) => {
+    const block = node.block
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'moveBlock',
+          value: {
+            blockId: block.id,
+            parent: parentId,
+            leftSibling: lastPlacedBlockId,
+          },
+        },
+      }),
+    )
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: block,
+        },
+      }),
+    )
+    lastPlacedBlockId = block.id || ''
+
+    if (node.children) {
+      changes.push(...changesForBlockNodes(node.children, block.id))
+    }
+  })
+
+  return changes
+}
