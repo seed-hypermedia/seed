@@ -405,14 +405,18 @@ const SearchInput = ({
   })
 
   // const recents = useRecents()
-  const searchResults = useSearch(search, {})
+  const searchResults = useSearch(search, {}, true, 20 - search.length)
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities
       ?.map((item) => {
         return {
           title: item.title || item.id.uid,
-          key: item.id.id,
+          key: packHmId(item.id),
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : '',
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
             setLink(item.id.id)

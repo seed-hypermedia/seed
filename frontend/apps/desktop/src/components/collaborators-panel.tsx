@@ -113,6 +113,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
         })
         .filter((result) => {
           if (!result) return false // probably id was not parsed correctly
+          if (!result.id.latest) return false // this is not the latest version
           if (result.id.path?.length) return false // this is a directory document, not an account
           if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
           if (

@@ -303,6 +303,7 @@ function SearchContent({
   if (searchQ === '') {
     searchedLocations = writableDocuments
       .filter((d) => !d.entity.id.path?.length)
+      .filter((d) => d.entity.id.latest)
       .map((d) => ({
         id: d.entity.id,
         metadata: d.entity.document?.metadata || null,
@@ -315,6 +316,7 @@ function SearchContent({
             isIdParentOfOrEqual(writable.entity.id, d.id),
           )
         })
+        .filter((d) => d.id.latest)
         .map((d) => ({
           id: d.id,
           metadata: {name: d.title},

@@ -15,6 +15,7 @@ import {
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
+  packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
@@ -241,21 +242,27 @@ const EmbedLauncherInput = ({
   const [focused, setFocused] = useState(false)
   const {comment} = useDocContentContext()
   const recents = useRecents()
-  const searchResults = useSearch(search, {})
+  const searchResults = useSearch(search, {}, true, 20 - search.length)
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities
       ?.map((item) => {
         const title = item.title || item.id.uid
+        const sanitizedId = {...item.id, blockRange: null}
         return {
-          key: item.id.id,
+          key: packHmId(sanitizedId),
           title,
           path: item.parentNames,
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => assign({props: {url: item.id.id}} as MediaType),
+          onSelect: () =>
+            assign({props: {url: packHmId(sanitizedId)}} as MediaType),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : '',
         }
       })
       .filter(Boolean) || []

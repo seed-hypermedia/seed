@@ -18,6 +18,7 @@ import {
   parseCustomURL,
   parseFragment,
   unpackHmId,
+  packHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
   RecentSearchResultItem,
@@ -42,7 +43,7 @@ export function SearchInput({
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
-  const searchResults = useSearch(search, {})
+  const searchResults = useSearch(search, {}, true, 48 - search.length)
 
   let queryItem: null | SearchResult = useMemo(() => {
     if (
@@ -104,7 +105,7 @@ export function SearchInput({
       ?.map((item) => {
         const title = item.title || item.id.uid
         return {
-          key: item.id.id,
+          key: packHmId(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
@@ -112,6 +113,10 @@ export function SearchInput({
           onMouseEnter: () => {},
           onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          searchQuery: item.searchQuery,
+          versionTime: item.versionTime
+            ? item.versionTime.toDate().toLocaleString()
+            : '',
         }
       })
       .filter(Boolean) ?? []
@@ -125,7 +130,7 @@ export function SearchInput({
       })
       .map(({id, name}, index) => {
         return {
-          key: id.id,
+          key: packHmId(id),
           title: name,
           id,
           path: id.path || [],

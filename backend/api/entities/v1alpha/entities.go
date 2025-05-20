@@ -4,18 +4,24 @@ package entities
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/hlc"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ipfs/go-cid"
 
@@ -179,6 +185,68 @@ func (task *discoveryTask) start(api *Server) {
 	}
 }
 
+var qGetFTS = dqb.Str(`
+WITH fts_data AS (
+SELECT
+    fts.raw_content,
+    fts.type,
+    fts.block_id,
+	fts.version,
+	fts.blob_id,
+    resources.iri,
+    structural_blobs.genesis_blob,
+    fts.rank
+    
+FROM fts
+JOIN structural_blobs ON structural_blobs.id = fts.blob_id
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE fts.raw_content MATCH :ftsStr AND
+fts.type IN (:entityTitle , :entityDoc , :entityComment) ORDER BY rank
+)
+
+SELECT
+    fts_data.raw_content,
+    fts_data.type,
+	fts_data.block_id,
+	fts_data.version,
+	fts_data.blob_id,
+    resources.iri,
+    public_keys.principal AS author,
+    blobs.codec,
+    blobs.multihash,
+    document_generations.metadata,
+	(
+    SELECT
+      json_group_array(
+        json_object(
+          'codec',    b2.codec,
+          'multihash', hex(b2.multihash)
+        )
+      )
+    FROM json_each(document_generations.heads) AS a
+      JOIN blobs AS b2
+        ON b2.id = a.value
+  	) AS heads,
+	structural_blobs.ts
+    
+FROM fts_data
+JOIN structural_blobs ON ((fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (fts_data.blob_id = structural_blobs.id AND structural_blobs.type = 'Comment')
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN document_generations ON document_generations.resource = resources.id
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resources.iri IS NOT NULL
+GROUP BY fts_data.raw_content, 
+fts_data.type, 
+fts_data.block_id, 
+fts_data.version, 
+fts_data.blob_id, 
+resources.iri, 
+author 
+ORDER BY fts_data.rank;`)
+
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg 
 	INNER JOIN resources r ON r.id = dg.resource 
@@ -192,11 +260,20 @@ var qGetParentsMetadata = dqb.Str(`
 
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
-	var names []string
+	var contents []string
+	var rawContent []string
 	var icons []string
 	var iris []string
 	var owners []string
-	var limit = 30
+	var blockIDs []string
+	var docIDs []string
+	var blobCIDs []string
+	var blobIDs []int64
+	var contentType []string
+	var versions []string
+	var versionTimes []*timestamppb.Timestamp
+
+	var latestVersions []string
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -206,36 +283,118 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	type icon struct {
 		Icon value `json:"icon"`
 	}
+
+	type head struct {
+		Multihash string `json:"multihash"`
+		Codec     uint64 `json:"codec"`
+	}
+	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
+	cleanQuery := re.ReplaceAllString(in.Query, "")
+	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
+		return nil, nil
+	}
+
+	var bodyMatches []fuzzy.Match
+	const entityTypeTitle = "title"
+	var entityTypeDoc, entityTypeComment interface{}
+
+	if in.IncludeBody {
+		entityTypeDoc = "document"
+		entityTypeComment = "comment"
+	}
+	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
+	if ftsStr[len(ftsStr)-1] == '+' {
+		ftsStr = ftsStr[:len(ftsStr)-1]
+	}
+	ftsStr += "*"
+	if in.ContextSize < 2 {
+		in.ContextSize = 48
+	}
+	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
+	contextAfter := int(in.ContextSize) - contextBefore
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
-			var title title
+		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var icon icon
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
+			var heads []head
+			fullMatchStr := stmt.ColumnText(0)
+			rawContent = append(rawContent, fullMatchStr)
+			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(fullMatchStr, cleanQuery)
+			if firstRuneOffset == -1 {
 				return nil
 			}
-			names = append(names, title.Name.Value)
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &icon); err != nil {
+			// before extracting matchStr, convert fullMatchStr to runes
+			fullRunes := []rune(fullMatchStr)
+			nRunes := len(fullRunes)
+
+			var contextStart, contextEndRune int
+			// default to full slice
+			contextEndRune = nRunes
+
+			if firstRuneOffset > contextBefore {
+				contextStart = firstRuneOffset - contextBefore
+			}
+			if firstRuneOffset+matchedRunes < nRunes-contextAfter {
+				contextEndRune = firstRuneOffset + matchedRunes + contextAfter
+			}
+
+			// build substring on rune boundaries
+			matchStr := string(fullRunes[contextStart:contextEndRune])
+			contents = append(contents, matchStr)
+			if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
 				return nil
 			}
 			icons = append(icons, icon.Icon.Value)
-			iris = append(iris, stmt.ColumnText(1))
-			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
+			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(7)), stmt.ColumnBytesUnsafe(8)).String()
+			blobCIDs = append(blobCIDs, blobCID)
+			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
+			cType := stmt.ColumnText(1)
+			iri := stmt.ColumnText(5)
+			docIDs = append(docIDs, iri)
+			if err := json.Unmarshal(stmt.ColumnBytes(10), &heads); err != nil {
+				return err
+			}
+
+			cids := make([]cid.Cid, len(heads))
+			for i, h := range heads {
+				mhBinary, err := hex.DecodeString(h.Multihash)
+				if err != nil {
+					return err
+				}
+				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
+			}
+			latestVersion := docmodel.NewVersion(cids...).String()
+			version := stmt.ColumnText(3)
+			latestVersions = append(latestVersions, latestVersion)
+			versions = append(versions, version)
+			ts := hlc.Timestamp(stmt.ColumnInt64(11) * 1000).Time()
+			versionTimes = append(versionTimes, timestamppb.New(ts))
+			if cType == "comment" {
+				iris = append(iris, "hm://c/"+blobCID)
+			} else {
+				iris = append(iris, iri)
+			}
+			contentType = append(contentType, cType)
+			blockIDs = append(blockIDs, stmt.ColumnText(2))
+			ownerID := core.Principal(stmt.ColumnBytes(6)).String()
 			owners = append(owners, ownerID)
+			offsets := []int{firstRuneOffset}
+			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
+				offsets = append(offsets, i)
+			}
+			bodyMatches = append(bodyMatches, fuzzy.Match{
+				Str:            matchStr,
+				Index:          len(contents) - 1,
+				Score:          1,
+				MatchedIndexes: offsets,
+			})
 			return nil
-		})
+		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment)
 	}); err != nil {
 		return nil, err
 	}
-	matches := fuzzy.Find(in.Query, names)
+
 	matchingEntities := []*entities.Entity{}
-	for i, match := range matches {
-		if match.Score < 0 {
-			limit++
-			continue
-		}
-		if i >= limit {
-			break
-		}
+	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
 		breadcrum := strings.Split(strings.TrimPrefix(iris[match.Index], "hm://"), "/")
 		var root string
@@ -260,25 +419,128 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					return nil
 				}
 				parentTitles = append(parentTitles, title.Name.Value)
-				iris = append(iris, iri)
-				ownerID := core.Principal(stmt.ColumnBytes(2)).String()
-				owners = append(owners, ownerID)
 				return nil
 			}, root)
 		}); err != nil {
 			return nil, err
 		}
+		return parentTitles, nil
+	}
+
+	for _, match := range bodyMatches {
+		parentTitles, err := getParentsFcn(match)
+		if err != nil {
+			return nil, err
+		}
+
+		offsets := make([]int64, len(match.MatchedIndexes))
+		for j, off := range match.MatchedIndexes {
+			offsets[j] = int64(off)
+		}
+		id := iris[match.Index]
+		if versions[match.Index] != "" && contentType[match.Index] != "comment" {
+			var version string
+			versions[match.Index] += "&l"
+			if latestVersions[match.Index] != versions[match.Index] {
+				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
+						version = stmt.ColumnText(0)
+						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
+						versionTimes[match.Index] = timestamppb.New(ts)
+						return nil
+					}, blobIDs[match.Index], blockIDs[match.Index], rawContent[match.Index])
+				}); err != nil {
+					return nil, err
+				}
+				if version != "" {
+					versions[match.Index] = version
+				}
+			}
+
+			if versions[match.Index] != "" {
+				id += "?v=" + versions[match.Index]
+			}
+
+			if blockIDs[match.Index] != "" {
+				id += "#" + blockIDs[match.Index]
+				if len(offsets) > 1 {
+					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
+				}
+			}
+		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
-			Id:          iris[match.Index],
-			Title:       match.Str,
+			DocId:       docIDs[match.Index],
+			Id:          id,
+			BlobId:      blobCIDs[match.Index],
+			Type:        contentType[match.Index],
+			VersionTime: versionTimes[match.Index],
+			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        icons[match.Index],
 			Owner:       owners[match.Index]})
-		fmt.Println("Entity ID: ", iris[match.Index])
-
 	}
+
+	// reorder matchingEntities: titles first, then by DocId, then by VersionTime (newest first)
+	sort.Slice(matchingEntities, func(i, j int) bool {
+		a, b := matchingEntities[i], matchingEntities[j]
+		isTitleA := a.Type == "title"
+		isTitleB := b.Type == "title"
+		if isTitleA != isTitleB {
+			return isTitleA
+		}
+		if a.DocId != b.DocId {
+			return a.DocId < b.DocId
+		}
+		return a.VersionTime.AsTime().After(b.VersionTime.AsTime())
+	})
+
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
+
+var qGetLatestBlockChange = dqb.Str(`
+WITH doc_changes AS (
+SELECT 
+blob_id,
+block_id,
+raw_content,
+version
+FROM fts
+WHERE blob_id in (
+SELECT
+id
+FROM structural_blobs
+WHERE (structural_blobs.genesis_blob IN (SELECT genesis_blob from structural_blobs WHERE resource in (
+WITH resource_data AS (
+SELECT
+    structural_blobs.resource,
+    structural_blobs.id,
+    structural_blobs.genesis_blob,
+    structural_blobs.type
+    
+FROM structural_blobs
+WHERE id = :blob_id
+)
+SELECT
+structural_blobs.resource
+FROM structural_blobs 
+JOIN resource_data ON (resource_data.genesis_blob = structural_blobs.genesis_blob OR resource_data.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref'
+WHERE structural_blobs.resource IS NOT NULL
+LIMIT 1
+)) OR structural_blobs.id = :blob_id ) AND structural_blobs.type = 'Change')
+), latest_changes AS(
+SELECT 
+version,
+blob_id
+FROM doc_changes 
+WHERE blob_id > :blob_id AND (block_id = :block_id OR raw_content = :raw_content)
+ORDER BY blob_id ASC LIMIT 1
+)
+SELECT version, blob_id, structural_blobs.ts
+FROM doc_changes
+JOIN structural_blobs ON structural_blobs.id = doc_changes.blob_id
+WHERE blob_id BETWEEN :blob_id and (select blob_id from latest_changes)-1
+ORDER BY blob_id DESC LIMIT 1;
+`)
 
 // DeleteEntity implements the corresponding gRPC method.
 // func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {
@@ -516,13 +778,14 @@ var qEntitiesLookupID = dqb.Str(`
 `)
 
 const qListMentionsTpl = `
-WITH ts_changes AS (
+WITH changes AS (
 SELECT
-    structural_blobs.ts,
+    structural_blobs.genesis_blob,
     resource_links.id AS link_id,
     resource_links.is_pinned,
     blobs.codec,
     blobs.multihash,
+	blobs.id,
 	public_keys.principal AS author,
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
@@ -565,18 +828,17 @@ SELECT
     public_keys.principal AS author,
     structural_blobs.ts,
     'Ref' AS blob_type,
-    ts_changes.is_pinned,
-    ts_changes.anchor,
-	ts_changes.target_version,
-	ts_changes.target_fragment,
+    changes.is_pinned,
+    changes.anchor,
+	changes.target_version,
+	changes.target_fragment,
     blobs.id AS blob_id,
-    ts_changes.link_id
+    changes.link_id
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN ts_changes on ts_changes.ts = structural_blobs.ts
-AND structural_blobs.type IN ('Ref')
+JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
 AND blobs.id %s :blob_id
 ORDER BY blobs.id %s
 LIMIT :page_size + 1;
@@ -623,4 +885,49 @@ func (mc mentionsCursor) String() string {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func patternToRegex(pattern string) string {
+	// If the user specifies ^ or $ at the beginning or end, we keep them.
+	startAnchor := strings.HasPrefix(pattern, "^")
+	endAnchor := strings.HasSuffix(pattern, "$")
+	// Remove anchors temporarily.
+	p := pattern
+	if startAnchor {
+		p = strings.TrimPrefix(p, "^")
+	}
+	if endAnchor {
+		p = strings.TrimSuffix(p, "$")
+	}
+	// Escape meta characters.
+	quoted := regexp.QuoteMeta(p)
+	// Replace escaped wildcard with a pattern matching non-whitespace characters.
+	quoted = strings.ReplaceAll(quoted, "\\*", "[^\\s]*")
+	if startAnchor {
+		quoted = "^" + quoted
+	}
+	if endAnchor {
+		quoted = quoted + "$"
+	}
+	// Make search case-insensitive.
+	return "(?i)" + quoted
+}
+
+func indexOfQueryPattern(haystack, pattern string) (startRunes, startChars, matchedRunes, matchedChars int) {
+	// Convert the pattern to a regex pattern.
+	regexPattern := patternToRegex(pattern)
+	re := regexp.MustCompile(regexPattern)
+	loc := re.FindStringIndex(haystack)
+	if loc == nil {
+		return -1, -1, 0, 0
+	}
+	// The start index in runes.
+	startRunes = utf8.RuneCountInString(haystack[:loc[0]])
+	// The start index in characters (bytes).
+	startChars = loc[0]
+	// The matched length in runes.
+	matchedRunes = utf8.RuneCountInString(haystack[loc[0]:loc[1]])
+	// The matched length in characters (bytes).
+	matchedChars = loc[1] - loc[0]
+	return
 }
