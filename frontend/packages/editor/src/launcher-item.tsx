@@ -77,24 +77,31 @@ export function LauncherItem({
               justifyContent="flex-start"
               alignItems="center"
             >
-
               <SizableText numberOfLines={1} fontWeight={600}>
-                {highlightSearchMatch(item.title, item.searchQuery, { fontWeight: 600 })}
+                {highlightSearchMatch(item.title, item.searchQuery, {
+                  fontWeight: 600,
+                })}
               </SizableText>
-              <YStack flex={1} justifyContent="flex-start" alignItems="flex-end">
+              <YStack
+                flex={1}
+                justifyContent="flex-start"
+                alignItems="flex-end"
+              >
                 <SizableText
                   numberOfLines={1}
                   fontWeight={300}
                   fontSize="$2"
-                  color={ unpackHmId(item.key)?.latest ? '$green10' : undefined }
+                  color={unpackHmId(item.key)?.latest ? '$green10' : undefined}
                 >
-                  { unpackHmId(item.key)?.latest ? 'Latest Version' : item.versionTime ? item.versionTime +' Version' :''
-
-                  }
+                  {unpackHmId(item.key)?.latest
+                    ? 'Latest Version'
+                    : item.versionTime
+                    ? item.versionTime + ' Version'
+                    : ''}
                 </SizableText>
               </YStack>
             </XStack>
-            
+
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
                 {collapsedPath.join(' / ')}

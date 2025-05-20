@@ -110,7 +110,7 @@ export function highlightSearchMatch(
   text: string,
   highlight: string = '',
   normalProps = {},
-  highlightProps = { color: '$yellow10', fontWeight: '800' }
+  highlightProps = {color: '$yellow10', fontWeight: '800'},
 ) {
   if (!highlight) return <SizableText {...normalProps}>{text}</SizableText>
   const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'))
@@ -119,10 +119,7 @@ export function highlightSearchMatch(
       {parts.map((part, i) => {
         const isMatch = part.toLowerCase() === highlight.toLowerCase()
         return (
-          <SizableText
-            key={i}
-            {...(isMatch ? highlightProps : normalProps)}
-          >
+          <SizableText key={i} {...(isMatch ? highlightProps : normalProps)}>
             {part}
           </SizableText>
         )
@@ -136,7 +133,7 @@ export function SearchResultItem({
   selected = false,
 }: {
   item: SearchResult
-  selected: boolean,
+  selected: boolean
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
@@ -188,22 +185,30 @@ export function SearchResultItem({
               alignItems="center"
             >
               <SizableText numberOfLines={1} fontWeight={600}>
-                {highlightSearchMatch(item.title, item.searchQuery, { fontWeight: 600 })}
+                {highlightSearchMatch(item.title, item.searchQuery, {
+                  fontWeight: 600,
+                })}
               </SizableText>
-              <YStack flex={1} justifyContent="flex-start" alignItems="flex-end">
+              <YStack
+                flex={1}
+                justifyContent="flex-start"
+                alignItems="flex-end"
+              >
                 <SizableText
                   numberOfLines={1}
                   fontWeight={300}
                   fontSize="$2"
-                  color={ unpackHmId(item.key)?.latest ? '$green10' : undefined }
+                  color={unpackHmId(item.key)?.latest ? '$green10' : undefined}
                 >
-                  { unpackHmId(item.key)?.latest ? 'Latest Version' : item.versionTime ? item.versionTime +' Version' :''
-
-                  }
+                  {unpackHmId(item.key)?.latest
+                    ? 'Latest Version'
+                    : item.versionTime
+                    ? item.versionTime + ' Version'
+                    : ''}
                 </SizableText>
               </YStack>
             </XStack>
-            
+
             {!!item.path ? (
               <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
                 {collapsedPath.join(' / ')}

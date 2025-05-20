@@ -248,7 +248,7 @@ const EmbedLauncherInput = ({
     searchResults.data?.entities
       ?.map((item) => {
         const title = item.title || item.id.uid
-        const sanitizedId = { ...item.id, blockRange: null }
+        const sanitizedId = {...item.id, blockRange: null}
         return {
           key: packHmId(sanitizedId),
           title,
@@ -257,12 +257,12 @@ const EmbedLauncherInput = ({
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () =>
-            assign({ props: { url: packHmId(sanitizedId) } } as MediaType),
+            assign({props: {url: packHmId(sanitizedId)}} as MediaType),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
-            : "",
+            : '',
         }
       })
       .filter(Boolean) || []
@@ -348,7 +348,7 @@ const EmbedLauncherInput = ({
             ) : (
               <LauncherItem item={item} {...sharedProps} />
             )}
-            
+
             {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
           </>
         )

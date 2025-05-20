@@ -18,7 +18,7 @@ import {
   parseCustomURL,
   parseFragment,
   unpackHmId,
-  packHmId
+  packHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
   RecentSearchResultItem,
@@ -43,7 +43,7 @@ export function SearchInput({
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
-  const searchResults = useSearch(search, {}, true, 48-search.length)
+  const searchResults = useSearch(search, {}, true, 48 - search.length)
 
   let queryItem: null | SearchResult = useMemo(() => {
     if (
@@ -111,13 +111,12 @@ export function SearchInput({
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () =>
-            onSelect({ id: item.id, route: appRouteOfId(item.id) }),
+          onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
-            : "",
+            : '',
         }
       })
       .filter(Boolean) ?? []
