@@ -6,6 +6,9 @@ import Publishing from "../components/Publishing";
 import Footer from "../layout/Footer";
 import Navbar from "../layout/Navbar";
 import Community from "../components/Community";
+import Linking from "../components/Linking";
+import Protocol from "../components/Protocol";
+import GetStarted from "../components/GetStarted";
 
 const Home: React.FC = () => {
   return (
@@ -16,6 +19,9 @@ const Home: React.FC = () => {
       <Identity />
       <Collaboration />
       <Community />
+      <Linking />
+      <Protocol />
+      <GetStarted />
       <Footer />
     </div>
   );
