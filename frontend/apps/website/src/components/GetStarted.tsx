@@ -13,7 +13,8 @@ export default function GetStarted() {
             It's Time To Get Started!
           </h2>
           <a
-            href="/download"
+            href="https://github.com/seed-hypermedia/seed/releases" // to-do
+            target="_blank"
             className="inline-flex items-center px-5 py-2 bg-green-700 text-white rounded-md hover:bg-green-800 transition"
           >
             <Download size={17} className="mr-2" />
