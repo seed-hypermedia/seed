@@ -16,6 +16,7 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -478,6 +479,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Icon:        icons[match.Index],
 			Owner:       owners[match.Index]})
 	}
+
+	// reorder matchingEntities: titles first, then by DocId, then by VersionTime (newest first)
+	sort.Slice(matchingEntities, func(i, j int) bool {
+		a, b := matchingEntities[i], matchingEntities[j]
+		isTitleA := a.Type == "title"
+		isTitleB := b.Type == "title"
+		if isTitleA != isTitleB {
+			return isTitleA
+		}
+		if a.DocId != b.DocId {
+			return a.DocId < b.DocId
+		}
+		return a.VersionTime.AsTime().After(b.VersionTime.AsTime())
+	})
+
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
 
