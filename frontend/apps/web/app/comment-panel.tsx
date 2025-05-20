@@ -13,7 +13,7 @@ import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff, X} from '@tamagui/lucide-icons'
-import {useCallback, useMemo} from 'react'
+import React, {useCallback, useMemo} from 'react'
 import {Button, SizableText, XStack, YStack} from 'tamagui'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -37,7 +37,9 @@ type DiscussionsPanelProps = {
   handleStartDiscussion?: () => void
 }
 
-export function WebDiscussionsPanel(props: DiscussionsPanelProps) {
+export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
+
+function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   const {homeId, commentId, blockId, siteHost, handleBack, handleClose} = props
 
   const isDark = useIsDark()

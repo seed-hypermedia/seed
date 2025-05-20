@@ -324,12 +324,15 @@ export function DocumentPage(props: SiteDocumentPayload) {
     }
   }
 
-  function onBlockCommentClick(blockId?: string | null) {
-    setActivePanel({type: 'discussions', blockId: blockId || undefined})
-    if (!media.gtSm) {
-      setIsSheetOpen(true)
-    }
-  }
+  const onBlockCommentClick = useCallback(
+    (blockId?: string | null) => {
+      setActivePanel({type: 'discussions', blockId: blockId || undefined})
+      if (!media.gtSm) {
+        setIsSheetOpen(true)
+      }
+    },
+    [media.gtSm],
+  )
 
   const onReplyCountClick = useCallback(
     (commentId: string, rootReplyCommentId: string) => {
@@ -389,23 +392,25 @@ export function DocumentPage(props: SiteDocumentPayload) {
   if (activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
-        handleStartDiscussion={() => {
+        handleStartDiscussion={useCallback(() => {
           setEditorAutoFocus(true)
-        }}
+        }, [])}
         blockId={activePanel.blockId}
         commentId={activePanel.commentId}
         rootReplyCommentId={activePanel.rootReplyCommentId}
-        handleClose={() => {
+        handleClose={useCallback(() => {
           setActivePanel(null)
-        }}
-        handleBack={() =>
-          setActivePanel({
-            ...activePanel,
-            commentId: undefined,
-            blockId: undefined,
-            rootReplyCommentId: undefined,
-          })
-        }
+        }, [])}
+        handleBack={useCallback(
+          () =>
+            setActivePanel({
+              ...activePanel,
+              commentId: undefined,
+              blockId: undefined,
+              rootReplyCommentId: undefined,
+            }),
+          [activePanel],
+        )}
         setBlockId={onBlockCommentClick}
         comments={comments.data}
         citations={allCitations.data}

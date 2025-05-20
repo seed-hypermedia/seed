@@ -1,4 +1,4 @@
-import {createContext, useContext} from 'react'
+import {createContext, useContext, useMemo} from 'react'
 
 const defaultDiscussionsContext = {
   onReplyClick: (replyCommentId: string, rootReplyCommentId: string) => {
@@ -34,7 +34,12 @@ export function DiscussionsProvider({
   ) => void
 }) {
   return (
-    <DiscussionsContext.Provider value={{onReplyClick, onReplyCountClick}}>
+    <DiscussionsContext.Provider
+      value={useMemo(
+        () => ({onReplyClick, onReplyCountClick}),
+        [onReplyClick, onReplyCountClick],
+      )}
+    >
       {children}
     </DiscussionsContext.Provider>
   )
