@@ -1,6 +1,6 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {forwardRef, useMemo, useRef, useState} from 'react'
+import {forwardRef, useMemo, useRef} from 'react'
 import {ScrollView, useMedia, XStackProps, YStack, YStackProps} from 'tamagui'
 
 export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
@@ -38,6 +38,7 @@ export const useDocumentLayout = (
     }
   > = {},
 ) => {
+  console.log('=== DEBUG === useDocumentLayout')
   // Always call hooks in the same order
   const elementRef = useRef<HTMLDivElement>(null)
   const media = useMedia()
@@ -51,7 +52,8 @@ export const useDocumentLayout = (
     if (configWidth === 'L') return widthValues.L
     return widthValues.M
   }, [config.contentWidth])
-  const [widthState, setWidthState] = useState(initialWidth)
+
+  const widthState = useRef<number>(initialWidth)
 
   useIsomorphicLayoutEffect(() => {
     // Check if we're in a browser environment
@@ -65,10 +67,10 @@ export const useDocumentLayout = (
     // Always set initial width, even if element isn't available yet
     if (!element) {
       const initialWidth = getContentWidth(config.contentWidth) || 0
-      setWidthState(initialWidth)
+      widthState.current = initialWidth
     } else {
       const width = element.getBoundingClientRect().width
-      setWidthState(width)
+      widthState.current = width
     }
 
     // Create ResizeObserver to track element size changes
@@ -76,7 +78,7 @@ export const useDocumentLayout = (
       const observedElement = entries[0]
       if (observedElement) {
         const newWidth = observedElement.contentRect.width
-        setWidthState(newWidth)
+        widthState.current = newWidth
       }
     })
 
@@ -91,7 +93,7 @@ export const useDocumentLayout = (
         // Get initial dimensions
         const initialWidth = element.getBoundingClientRect().width
 
-        setWidthState(initialWidth)
+        widthState.current = initialWidth
 
         // Once we find the element, no need to continue observing mutations
         mutationObserver.disconnect()
@@ -123,55 +125,58 @@ export const useDocumentLayout = (
 
   // Calculate properties based on current width
   const showSidebars = useMemo(
-    () => config.showSidebars && widthState > contentMaxWidth + 100,
+    () => config.showSidebars && widthState.current > contentMaxWidth + 100,
     [config.showSidebars, widthState, contentMaxWidth],
   )
   const showCollapsed = useMemo(
-    () => widthState < contentMaxWidth + 700,
+    () => widthState.current < contentMaxWidth + 700,
     [widthState, contentMaxWidth],
   )
 
   // Get default value for fallbacks to avoid TypeScript errors
   const defaultMaxWidth = useMemo(() => contentMaxWidth, [])
 
-  return {
-    elementRef,
-    width: widthState,
+  return useMemo(
+    () => ({
+      elementRef,
+      width: widthState,
 
-    showSidebars: showSidebars || false,
-    showCollapsed: showCollapsed || false,
-    contentMaxWidth: contentMaxWidth || defaultMaxWidth,
-    sidebarProps: {
-      maxWidth: showCollapsed ? 40 : 280,
-      flex: 1,
-      paddingRight: showCollapsed ? 0 : 40,
-      className: 'document-aside',
-      width: '100%',
-    },
-    mainContentProps: {
-      maxWidth: contentMaxWidth || defaultMaxWidth,
-      width: '100%',
-    },
-    wrapperProps: {
-      maxWidth:
-        (contentMaxWidth || defaultMaxWidth) +
-        (showSidebars && config.showSidebars
-          ? showCollapsed
-            ? 100
-            : 700
-          : 0) +
-        /**
-         * this is added because we are showing the comment and citations button
-         * on the right of each block. in the future we might expand
-         * the block content to also have more space so we can render marginalia.
-         **/
-        (media.gtSm ? 44 : 0),
-      marginHorizontal: 'auto',
-      width: '100%',
-      justifyContent: 'space-between',
-      flex: 1,
-    } as XStackProps,
-  }
+      showSidebars: showSidebars || false,
+      showCollapsed: showCollapsed || false,
+      contentMaxWidth: contentMaxWidth || defaultMaxWidth,
+      sidebarProps: {
+        maxWidth: showCollapsed ? 40 : 280,
+        flex: 1,
+        paddingRight: showCollapsed ? 0 : 40,
+        className: 'document-aside',
+        width: '100%',
+      },
+      mainContentProps: {
+        maxWidth: contentMaxWidth || defaultMaxWidth,
+        width: '100%',
+      },
+      wrapperProps: {
+        maxWidth:
+          (contentMaxWidth || defaultMaxWidth) +
+          (showSidebars && config.showSidebars
+            ? showCollapsed
+              ? 100
+              : 700
+            : 0) +
+          /**
+           * this is added because we are showing the comment and citations button
+           * on the right of each block. in the future we might expand
+           * the block content to also have more space so we can render marginalia.
+           **/
+          (media.gtSm ? 44 : 0),
+        marginHorizontal: 'auto',
+        width: '100%',
+        justifyContent: 'space-between',
+        flex: 1,
+      } as XStackProps,
+    }),
+    [config.contentWidth, config.showSidebars, widthState.current],
+  )
 }
 
 function getContentWidth(contentWidth: HMMetadata['contentWidth']) {

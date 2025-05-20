@@ -251,13 +251,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const location = useLocation()
   const replace = useNavigate()
-  // const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
-  // const blockRef = match ? match[1].substring(1) : undefined;
-
-  // const blockRange =
-  //   match && match[2] && match[3]
-  //     ? {start: parseInt(match[2]), end: parseInt(match[3])}
-  //     : undefined;
 
   const {blockRef, blockRange} = useMemo(() => {
     const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
@@ -312,17 +305,20 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const comments = useComments(id)
 
-  function onBlockCitationClick(blockId?: string) {
-    setActivePanel({type: 'citations', blockId: blockId})
+  const onBlockCitationClick = useCallback(
+    (blockId?: string) => {
+      setActivePanel({type: 'citations', blockId: blockId})
 
-    if (!media.gtSm) {
-      const mainPanel = mainPanelRef.current
-      if (!mainPanel) return
-      setTimeout(() => {
-        mainPanel.collapse()
-      }, 1)
-    }
-  }
+      if (!media.gtSm) {
+        const mainPanel = mainPanelRef.current
+        if (!mainPanel) return
+        setTimeout(() => {
+          mainPanel.collapse()
+        }, 1)
+      }
+    },
+    [media.gtSm],
+  )
 
   const onBlockCommentClick = useCallback(
     (blockId?: string | null) => {
@@ -392,25 +388,23 @@ export function DocumentPage(props: SiteDocumentPayload) {
   if (activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
-        handleStartDiscussion={useCallback(() => {
+        handleStartDiscussion={() => {
           setEditorAutoFocus(true)
-        }, [])}
+        }}
         blockId={activePanel.blockId}
         commentId={activePanel.commentId}
         rootReplyCommentId={activePanel.rootReplyCommentId}
-        handleClose={useCallback(() => {
+        handleClose={() => {
           setActivePanel(null)
-        }, [])}
-        handleBack={useCallback(
-          () =>
-            setActivePanel({
-              ...activePanel,
-              commentId: undefined,
-              blockId: undefined,
-              rootReplyCommentId: undefined,
-            }),
-          [activePanel],
-        )}
+        }}
+        handleBack={() =>
+          setActivePanel({
+            ...activePanel,
+            commentId: undefined,
+            blockId: undefined,
+            rootReplyCommentId: undefined,
+          })
+        }
         setBlockId={onBlockCommentClick}
         comments={comments.data}
         citations={allCitations.data}
