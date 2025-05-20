@@ -1,4 +1,3 @@
-import {useFetcher} from '@remix-run/react'
 import {
   HMCitationsPayload,
   HMCommentsPayload,
@@ -13,28 +12,11 @@ import {setAccountQuery, setEntityQuery} from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {useEffect} from 'react'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {DiscussionPayload} from './routes/hm.api.discussion'
 import {unwrap} from './wrapping'
-
-export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
-  const fetcher = useFetcher()
-  useEffect(() => {
-    if (!id?.uid) return
-    const url = `/hm/api/changes?id=${packHmId(id)}`
-    fetcher.load(url)
-  }, [id?.uid, id?.path?.join('/')])
-
-  return {
-    data: fetcher.data
-      ? unwrap<Array<HMDocumentChangeInfo>>(fetcher.data)
-      : null,
-    isLoading: fetcher.state === 'loading',
-  }
-}
 
 async function queryAPI<ResponsePayloadType>(url: string) {
   const response = await fetch(url)
@@ -56,6 +38,13 @@ export function useAPI<ResponsePayloadType>(
     ...queryOptions,
   })
   return query
+}
+
+export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
+  return useAPI<Array<HMDocumentChangeInfo>>(
+    id ? `/hm/api/changes?id=${packHmId(id)}` : undefined,
+    {enabled: !!id},
+  )
 }
 
 export function useDiscussion(
