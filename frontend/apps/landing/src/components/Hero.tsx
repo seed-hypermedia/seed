@@ -15,7 +15,7 @@ export default function Hero() {
           community building.
         </p>
         <a
-          href="/hm/download"
+          href="https://seed.hyper.media/hm/download"
           target="_blank"
           className="mt-8 inline-block text-brand-5 font-semibold px-6 py-2 rounded-md transition"
         >

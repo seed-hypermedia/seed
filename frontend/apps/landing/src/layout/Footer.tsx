@@ -1,4 +1,6 @@
+import BlueskyIcon from "../assets/BlueskyIcon";
 import DiscordIcon from "../assets/DiscordIcon";
+import GithubIcon from "../assets/GithubIcon";
 import LinkedInIcon from "../assets/LinkedInIcon";
 import SeedLogo from "../assets/SeedLogo";
 import XIcon from "../assets/XIcon";
@@ -22,6 +24,14 @@ export default function Footer() {
         <div className="flex flex-col items-end text-gray-400 text-sm">
           <div className="flex gap-4 mb-1">
             <a
+              href="https://github.com/seed-hypermedia"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black"
+            >
+              <GithubIcon className="w-6 h-6" />
+            </a>
+            <a
               href="https://discord.gg/mcUnKENdKX"
               target="_blank"
               rel="noopener noreferrer"
@@ -44,6 +54,14 @@ export default function Footer() {
               className="hover:text-black"
             >
               <XIcon className="w-6 h-6" />
+            </a>
+            <a
+              href="https://bsky.app/profile/seed.hyper.media"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black"
+            >
+              <BlueskyIcon className="w-6 h-6" />
             </a>
           </div>
           {/* <a href="/terms" className="text-xs hover:underline">

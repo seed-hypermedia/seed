@@ -10,7 +10,7 @@ export default function GetStarted() {
             It's Time To Get Started!
           </h2>
           <a
-            href="/hm/download"
+            href="https://seed.hyper.media/hm/download"
             target="_blank"
             className="inline-flex items-center px-5 py-2 bg-green-700 text-white rounded-md hover:bg-green-800 transition"
           >

@@ -1,4 +1,7 @@
-export default function XIcon({className = "w-6 h-6 text-gray-400", ...props}) {
+export default function DiscordIcon({
+  className = "w-6 h-6 text-gray-400",
+  ...props
+}) {
   return (
     <svg
       className={className}
