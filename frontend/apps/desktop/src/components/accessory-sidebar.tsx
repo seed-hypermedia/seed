@@ -27,7 +27,7 @@ import {
   YStack,
 } from 'tamagui'
 
-export function AccessoryLayout<Options extends AccessoryOptions>({
+export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
   accessory,
   accessoryKey,
@@ -40,7 +40,7 @@ export function AccessoryLayout<Options extends AccessoryOptions>({
   accessory: React.ReactNode | null
   accessoryKey: Options[number]['key'] | undefined
   accessoryOptions: Options
-  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+  onAccessorySelect: (key: Options[number]['key'] | undefined) => void
   mainPanelRef?: React.RefObject<HTMLDivElement>
   isNewDraft?: boolean
 }) {
@@ -183,7 +183,7 @@ export function AccessoryWrapper({
 }: {
   children?: React.ReactNode
   title?: string
-  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
   isNewDraft?: boolean
 } & ComponentProps<typeof YStack>) {
   return (
@@ -357,7 +357,7 @@ export function AccessorySection({
 }: {
   children: React.ReactNode
   title: string
-  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
 }) {
   return (
     <YStack gap="$3">

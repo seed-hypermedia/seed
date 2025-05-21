@@ -93,6 +93,7 @@ const documentAccessorySchema = z.discriminatedUnion('key', [
   documentOptionsAccessorySchema,
 ])
 export type DocumentAccessory = z.infer<typeof documentAccessorySchema>
+export type AccessoryOptions = DocumentAccessory['key']
 
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
@@ -173,13 +174,6 @@ export function getRecentsRouteEntityUrl(route: NavRoute) {
 }
 
 export type DocAccessoryOption = {
-  key:
-    | 'versions'
-    | 'collaborators'
-    | 'discussions'
-    | 'directory'
-    | 'citations'
-    | 'activity'
-    | 'options'
+  key: AccessoryOptions
   label: string
 }
