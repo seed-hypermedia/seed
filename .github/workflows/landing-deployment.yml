@@ -51,7 +51,7 @@ jobs:
           echo "${{ secrets.ACTIONS_USER_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-          scp -i ~/.ssh/id_rsa -C -r frontend/apps/landing/dist/ github@hyped.media:/home/github/landing
+          scp -i ~/.ssh/id_rsa -C -r frontend/apps/landing/dist/ github@hyper.media:/home/github/landing
 
           rm -f ~/.ssh/id_rsa
 
