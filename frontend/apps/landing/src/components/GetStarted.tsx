@@ -25,46 +25,46 @@ export default function GetStarted() {
   );
 }
 
-function ResourceCards() {
-  // This should be fetching real documents
-  const cards = new Array(4).fill(null);
+// function ResourceCards() {
+//   // This should be fetching real documents
+//   const cards = new Array(4).fill(null);
 
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {cards.map((_, i) => (
-        <div
-          key={i}
-          className="rounded-lg shadow-md overflow-hidden bg-white border border-gray-200 flex flex-col"
-        >
-          {/* Image placeholder */}
-          <div className="bg-gray-200 h-28 w-full" />
+//   return (
+//     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+//       {cards.map((_, i) => (
+//         <div
+//           key={i}
+//           className="rounded-lg shadow-md overflow-hidden bg-white border border-gray-200 flex flex-col"
+//         >
+//           {/* Image placeholder */}
+//           <div className="bg-gray-200 h-28 w-full" />
 
-          {/* Text content */}
-          <div className="p-4 flex-1 flex flex-col justify-between text-left">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">
-                Title Of Document
-              </p>
-              <p className="mt-1 text-xs text-gray-500 line-clamp-3">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-                eiusmod tempor incididunt ut labore et dolore magna aliqua.
-              </p>
-            </div>
-          </div>
+//           {/* Text content */}
+//           <div className="p-4 flex-1 flex flex-col justify-between text-left">
+//             <div>
+//               <p className="text-sm font-semibold text-gray-800">
+//                 Title Of Document
+//               </p>
+//               <p className="mt-1 text-xs text-gray-500 line-clamp-3">
+//                 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+//                 eiusmod tempor incididunt ut labore et dolore magna aliqua.
+//               </p>
+//             </div>
+//           </div>
 
-          {/* Footer */}
-          <div className="px-4 py-2 bg-gray-100 flex justify-between items-center text-xs text-gray-500">
-            <span>Last Updated</span>
-            <div className="flex -space-x-2">
-              <div className="w-5 h-5 bg-gray-300 rounded-full border border-white" />
-              <div className="w-5 h-5 bg-gray-300 rounded-full border border-white" />
-              <div className="w-5 h-5 bg-black rounded-full text-[10px] text-white flex items-center justify-center font-medium">
-                +1
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+//           {/* Footer */}
+//           <div className="px-4 py-2 bg-gray-100 flex justify-between items-center text-xs text-gray-500">
+//             <span>Last Updated</span>
+//             <div className="flex -space-x-2">
+//               <div className="w-5 h-5 bg-gray-300 rounded-full border border-white" />
+//               <div className="w-5 h-5 bg-gray-300 rounded-full border border-white" />
+//               <div className="w-5 h-5 bg-black rounded-full text-[10px] text-white flex items-center justify-center font-medium">
+//                 +1
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       ))}
+//     </div>
+//   );
+// }

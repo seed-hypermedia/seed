@@ -1,3 +1,7 @@
+import embedsVideo from "../../public/embeds.mp4";
+import linkingImage from "../../public/linking.png";
+import referencingImage from "../../public/referencing.png";
+
 export default function Linking() {
   return (
     <section className="w-full py-20 bg-[linear-gradient(to_bottom,_#e5f4ee_1%,_#fefefe_30%)]">
@@ -27,7 +31,7 @@ export default function Linking() {
                 specific sections, paragraphs, or even individual words.
               </p>
               <img
-                src="/linking.png"
+                src={linkingImage}
                 alt="Precise Linking"
                 className="mt-4 w-full h-auto rounded-xl"
               />
@@ -46,7 +50,7 @@ export default function Linking() {
                 perspectives by tracking links back to your content.
               </p>
               <img
-                src="/referencing.png"
+                src={referencingImage}
                 alt="References"
                 className="mt-4 w-full h-auto rounded-xl"
               />
@@ -68,7 +72,7 @@ export default function Linking() {
           </p>
           <div className="mt-6 overflow-hidden w-full ">
             <video
-              src="/embeds.mp4"
+              src={embedsVideo}
               autoPlay
               muted
               loop

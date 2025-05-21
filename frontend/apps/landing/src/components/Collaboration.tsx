@@ -1,3 +1,5 @@
+import collaboratorsImage from "../../public/collaborators.png";
+import commentsImage from "../../public/comments.png";
 export default function Collaboration() {
   return (
     <section className="w-full py-20 bg-green-fade-from">
@@ -25,7 +27,7 @@ export default function Collaboration() {
                 to your site.
               </p>
               <img
-                src="/collaborators.png"
+                src={collaboratorsImage}
                 alt="Collaborative Documents"
                 className="mt-4 w-full h-[400px] object-contain"
               />
@@ -43,7 +45,7 @@ export default function Collaboration() {
                 Connect directly peer-to-peer, with no centralized control.
               </p>
               <img
-                src="/comments.png"
+                src={commentsImage}
                 alt="Open Discussions"
                 className="mt-4 w-full h-[400px] object-contain"
               />

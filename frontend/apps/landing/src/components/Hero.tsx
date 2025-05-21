@@ -1,3 +1,5 @@
+import appDemoVideo from "../../public/app-demo.mp4";
+
 export default function Hero() {
   return (
     <section className="w-full px-4 py-16 text-center bg-white">
@@ -23,7 +25,7 @@ export default function Hero() {
 
       <div className="max-w-5xl mx-auto shadow-lg rounded-xl overflow-hidden">
         <video
-          src="/app-demo.mp4"
+          src={appDemoVideo}
           autoPlay
           muted
           loop

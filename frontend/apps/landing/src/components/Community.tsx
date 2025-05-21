@@ -1,3 +1,5 @@
+import communityVideo from "../../public/community.mp4";
+
 export default function Community() {
   return (
     <section className="w-full pt-5 pb-20 bg-white">
@@ -16,7 +18,7 @@ export default function Community() {
         {/* Video */}
         <div className="flex-1 rounded-xl overflow-hidden">
           <video
-            src="/community.mp4"
+            src={communityVideo}
             autoPlay
             muted
             loop

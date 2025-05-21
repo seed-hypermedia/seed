@@ -1,3 +1,7 @@
+import checkImage from "../../public/check.png";
+import encryptionVideo from "../../public/encryption.mp4";
+import keyImage from "../../public/key.png";
+
 export default function Identity() {
   return (
     <section className="w-full px-4 md:px-8 py-14 md:py-20 bg-[#fdfdfd]">
@@ -17,7 +21,7 @@ export default function Identity() {
 
           <div className="flex flex-col items-center text-center flex-1">
             <img
-              src="/key.png"
+              src={keyImage}
               alt="Crypto sign"
               className="max-h-24 max-w-24 mb-1"
             />
@@ -29,7 +33,7 @@ export default function Identity() {
 
           <div className="flex flex-col items-center text-center flex-1">
             <img
-              src="/check.png"
+              src={checkImage}
               alt="ID check"
               className="max-h-24 max-w-24 mb-1"
             />
@@ -62,7 +66,7 @@ export default function Identity() {
         {/* Video */}
         <div className="mt-10">
           <video
-            src="/encryption.mp4"
+            src={encryptionVideo}
             autoPlay
             muted
             loop

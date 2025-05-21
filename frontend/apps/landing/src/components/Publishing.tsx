@@ -1,3 +1,5 @@
+import publishingDemoVideo from "../../public/publishing-demo.mp4";
+
 export default function Publishing() {
   return (
     <section className="w-full px-4 py-20 bg-green-fade-to text-center">
@@ -47,7 +49,7 @@ export default function Publishing() {
         {/* Demo Video */}
         <div className="mt-16 w-full mx-auto overflow-hidden rounded-xl shadow-md">
           <video
-            src="/publishing-demo.mp4"
+            src={publishingDemoVideo}
             autoPlay
             muted
             loop

@@ -7,6 +7,9 @@ import {defineConfig} from "vite";
 export default defineConfig({
   plugins: [react()],
   publicDir: "public",
+  build: {
+    assetsDir: ".",
+  },
   css: {
     postcss: {
       plugins: [tailwindcss, autoprefixer],

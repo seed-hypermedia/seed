@@ -1,3 +1,5 @@
+import protocolVideo from "../../public/protocol.mp4";
+
 export default function Protocol() {
   return (
     <section className="w-full py-20 bg-[#efefef]">
@@ -34,7 +36,7 @@ export default function Protocol() {
         <div className="relative flex-1 flex justify-center items-center">
           <div className="w-[300px] h-[300px] md:w-[400px] md:h-[400px] overflow-hidden relative">
             <video
-              src="/protocol.mp4"
+              src={protocolVideo}
               autoPlay
               loop
               muted
