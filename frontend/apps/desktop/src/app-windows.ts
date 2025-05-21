@@ -13,6 +13,7 @@ import {
 import path from 'node:path'
 import {z} from 'zod'
 import {updateRecentRoute} from './app-recents'
+import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
@@ -70,10 +71,19 @@ export function ensureFocusedWindowVisible() {
 }
 
 nativeTheme.addListener('updated', () => {
-  allWindows.forEach((window) => {
-    window.webContents.send('darkMode', nativeTheme.shouldUseDarkColors)
-  })
+  broadcastUseDarkColors()
 })
+
+export function broadcastUseDarkColors() {
+  const settingsTheme = getAppTheme()
+  const darkColors =
+    settingsTheme === 'system'
+      ? nativeTheme.shouldUseDarkColors
+      : settingsTheme === 'dark'
+  allWindows.forEach((window) => {
+    window.webContents.send('darkMode', darkColors)
+  })
+}
 
 const appWindowSchema = z.object({
   routes: z.array(z.any()),
@@ -265,7 +275,7 @@ export function createAppWindow(
       navState: windowNavState[windowId],
       daemonState: getDaemonState(),
       windowId,
-      darkMode: nativeTheme.shouldUseDarkColors,
+      darkMode: shouldUseDarkColors(),
     }
   })
   const releaseDaemonListener = subscribeDaemonState((goDaemonState) => {

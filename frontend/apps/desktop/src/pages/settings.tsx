@@ -26,6 +26,7 @@ import {
 } from '@/models/gateway-settings'
 import {useLinkDevice, useLinkDeviceStatus} from '@/models/linked-devices'
 import {usePeerInfo} from '@/models/networking'
+import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -49,6 +50,7 @@ import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -58,6 +60,7 @@ import {
   AtSign,
   Check,
   Code2,
+  Settings as Cog,
   Eye,
   EyeOff,
   Info,
@@ -129,6 +132,12 @@ export default function Settings() {
           label="Accounts"
         />
         <Tab
+          value="general"
+          active={activeTab === 'general'}
+          icon={Cog}
+          label="General"
+        />
+        <Tab
           value="gateway"
           active={activeTab === 'gateway'}
           icon={RadioTower}
@@ -156,6 +165,9 @@ export default function Settings() {
       <Separator />
       <TabsContent value="accounts">
         <AccountKeys />
+      </TabsContent>
+      <TabsContent value="general">
+        <GeneralSettings />
       </TabsContent>
       <TabsContent value="gateway">
         <GatewaySettings />
@@ -204,6 +216,30 @@ export function DeleteDraftLogs() {
     >
       Delete All Draft Logs
     </Button>
+  )
+}
+
+function GeneralSettings() {
+  const [theme, setTheme, isInitialLoading] = useSystemThemeWriter()
+  return (
+    <YStack gap="$4">
+      <Heading>General Settings</Heading>
+      {!isInitialLoading && (
+        <XStack gap="$4">
+          <Label>Theme</Label>
+          <SelectDropdown
+            value={theme || 'system'}
+            onValue={setTheme}
+            triggerProps={{style: {maxWidth: 200}}}
+            options={[
+              {label: 'System Default', value: 'system'},
+              {label: 'Light', value: 'light'},
+              {label: 'Dark', value: 'dark'},
+            ]}
+          />
+        </XStack>
+      )}
+    </YStack>
   )
 }
 

@@ -40,7 +40,7 @@ import {
   onQueryCacheError,
   onQueryInvalidation,
 } from '@shm/shared/models/query-client'
-import {labelOfQueryKey} from '@shm/shared/models/query-keys'
+import {labelOfQueryKey, queryKeys} from '@shm/shared/models/query-keys'
 import * as entities from './models/entities'
 import * as recents from './models/recents'
 import * as search from './models/search'
@@ -308,6 +308,9 @@ function MainApp({}: {}) {
           utils.drafts.list.invalidate()
         } else if (value[0] == 'trpc.drafts.listAccount') {
           utils.drafts.listAccount.invalidate()
+        } else if (value[0] == queryKeys.SETTINGS) {
+          console.log('~~ invalidateSettings', value)
+          utils.appSettings.getSetting.invalidate(value[1] as string)
         } else if (value[0] == 'trpc.secureStorage.get') {
           utils.secureStorage.invalidate()
 

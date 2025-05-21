@@ -9,7 +9,6 @@ import {
   dialog,
   ipcMain,
   NativeImage,
-  nativeTheme,
   WebContentsView,
 } from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
@@ -117,11 +116,14 @@ ipcMain.on('find_in_page_cancel', () => {
   }
 })
 
-nativeTheme.addListener('updated', () => {
-  getAllWindows().forEach((window) => {
-    window.webContents.send('darkMode', nativeTheme.shouldUseDarkColors)
-  })
-})
+// duplicated logic with app-windows
+// nativeTheme.addListener('updated', () => {
+//   if (getAppTheme() === 'system') {
+//     getAllWindows().forEach((window) => {
+//       window.webContents.send('darkMode', nativeTheme.shouldUseDarkColors)
+//     })
+//   }
+// })
 
 log.info('App User Data', {path: userDataPath})
 

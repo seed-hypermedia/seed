@@ -90,6 +90,8 @@ export const queryKeys = {
   // web stuff is queried differently...
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
+
+  SETTINGS: 'SETTINGS', // key: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
