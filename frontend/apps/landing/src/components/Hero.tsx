@@ -17,7 +17,13 @@ export default function Hero() {
         <a
           href="https://seed.hyper.media/hm/download"
           target="_blank"
-          className="mt-8 inline-block text-brand-5 font-semibold px-6 py-2 rounded-md transition"
+          className={`mt-8 inline-block text-brand-5 font-semibold px-6 py-2 rounded-md transition plausible-event-name=download plausible-event-os=${
+            navigator.platform.toLowerCase().includes("mac")
+              ? "macos"
+              : navigator.platform.toLowerCase().includes("win")
+              ? "windows"
+              : "linux"
+          }`}
         >
           Download the Seed App
         </a>

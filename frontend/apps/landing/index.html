@@ -36,5 +36,18 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script
+      defer
+      file-types="rpm,deb,dmg,exe"
+      data-domain="seed.hyper.media"
+      src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+    ></script>
+    <script>
+      {
+        `window.plausible = window.plausible || function() {
+                (window.plausible.q = window.plausible.q || []).push(arguments)
+              }`;
+      }
+    </script>
   </body>
 </html>

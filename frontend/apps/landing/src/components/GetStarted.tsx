@@ -12,7 +12,13 @@ export default function GetStarted() {
           <a
             href="https://seed.hyper.media/hm/download"
             target="_blank"
-            className="inline-flex items-center px-5 py-2 bg-green-700 text-white rounded-md hover:bg-green-800 transition"
+            className={`inline-flex items-center px-5 py-2 bg-green-700 text-white rounded-md hover:bg-green-800 transition plausible-event-name=download plausible-event-os=${
+              navigator.platform.toLowerCase().includes("mac")
+                ? "macos"
+                : navigator.platform.toLowerCase().includes("win")
+                ? "windows"
+                : "linux"
+            }`}
           >
             <Download size={17} className="mr-2" />
             Download the Seed App
