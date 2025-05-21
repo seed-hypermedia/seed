@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "frontend/apps/web/**"
+      - "frontend/packages/**"
+      - "backend/**"
+      - ".github/workflows/dev-docker-images.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

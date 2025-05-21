@@ -41,7 +41,6 @@ jobs:
           YARN_ENABLE_IMMUTABLE_INSTALLS: false
         run: |
           yarn
-          shell: bash
 
       - name: Build
         run: yarn landing:build
