@@ -316,7 +316,7 @@ export function AccessoryTitle({
                     : '$backgroundTransparent'
                 }
                 size="$2"
-                icon={CollaboratorsIcon}
+                icon={<CollaboratorsIcon size={16} />}
                 onPress={
                   activeKey != 'collaborators'
                     ? () => onAccessorySelect('collaborators')

@@ -260,7 +260,7 @@ export function HistoryIcon({
 }
 
 export function CollaboratorsIcon({
-  color = DefaultIconColor,
+  color = 'currentColor',
   size = 20,
   ...props
 }: {
