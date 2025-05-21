@@ -100,7 +100,11 @@ export function SiteHeader({
           ? `calc(100vh - ${
               originHomeId && origin && originHomeId.uid !== docId?.uid ? 34 : 0
             }px)`
-          : '100%'
+          : `calc(100vh - ${
+              originHomeId && origin && originHomeId.uid !== docId?.uid
+                ? 34 + 56
+                : 56
+            }px)`
       }
       // This onscroll is important for when we render it for drafts. this will dismiss the blockside menu when we scroll
       // @ts-ignore
