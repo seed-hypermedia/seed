@@ -5,6 +5,7 @@ import {
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
+  NavRoute,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -16,6 +17,7 @@ import {useMedia} from 'tamagui'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {Close, Menu, X} from './icons'
+import {LinkDropdown, LinkItemType} from './link-dropdown'
 import {
   DocNavigationDocument,
   DocumentOutline,
@@ -23,7 +25,6 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -591,29 +592,36 @@ export function SiteHeaderMenu({
   }, [updateVisibility])
 
   // Build menu items for dropdown
-  const dropdownMenuItems = useMemo(() => {
-    return overflowItems.map((item): MenuItemType => {
-      const isActive =
-        !!docId?.path && !!item.id?.path && item.id.path?.[0] === docId.path[0]
+  const linkDropdownItems: LinkItemType[] = useMemo(() => {
+    return overflowItems
+      .map((item) => {
+        const isActive =
+          !!docId?.path &&
+          !!item.id?.path &&
+          item.id.path?.[0] === docId.path[0]
 
-      return {
-        key: item.id?.id || item.draftId || '?',
-        label: getMetadataName(item.metadata) || 'Untitled',
-        icon: () => null,
-        color: isActive
-          ? '$color'
-          : item.isPublished === false
-          ? '$color9'
-          : '$color10',
-        onPress: function () {
-          if (item.draftId) {
-            window.location.href = `/draft/${item.draftId}`
-          } else if (item.id) {
-            window.location.href = `/doc/${item.id.id}`
-          }
-        },
-      }
-    })
+        const route: NavRoute | null = item.draftId
+          ? ({
+              key: 'draft',
+              id: item.draftId,
+            } as const)
+          : item.id
+          ? ({key: 'document', id: item.id} as const)
+          : null
+        if (!route) return null
+        return {
+          key: item.id?.id || item.draftId || '?',
+          label: getMetadataName(item.metadata) || 'Untitled',
+          icon: () => null,
+          route,
+          color: isActive
+            ? '$color'
+            : item.isPublished === false
+            ? '$color9'
+            : '$color10',
+        }
+      })
+      .filter((item) => !!item)
   }, [overflowItems, docId])
 
   if (!items?.length) return null
@@ -692,7 +700,7 @@ export function SiteHeaderMenu({
 
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
-          <OptionsDropdown menuItems={dropdownMenuItems} />
+          <LinkDropdown items={linkDropdownItems} />
         </Tooltip>
       )}
     </XStack>
