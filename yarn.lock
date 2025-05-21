@@ -10718,6 +10718,30 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@shm/landing@workspace:frontend/apps/landing":
+  version: 0.0.0-use.local
+  resolution: "@shm/landing@workspace:frontend/apps/landing"
+  dependencies:
+    "@eslint/js": ^9.25.0
+    "@types/react": ^19.1.2
+    "@types/react-dom": ^19.1.2
+    "@vitejs/plugin-react": ^4.4.1
+    autoprefixer: ^10.4.21
+    eslint: ^9.25.0
+    eslint-plugin-react-hooks: ^5.2.0
+    eslint-plugin-react-refresh: ^0.4.19
+    globals: ^16.0.0
+    lucide-react: ^0.510.0
+    postcss: ^8.5.3
+    react: ^19.1.0
+    react-dom: ^19.1.0
+    tailwindcss: 3
+    typescript: ~5.8.3
+    typescript-eslint: ^8.30.1
+    vite: ^6.3.5
+  languageName: unknown
+  linkType: soft
+
 "@shm/performance-dashboard@workspace:frontend/apps/performance-dashboard":
   version: 0.0.0-use.local
   resolution: "@shm/performance-dashboard@workspace:frontend/apps/performance-dashboard"
@@ -38832,30 +38856,6 @@ __metadata:
   checksum: 214a734b1d4d391eb8271ed1b11085f0efe6831e93f641229b292abfd6fea871422dce121612511c17ae8047522be6d65c1a2666cabb396c79549816a3612338
   languageName: node
   linkType: hard
-
-"website@workspace:frontend/apps/landing":
-  version: 0.0.0-use.local
-  resolution: "website@workspace:frontend/apps/landing"
-  dependencies:
-    "@eslint/js": ^9.25.0
-    "@types/react": ^19.1.2
-    "@types/react-dom": ^19.1.2
-    "@vitejs/plugin-react": ^4.4.1
-    autoprefixer: ^10.4.21
-    eslint: ^9.25.0
-    eslint-plugin-react-hooks: ^5.2.0
-    eslint-plugin-react-refresh: ^0.4.19
-    globals: ^16.0.0
-    lucide-react: ^0.510.0
-    postcss: ^8.5.3
-    react: ^19.1.0
-    react-dom: ^19.1.0
-    tailwindcss: 3
-    typescript: ~5.8.3
-    typescript-eslint: ^8.30.1
-    vite: ^6.3.5
-  languageName: unknown
-  linkType: soft
 
 "websocket-driver@npm:>=0.5.1, websocket-driver@npm:^0.7.4":
   version: 0.7.4
