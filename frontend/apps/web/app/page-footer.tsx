@@ -40,6 +40,8 @@ export function PageFooter({
           </SizableText>
           {id ? (
             <Button
+              display="none"
+              $gtSm={{display: 'flex'}}
               tag="a"
               size="$2"
               href={createHMUrl(id)}
