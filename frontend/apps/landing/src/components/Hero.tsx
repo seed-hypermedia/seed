@@ -13,7 +13,7 @@ export default function Hero() {
           community building.
         </p>
         <a
-          href="https://github.com/seed-hypermedia/seed/releases" // to-do
+          href="/hm/download"
           target="_blank"
           className="mt-8 inline-block text-brand-5 font-semibold px-6 py-2 rounded-md transition"
         >

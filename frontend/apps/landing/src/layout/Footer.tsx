@@ -14,7 +14,7 @@ export default function Footer() {
             <span className="text-lg font-normal">Seed Hypermedia</span>
           </div>
           <p className="text-xs mt-1 w-full md:w-auto">
-            seed.hyper.media 2023 © All rights reserved
+            seed.hyper.media {new Date().getFullYear()} © All rights reserved
           </p>
         </div>
 
@@ -46,10 +46,9 @@ export default function Footer() {
               <XIcon className="w-6 h-6" />
             </a>
           </div>
-          {/* To Do */}
-          <a href="/terms" className="text-xs hover:underline">
+          {/* <a href="/terms" className="text-xs hover:underline">
             Terms and Conditions
-          </a>
+          </a> */}
         </div>
       </div>
     </footer>
