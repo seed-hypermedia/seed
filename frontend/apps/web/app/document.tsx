@@ -9,7 +9,6 @@ import {useLocation, useNavigate} from '@remix-run/react'
 import {
   getDocumentTitle,
   HMDocument,
-  HMDocumentCitation,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -284,19 +283,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  const allCitations = useCitations(id)
-  const citations: Array<HMDocumentCitation> = useMemo(() => {
-    if (!allCitations.data) return []
-    console.log('=== allCitations.data', allCitations.data)
-    return (
-      allCitations.data?.filter(
-        (c): c is HMDocumentCitation => c.source.type === 'd',
-      ) || []
-    )
-  }, [allCitations.data])
-
-  const comments = useComments(id)
-  const interactionSummary = useInteractionSummary(id)
+  const activityEnabled = document.metadata.showActivity !== false
+  const allCitations = useCitations(id, {enabled: activityEnabled})
+  const comments = useComments(id, {enabled: activityEnabled})
+  const interactionSummary = useInteractionSummary(id, {
+    enabled: activityEnabled,
+  })
 
   const onBlockCitationClick = useCallback(
     (blockId?: string) => {
@@ -378,7 +370,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         ) : null}
       </XStack>
     ) : null
-  if (activePanel?.type == 'discussions') {
+  if (activityEnabled && activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
         handleStartDiscussion={() => {
@@ -411,7 +403,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     )
   }
 
-  if (activePanel?.type == 'citations') {
+  if (activityEnabled && activePanel?.type == 'citations') {
     panel = (
       <WebCitationsPanel
         id={id}
@@ -459,12 +451,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
           supportQueries={supportQueries}
           origin={origin}
         >
-          <PanelGroup direction="horizontal">
+          <PanelGroup
+            direction="horizontal"
+            style={{backgroundColor: 'red', minHeight: '100%'}}
+          >
             <Panel
               ref={mainPanelRef}
               collapsible
               id="main-panel"
-              style={{overflowY: panel ? 'scroll' : undefined}}
+              // style={{overflowY: panel ? 'scroll' : undefined}}
+              style={{overflowY: 'scroll'}}
             >
               <XStack
                 w="100%"
@@ -486,7 +482,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         zIndex="$zIndex.7"
                         padding="$4"
                       >
-                        {interactionSummary.data ? (
+                        {activityEnabled && interactionSummary.data ? (
                           <DocInteractionsSummary
                             docId={id}
                             citations={interactionSummary.data?.citations}
@@ -628,7 +624,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
             ) : null}
           </PanelGroup>
         </WebSiteHeader>
-        {media.gtSm ? null : (
+        {media.gtSm || !activityEnabled ? null : (
           <>
             <XStack
               // @ts-expect-error tamagui mistake

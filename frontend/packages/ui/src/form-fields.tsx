@@ -129,12 +129,7 @@ export function SwitchField({
         {label}
       </Label>
 
-      <Switch
-        size="$2"
-        {...props}
-        defaultChecked={props.defaultChecked}
-        borderColor="$brand5"
-      >
+      <Switch size="$2" {...props} borderColor="$brand5">
         <Switch.Thumb
           animation="fast"
           bg="$brand5"

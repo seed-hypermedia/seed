@@ -88,22 +88,35 @@ async function accountQuery(accountUid: string) {
   return response
 }
 
-export function useCitations(id: UnpackedHypermediaId) {
-  const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
+export function useCitations(
+  id: UnpackedHypermediaId,
+  opts: {enabled?: boolean},
+) {
+  const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`, {
+    enabled: opts.enabled,
+  })
 
   return response
 }
 
-export function useInteractionSummary(id: UnpackedHypermediaId) {
+export function useInteractionSummary(
+  id: UnpackedHypermediaId,
+  opts: {enabled?: boolean},
+) {
   const response = useAPI<InteractionSummaryPayload>(
     `/hm/api/interaction-summary?id=${id.id}`,
+    {enabled: opts.enabled},
   )
   return response
 }
 
-export function useComments(id: UnpackedHypermediaId) {
+export function useComments(
+  id: UnpackedHypermediaId,
+  opts: {enabled?: boolean},
+) {
   const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`, {
     queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
+    enabled: opts.enabled,
   })
   return response
 }

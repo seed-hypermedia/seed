@@ -346,15 +346,13 @@ function ActivityVisibility({
   metadata: HMMetadata
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
-  const checked =
-    typeof metadata.showActivity == 'undefined' || metadata.showActivity
   return (
     <YStack>
       <SwitchField
         label="Enable Web Activity Panel"
         id="activity"
-        defaultChecked={checked}
-        opacity={checked ? 1 : 0.4}
+        checked={metadata.showActivity !== false}
+        opacity={metadata.showActivity !== false ? 1 : 0.4}
         onCheckedChange={(value) => {
           onMetadata({showActivity: value})
         }}
