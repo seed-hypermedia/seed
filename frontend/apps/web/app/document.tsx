@@ -283,7 +283,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  const activityEnabled = document.metadata.showActivity !== false
+  const activityEnabled = document?.metadata?.showActivity !== false
   const allCitations = useCitations(id, {enabled: activityEnabled})
   const comments = useComments(id, {enabled: activityEnabled})
   const interactionSummary = useInteractionSummary(id, {
