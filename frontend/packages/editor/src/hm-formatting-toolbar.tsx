@@ -246,6 +246,9 @@ function ToggleStyleButton<
             hoverStyle={{
               backgroundColor: active ? '$color9' : '$color4',
             }}
+            focusStyle={{
+              backgroundColor: active ? '$color9' : '$color4',
+            }}
           />
         </Tooltip>
       </XGroup.Item>
