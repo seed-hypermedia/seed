@@ -45,6 +45,13 @@ export type DocContentContextValue = {
   onHoverOut?: (id: UnpackedHypermediaId) => void
   collapsedBlocks: Set<string>
   setCollapsedBlocks: (id: string, val: boolean) => void
+  blockCitations?: Record<
+    string,
+    {
+      citations: number
+      comments: number
+    }
+  >
 }
 
 export type EntityComponentsRecord = {

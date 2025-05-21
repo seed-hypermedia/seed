@@ -14,7 +14,6 @@ import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
-  HMCitation,
   HMEntityContent,
   HMQueryResult,
   UnpackedHypermediaId,
@@ -121,7 +120,13 @@ export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
-  citations?: HMCitation[]
+  blockCitations?: Record<
+    string,
+    {
+      citations: number
+      comments: number
+    }
+  >
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCopy:
     | null

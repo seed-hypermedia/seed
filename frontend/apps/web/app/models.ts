@@ -16,6 +16,7 @@ import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {DiscussionPayload} from './routes/hm.api.discussion'
+import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
 async function queryAPI<ResponsePayloadType>(url: string) {
@@ -90,6 +91,13 @@ async function accountQuery(accountUid: string) {
 export function useCitations(id: UnpackedHypermediaId) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`)
 
+  return response
+}
+
+export function useInteractionSummary(id: UnpackedHypermediaId) {
+  const response = useAPI<InteractionSummaryPayload>(
+    `/hm/api/interaction-summary?id=${id.id}`,
+  )
   return response
 }
 

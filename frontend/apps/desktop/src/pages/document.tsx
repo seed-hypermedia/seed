@@ -798,7 +798,28 @@ function DocPageContent({
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}
-      citations={citations.data || []}
+      blockCitations={useMemo(() => {
+        if (!citations.data) return {}
+        const blockCitations: Record<
+          string,
+          {citations: number; comments: number}
+        > = {}
+        citations.data.forEach((citation) => {
+          const sourceId = citation.source.id
+          if (!sourceId) return false
+          const targetFragment = citation.targetFragment
+          const targetBlockId = targetFragment?.blockId
+          const blockCounts = targetBlockId
+            ? (blockCitations[targetBlockId] = {
+                citations: 0,
+                comments: 0,
+              })
+            : null
+          if (sourceId.type === 'c' && blockCounts) blockCounts.comments += 1
+          if (sourceId.type === 'd' && blockCounts) blockCounts.citations += 1
+        })
+        return blockCitations
+      }, [citations.data])}
       onBlockCitationClick={(blockId) => {
         if (!docRoute) return
         replace({

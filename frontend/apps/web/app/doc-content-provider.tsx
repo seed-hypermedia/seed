@@ -1,7 +1,6 @@
 import {useNavigate} from '@remix-run/react'
 import {
   BlockRange,
-  HMCitationsPayload,
   HMEntityContent,
   HMQueryResult,
   UnpackedHypermediaId,
@@ -24,7 +23,7 @@ export function WebDocContentProvider({
   supportQueries,
   routeParams,
   comment,
-  citations,
+  blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
   onHoverIn,
@@ -43,12 +42,19 @@ export function WebDocContentProvider({
     blockRange?: BlockRange
   }
   comment?: boolean
-  citations?: HMCitationsPayload
+  blockCitations?: Record<
+    string,
+    {
+      citations: number
+      comments: number
+    }
+  >
   onBlockCitationClick?: (blockId?: string) => void
   onBlockCommentClick?: (blockId?: string) => void
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
+  console.log('~~ WebDocContentProvider blockCitations', blockCitations)
   const navigate = useNavigate()
   return (
     <DocContentProvider
@@ -97,9 +103,7 @@ export function WebDocContentProvider({
       layoutUnit={24}
       debug={false}
       comment={comment}
-      citations={citations}
-      // onHoverIn={onHoverIn}
-      // onHoverOut={onHoverOut}
+      blockCitations={blockCitations}
     >
       {children}
     </DocContentProvider>

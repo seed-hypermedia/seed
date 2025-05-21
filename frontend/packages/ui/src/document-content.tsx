@@ -530,6 +530,7 @@ export function BlockNodeContent({
     onBlockReply,
     debug,
     comment,
+    blockCitations,
   } = useDocContentContext()
   const [hover, setHover] = useState(false)
   const isDark = useIsDark()
@@ -538,10 +539,12 @@ export function BlockNodeContent({
     layoutUnit,
     isFirstChild,
   )
-  // const {hover, ...hoverProps} = useHover()
-  const {docCitations, commentCitations} = useBlockCitations(
-    blockNode.block?.id,
-  )
+
+  const citationsCount =
+    blockNode.block?.id && blockCitations
+      ? blockCitations[blockNode.block?.id]
+      : undefined
+
   const [_expanded, setExpanded] = useState<boolean>(expanded)
 
   useEffect(() => {
@@ -821,10 +824,10 @@ export function BlockNodeContent({
           onHoverOut={() => setHover(false)}
           // paddingBottom={hover ? 100 : 0}
         >
-          {docCitations?.length ? (
+          {citationsCount?.citations ? (
             <Tooltip
-              content={`${docCitations.length} ${pluralS(
-                docCitations.length,
+              content={`${citationsCount.citations} ${pluralS(
+                citationsCount.citations,
                 'document',
               )} citing this block`}
               delay={800}
@@ -839,7 +842,9 @@ export function BlockNodeContent({
                 icon={<BlockQuote size={12} color="$color9" />}
               >
                 <SizableText color="$color9" size="$1">
-                  {docCitations.length ? String(docCitations.length) : ' '}
+                  {citationsCount.citations
+                    ? String(citationsCount.citations)
+                    : ' '}
                 </SizableText>
               </Button>
             </Tooltip>
@@ -871,9 +876,9 @@ export function BlockNodeContent({
           {onBlockCommentClick ? (
             <Tooltip
               content={
-                commentCitations.length
-                  ? `${commentCitations.length} ${pluralS(
-                      commentCitations.length,
+                citationsCount?.comments
+                  ? `${citationsCount.comments} ${pluralS(
+                      citationsCount.comments,
                       'comment',
                     )}`
                   : 'Comment on this block'
@@ -885,7 +890,7 @@ export function BlockNodeContent({
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
                 bg="red"
-                opacity={commentCitations.length ? 1 : 0}
+                opacity={citationsCount?.comments ? 1 : 0}
                 $group-blocknode-hover={{
                   opacity: 1,
                 }}
@@ -903,8 +908,8 @@ export function BlockNodeContent({
                 icon={<MessageSquare size={12} color="$color9" />}
               >
                 <SizableText color="$color9" size="$1">
-                  {commentCitations.length
-                    ? String(commentCitations.length)
+                  {citationsCount?.comments
+                    ? String(citationsCount.comments)
                     : ' '}
                 </SizableText>
               </Button>
@@ -2647,23 +2652,6 @@ function getSourceType(name?: string) {
   if (!name) return
   const nameArray = name.split('.')
   return `video/${nameArray[nameArray.length - 1]}`
-}
-
-export function useBlockCitations(blockId?: string) {
-  const context = useDocContentContext()
-
-  let citations = useMemo(() => {
-    if (!context.citations?.length) return []
-    return context.citations.filter((c) => {
-      // if (c.source.id.type !== 'd') return false
-      return c.targetFragment && c.targetFragment.blockId == blockId
-    })
-  }, [blockId, context.citations])
-
-  return {
-    docCitations: citations.filter((c) => c.source.id.type === 'd'),
-    commentCitations: citations.filter((c) => c.source.id.type === 'c'),
-  }
 }
 
 function CheckboxWithLabel({

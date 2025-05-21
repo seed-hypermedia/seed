@@ -1,10 +1,13 @@
-import {useCitations, useComments, useDocumentChanges} from '@/models'
+import {
+  useCitations,
+  useComments,
+  useDocumentChanges,
+  useInteractionSummary,
+} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
   getDocumentTitle,
-  HMCitationsPayload,
-  HMCommentsPayload,
   HMDocument,
   HMDocumentCitation,
   HMEntityContent,
@@ -231,18 +234,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     }
   }, [panel, media.gtSm])
 
-  if (!id) return <NotFoundPage {...props} />
-  if (!document)
-    return (
-      <DocumentDiscoveryPage
-        id={id}
-        originHomeId={originHomeId}
-        homeMetadata={homeMetadata}
-        enableWebSigning={enableWebSigning}
-      />
-    )
-
-  const isHomeDoc = !id.path?.length
+  const isHomeDoc = !id?.path?.length
   const isShowOutline =
     (typeof document.metadata.showOutline == 'undefined' ||
       document.metadata.showOutline) &&
@@ -304,6 +296,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, [allCitations.data])
 
   const comments = useComments(id)
+  const interactionSummary = useInteractionSummary(id)
 
   const onBlockCitationClick = useCallback(
     (blockId?: string) => {
@@ -421,10 +414,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
   if (activePanel?.type == 'citations') {
     panel = (
       <WebCitationsPanel
+        id={id}
         handleClose={() => {
           setActivePanel(null)
         }}
-        citations={citations}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
@@ -434,6 +427,17 @@ export function DocumentPage(props: SiteDocumentPayload) {
       />
     )
   }
+
+  if (!id) return <NotFoundPage {...props} />
+  if (!document)
+    return (
+      <DocumentDiscoveryPage
+        id={id}
+        originHomeId={originHomeId}
+        homeMetadata={homeMetadata}
+        enableWebSigning={enableWebSigning}
+      />
+    )
 
   return (
     <WebSiteProvider
@@ -482,24 +486,25 @@ export function DocumentPage(props: SiteDocumentPayload) {
                         zIndex="$zIndex.7"
                         padding="$4"
                       >
-                        <DocInteractionsSummary
-                          docId={id}
-                          citations={citations}
-                          comments={comments.data}
-                          onCitationsOpen={() => {
-                            setActivePanel({type: 'citations'})
-                            if (!media.gtSm) {
-                              setIsSheetOpen(true)
-                            }
-                          }}
-                          onCommentsOpen={() => {
-                            setActivePanel({type: 'discussions'})
-                            if (!media.gtSm) {
-                              setIsSheetOpen(true)
-                            }
-                          }}
-                          // onVersionOpen={() => {}}
-                        />
+                        {interactionSummary.data ? (
+                          <DocInteractionsSummary
+                            docId={id}
+                            citations={interactionSummary.data?.citations}
+                            comments={interactionSummary.data?.comments}
+                            onCitationsOpen={() => {
+                              setActivePanel({type: 'citations'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                            onCommentsOpen={() => {
+                              setActivePanel({type: 'discussions'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                          />
+                        ) : null}
                       </XStack>
                     )}
                     <XStack {...wrapperProps}>
@@ -556,7 +561,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           siteHost={siteHost}
                           supportDocuments={supportDocuments}
                           supportQueries={supportQueries}
-                          citations={allCitations.data}
+                          blockCitations={interactionSummary.data?.blocks}
                           routeParams={{
                             uid: id.uid,
                             version: id.version || undefined,
@@ -643,7 +648,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               overflow="hidden"
               onPress={() => {
                 if (!panel) {
-                  setActivePanel({type: 'discussions', blockId: null})
+                  setActivePanel({type: 'discussions', blockId: undefined})
                 }
                 setIsSheetOpen(true)
               }}
@@ -652,24 +657,25 @@ export function DocumentPage(props: SiteDocumentPayload) {
               <Button size="$3" chromeless icon={MessageSquare} color="$color9">
                 Start a Discussion...
               </Button>
-              <DocInteractionsSummary
-                docId={id}
-                citations={citations}
-                comments={comments.data}
-                onCitationsOpen={() => {
-                  setActivePanel({type: 'citations', blockId: undefined})
-                  if (!media.gtSm) {
-                    setIsSheetOpen(true)
-                  }
-                }}
-                onCommentsOpen={() => {
-                  setActivePanel({type: 'discussions', blockId: undefined})
-                  if (!media.gtSm) {
-                    setIsSheetOpen(true)
-                  }
-                }}
-                // onVersionOpen={() => {}}
-              />
+              {interactionSummary.data ? (
+                <DocInteractionsSummary
+                  docId={id}
+                  citations={interactionSummary.data?.citations}
+                  comments={interactionSummary.data?.comments}
+                  onCitationsOpen={() => {
+                    setActivePanel({type: 'citations', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                  onCommentsOpen={() => {
+                    setActivePanel({type: 'discussions', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                />
+              ) : null}
             </XStack>
 
             <Sheet
@@ -696,24 +702,28 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 borderRadius="$4"
               >
                 <XStack jc="flex-end" padding="$4">
-                  <DocInteractionsSummary
-                    docId={id}
-                    citations={citations}
-                    comments={comments.data}
-                    onCitationsOpen={() => {
-                      setActivePanel({type: 'citations', blockId: undefined})
-                      if (!media.gtSm) {
-                        setIsSheetOpen(true)
-                      }
-                    }}
-                    onCommentsOpen={() => {
-                      setActivePanel({type: 'discussions', blockId: undefined})
-                      if (!media.gtSm) {
-                        setIsSheetOpen(true)
-                      }
-                    }}
-                    // onVersionOpen={() => {}}
-                  />
+                  {interactionSummary.data ? (
+                    <DocInteractionsSummary
+                      docId={id}
+                      citations={interactionSummary.data?.citations}
+                      comments={interactionSummary.data?.comments}
+                      onCitationsOpen={() => {
+                        setActivePanel({type: 'citations', blockId: undefined})
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onCommentsOpen={() => {
+                        setActivePanel({
+                          type: 'discussions',
+                          blockId: undefined,
+                        })
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                    />
+                  ) : null}
                 </XStack>
                 <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
                   {/* <YStack f={1}>
@@ -873,8 +883,8 @@ function _DocInteractionsSummary({
   onVersionOpen,
 }: {
   docId: UnpackedHypermediaId
-  citations?: HMCitationsPayload
-  comments?: HMCommentsPayload
+  citations?: number
+  comments?: number
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
   onVersionOpen?: () => void
@@ -885,7 +895,7 @@ function _DocInteractionsSummary({
       {onCitationsOpen && (
         <InteractionSummaryItem
           label="citation"
-          count={citations?.length || 0}
+          count={citations || 0}
           onPress={() => {
             console.log('~ onCitationsOpen')
             onCitationsOpen()
@@ -897,7 +907,7 @@ function _DocInteractionsSummary({
       {onCommentsOpen && (
         <InteractionSummaryItem
           label="comment"
-          count={comments?.allComments.length || 0}
+          count={comments || 0}
           onPress={onCommentsOpen}
           icon={MessageSquare}
         />
@@ -907,10 +917,7 @@ function _DocInteractionsSummary({
         <InteractionSummaryItem
           label="version"
           count={changes.data?.length || 0}
-          onPress={() => {
-            console.log('~ onVersionOpen')
-            onVersionOpen()
-          }}
+          onPress={onVersionOpen}
           icon={HistoryIcon}
         />
       )}
@@ -939,23 +946,29 @@ function InteractionSummaryItem({
 }
 
 function WebCitationsPanel({
-  citations,
+  id,
+  // citations,
   blockId,
   handleBack,
   handleClose,
 }: {
-  citations?: Array<HMDocumentCitation>
+  id: UnpackedHypermediaId
+  // citations?: Array<HMDocumentCitation>
   blockId?: string
   handleBack: () => void
   handleClose: () => void
 }) {
+  const citations = useCitations(id)
   const filteredCitations = useMemo(() => {
-    if (!blockId || !citations) return citations
-    return citations?.filter(
-      (citation) =>
-        citation.targetFragment && citation.targetFragment?.blockId === blockId,
-    )
-  }, [citations, blockId])
+    if (!blockId) return citations.data
+    return citations.data
+      ? citations.data.filter(
+          (citation) =>
+            citation.targetFragment &&
+            citation.targetFragment?.blockId === blockId,
+        )
+      : null
+  }, [citations.data, blockId])
   const isDark = useIsDark()
   return (
     <YStack gap="$4">

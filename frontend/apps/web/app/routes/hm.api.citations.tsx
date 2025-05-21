@@ -1,12 +1,11 @@
 import {queryClient} from '@/client'
-import {getAccount, loadComment, resolveHMDocument} from '@/loaders'
+import {getAccount, resolveHMDocument} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {BIG_INT, hmId, parseFragment, unpackHmId} from '@shm/shared'
 import {
   HMCitation,
   HMCitationsPayload,
-  HMCommentCitation,
   HMDocumentCitation,
 } from '@shm/shared/hm-types'
 
@@ -28,7 +27,7 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
 
-    const documentCitations: Array<HMDocumentCitation | HMCommentCitation> = []
+    const documentCitations: Array<HMDocumentCitation> = []
 
     for (const mention of res.mentions) {
       const sourceId = unpackHmId(mention.source)
@@ -39,31 +38,31 @@ export const loader = async ({
         version: mention.targetVersion,
       })
       if (sourceId.type == 'c') {
-        try {
-          const citation: HMCitation = {
-            source: {
-              id: sourceId,
-              type: 'c',
-              author: mention.sourceBlob?.author,
-              time: mention.sourceBlob?.createTime,
-            },
-            targetFragment,
-            targetId,
-            isExactVersion: mention.isExactVersion,
-          }
-          const comment = await loadComment(sourceId)
-          const author = citation.source.author
-            ? await getAccount(citation.source.author)
-            : null
-          const commentCitation: HMCommentCitation = {
-            ...citation,
-            comment,
-            author,
-          }
-          documentCitations.push(commentCitation)
-        } catch (error) {
-          console.error('=== comment citation error', error)
-        }
+        // try {
+        //   const citation: HMCitation = {
+        //     source: {
+        //       id: sourceId,
+        //       type: 'c',
+        //       author: mention.sourceBlob?.author,
+        //       time: mention.sourceBlob?.createTime,
+        //     },
+        //     targetFragment,
+        //     targetId,
+        //     isExactVersion: mention.isExactVersion,
+        //   }
+        //   const comment = await loadComment(sourceId)
+        //   const author = citation.source.author
+        //     ? await getAccount(citation.source.author)
+        //     : null
+        //   const commentCitation: HMCommentCitation = {
+        //     ...citation,
+        //     comment,
+        //     author,
+        //   }
+        //   documentCitations.push(commentCitation)
+        // } catch (error) {
+        //   console.error('=== comment citation error', error)
+        // }
       } else if (sourceId.type == 'd') {
         try {
           const citation: HMCitation = {
@@ -79,7 +78,7 @@ export const loader = async ({
           }
           const document = await resolveHMDocument(sourceId)
           const author = citation.source.author
-            ? await getAccount(hmId('d', citation.source.author))
+            ? await getAccount(citation.source.author)
             : null
           if (document) {
             const documentCitation: HMDocumentCitation = {
