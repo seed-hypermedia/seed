@@ -13,19 +13,19 @@ export default function Navbar() {
 
       {/* Nav links */}
       <nav className="hidden md:flex space-x-6 text-sm font-medium text-gray-700">
-        <a href="#resources" className="hover:text-black transition">
+        <a href="/resources" className="hover:text-black transition">
           Resources
         </a>
-        <a href="#ecosystem" className="hover:text-black transition">
+        <a href="/documentation" className="hover:text-black transition">
           Ecosystem
         </a>
-        <a href="#blog" className="hover:text-black transition">
+        <a href="/blog" className="hover:text-black transition">
           Blog
         </a>
-        <a href="#team" className="hover:text-black transition">
+        <a href="/team" className="hover:text-black transition">
           Team
         </a>
-        <a href="#community" className="hover:text-black transition">
+        <a href="/community" className="hover:text-black transition">
           Community
         </a>
       </nav>
