@@ -236,7 +236,9 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
     return {
       ...nextRoute,
       accessory:
-        prevRoute.accessory && typeof nextRoute.accessory == 'undefined'
+        prevRoute.accessory &&
+        typeof nextRoute.accessory == 'undefined' &&
+        prevRoute.accessory.key != 'options'
           ? {
               key: prevRoute.accessory.key,
             }
