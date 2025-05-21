@@ -97,7 +97,7 @@ export function CoverImage({
                     right: -12,
                     top: 0,
                     zIndex: 100,
-                    background: 'red',
+                    backgroundColor: '#666666',
                   }}
                 />
                 <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>

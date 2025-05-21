@@ -451,10 +451,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           supportQueries={supportQueries}
           origin={origin}
         >
-          <PanelGroup
-            direction="horizontal"
-            style={{backgroundColor: 'red', minHeight: '100%'}}
-          >
+          <PanelGroup direction="horizontal" style={{minHeight: '100%'}}>
             <Panel
               ref={mainPanelRef}
               collapsible

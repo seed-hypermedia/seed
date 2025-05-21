@@ -68,7 +68,6 @@ export function BannerNewspaperCard({
   const coverImage = getDocumentCardImage(entity?.document)
   return (
     <View
-      bg="red"
       {...baseCardStyles}
       flexDirection="column"
       marginTop="$4"
