@@ -38833,9 +38833,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"website@workspace:frontend/apps/website":
+"website@workspace:frontend/apps/landing":
   version: 0.0.0-use.local
-  resolution: "website@workspace:frontend/apps/website"
+  resolution: "website@workspace:frontend/apps/landing"
   dependencies:
     "@eslint/js": ^9.25.0
     "@types/react": ^19.1.2
