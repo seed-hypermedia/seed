@@ -25,7 +25,7 @@ export default function Collaboration() {
                 to your site.
               </p>
               <img
-                src="/images/collaborators.png"
+                src="/collaborators.png"
                 alt="Collaborative Documents"
                 className="mt-4 w-full h-[400px] object-contain"
               />
@@ -43,7 +43,7 @@ export default function Collaboration() {
                 Connect directly peer-to-peer, with no centralized control.
               </p>
               <img
-                src="/images/comments.png"
+                src="/comments.png"
                 alt="Open Discussions"
                 className="mt-4 w-full h-[400px] object-contain"
               />
@@ -53,7 +53,6 @@ export default function Collaboration() {
         {/* Horizontal Separator */}
         <div className="w-full border-t border-gray-200" />
       </div>
-
     </section>
   );
 }

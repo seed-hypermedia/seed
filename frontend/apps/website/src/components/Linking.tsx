@@ -8,7 +8,8 @@ export default function Linking() {
             Powerful Links And Embeds
           </h2>
           <p className="mt-4 text-gray-700 max-w-lg">
-            Unlock the full potential of your content with advanced linking and embedding features.
+            Unlock the full potential of your content with advanced linking and
+            embedding features.
           </p>
         </div>
 
@@ -18,12 +19,15 @@ export default function Linking() {
           <div className="flex flex-col md:flex-row gap-12">
             {/* Column 1 */}
             <div className="flex-1 pt-6 pr-10">
-              <h3 className="text-lg font-semibold text-gray-900">Precise Linking</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Precise Linking
+              </h3>
               <p className="mt-2 text-gray-700 max-w-sm">
-                Build precise knowledge structures by linking directly to specific sections, paragraphs, or even individual words.
+                Build precise knowledge structures by linking directly to
+                specific sections, paragraphs, or even individual words.
               </p>
               <img
-                src="/images/linking.png"
+                src="/linking.png"
                 alt="Precise Linking"
                 className="mt-4 w-full h-auto rounded-xl"
               />
@@ -34,12 +38,15 @@ export default function Linking() {
 
             {/* Column 2 */}
             <div className="flex-1 pt-6 pl-10">
-              <h3 className="text-lg font-semibold text-gray-900">Bi-Directional References</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Bi-Directional References
+              </h3>
               <p className="mt-2 text-gray-700 max-w-sm">
-                All references are bi-directional, allowing you to explore other perspectives by tracking links back to your content.
+                All references are bi-directional, allowing you to explore other
+                perspectives by tracking links back to your content.
               </p>
               <img
-                src="/images/referencing.png"
+                src="/referencing.png"
                 alt="References"
                 className="mt-4 w-full h-auto rounded-xl"
               />
@@ -52,13 +59,16 @@ export default function Linking() {
 
         {/* Bottom Video Block */}
         <div className="text-left mt-10">
-          <h3 className="text-3xl font-semibold text-gray-900">Seamless Embeds</h3>
+          <h3 className="text-3xl font-semibold text-gray-900">
+            Seamless Embeds
+          </h3>
           <p className="mt-5 text-gray-700 max-w-xl">
-            Embed external content into your site while preserving proper attribution, keeping your resources organized and accessible.
+            Embed external content into your site while preserving proper
+            attribution, keeping your resources organized and accessible.
           </p>
           <div className="mt-6 overflow-hidden w-full ">
             <video
-              src="/videos/embeds.mp4"
+              src="/embeds.mp4"
               autoPlay
               muted
               loop

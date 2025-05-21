@@ -47,7 +47,7 @@ export default function Publishing() {
         {/* Demo Video */}
         <div className="mt-16 w-full mx-auto overflow-hidden rounded-xl shadow-md">
           <video
-            src="/videos/publishing-demo.mp4"
+            src="/publishing-demo.mp4"
             autoPlay
             muted
             loop

@@ -8,13 +8,17 @@ export default function Protocol() {
             Open Protocol And Software
           </h2>
           <p className="text-lg text-gray-800 mb-4">
-            Seed Hypermedia is designed in two parts. Seed is the Open Source software developed by our team, while Hypermedia is the open protocol that enhances the web to build trust and collaboration.
+            Seed Hypermedia is designed in two parts. Seed is the Open Source
+            software developed by our team, while Hypermedia is the open
+            protocol that enhances the web to build trust and collaboration.
           </p>
           <p className="text-lg text-gray-800 mb-4">
-            Because our desktop app and server are Open Source, developers can join our community to expand the product for their needs.
+            Because our desktop app and server are Open Source, developers can
+            join our community to expand the product for their needs.
           </p>
           <p className="text-lg text-gray-800 mb-6">
-            Anyone can participate in the hypermedia protocol and extend it beyond the current capabilities.
+            Anyone can participate in the hypermedia protocol and extend it
+            beyond the current capabilities.
           </p>
           <a
             href="https://github.com/seed-hypermedia"
@@ -30,7 +34,7 @@ export default function Protocol() {
         <div className="relative flex-1 flex justify-center items-center">
           <div className="w-[300px] h-[300px] md:w-[400px] md:h-[400px] overflow-hidden relative">
             <video
-              src="/videos/protocol.mp4"
+              src="/protocol.mp4"
               autoPlay
               loop
               muted

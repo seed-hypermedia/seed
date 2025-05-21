@@ -17,7 +17,7 @@ export default function Identity() {
 
           <div className="flex flex-col items-center text-center flex-1">
             <img
-              src="/images/key.png"
+              src="/key.png"
               alt="Crypto sign"
               className="max-h-24 max-w-24 mb-1"
             />
@@ -29,7 +29,7 @@ export default function Identity() {
 
           <div className="flex flex-col items-center text-center flex-1">
             <img
-              src="/images/check.png"
+              src="/check.png"
               alt="ID check"
               className="max-h-24 max-w-24 mb-1"
             />
@@ -62,7 +62,7 @@ export default function Identity() {
         {/* Video */}
         <div className="mt-10">
           <video
-            src="/videos/encryption.mp4"
+            src="/encryption.mp4"
             autoPlay
             muted
             loop

@@ -8,14 +8,15 @@ export default function Community() {
             Community Preservation
           </h2>
           <p className="mt-4 text-gray-700 text-base">
-            Thanks to the local-first architecture, your knowledge is archived at your fingertips always there to search and retrieve.
+            Thanks to the local-first architecture, your knowledge is archived
+            at your fingertips always there to search and retrieve.
           </p>
         </div>
 
         {/* Video */}
         <div className="flex-1 rounded-xl overflow-hidden">
           <video
-            src="/videos/community.mp4"
+            src="/community.mp4"
             autoPlay
             muted
             loop
