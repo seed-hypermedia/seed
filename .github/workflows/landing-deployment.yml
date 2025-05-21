@@ -1,0 +1,53 @@
+# Simple workflow for deploying static content to GitHub Pages
+name: Deploy Seed Landing Page
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+    paths:
+      - "frontend/apps/landing/**"
+      - ".github/workflows/landing-deployment.yml"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  # Single deploy job since we're just deploying
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "yarn"
+      - name: Install Frontend Dependencies
+        env:
+          YARN_ENABLE_IMMUTABLE_INSTALLS: false
+        run: |
+          yarn
+          shell: bash
+
+      - name: Build
+        run: yarn landing:build
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-build
+          path: frontend/apps/landing/dist/**/*
