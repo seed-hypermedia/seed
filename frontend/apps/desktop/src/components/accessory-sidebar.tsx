@@ -232,7 +232,7 @@ export function AccessoryTitle({
   isNewDraft = false,
 }: {
   title: string
-  onAccessorySelect: (key: AccessoryOptions[number]['key'] | undefined) => void
+  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
   isNewDraft?: boolean
 }) {
   const route = useNavRoute()
@@ -252,7 +252,7 @@ export function AccessoryTitle({
       >
         {title}
       </SizableText>
-      {!isNewDraft && (
+      {!isNewDraft && onAccessorySelect && (
         <XGroup
           alignSelf="flex-start"
           borderColor="$borderColor"

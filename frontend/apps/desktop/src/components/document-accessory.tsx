@@ -72,23 +72,24 @@ export function useDocumentAccessory({
       />
     )
   } else if (accessoryKey === 'directory') {
-    accessory = <DirectoryPanel docId={docId} />
+    accessory = docId ? <DirectoryPanel docId={docId} /> : null
   } else if (accessoryKey === 'options' || isNewDraft) {
     // TODO update options panel flow of updating from newspaper layout
-    accessory = (
-      <OptionsPanel
-        draftId={'UPDATE ME'}
-        metadata={state.context.metadata}
-        isHomeDoc={isEditingHomeDoc}
-        onMetadata={(metadata) => {
-          if (!metadata) return
-          actor.send({type: 'change', metadata})
-        }}
-        onResetContent={(blockNodes: HMBlockNode[]) => {
-          actor.send({type: 'reset.content'})
-        }}
-      />
-    )
+    accessory =
+      state?.context?.metadata && actor ? (
+        <OptionsPanel
+          draftId={'UPDATE ME'}
+          metadata={state.context.metadata}
+          isHomeDoc={isEditingHomeDoc || false}
+          onMetadata={(metadata) => {
+            if (!metadata) return
+            actor.send({type: 'change', metadata})
+          }}
+          onResetContent={(blockNodes: HMBlockNode[]) => {
+            actor.send({type: 'reset.content'})
+          }}
+        />
+      ) : null
   }
 
   if (docId) {

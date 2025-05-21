@@ -9,8 +9,8 @@ import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useState} from 'react'
-import {ButtonText, Input, Label, YStack} from 'tamagui'
-import {AccessoryContent, AccessorySection} from './accessory-sidebar'
+import {ButtonText, Input, Label, SizableText, YStack} from 'tamagui'
+import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
 export function OptionsPanel({
@@ -44,24 +44,24 @@ export function OptionsPanel({
             />
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
-            <AccessorySection
-              title="Document Options"
-              onAccessorySelect={() => {
-                // TODO, allow navigation between accessories in draft
-              }}
+            <SizableText
+              userSelect="none"
+              size="$3"
+              fontWeight="600"
+              paddingHorizontal="$1"
+              mt="$4"
+              f={1}
             >
-              <CoverImage
-                draftId={draftId}
-                metadata={metadata}
-                onMetadata={onMetadata}
-              />
-              <OriginalPublishDate
-                metadata={metadata}
-                onMetadata={onMetadata}
-              />
-              <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-              <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
-            </AccessorySection>
+              Document Options
+            </SizableText>
+            <CoverImage
+              draftId={draftId}
+              metadata={metadata}
+              onMetadata={onMetadata}
+            />
+            <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
+            <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+            <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
           </>
         ) : (
           <>
@@ -113,7 +113,7 @@ function DocumentIconForm({
   metadata,
   onMetadata,
 }: {
-  draftId: UnpackedHypermediaId
+  draftId: string
   metadata: HMMetadata
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
@@ -124,7 +124,7 @@ function DocumentIconForm({
       </Label>
       <IconForm
         size={100}
-        id={`icon-${draftId.id}`}
+        id={`icon-${draftId}`}
         label={metadata.name}
         url={metadata.icon ? getDaemonFileUrl(metadata.icon) : ''}
         onIconUpload={(icon) => {
@@ -149,7 +149,7 @@ function CoverImage({
   metadata,
   onMetadata,
 }: {
-  draftId: UnpackedHypermediaId
+  draftId: string
   metadata: HMMetadata
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
@@ -160,7 +160,7 @@ function CoverImage({
       </Label>
       <ImageForm
         maxHeight={100}
-        id={`cover-${draftId.id}`}
+        id={`cover-${draftId}`}
         label={metadata.cover}
         url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
         onImageUpload={(imageCid) => {
