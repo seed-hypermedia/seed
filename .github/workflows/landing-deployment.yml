@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   # Single deploy job since we're just deploying
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -45,8 +45,35 @@ jobs:
       - name: Build
         run: yarn landing:build
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: landing-build
-          path: frontend/apps/landing/dist/**/*
+      - name: Setup SSH key and SCP
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_USER_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          scp -i ~/.ssh/id_rsa -C - r frontend/apps/landing/dist/ github@hyped.media:/home/github/landing
+
+          rm -f ~/.ssh/id_rsa
+
+    #   - name: Upload Artifacts
+    #     uses: actions/upload-artifact@v4
+    #     with:
+    #       name: landing-build
+    #       path: frontend/apps/landing/dist/**/*
+
+#   jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Setup SSH key and SCP
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "${{ secrets.ACTIONS_USER_KEY }}" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+
+#           scp -i ~/.ssh/id_rsa -C - r folder/ github@hyped.media:/home/github/landing
+
+#           rm -f ~/.ssh/id_rsa
