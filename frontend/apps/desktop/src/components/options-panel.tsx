@@ -60,7 +60,7 @@ export function OptionsPanel({
                 onMetadata={onMetadata}
               />
               <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-              {/* <ActivityVisibility metadata={metadata} onMetadata={onMetadata} /> */}
+              <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
             </AccessorySection>
           </>
         ) : (
@@ -78,7 +78,7 @@ export function OptionsPanel({
             />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-            {/* <ActivityVisibility metadata={metadata} onMetadata={onMetadata} /> */}
+            <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
           </>
         )}
@@ -351,7 +351,7 @@ function ActivityVisibility({
   return (
     <YStack>
       <SwitchField
-        label="Show Activity"
+        label="Enable Web Activity Panel"
         id="activity"
         defaultChecked={checked}
         opacity={checked ? 1 : 0.4}
