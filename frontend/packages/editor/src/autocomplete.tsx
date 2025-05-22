@@ -295,6 +295,21 @@ function AutocompletePopupInner(
     Documents: [],
   })
 
+  const [position, setPosition] = useState<'above' | 'below'>('below')
+
+  useEffect(() => {
+    const viewportHeight = window.innerHeight
+    const popupHeight = 160
+    const spaceBelow = viewportHeight - rect.bottom
+    const spaceAbove = rect.top
+
+    if (spaceBelow < popupHeight && spaceAbove > popupHeight) {
+      setPosition('above')
+    } else {
+      setPosition('below')
+    }
+  }, [rect])
+
   useEffect(() => {
     editor.options
       .onMentionsQuery(text)
@@ -386,7 +401,11 @@ function AutocompletePopupInner(
     <div
       style={{
         position: 'fixed',
-        top: rect.bottom + 4,
+        top: position === 'below' ? rect.bottom + 4 : undefined,
+        bottom:
+          position === 'above'
+            ? window.innerHeight - rect.top + 220
+            : undefined,
         left: rect.left,
         zIndex: 1000,
       }}
@@ -517,7 +536,7 @@ export type AutocompleteTokenPluginActiveState<T> = {
   // The text we use to search
   text: string
   // Where to position the popup
-  rect: {bottom: number; left: number}
+  rect: {top: number; bottom: number; left: number}
 }
 
 export type AutocompleteTokenPluginActions = {
@@ -526,7 +545,11 @@ export type AutocompleteTokenPluginActions = {
 }
 
 export type AutocompleteTokenPluginAction =
-  | {type: 'open'; pos: number; rect: {bottom: number; left: number}}
+  | {
+      type: 'open'
+      pos: number
+      rect: {top: number; bottom: number; left: number}
+    }
   | {type: 'close'}
 
 const SuggestionItem = React.memo(function SuggestionItem(props: {
