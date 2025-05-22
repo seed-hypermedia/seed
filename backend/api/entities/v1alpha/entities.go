@@ -186,66 +186,93 @@ func (task *discoveryTask) start(api *Server) {
 }
 
 var qGetFTS = dqb.Str(`
-WITH fts_data AS (
-SELECT
+WITH fts_top100 AS (
+  SELECT
     fts.raw_content,
     fts.type,
     fts.block_id,
-	fts.version,
-	fts.blob_id,
-    resources.iri,
+    fts.version,
+    fts.blob_id,
     structural_blobs.genesis_blob,
     fts.rank
-    
-FROM fts
-JOIN structural_blobs ON structural_blobs.id = fts.blob_id
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE fts.raw_content MATCH :ftsStr AND
-fts.type IN (:entityTitle , :entityDoc , :entityComment) ORDER BY rank
+  FROM fts
+    JOIN structural_blobs
+      ON structural_blobs.id = fts.blob_id
+    JOIN blobs INDEXED BY blobs_metadata
+      ON blobs.id = structural_blobs.id
+    JOIN public_keys
+      ON public_keys.id = structural_blobs.author
+    LEFT JOIN resources
+      ON resources.id = structural_blobs.resource
+  WHERE fts.raw_content MATCH :ftsStr
+    AND fts.type IN (:entityTitle, :entityDoc, :entityComment)
+  ORDER BY fts.type DESC, fts.rank DESC
+  LIMIT :limit
 )
 
 SELECT
-    fts_data.raw_content,
-    fts_data.type,
-	fts_data.block_id,
-	fts_data.version,
-	fts_data.blob_id,
-    resources.iri,
-    public_keys.principal AS author,
-    blobs.codec,
-    blobs.multihash,
-    document_generations.metadata,
-	(
-    SELECT
-      json_group_array(
-        json_object(
-          'codec',    b2.codec,
-          'multihash', hex(b2.multihash)
-        )
-      )
+  f.raw_content,
+  f.type,
+  f.block_id,
+  f.version,
+  f.blob_id,
+  resources.iri,
+  public_keys.principal      AS author,
+  blobs.codec,
+  blobs.multihash,
+  document_generations.metadata,
+  (
+    SELECT json_group_array(
+             json_object(
+               'codec',    b2.codec,
+               'multihash', hex(b2.multihash)
+             )
+           )
     FROM json_each(document_generations.heads) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
-  	) AS heads,
-	structural_blobs.ts
-    
-FROM fts_data
-JOIN structural_blobs ON ((fts_data.genesis_blob = structural_blobs.genesis_blob OR fts_data.blob_id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (fts_data.blob_id = structural_blobs.id AND structural_blobs.type = 'Comment')
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-JOIN document_generations ON document_generations.resource = resources.id
-LEFT JOIN resources ON resources.id = structural_blobs.resource
+  ) AS heads,
+  structural_blobs.ts
+FROM fts_top100 AS f
+
+  JOIN structural_blobs
+    ON (
+         (f.genesis_blob = structural_blobs.genesis_blob
+           AND structural_blobs.type = 'Ref')
+      OR (f.blob_id       = structural_blobs.genesis_blob
+           AND structural_blobs.type = 'Ref')
+      OR (f.blob_id       = structural_blobs.id
+           AND structural_blobs.type = 'Comment')
+     )
+
+  JOIN blobs INDEXED BY blobs_metadata
+    ON blobs.id = structural_blobs.id
+
+  JOIN public_keys
+    ON public_keys.id = structural_blobs.author
+
+  LEFT JOIN resources
+    ON resources.id = structural_blobs.resource
+
+  JOIN document_generations
+    ON document_generations.resource = resources.id
+
 WHERE resources.iri IS NOT NULL
-GROUP BY fts_data.raw_content, 
-fts_data.type, 
-fts_data.block_id, 
-fts_data.version, 
-fts_data.blob_id, 
-resources.iri, 
-author 
-ORDER BY fts_data.rank;`)
+
+GROUP BY
+  f.raw_content,
+  f.type,
+  f.block_id,
+  f.version,
+  f.blob_id,
+  resources.iri,
+  author
+
+ORDER BY
+  f.type DESC,
+  f.rank DESC;
+
+`)
 
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg 
@@ -300,7 +327,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	if in.IncludeBody {
 		entityTypeDoc = "document"
-		entityTypeComment = "comment"
+		// entityTypeComment = "comment" TODO: comment out this when we have comment links
+	}
+	var resultsLmit int = 50
+
+	if len(cleanQuery) < 3 {
+		resultsLmit = 50
 	}
 	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
 	if ftsStr[len(ftsStr)-1] == '+' {
@@ -312,6 +344,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
+
+	//before := time.Now()
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var icon icon
@@ -388,11 +422,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				MatchedIndexes: offsets,
 			})
 			return nil
-		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment)
+		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment, resultsLmit)
 	}); err != nil {
 		return nil, err
 	}
-
+	//after := time.Now()
+	//elapsed := after.Sub(before)
+	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -426,9 +462,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		return parentTitles, nil
 	}
-
+	//before = time.Now()
+	//totalGetParentsTime := time.Duration(0)
+	//totalLatestBlockTime := time.Duration(0)
+	//var timesCalled int
 	for _, match := range bodyMatches {
+		//startParents := time.Now()
 		parentTitles, err := getParentsFcn(match)
+		//totalGetParentsTime += time.Since(startParents)
+		if err != nil {
+			return nil, err
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -441,7 +485,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if versions[match.Index] != "" && contentType[match.Index] != "comment" {
 			var version string
 			versions[match.Index] += "&l"
-			if latestVersions[match.Index] != versions[match.Index] {
+			if latestVersions[match.Index]+"&l" != versions[match.Index] {
+				//startLatestBlocks := time.Now()
+				//timesCalled++
+				//versions[match.Index] = versions[match.Index][:len(versions[match.Index])-2]
+
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
@@ -452,6 +500,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}); err != nil {
 					return nil, err
 				}
+
+				//totalLatestBlockTime += time.Since(startLatestBlocks)
 				if version != "" {
 					versions[match.Index] = version
 				}
@@ -479,8 +529,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Icon:        icons[match.Index],
 			Owner:       owners[match.Index]})
 	}
+	//after = time.Now()
 
-	// reorder matchingEntities: titles first, then by DocId, then by VersionTime (newest first)
+	//fmt.Printf("getParentsFcn took %.9f s\n", after.Sub(before).Seconds())
+	//fmt.Printf("getParentsFcn took %.9f s\n", totalGetParentsTime.Seconds())
+	//fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
+
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]
 		isTitleA := a.Type == "title"
