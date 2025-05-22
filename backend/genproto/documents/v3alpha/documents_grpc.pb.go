@@ -26,6 +26,7 @@ const (
 	Documents_ListAccounts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListAccounts"
 	Documents_GetAccount_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetAccount"
 	Documents_BatchGetAccounts_FullMethodName         = "/com.seed.documents.v3alpha.Documents/BatchGetAccounts"
+	Documents_UpdateProfile_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateProfile"
 	Documents_ListDirectory_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDirectory"
 	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
 	Documents_ListRootDocuments_FullMethodName        = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
@@ -59,6 +60,8 @@ type DocumentsClient interface {
 	GetAccount(ctx context.Context, in *GetAccountRequest, opts ...grpc.CallOption) (*Account, error)
 	// Gets multiple accounts by IDs.
 	BatchGetAccounts(ctx context.Context, in *BatchGetAccountsRequest, opts ...grpc.CallOption) (*BatchGetAccountsResponse, error)
+	// Updates the profile of an account.
+	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*Account, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -140,6 +143,16 @@ func (c *documentsClient) BatchGetAccounts(ctx context.Context, in *BatchGetAcco
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BatchGetAccountsResponse)
 	err := c.cc.Invoke(ctx, Documents_BatchGetAccounts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*Account, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Account)
+	err := c.cc.Invoke(ctx, Documents_UpdateProfile_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +262,8 @@ type DocumentsServer interface {
 	GetAccount(context.Context, *GetAccountRequest) (*Account, error)
 	// Gets multiple accounts by IDs.
 	BatchGetAccounts(context.Context, *BatchGetAccountsRequest) (*BatchGetAccountsResponse, error)
+	// Updates the profile of an account.
+	UpdateProfile(context.Context, *UpdateProfileRequest) (*Account, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -291,6 +306,9 @@ func (UnimplementedDocumentsServer) GetAccount(context.Context, *GetAccountReque
 }
 func (UnimplementedDocumentsServer) BatchGetAccounts(context.Context, *BatchGetAccountsRequest) (*BatchGetAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetAccounts not implemented")
+}
+func (UnimplementedDocumentsServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*Account, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
 }
 func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDirectory not implemented")
@@ -440,6 +458,24 @@ func _Documents_BatchGetAccounts_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentsServer).BatchGetAccounts(ctx, req.(*BatchGetAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_UpdateProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).UpdateProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_UpdateProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).UpdateProfile(ctx, req.(*UpdateProfileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -618,6 +654,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchGetAccounts",
 			Handler:    _Documents_BatchGetAccounts_Handler,
+		},
+		{
+			MethodName: "UpdateProfile",
+			Handler:    _Documents_UpdateProfile_Handler,
 		},
 		{
 			MethodName: "ListDirectory",

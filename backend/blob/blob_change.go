@@ -26,7 +26,7 @@ const blobTypeChange blobType = "Change"
 // Change is an atomic change to a document.
 // The linked DAG of Changes represents the state of a document over time.
 type Change struct {
-	baseBlob
+	BaseBlob
 	Genesis cid.Cid    `refmt:"genesis,omitempty"`
 	Deps    []cid.Cid  `refmt:"deps,omitempty"`
 	Depth   int        `refmt:"depth,omitempty"`
@@ -55,7 +55,7 @@ func NewChange(kp *core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, bod
 	}
 
 	cc := &Change{
-		baseBlob: baseBlob{
+		BaseBlob: BaseBlob{
 			Type:   blobTypeChange,
 			Signer: kp.Principal(),
 			Ts:     ts,
@@ -66,7 +66,7 @@ func NewChange(kp *core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, bod
 		Body:    body,
 	}
 
-	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, cc, &cc.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 

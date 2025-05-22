@@ -1157,6 +1157,29 @@ func TestRedirect(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	profile := &documents.Profile{
+		Name:        "Alice in Wonderland",
+		Icon:        "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+		Description: "Down the rabbit hole!",
+	}
+	account, err := alice.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        alice.me.Account.PublicKey.String(),
+		SigningKeyName: "main",
+		Profile:        profile,
+	})
+	profile.UpdateTime = account.Profile.UpdateTime
+	require.NoError(t, err)
+	require.NotNil(t, account)
+
+	testutil.StructsEqual(profile, account.Profile).Compare(t, "profiles must match")
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester

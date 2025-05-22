@@ -45,7 +45,7 @@ func init() {
 
 // Comment is a blob that represents a comment to some document, or a reply to some other comment.
 type Comment struct {
-	baseBlob
+	BaseBlob
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Space_      core.Principal `refmt:"space,omitempty"`
 	Path        string         `refmt:"path,omitempty"`
@@ -68,7 +68,7 @@ func NewComment(
 	ts time.Time,
 ) (eb Encoded[*Comment], err error) {
 	cu := &Comment{
-		baseBlob: baseBlob{
+		BaseBlob: BaseBlob{
 			Type:   blobTypeComment,
 			Signer: kp.Principal(),
 			Ts:     ts,
@@ -85,7 +85,7 @@ func NewComment(
 		cu.Space_ = space
 	}
 
-	if err := signBlob(kp, cu, &cu.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, cu, &cu.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 

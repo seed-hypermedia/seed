@@ -16,6 +16,7 @@ import (
 	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"seed/backend/util/lwwmap"
 	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/invopop/validation"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -610,7 +612,24 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 			"subs.id IS NOT NULL AS is_subscribed",
 			"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
 			"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
-			"(SELECT extra_attrs->>'alias' FROM structural_blobs WHERE author = (SELECT resources.owner FROM resources WHERE iri = 'hm://' || spaces.id) AND type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL) AS alias",
+			`(
+	SELECT
+		json_group_array(json_object(
+			'ts', ts,
+			'profile', json(extra_attrs)
+		))
+	FROM (
+        SELECT
+        	*,
+            ROW_NUMBER() OVER (PARTITION BY resource ORDER BY ts DESC) AS rn
+		FROM structural_blobs
+		WHERE resource = (SELECT id FROM resources WHERE iri = 'hm://' || spaces.id)
+		AND type = 'Profile'
+		AND extra_attrs IS NOT NULL
+	) ranked
+	WHERE rn = 1
+	GROUP BY resource
+) AS profiles`,
 		).
 		From("spaces").
 		LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id")
@@ -628,7 +647,7 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 		isSubscribed     = row.ColumnInt(seq()) != 0
 		isUnread         = row.ColumnInt64(seq()) > 0
 		metadataJSON     = row.ColumnBytesUnsafe(seq())
-		aliasID          = row.ColumnInt64(seq())
+		profilesJSON     = row.ColumnBytesUnsafe(seq())
 	)
 
 	var attrs blob.DocIndexedAttrs
@@ -661,16 +680,6 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 		return nil, fmt.Errorf("failed to collect struct metadata: %w", err)
 	}
 
-	var alias string
-	if aliasID != 0 {
-		aliasKey, err := lookup.PublicKey(aliasID)
-		if err != nil {
-			return nil, err
-		}
-
-		alias = aliasKey.String()
-	}
-
 	item := &documents.Account{
 		Id:       spaceID,
 		Metadata: metastruct,
@@ -682,7 +691,63 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 			IsUnread:          isUnread,
 		},
 		IsSubscribed: isSubscribed,
-		AliasAccount: alias,
+	}
+
+	if len(profilesJSON) > 0 {
+		profile := lwwmap.New()
+
+		var profiles []dbProfile
+
+		if err := json.Unmarshal(profilesJSON, &profiles); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal profiles: %w", err)
+		}
+
+		for _, p := range profiles {
+			if p.Profile.Alias > 0 {
+				profile.Set(p.Ts, []string{"alias"}, p.Profile.Alias)
+			}
+
+			if p.Profile.Name != "" {
+				profile.Set(p.Ts, []string{"name"}, p.Profile.Name)
+			}
+
+			if p.Profile.Icon != "" {
+				profile.Set(p.Ts, []string{"icon"}, p.Profile.Icon)
+			}
+
+			if p.Profile.Description != "" {
+				profile.Set(p.Ts, []string{"description"}, p.Profile.Description)
+			}
+		}
+
+		// If we have alias we ignore all the other profile fields.
+		aliasID, ok := profile.Get([]string{"alias"})
+		if ok {
+			alias, err := lookup.PublicKey(aliasID.(int64))
+			if err != nil {
+				return nil, fmt.Errorf("failed to lookup alias: %w", err)
+			}
+			item.AliasAccount = alias.String()
+		} else {
+			item.Profile = &documents.Profile{}
+
+			name, ok := profile.Get([]string{"name"})
+			if ok {
+				item.Profile.Name = name.(string)
+			}
+
+			icon, ok := profile.Get([]string{"icon"})
+			if ok {
+				item.Profile.Icon = icon.(string)
+			}
+
+			description, ok := profile.Get([]string{"description"})
+			if ok {
+				item.Profile.Description = description.(string)
+			}
+
+			item.Profile.UpdateTime = timestamppb.New(time.UnixMilli(profile.MaxTS()))
+		}
 	}
 
 	return &dbAccount{
@@ -690,6 +755,64 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 		SpaceID:          spaceID,
 		LastActivityTime: lastActivityTime,
 	}, nil
+}
+
+type dbProfile struct {
+	Ts      int64 `json:"ts"`
+	Profile struct {
+		Alias       int64  `json:"alias"`
+		Name        string `json:"name"`
+		Icon        string `json:"icon"`
+		Description string `json:"description"`
+	}
+}
+
+type profileJSON struct {
+	Ts      int64          `json:"ts"`
+	Profile map[string]any `json:"profile"`
+}
+
+// UpdateProfile implements Documents API v3.
+func (srv *Server) UpdateProfile(ctx context.Context, in *documents.UpdateProfileRequest) (*documents.Account, error) {
+	if err := validation.ValidateStruct(in,
+		validation.Field(&in.Account, validation.Required),
+		validation.Field(&in.Profile, validation.Required),
+		validation.Field(&in.SigningKeyName, validation.Required),
+	); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	acc, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srv.checkWriteAccess(ctx, acc, "", kp); err != nil {
+		return nil, err
+	}
+
+	sb, err := blob.NewProfile(kp, in.Profile.Name, blob.URI(in.Profile.Icon), in.Profile.Description, acc, cclock.New().MustNow())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srv.idx.Put(ctx, sb); err != nil {
+		return nil, fmt.Errorf("failed to save profile blob: %w", err)
+	}
+
+	out, err := srv.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: in.Account,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "can't load account after updating the profile: %v", err)
+	}
+
+	return out, nil
 }
 
 // ListRootDocuments implements Documents API v3.

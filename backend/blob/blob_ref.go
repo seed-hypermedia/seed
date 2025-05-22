@@ -35,7 +35,7 @@ func init() {
 // to point to some other blobs, namely document changes.
 // It's similar to a Git Ref, but is signed.
 type Ref struct {
-	baseBlob
+	BaseBlob
 
 	Space_      core.Principal  `refmt:"space,omitempty"` // Use Space() method.
 	Path        string          `refmt:"path,omitempty"`
@@ -49,7 +49,7 @@ type Ref struct {
 // NewRef creates a new Ref blob.
 func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
-		baseBlob: baseBlob{
+		BaseBlob: BaseBlob{
 			Type:   blobTypeRef,
 			Signer: kp.Principal(),
 			Ts:     ts,
@@ -64,7 +64,7 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 		ru.Space_ = space
 	}
 
-	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, ru, &ru.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -79,7 +79,7 @@ func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space c
 	}
 
 	ru := &Ref{
-		baseBlob: baseBlob{
+		BaseBlob: BaseBlob{
 			Type:   blobTypeRef,
 			Signer: kp.Principal(),
 			Ts:     ts,
@@ -94,7 +94,7 @@ func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space c
 		ru.Space_ = space
 	}
 
-	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, ru, &ru.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 

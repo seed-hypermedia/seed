@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, CreateAliasRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, CreateAliasRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -83,6 +83,17 @@ export const Documents = {
       name: "BatchGetAccounts",
       I: BatchGetAccountsRequest,
       O: BatchGetAccountsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Updates the profile of an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateProfile
+     */
+    updateProfile: {
+      name: "UpdateProfile",
+      I: UpdateProfileRequest,
+      O: Account,
       kind: MethodKind.Unary,
     },
     /**

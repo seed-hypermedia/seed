@@ -42,7 +42,7 @@ const (
 
 // Capability is a blob that represents some granted rights from the issuer to the delegate key.
 type Capability struct {
-	baseBlob
+	BaseBlob
 	Delegate core.Principal `refmt:"delegate"`
 	Path     string         `refmt:"path,omitempty"`
 	Role     Role           `refmt:"role,omitempty"`
@@ -52,7 +52,7 @@ type Capability struct {
 // NewCapability creates a new Capability blob.
 func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role Role, label string, ts time.Time) (eb Encoded[*Capability], err error) {
 	cu := &Capability{
-		baseBlob: baseBlob{
+		BaseBlob: BaseBlob{
 			Type:   blobTypeCapability,
 			Signer: issuer.Principal(),
 			Ts:     ts,
@@ -67,7 +67,7 @@ func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path st
 		return eb, fmt.Errorf("BUG: capabilities can only be signed by the space owner key")
 	}
 
-	if err := signBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
+	if err := signBlob(issuer, cu, &cu.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 

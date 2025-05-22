@@ -85,7 +85,8 @@ func mapToCBOR(data map[string]any, v any) {
 	}
 }
 
-type baseBlob struct {
+// BaseBlob is the base struct for all blobs.
+type BaseBlob struct {
 	Type   blobType       `refmt:"type"`
 	Signer core.Principal `refmt:"signer"`
 	Sig    core.Signature `refmt:"sig"`

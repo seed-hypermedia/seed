@@ -18,6 +18,7 @@ require (
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/improbable-eng/grpc-web v0.15.0
+	github.com/invopop/validation v0.8.0
 	github.com/ipfs/boxo v0.29.1
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.5.0
@@ -59,6 +60,7 @@ require (
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.36.6
 	roci.dev/fracdex v0.0.0-00010101000000-000000000000
+	rsc.io/ordered v1.1.1
 )
 
 require (

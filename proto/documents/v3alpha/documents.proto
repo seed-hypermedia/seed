@@ -36,6 +36,9 @@ service Documents {
   // Gets multiple accounts by IDs.
   rpc BatchGetAccounts(BatchGetAccountsRequest) returns (BatchGetAccountsResponse);
 
+  // Updates the profile of an account.
+  rpc UpdateProfile(UpdateProfileRequest) returns (Account);
+
   // Lists documents in a directory of an account.
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
@@ -200,6 +203,18 @@ message BatchGetAccountsResponse {
   map<string, bytes> errors = 2;
 }
 
+// Request to update a profile.
+message UpdateProfileRequest {
+  // Required. ID of the account to update the profile for.
+  string account = 1;
+
+  // Required. The updated profile data.
+  Profile profile = 2;
+
+  // Required. Name of the key to use for signing the profile.
+  string signing_key_name = 3;
+}
+
 // Aggregated information about an account.
 // Some of this information comes from the accounts' root document,
 // some is aggregated from the other documents inside of the account.
@@ -207,7 +222,7 @@ message Account {
   // ID of the account.
   string id = 1;
 
-  // Metadata attributes from the root document of the account.
+  // Metadata attributes from the root document of this account's Space.
   google.protobuf.Struct metadata = 2;
 
   // Summary of the activity in the entire account.
@@ -221,6 +236,26 @@ message Account {
   // If this is present all the other fields should be ignored.
   // It's up to the caller to follow the alias and get the actual account data.
   string alias_account = 5;
+
+  // Optional. Profile information about the account.
+  // Can be missing if there's no Profile blob for this account.
+  Profile profile = 6;
+}
+
+// Profile describes properties of an account.
+message Profile {
+  // Display name of the account.
+  string name = 1;
+
+  // URI for the icon/avatar.
+  string icon = 2;
+
+  // Optional short description text.
+  string description = 3;
+
+  // Output only. Time when the profile was updated.
+  // This field is set by the server, and is ignored in update requests from the client.
+  google.protobuf.Timestamp update_time = 4;
 }
 
 // Request to list a directory.

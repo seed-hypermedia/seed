@@ -1056,3 +1056,110 @@ func TestKeyDelegation(t *testing.T) {
 		testutil.StructsEqual(x, batch.Accounts[x.Id]).Compare(t, "account must match")
 	}
 }
+
+func TestDelegatedProfileUpdate(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := t.Context()
+
+	// Create first key (Alice).
+	alice := coretest.NewTester("alice").Account.Principal()
+
+	// Create initial profile for Alice.
+	initialProfile := &documents.Profile{
+		Name:        "Alice",
+		Description: "Primary account holder",
+	}
+
+	_, err := dmn.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        alice.String(),
+		Profile:        initialProfile,
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	// Verify Alice's profile was set correctly.
+	aliceAccount, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: alice.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, initialProfile.Name, aliceAccount.Profile.Name)
+	require.Equal(t, initialProfile.Icon, aliceAccount.Profile.Icon)
+	require.Equal(t, initialProfile.Description, aliceAccount.Profile.Description)
+
+	// Create second key (Bob).
+	bob := coretest.NewTester("bob").Account.Principal()
+	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", coretest.NewTester("bob").Account))
+
+	// Create Bob's profile.
+	bobProfile := &documents.Profile{
+		Name:        "Bob",
+		Description: "Secondary device",
+	}
+
+	_, err = dmn.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        bob.String(),
+		Profile:        bobProfile,
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+
+	// Perform device delegation - Alice delegates to Bob.
+	_, err = dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.String(),
+		Account:        alice.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob's device key",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Bob claims Alice as alias.
+	_, err = dmn.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "bob",
+		AliasAccount:   alice.String(),
+	})
+	require.NoError(t, err)
+
+	// Verify Bob has Alice as alias.
+	bobAccount, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: bob.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, alice.String(), bobAccount.AliasAccount, "bob must have alice as alias")
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Now Bob updates Alice's profile using his delegated key.
+	updatedProfile := &documents.Profile{
+		Name:        "Alice (updated)",
+		Description: "Profile updated by delegated key",
+	}
+
+	_, err = dmn.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        alice.String(),
+		Profile:        updatedProfile,
+		SigningKeyName: "bob", // Using Bob's key to update Alice's profile
+	})
+	require.NoError(t, err)
+
+	// Verify Alice's profile was updated correctly
+	aliceAccountUpdated, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: alice.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, updatedProfile.Name, aliceAccountUpdated.Profile.Name)
+	require.Equal(t, updatedProfile.Icon, aliceAccountUpdated.Profile.Icon)
+	require.Equal(t, updatedProfile.Description, aliceAccountUpdated.Profile.Description)
+
+	// Verify Bob's profile returns the alias.
+	bobAccountUpdated, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: bob.String(),
+	})
+	require.NoError(t, err)
+	require.Nil(t, bobAccountUpdated.Profile)
+	require.Equal(t, alice.String(), bobAccountUpdated.AliasAccount)
+}

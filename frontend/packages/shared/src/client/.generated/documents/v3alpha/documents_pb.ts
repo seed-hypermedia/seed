@@ -653,6 +653,63 @@ export class BatchGetAccountsResponse extends Message<BatchGetAccountsResponse> 
 }
 
 /**
+ * Request to update a profile.
+ *
+ * @generated from message com.seed.documents.v3alpha.UpdateProfileRequest
+ */
+export class UpdateProfileRequest extends Message<UpdateProfileRequest> {
+  /**
+   * Required. ID of the account to update the profile for.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. The updated profile data.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Profile profile = 2;
+   */
+  profile?: Profile;
+
+  /**
+   * Required. Name of the key to use for signing the profile.
+   *
+   * @generated from field: string signing_key_name = 3;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<UpdateProfileRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.UpdateProfileRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "profile", kind: "message", T: Profile },
+    { no: 3, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined, b: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateProfileRequest, a, b);
+  }
+}
+
+/**
  * Aggregated information about an account.
  * Some of this information comes from the accounts' root document,
  * some is aggregated from the other documents inside of the account.
@@ -668,7 +725,7 @@ export class Account extends Message<Account> {
   id = "";
 
   /**
-   * Metadata attributes from the root document of the account.
+   * Metadata attributes from the root document of this account's Space.
    *
    * @generated from field: google.protobuf.Struct metadata = 2;
    */
@@ -698,6 +755,14 @@ export class Account extends Message<Account> {
    */
   aliasAccount = "";
 
+  /**
+   * Optional. Profile information about the account.
+   * Can be missing if there's no Profile blob for this account.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Profile profile = 6;
+   */
+  profile?: Profile;
+
   constructor(data?: PartialMessage<Account>) {
     super();
     proto3.util.initPartial(data, this);
@@ -711,6 +776,7 @@ export class Account extends Message<Account> {
     { no: 3, name: "activity_summary", kind: "message", T: ActivitySummary },
     { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "profile", kind: "message", T: Profile },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Account {
@@ -727,6 +793,72 @@ export class Account extends Message<Account> {
 
   static equals(a: Account | PlainMessage<Account> | undefined, b: Account | PlainMessage<Account> | undefined): boolean {
     return proto3.util.equals(Account, a, b);
+  }
+}
+
+/**
+ * Profile describes properties of an account.
+ *
+ * @generated from message com.seed.documents.v3alpha.Profile
+ */
+export class Profile extends Message<Profile> {
+  /**
+   * Display name of the account.
+   *
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * URI for the icon/avatar.
+   *
+   * @generated from field: string icon = 2;
+   */
+  icon = "";
+
+  /**
+   * Optional short description text.
+   *
+   * @generated from field: string description = 3;
+   */
+  description = "";
+
+  /**
+   * Output only. Time when the profile was updated.
+   * This field is set by the server, and is ignored in update requests from the client.
+   *
+   * @generated from field: google.protobuf.Timestamp update_time = 4;
+   */
+  updateTime?: Timestamp;
+
+  constructor(data?: PartialMessage<Profile>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Profile";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "update_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Profile {
+    return new Profile().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Profile {
+    return new Profile().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Profile {
+    return new Profile().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Profile | PlainMessage<Profile> | undefined, b: Profile | PlainMessage<Profile> | undefined): boolean {
+    return proto3.util.equals(Profile, a, b);
   }
 }
 
