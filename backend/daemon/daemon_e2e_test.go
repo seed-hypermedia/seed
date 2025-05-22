@@ -1135,8 +1135,7 @@ func TestDelegatedProfileUpdate(t *testing.T) {
 
 	// Now Bob updates Alice's profile using his delegated key.
 	updatedProfile := &documents.Profile{
-		Name:        "Alice (updated)",
-		Description: "Profile updated by delegated key",
+		Name: "Alice (updated)",
 	}
 
 	_, err = dmn.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
@@ -1153,7 +1152,7 @@ func TestDelegatedProfileUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updatedProfile.Name, aliceAccountUpdated.Profile.Name)
 	require.Equal(t, updatedProfile.Icon, aliceAccountUpdated.Profile.Icon)
-	require.Equal(t, updatedProfile.Description, aliceAccountUpdated.Profile.Description)
+	require.Equal(t, initialProfile.Description, aliceAccountUpdated.Profile.Description)
 
 	// Verify Bob's profile returns the alias.
 	bobAccountUpdated, err := dmn.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{

@@ -621,7 +621,7 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 	FROM (
         SELECT
         	*,
-            ROW_NUMBER() OVER (PARTITION BY resource ORDER BY ts DESC) AS rn
+            ROW_NUMBER() OVER (PARTITION BY resource, author ORDER BY ts DESC) AS rn
 		FROM structural_blobs
 		WHERE resource = (SELECT id FROM resources WHERE iri = 'hm://' || spaces.id)
 		AND type = 'Profile'
