@@ -8,7 +8,14 @@ export default defineConfig({
   plugins: [react()],
   publicDir: "public",
   build: {
-    assetsDir: ".",
+    assetsDir: "landing-assets",
+    rollupOptions: {
+      output: {
+        entryFileNames: "landing-assets/[name].[hash].js",
+        chunkFileNames: "landing-assets/[name].[hash].js",
+        assetFileNames: "landing-assets/[name].[hash][extname]",
+      },
+    },
   },
   css: {
     postcss: {

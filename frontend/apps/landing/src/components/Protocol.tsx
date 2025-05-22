@@ -1,4 +1,4 @@
-import protocolVideo from "../../public/protocol.mp4";
+import protocolVideo from "../../media/protocol.mp4";
 
 export default function Protocol() {
   return (

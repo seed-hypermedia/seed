@@ -1,4 +1,4 @@
-import communityVideo from "../../public/community.mp4";
+import communityVideo from "../../media/community.mp4";
 
 export default function Community() {
   return (
