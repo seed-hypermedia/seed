@@ -90,7 +90,7 @@ async function accountQuery(accountUid: string) {
 
 export function useCitations(
   id: UnpackedHypermediaId,
-  opts: {enabled?: boolean},
+  opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`, {
     enabled: opts.enabled,
@@ -101,7 +101,7 @@ export function useCitations(
 
 export function useInteractionSummary(
   id: UnpackedHypermediaId,
-  opts: {enabled?: boolean},
+  opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<InteractionSummaryPayload>(
     `/hm/api/interaction-summary?id=${id.id}`,
@@ -112,7 +112,7 @@ export function useInteractionSummary(
 
 export function useComments(
   id: UnpackedHypermediaId,
-  opts: {enabled?: boolean},
+  opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`, {
     queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
