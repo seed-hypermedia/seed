@@ -4,6 +4,7 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
@@ -286,7 +287,7 @@ function WebImportInProgress({
   hostname: string
 }) {
   const {data: status} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
-    refetchInterval: 800,
+    refetchInterval: 250,
   })
   const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
   const accounts = useMyAccountsWithWriteAccess(destinationId)
@@ -354,20 +355,22 @@ function WebImportInProgress({
     status?.mode === 'scraping' ||
     confirmImport.isLoading
   ) {
-    const scrapeStatus = status?.mode === 'scraping' ? status : undefined
+    const scrapeStatus: ScrapeStatus | undefined =
+      status?.mode === 'scraping' ? status : undefined
     return (
       <YStack gap="$4">
         <DialogTitle>Importing from {hostname}...</DialogTitle>
-        {scrapeStatus?.crawlQueueCount ? (
+        {scrapeStatus?.visitedCount ? (
           <SizableText>
-            {scrapeStatus?.crawlQueueCount} pages discovered
+            {scrapeStatus?.visitedCount} pages visited,{' '}
+            {scrapeStatus?.crawlQueueCount || '0'} queued (
+            {scrapeStatus?.scrapeMode})
           </SizableText>
         ) : null}
-        {scrapeStatus?.visitedCount ? (
-          <SizableText>{scrapeStatus?.visitedCount} pages visited</SizableText>
-        ) : null}
-        {status?.mode === 'scraping' ? (
-          <SizableText>Downloading...</SizableText>
+        {scrapeStatus ? (
+          <SizableText color="$color10" size="$2" numberOfLines={1}>
+            {scrapeStatus?.activeUrl}
+          </SizableText>
         ) : null}
         {status?.mode === 'importing' ? (
           <SizableText>Preparing...</SizableText>

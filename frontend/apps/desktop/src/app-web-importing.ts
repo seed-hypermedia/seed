@@ -112,6 +112,7 @@ async function startImport(url: string, importId: string) {
       importingStatus[importId] = {mode: 'ready', result}
     })
     .catch((error) => {
+      console.error('Error importing site', url, error)
       importingStatus[importId] = {mode: 'error', error: error.message}
     })
 }
@@ -166,17 +167,17 @@ async function importPost({
     }
     if (href[0] === '.') {
       // handling relative links
-      console.log('~~ relative link', href)
+      // console.log('~~ relative link', href)
     } else if (href[0] === '/') {
       // handling absolute links
-      console.log('~~ absolute site link', href)
+      // console.log('~~ absolute site link', href)
       const path = href.split('/').filter((s) => !!s)
       const resultLink = packHmId(
         hmId('d', destinationHmId.uid, {
           path: [...(destinationHmId.path || []), ...path],
         }),
       )
-      console.log('~~ result link', resultLink)
+      // console.log('~~ result link', resultLink)
       return resultLink
     }
     return href
@@ -270,8 +271,6 @@ export const webImportingApi = t.router({
           post,
         })
       }
-      console.log('Will import', posts.length, 'posts')
-      console.log({importId, destinationId, signAccountUid})
       return {}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {

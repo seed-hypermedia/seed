@@ -176,7 +176,8 @@ async function updateMetadata(
 async function exportToFolder(
   storage: StorageContext,
   outputPath: string,
-  posts: string[],
+  posts: PostsFile,
+  onStatus: (status: ScrapeStatus) => void,
 ) {
   await fs.rm(outputPath, {recursive: true, force: true})
   await fs.mkdir(outputPath, {recursive: true})
@@ -218,7 +219,8 @@ async function exportToFolder(
     // Ignore if wp-metadata directory doesn't exist
   }
 
-  for (const url of posts) {
+  for (const post of posts) {
+    const {path: url, htmlFile, wordpressMetadataFile} = post
     const content = await getCachedContent(storage, url)
     if (!content) continue
 
@@ -349,6 +351,8 @@ async function getUrlContent(
   cachedContent = await getCachedContent(crawler.storage, url)
   if (cachedContent) {
     content = cachedContent
+    statusCode = crawler.storage.metadata.get(url)?.statusCode || 200
+    responseHeaders = crawler.storage.metadata.get(url)?.headers || {}
   } else {
     // console.log(`Cache miss: ${url}`)
     crawler.freshRequests++
@@ -491,7 +495,10 @@ async function crawlPage(
     const urlObj = new URL(url)
     if (
       urlObj.pathname !== '/' &&
-      !urlObj.pathname.match(/^\/(tag|page|author|category|sample-page|\d{4})/)
+      !urlObj.pathname.match(
+        /^\/(tag|page|author|category|sample-page|\d{4})/,
+      ) &&
+      responseHeaders['content-type']?.includes('text/html')
     ) {
       const title = $('h1.entry-title').text().trim()
       if (title) {
@@ -566,20 +573,28 @@ async function crawl(
     }
 
     crawler.visited.add(cleanedUrl)
-    const {links: newLinks, images} = await crawlPage(crawler, cleanedUrl)
-    processed++
+    try {
+      onStatus({
+        crawlQueueCount: crawler.queue.length,
+        visitedCount: crawler.visited.size,
+        scrapeMode: 'downloading',
+        activeUrl: cleanedUrl,
+      })
+      const {links: newLinks, images} = await crawlPage(crawler, cleanedUrl)
+      processed++
 
-    for (const link of newLinks) {
-      const cleanedLink = cleanUrl(link)
-      if (!crawler.visited.has(cleanedLink)) {
-        crawler.queue.push(link)
+      for (const link of newLinks) {
+        const cleanedLink = cleanUrl(link)
+        if (
+          !crawler.visited.has(cleanedLink) &&
+          !crawler.queue.includes(link)
+        ) {
+          crawler.queue.push(link)
+        }
       }
+    } catch (e) {
+      console.error(`Error crawling ${cleanedUrl}: ${e}`)
     }
-    onStatus({
-      crawlQueueCount: crawler.queue.length,
-      visitedCount: crawler.visited.size,
-      scrapeMode: 'downloading',
-    })
   }
 
   crawler.pages = Array.from(crawler.visited)
@@ -593,6 +608,7 @@ export type ScrapeStatus = {
   pagesProcessed?: number
   crawlQueueCount: number
   visitedCount: number
+  activeUrl?: string
 }
 
 export type PostsFile = {
@@ -620,20 +636,20 @@ export async function scrapeUrl(
   // console.log('\nCrawl complete!')
 
   const metadata = Array.from(crawler.storage.metadata.entries())
-  const stats = {
-    totalPages: crawler.posts.length,
-    totalHeaders: metadata.reduce(
-      (acc, [_, m]) => acc + Object.keys(m.headers).length,
-      0,
-    ),
-    statusCodes: metadata.reduce(
-      (acc, [_, m]) => {
-        acc[m.statusCode] = (acc[m.statusCode] || 0) + 1
-        return acc
-      },
-      {} as Record<number, number>,
-    ),
-  }
+  // const stats = {
+  //   totalPages: crawler.posts.length,
+  //   totalHeaders: metadata.reduce(
+  //     (acc, [_, m]) => acc + Object.keys(m.headers).length,
+  //     0,
+  //   ),
+  //   statusCodes: metadata.reduce(
+  //     (acc, [_, m]) => {
+  //       acc[m.statusCode] = (acc[m.statusCode] || 0) + 1
+  //       return acc
+  //     },
+  //     {} as Record<number, number>,
+  //   ),
+  // }
 
   // console.log('\n\n\n\n\n\n\nCrawl Summary:')
   // console.log(`Total Pages: ${stats.totalPages}`)
@@ -656,8 +672,10 @@ export async function scrapeUrl(
   // Create output directory first
   await fs.mkdir(outputDir, {recursive: true})
 
+  // console.log('Exporting to folder')
   // Export posts to output folder
-  await exportToFolder(crawler.storage, outputDir, crawler.pages)
+  console.log('Exporting to folder', JSON.stringify(crawler.pages, null, 2))
+  await exportToFolder(crawler.storage, outputDir, crawler.posts, onStatus)
   // console.log('\nExported posts to output folder')
 
   const crawlMetadataPath = path.join(outputDir, 'crawl-metadata.json')
