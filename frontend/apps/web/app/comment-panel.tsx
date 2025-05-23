@@ -1,9 +1,8 @@
 import {
   HMAccountsMetadata,
-  HMCitationsPayload,
   HMComment,
   HMCommentCitation,
-  HMCommentsPayload,
+  HMDocument,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -14,20 +13,18 @@ import {BlocksContent} from '@shm/ui/document-content'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff, X} from '@tamagui/lucide-icons'
 import React, {useCallback, useMemo} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {Button, SizableText, Spinner, XStack, YStack} from 'tamagui'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
-import {useDiscussion} from './models'
+import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
   homeId: UnpackedHypermediaId
-  document?: any
+  document?: HMDocument
   originHomeId?: UnpackedHypermediaId
   siteHost?: string
   setBlockId: (blockId: string | null) => void
-  comments?: HMCommentsPayload
-  citations?: HMCitationsPayload
   enableWebSigning: boolean
   commentId?: string
   rootReplyCommentId?: string
@@ -86,7 +83,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
   if (commentId) {
     content = (
-      <CommentDiscussions
+      <CommentDiscussion
         {...props}
         isDark={isDark}
         renderCommentContent={renderCommentContent}
@@ -133,10 +130,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
 export function AllDiscussions({
   docId,
-
   commentId,
-
-  comments,
   enableWebSigning,
   rootReplyCommentId,
   handleStartDiscussion,
@@ -145,11 +139,14 @@ export function AllDiscussions({
   isDark?: boolean
   renderCommentContent: (comment: HMComment) => React.ReactNode
 }) {
-  const commentGroups = comments?.commentGroups || []
-
-  return (
-    <YStack gap="$4" paddingHorizontal="$2">
-      {commentGroups?.length > 0 ? (
+  const allDiscussions = useAllDiscussions(docId)
+  const commentGroups = allDiscussions?.data?.commentGroups || []
+  let panelContent = null
+  if (allDiscussions.isLoading && !allDiscussions.data) {
+    panelContent = <Spinner />
+  } else if (allDiscussions.data) {
+    panelContent =
+      commentGroups?.length > 0 ? (
         commentGroups?.map((cg, idx) => {
           return (
             <YStack
@@ -161,7 +158,7 @@ export function AllDiscussions({
             >
               <CommentGroup
                 commentGroup={cg}
-                authors={comments?.commentAuthors}
+                authors={allDiscussions?.data?.authors}
                 renderCommentContent={renderCommentContent}
                 enableReplies
                 rootReplyCommentId={null}
@@ -177,7 +174,11 @@ export function AllDiscussions({
           commentId={commentId}
           rootReplyCommentId={rootReplyCommentId}
         />
-      )}
+      )
+  }
+  return (
+    <YStack gap="$4" paddingHorizontal="$2">
+      {panelContent}
     </YStack>
   )
 }
@@ -188,8 +189,6 @@ function BlockDiscussions({
   document,
   siteHost,
   originHomeId,
-  citations,
-  comments,
   handleStartDiscussion,
   renderCommentContent,
   enableWebSigning,
@@ -197,14 +196,33 @@ function BlockDiscussions({
   isDark?: boolean
   renderCommentContent: (comment: HMComment) => React.ReactNode
 }) {
-  if (!blockId) return null
-  const citationsForBlock = citations?.filter((citation) => {
-    return (
-      citation.targetFragment?.blockId === blockId &&
-      citation.source.type === 'c'
-    )
-  }) as (HMCommentCitation | null)[]
-
+  if (!blockId) throw new Error('Block ID is required in BlockDiscussions')
+  const blockDiscussions = useBlockDiscussions(docId, blockId)
+  let panelContent = null
+  if (blockDiscussions.isLoading && blockDiscussions.data) {
+    panelContent = <Spinner />
+  } else if (blockDiscussions.data) {
+    panelContent =
+      blockDiscussions.data.citingComments.length > 0 ? (
+        blockDiscussions.data.citingComments.map(
+          (citation) =>
+            citation?.comment && (
+              <CommentCitationEntry
+                key={citation.source.id.id}
+                citation={citation}
+                accounts={blockDiscussions.data.authors}
+                renderCommentContent={renderCommentContent}
+              />
+            ),
+        )
+      ) : (
+        <EmptyDiscussions
+          onStartDiscussion={handleStartDiscussion}
+          enableWebSigning={enableWebSigning}
+          docId={docId}
+        />
+      )
+  }
   return (
     <YStack gap="$4" paddingHorizontal="$2">
       <YStack padding="$3" borderRadius="$3">
@@ -213,94 +231,70 @@ function BlockDiscussions({
           originHomeId={originHomeId}
           siteHost={siteHost}
         >
-          <QuotedDocBlock docId={docId} blockId={blockId} />
+          <QuotedDocBlock docId={docId} blockId={blockId} doc={document!} />
         </WebDocContentProvider>
       </YStack>
-      <YStack>
-        {citationsForBlock?.length > 0 ? (
-          citationsForBlock.map(
-            (citation) =>
-              citation?.comment && (
-                <CommentCitationEntry
-                  key={citation.source.id.id}
-                  citation={citation}
-                  accounts={comments?.commentAuthors || {}}
-                  renderCommentContent={renderCommentContent}
-                />
-              ),
-          )
-        ) : (
-          <EmptyDiscussions
-            onStartDiscussion={handleStartDiscussion}
-            enableWebSigning={enableWebSigning}
-            docId={docId}
-          />
-        )}
-      </YStack>
+      <YStack>{panelContent}</YStack>
     </YStack>
   )
 }
 
-function CommentDiscussions(
+function CommentDiscussion(
   props: DiscussionsPanelProps & {
     isDark?: boolean
     renderCommentContent: (comment: HMComment) => React.ReactNode
   },
 ) {
-  const {commentId, docId, comments, renderCommentContent} = props
+  const {commentId, docId, renderCommentContent} = props
 
-  const focusedComments = useDiscussion(docId, commentId)
+  const discussion = useDiscussion(docId, commentId)
 
-  const commentGroups = useMemo(() => {
-    if (!commentId) return comments?.commentGroups || []
+  if (!discussion.data) return null
+  const {thread, authors, commentGroups} = discussion.data
 
-    return focusedComments?.data?.commentGroups || []
-  }, [commentId, focusedComments, comments])
+  const rootCommentId = thread?.at(0)?.id
 
-  const focusedComment =
-    comments?.allComments.find((c) => c.id === commentId) || null
-  const commentAuthors: HMAccountsMetadata = useMemo(() => {
-    return {
-      ...(comments?.commentAuthors || {}),
-      ...(focusedComments?.data?.commentAuthors || {}),
-    }
-  }, [commentId, focusedComments?.data, comments])
-
-  const parentThread = useMemo(() => {
-    if (!commentId) return null
-    let selectedComment: HMComment | null = focusedComment || null
-    if (!selectedComment) return null
-
-    const parentThread = [selectedComment]
-    while (selectedComment?.replyParent) {
-      const parentComment =
-        comments?.allComments?.find(
-          (c) => c.id === selectedComment!.replyParent,
-        ) || null
-
-      if (!parentComment) {
-        break
-      }
-      parentThread.unshift(parentComment)
-      selectedComment = parentComment
-    }
-    return parentThread
-  }, [commentId, focusedComment, comments])
-
-  const rootCommentId = parentThread?.at(0)?.id
+  let panelContent = null
+  if (discussion.isInitialLoading) {
+    panelContent = <Spinner />
+  } else if (discussion.data) {
+    panelContent =
+      commentGroups?.length > 0
+        ? commentGroups?.map((cg, idx) => {
+            return (
+              <YStack
+                key={cg.id}
+                paddingHorizontal="$3"
+                marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
+                borderBottomWidth={1}
+                borderBottomColor="$borderColor"
+              >
+                <CommentGroup
+                  key={cg.id}
+                  commentGroup={cg}
+                  authors={authors}
+                  renderCommentContent={renderCommentContent}
+                  enableReplies
+                  rootReplyCommentId={null}
+                />
+              </YStack>
+            )
+          })
+        : null
+  }
 
   return (
     <YStack gap="$4" paddingHorizontal="$2">
-      {rootCommentId && parentThread ? (
+      {rootCommentId && thread ? (
         <YStack padding="$3" borderRadius="$3">
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
-              comments: parentThread,
+              comments: thread,
               moreCommentsCount: 0,
               type: 'commentGroup',
             }}
-            authors={commentAuthors}
+            authors={authors}
             renderCommentContent={renderCommentContent}
             rootReplyCommentId={null}
             highlightLastComment
@@ -308,30 +302,7 @@ function CommentDiscussions(
           />
         </YStack>
       ) : null}
-      <YStack>
-        {commentGroups?.length > 0
-          ? commentGroups?.map((cg, idx) => {
-              return (
-                <YStack
-                  key={cg.id}
-                  paddingHorizontal="$3"
-                  marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
-                  borderBottomWidth={1}
-                  borderBottomColor="$borderColor"
-                >
-                  <CommentGroup
-                    key={cg.id}
-                    commentGroup={cg}
-                    authors={commentAuthors as any}
-                    renderCommentContent={renderCommentContent}
-                    enableReplies
-                    rootReplyCommentId={null}
-                  />
-                </YStack>
-              )
-            })
-          : null}
-      </YStack>
+      <YStack>{panelContent}</YStack>
     </YStack>
   )
 }

@@ -1,6 +1,5 @@
 import {
   HMCitationsPayload,
-  HMCommentsPayload,
   HMDocument,
   HMMetadataPayload,
   packHmId,
@@ -14,8 +13,10 @@ import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {ActivityPayload} from './routes/hm.api.activity'
+import {HMBlockDiscussionsPayload} from './routes/hm.api.block-discussions'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
-import {DiscussionPayload} from './routes/hm.api.discussion'
+import {HMDiscussionPayload} from './routes/hm.api.discussion'
+import {HMDiscussionsPayload} from './routes/hm.api.discussions'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
@@ -48,19 +49,19 @@ export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
   )
 }
 
-export function useDiscussion(
-  docId: UnpackedHypermediaId,
-  targetCommentId?: string,
-) {
-  let url = `/hm/api/discussion?id=${docId.id}`
-  if (targetCommentId) {
-    url += `&targetCommentId=${targetCommentId}`
-  }
-  const response = useAPI<DiscussionPayload>(url, {
-    queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id, targetCommentId],
-  })
-  return response
-}
+// export function useDiscussion(
+//   docId: UnpackedHypermediaId,
+//   targetCommentId?: string,
+// ) {
+//   let url = `/hm/api/discussion?id=${docId.id}`
+//   if (targetCommentId) {
+//     url += `&targetCommentId=${targetCommentId}`
+//   }
+//   const response = useAPI<DiscussionPayload>(url, {
+//     queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id, targetCommentId],
+//   })
+//   return response
+// }
 
 export function useActivity(
   docId: UnpackedHypermediaId,
@@ -110,14 +111,46 @@ export function useInteractionSummary(
   return response
 }
 
-export function useComments(
+export function useDiscussion(
+  targetId: UnpackedHypermediaId,
+  commentId?: string,
+  opts: {enabled?: boolean} = {},
+) {
+  const response = useAPI<HMDiscussionPayload>(
+    `/hm/api/discussion?targetId=${targetId.id}&commentId=${commentId}`,
+    {
+      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId.id, commentId],
+      enabled: opts.enabled,
+    },
+  )
+  return response
+}
+
+export function useAllDiscussions(
   id: UnpackedHypermediaId,
   opts: {enabled?: boolean} = {},
 ) {
-  const response = useAPI<HMCommentsPayload>(`/hm/api/comments?id=${id.id}`, {
-    queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
-    enabled: opts.enabled,
-  })
+  const response = useAPI<HMDiscussionsPayload>(
+    `/hm/api/discussions?targetId=${id.id}`,
+    {
+      queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
+      enabled: opts.enabled,
+    },
+  )
+  return response
+}
+
+export function useBlockDiscussions(
+  id: UnpackedHypermediaId,
+  blockId: string,
+  opts: {enabled?: boolean} = {},
+) {
+  const response = useAPI<HMBlockDiscussionsPayload>(
+    `/hm/api/block-discussions?targetId=${id.id}&blockId=${blockId}`,
+    {
+      enabled: opts.enabled,
+    },
+  )
   return response
 }
 

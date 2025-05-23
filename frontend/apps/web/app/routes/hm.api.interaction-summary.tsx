@@ -2,7 +2,7 @@ import {queryClient} from '@/client'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, unpackHmId} from '@shm/shared'
+import {BIG_INT, deduplicateCitations, unpackHmId} from '@shm/shared'
 
 export type InteractionSummaryPayload = {
   citations: number
@@ -52,11 +52,27 @@ export const loader = async ({
   //     return true
   //   })
 
-  const blocks: Record<string, {citations: number; comments: number}> = {}
-
-  let citationCount = 0
+  const docCitations = mentions.mentions
+    .map((mention) => {
+      const sourceId = unpackHmId(mention.source)
+      if (!sourceId || sourceId.type !== 'd') return null
+      return {
+        source: {
+          id: sourceId,
+          type: 'd',
+          author: mention.sourceBlob?.author,
+          time: mention.sourceBlob?.createTime,
+        },
+        targetFragment: mention.targetFragment,
+        isExactVersion: mention.isExactVersion,
+        targetId: id,
+      }
+    })
+    .filter((d) => !!d)
+  const dedupedDocCitations = deduplicateCitations(docCitations)
+  let citationCount = dedupedDocCitations.length
   let commentCount = 0
-
+  const blocks: Record<string, {citations: number; comments: number}> = {}
   mentions.mentions.forEach((mention) => {
     const sourceId = unpackHmId(mention.source)
     if (!sourceId) return false
@@ -75,9 +91,8 @@ export const loader = async ({
       if (blockCounts) blockCounts.comments += 1
       commentCount += 1
     }
-    if (sourceId.type === 'd') {
-      if (blockCounts) blockCounts.citations += 1
-      citationCount += 1
+    if (sourceId.type === 'd' && blockCounts) {
+      blockCounts.citations += 1
     }
   })
 

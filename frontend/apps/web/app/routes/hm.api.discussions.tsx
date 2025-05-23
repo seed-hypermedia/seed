@@ -9,10 +9,9 @@ import {
   HMCommentGroup,
 } from '@shm/shared/hm-types'
 
-export type HMDiscussionPayload = {
+export type HMDiscussionsPayload = {
   commentGroups: HMCommentGroup[]
   authors: HMAccountsMetadata
-  thread: HMComment[]
 }
 
 export const loader = async ({
@@ -21,13 +20,11 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<HMDiscussionPayload>> => {
+}): Promise<WrappedResponse<HMDiscussionsPayload>> => {
   const url = new URL(request.url)
   const targetId = unpackHmId(url.searchParams.get('targetId') || undefined)
-  const commentId = url.searchParams.get('commentId')
   if (!targetId) throw new Error('targetId is required')
-  if (!commentId) throw new Error('commentId is required')
-  let result: HMDiscussionPayload | {error: string}
+  let result: HMDiscussionsPayload | {error: string}
 
   try {
     const res = await queryClient.entities.listEntityMentions({
@@ -52,26 +49,10 @@ export const loader = async ({
       }
     }
 
-    const commentGroups = getCommentGroups(allComments, commentId)
-
-    const focusedComment = allComments.find((c) => c.id === commentId) || null
-
-    if (!focusedComment) throw new Error('comment not found')
-    let thread: HMComment[] = []
-    thread = [focusedComment]
-    let selectedComment = focusedComment
-    while (selectedComment?.replyParent) {
-      const parentComment =
-        allComments.find((c) => c.id === selectedComment.replyParent) || null
-      if (!parentComment) break
-      thread.unshift(parentComment)
-      selectedComment = parentComment
-    }
+    const commentGroups = getCommentGroups(allComments, undefined)
 
     const authorAccounts = new Set<string>()
-    thread.forEach((comment) => {
-      authorAccounts.add(comment.author)
-    })
+
     commentGroups.forEach((group) => {
       group.comments.forEach((comment) => {
         authorAccounts.add(comment.author)
@@ -86,12 +67,11 @@ export const loader = async ({
     )
 
     result = {
-      thread,
       commentGroups: commentGroups,
       authors: Object.fromEntries(
         authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),
-    } satisfies HMDiscussionPayload
+    } satisfies HMDiscussionsPayload
   } catch (e: any) {
     result = {error: e.message}
   }

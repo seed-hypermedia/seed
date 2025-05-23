@@ -57,7 +57,7 @@ export function getCommentGroups(
 }
 
 export function useCommentParents(
-  comments: Array<any>,
+  comments: Array<HMComment> | undefined,
   focusedCommentId: string,
 ) {
   return useMemo(() => {
@@ -67,7 +67,7 @@ export function useCommentParents(
     const parentThread: HMComment[] = [focusedComment]
     while (selectedComment?.replyParent) {
       const parentComment: HMComment | null | undefined = selectedComment
-        ? comments.find((c) => c.id === selectedComment?.replyParent)
+        ? comments?.find((c) => c.id === selectedComment?.replyParent)
         : null
       if (!parentComment) {
         selectedComment = null

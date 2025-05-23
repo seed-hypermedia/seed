@@ -1,12 +1,8 @@
-import {
-  useCitations,
-  useComments,
-  useDocumentChanges,
-  useInteractionSummary,
-} from '@/models'
+import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
+  deduplicateCitations,
   getDocumentTitle,
   HMDocument,
   HMEntityContent,
@@ -284,8 +280,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
   })
 
   const activityEnabled = document?.metadata?.showActivity !== false
-  const allCitations = useCitations(id, {enabled: activityEnabled})
-  const comments = useComments(id, {enabled: activityEnabled})
   const interactionSummary = useInteractionSummary(id, {
     enabled: activityEnabled,
   })
@@ -391,8 +385,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
           })
         }
         setBlockId={onBlockCommentClick}
-        comments={comments.data}
-        citations={allCitations.data}
         docId={id}
         homeId={originHomeId}
         document={document}
@@ -407,6 +399,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     panel = (
       <WebCitationsPanel
         id={id}
+        blockId={activePanel.blockId}
         handleClose={() => {
           setActivePanel(null)
         }}
@@ -547,8 +540,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           />
                         )}
                         <WebDocContentProvider
-                          onBlockCitationClick={onBlockCitationClick}
-                          onBlockCommentClick={onBlockCommentClick}
+                          onBlockCitationClick={
+                            activityEnabled ? onBlockCitationClick : undefined
+                          }
+                          onBlockCommentClick={
+                            activityEnabled ? onBlockCommentClick : undefined
+                          }
                           originHomeId={originHomeId}
                           id={{...id, version: document.version}}
                           siteHost={siteHost}
@@ -940,27 +937,27 @@ function InteractionSummaryItem({
 
 function WebCitationsPanel({
   id,
-  // citations,
   blockId,
   handleBack,
   handleClose,
 }: {
   id: UnpackedHypermediaId
-  // citations?: Array<HMDocumentCitation>
   blockId?: string
   handleBack: () => void
   handleClose: () => void
 }) {
   const citations = useCitations(id)
-  const filteredCitations = useMemo(() => {
-    if (!blockId) return citations.data
-    return citations.data
+  const displayCitations = useMemo(() => {
+    if (!citations.data) return null
+    const filteredCitations = blockId
       ? citations.data.filter(
           (citation) =>
             citation.targetFragment &&
             citation.targetFragment?.blockId === blockId,
         )
-      : null
+      : citations.data
+    const dedupedCitations = deduplicateCitations(filteredCitations)
+    return dedupedCitations
   }, [citations.data, blockId])
   const isDark = useIsDark()
   return (
@@ -994,8 +991,8 @@ function WebCitationsPanel({
         {blockId ? (
           <AccessoryBackButton onPress={handleBack} label="All Citations" />
         ) : null}
-        {filteredCitations ? (
-          filteredCitations.map((citation) => {
+        {displayCitations ? (
+          displayCitations.map((citation) => {
             return <DocumentCitationEntry citation={citation} />
           })
         ) : (

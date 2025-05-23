@@ -1071,7 +1071,7 @@ export type HMCommentCitation = HMCitation & {
   author: HMMetadataPayload | null
 }
 
-export type HMCitationsPayload = Array<HMDocumentCitation | HMCommentCitation>
+export type HMCitationsPayload = Array<HMDocumentCitation>
 
 export type HMCommentsPayload = {
   allComments: HMComment[]

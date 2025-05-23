@@ -27,72 +27,47 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
 
-    const documentCitations: Array<HMDocumentCitation> = []
-
+    const docCitations: HMCitation[] = []
     for (const mention of res.mentions) {
       const sourceId = unpackHmId(mention.source)
       if (!sourceId) continue
+      if (sourceId.type !== 'd') continue
       const targetFragment = parseFragment(mention.targetFragment)
       const targetId = hmId(id.type, id.uid, {
         path: id.path,
         version: mention.targetVersion,
       })
-      if (sourceId.type == 'c') {
-        // try {
-        //   const citation: HMCitation = {
-        //     source: {
-        //       id: sourceId,
-        //       type: 'c',
-        //       author: mention.sourceBlob?.author,
-        //       time: mention.sourceBlob?.createTime,
-        //     },
-        //     targetFragment,
-        //     targetId,
-        //     isExactVersion: mention.isExactVersion,
-        //   }
-        //   const comment = await loadComment(sourceId)
-        //   const author = citation.source.author
-        //     ? await getAccount(citation.source.author)
-        //     : null
-        //   const commentCitation: HMCommentCitation = {
-        //     ...citation,
-        //     comment,
-        //     author,
-        //   }
-        //   documentCitations.push(commentCitation)
-        // } catch (error) {
-        //   console.error('=== comment citation error', error)
-        // }
-      } else if (sourceId.type == 'd') {
-        try {
-          const citation: HMCitation = {
-            source: {
-              id: sourceId,
-              type: 'd',
-              author: mention.sourceBlob?.author,
-              time: mention.sourceBlob?.createTime,
-            },
-            targetFragment,
-            targetId,
-            isExactVersion: mention.isExactVersion,
-          }
-          const document = await resolveHMDocument(sourceId)
-          const author = citation.source.author
-            ? await getAccount(citation.source.author)
-            : null
-          if (document) {
-            const documentCitation: HMDocumentCitation = {
-              ...citation,
-              document,
-              author,
-            }
-            documentCitations.push(documentCitation)
-          }
-        } catch (error) {
-          console.error('=== citation error', error)
+      docCitations.push({
+        source: {
+          id: sourceId,
+          type: 'd',
+          author: mention.sourceBlob?.author,
+          time: mention.sourceBlob?.createTime,
+        },
+        targetFragment,
+        targetId,
+        isExactVersion: mention.isExactVersion,
+      })
+    }
+    let documentCitations: Array<HMDocumentCitation> = []
+    for (const citation of docCitations) {
+      try {
+        const document = await resolveHMDocument(citation.source.id)
+        const author = citation.source.author
+          ? await getAccount(citation.source.author)
+          : null
+        if (document) {
+          documentCitations.push({
+            ...citation,
+            document,
+            author,
+          })
         }
+      } catch (error) {
+        console.error('=== citation error', error)
       }
     }
+    console.log('=== docCitationsSourceTimes', documentCitations)
 
     result = documentCitations
   } catch (e: any) {

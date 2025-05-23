@@ -5,12 +5,13 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useAccounts, useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {MessageSquareOff} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useEffect, useMemo, useState} from 'react'
-import {Button, Separator, SizableText, View} from 'tamagui'
+import {Button, Separator, SizableText, Spinner, View} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -59,6 +60,35 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
 
+  let panelContent = null
+  if (comments.isLoading && !comments.data) {
+    panelContent = null
+  } else if (comments.data) {
+    panelContent =
+      commentGroups.data?.length > 0 ? (
+        commentGroups.data?.map((cg, idx) => {
+          return (
+            <YStack
+              key={cg.id}
+              paddingHorizontal="$1.5"
+              marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
+            >
+              <CommentGroup
+                rootReplyCommentId={null}
+                key={cg.id}
+                commentGroup={cg}
+                authors={authors}
+                renderCommentContent={renderCommentContent}
+                enableReplies={true}
+              />
+              {commentGroups.data?.length - 1 > idx && <Separator />}
+            </YStack>
+          )
+        })
+      ) : (
+        <EmptyDiscussions docId={docId} />
+      )
+  }
   return (
     <AccessoryContent
       footer={
@@ -67,31 +97,7 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
         </View>
       }
     >
-      <YStack>
-        {commentGroups.data?.length > 0 ? (
-          commentGroups.data?.map((cg, idx) => {
-            return (
-              <YStack
-                key={cg.id}
-                paddingHorizontal="$1.5"
-                marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
-              >
-                <CommentGroup
-                  rootReplyCommentId={null}
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={authors}
-                  renderCommentContent={renderCommentContent}
-                  enableReplies={true}
-                />
-                {commentGroups.data?.length - 1 > idx && <Separator />}
-              </YStack>
-            )
-          })
-        ) : (
-          <EmptyDiscussions docId={docId} />
-        )}
-      </YStack>
+      <YStack>{panelContent}</YStack>
     </AccessoryContent>
   )
 }
@@ -118,20 +124,20 @@ function CommentBlockAccessory({
   citationsForBlock?.forEach((citation) => {
     citation.source.author && accountIds.add(citation.source.author)
   })
+  const doc = useEntity(docId)
   const accounts = useAccountsMetadata(Array.from(accountIds))
-  return (
-    <AccessoryContent
-      footer={
-        <View padding="$3">
-          <CommentBox docId={docId} quotingBlockId={blockId} />
-        </View>
-      }
-    >
-      <AccessoryBackButton onPress={onBack} label="All Discussions" />
-      <AppDocContentProvider docId={docId}>
-        <QuotedDocBlock docId={docId} blockId={blockId} />
-      </AppDocContentProvider>
-      {citationsForBlock?.length > 0 ? (
+  let quotedContent = null
+  if (doc.data?.document) {
+    quotedContent = (
+      <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />
+    )
+  } else if (doc.isInitialLoading) {
+    quotedContent = <Spinner />
+  }
+  let panelContent = null
+  if (citations.data) {
+    panelContent =
+      citationsForBlock && citationsForBlock.length > 0 ? (
         citationsForBlock?.map((citation) => {
           return (
             <CommentCitationEntry
@@ -143,7 +149,21 @@ function CommentBlockAccessory({
         })
       ) : (
         <EmptyDiscussions docId={docId} commentId={blockId} />
-      )}
+      )
+  }
+  return (
+    <AccessoryContent
+      footer={
+        <View padding="$3">
+          <CommentBox docId={docId} quotingBlockId={blockId} />
+        </View>
+      }
+    >
+      <AccessoryBackButton onPress={onBack} label="All Discussions" />
+      <AppDocContentProvider docId={docId}>
+        {quotedContent}
+      </AppDocContentProvider>
+      {panelContent}
     </AccessoryContent>
   )
 }
@@ -160,13 +180,12 @@ function CommentReplyAccessory({
   isReplying?: boolean
 }) {
   const comments = useAllDocumentComments(docId)
-  const parentThread = useCommentParents(comments.data, commentId)
-  const commentAuthors = useAccountsMetadata(
-    useMemo(() => {
-      return parentThread?.map((doc) => doc.author) || []
-    }, [parentThread]),
-  )
-  const rootCommentId = parentThread?.at(0)?.id
+  const threadComments = useCommentParents(comments.data, commentId)
+  const threadAuthorIds = useMemo(() => {
+    return threadComments?.map((doc) => doc.author) || []
+  }, [threadComments])
+  const commentAuthors = useAccounts(threadAuthorIds)
+  const rootCommentId = threadComments?.at(0)?.id
   return (
     <AccessoryContent
       footer={
@@ -182,16 +201,20 @@ function CommentReplyAccessory({
       }
     >
       <AccessoryBackButton onPress={onBack} label="All Discussions" />
-      {rootCommentId && parentThread ? (
-        parentThread.length > 0 ? (
+      {rootCommentId && threadComments ? (
+        threadComments.length > 0 ? (
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
-              comments: parentThread,
+              comments: threadComments,
               moreCommentsCount: 0,
               type: 'commentGroup',
             }}
-            authors={commentAuthors}
+            authors={Object.fromEntries(
+              threadAuthorIds
+                .map((id, index) => [id, commentAuthors[index].data])
+                .filter(([id, v]) => !!v),
+            )}
             renderCommentContent={renderCommentContent}
             rootReplyCommentId={null}
             highlightLastComment

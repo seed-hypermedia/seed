@@ -54,7 +54,6 @@ export function WebDocContentProvider({
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
-  console.log('~~ WebDocContentProvider blockCitations', blockCitations)
   const navigate = useNavigate()
   return (
     <DocContentProvider

@@ -38,7 +38,6 @@ export const useDocumentLayout = (
     }
   > = {},
 ) => {
-  console.log('=== DEBUG === useDocumentLayout')
   // Always call hooks in the same order
   const elementRef = useRef<HTMLDivElement>(null)
   const media = useMedia()

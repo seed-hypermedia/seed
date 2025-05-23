@@ -1,3 +1,4 @@
+export * from './citation-deduplication'
 export * from './client'
 export * from './constants'
 export * from './content'

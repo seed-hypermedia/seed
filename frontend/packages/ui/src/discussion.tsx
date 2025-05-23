@@ -4,13 +4,13 @@ import {
   HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
+  HMDocument,
   hmId,
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useEntity} from '@shm/shared/models/entity'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
 import {
@@ -26,7 +26,6 @@ import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
-import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
@@ -350,18 +349,19 @@ const BLOCK_DEFAULT_HEIGHT = 180
 export function QuotedDocBlock({
   docId,
   blockId,
+  doc,
 }: {
   docId: UnpackedHypermediaId
   blockId: string
+  doc: HMDocument
 }) {
   const [expanded, setExpanded] = useState(false)
   const [canExpand, setCanExpand] = useState(false)
-  const doc = useEntity(docId)
   const contentRef = useRef<HTMLDivElement>(null)
   const blockContent = useMemo(() => {
-    if (!doc.data?.document?.content) return null
-    return getBlockNodeById(doc.data?.document?.content, blockId)
-  }, [doc.data?.document?.content, blockId])
+    if (!doc.content) return null
+    return getBlockNodeById(doc.content, blockId)
+  }, [doc.content, blockId])
 
   useEffect(() => {
     setExpanded(false)
@@ -373,9 +373,6 @@ export function QuotedDocBlock({
     }
   }, [contentRef.current, blockId])
 
-  if (doc.isInitialLoading) {
-    return <Spinner />
-  }
   return (
     <YStack bg="$brand12" borderRadius="$2">
       <XStack
