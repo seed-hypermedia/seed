@@ -17,6 +17,7 @@ import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import '@shm/shared/styles/document.css'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
+import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -177,6 +178,9 @@ type WebAccessory =
       blockId?: string
       commentId?: string
       rootReplyCommentId?: string
+    }
+  | {
+      type: 'versions'
     }
 
 export function DocumentPage(props: SiteDocumentPayload) {
@@ -395,6 +399,17 @@ export function DocumentPage(props: SiteDocumentPayload) {
     )
   }
 
+  if (activityEnabled && activePanel?.type == 'versions') {
+    panel = (
+      <WebVersionsPanel
+        id={id}
+        handleClose={() => {
+          setActivePanel(null)
+        }}
+      />
+    )
+  }
+
   if (activityEnabled && activePanel?.type == 'citations') {
     panel = (
       <WebCitationsPanel
@@ -477,6 +492,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                             docId={id}
                             citations={interactionSummary.data?.citations}
                             comments={interactionSummary.data?.comments}
+                            changes={interactionSummary.data?.changes}
                             onCitationsOpen={() => {
                               setActivePanel({type: 'citations'})
                               if (!media.gtSm) {
@@ -488,6 +504,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                               if (!media.gtSm) {
                                 setIsSheetOpen(true)
                               }
+                            }}
+                            onVersionOpen={() => {
+                              setActivePanel({type: 'versions'})
                             }}
                           />
                         ) : null}
@@ -652,6 +671,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   docId={id}
                   citations={interactionSummary.data?.citations}
                   comments={interactionSummary.data?.comments}
+                  changes={interactionSummary.data?.changes}
                   onCitationsOpen={() => {
                     setActivePanel({type: 'citations', blockId: undefined})
                     if (!media.gtSm) {
@@ -663,6 +683,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     if (!media.gtSm) {
                       setIsSheetOpen(true)
                     }
+                  }}
+                  onVersionOpen={() => {
+                    setActivePanel({type: 'versions'})
                   }}
                 />
               ) : null}
@@ -697,6 +720,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       docId={id}
                       citations={interactionSummary.data?.citations}
                       comments={interactionSummary.data?.comments}
+                      changes={interactionSummary.data?.changes}
                       onCitationsOpen={() => {
                         setActivePanel({type: 'citations', blockId: undefined})
                         if (!media.gtSm) {
@@ -708,6 +732,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
                           type: 'discussions',
                           blockId: undefined,
                         })
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onVersionOpen={() => {
+                        setActivePanel({type: 'versions'})
                         if (!media.gtSm) {
                           setIsSheetOpen(true)
                         }
@@ -868,6 +898,7 @@ function _DocInteractionsSummary({
   docId,
   citations,
   comments,
+  changes,
   onCitationsOpen,
   onCommentsOpen,
   onVersionOpen,
@@ -875,11 +906,11 @@ function _DocInteractionsSummary({
   docId: UnpackedHypermediaId
   citations?: number
   comments?: number
+  changes?: number
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
   onVersionOpen?: () => void
 }) {
-  const changes = useDocumentChanges(docId)
   return (
     <XStack gap="$1.5">
       {onCitationsOpen && (
@@ -903,10 +934,10 @@ function _DocInteractionsSummary({
         />
       )}
       <Separator />
-      {onVersionOpen && (
+      {onVersionOpen && changes && (
         <InteractionSummaryItem
           label="version"
-          count={changes.data?.length || 0}
+          count={changes || 0}
           onPress={onVersionOpen}
           icon={HistoryIcon}
         />
@@ -998,6 +1029,62 @@ function WebCitationsPanel({
         ) : (
           <Spinner />
         )}
+      </YStack>
+    </YStack>
+  )
+}
+
+function WebVersionsPanel({
+  id,
+  handleClose,
+}: {
+  id: UnpackedHypermediaId
+  handleClose: () => void
+}) {
+  const changes = useDocumentChanges(id)
+  const isDark = useIsDark()
+  const changesList = changes.data?.changes || []
+  return (
+    <YStack gap="$4">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$3"
+        alignItems="center"
+        position="sticky"
+        top={0}
+        zIndex="$zIndex.8"
+        h={56}
+        borderBottomWidth={1}
+        borderBottomColor="$borderColor"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+        justifyContent="space-between"
+      >
+        <SizableText size="$3" fontWeight="bold">
+          Versions
+        </SizableText>
+        <Button
+          alignSelf="center"
+          display="none"
+          $gtSm={{display: 'flex'}}
+          icon={X}
+          chromeless
+          onPress={handleClose}
+        />
+      </XStack>
+      <YStack gap="$2" padding="$3">
+        {changesList.map((change, idx) => {
+          const isCurrent = change.id === changes.data?.latestVersion
+          return (
+            <ChangeItem
+              key={change.id}
+              change={change}
+              isActive={id.version ? id.version === change.id : isCurrent}
+              docId={id}
+              isLast={idx === changesList.length - 1}
+              isCurrent={change.id === changes.data?.latestVersion}
+            />
+          )
+        })}
       </YStack>
     </YStack>
   )

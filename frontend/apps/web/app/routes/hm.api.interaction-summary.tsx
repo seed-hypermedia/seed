@@ -2,11 +2,17 @@ import {queryClient} from '@/client'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, deduplicateCitations, unpackHmId} from '@shm/shared'
+import {
+  BIG_INT,
+  deduplicateCitations,
+  hmIdPathToEntityQueryPath,
+  unpackHmId,
+} from '@shm/shared'
 
 export type InteractionSummaryPayload = {
   citations: number
   comments: number
+  changes: number
   blocks: Record<
     string,
     {
@@ -38,19 +44,6 @@ export const loader = async ({
     id: id.id,
     pageSize: BIG_INT,
   })
-
-  //   const comments = await queryClient.comments.listComments({
-  //     targetAccount: id.uid,
-  //     targetPath: hmIdPathToEntityQueryPath(id.path),
-  //     pageSize: BIG_INT,
-  //   })
-
-  //   const commentMentions = mentions.mentions.filter((mention) => {
-  //     const sourceId = unpackHmId(mention.source)
-  //     if (!sourceId) return false
-  //     if (sourceId.type !== 'c') return false
-  //     return true
-  //   })
 
   const docCitations = mentions.mentions
     .map((mention) => {
@@ -96,9 +89,21 @@ export const loader = async ({
     }
   })
 
+  const latestDoc = await queryClient.documents.getDocument({
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path),
+    version: undefined,
+  })
+  const changes = await queryClient.documents.listDocumentChanges({
+    account: id.uid,
+    path: id.path && id.path.length > 0 ? '/' + id.path.join('/') : '',
+    version: latestDoc.version,
+  })
+
   return wrapJSON({
     citations: citationCount,
     comments: commentCount,
+    changes: changes.changes.length,
     blocks,
   } satisfies InteractionSummaryPayload)
 }

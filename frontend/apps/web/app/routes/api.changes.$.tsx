@@ -1,6 +1,12 @@
 import {queryClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
+import {HMDocumentChangeInfo} from './hm.api.changes'
+
+export type HMDocumentChangesPayload = {
+  changes: Array<HMDocumentChangeInfo>
+  latestVersion: string
+}
 
 export const loader = apiGetter(async (req) => {
   const [_api, _changes, uid, ...restPath] = req.pathParts
@@ -16,5 +22,9 @@ export const loader = apiGetter(async (req) => {
     version: latestDoc.version,
     pageSize: BIG_INT,
   })
-  return result.toJson()
+  const changes = result.toJson() as Array<HMDocumentChangeInfo>
+  return {
+    changes,
+    latestVersion: latestDoc.version,
+  } satisfies HMDocumentChangesPayload
 })

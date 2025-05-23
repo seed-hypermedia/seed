@@ -1,17 +1,16 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {normalizeDate} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
 import {
   HMChangeSummary,
-  HMDraftChange,
+  HMDocumentChangeInfo,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccounts, useEntity} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
-import {useDraft} from './accounts'
-import {useAccountDraftList} from './documents'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   const entity = useEntity({...id, version: null})
@@ -36,32 +35,35 @@ export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   })
 }
 
-export function useDocumentChanges(
-  id: UnpackedHypermediaId,
-  isDraft: boolean = false,
-) {
+export function useDocumentChanges(id: UnpackedHypermediaId) {
   const publishedChanges = useDocumentPublishedChanges(id)
-  const drafts = useAccountDraftList(id.uid)
-  const indexedDraft = drafts.data?.find((d) => {
-    return d.editId && d.editId?.id === id.id
+  const changeAuthorIds: Set<string> = new Set()
+  publishedChanges.data?.forEach((change) => {
+    changeAuthorIds.add(change.author)
   })
-  const draft = useDraft(indexedDraft?.id)
+  const changeAuthorIdList = Array.from(changeAuthorIds)
+  const changeAuthors = useAccounts(changeAuthorIdList)
+  const changes: HMDocumentChangeInfo[] = []
+  const authors = Object.fromEntries(
+    changeAuthorIdList
+      .map((id, index) => [id, changeAuthors[index]?.data])
+      .filter(([id, a]) => !!a),
+  )
+  publishedChanges.data?.forEach((change) => {
+    const author = authors[change.author]
+    const createTime = normalizeDate(change.createTime)?.toISOString()
+    if (author && createTime) {
+      changes.push({
+        ...change,
+        createTime,
+        author,
+      })
+    }
+  })
   if (!publishedChanges.data) return publishedChanges
   return {
     ...publishedChanges,
-    data: isDraft
-      ? [
-          {
-            author: draft.data?.signingAccount || indexedDraft?.editUid,
-            id: `draft-${id.id}`,
-            deps: draft?.data?.deps,
-            isDraft: true,
-            lastUpdateTime: draft.data?.lastUpdateTime,
-            type: 'draftChange',
-          } as HMDraftChange,
-          ...publishedChanges.data,
-        ]
-      : publishedChanges.data,
+    data: changes,
   }
 }
 

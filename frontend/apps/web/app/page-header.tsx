@@ -7,6 +7,7 @@ import {
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {HMDocumentChangeInfo} from '@shm/shared/hm-types'
 import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
@@ -22,7 +23,6 @@ import {H1, SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
 import {ScrollView} from 'react-native'
 import {getHref} from './href'
-import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 
 export function PageHeader({
   docMetadata,

@@ -580,7 +580,14 @@ type DraftChangeInfo = {
   isDraft: boolean
 }
 
-export type HMChangeInfo = PlainMessage<DocumentChangeInfo> | DraftChangeInfo
+export type HMDocumentChangeInfo = {
+  author: HMMetadataPayload
+  createTime: string
+  deps: Array<string>
+  id: string
+}
+
+export type HMChangeInfo = HMDocumentChangeInfo | DraftChangeInfo
 
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),

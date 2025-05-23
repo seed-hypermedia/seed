@@ -12,9 +12,9 @@ import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {deleteRecent, getRecents} from './local-db-recents'
+import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMBlockDiscussionsPayload} from './routes/hm.api.block-discussions'
-import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {HMDiscussionPayload} from './routes/hm.api.discussion'
 import {HMDiscussionsPayload} from './routes/hm.api.discussions'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
@@ -43,7 +43,7 @@ export function useAPI<ResponsePayloadType>(
 }
 
 export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
-  return useAPI<Array<HMDocumentChangeInfo>>(
+  return useAPI<HMDocumentChangesPayload>(
     id ? `/hm/api/changes?id=${packHmId(id)}` : undefined,
     {enabled: !!id},
   )
