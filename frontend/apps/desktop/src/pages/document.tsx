@@ -636,7 +636,10 @@ function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
             icon={ArrowRight}
             backgroundColor="$color4"
             onPress={() => {
-              navigate({key: 'document', id: {...docId, version: null}})
+              navigate({
+                key: 'document',
+                id: {...docId, latest: true, version: null},
+              })
             }}
           >
             Go to Other Version

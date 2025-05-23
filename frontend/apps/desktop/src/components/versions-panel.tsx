@@ -18,7 +18,6 @@ import {ButtonText, SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  console.log('== VERSIONS PANEL', docId)
   const navigate = useNavigate()
 
   const activeChangeIds = useVersionChanges(docId)
@@ -39,7 +38,7 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
                   ? navigate({
                       ...docId,
                       key: 'document',
-                      id: {...docId, version: change.id},
+                      id: {...docId, version: change.id, latest: false},
                     })
                   : null
               }}
