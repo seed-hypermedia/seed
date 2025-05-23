@@ -1,27 +1,21 @@
-import {useDocumentChanges} from '@/models'
 import {
   getMetadataName,
   HMDocument,
   HMMetadata,
   HMMetadataPayload,
-  relativeFormattedDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {HMDocumentChangeInfo} from '@shm/shared/hm-types'
 import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Popover} from '@shm/ui/TamaguiPopover'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Button, ButtonText} from '@tamagui/button'
+import {ButtonText} from '@tamagui/button'
 import {Home} from '@tamagui/lucide-icons'
 import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
 import {H1, SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
-import {ScrollView} from 'react-native'
 import {getHref} from './href'
 
 export function PageHeader({
@@ -117,11 +111,9 @@ export function PageHeader({
               </XStack>
             ) : null}
             {authors?.length ? <VerticalSeparator /> : null}
-            {docId ? (
-              <VersionsModal
-                originHomeId={originHomeId}
-                docId={docId}
-                docMetadata={docMetadata}
+            {updateTime ? (
+              <DocumentDate
+                metadata={docMetadata || undefined}
                 updateTime={updateTime}
               />
             ) : null}
@@ -131,169 +123,6 @@ export function PageHeader({
         </YStack>
       </Container>
     </YStack>
-  )
-}
-
-function VersionsModal({
-  originHomeId,
-  docId,
-  docMetadata,
-  updateTime,
-}: {
-  originHomeId: UnpackedHypermediaId | null
-  docId: UnpackedHypermediaId
-  docMetadata: HMMetadata | null
-  updateTime: HMDocument['updateTime'] | null
-}) {
-  const popoverState = usePopoverState()
-  const changes = useDocumentChanges(docId)
-  return updateTime && !changes.isLoading ? (
-    <Popover {...popoverState}>
-      <Popover.Trigger
-        color="$color9"
-        flexDirection="row"
-        gap="$2"
-        cursor="pointer"
-        hoverStyle={{color: '$color12'}}
-      >
-        {/* <SizableText
-          userSelect="none"
-          flexShrink={0}
-          flexGrow={0}
-          size="$1"
-          color="inherit"
-        >
-          {docMetadata?.displayPublishTime
-            ? formattedDateDayOnly(new Date(docMetadata.displayPublishTime))
-            : formattedDateMedium(updateTime)}
-        </SizableText> */}
-        <DocumentDate
-          metadata={docMetadata || undefined}
-          updateTime={updateTime}
-          disableTooltip={popoverState.open}
-        />
-        {changes.data && changes.data.length > 1 ? (
-          <SizableText
-            size="$1"
-            flexShrink={0}
-            flexGrow={0}
-            color="inherit"
-            userSelect="none"
-          >
-            ({changes.data?.length} versions)
-          </SizableText>
-        ) : null}
-      </Popover.Trigger>
-      {changes.data && changes.data.length > 1 ? (
-        <Popover.Content
-          borderWidth={1}
-          borderColor="$borderColor"
-          enterStyle={{y: -10, opacity: 0}}
-          exitStyle={{y: -10, opacity: 0}}
-          elevation="$5"
-          padding="$2"
-          animation={[
-            'fast',
-            {
-              opacity: {
-                overshootClamping: true,
-              },
-            },
-          ]}
-        >
-          <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
-          <YStack overflow="hidden" maxHeight={220}>
-            <ScrollView>
-              {changes?.data?.map((change) => {
-                let href = originHomeId
-                  ? getHref(originHomeId, docId, change.id)
-                  : undefined
-
-                return (
-                  <ModalVersionItem
-                    href={href}
-                    key={change.id}
-                    change={change}
-                  />
-                )
-              })}
-            </ScrollView>
-          </YStack>
-        </Popover.Content>
-      ) : null}
-    </Popover>
-  ) : null
-
-  /**
-   * <Tooltip
-      content={`Update time: ${formattedDateLong(
-        entity.data?.document?.updateTime,
-      )}`}
-    >
-      <SizableText
-        flexShrink={0}
-        flexGrow={0}
-        size="$1"
-        hoverStyle={{cursor: 'default'}}
-        color="$color9"
-      >
-        {formattedDateMedium(entity.data?.document?.updateTime)}
-      </SizableText>
-    </Tooltip>
-   */
-}
-
-function ModalVersionItem({
-  change,
-  href,
-}: {
-  change: HMDocumentChangeInfo
-  href?: string
-}) {
-  return (
-    <Button
-      tag="a"
-      role="link"
-      key={change.id}
-      height="auto"
-      padding="$2"
-      href={href}
-      borderRadius="$2"
-      borderWidth={0}
-      backgroundColor={'$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: '$brand12',
-        borderColor: '$borderTransparent',
-      }}
-      alignItems="flex-start"
-      position="relative"
-      overflow="hidden"
-      maxWidth={260}
-      style={{textDecoration: 'none'}}
-      icon={
-        <HMIcon
-          flexGrow={0}
-          flexShrink={0}
-          size={20}
-          id={change.author.id}
-          metadata={change.author.metadata}
-        />
-      }
-    >
-      <SizableText
-        size="$2"
-        flex={1}
-        flexShrink={1}
-        textOverflow="ellipsis"
-        overflow="hidden"
-        whiteSpace="nowrap"
-      >
-        {change.author.metadata.name}
-      </SizableText>
-      <SizableText size="$2" whiteSpace="nowrap" flexShrink={0}>
-        {relativeFormattedDate(change.createTime)}
-      </SizableText>
-    </Button>
   )
 }
 

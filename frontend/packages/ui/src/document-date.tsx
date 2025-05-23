@@ -29,7 +29,7 @@ export function DocumentDate({
         }
       | undefined
     )
-  disableTooltip: boolean
+  disableTooltip?: boolean
 }) {
   const displayText = metadata?.displayPublishTime
     ? formattedDateDayOnly(new Date(metadata.displayPublishTime))
