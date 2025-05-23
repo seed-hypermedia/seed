@@ -60,12 +60,6 @@ function getFilePath(
   )
 }
 
-async function ensureDir(storage: StorageContext) {
-  await fs.mkdir(storage.cacheDir, {recursive: true})
-  await fs.mkdir(path.join(storage.cacheDir, 'images'), {recursive: true})
-  await fs.mkdir(path.join(storage.cacheDir, 'assets'), {recursive: true})
-}
-
 async function downloadAsset(
   storage: StorageContext,
   url: string,
@@ -131,11 +125,6 @@ async function loadMetadata(storage: StorageContext) {
 async function saveMetadata(storage: StorageContext) {
   const entries = Array.from(storage.metadata.entries())
   await fs.writeFile(storage.metadataFile, JSON.stringify(entries, null, 2))
-}
-
-async function initStorage(storage: StorageContext) {
-  await ensureDir(storage)
-  await loadMetadata(storage)
 }
 
 async function getCachedContent(
@@ -313,32 +302,14 @@ function cleanUrl(url: string): string {
   }
 }
 
-interface CrawlerContext {
+interface Crawler {
   visited: Set<string>
   queue: string[]
   baseUrl: string
   storage: StorageContext
   freshRequests: number
   posts: PostsFile
-}
-
-function createCrawler(
-  baseUrl: string,
-  cacheDurationDays: number = 7,
-): CrawlerContext {
-  return {
-    visited: new Set<string>(),
-    queue: [baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl],
-    baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl,
-    storage: {
-      cacheDir: CACHE_PATH,
-      metadataFile: path.join(CACHE_PATH, 'metadata.json'),
-      metadata: new Map(),
-      cacheDurationDays: 7,
-    },
-    freshRequests: 0,
-    posts: [],
-  }
+  pages: string[]
 }
 
 function isValidUrl(baseUrl: string, url: string): boolean {
@@ -361,7 +332,7 @@ function normalizeUrl(baseUrl: string, url: string): string {
 }
 
 async function getUrlContent(
-  crawler: CrawlerContext,
+  crawler: Crawler,
   url: string,
 ): Promise<{
   content: string
@@ -425,7 +396,7 @@ function extractWordPressSlugFromHTML(
 }
 
 async function crawlPage(
-  crawler: CrawlerContext,
+  crawler: Crawler,
   url: string,
 ): Promise<{
   links: string[]
@@ -556,11 +527,34 @@ async function crawlPage(
 }
 
 async function crawl(
-  crawler: CrawlerContext,
+  baseUrl: string,
   onStatus: (status: ScrapeStatus) => void,
-): Promise<{pages: Set<string>; posts: PostsFile}> {
-  await initStorage(crawler.storage)
-  // console.log('Starting crawler...')
+): Promise<Crawler> {
+  const crawler: Crawler = {
+    visited: new Set<string>(),
+    queue: [baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl],
+    baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl,
+    storage: {
+      cacheDir: CACHE_PATH,
+      metadataFile: path.join(CACHE_PATH, 'metadata.json'),
+      metadata: new Map(),
+      cacheDurationDays: 7,
+    },
+    freshRequests: 0,
+    posts: [],
+    pages: [],
+  }
+
+  await fs.mkdir(crawler.storage.cacheDir, {recursive: true})
+  await fs.mkdir(path.join(crawler.storage.cacheDir, 'images'), {
+    recursive: true,
+  })
+  await fs.mkdir(path.join(crawler.storage.cacheDir, 'assets'), {
+    recursive: true,
+  })
+
+  await loadMetadata(crawler.storage)
+
   let processed = 0
 
   while (crawler.queue.length > 0) {
@@ -588,7 +582,9 @@ async function crawl(
     })
   }
 
-  return {pages: crawler.visited, posts: crawler.posts}
+  crawler.pages = Array.from(crawler.visited)
+
+  return crawler
 }
 
 export type ScrapeStatus = {
@@ -620,13 +616,12 @@ export async function scrapeUrl(
   }
 
   console.log(`Starting crawler for ${targetSite} (cache: ${cacheDays} days)`)
-  const crawler = createCrawler(targetSite, cacheDays)
-  const {pages, posts} = await crawl(crawler, onStatus)
+  const crawler = await crawl(targetSite, onStatus)
   // console.log('\nCrawl complete!')
 
   const metadata = Array.from(crawler.storage.metadata.entries())
   const stats = {
-    totalPages: pages.size,
+    totalPages: crawler.posts.length,
     totalHeaders: metadata.reduce(
       (acc, [_, m]) => acc + Object.keys(m.headers).length,
       0,
@@ -648,7 +643,7 @@ export async function scrapeUrl(
 
   const summary = {
     crawlDate: new Date().toISOString(),
-    totalPages: pages.size,
+    totalPages: crawler.posts.length,
     freshRequests: crawler.freshRequests,
     pages: metadata.map(([url, data]) => ({
       path: url,
@@ -662,7 +657,7 @@ export async function scrapeUrl(
   await fs.mkdir(outputDir, {recursive: true})
 
   // Export posts to output folder
-  await exportToFolder(crawler.storage, outputDir, Array.from(pages))
+  await exportToFolder(crawler.storage, outputDir, crawler.pages)
   // console.log('\nExported posts to output folder')
 
   const crawlMetadataPath = path.join(outputDir, 'crawl-metadata.json')
@@ -678,7 +673,7 @@ export async function scrapeUrl(
 
   // Separate assets from pages and download PDFs
   const assets = await Promise.all(
-    Array.from(pages).map(async (path) => {
+    Array.from(crawler.pages).map(async (path) => {
       const url = new URL(path)
       const ext = url.pathname.split('.').pop()?.toLowerCase()
       const isAsset =
@@ -709,8 +704,8 @@ export async function scrapeUrl(
 
   await fs.writeFile(
     path.join(outputDir, 'posts.json'),
-    JSON.stringify(posts, null, 2),
+    JSON.stringify(crawler.posts, null, 2),
   )
   // console.log(`\nFound ${posts.length} posts saved to output/posts.json`)
-  return {posts, assets, summary}
+  return {posts: crawler.posts, assets, summary}
 }
