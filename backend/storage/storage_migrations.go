@@ -57,6 +57,15 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-05-25.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE INDEX contacts_by_subject ON structural_blobs (extra_attrs->>'subject', ts, author) WHERE type = 'Contact';
+			CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, author);
+		`)); err != nil {
+			return err
+		}
+		return nil
+	}},
 	{Version: "2025-05-22.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to support having profiles without home documents.
 		return scheduleReindex(conn)

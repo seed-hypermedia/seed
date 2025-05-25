@@ -20,10 +20,6 @@ import (
 
 const blobTypeCapability blobType = "Capability"
 
-func init() {
-	cbornode.RegisterCborType(Capability{})
-}
-
 const labelLimitBytes = 512
 
 // Role is a type for roles in capabilities.
@@ -98,6 +94,8 @@ func ValidateCapabilityLabel(label string) error {
 }
 
 func init() {
+	cbornode.RegisterCborType(Capability{})
+
 	matcher := makeCBORTypeMatch(blobTypeCapability)
 	registerIndexer(blobTypeCapability,
 		func(c cid.Cid, data []byte) (*Capability, error) {

@@ -863,6 +863,325 @@ export class Profile extends Message<Profile> {
 }
 
 /**
+ * Request to create an alias for a key.
+ * There must be an agent capability granted to the signer of the alias.
+ *
+ * @generated from message com.seed.documents.v3alpha.CreateAliasRequest
+ */
+export class CreateAliasRequest extends Message<CreateAliasRequest> {
+  /**
+   * Required. Key to use for signing the alias.
+   *
+   * @generated from field: string signing_key_name = 1;
+   */
+  signingKeyName = "";
+
+  /**
+   * Required. ID of the target (alias) account.
+   *
+   * @generated from field: string alias_account = 2;
+   */
+  aliasAccount = "";
+
+  constructor(data?: PartialMessage<CreateAliasRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.CreateAliasRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateAliasRequest {
+    return new CreateAliasRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined, b: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined): boolean {
+    return proto3.util.equals(CreateAliasRequest, a, b);
+  }
+}
+
+/**
+ * Request to create a contact.
+ *
+ * @generated from message com.seed.documents.v3alpha.CreateContactRequest
+ */
+export class CreateContactRequest extends Message<CreateContactRequest> {
+  /**
+   * Required. ID of the account to create the contact for.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Name of the key to use for signing.
+   *
+   * @generated from field: string signing_key_name = 2;
+   */
+  signingKeyName = "";
+
+  /**
+   * Required. Account ID about which we are issuing the contact record.
+   *
+   * @generated from field: string subject = 3;
+   */
+  subject = "";
+
+  /**
+   * Required. Name that we know the subject by.
+   *
+   * @generated from field: string name = 4;
+   */
+  name = "";
+
+  constructor(data?: PartialMessage<CreateContactRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.CreateContactRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateContactRequest {
+    return new CreateContactRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateContactRequest {
+    return new CreateContactRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateContactRequest {
+    return new CreateContactRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined, b: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined): boolean {
+    return proto3.util.equals(CreateContactRequest, a, b);
+  }
+}
+
+/**
+ * Request to list contacts for an account.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListContactsRequest
+ */
+export class ListContactsRequest extends Message<ListContactsRequest> {
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtained from a previous response.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
+  /**
+   * Required. Filter for listing contacts.
+   *
+   * @generated from oneof com.seed.documents.v3alpha.ListContactsRequest.filter
+   */
+  filter: {
+    /**
+     * Lists contacts by issuer account key.
+     * I.e. lists the contacts that an account has ever issued.
+     *
+     * @generated from field: string account = 3;
+     */
+    value: string;
+    case: "account";
+  } | {
+    /**
+     * Lists contacts by subject.
+     *
+     * @generated from field: string subject = 4;
+     */
+    value: string;
+    case: "subject";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<ListContactsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListContactsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "filter" },
+    { no: 4, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "filter" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListContactsRequest {
+    return new ListContactsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListContactsRequest {
+    return new ListContactsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListContactsRequest {
+    return new ListContactsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined, b: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined): boolean {
+    return proto3.util.equals(ListContactsRequest, a, b);
+  }
+}
+
+/**
+ * Response for listing contacts.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListContactsResponse
+ */
+export class ListContactsResponse extends Message<ListContactsResponse> {
+  /**
+   * List of contacts.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Contact contacts = 1;
+   */
+  contacts: Contact[] = [];
+
+  /**
+   * Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListContactsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListContactsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "contacts", kind: "message", T: Contact, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListContactsResponse {
+    return new ListContactsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListContactsResponse {
+    return new ListContactsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListContactsResponse {
+    return new ListContactsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined, b: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined): boolean {
+    return proto3.util.equals(ListContactsResponse, a, b);
+  }
+}
+
+/**
+ * Contact information for an account.
+ *
+ * ID of the contact.
+ *
+ * TODO(burdiyan): commented out for now until we figure
+ * out the addressability of replaceable objects.
+ *
+ * string id = 1;
+ *
+ * @generated from message com.seed.documents.v3alpha.Contact
+ */
+export class Contact extends Message<Contact> {
+  /**
+   * Subject is the account that's being described by the contact record.
+   *
+   * @generated from field: string subject = 2;
+   */
+  subject = "";
+
+  /**
+   * Name is the public name of the contact that we know them by.
+   *
+   * @generated from field: string name = 3;
+   */
+  name = "";
+
+  /**
+   * Time when the contact was created.
+   *
+   * @generated from field: google.protobuf.Timestamp create_time = 4;
+   */
+  createTime?: Timestamp;
+
+  /**
+   * Time when the contact was updated.
+   *
+   * @generated from field: google.protobuf.Timestamp update_time = 5;
+   */
+  updateTime?: Timestamp;
+
+  /**
+   * Account ID that issued this contact.
+   *
+   * @generated from field: string account = 6;
+   */
+  account = "";
+
+  constructor(data?: PartialMessage<Contact>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Contact";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 2, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "create_time", kind: "message", T: Timestamp },
+    { no: 5, name: "update_time", kind: "message", T: Timestamp },
+    { no: 6, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Contact {
+    return new Contact().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Contact {
+    return new Contact().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Contact {
+    return new Contact().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Contact | PlainMessage<Contact> | undefined, b: Contact | PlainMessage<Contact> | undefined): boolean {
+    return proto3.util.equals(Contact, a, b);
+  }
+}
+
+/**
  * Request to list a directory.
  *
  * @generated from message com.seed.documents.v3alpha.ListDirectoryRequest
@@ -1480,56 +1799,6 @@ export class GetRefRequest extends Message<GetRefRequest> {
 
   static equals(a: GetRefRequest | PlainMessage<GetRefRequest> | undefined, b: GetRefRequest | PlainMessage<GetRefRequest> | undefined): boolean {
     return proto3.util.equals(GetRefRequest, a, b);
-  }
-}
-
-/**
- * Request to create an alias for a key.
- * There must be an agent capability granted to the signer of the alias.
- *
- * @generated from message com.seed.documents.v3alpha.CreateAliasRequest
- */
-export class CreateAliasRequest extends Message<CreateAliasRequest> {
-  /**
-   * Required. Key to use for signing the alias.
-   *
-   * @generated from field: string signing_key_name = 1;
-   */
-  signingKeyName = "";
-
-  /**
-   * Required. ID of the target (alias) account.
-   *
-   * @generated from field: string alias_account = 2;
-   */
-  aliasAccount = "";
-
-  constructor(data?: PartialMessage<CreateAliasRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateAliasRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined, b: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined): boolean {
-    return proto3.util.equals(CreateAliasRequest, a, b);
   }
 }
 

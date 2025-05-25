@@ -39,6 +39,23 @@ service Documents {
   // Updates the profile of an account.
   rpc UpdateProfile(UpdateProfileRequest) returns (Account);
 
+  // Creates alias for an account.
+  rpc CreateAlias(CreateAliasRequest) returns (google.protobuf.Empty);
+
+  // Creates a new contact for an account.
+  rpc CreateContact(CreateContactRequest) returns (Contact);
+
+  // TODO(burdiyan): No update and delete for now, until we figure out the addressability of replaceable objects.
+
+  // Updates an existing contact.
+  // rpc UpdateContact(UpdateContactRequest) returns (Contact);
+
+  // Deletes a contact from an account.
+  // rpc DeleteContact(DeleteContactRequest) returns (google.protobuf.Empty);
+
+  // Lists contacts for an account.
+  rpc ListContacts(ListContactsRequest) returns (ListContactsResponse);
+
   // Lists documents in a directory of an account.
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
@@ -59,9 +76,6 @@ service Documents {
 
   // Returns details about a Ref.
   rpc GetRef(GetRefRequest) returns (Ref);
-
-  // Creates alias for an account.
-  rpc CreateAlias(CreateAliasRequest) returns (google.protobuf.Empty);
 }
 
 // Request for getting a single document.
@@ -258,6 +272,84 @@ message Profile {
   google.protobuf.Timestamp update_time = 4;
 }
 
+// Request to create an alias for a key.
+// There must be an agent capability granted to the signer of the alias.
+message CreateAliasRequest {
+  // Required. Key to use for signing the alias.
+  string signing_key_name = 1;
+
+  // Required. ID of the target (alias) account.
+  string alias_account = 2;
+}
+
+// Request to create a contact.
+message CreateContactRequest {
+  // Required. ID of the account to create the contact for.
+  string account = 1;
+
+  // Required. Name of the key to use for signing.
+  string signing_key_name = 2;
+
+  // Required. Account ID about which we are issuing the contact record.
+  string subject = 3;
+
+  // Required. Name that we know the subject by.
+  string name = 4;
+}
+
+// Request to list contacts for an account.
+message ListContactsRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtained from a previous response.
+  string page_token = 2;
+
+  // Required. Filter for listing contacts.
+  oneof filter {
+    // Lists contacts by issuer account key.
+    // I.e. lists the contacts that an account has ever issued.
+    string account = 3;
+
+    // Lists contacts by subject.
+    string subject = 4;
+  }
+}
+
+// Response for listing contacts.
+message ListContactsResponse {
+  // List of contacts.
+  repeated Contact contacts = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Contact information for an account.
+message Contact {
+  // ID of the contact.
+  //
+  // TODO(burdiyan): commented out for now until we figure
+  // out the addressability of replaceable objects.
+  //
+  // string id = 1;
+
+  // Subject is the account that's being described by the contact record.
+  string subject = 2;
+
+  // Name is the public name of the contact that we know them by.
+  string name = 3;
+
+  // Time when the contact was created.
+  google.protobuf.Timestamp create_time = 4;
+
+  // Time when the contact was updated.
+  google.protobuf.Timestamp update_time = 5;
+
+  // Account ID that issued this contact.
+  string account = 6;
+}
+
 // Request to list a directory.
 message ListDirectoryRequest {
   // Optional. Size of the page.
@@ -418,16 +510,6 @@ message CreateRefRequest {
 message GetRefRequest {
   // Required. ID of the Ref blob to retrieve.
   string id = 1;
-}
-
-// Request to create an alias for a key.
-// There must be an agent capability granted to the signer of the alias.
-message CreateAliasRequest {
-  // Required. Key to use for signing the alias.
-  string signing_key_name = 1;
-
-  // Required. ID of the target (alias) account.
-  string alias_account = 2;
 }
 
 // Information about a particular document version.

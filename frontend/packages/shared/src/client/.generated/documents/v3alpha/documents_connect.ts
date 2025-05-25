@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, CreateAliasRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -97,6 +97,39 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
+     * Creates alias for an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.CreateAlias
+     */
+    createAlias: {
+      name: "CreateAlias",
+      I: CreateAliasRequest,
+      O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Creates a new contact for an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.CreateContact
+     */
+    createContact: {
+      name: "CreateContact",
+      I: CreateContactRequest,
+      O: Contact,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists contacts for an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListContacts
+     */
+    listContacts: {
+      name: "ListContacts",
+      I: ListContactsRequest,
+      O: ListContactsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
      * Lists documents in a directory of an account.
      *
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDirectory
@@ -171,17 +204,6 @@ export const Documents = {
       name: "GetRef",
       I: GetRefRequest,
       O: Ref,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Creates alias for an account.
-     *
-     * @generated from rpc com.seed.documents.v3alpha.Documents.CreateAlias
-     */
-    createAlias: {
-      name: "CreateAlias",
-      I: CreateAliasRequest,
-      O: Empty,
       kind: MethodKind.Unary,
     },
   }

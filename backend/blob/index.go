@@ -1089,7 +1089,6 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 	}
 
 	if !b.Ts.IsZero() {
-		// For changes we need microsecond timestamp, so we use it for all the blobs.
 		blobTime = maybe.New(b.Ts.UnixMilli())
 	}
 

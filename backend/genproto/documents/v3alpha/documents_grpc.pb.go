@@ -27,6 +27,9 @@ const (
 	Documents_GetAccount_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetAccount"
 	Documents_BatchGetAccounts_FullMethodName         = "/com.seed.documents.v3alpha.Documents/BatchGetAccounts"
 	Documents_UpdateProfile_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateProfile"
+	Documents_CreateAlias_FullMethodName              = "/com.seed.documents.v3alpha.Documents/CreateAlias"
+	Documents_CreateContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/CreateContact"
+	Documents_ListContacts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListContacts"
 	Documents_ListDirectory_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDirectory"
 	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
 	Documents_ListRootDocuments_FullMethodName        = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
@@ -34,7 +37,6 @@ const (
 	Documents_UpdateDocumentReadStatus_FullMethodName = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
 	Documents_CreateRef_FullMethodName                = "/com.seed.documents.v3alpha.Documents/CreateRef"
 	Documents_GetRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/GetRef"
-	Documents_CreateAlias_FullMethodName              = "/com.seed.documents.v3alpha.Documents/CreateAlias"
 )
 
 // DocumentsClient is the client API for Documents service.
@@ -62,6 +64,12 @@ type DocumentsClient interface {
 	BatchGetAccounts(ctx context.Context, in *BatchGetAccountsRequest, opts ...grpc.CallOption) (*BatchGetAccountsResponse, error)
 	// Updates the profile of an account.
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*Account, error)
+	// Creates alias for an account.
+	CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Creates a new contact for an account.
+	CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*Contact, error)
+	// Lists contacts for an account.
+	ListContacts(ctx context.Context, in *ListContactsRequest, opts ...grpc.CallOption) (*ListContactsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -76,8 +84,6 @@ type DocumentsClient interface {
 	CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(ctx context.Context, in *GetRefRequest, opts ...grpc.CallOption) (*Ref, error)
-	// Creates alias for an account.
-	CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type documentsClient struct {
@@ -159,6 +165,36 @@ func (c *documentsClient) UpdateProfile(ctx context.Context, in *UpdateProfileRe
 	return out, nil
 }
 
+func (c *documentsClient) CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Documents_CreateAlias_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*Contact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Contact)
+	err := c.cc.Invoke(ctx, Documents_CreateContact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) ListContacts(ctx context.Context, in *ListContactsRequest, opts ...grpc.CallOption) (*ListContactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListContactsResponse)
+	err := c.cc.Invoke(ctx, Documents_ListContacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDirectoryResponse)
@@ -229,16 +265,6 @@ func (c *documentsClient) GetRef(ctx context.Context, in *GetRefRequest, opts ..
 	return out, nil
 }
 
-func (c *documentsClient) CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Documents_CreateAlias_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // DocumentsServer is the server API for Documents service.
 // All implementations should embed UnimplementedDocumentsServer
 // for forward compatibility.
@@ -264,6 +290,12 @@ type DocumentsServer interface {
 	BatchGetAccounts(context.Context, *BatchGetAccountsRequest) (*BatchGetAccountsResponse, error)
 	// Updates the profile of an account.
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*Account, error)
+	// Creates alias for an account.
+	CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error)
+	// Creates a new contact for an account.
+	CreateContact(context.Context, *CreateContactRequest) (*Contact, error)
+	// Lists contacts for an account.
+	ListContacts(context.Context, *ListContactsRequest) (*ListContactsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
@@ -278,8 +310,6 @@ type DocumentsServer interface {
 	CreateRef(context.Context, *CreateRefRequest) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(context.Context, *GetRefRequest) (*Ref, error)
-	// Creates alias for an account.
-	CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedDocumentsServer should be embedded to have
@@ -310,6 +340,15 @@ func (UnimplementedDocumentsServer) BatchGetAccounts(context.Context, *BatchGetA
 func (UnimplementedDocumentsServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*Account, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
 }
+func (UnimplementedDocumentsServer) CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAlias not implemented")
+}
+func (UnimplementedDocumentsServer) CreateContact(context.Context, *CreateContactRequest) (*Contact, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateContact not implemented")
+}
+func (UnimplementedDocumentsServer) ListContacts(context.Context, *ListContactsRequest) (*ListContactsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListContacts not implemented")
+}
 func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDirectory not implemented")
 }
@@ -330,9 +369,6 @@ func (UnimplementedDocumentsServer) CreateRef(context.Context, *CreateRefRequest
 }
 func (UnimplementedDocumentsServer) GetRef(context.Context, *GetRefRequest) (*Ref, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRef not implemented")
-}
-func (UnimplementedDocumentsServer) CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateAlias not implemented")
 }
 func (UnimplementedDocumentsServer) testEmbeddedByValue() {}
 
@@ -480,6 +516,60 @@ func _Documents_UpdateProfile_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_CreateAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAliasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).CreateAlias(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_CreateAlias_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).CreateAlias(ctx, req.(*CreateAliasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_CreateContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).CreateContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_CreateContact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).CreateContact(ctx, req.(*CreateContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ListContacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListContacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_ListContacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListContacts(ctx, req.(*ListContactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_ListDirectory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListDirectoryRequest)
 	if err := dec(in); err != nil {
@@ -606,24 +696,6 @@ func _Documents_GetRef_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Documents_CreateAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAliasRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentsServer).CreateAlias(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Documents_CreateAlias_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentsServer).CreateAlias(ctx, req.(*CreateAliasRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Documents_ServiceDesc is the grpc.ServiceDesc for Documents service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -660,6 +732,18 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Documents_UpdateProfile_Handler,
 		},
 		{
+			MethodName: "CreateAlias",
+			Handler:    _Documents_CreateAlias_Handler,
+		},
+		{
+			MethodName: "CreateContact",
+			Handler:    _Documents_CreateContact_Handler,
+		},
+		{
+			MethodName: "ListContacts",
+			Handler:    _Documents_ListContacts_Handler,
+		},
+		{
 			MethodName: "ListDirectory",
 			Handler:    _Documents_ListDirectory_Handler,
 		},
@@ -686,10 +770,6 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRef",
 			Handler:    _Documents_GetRef_Handler,
-		},
-		{
-			MethodName: "CreateAlias",
-			Handler:    _Documents_CreateAlias_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

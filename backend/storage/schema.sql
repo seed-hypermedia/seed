@@ -45,7 +45,7 @@ CREATE TABLE structural_blobs (
     -- Type of the structural blob.
     type TEXT NOT NULL,
     -- For structural blobs that have timestamps,
-    -- this is the UNIX timestamp in microseconds.
+    -- this is the timestamp in milliseconds.
     ts INTEGER,
     -- For structural blobs that have a clear author,
     -- this is the public key of the author.
@@ -61,12 +61,16 @@ CREATE TABLE structural_blobs (
 CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
 CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
+CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, author);
 
 -- Index for querying capabilities by delegate.
 CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';
 
 -- Index for querying profiles by alias.
 CREATE INDEX profiles_by_alias ON structural_blobs (extra_attrs->>'alias', author) WHERE type = 'Profile' AND extra_attrs->>'alias' IS NOT NULL;
+
+-- Index for querying profiles by subject.
+CREATE INDEX contacts_by_subject ON structural_blobs (extra_attrs->>'subject', ts, author) WHERE type = 'Contact';
 
 -- Stores blobs that we have failed to index for some reason.
 -- Sometimes we still keep the blob, even if we have failed to index it,
@@ -235,14 +239,14 @@ CREATE INDEX wallets_by_account ON wallets (account);
 
 CREATE VIRTUAL TABLE fts USING fts5(
     -- The text content to be indexed.
-    raw_content, 
+    raw_content,
     -- The type of the content being indexed. It could be
     -- a title, a document body, or a comment.
-    type, 
+    type,
     -- The id of the blob of the blob containting the change.
     -- With the raw_contnet in it.
     blob_id,
-    -- The ID of the block that contains the content. 
+    -- The ID of the block that contains the content.
     -- Only relevant on type=document,comment.
     block_id,
     -- The version of the document that contains
