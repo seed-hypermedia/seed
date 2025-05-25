@@ -13,6 +13,7 @@ COPY . .
 ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
 RUN rm -rf ./frontend/apps/performance
+RUN rm -rf ./frontend/apps/perf-web
 RUN rm -rf ./frontend/apps/performance-dashboard
 RUN rm -rf ./frontend/apps/explore
 RUN yarn install
