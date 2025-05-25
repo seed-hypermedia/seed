@@ -65,6 +65,29 @@ jobs:
           COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
           echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
 
+      # Build and test performance before Docker build
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "yarn"
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Build Web App
+        run: yarn web:prod
+
+      - name: Start Web Server
+        run: |
+          yarn web:start &
+          sleep 5 # Wait for server to start
+
+      - name: Run Performance Tests
+        run: |
+          cd frontend/apps/perf-web
+          yarn start --url http://localhost:3000 --app web
+
       # Checkout the repository to the GitHub Actions runner
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2

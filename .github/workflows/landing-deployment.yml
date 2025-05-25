@@ -45,6 +45,16 @@ jobs:
       - name: Build
         run: yarn landing:build
 
+      - name: Start Landing Preview
+        run: |
+          yarn landing:preview &
+          sleep 5 # Wait for server to start
+
+      - name: Run Performance Tests
+        run: |
+          cd frontend/apps/perf-web
+          yarn start --url http://localhost:4173 --app landing
+
       - name: Setup SSH key and SCP
         run: |
           mkdir -p ~/.ssh

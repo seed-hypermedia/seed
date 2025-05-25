@@ -1,6 +1,6 @@
-import embedsVideo from "../../media/embeds.mp4";
-import linkingImage from "../../media/linking.png";
-import referencingImage from "../../media/referencing.png";
+import embedsVideo from "../../public/embeds.mp4";
+import linkingImage from "../../public/linking.png";
+import referencingImage from "../../public/referencing.png";
 
 export default function Linking() {
   return (

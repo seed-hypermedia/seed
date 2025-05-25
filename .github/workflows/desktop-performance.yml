@@ -121,7 +121,7 @@ jobs:
           sudo apt-get install -y libasound2 libgbm-dev libgtk-3-0 libnss3 libxss1 libxtst6 xvfb
 
           # Create output directory
-          mkdir -p performance-results
+          mkdir -p electron-perf-data
 
           # Define scenarios from input or use all
           SCENARIOS="${{ github.event.inputs.scenarios }}"
@@ -174,7 +174,7 @@ jobs:
           fi
 
           # Upload all results
-          aws s3 sync performance-results s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/ --acl public-read
+          aws s3 sync electron-perf-data s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/ --acl public-read
 
           # Save URLs for reports
           DASHBOARD_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/dashboard.html"
@@ -199,12 +199,12 @@ jobs:
           # Generate comparison report
           cd frontend/apps/desktop && yarn test:performance-compare \
             --baseline baseline-metrics \
-            --current performance-results \
-            --output performance-results/comparison-report.html \
+            --current electron-perf-data \
+            --output electron-perf-data/comparison-report.html \
             --threshold 3
 
           # Upload comparison report
-          aws s3 cp performance-results/comparison-report.html s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/comparison-report.html --acl public-read
+          aws s3 cp electron-perf-data/comparison-report.html s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/comparison-report.html --acl public-read
 
           # Save comparison URL
           COMPARISON_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/comparison-report.html"
@@ -241,8 +241,8 @@ jobs:
       - name: Upload performance results as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-performance-results
-          path: performance-results
+          name: desktop-electron-perf-data
+          path: electron-perf-data
           retention-days: 14
 
       - name: Download artifacts

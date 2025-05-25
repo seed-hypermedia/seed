@@ -1,4 +1,4 @@
-import publishingDemoVideo from "../../media/publishing-demo.mp4";
+import publishingDemoVideo from "../../public/publishing-demo.mp4";
 
 export default function Publishing() {
   return (

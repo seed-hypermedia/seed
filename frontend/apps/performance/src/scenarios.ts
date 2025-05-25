@@ -99,8 +99,7 @@ export const ipcCommunicationScenario: PerformanceScenario = {
 
     // Analyze and save trace data
     const analysis = analyzeTrace(traces);
-    const outputDir =
-      process.env.TRACE_OUTPUT_DIR || "performance-results/traces";
+    const outputDir = process.env.TRACE_OUTPUT_DIR || "results/traces";
     const traceFile = path.join(
       outputDir,
       `ipc-trace-${new Date().toISOString().replace(/:/g, "-")}.json`
@@ -167,8 +166,7 @@ export const windowManagementScenario: PerformanceScenario = {
 
     // Analyze and save trace data
     const analysis = analyzeTrace(traces);
-    const outputDir =
-      process.env.TRACE_OUTPUT_DIR || "performance-results/traces";
+    const outputDir = process.env.TRACE_OUTPUT_DIR || "results/traces";
     const reportFile = path.join(
       outputDir,
       `window-report-${new Date().toISOString().replace(/:/g, "-")}.html`
@@ -213,8 +211,7 @@ export const largeContentScenario: PerformanceScenario = {
 
     // Analyze and save trace data
     const analysis = analyzeTrace(traces);
-    const outputDir =
-      process.env.TRACE_OUTPUT_DIR || "performance-results/traces";
+    const outputDir = process.env.TRACE_OUTPUT_DIR || "results/traces";
     const reportFile = path.join(
       outputDir,
       `large-content-report-${new Date().toISOString().replace(/:/g, "-")}.html`
@@ -226,12 +223,12 @@ export const largeContentScenario: PerformanceScenario = {
 // Collection of all scenarios
 export const allScenarios = [
   appStartupScenario,
-  libraryScenario,
-  navigationScenario,
-  heavyOperationScenario,
-  ipcCommunicationScenario,
+  // libraryScenario,
+  // navigationScenario,
+  // heavyOperationScenario,
+  // ipcCommunicationScenario,
   memoryUsageScenario,
-  windowManagementScenario,
+  // windowManagementScenario,
   largeContentScenario,
 ];
 

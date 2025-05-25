@@ -1,4 +1,4 @@
-import appDemoVideo from "../../media/app-demo.mp4";
+import appDemoVideo from "../../public/app-demo.mp4";
 
 export default function Hero() {
   return (

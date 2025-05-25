@@ -1,0 +1,200 @@
+[
+  {
+    "timestamp": "2025-05-25T21:02:39.891Z",
+    "app": "landing",
+    "commit": "local",
+    "branch": "local",
+    "mobile": {
+      "lcp": 1206.67275,
+      "inp": 0,
+      "cls": 0,
+      "ttfb": 4.401,
+      "pageLoadTime": 0,
+      "pageSize": 6679904,
+      "totalRequests": 17
+    },
+    "desktop": {
+      "lcp": 324.105625,
+      "inp": 0,
+      "cls": 0,
+      "ttfb": 0.8619999999999999,
+      "pageLoadTime": 0,
+      "pageSize": 6679904,
+      "totalRequests": 17
+    },
+    "budgetViolations": [
+      {
+        "metric": "pageSize",
+        "actual": 6679904,
+        "limit": 1500000,
+        "device": "mobile"
+      },
+      {
+        "metric": "pageSize",
+        "actual": 6679904,
+        "limit": 1500000,
+        "device": "desktop"
+      }
+    ]
+  },
+  [
+    {
+      "timestamp": "2025-05-25T21:02:39.891Z",
+      "app": "landing",
+      "commit": "local",
+      "branch": "local",
+      "mobile": {
+        "lcp": 1206.67275,
+        "inp": 0,
+        "cls": 0,
+        "ttfb": 4.401,
+        "pageLoadTime": 0,
+        "pageSize": 6679904,
+        "totalRequests": 17
+      },
+      "desktop": {
+        "lcp": 324.105625,
+        "inp": 0,
+        "cls": 0,
+        "ttfb": 0.8619999999999999,
+        "pageLoadTime": 0,
+        "pageSize": 6679904,
+        "totalRequests": 17
+      },
+      "budgetViolations": [
+        {
+          "metric": "pageSize",
+          "actual": 6679904,
+          "limit": 1500000,
+          "device": "mobile"
+        },
+        {
+          "metric": "pageSize",
+          "actual": 6679904,
+          "limit": 1500000,
+          "device": "desktop"
+        }
+      ]
+    },
+    [
+      {
+        "timestamp": "2025-05-25T21:02:39.891Z",
+        "app": "landing",
+        "commit": "local",
+        "branch": "local",
+        "mobile": {
+          "lcp": 1206.67275,
+          "inp": 0,
+          "cls": 0,
+          "ttfb": 4.401,
+          "pageLoadTime": 0,
+          "pageSize": 6679904,
+          "totalRequests": 17
+        },
+        "desktop": {
+          "lcp": 324.105625,
+          "inp": 0,
+          "cls": 0,
+          "ttfb": 0.8619999999999999,
+          "pageLoadTime": 0,
+          "pageSize": 6679904,
+          "totalRequests": 17
+        },
+        "budgetViolations": [
+          {
+            "metric": "pageSize",
+            "actual": 6679904,
+            "limit": 1500000,
+            "device": "mobile"
+          },
+          {
+            "metric": "pageSize",
+            "actual": 6679904,
+            "limit": 1500000,
+            "device": "desktop"
+          }
+        ]
+      },
+      [
+        {
+          "timestamp": "2025-05-25T21:02:39.891Z",
+          "app": "landing",
+          "commit": "local",
+          "branch": "local",
+          "mobile": {
+            "lcp": 1206.67275,
+            "inp": 0,
+            "cls": 0,
+            "ttfb": 4.401,
+            "pageLoadTime": 0,
+            "pageSize": 6679904,
+            "totalRequests": 17
+          },
+          "desktop": {
+            "lcp": 324.105625,
+            "inp": 0,
+            "cls": 0,
+            "ttfb": 0.8619999999999999,
+            "pageLoadTime": 0,
+            "pageSize": 6679904,
+            "totalRequests": 17
+          },
+          "budgetViolations": [
+            {
+              "metric": "pageSize",
+              "actual": 6679904,
+              "limit": 1500000,
+              "device": "mobile"
+            },
+            {
+              "metric": "pageSize",
+              "actual": 6679904,
+              "limit": 1500000,
+              "device": "desktop"
+            }
+          ]
+        },
+        [
+          {
+            "timestamp": "2025-05-25T21:02:39.891Z",
+            "app": "landing",
+            "commit": "local",
+            "branch": "local",
+            "mobile": {
+              "lcp": 1206.67275,
+              "inp": 0,
+              "cls": 0,
+              "ttfb": 4.401,
+              "pageLoadTime": 0,
+              "pageSize": 6679904,
+              "totalRequests": 17
+            },
+            "desktop": {
+              "lcp": 324.105625,
+              "inp": 0,
+              "cls": 0,
+              "ttfb": 0.8619999999999999,
+              "pageLoadTime": 0,
+              "pageSize": 6679904,
+              "totalRequests": 17
+            },
+            "budgetViolations": [
+              {
+                "metric": "pageSize",
+                "actual": 6679904,
+                "limit": 1500000,
+                "device": "mobile"
+              },
+              {
+                "metric": "pageSize",
+                "actual": 6679904,
+                "limit": 1500000,
+                "device": "desktop"
+              }
+            ]
+          }
+        ]
+      ]
+    ]
+  ]
+]

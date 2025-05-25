@@ -28,10 +28,12 @@
     "build": "yarn ui:build",
     "docs": "yarn workspace @shm/docs start",
     "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build",
-    "performance": "yarn workspace @shm/performance test",
-    "performance:dashboard": "yarn workspace @shm/performance-dashboard copy-results && yarn workspace @shm/performance-dashboard dev",
+    "perf:desktop": "yarn workspace @shm/performance test",
+    "perf:dash": "yarn workspace @shm/performance-dashboard copy-results && yarn workspace @shm/performance-dashboard dev",
+    "perf:dash:build": "yarn workspace @shm/performance-dashboard copy-results && yarn workspace @shm/performance-dashboard build",
+    "landing": "yarn workspace @shm/landing dev",
     "landing:build": "yarn workspace @shm/landing build",
-    "landing": "yarn workspace @shm/landing dev"
+    "landing:preview": "yarn workspace @shm/landing preview"
   },
   "repository": "github:mintterhypermedia/mintter",
   "packageManager": "yarn@3.6.1",

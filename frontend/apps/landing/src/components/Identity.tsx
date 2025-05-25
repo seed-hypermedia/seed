@@ -1,6 +1,6 @@
-import checkImage from "../../media/check.png";
-import encryptionVideo from "../../media/encryption.mp4";
-import keyImage from "../../media/key.png";
+import checkImage from "../../public/check.png";
+import encryptionVideo from "../../public/encryption.mp4";
+import keyImage from "../../public/key.png";
 
 export default function Identity() {
   return (

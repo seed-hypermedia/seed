@@ -1,5 +1,5 @@
-import collaboratorsImage from "../../media/collaborators.png";
-import commentsImage from "../../media/comments.png";
+import collaboratorsImage from "../../public/collaborators.png";
+import commentsImage from "../../public/comments.png";
 export default function Collaboration() {
   return (
     <section className="w-full py-20 bg-green-fade-from">

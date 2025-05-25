@@ -22,4 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-public/performance-results
+electron-perf-data
+web-perf-data

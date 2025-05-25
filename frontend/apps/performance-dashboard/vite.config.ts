@@ -6,6 +6,7 @@ import {defineConfig} from "vite";
 export default defineConfig({
   plugins: [react()],
   base: "./", // Use relative paths
+  publicDir: "public",
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -18,7 +19,6 @@ export default defineConfig({
     assetsInlineLimit: 0, // Don't inline any assets as base64
     copyPublicDir: true, // Explicitly enable copying public dir (default is true)
   },
-  publicDir: "public", // Explicitly set public directory (default is 'public')
   server: {
     open: true,
   },

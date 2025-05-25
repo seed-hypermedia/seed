@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-05-25T20:07:22.036Z",
+  "metrics": {
+    "app-startup": {
+      "layoutDuration": 0,
+      "recalcStyleDuration": 0.108,
+      "scriptDuration": 4.749,
+      "taskDuration": 5.012,
+      "jsHeapUsedSize": 6583484,
+      "jsHeapTotalSize": 10010624,
+      "domContentLoaded": 74517530.753,
+      "cpuUsage": {
+        "percentCPUUsage": 15,
+        "idleWakeupsPerSecond": 5
+      },
+      "timeToInteractive": 2239,
+      "appStartupTime": 2239
+    },
+    "memory-usage": {
+      "layoutDuration": 0,
+      "recalcStyleDuration": 0,
+      "scriptDuration": 0,
+      "taskDuration": 0.007,
+      "jsHeapUsedSize": 6275232,
+      "jsHeapTotalSize": 10272768,
+      "domContentLoaded": 74518855.784,
+      "cpuUsage": {
+        "percentCPUUsage": 15,
+        "idleWakeupsPerSecond": 5
+      }
+    },
+    "large-content": {
+      "layoutDuration": 0,
+      "recalcStyleDuration": 0,
+      "scriptDuration": 0,
+      "taskDuration": 0.005,
+      "jsHeapUsedSize": 5511328,
+      "jsHeapTotalSize": 10797056,
+      "domContentLoaded": 74527053.64,
+      "cpuUsage": {
+        "percentCPUUsage": 15,
+        "idleWakeupsPerSecond": 5
+      }
+    }
+  },
+  "platform": "darwin",
+  "arch": "arm64"
+}

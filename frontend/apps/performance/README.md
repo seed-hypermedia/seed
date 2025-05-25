@@ -41,7 +41,6 @@ This script is the main entry point for the performance testing framework and pe
 - Compares results against performance budgets
 - Generates HTML reports and dashboards
 - Creates CI-friendly summaries
-- Optionally uploads results to S3 for storage/sharing
 
 #### Budget Enforcement:
 
@@ -120,7 +119,7 @@ yarn test --lighthouse --url http://localhost:9222
 yarn test --best-practices
 
 # Specify output directory
-yarn test --output ./custom-performance-results
+yarn test --output ./custom-results
 
 # Fail CI if budget violations are found
 yarn test --budget --fail-on-budget-error
@@ -278,7 +277,7 @@ The performance testing framework also generates the following static HTML repor
 - **Best Practices Report**: Report showing adherence to performance best practices
 - **Comparison Report**: Report comparing performance between different runs
 
-All reports are saved to the `performance-results` directory by default.
+All reports are saved to the `results` directory by default.
 
 ## Project Structure
 
@@ -297,7 +296,7 @@ frontend/apps/
 │   ├── best-practices-checker.ts    # Performance best practices checker
 │   ├── performance-budgets.ts       # Performance budget utilities
 │   ├── compare-performance.ts       # Performance comparison tool
-│   └── performance-results/         # Directory where test results are stored
+│   └── results/                     # Directory where test results are stored
 │
 └── performance-dashboard/           # Modern React dashboard for visualizing results
 ```

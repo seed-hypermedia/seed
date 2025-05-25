@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-05-25T21:05:08.698Z",
+  "app": "web",
+  "commit": "local",
+  "branch": "local",
+  "mobile": {
+    "lcp": 17038.396,
+    "inp": 0,
+    "cls": 0.025987006496751622,
+    "ttfb": 78.66399999999999,
+    "pageLoadTime": 5618.953000000001,
+    "pageSize": 13919568,
+    "totalRequests": 63
+  },
+  "desktop": {
+    "lcp": 3049.33,
+    "inp": 0,
+    "cls": 0.9685810892216093,
+    "ttfb": 76.104,
+    "pageLoadTime": 1200.9999999999998,
+    "pageSize": 13919599,
+    "totalRequests": 63
+  },
+  "budgetViolations": [
+    {
+      "metric": "lcp",
+      "actual": 17038.396,
+      "limit": 4000,
+      "device": "mobile"
+    },
+    {
+      "metric": "pageSize",
+      "actual": 13919568,
+      "limit": 2000000,
+      "device": "mobile"
+    },
+    {
+      "metric": "lcp",
+      "actual": 3049.33,
+      "limit": 2500,
+      "device": "desktop"
+    },
+    {
+      "metric": "cls",
+      "actual": 0.9685810892216093,
+      "limit": 0.1,
+      "device": "desktop"
+    },
+    {
+      "metric": "pageSize",
+      "actual": 13919599,
+      "limit": 2000000,
+      "device": "desktop"
+    }
+  ]
+}

@@ -50,11 +50,11 @@ export function formatMetricValue(value: number, unit: string): string {
 /**
  * Formats bytes into human-readable KB, MB, GB
  */
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 Bytes";
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
 
   const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;

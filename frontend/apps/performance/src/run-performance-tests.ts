@@ -2,13 +2,11 @@
 
 import {program} from "commander";
 import * as fs from "fs";
-import * as glob from "glob";
 import * as path from "path";
 import {
   generateBestPracticesReport,
   runBestPracticeChecks,
 } from "./best-practices-checker";
-import {generateDashboard} from "./dashboard-generator";
 import {
   measureAppStartupTime,
   PerformanceMetrics,
@@ -26,31 +24,6 @@ import {
 import {allScenarios, appStartupScenario, getScenarioByName} from "./scenarios";
 import {startApp} from "./utils";
 
-// Define report interface that will be used for the index.json file
-interface ScenarioMetric {
-  name: string;
-  value: number;
-  unit: string;
-  description?: string;
-  threshold?: number;
-}
-
-interface ScenarioResult {
-  name: string;
-  metrics: ScenarioMetric[];
-}
-
-interface PerformanceReportData {
-  id: string;
-  date: string;
-  scenarios: ScenarioResult[];
-  summary?: {
-    totalScenarios: number;
-    passedBudgets: number;
-    failedBudgets: number;
-  };
-}
-
 // Set up CLI options
 program
   .name("run-performance-tests")
@@ -66,16 +39,10 @@ program
   .option(
     "-o, --output-dir <dir>",
     "Output directory for test results",
-    "performance-results"
+    "results"
   )
-  .option("-d, --dashboard", "Generate HTML dashboard", false)
   .option("-b, --best-practices", "Run best practices checks", false)
   .option("-l, --lighthouse", "Run Lighthouse audits", false)
-  .option(
-    "-u, --upload",
-    "Upload results to S3 (requires AWS credentials)",
-    false
-  )
   .option("--ci", "Run in CI mode", false)
   .option(
     "--url <url>",
@@ -272,9 +239,6 @@ async function main() {
   const resultsPath = await saveMetricsToJson(results, outputDir);
   console.log(`💾 Results saved to: ${resultsPath}`);
 
-  // Update index.json for the dashboard
-  updateIndexJson(outputDir, resultsPath, results);
-
   // Check performance against budgets if requested
   if (options.budget) {
     console.log("📋 Checking performance against budgets...");
@@ -319,37 +283,6 @@ async function main() {
       }
     } catch (error) {
       console.error("❌ Error checking performance budgets:", error);
-    }
-  }
-
-  // Generate dashboard if requested
-  if (options.dashboard) {
-    console.log("🖥️ Generating dashboard...");
-    const metricsFiles = glob.sync(path.join(outputDir, "perf-metrics-*.json"));
-    const dashboardPath = path.join(outputDir, "dashboard.html");
-    generateDashboard(metricsFiles, dashboardPath);
-    console.log(`🎉 Dashboard generated at: ${dashboardPath}`);
-  }
-
-  // Upload to S3 if requested
-  if (options.upload) {
-    console.log("☁️ Uploading results to S3...");
-    try {
-      // This would call an AWS SDK function to upload the files
-      // We're using the upload-to-s3.ts script
-      const {execSync} = require("child_process");
-      execSync(
-        `yarn ts-node upload-to-s3.ts -d ${outputDir} -b ${
-          process.env.S3_BUCKET_NAME || "performance-metrics"
-        } --public`,
-        {
-          cwd: __dirname,
-          stdio: "inherit",
-        }
-      );
-      console.log("✅ Upload complete");
-    } catch (error) {
-      console.error("❌ Error uploading to S3:", error);
     }
   }
 
@@ -453,215 +386,13 @@ function generateCISummary(
   }
 }
 
-/**
- * Helper to format scenario names
- */
-function formatScenarioName(scenario: string): string {
+// Helper function to format scenario names for display
+function formatScenarioName(name: string): string {
   // Convert kebab-case to Title Case
-  return scenario
+  return name
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-// Add a function to update the index.json file
-function updateIndexJson(
-  outputDir: string,
-  metricsFile: string,
-  metrics: Record<string, PerformanceMetrics>
-) {
-  const indexPath = path.join(outputDir, "index.json");
-  let indexData: {reports: any[]} = {reports: []};
-
-  console.log(`Updating index.json with data from: ${metricsFile}`);
-
-  // Read existing index.json if it exists
-  if (fs.existsSync(indexPath)) {
-    try {
-      const indexContent = fs.readFileSync(indexPath, "utf-8");
-      indexData = JSON.parse(indexContent);
-    } catch (error) {
-      console.error("Error reading index.json:", error);
-    }
-  }
-
-  // Create report entry
-  const reportId = path
-    .basename(metricsFile, ".json")
-    .replace("perf-metrics-", "");
-
-  // Handle date parsing safely
-  let reportDate: string;
-  try {
-    // Try to create a Date object from the ID directly first
-    let dateObj = new Date(reportId);
-
-    // Check if date is valid
-    if (isNaN(dateObj.getTime())) {
-      // If direct parsing fails, try to properly format it
-      // The format is typically like "2025-03-04T16-36-42.846Z"
-      // We need to replace hyphens in the time part with colons
-      const formattedId = reportId.replace(
-        /(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.(\d{3})Z/,
-        "$1T$2:$3:$4.$5Z"
-      );
-      dateObj = new Date(formattedId);
-
-      if (isNaN(dateObj.getTime())) {
-        throw new Error("Invalid date after formatting");
-      }
-    }
-
-    reportDate = dateObj.toISOString();
-  } catch (error) {
-    // Fallback to current date if parsing fails
-    console.warn(
-      `Failed to parse date from ID '${reportId}', using current date instead:`,
-      error
-    );
-    reportDate = new Date().toISOString();
-  }
-
-  console.log(`Report ID: ${reportId}, Report Date: ${reportDate}`);
-
-  // Transform the metrics data into the expected format with scenarios
-  const scenariosArray: ScenarioResult[] = Object.entries(metrics).map(
-    ([scenarioName, scenarioMetrics]) => {
-      // Convert metrics object into array of metrics
-      const metricsArray: ScenarioMetric[] = [];
-
-      // Add all numeric metrics
-      for (const [metricName, metricValue] of Object.entries(scenarioMetrics)) {
-        if (typeof metricValue === "number") {
-          metricsArray.push({
-            name: metricName,
-            value: metricValue,
-            unit:
-              metricName.includes("Time") || metricName.includes("Duration")
-                ? "ms"
-                : metricName.includes("Size")
-                ? "bytes"
-                : "",
-          });
-        }
-      }
-
-      // Add CPU metrics if they exist
-      if (scenarioMetrics.cpuUsage) {
-        for (const [cpuMetricName, cpuMetricValue] of Object.entries(
-          scenarioMetrics.cpuUsage
-        )) {
-          metricsArray.push({
-            name: cpuMetricName,
-            value: cpuMetricValue,
-            unit: cpuMetricName.includes("Percentage") ? "%" : "",
-          });
-        }
-      }
-
-      // Add Lighthouse metrics if they exist
-      if (scenarioMetrics.lighthouse) {
-        for (const [
-          lighthouseMetricName,
-          lighthouseMetricValue,
-        ] of Object.entries(scenarioMetrics.lighthouse)) {
-          if (typeof lighthouseMetricValue === "number") {
-            metricsArray.push({
-              name: `lighthouse_${lighthouseMetricName}`,
-              value: lighthouseMetricValue,
-              unit:
-                lighthouseMetricName.includes("Time") ||
-                lighthouseMetricName.includes("Paint")
-                  ? "ms"
-                  : lighthouseMetricName.includes("Score")
-                  ? ""
-                  : "",
-            });
-          }
-        }
-      }
-
-      return {
-        name: scenarioName,
-        metrics: metricsArray,
-      };
-    }
-  );
-
-  // Create the transformed report data
-  const reportData: PerformanceReportData = {
-    id: reportId,
-    date: reportDate,
-    scenarios: scenariosArray,
-    summary: {
-      totalScenarios: scenariosArray.length,
-      passedBudgets: 0, // Will calculate below
-      failedBudgets: 0, // Will calculate below
-    },
-  };
-
-  // Count passed and failed budgets
-  let passedBudgets = 0;
-  let failedBudgets = 0;
-
-  reportData.scenarios.forEach((scenario) => {
-    scenario.metrics.forEach((metric) => {
-      if (metric.threshold) {
-        if (metric.value <= metric.threshold) {
-          passedBudgets++;
-        } else {
-          failedBudgets++;
-        }
-      }
-    });
-  });
-
-  // Update the summary
-  if (reportData.summary) {
-    reportData.summary.passedBudgets = passedBudgets;
-    reportData.summary.failedBudgets = failedBudgets;
-  } else {
-    reportData.summary = {
-      totalScenarios: scenariosArray.length,
-      passedBudgets,
-      failedBudgets,
-    };
-  }
-
-  // Create report entry for the index
-  const reportEntry = {
-    id: reportId,
-    date: reportDate,
-    file: path.basename(metricsFile),
-    summary: {
-      totalScenarios: reportData.scenarios.length,
-      passedBudgets,
-      failedBudgets,
-    },
-  };
-
-  // Add to reports array (or replace if already exists)
-  const existingIndex = indexData.reports.findIndex((r) => r.id === reportId);
-  if (existingIndex >= 0) {
-    indexData.reports[existingIndex] = reportEntry;
-  } else {
-    indexData.reports.push(reportEntry);
-  }
-
-  // Sort reports by date (newest first)
-  indexData.reports.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
-  // Write updated index.json
-  fs.writeFileSync(indexPath, JSON.stringify(indexData, null, 2), "utf-8");
-  console.log(`Updated index.json with report ${reportId}`);
-
-  // Also save the full report data
-  const reportPath = path.join(outputDir, reportId, "report.json");
-  fs.mkdirSync(path.dirname(reportPath), {recursive: true});
-  fs.writeFileSync(reportPath, JSON.stringify(reportData, null, 2), "utf-8");
-  console.log(`Saved full report data to ${reportPath}`);
 }
 
 main().catch((error) => {

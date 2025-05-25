@@ -79,4 +79,4 @@ screenshots/
 playwright-report/
 test-results/
 
-performance-results/
+electron-perf-data/

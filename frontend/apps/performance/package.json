@@ -2,13 +2,14 @@
   "name": "@shm/performance",
   "version": "0.1.0",
   "description": "Performance testing system for the Electron desktop app",
-  "main": "run-performance-tests.ts",
+  "main": "src/run-performance-tests.ts",
   "scripts": {
-    "test": "ts-node --transpile-only run-performance-tests.ts",
-    "test:ci": "ts-node --transpile-only run-performance-tests.ts --ci --dashboard --upload",
-    "test:dashboard": "ts-node --transpile-only run-performance-tests.ts --dashboard",
+    "test": "ts-node --transpile-only src/run-performance-tests.ts",
+    "test:ci": "ts-node --transpile-only src/run-performance-tests.ts --ci",
+    "test:debug": "PWDEBUG=1 ts-node --transpile-only src/run-performance-tests.ts",
+    "record": "PWDEBUG=1 ts-node --transpile-only src/record-scenario.ts",
     "build": "tsc",
-    "start": "node dist/run-performance-tests.js"
+    "start": "node dist/performance/src/run-performance-tests.js"
   },
   "dependencies": {
     "@types/glob": "^8.1.0",

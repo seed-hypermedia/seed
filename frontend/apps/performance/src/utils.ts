@@ -1,6 +1,6 @@
 // Import needed modules
 import * as path from "path";
-import {parseElectronApp} from "../desktop/test/utils";
+import {parseElectronApp} from "../../desktop/test/utils";
 
 // Define interfaces needed for type safety
 interface BuildInfo {
@@ -20,7 +20,7 @@ export function findLatestBuild(): string {
   const fs = require("fs");
 
   // Path to the desktop project where the builds are stored
-  const desktopDir = path.resolve(__dirname, "../desktop");
+  const desktopDir = path.resolve(__dirname, "../../desktop");
   // Directory where the builds are stored
   const outDir = path.join(desktopDir, "out");
 
