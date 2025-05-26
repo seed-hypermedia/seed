@@ -1,4 +1,5 @@
 import {
+  formattedDateLong,
   getMetadataName,
   HMDocument,
   HMEntityContent,
@@ -16,7 +17,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useMedia} from 'tamagui'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
-import {Close, Menu, X} from './icons'
+import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
 import {
   DocNavigationDocument,
@@ -44,6 +45,7 @@ export function SiteHeader({
   origin,
   onScroll,
   noScroll = false,
+  isLatest = true,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -58,6 +60,7 @@ export function SiteHeader({
   origin?: string
   onScroll?: () => void
   noScroll?: boolean
+  isLatest?: boolean
 }) {
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
@@ -149,13 +152,6 @@ export function SiteHeader({
             {isCenterLayout ? headerSearch : null}
           </XStack>
 
-          {/* <XStack
-            flex={1}
-            // @ts-ignore
-            maxWidth="100%"
-            width="100%"
-          > */}
-
           <XStack
             display={isCenterLayout ? 'none' : 'flex'}
             $gtSm={{
@@ -172,8 +168,6 @@ export function SiteHeader({
               />
             ) : null}
           </XStack>
-
-          {/* </XStack> */}
 
           {isCenterLayout ? null : headerSearch}
         </XStack>
@@ -221,8 +215,9 @@ export function SiteHeader({
   )
   return (
     <>
-      {/* TODO: Eric change this to true when we are */}
-      <GotoLatestBanner isLatest={true} />
+      {docId && document ? (
+        <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
+      ) : null}
       {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
         <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
           <SizableText color="white" size="$3">
@@ -431,14 +426,30 @@ export function MobileMenu({
   )
 }
 
-function GotoLatestBanner({isLatest = true}: {isLatest: boolean}) {
-  // TODO: Eric change this to true when we are
-  const [showVersionBanner, setShowVersionBanner] = useState(false)
+function GotoLatestBanner({
+  isLatest = true,
+  id,
+  document,
+}: {
+  isLatest: boolean
+  id: UnpackedHypermediaId
+  document: HMDocument
+}) {
+  const [hideVersionBanner, setHideVersionBanner] = useState(false)
 
   const show = useMemo(() => {
-    if (!isLatest) return true
-    return showVersionBanner
-  }, [isLatest, showVersionBanner])
+    if (hideVersionBanner) return false
+    return !isLatest
+  }, [isLatest, hideVersionBanner])
+
+  const latestLinkProps = useRouteLink({
+    key: 'document',
+    id: {
+      ...id,
+      latest: true,
+      version: null,
+    },
+  })
 
   return show ? (
     <XStack
@@ -464,20 +475,20 @@ function GotoLatestBanner({isLatest = true}: {isLatest: boolean}) {
         paddingRight="$2"
         gap="$2"
       >
-        <SizableText flex={1}>This is not the latest version</SizableText>
+        <Button size="$2" onPress={() => setHideVersionBanner(true)} icon={X} />
+        <SizableText flex={1}>
+          Version from {formattedDateLong(document.updateTime)}
+        </SizableText>
         <Button
           bg="$brand10"
           hoverStyle={{bg: '$brand11'}}
           focusStyle={{bg: '$brand11'}}
           size="$2"
+          iconAfter={ArrowRight}
+          {...latestLinkProps}
         >
-          Go to latest
+          Go to Latest
         </Button>
-        <Button
-          size="$2"
-          onPress={() => setShowVersionBanner(false)}
-          icon={X}
-        />
       </XStack>
     </XStack>
   ) : null

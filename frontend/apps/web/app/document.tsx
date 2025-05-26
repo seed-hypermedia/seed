@@ -203,6 +203,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     enableWebSigning,
     origin,
     comment,
+    isLatest,
   } = props
 
   useEffect(() => {
@@ -458,6 +459,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
           origin={origin}
+          isLatest={isLatest}
         >
           <PanelGroup direction="horizontal" style={{minHeight: '100%'}}>
             <Panel

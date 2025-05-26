@@ -110,6 +110,7 @@ export type WebBaseDocumentPayload = {
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
   supportQueries?: HMQueryResult[]
   enableWebSigning?: boolean
+  isLatest: boolean
 }
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
@@ -188,7 +189,10 @@ export async function getBaseDocument(
     .catch((e) => {
       console.error('error discovering entity', entityId.id, e)
     })
-
+  const latestDocument =
+    entityId.version || !entityId.latest
+      ? await getHMDocument({...entityId, latest: true, version: null})
+      : null
   const document = await getHMDocument(entityId)
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
@@ -303,6 +307,7 @@ export async function getBaseDocument(
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
+    isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...entityId, version: document.version},
     ...getOriginRequestData(parsedRequest),
   }

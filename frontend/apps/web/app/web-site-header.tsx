@@ -19,6 +19,7 @@ export function WebSiteHeader(
     supportDocuments?: HMEntityContent[]
     supportQueries?: HMQueryResult[]
     origin?: string
+    isLatest?: boolean
   }>,
 ) {
   const isCenterLayout =
