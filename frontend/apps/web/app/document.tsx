@@ -183,6 +183,8 @@ type WebAccessory =
       type: 'versions'
     }
 
+const DEFAULT_MAIN_PANEL_SIZE = 65
+
 export function DocumentPage(props: SiteDocumentPayload) {
   const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
@@ -220,7 +222,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       const mainPanel = mainPanelRef.current
       if (!mainPanel) return
       if (panel) {
-        mainPanel.resize(60)
+        mainPanel.resize(DEFAULT_MAIN_PANEL_SIZE)
         mainPanel.expand()
       }
     } else {
@@ -461,7 +463,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
           origin={origin}
           isLatest={isLatest}
         >
-          <PanelGroup direction="horizontal" style={{minHeight: '100%'}}>
+          <PanelGroup
+            direction="horizontal"
+            autoSaveId="web-conditional"
+            style={{minHeight: '100%'}}
+          >
             <Panel
               ref={mainPanelRef}
               collapsible
@@ -615,8 +621,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 <PanelResizeHandle className="panel-resize-handle" />
 
                 <Panel
-                  defaultSize={media.gtSm ? 30 : 100}
-                  maxSize={media.gtSm ? 40 : 100}
+                  defaultSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
                   minSize={media.gtSm ? 20 : 100}
                 >
                   <YStack
