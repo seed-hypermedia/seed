@@ -33,15 +33,18 @@ export const loader = async ({
     })
 
     const allComments: HMComment[] = []
-
+    const alreadyCommentIds = new Set<string>()
     for (const mention of res.mentions) {
       try {
         const sourceId = unpackHmId(mention.source)
         if (!sourceId) continue
         if (sourceId.type !== 'c') continue
+        if (!mention.sourceBlob?.cid) continue
+        if (alreadyCommentIds.has(mention.sourceBlob?.cid)) continue
         const comment = await queryClient.comments.getComment({
-          id: mention.sourceBlob?.cid,
+          id: mention.sourceBlob.cid,
         })
+        alreadyCommentIds.add(mention.sourceBlob.cid)
         if (!comment) continue
         allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
       } catch (error) {
