@@ -360,12 +360,8 @@ export function idToUrl(
   hmId: UnpackedHypermediaId,
   opts?: {
     originHomeId?: UnpackedHypermediaId
-    hasExplicitRouteHandling?: boolean
   },
 ) {
-  if (opts?.hasExplicitRouteHandling) {
-    return createHMUrl(hmId)
-  }
   if (!hmId?.type) return null
   return createWebHMUrl(hmId.type, hmId.uid, {
     version: hmId.version,

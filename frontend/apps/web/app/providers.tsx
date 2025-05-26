@@ -1,8 +1,11 @@
+import {useNavigate} from '@remix-run/react'
 import {
   createWebHMUrl,
   DAEMON_FILE_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
+  idToUrl,
   LIGHTNING_API_URL,
+  NavRoute,
   OptimizedImageSize,
   SITE_BASE_URL,
   UniversalAppProvider,
@@ -60,6 +63,7 @@ export function WebSiteProvider(props: {
   siteHost?: string
   origin?: string
 }) {
+  const navigate = useNavigate()
   return (
     <UniversalAppProvider
       origin={props.origin}
@@ -69,7 +73,21 @@ export function WebSiteProvider(props: {
       openUrl={(url) => {
         window.open(url, '_blank')
       }}
-      openRoute={null}
+      openRoute={(route: NavRoute, replace?: boolean) => {
+        let href: null | string = null
+        if (route.key === 'document') {
+          href = idToUrl(route.id, {
+            originHomeId: props.originHomeId,
+          })
+        }
+        if (href) {
+          navigate(href, {
+            replace,
+          })
+        } else {
+          toast.error('Failed to open route')
+        }
+      }}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
         const url = createWebHMUrl(hmId.type, hmId.uid, {
           ...hmId,

@@ -1,9 +1,9 @@
 import {
   HYPERMEDIA_ENTITY_TYPES,
   idToUrl,
+  packHmId,
   SearchResult,
   UnpackedHypermediaId,
-  packHmId,
   unpackHmId,
   useRouteLink,
   useSearch,
@@ -18,7 +18,7 @@ import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
 import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
-import {useCollapsedPath, highlightSearchMatch} from './search-input'
+import {highlightSearchMatch, useCollapsedPath} from './search-input'
 
 export function MobileSearch({
   originHomeId,
@@ -215,7 +215,6 @@ export function HeaderSearch({
 
                       const selectedEntityUrl = idToUrl(selectedEntity.id, {
                         originHomeId: universalAppContext.originHomeId,
-                        hasExplicitRouteHandling: false,
                       })
 
                       if (!selectedEntityUrl) return

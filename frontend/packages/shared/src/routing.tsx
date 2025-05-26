@@ -2,7 +2,7 @@ import {createContext, useContext} from 'react'
 import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
-import {idToUrl, unpackHmId} from './utils'
+import {createHMUrl, idToUrl, unpackHmId} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -14,6 +14,9 @@ type UniversalAppContextValue = {
   origin?: string
   openUrl: (url: string) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
+
+  // set this to true if you want all <a href="" values to be full hypermedia urls. otherwise, web URLs will be prepared
+  hmUrlHref?: boolean
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -32,6 +35,7 @@ export function UniversalAppProvider(props: {
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
+  hmUrlHref?: boolean
 }) {
   return (
     <UniversalAppContext.Provider
@@ -43,6 +47,7 @@ export function UniversalAppProvider(props: {
         openUrl: props.openUrl,
         openRoute: props.openRoute,
         onCopyReference: props.onCopyReference,
+        hmUrlHref: props.hmUrlHref,
       }}
     >
       {props.children}
@@ -104,15 +109,21 @@ export function useRouteLink(
     }
   if (!context)
     throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
-  const href =
-    typeof route === 'string'
-      ? route
-      : route.key == 'document'
-      ? idToUrl(route.id, {
-          originHomeId: context.originHomeId,
-          hasExplicitRouteHandling: !!context.openRoute,
-        })
-      : undefined
+
+  function getDocHref(docId: UnpackedHypermediaId | null) {
+    if (!docId) return undefined
+    if (context.hmUrlHref) {
+      return createHMUrl(docId)
+    }
+    return idToUrl(docId, {
+      originHomeId: context.originHomeId,
+    })
+  }
+  const docId =
+    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
+
+  const href = typeof route === 'string' ? route : getDocHref(docId)
+
   return {
     onPress: context.openRoute
       ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {

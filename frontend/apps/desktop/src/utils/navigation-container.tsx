@@ -106,6 +106,7 @@ export function NavigationContainer({
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
         onCopyReference(hmId)
       }}
+      hmUrlHref={true}
     >
       <NavContextProvider value={navigation}>
         {children}
