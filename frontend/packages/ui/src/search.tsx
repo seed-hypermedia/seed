@@ -118,14 +118,6 @@ export function HeaderSearch({
   const MIN_INPUT_WIDTH = 500
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
-  const inputWrapperRef = useRef(null)
-  const [inputWidth, setInputWidth] = useState<number | null>(null)
-  useLayoutEffect(() => {
-    if (inputWrapperRef.current) {
-      const el = inputWrapperRef.current as unknown as HTMLElement
-      setInputWidth(el.offsetWidth)
-    }
-  }, [searchValue])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
@@ -163,7 +155,7 @@ export function HeaderSearch({
         onOpenChange={(open) => {
           popoverState.onOpenChange(open)
         }}
-        placement="bottom-start"
+        placement="bottom-end"
       >
         <Popover.Trigger asChild>
           <Button
@@ -174,90 +166,85 @@ export function HeaderSearch({
           />
         </Popover.Trigger>
         <Popover.Content asChild>
-          <div
-            ref={inputWrapperRef}
-            style={{width: 'fit-content', minWidth: MIN_INPUT_WIDTH + 'px'}}
+          <YStack
+            gap="$2"
+            padding="$2"
+            backgroundColor="$color4"
+            borderRadius="$4"
+            height="auto"
+            maxHeight="80vh"
+            alignSelf="stretch"
+            overflow="hidden"
           >
-            <YStack
-              gap="$2"
-              padding="$2"
-              backgroundColor="$color4"
-              borderRadius="$4"
-              height="auto"
-              maxHeight="80vh"
-              alignSelf="stretch"
-              overflow="hidden"
-              width={inputWidth ? `${inputWidth}px` : 'fit-content'}
-            >
-              <XStack gap="$2" alignItems="center">
-                <Search size="$1" margin="$2" />
-                <Input
-                  value={searchValue}
-                  size="$3"
-                  onChange={(
-                    e: NativeSyntheticEvent<TextInputChangeEventData>,
-                  ) => {
-                    setSearchValue(e.nativeEvent.target.value)
-                  }}
-                  onKeyPress={(e: any) => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault()
-                      popoverState.onOpenChange(false)
-                    }
+            <XStack gap="$2" alignItems="center" alignSelf="stretch">
+              <Search size="$1" margin="$2" />
+              <Input
+                value={searchValue}
+                size="$3"
+                f={1}
+                onChange={(
+                  e: NativeSyntheticEvent<TextInputChangeEventData>,
+                ) => {
+                  setSearchValue(e.nativeEvent.target.value)
+                }}
+                onKeyPress={(e: any) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    popoverState.onOpenChange(false)
+                  }
 
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (!universalAppContext) return
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (!universalAppContext) return
 
-                      const selectedEntity =
-                        searchResults.data?.entities[focusedIndex]
-                      if (!selectedEntity) return
+                    const selectedEntity =
+                      searchResults.data?.entities[focusedIndex]
+                    if (!selectedEntity) return
 
-                      const selectedEntityUrl = idToUrl(selectedEntity.id, {
-                        originHomeId: universalAppContext.originHomeId,
-                      })
+                    const selectedEntityUrl = idToUrl(selectedEntity.id, {
+                      originHomeId: universalAppContext.originHomeId,
+                    })
 
-                      if (!selectedEntityUrl) return
-                      universalAppContext.openUrl(selectedEntityUrl)
+                    if (!selectedEntityUrl) return
+                    universalAppContext.openUrl(selectedEntityUrl)
 
-                      popoverState.onOpenChange(false)
-                    }
+                    popoverState.onOpenChange(false)
+                  }
 
-                    if (e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      setFocusedIndex(
-                        (prev) =>
-                          (prev - 1 + searchItems.length) % searchItems.length,
-                      )
-                    }
-
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault()
-                      setFocusedIndex((prev) => (prev + 1) % searchItems.length)
-                    }
-                  }}
-                />
-              </XStack>
-              <YStack width="100%" maxHeight="60vh">
-                <ScrollView overflow="scroll">
-                  {searchItems.map((item: SearchResult, index: number) => {
-                    return (
-                      <Fragment key={item.key}>
-                        <SearchResultItem
-                          item={item}
-                          originHomeId={originHomeId}
-                          selected={focusedIndex === index}
-                        />
-                        {index === searchItems.length - 1 ? undefined : (
-                          <Separator />
-                        )}
-                      </Fragment>
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setFocusedIndex(
+                      (prev) =>
+                        (prev - 1 + searchItems.length) % searchItems.length,
                     )
-                  })}
-                </ScrollView>
-              </YStack>
+                  }
+
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setFocusedIndex((prev) => (prev + 1) % searchItems.length)
+                  }
+                }}
+              />
+            </XStack>
+            <YStack width="100%" maxHeight="60vh">
+              <ScrollView overflow="scroll">
+                {searchItems.map((item: SearchResult, index: number) => {
+                  return (
+                    <Fragment key={item.key}>
+                      <SearchResultItem
+                        item={item}
+                        originHomeId={originHomeId}
+                        selected={focusedIndex === index}
+                      />
+                      {index === searchItems.length - 1 ? undefined : (
+                        <Separator />
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </ScrollView>
             </YStack>
-          </div>
+          </YStack>
         </Popover.Content>
       </Popover>
     </XStack>
