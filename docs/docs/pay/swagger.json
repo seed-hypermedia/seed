@@ -1,0 +1,21 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Payments server.",
+        "title": "Seed Hypermedia PAY",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "seed hypermedia",
+            "url": "https://seedhypermedia.com",
+            "email": "team@seedhypermedia.com"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "0.0.1"
+    },
+    "host": "pay.seedhypermedia.com",
+    "basePath": "/",
+    "paths": {}
+}
