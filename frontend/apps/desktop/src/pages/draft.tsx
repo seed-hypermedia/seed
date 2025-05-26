@@ -120,10 +120,6 @@ export default function DraftPage() {
     isEditingHomeDoc,
   })
 
-  useEffect(() => {
-    console.log('== ACCESSORY: DRAFT', accessoryKey)
-  }, [accessory])
-
   function handleFocusAtMousePos(event: any) {
     let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
     let editorView = ttEditor.view

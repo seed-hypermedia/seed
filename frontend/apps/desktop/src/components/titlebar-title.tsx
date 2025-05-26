@@ -18,7 +18,7 @@ import {
 } from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
-import {DraftRoute, NavRoute} from '@shm/shared/routes'
+import {DraftRoute} from '@shm/shared/routes'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {HoverCard} from '@shm/ui/hover-card'
 import {
@@ -36,7 +36,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {
   Button,
@@ -54,6 +54,7 @@ import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
 import {DNSInstructions} from './publish-site'
 import {DocOptionsButton} from './titlebar-common'
+import {useWindowTitleSetter} from './window-title'
 
 export function TitleContent({
   size = '$4',
@@ -68,17 +69,14 @@ export function TitleContent({
     fontWeight: 'bold',
     'data-testid': 'titlebar-title',
   }
-  useEffect(() => {
-    async function getTitleOfRoute(route: NavRoute): Promise<string> {
-      if (route.key === 'contacts') return 'Contacts'
-      return ''
-    }
-    getTitleOfRoute(route).then((title) => {
-      // we set the window title so the window manager knows the title in the Window menu
-      // @ts-ignore
-      window.document.title = title
-      // window.windowInfo.setTitle(title)
-    })
+  useWindowTitleSetter(async () => {
+    if (route.key === 'contacts') return 'Contacts'
+    if (route.key === 'explore') return 'Explore'
+    if (route.key === 'favorites') return 'Favorites'
+    if (route.key === 'library') return 'Library'
+    if (route.key === 'drafts') return 'Drafts'
+    // document and draft are handled in the child components which have the relevant data!
+    return null
   }, [route])
 
   if (route.key === 'contacts') {
@@ -244,6 +242,11 @@ function BreadcrumbTitle({
   })
 
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
+  useWindowTitleSetter(async () => {
+    if (activeItem?.name) return activeItem.name
+    return 'Document'
+  }, [activeItem?.name])
+
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
   if (!activeItem) return null
@@ -738,6 +741,11 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     }
   }, [draft.data, route.locationUid, route.locationPath])
 
+  useWindowTitleSetter(async () => {
+    if (draft.data?.metadata.name) return `Draft: ${draft.data.metadata.name}`
+    return 'Draft'
+  }, [draft.data?.metadata.name])
+
   const editId = useMemo(() => {
     if (draft.data?.editId) return draft.data.editId
     let uId = draft.data?.editUid || route.editUid
@@ -812,12 +820,4 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
       </XStack>
     </XStack>
   )
-}
-
-function useWindowTitle(title?: string) {
-  useEffect(() => {
-    if (title) {
-      window.document.title = title
-    }
-  }, [title])
 }

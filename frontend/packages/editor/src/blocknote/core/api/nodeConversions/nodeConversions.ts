@@ -66,7 +66,6 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
  * prosemirror text nodes with the appropriate marks
  */
 function linkToNodes(link: PartialLink, schema: Schema): Node[] {
-  console.log(`== ~ linkToNodes ~ schema.marks:`, schema.marks)
   const linkMark = schema.marks.link.create({
     href: link.href,
   })

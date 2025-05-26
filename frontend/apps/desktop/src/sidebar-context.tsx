@@ -69,7 +69,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           setIsLocked(nextIsLocked)
         }
         function onLockSidebarOpen() {
-          console.log('debug == onLockSidebarOpen')
           const currentState = isLocked.get()
           // Only update if not already locked
           if (!currentState) {
@@ -78,7 +77,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           }
         }
         function onCloseSidebar() {
-          console.log('debug == onCloseSidebar')
           const currentState = isLocked.get()
           // Only update if currently locked
           if (currentState) {
