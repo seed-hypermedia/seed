@@ -42,7 +42,7 @@ export function useSearch(
   query: string,
   {enabled = true, accountUid}: {enabled?: boolean; accountUid?: string} = {},
   includeBody: boolean | undefined = false,
-  contextSize: number | undefined = 48,
+  contextSize: number | undefined = 28,
 ) {
   return useQuery({
     queryKey: [queryKeys.SEARCH, accountUid || null, query],
@@ -52,7 +52,7 @@ export function useSearch(
         query,
         accountUid || undefined,
         includeBody || false,
-        contextSize || 48,
+        contextSize || 28,
       )
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
