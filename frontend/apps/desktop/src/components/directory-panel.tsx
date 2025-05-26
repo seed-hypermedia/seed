@@ -31,6 +31,9 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
         <SizableText color="$color7" fontWeight="500" size="$5">
           There are no children documents
         </SizableText>
+        <XStack padding="$3">
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+        </XStack>
       </YStack>
     )
   }
