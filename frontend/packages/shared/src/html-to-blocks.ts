@@ -23,7 +23,8 @@ export async function htmlToBlocks(
   // Shared function to parse a node into a Paragraph block (text + annotations)
   async function parseParagraphNode(node: any): Promise<HMBlockNode | null> {
     const annotations: HMAnnotation[] = []
-    let text = ''
+    let normalizedText = ''
+
     async function walk(
       node: any,
       offset: number,
@@ -32,8 +33,10 @@ export async function htmlToBlocks(
       let localOffset = offset
       if (node.type === 'text') {
         const nodeText = node.data || ''
-        text += nodeText
-        return codePointLength(nodeText)
+        // Normalize whitespace as we build the text
+        const normalizedNodeText = nodeText.replace(/\s+/g, ' ')
+        normalizedText += normalizedNodeText
+        return codePointLength(normalizedNodeText)
       }
       if (node.type === 'tag') {
         let isBold = active.bold || node.name === 'b' || node.name === 'strong'
@@ -41,7 +44,7 @@ export async function htmlToBlocks(
         if (node.name === 'a') {
           linkHref = node.attribs['href']
         }
-        let start = codePointLength(text)
+        let start = codePointLength(normalizedText)
         let childOffset = 0
         for (const child of node.children || []) {
           childOffset += await walk(child, localOffset + childOffset, {
@@ -49,7 +52,7 @@ export async function htmlToBlocks(
             link: linkHref,
           })
         }
-        let end = codePointLength(text)
+        let end = codePointLength(normalizedText)
         if ((node.name === 'b' || node.name === 'strong') && end > start) {
           annotations.push({
             type: 'Bold',
@@ -74,23 +77,42 @@ export async function htmlToBlocks(
       return 0
     }
     await walk(node, 0, {})
-    text = text.trim()
-    annotations.sort((a, b) => {
+
+    // Calculate how much whitespace we're trimming from the start
+    const originalLength = normalizedText.length
+    const trimmedText = normalizedText.trim()
+    const leadingWhitespaceLength =
+      normalizedText.length - normalizedText.trimStart().length
+
+    // Adjust annotation positions to account for trimmed leading whitespace
+    const adjustedAnnotations = annotations.map((annotation) => ({
+      ...annotation,
+      starts: annotation.starts.map((pos) =>
+        Math.max(0, pos - leadingWhitespaceLength),
+      ),
+      ends: annotation.ends.map((pos) =>
+        Math.max(0, pos - leadingWhitespaceLength),
+      ),
+    }))
+
+    adjustedAnnotations.sort((a, b) => {
       if (a.starts[0] !== b.starts[0]) return a.starts[0] - b.starts[0]
       if (a.ends[0] !== b.ends[0]) return a.ends[0] - b.ends[0]
       if (a.type !== b.type) return a.type < b.type ? -1 : 1
       return 0
     })
-    if (text) {
+
+    normalizedText = trimmedText
+    if (normalizedText) {
       return {
         block: {
           id: nanoid(8),
           type: 'Paragraph',
-          text,
+          text: normalizedText,
           revision: nanoid(8),
           link: '',
           attributes: {},
-          annotations,
+          annotations: adjustedAnnotations,
         },
         children: [],
       }
@@ -135,15 +157,36 @@ export async function htmlToBlocks(
           const uploadedCID =
             uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
           if (uploadedCID) {
-            pushBlock({
-              id: nanoid(8),
-              type: 'Image',
-              link: `ipfs://${uploadedCID}`,
-              revision: nanoid(8),
-              text: '',
-              attributes: {},
-              annotations: [],
-            })
+            let imageBlockNode: HMBlockNode = {
+              block: {
+                id: nanoid(8),
+                type: 'Image',
+                link: `ipfs://${uploadedCID}`,
+                revision: nanoid(8),
+                text: '',
+                attributes: {},
+                annotations: [],
+              },
+              children: [],
+            }
+
+            // Check for figcaption
+            const figcaption = $el.find('figcaption')
+            if (figcaption.length) {
+              const captionNode = await parseParagraphNode(figcaption[0])
+              if (captionNode?.block.type === 'Paragraph') {
+                imageBlockNode = {
+                  ...imageBlockNode,
+                  block: {
+                    ...imageBlockNode.block,
+                    text: captionNode.block.text,
+                    annotations: captionNode.block.annotations,
+                  } as HMBlock,
+                }
+              }
+            }
+
+            blocks.push(imageBlockNode)
           }
         }
       }
@@ -192,11 +235,20 @@ export async function htmlToBlocks(
         }
       }
       // Find the caption (span.aft-image-caption > p)
-      if (imageBlockNode) {
+      if (imageBlockNode?.block?.type === 'Image') {
         const caption = $el.find('span.aft-image-caption p')
         if (caption.length) {
           const node = await parseParagraphNode(caption[0])
-          if (node) imageBlockNode.children!.push(node)
+          if (node?.block.type === 'Paragraph') {
+            imageBlockNode = {
+              ...imageBlockNode,
+              block: {
+                ...imageBlockNode.block,
+                text: node.block.text,
+                annotations: node.block.annotations,
+              },
+            }
+          }
         }
         blocks.push(imageBlockNode)
       }

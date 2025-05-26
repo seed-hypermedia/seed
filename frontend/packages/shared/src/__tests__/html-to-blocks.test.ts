@@ -248,10 +248,6 @@ describe('htmlToBlocks', () => {
     expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://TestCID',
-    })
-    expect(blocks[0].children).toHaveLength(1)
-    expect(blocks[0].children?.[0].block).toMatchObject({
-      type: 'Paragraph',
       text: 'foo bar',
       annotations: [
         {
@@ -306,6 +302,35 @@ describe('htmlToBlocks', () => {
     expect(blocks[0].block).toMatchObject({
       type: 'Video',
       link: 'https://www.youtube.com/embed/3cWPFs-qGzc',
+    })
+  })
+
+  it('handles image with caption', async () => {
+    const html = `
+        <figure class="wp-block-image size-large">
+      <img
+        src="test.jpg"
+      />
+      <figcaption class="wp-element-caption">
+        foo <b>bar</b>
+      </figcaption>
+    </figure>`
+    const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
+
+    const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Image',
+      link: 'ipfs://QmTestCID',
+      text: 'foo bar',
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [4],
+          ends: [7],
+        } satisfies HMAnnotation,
+      ],
     })
   })
 })

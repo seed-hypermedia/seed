@@ -67,7 +67,6 @@ export const loader = async ({
         console.error('=== citation error', error)
       }
     }
-    console.log('=== docCitationsSourceTimes', documentCitations)
 
     result = documentCitations
   } catch (e: any) {
