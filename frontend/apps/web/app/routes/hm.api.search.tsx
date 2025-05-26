@@ -6,9 +6,12 @@ export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url)
   const searchQuery = url.searchParams.get('q') || ''
   const accountUid = url.searchParams.get('a') || ''
+  const includeBody = url.searchParams.get('b') === 'true'
+  const contextSize = parseInt(url.searchParams.get('c') || '26', 10)
   const result = await queryClient.entities.searchEntities({
     query: searchQuery,
-    includeBody: true,
+    includeBody: includeBody,
+    contextSize: contextSize,
   })
 
   return wrapJSON<SearchPayload>({

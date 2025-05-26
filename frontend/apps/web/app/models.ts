@@ -78,8 +78,15 @@ export function useActivity(
   return response
 }
 
-export function searchQuery(input: string, accountUid?: string) {
-  return queryAPI<SearchPayload>(`/hm/api/search?q=${input}&a=${accountUid}`)
+export function searchQuery(
+  input: string,
+  accountUid?: string,
+  includeBody?: boolean,
+  contextSize?: number,
+) {
+  return queryAPI<SearchPayload>(
+    `/hm/api/search?q=${input}&a=${accountUid}&b=${includeBody}&c=${contextSize}`,
+  )
 }
 
 async function accountQuery(accountUid: string) {

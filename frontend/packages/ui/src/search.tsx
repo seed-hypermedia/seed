@@ -113,7 +113,7 @@ export function HeaderSearch({
       accountUid: originHomeId?.uid,
     },
     true,
-    28 - searchValue.length,
+    24 - searchValue.length,
   )
   const MIN_INPUT_WIDTH = 500
   const [focusedIndex, setFocusedIndex] = useState(0)
