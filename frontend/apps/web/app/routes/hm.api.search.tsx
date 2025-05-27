@@ -12,6 +12,7 @@ export const loader = async ({request}: {request: Request}) => {
     query: searchQuery,
     includeBody: includeBody,
     contextSize: contextSize,
+    accountUid: accountUid,
   })
 
   return wrapJSON<SearchPayload>({
@@ -30,10 +31,6 @@ export const loader = async ({request}: {request: Request}) => {
           }
         )
       })
-      .filter((result) => !!result)
-      .filter((result) => {
-        if (!accountUid) return true
-        return result.id.uid === accountUid
-      }),
+      .filter((result) => !!result),
   })
 }

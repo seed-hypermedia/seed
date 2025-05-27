@@ -16,6 +16,7 @@ export async function querySearch(
     query: searchQuery,
     includeBody: includeBody,
     contextSize: contextSize,
+    accountUid: accountUid,
   })
   return {
     searchQuery,
@@ -33,11 +34,7 @@ export async function querySearch(
             }
           : undefined
       })
-      .filter((result) => !!result)
-      .filter((result) => {
-        if (!accountUid) return true
-        return result.id.uid === accountUid
-      }),
+      .filter((result) => !!result),
   }
 }
 
