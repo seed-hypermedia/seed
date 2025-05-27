@@ -630,16 +630,14 @@ message Document {
   // Includes the original author as well.
   repeated string authors = 5;
 
-  // Special block for the document header.
-  // Implicitly the ID of this block is a constant string "header".
-  BlockNode header = 11;
+  // Old header and footer fields.
+  reserved 11, 12;
 
   // Blocks content of the document.
   repeated BlockNode content = 6;
 
-  // Special block for the document footer.
-  // Implicitly the ID of this block is a constant string "footer".
-  BlockNode footer = 12;
+  // Output only. Blocks that were created but not moved into the document content.
+  map<string, BlockNode> detached_blocks = 14;
 
   // Output only. Time when document was created.
   google.protobuf.Timestamp create_time = 7;

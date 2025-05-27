@@ -135,13 +135,6 @@ type docCRDT struct {
 	vectorClock  map[string]time.Time
 }
 
-/*
-
-TODO: CRDT object. Set of (keypath, opid, value) + key => max opid mapping.
-
-
-*/
-
 func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 	e := &docCRDT{
 		id:            id,
@@ -394,6 +387,13 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			}
 			opid := newOpID(ts, actorID, idx)
 			reg.Set(opid, blk)
+
+			// We now support having detached blocks, so we need to make sure they exist in the tree.
+			// TODO(burdiyan): This is very hard to reason about and all of this stuff needs to be refactored.
+			if _, ok := e.tree.sublists.Get(blk.ID()); !ok {
+				e.tree.sublists.Set(blk.ID(), newRGAList[string]())
+				e.tree.detachedBlocks.Set(blk.ID(), blockLatestMove{detached: true})
+			}
 		case blob.OpMoveBlocks:
 			if len(op.Blocks) == 0 {
 				return fmt.Errorf("missing blocks in move op")

@@ -58,7 +58,7 @@ func TestCRDTBlockTree_Smoke(t *testing.T) {
 		{"b1", "b2"},
 		{"", "b3"},
 	}
-	gotTree := slices.Collect(opset.State().DFT())
+	gotTree := slices.Collect(opset.State().DFT(""))
 	require.Equal(t, wantTree, gotTree, "tree after first set of moves must match")
 
 	{
@@ -111,7 +111,7 @@ func TestCRDTBlockTree_Smoke(t *testing.T) {
 			{"b1", "b1.2"},
 			{"b1", "b1.1"},
 		}
-		gotTree := slices.Collect(opset.State().DFT())
+		gotTree := slices.Collect(opset.State().DFT(""))
 		require.Equal(t, wantTree, gotTree, "tree after second set of moves must match")
 	}
 }

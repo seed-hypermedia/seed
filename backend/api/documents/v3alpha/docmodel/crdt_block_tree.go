@@ -32,12 +32,20 @@ type treeOpSet struct {
 
 	// Parent block -> list of children blocks.
 	sublists *btree.Map[string, *rgaList[string]]
+
+	detachedBlocks *btree.Map[string, blockLatestMove] // Blocks that were detached from the tree.
+}
+
+type blockLatestMove struct {
+	opID     opID
+	detached bool
 }
 
 func newTreeOpSet() *treeOpSet {
 	opset := &treeOpSet{
-		log:      btree.New[opID, moveRecord](8, opID.Compare),
-		sublists: btree.New[string, *rgaList[string]](8, strings.Compare),
+		log:            btree.New[opID, moveRecord](8, opID.Compare),
+		sublists:       btree.New[string, *rgaList[string]](8, strings.Compare),
+		detachedBlocks: btree.New[string, blockLatestMove](8, strings.Compare),
 	}
 
 	// Create initial lists for root and trash subtrees.
@@ -49,8 +57,9 @@ func newTreeOpSet() *treeOpSet {
 
 func (opset *treeOpSet) Copy() *treeOpSet {
 	cpy := &treeOpSet{
-		log:      opset.log.Copy(),
-		sublists: opset.sublists.Copy(),
+		log:            opset.log.Copy(),
+		sublists:       opset.sublists.Copy(),
+		detachedBlocks: opset.detachedBlocks.Copy(),
 	}
 
 	// TODO(burdiyan): improve on this somehow.
@@ -94,6 +103,8 @@ func (opset *treeOpSet) Integrate(opID opID, parent, block string, refID opID) e
 		panic(fmt.Errorf("BUG: duplicate move op ID: %v", opID))
 	}
 
+	opset.detachedBlocks.Set(block, blockLatestMove{opID: opID})
+
 	return nil
 }
 
@@ -131,6 +142,14 @@ type blockTreeState struct {
 	invisibleMoves *btree.Map[opID, struct{}]
 }
 
+func (state *blockTreeState) Copy() *blockTreeState {
+	return &blockTreeState{
+		opSet:          state.opSet.Copy(),
+		blocks:         state.blocks.Copy(),
+		invisibleMoves: state.invisibleMoves.Copy(),
+	}
+}
+
 // isAncestor returns checks if a is an ancestor of b.
 func (state *blockTreeState) isAncestor(a, b string) bool {
 	n, ok := state.blocks.Get(b)
@@ -154,9 +173,9 @@ type blockPair struct {
 
 // DFT does depth-first traversal of the block tree starting from the root.
 // It returns a sequence of (parent, block) pairs.
-func (state *blockTreeState) DFT() iter.Seq[blockPair] {
+func (state *blockTreeState) DFT(startBlockID string) iter.Seq[blockPair] {
 	return func(yield func(blockPair) bool) {
-		state.walk("", yield)
+		state.walk(startBlockID, yield)
 	}
 }
 
@@ -184,15 +203,9 @@ func (state *blockTreeState) walk(parent string, yield func(blockPair) bool) boo
 }
 
 func (state *blockTreeState) Mutate() *blockTreeMutation {
-	dirtyState := &blockTreeState{
-		blocks:         state.blocks.Copy(),
-		opSet:          state.opSet.Copy(),
-		invisibleMoves: state.invisibleMoves.Copy(),
-	}
-
 	return &blockTreeMutation{
 		initial: state,
-		dirty:   dirtyState,
+		dirty:   state.Copy(),
 	}
 }
 
@@ -225,10 +238,8 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	}
 
 	// Check if parent is in the tree.
-	if parent != "" && parent != TrashNodeID {
-		if _, ok := mut.dirty.blocks.Get(parent); !ok {
-			return moveEffectNone, fmt.Errorf("desired parent block %s is not in the tree", parent)
-		}
+	if _, ok := mut.dirty.opSet.sublists.Get(parent); !ok {
+		return moveEffectNone, fmt.Errorf("desired parent block %s is not in the tree", parent)
 	}
 
 	// Preventing cycles.
@@ -331,55 +342,59 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 			counter int
 		)
 
-		for len(queue) > 0 {
-			sublist := queue[0]
-			queue = queue[1:]
-			var last rgaItem[string]
+		processQueue := func() {
+			for len(queue) > 0 {
+				sublist := queue[0]
+				queue = queue[1:]
+				var last rgaItem[string]
 
-			for _, block := range sublist.Children.items.Items() {
-				if children, ok := mut.dirty.opSet.sublists.Get(block.Value); ok && children.items.Len() > 0 {
-					queue = append(queue, queueItem{Block: block.Value, Children: children})
-				}
+				for _, block := range sublist.Children.items.Items() {
+					if children, ok := mut.dirty.opSet.sublists.Get(block.Value); ok && children.items.Len() > 0 {
+						queue = append(queue, queueItem{Block: block.Value, Children: children})
+					}
 
-				if !isOurs(block.ID) {
-					last = block
-					continue
-				}
-
-				if block.IsDeleted {
-					continue
-				}
-
-				mr := moveRecord{
-					OpID:   newOpID(ts, actor, counter),
-					Parent: sublist.Block,
-					Block:  block.Value,
-				}
-
-				if isOurs(last.ID) {
-					mr.Ref = newOpID(ts, actor, counter-1)
-				} else {
-					mr.Ref = last.ID
-				}
-
-				// Check if the current position of the block is the same as initial.
-				initialPos, ok := mut.initial.findLogicalPosition(block.Value)
-				if ok {
-					dirtyPos, ok := mut.dirty.findLogicalPosition(block.Value)
-					if ok && initialPos.Parent == dirtyPos.Parent && initialPos.Left == dirtyPos.Left {
+					if !isOurs(block.ID) {
+						last = block
 						continue
 					}
 
-				}
+					if block.IsDeleted {
+						continue
+					}
 
-				if !yield(mr) {
-					break
-				}
+					mr := moveRecord{
+						OpID:   newOpID(ts, actor, counter),
+						Parent: sublist.Block,
+						Block:  block.Value,
+					}
 
-				last = block
-				counter++
+					if isOurs(last.ID) {
+						mr.Ref = newOpID(ts, actor, counter-1)
+					} else {
+						mr.Ref = last.ID
+					}
+
+					// Check if the current position of the block is the same as initial.
+					initialPos, ok := mut.initial.findLogicalPosition(block.Value)
+					if ok {
+						dirtyPos, ok := mut.dirty.findLogicalPosition(block.Value)
+						if ok && initialPos.Parent == dirtyPos.Parent && initialPos.Left == dirtyPos.Left {
+							continue
+						}
+
+					}
+
+					if !yield(mr) {
+						break
+					}
+
+					last = block
+					counter++
+				}
 			}
 		}
+
+		processQueue()
 
 		deleted, ok := mut.dirty.opSet.sublists.Get(TrashNodeID)
 		if !ok {
@@ -408,6 +423,20 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 			}
 			counter++
 		}
+
+		// Now let's handle detached blocks and their children.
+		for blk, state := range mut.dirty.opSet.detachedBlocks.Items() {
+			if !state.detached {
+				continue
+			}
+
+			queue = append(queue, queueItem{
+				Block:    blk,
+				Children: mut.dirty.opSet.sublists.GetMaybe(blk),
+			})
+		}
+
+		processQueue()
 	}
 }
 

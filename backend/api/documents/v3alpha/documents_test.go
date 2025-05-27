@@ -1226,3 +1226,160 @@ func syncStores(ctx context.Context, t *testing.T, dst, src *blob.Index) {
 
 	require.Greater(t, count, 0)
 }
+
+func TestDetachedBlocks(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create a document with blocks that are not moved into the content tree.
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/detached-test",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Detached Blocks Test"},
+			}},
+			// Create blocks without moving them into the content tree.
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "detached1",
+					Type: "paragraph",
+					Text: "This block is detached",
+				},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "detached2",
+					Type: "paragraph",
+					Text: "This block is also detached",
+				},
+			}},
+			// Create one block that IS moved into the content tree for comparison.
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "content1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "content1",
+					Type: "paragraph",
+					Text: "This block is in the content tree",
+				},
+			}},
+			// Create one more contant block that will be deleted later to make sure deletes are not considered detached.
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "content2", Parent: "", LeftSibling: "content1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "content2",
+					Type: "paragraph",
+					Text: "This will be deleted later",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_ = doc
+
+	// Create a document with blocks that are not moved into the content tree.
+	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		BaseVersion:    doc.Version,
+		Path:           "/detached-test",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_DeleteBlock{
+				DeleteBlock: "content2",
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "detached1.1", Parent: "detached1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "detached1.1",
+					Type: "paragraph",
+					Text: "This is a child of an detached block.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// The document should only contain blocks that were moved into the content tree.
+	want := &documents.Document{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/detached-test",
+		Metadata: must.Do2(structpb.NewStruct(map[string]any{
+			"title": "Detached Blocks Test",
+		})),
+		Authors: []string{alice.me.Account.PublicKey.String()},
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "content1",
+					Type: "paragraph",
+					Text: "This block is in the content tree",
+				},
+			},
+		},
+		DetachedBlocks: map[string]*documents.BlockNode{
+			"detached1": &documents.BlockNode{
+				Block: &documents.Block{
+					Id:   "detached1",
+					Type: "paragraph",
+					Text: "This block is detached",
+				},
+				Children: []*documents.BlockNode{
+					{
+						Block: &documents.Block{
+							Id:   "detached1.1",
+							Type: "paragraph",
+							Text: "This is a child of an detached block.",
+						},
+					},
+				},
+			},
+			"detached2": &documents.BlockNode{
+				Block: &documents.Block{
+					Id:   "detached2",
+					Type: "paragraph",
+					Text: "This block is also detached",
+				},
+			},
+		},
+	}
+
+	require.NotNil(t, doc.DetachedBlocks, "document must have detached blocks")
+
+	testutil.StructsEqual(want, doc).
+		IgnoreFields(documents.Block{}, "Revision").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis", "GenerationInfo").
+		Compare(t, "document must contain detached blocks")
+
+	// Verify that detached blocks are not in the content tree.
+	require.Len(t, doc.Content, 1, "document should only have one block in content tree")
+	require.Equal(t, "content1", doc.Content[0].Block.Id, "only the moved block should be in content")
+
+	// Create another change that moves one of the detached blocks into the tree.
+	doc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/detached-test",
+		BaseVersion:    doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "detached1", Parent: "content1", LeftSibling: ""},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Now the document should have the previously detached block.
+	require.Len(t, doc2.Content, 1, "document should still have one root block")
+	require.Len(t, doc2.Content[0].Children, 1, "root block should now have one child")
+	require.Equal(t, "detached1", doc2.Content[0].Children[0].Block.Id, "detached block should now be in content tree")
+	require.Equal(t, "This block is detached", doc2.Content[0].Children[0].Block.Text, "detached block text should be preserved")
+}

@@ -565,33 +565,30 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	}
 
 	blockMap := map[string]*documents.BlockNode{}
-	appendChild := func(parent string, child *documents.BlockNode) {
+	appendChild := func(parent string, child *documents.BlockNode) error {
 		if parent == "" {
 			docpb.Content = append(docpb.Content, child)
-			return
+			return nil
 		}
 		blk, ok := blockMap[parent]
 		if !ok {
-			panic("BUG: no parent " + parent + " for child " + child.Block.Id)
+			return fmt.Errorf("BUG: no parent %s for child %s", parent, child.Block.Id)
 		}
 		blk.Children = append(blk.Children, child)
+		return nil
 	}
 
-	for pair := range dm.crdt.tree.State().DFT() {
-		// TODO(burdiyan): block revision would change only if block itself was changed.
-		// If block is only moved it's revision won't change. Need to check if that's what we want.
+	treeState := dm.crdt.tree.State()
 
-		// If we got some moves but no block state
-		// we just skip them, we don't want to blow up here.
-
-		bs := dm.crdt.stateBlocks[pair.Child]
+	blockToProto := func(id string) (*documents.Block, error) {
+		bs := dm.crdt.stateBlocks[id]
 		if bs == nil {
-			continue
+			return nil, nil
 		}
 
 		opid, blk, ok := bs.GetLatestWithID()
 		if !ok {
-			continue
+			return nil, nil
 		}
 
 		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}] //nolint:gosec // We know this should not overflow.
@@ -603,10 +600,60 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		if err != nil {
 			return nil, err
 		}
+		return blkpb, nil
+	}
 
-		child := &documents.BlockNode{Block: blkpb}
-		appendChild(pair.Parent, child)
-		blockMap[pair.Child] = child
+	processSubtree := func(startBlock string) error {
+		for pair := range treeState.DFT(startBlock) {
+			blkpb, err := blockToProto(pair.Child)
+			if err != nil {
+				return err
+			}
+
+			// If we got some moves but no block state
+			// we just skip them, we don't want to blow up here.
+			if blkpb == nil {
+				continue
+			}
+
+			child := &documents.BlockNode{Block: blkpb}
+			if err := appendChild(pair.Parent, child); err != nil {
+				return err
+			}
+			blockMap[pair.Child] = child
+		}
+		return nil
+	}
+
+	if err := processSubtree(""); err != nil {
+		return nil, err
+	}
+
+	for blk := range dm.crdt.stateBlocks {
+		// Blocks that are in the tree state are not detached.
+		if _, ok := treeState.blocks.Get(blk); ok {
+			continue
+		}
+
+		blkpb, err := blockToProto(blk)
+		if err != nil {
+			return nil, err
+		}
+
+		if blkpb == nil {
+			continue
+		}
+
+		blockMap[blk] = &documents.BlockNode{Block: blkpb}
+		if err := processSubtree(blk); err != nil {
+			return nil, err
+		}
+
+		if docpb.DetachedBlocks == nil {
+			docpb.DetachedBlocks = make(map[string]*documents.BlockNode)
+		}
+
+		docpb.DetachedBlocks[blk] = blockMap[blk]
 	}
 
 	return docpb, nil

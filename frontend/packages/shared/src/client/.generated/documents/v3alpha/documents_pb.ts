@@ -2216,14 +2216,6 @@ export class Document extends Message<Document> {
   authors: string[] = [];
 
   /**
-   * Special block for the document header.
-   * Implicitly the ID of this block is a constant string "header".
-   *
-   * @generated from field: com.seed.documents.v3alpha.BlockNode header = 11;
-   */
-  header?: BlockNode;
-
-  /**
    * Blocks content of the document.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode content = 6;
@@ -2231,12 +2223,11 @@ export class Document extends Message<Document> {
   content: BlockNode[] = [];
 
   /**
-   * Special block for the document footer.
-   * Implicitly the ID of this block is a constant string "footer".
+   * Output only. Blocks that were created but not moved into the document content.
    *
-   * @generated from field: com.seed.documents.v3alpha.BlockNode footer = 12;
+   * @generated from field: map<string, com.seed.documents.v3alpha.BlockNode> detached_blocks = 14;
    */
-  footer?: BlockNode;
+  detachedBlocks: { [key: string]: BlockNode } = {};
 
   /**
    * Output only. Time when document was created.
@@ -2285,9 +2276,8 @@ export class Document extends Message<Document> {
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "metadata", kind: "message", T: Struct },
     { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 11, name: "header", kind: "message", T: BlockNode },
     { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
-    { no: 12, name: "footer", kind: "message", T: BlockNode },
+    { no: 14, name: "detached_blocks", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "message", T: BlockNode} },
     { no: 7, name: "create_time", kind: "message", T: Timestamp },
     { no: 8, name: "update_time", kind: "message", T: Timestamp },
     { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
