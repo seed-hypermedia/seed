@@ -455,4 +455,148 @@ describe('htmlToBlocks', () => {
       ],
     })
   })
+
+  it('handles basic hierarchy with headings', async () => {
+    const html = `
+        <h1>Hello</h1>
+        <p>World</p>
+        <h2>Foo</h2>
+        <p>Bar</p>
+    `
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Heading',
+      text: 'Hello',
+    })
+    expect(blocks[0].children?.length).toBe(2)
+    expect(blocks[0].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'World',
+    })
+    expect(blocks[0].children?.[1].block).toMatchObject({
+      type: 'Heading',
+      text: 'Foo',
+    })
+    expect(blocks[0].children?.[1].children?.length).toBe(1)
+    expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'Bar',
+    })
+  })
+
+  it('handles multiple headings', async () => {
+    const html = `
+        <h3>Hello</h3>
+        <p>foo</p>
+        <p>f2</p>
+        <h3>World</h3>
+        <p>bar</p>
+    `
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Heading',
+      text: 'Hello',
+    })
+    expect(blocks[0].children?.length).toBe(2)
+    expect(blocks[0].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo',
+    })
+    expect(blocks[0].children?.[1].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'f2',
+    })
+    expect(blocks[1].block).toMatchObject({
+      type: 'Heading',
+      text: 'World',
+    })
+    expect(blocks[1].children?.length).toBe(1)
+    expect(blocks[1].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'bar',
+    })
+  })
+
+  it('handles headings from fully bold paragraphs (em)', async () => {
+    const html = `
+    <h3>Hello</h3>
+    <p>foo</p>
+    <p><em> bar    </em>  </p>
+    <p>bar</p>
+`
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Heading',
+      text: 'Hello',
+    })
+    expect(blocks[0].children?.length).toBe(2)
+    expect(blocks[0].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo',
+    })
+    expect(blocks[0].children?.[1].block).toMatchObject({
+      type: 'Heading',
+      text: 'bar',
+    })
+    expect(blocks[0].children?.[1].children?.length).toBe(1)
+    expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'bar',
+    })
+  })
+
+  it('handles headings from fully bold paragraphs (strong)', async () => {
+    const html = `
+    <h3>Hello</h3>
+    <p>foo</p>
+    <p>  <strong> bar    </strong>  </p>
+    <p>bar</p>
+`
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Heading',
+      text: 'Hello',
+    })
+    expect(blocks[0].children?.length).toBe(2)
+    expect(blocks[0].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'foo',
+    })
+    expect(blocks[0].children?.[1].block).toMatchObject({
+      type: 'Heading',
+      text: 'bar',
+    })
+    expect(blocks[0].children?.[1].children?.length).toBe(1)
+    expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'bar',
+    })
+  })
+
+  it('handles headings from fully bold paragraphs (strong) with multiple paragraphs', async () => {
+    const html = `<p>1</p>
+
+<p><strong>foo</strong></p>
+
+<p>2</p>`
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: '1',
+    })
+    expect(blocks[1].block).toMatchObject({
+      type: 'Heading',
+      text: 'foo',
+    })
+    expect(blocks[1].children?.length).toBe(1)
+    expect(blocks[1].children?.[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: '2',
+    })
+  })
 })

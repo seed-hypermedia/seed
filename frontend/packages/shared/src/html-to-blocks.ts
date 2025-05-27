@@ -20,6 +20,78 @@ export async function htmlToBlocks(
     blocks.push({block, children: []})
   }
 
+  // Helper function to get heading level from tag name
+  function getHeadingLevel(tagName: string): number | null {
+    const match = tagName.match(/^h([1-6])$/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  // Helper function to check if a paragraph should be treated as a heading
+  function shouldTreatAsHeading(
+    el: any,
+    context?: {hasNewlinesBefore?: boolean},
+  ): boolean {
+    // Check if the paragraph contains only em/strong/b tags and/or whitespace
+    if (!el.children) return false
+
+    let hasOnlyFormattingAndWhitespace = true
+    let hasFormattingTag = false
+    let hasWhitespaceOutsideFormatting = false
+    let formattingTagCount = 0
+
+    for (const child of el.children) {
+      if (child.type === 'text') {
+        if (child.data && child.data.trim() !== '') {
+          // Found non-whitespace text outside formatting tags
+          hasOnlyFormattingAndWhitespace = false
+          break
+        } else if (child.data && child.data.length > 0) {
+          // Found whitespace
+          hasWhitespaceOutsideFormatting = true
+        }
+      } else if (child.type === 'tag') {
+        if (
+          child.name === 'em' ||
+          child.name === 'strong' ||
+          child.name === 'b'
+        ) {
+          hasFormattingTag = true
+          formattingTagCount++
+        } else {
+          hasOnlyFormattingAndWhitespace = false
+          break
+        }
+      }
+    }
+
+    // Convert to heading if:
+    // 1. Has formatting AND whitespace outside the formatting tags, OR
+    // 2. Has exactly one formatting tag with no other content AND appears to be isolated (has newlines before/after)
+    return (
+      hasOnlyFormattingAndWhitespace &&
+      hasFormattingTag &&
+      (hasWhitespaceOutsideFormatting ||
+        (formattingTagCount === 1 && context?.hasNewlinesBefore === true))
+    )
+  }
+
+  // Helper function to create a heading block
+  async function createHeadingBlock(el: any): Promise<HMBlockNode | null> {
+    const node = await parseParagraphNode(el)
+    if (node?.block.type === 'Paragraph') {
+      return {
+        block: {
+          ...node.block,
+          type: 'Heading',
+          // Remove annotations since we're converting formatting to heading
+          annotations: [],
+        },
+        children: [],
+      }
+    }
+    return null
+  }
+
   // Shared function to parse a node into a Paragraph block (text + annotations)
   async function parseParagraphNode(node: any): Promise<HMBlockNode | null> {
     const annotations: HMAnnotation[] = []
@@ -163,9 +235,34 @@ export async function htmlToBlocks(
     return null
   }
 
+  // First pass: process all elements and collect them
   const children = $('body').children().toArray()
-  for (const el of children) {
+  const processedElements: Array<{
+    type: 'heading' | 'content'
+    level?: number
+    blockNode?: HMBlockNode
+  }> = []
+
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i]
     const $el = $(el)
+
+    // Check if there are newlines before this element by looking at the original HTML
+    const hasNewlinesBefore = i > 0 && html.includes('\n\n<' + el.name)
+
+    // Check if it's a heading
+    const headingLevel = getHeadingLevel(el.name)
+    if (headingLevel) {
+      const headingBlock = await createHeadingBlock(el)
+      if (headingBlock) {
+        processedElements.push({
+          type: 'heading',
+          level: headingLevel,
+          blockNode: headingBlock,
+        })
+      }
+      continue
+    }
 
     // YouTube iframe embed
     if ($el.is('p') && $el.find('iframe').length) {
@@ -175,22 +272,45 @@ export async function htmlToBlocks(
         // Remove query params from src for the block link
         const url = new URL(src)
         const cleanSrc = url.origin + url.pathname
-        pushBlock({
-          id: nanoid(8),
-          type: 'Video',
-          link: cleanSrc,
-          revision: nanoid(8),
-          text: '',
-          attributes: {},
-          annotations: [],
+        processedElements.push({
+          type: 'content',
+          blockNode: {
+            block: {
+              id: nanoid(8),
+              type: 'Video',
+              link: cleanSrc,
+              revision: nanoid(8),
+              text: '',
+              attributes: {},
+              annotations: [],
+            },
+            children: [],
+          },
         })
         continue
       }
     }
 
     if ($el.is('p')) {
-      const node = await parseParagraphNode(el)
-      if (node) pushBlock(node.block)
+      // Check if this paragraph should be treated as a heading
+      if (shouldTreatAsHeading(el, {hasNewlinesBefore})) {
+        const headingBlock = await createHeadingBlock(el)
+        if (headingBlock) {
+          processedElements.push({
+            type: 'heading',
+            level: 4, // Default to h4 level for formatted paragraphs to be children of h3
+            blockNode: headingBlock,
+          })
+        }
+      } else {
+        const node = await parseParagraphNode(el)
+        if (node) {
+          processedElements.push({
+            type: 'content',
+            blockNode: node,
+          })
+        }
+      }
     } else if ($el.is('figure')) {
       const img = $el.find('img')
       if (img.length) {
@@ -229,7 +349,10 @@ export async function htmlToBlocks(
               }
             }
 
-            blocks.push(imageBlockNode)
+            processedElements.push({
+              type: 'content',
+              blockNode: imageBlockNode,
+            })
           }
         }
       }
@@ -240,14 +363,20 @@ export async function htmlToBlocks(
         const uploadedCID =
           uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
         if (uploadedCID) {
-          pushBlock({
-            id: nanoid(8),
-            type: 'Image',
-            link: `ipfs://${uploadedCID}`,
-            revision: nanoid(8),
-            text: '',
-            attributes: {},
-            annotations: [],
+          processedElements.push({
+            type: 'content',
+            blockNode: {
+              block: {
+                id: nanoid(8),
+                type: 'Image',
+                link: `ipfs://${uploadedCID}`,
+                revision: nanoid(8),
+                text: '',
+                attributes: {},
+                annotations: [],
+              },
+              children: [],
+            },
           })
         }
       }
@@ -293,7 +422,10 @@ export async function htmlToBlocks(
             }
           }
         }
-        blocks.push(imageBlockNode)
+        processedElements.push({
+          type: 'content',
+          blockNode: imageBlockNode,
+        })
       }
     } else if ($el.is('blockquote.instagram-media')) {
       // Instagram embed
@@ -304,14 +436,20 @@ export async function htmlToBlocks(
         link = a.attr('href')
       }
       if (link) {
-        pushBlock({
-          id: nanoid(8),
-          type: 'WebEmbed',
-          link,
-          revision: nanoid(8),
-          text: '',
-          attributes: {},
-          annotations: [],
+        processedElements.push({
+          type: 'content',
+          blockNode: {
+            block: {
+              id: nanoid(8),
+              type: 'WebEmbed',
+              link,
+              revision: nanoid(8),
+              text: '',
+              attributes: {},
+              annotations: [],
+            },
+            children: [],
+          },
         })
       }
     } else if ($el.is('blockquote.twitter-tweet')) {
@@ -330,15 +468,64 @@ export async function htmlToBlocks(
           const url = new URL(link)
           link = url.origin + url.pathname
         } catch {}
-        pushBlock({
-          id: nanoid(8),
-          type: 'WebEmbed',
-          link,
-          revision: nanoid(8),
-          text: '',
-          attributes: {},
-          annotations: [],
+        processedElements.push({
+          type: 'content',
+          blockNode: {
+            block: {
+              id: nanoid(8),
+              type: 'WebEmbed',
+              link,
+              revision: nanoid(8),
+              text: '',
+              attributes: {},
+              annotations: [],
+            },
+            children: [],
+          },
         })
+      }
+    }
+  }
+
+  // Second pass: build hierarchy
+  if (processedElements.length === 0) {
+    return blocks
+  }
+
+  // Keep track of the heading stack to build proper hierarchy
+  const headingStack: Array<{level: number; blockNode: HMBlockNode}> = []
+
+  for (const element of processedElements) {
+    if (element.type === 'heading' && element.level && element.blockNode) {
+      // Remove any headings from stack that are at same level or deeper
+      while (
+        headingStack.length > 0 &&
+        headingStack[headingStack.length - 1].level >= element.level
+      ) {
+        headingStack.pop()
+      }
+
+      // Add this heading to the appropriate parent
+      if (headingStack.length === 0) {
+        // Top level heading
+        blocks.push(element.blockNode)
+      } else {
+        // Child heading
+        const parent = headingStack[headingStack.length - 1].blockNode
+        if (!parent.children) parent.children = []
+        parent.children.push(element.blockNode)
+      }
+
+      // Add to stack
+      headingStack.push({level: element.level, blockNode: element.blockNode})
+    } else if (element.type === 'content' && element.blockNode) {
+      // Add content to the most recent heading, or to root if no headings
+      if (headingStack.length === 0) {
+        blocks.push(element.blockNode)
+      } else {
+        const parent = headingStack[headingStack.length - 1].blockNode
+        if (!parent.children) parent.children = []
+        parent.children.push(element.blockNode)
       }
     }
   }
