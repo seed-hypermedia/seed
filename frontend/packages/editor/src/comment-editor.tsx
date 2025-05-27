@@ -7,7 +7,6 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Plus} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
@@ -573,9 +572,7 @@ export function CommentEditor2({
             metadata={account.metadata}
             size={32}
           />
-        ) : (
-          <Plus size={24} />
-        )}
+        ) : null}
       </XStack>
       <YStack flex={1} bg="$color4" width="100%" borderRadius="$4">
         <YStack
