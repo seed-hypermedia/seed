@@ -1085,3 +1085,12 @@ export type HMCommentsPayload = {
   commentGroups: HMCommentGroup[]
   commentAuthors: HMAccountsMetadata
 }
+
+export const HMPeerConnectionRequestSchema = z.object({
+  a: z.array(z.string()), // addrs
+  d: z.string(), // peer/device ID
+})
+
+export type HMPeerConnectionRequest = z.infer<
+  typeof HMPeerConnectionRequestSchema
+>

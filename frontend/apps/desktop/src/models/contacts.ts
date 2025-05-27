@@ -1,10 +1,12 @@
 import {grpcClient} from '@/grpc-client'
 import {useAccount_deprecated} from '@/models/accounts'
 import {client} from '@/trpc'
+import {decode as cborDecode} from '@ipld/dag-cbor'
+import {HMPeerConnectionRequestSchema} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
-import {decompressFromEncodedURIComponent} from 'lz-string'
+import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo} from './daemon'
 import {useConnectedPeers} from './networking'
 
@@ -54,22 +56,28 @@ export function useConnectPeer(
   return useMutation<undefined, void, string | undefined>({
     mutationFn: async (peer: string | undefined) => {
       if (!peer) return undefined
-      const parsedConnectPeerUrl = peer.match(/connect-peer\/([\w\d]+)/) // old format, still supported for now
-      const parsedConnectUrl = peer.match(/hypermedia-connect\/([\w\-\+]+)/)
-      let addrs = parsedConnectPeerUrl ? [parsedConnectPeerUrl[1]] : null
-      if (!addrs && parsedConnectUrl?.[1]) {
-        // new format
-        const jsonConnectInfo = decompressFromEncodedURIComponent(
-          parsedConnectUrl[1],
-        )
-        const connectInfo = JSON.parse(jsonConnectInfo)
-        addrs = connectInfo.a.map(
-          (shortAddr: string) => `${shortAddr}/p2p/${connectInfo.d}`,
+      let encodedPayload: string | null = null
+      // the peer string may be: https://any-web/hm/connect#<encoded_paylod>
+      const connectionStringMatch = peer.match(/connect#([\w\-\+]+)/)
+      if (connectionStringMatch) {
+        encodedPayload = connectionStringMatch[1]
+      }
+      // the peer string may be hm://connect/<encoded_payload>
+      const connectionString2Match = peer.match(/connect\/([\w\-\+]+)/)
+      if (connectionString2Match && !encodedPayload) {
+        encodedPayload = connectionString2Match[1]
+      }
+      let addrs: string[] | null = null
+      if (encodedPayload) {
+        const decodedBinary = base58btc.decode(encodedPayload)
+        const decoded = cborDecode(decodedBinary)
+        const connectPayload = HMPeerConnectionRequestSchema.parse(decoded)
+        addrs = connectPayload.a.map(
+          (shortAddr: string) => `${shortAddr}/p2p/${connectPayload.d}`,
         )
       }
-      let trustAccountId: string | null = null
       if (!addrs && peer.match(/^(https?:\/\/)/)) {
-        // in this case, the "peer" input is not https://site/connect-peer/x url, but it is a web url. So lets try to connect to this site via its well known peer id.
+        // in this case, the "peer" input is not https://site/hm/connect#x url, but it is a web url. So lets try to connect to this site via its well known peer id.
         const peerUrl = new URL(peer)
         let baseUrl = `${peerUrl.protocol}//${peerUrl.hostname}`
         if (peerUrl.port) baseUrl += `:${peerUrl.port}`
@@ -84,6 +92,7 @@ export function useConnectPeer(
         addrs = peer.trim().split(/(?:,|\s|\n)+/) // Split by comma, space, or newline
       }
       if (!addrs) throw new Error('Invalid peer address(es) provided.')
+      console.log('WILL CONNECT TO', addrs)
       await grpcClient.networking.connect({addrs})
       if (opts.syncImmediately) {
         await grpcClient.daemon.forceSync({})

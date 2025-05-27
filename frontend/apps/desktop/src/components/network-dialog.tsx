@@ -8,6 +8,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {Route} from '@tamagui/lucide-icons'
 import React from 'react'
 import {ColorValue} from 'react-native'
 import {
@@ -21,6 +22,7 @@ import {
   YStack,
 } from 'tamagui'
 import {HMPeerInfo, useIsGatewayConnected, usePeers} from '../models/networking'
+import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 
 export function useNetworkDialog() {
@@ -33,10 +35,16 @@ export function NetworkDialog() {
     refetchInterval: 5_000,
   })
   const {data: deviceInfo} = useDaemonInfo()
+  const connectDialog = useAppDialog(AddConnectionDialog)
 
   return (
     <>
       <Dialog.Title>Network Connections</Dialog.Title>
+      <XStack jc="flex-end">
+        <Button onPress={() => connectDialog.open(true)} icon={Route} size="$2">
+          Add Connection
+        </Button>
+      </XStack>
       <View flexDirection="column" minHeight={500}>
         {peers.data && peers.data.length ? (
           <List
@@ -59,6 +67,7 @@ export function NetworkDialog() {
             </SizableText>
           </YStack>
         )}
+        {connectDialog.content}
       </View>
     </>
   )

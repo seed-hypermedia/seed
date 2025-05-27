@@ -12,18 +12,25 @@ export type AppWindowSimpleEvent =
 
 export type AppWindowEvent =
   | AppWindowSimpleEvent
-  | {key: 'connectPeer'; connectionString: string; name?: string}
+  | {key: 'connectPeer'; connectionUrl: string}
   | {key: 'hypermediaHoverIn'; id: string}
   | {key: 'hypermediaHoverOut'; id: string}
 
 export function useListenAppEvent(
-  eventKey: AppWindowSimpleEvent,
-  handlerFn: () => void,
+  eventKey:
+    | AppWindowSimpleEvent
+    | 'connectPeer'
+    | 'hypermediaHoverIn'
+    | 'hypermediaHoverOut',
+  handlerFn: (event: AppWindowEvent) => void,
 ) {
   useEffect(() => {
-    // @ts-expect-error
     return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
-      if (event === eventKey) handlerFn()
+      const eventMatchesKey =
+        typeof event === 'string'
+          ? event === eventKey
+          : typeof event === 'object' && event.key === eventKey
+      if (eventMatchesKey) handlerFn(event)
     })
   })
 }

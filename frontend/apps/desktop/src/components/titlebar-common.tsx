@@ -70,7 +70,6 @@ import {
   YStack,
 } from 'tamagui'
 import {BranchDialog} from './branch-dialog'
-import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
@@ -473,7 +472,6 @@ function EditDocButton() {
 
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
-  const connectDialog = useAppDialog(AddConnectionDialog)
   let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
     buttonGroup = [

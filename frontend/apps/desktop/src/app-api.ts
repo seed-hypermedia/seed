@@ -3,6 +3,8 @@ import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
+import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   app,
   BrowserWindow,
@@ -13,7 +15,6 @@ import {
 } from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
-import {decompressFromEncodedURIComponent} from 'lz-string'
 import path from 'path'
 import z from 'zod'
 import {commentsApi} from './app-comments'
@@ -22,15 +23,12 @@ import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {favoritesApi} from './app-favorites'
 import {gatewaySettingsApi} from './app-gateway-settings'
+import {hostApi} from './app-host'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {promptingApi} from './app-prompting'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
-
-import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hostApi} from './app-host'
 import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
 import {sitesApi} from './app-sites'
@@ -411,36 +409,16 @@ export async function handleUrlOpen(url: string) {
     })
     return
   }
-  const connectionRegexp = /connect-peer\/([\w\d]+)/
+
+  const connectionRegexp = /connect\/([\w\-\+]+)/
   const parsedConnectUrl = url.match(connectionRegexp)
-  const connectionDeviceId = parsedConnectUrl ? parsedConnectUrl[1] : null
-  if (connectionDeviceId) {
+  if (parsedConnectUrl) {
     ensureFocusedWindowVisible()
     dispatchFocusedWindowAppEvent({
       key: 'connectPeer',
-      connectionString: connectionDeviceId,
+      connectionUrl: url,
     })
     return
-  }
-
-  if (!id) {
-    const connectionRegexp = /connect\/([\w\-\+]+)/
-    const parsedConnectUrl = url.match(connectionRegexp)
-    const connectInfoEncoded = parsedConnectUrl ? parsedConnectUrl[1] : null
-    if (connectInfoEncoded) {
-      ensureFocusedWindowVisible()
-      const connectInfoJSON =
-        decompressFromEncodedURIComponent(connectInfoEncoded)
-      const connectInfo = JSON.parse(connectInfoJSON)
-      dispatchFocusedWindowAppEvent({
-        key: 'connectPeer',
-        connectionString: connectInfo.a
-          .map((shortAddr: string) => `${shortAddr}/p2p/${connectInfo.d}`)
-          .join(','),
-        name: connectInfo.n,
-      })
-      return
-    }
   }
 
   dialog.showErrorBox('Invalid URL', `We could not parse this URL: ${url}`)

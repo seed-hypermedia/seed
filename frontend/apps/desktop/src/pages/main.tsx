@@ -1,12 +1,18 @@
 import {useAppContext, useListen} from '@/app-context'
 
+import {DialogTitle} from '@/components/dialog'
 import {CloseButton} from '@/components/window-controls'
+import appError from '@/errors'
+import {useConnectPeer} from '@/models/contacts'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {NavRoute} from '@shm/shared/routes'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
+import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
@@ -16,7 +22,7 @@ import {
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {XStack, YStack} from 'tamagui'
+import {Button, Spinner, XStack, YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -143,11 +149,54 @@ export default function Main({className}: {className?: string}) {
           </XStack>
           <Footer />
           <AutoUpdater />
+          <ConfirmConnectionDialog />
           <HypermediaHighlight />
         </ErrorBoundary>
       </SidebarContextProvider>
     </YStack>
   )
+}
+
+function ConfirmConnectionDialogContent({
+  input,
+  onClose,
+}: {
+  input: string
+  onClose: () => void
+}) {
+  const connect = useConnectPeer({
+    onSuccess: () => {
+      onClose()
+      toast.success('Connection Added')
+    },
+    onError: (error) => {
+      appError(`Connect to peer error: ${error?.rawMessage}`, {error})
+    },
+  })
+  return (
+    <>
+      <DialogTitle>Confirm Connection</DialogTitle>
+      {connect.isLoading ? <Spinner /> : null}
+      <Button
+        onPress={() => {
+          console.log('Will attempt connection:', input)
+          connect.mutate(input)
+        }}
+      >
+        Connect Peer
+      </Button>
+    </>
+  )
+}
+
+function ConfirmConnectionDialog() {
+  const dialog = useAppDialog(ConfirmConnectionDialogContent)
+  useListenAppEvent('connectPeer', (payload) => {
+    if (typeof payload === 'object' && payload.key === 'connectPeer') {
+      dialog.open(payload.connectionUrl)
+    }
+  })
+  return dialog.content
 }
 
 function PanelContent({children}: {children: ReactNode}) {

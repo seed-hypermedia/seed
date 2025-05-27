@@ -31,7 +31,6 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import {useUniversalAppContext} from '@shm/shared'
 import {
   COMMIT_HASH,
   LIGHTNING_API_URL,
@@ -44,6 +43,7 @@ import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -71,7 +71,7 @@ import {
   X,
 } from '@tamagui/lucide-icons'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect, useId, useMemo, useRef, useState} from 'react'
+import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {
@@ -91,7 +91,6 @@ import {
   Tabs,
   TabsContentProps,
   TabsProps,
-  TamaguiTextElement,
   Text,
   TextArea,
   View,
@@ -904,56 +903,6 @@ function LinkDeviceDialog({
         />
       )}
     </>
-  )
-}
-
-function CopyUrlField({url, label}: {url: string; label: string}) {
-  const {openUrl} = useUniversalAppContext()
-  const textRef = useRef<TamaguiTextElement>(null)
-  return (
-    <XGroup borderColor="$color8" borderWidth={1}>
-      <XGroup.Item>
-        <XStack flex={1} alignItems="center">
-          <Text
-            onPress={(e) => {
-              e.preventDefault()
-              if (textRef.current) {
-                const range = document.createRange()
-                range.selectNode(textRef.current)
-                window.getSelection()?.removeAllRanges()
-                window.getSelection()?.addRange(range)
-              }
-            }}
-            fontSize={18}
-            color="$color11"
-            ref={textRef}
-            marginHorizontal="$3"
-            overflow="hidden"
-            numberOfLines={1}
-            textOverflow="ellipsis"
-          >
-            {url}
-          </Text>
-          <Tooltip content="Copy URL">
-            <Button
-              chromeless
-              size="$2"
-              margin="$2"
-              icon={Copy}
-              onPress={() => {
-                copyTextToClipboard(url)
-                toast(`Copied ${label} URL`)
-              }}
-            />
-          </Tooltip>
-        </XStack>
-      </XGroup.Item>
-      <XGroup.Item>
-        <Button onPress={() => openUrl(url)} iconAfter={ExternalLink}>
-          Open
-        </Button>
-      </XGroup.Item>
-    </XGroup>
   )
 }
 
