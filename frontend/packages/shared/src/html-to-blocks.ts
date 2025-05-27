@@ -28,7 +28,14 @@ export async function htmlToBlocks(
     async function walk(
       node: any,
       offset: number,
-      active: {bold?: boolean; link?: string},
+      active: {
+        bold?: boolean
+        italic?: boolean
+        underline?: boolean
+        strike?: boolean
+        code?: boolean
+        link?: string
+      },
     ) {
       let localOffset = offset
       if (node.type === 'text') {
@@ -40,6 +47,10 @@ export async function htmlToBlocks(
       }
       if (node.type === 'tag') {
         let isBold = active.bold || node.name === 'b' || node.name === 'strong'
+        let isItalic = active.italic || node.name === 'em'
+        let isUnderline = active.underline || node.name === 'u'
+        let isStrike = active.strike || node.name === 's' || node.name === 'del'
+        let isCode = active.code || node.name === 'code'
         let linkHref = active.link
         if (node.name === 'a') {
           linkHref = node.attribs['href']
@@ -49,6 +60,10 @@ export async function htmlToBlocks(
         for (const child of node.children || []) {
           childOffset += await walk(child, localOffset + childOffset, {
             bold: isBold,
+            italic: isItalic,
+            underline: isUnderline,
+            strike: isStrike,
+            code: isCode,
             link: linkHref,
           })
         }
@@ -56,6 +71,34 @@ export async function htmlToBlocks(
         if ((node.name === 'b' || node.name === 'strong') && end > start) {
           annotations.push({
             type: 'Bold',
+            starts: [start],
+            ends: [end],
+          })
+        }
+        if (node.name === 'em' && end > start) {
+          annotations.push({
+            type: 'Italic',
+            starts: [start],
+            ends: [end],
+          })
+        }
+        if (node.name === 'u' && end > start) {
+          annotations.push({
+            type: 'Underline',
+            starts: [start],
+            ends: [end],
+          })
+        }
+        if ((node.name === 's' || node.name === 'del') && end > start) {
+          annotations.push({
+            type: 'Strike',
+            starts: [start],
+            ends: [end],
+          })
+        }
+        if (node.name === 'code' && end > start) {
+          annotations.push({
+            type: 'Code',
             starts: [start],
             ends: [end],
           })

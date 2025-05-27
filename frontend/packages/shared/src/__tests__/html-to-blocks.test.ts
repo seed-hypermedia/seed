@@ -86,6 +86,128 @@ describe('htmlToBlocks', () => {
     } satisfies Partial<HMBlock>)
   })
 
+  it('converts italic text to annotations (em) tag', async () => {
+    const html = '<p>hello <em>world</em>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Italic',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('converts underline text to annotations (u) tag', async () => {
+    const html = '<p>hello <u>world</u>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Underline',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('converts strikethrough text to annotations (s) tag', async () => {
+    const html = '<p>hello <s>world</s>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Strike',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('converts strikethrough text to annotations (del) tag', async () => {
+    const html = '<p>hello <del>world</del>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Strike',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('converts code text to annotations (code) tag', async () => {
+    const html = '<p>hello <code>world</code>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Code',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('supports combined bold+italic annotations', async () => {
+    const html = '<p>hello <strong><em>world</em></strong>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello world!',
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+        {
+          type: 'Italic',
+          starts: [6],
+          ends: [11],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
+  it('supports overlapping bold+italic annotations', async () => {
+    const html = '<p>hello <strong>good <em>world</em></strong>!</p>'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'hello good world!',
+      annotations: [
+        {
+          type: 'Bold',
+          starts: [6],
+          ends: [16],
+        } satisfies HMAnnotation,
+        {
+          type: 'Italic',
+          starts: [11],
+          ends: [16],
+        } satisfies HMAnnotation,
+      ],
+    } satisfies Partial<HMBlock>)
+  })
+
   it('converts bold text to annotations with utf-8 code point offsets', async () => {
     const html = '<p>😄<strong>a</strong></p>'
     const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
