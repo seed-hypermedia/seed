@@ -94,6 +94,10 @@ export const queryKeys = {
   BLOCK_DISCUSSIONS: 'BLOCK_DISCUSSIONS', //, docId.id: string, blockId: string
 
   SETTINGS: 'SETTINGS', // key: string
+
+  // hosting
+  HOST_INFO: 'HOST_INFO',
+  HOST_ABSORB_SESSION: 'HOST_ABSORB_SESSION', // pendingSessionToken: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
@@ -196,6 +200,12 @@ export function labelOfQueryKey(key: QueryKey) {
     // citations
     case queryKeys.DOC_CITATIONS:
       return `Citations`
+
+    // hosting
+    case queryKeys.HOST_INFO:
+      return 'Host Info'
+    case queryKeys.HOST_ABSORB_SESSION:
+      return 'Host Establish Session'
 
     default:
       // return 'unknown'

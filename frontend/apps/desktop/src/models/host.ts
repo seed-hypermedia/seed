@@ -1,6 +1,7 @@
 import {trpc} from '@/trpc'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef} from 'react'
 import z from 'zod'
@@ -144,7 +145,7 @@ export function useHostSession({
     },
   })
   const absorbedSession = useQuery({
-    queryKey: ['absorb-session', hostState?.pendingSessionToken],
+    queryKey: [queryKeys.HOST_ABSORB_SESSION, hostState?.pendingSessionToken],
     queryFn: async () => {
       const respJson = await hostAPI('auth/absorb', 'POST', {
         token: hostState?.pendingSessionToken,
@@ -186,17 +187,21 @@ export function useHostSession({
     },
   })
   const hostInfo = useQuery({
-    queryKey: ['host-info'],
+    queryKey: [queryKeys.HOST_INFO],
     queryFn: async () => {
-      const respJson = await hostAPI('info', 'GET')
-      const result = HostInfoResponseSchema.safeParse(respJson)
-      if (!result.success) {
-        return {
-          serviceErrorMessage:
-            'Host API incompatible with this app. Please update to the latest version.',
-        } satisfies HostInfoResponse
+      try {
+        const respJson = await hostAPI('info', 'GET')
+        const result = HostInfoResponseSchema.safeParse(respJson)
+        if (!result.success) {
+          return {
+            serviceErrorMessage:
+              'Host API incompatible with this app. Please update to the latest version.',
+          } satisfies HostInfoResponse
+        }
+        return result.data
+      } catch (e) {
+        return null
       }
-      return result.data
     },
     useErrorBoundary: false,
   })
