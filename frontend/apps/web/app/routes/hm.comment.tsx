@@ -31,7 +31,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
-import {Comment} from '@shm/ui/discussion'
+import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {NewspaperCard} from '@shm/ui/newspaper'
@@ -157,6 +157,7 @@ export default function CreateComment() {
   const originUrlUrl = originUrl ? new URL(originUrl) : undefined
   const replyCommentId = params.get('reply')
   const rootReplyCommentId = params.get('rootReply')
+  const quotingBlockId = params.get('quoteBlock')
 
   const [retry, setRetry] = useState<(() => void) | null>(null)
   const syncComment = useMutation({
@@ -239,6 +240,20 @@ export default function CreateComment() {
               accountsMetadata={targetAuthors}
             />
           </View>
+          {quotingBlockId ? (
+            <View marginHorizontal="$4">
+              <WebDocContentProvider
+                originHomeId={originHomeId}
+                siteHost={siteHost}
+              >
+                <QuotedDocBlock
+                  docId={targetId}
+                  blockId={quotingBlockId}
+                  doc={targetDocument}
+                />
+              </WebDocContentProvider>
+            </View>
+          ) : null}
           <YStack flex={1} paddingHorizontal="$4">
             {replyComment ? (
               <Comment
@@ -278,9 +293,10 @@ export default function CreateComment() {
             {publishedComment ? null : (
               <WebCommenting
                 docId={targetId}
-                replyCommentId={replyCommentId}
-                rootReplyCommentId={rootReplyCommentId}
+                replyCommentId={replyCommentId || undefined}
+                rootReplyCommentId={rootReplyCommentId || undefined}
                 enableWebSigning={enableWebSigning}
+                quotingBlockId={quotingBlockId || undefined}
                 commentingOriginUrl={originUrl}
                 onSuccess={(result) => {
                   if (originUrl) {

@@ -4,8 +4,15 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
 export function redirectToWebIdentityCommenting(
   targetDocId: UnpackedHypermediaId,
-  replyCommentId: string | null,
-  rootReplyCommentId: string | null,
+  {
+    replyCommentId,
+    rootReplyCommentId,
+    quotingBlockId,
+  }: {
+    replyCommentId?: string | null
+    rootReplyCommentId?: string | null
+    quotingBlockId?: string | null
+  } = {},
 ) {
   const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
   url.searchParams.set(
@@ -15,6 +22,7 @@ export function redirectToWebIdentityCommenting(
   url.searchParams.set('targetVersion', targetDocId.version || '')
   url.searchParams.set('reply', replyCommentId || '')
   url.searchParams.set('rootReply', rootReplyCommentId || '')
+  url.searchParams.set('quoteBlock', quotingBlockId || '')
   url.searchParams.set('originUrl', window.location.toString())
   window.open(url.toString(), '_blank')
 }

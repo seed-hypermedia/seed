@@ -8,6 +8,7 @@ import {
   HMBlockNode,
   hostnameStripProtocol,
   idToUrl,
+  packHmId,
   queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
@@ -44,6 +45,7 @@ export type WebCommentingProps = {
   docId: UnpackedHypermediaId
   replyCommentId?: string
   rootReplyCommentId?: string
+  quotingBlockId?: string
   onDiscardDraft?: () => void
   onSuccess?: (successData: {
     id: string
@@ -59,6 +61,7 @@ export type WebCommentingProps = {
  * This is the main commenting component. It is used to create a new comment.
  */
 export default function WebCommenting(props: WebCommentingProps) {
+  console.log('WebCommenting', props)
   if (!props.enableWebSigning) {
     return <ExternalWebCommenting {...props} />
   }
@@ -69,6 +72,7 @@ export function ExternalWebCommenting(props: {
   docId: UnpackedHypermediaId
   replyCommentId?: string
   rootReplyCommentId?: string
+  quotingBlockId?: string
 }) {
   return (
     <Button
@@ -77,11 +81,11 @@ export function ExternalWebCommenting(props: {
       hoverStyle={{bg: '$brand4'}}
       focusStyle={{bg: '$brand4'}}
       onPress={() => {
-        redirectToWebIdentityCommenting(
-          props.docId,
-          props.replyCommentId || null,
-          props.rootReplyCommentId || null,
-        )
+        redirectToWebIdentityCommenting(props.docId, {
+          replyCommentId: props.replyCommentId,
+          rootReplyCommentId: props.rootReplyCommentId,
+          quotingBlockId: props.quotingBlockId,
+        })
       }}
     >
       {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}
@@ -93,6 +97,7 @@ export function LocalWebCommenting({
   docId,
   replyCommentId,
   rootReplyCommentId,
+  quotingBlockId,
   onDiscardDraft,
   onSuccess,
   enableWebSigning,
@@ -120,10 +125,16 @@ export function LocalWebCommenting({
         id: result.commentId,
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
+        queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id],
+        queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOC_CITATIONS], // all docs
       })
     },
   })
@@ -177,6 +188,7 @@ export function LocalWebCommenting({
         keyPair: userKeyPair || (await createDefaultAccount()),
         replyCommentId,
         rootReplyCommentId,
+        quotingBlockId,
       },
       commentingOriginUrl,
     )
@@ -200,6 +212,12 @@ export function LocalWebCommenting({
         handleFileAttachment={handleFileAttachment}
         debug={false}
         comment
+        entityId={docId}
+        onBlockCopy={null}
+        layoutUnit={18}
+        textUnit={12}
+        collapsedBlocks={new Set()}
+        setCollapsedBlocks={() => {}}
       >
         <CommentEditor2
           autoFocus={autoFocus}
@@ -257,6 +275,16 @@ async function prepareAttachments(binaries: Uint8Array[]) {
   return {blobs, resultCIDs}
 }
 
+function generateBlockId(length: number = 8): string {
+  const characters =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
+  return result
+}
+
 async function prepareComment(
   getContent: (
     prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -273,12 +301,37 @@ async function prepareComment(
     keyPair: LocalWebIdentity
     replyCommentId: string | null | undefined
     rootReplyCommentId: string | null | undefined
+    quotingBlockId?: string
   },
   commentingOriginUrl: string | undefined,
 ): Promise<CommentPayload> {
   const {blockNodes, blobs} = await getContent(prepareAttachments)
+
+  // If quotingBlockId is provided, wrap content in an embed block like desktop version
+  const publishContent = commentMeta.quotingBlockId
+    ? [
+        {
+          block: {
+            id: generateBlockId(8),
+            type: 'Embed',
+            text: '',
+            attributes: {
+              childrenType: 'Group',
+              view: 'Content',
+            },
+            annotations: [],
+            link: packHmId({
+              ...commentMeta.docId,
+              blockRef: commentMeta.quotingBlockId,
+            }),
+          },
+          children: blockNodes,
+        } as HMBlockNode,
+      ]
+    : blockNodes
+
   const signedComment = await createComment({
-    content: blockNodes,
+    content: publishContent,
     ...commentMeta,
   })
   const result: CommentPayload = {

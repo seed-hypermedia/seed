@@ -40,6 +40,7 @@ export const queryKeys = {
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
+  DOCUMENT_INTERACTION_SUMMARY: 'DOCUMENT_INTERACTION_SUMMARY', //, docId.id: string
 
   // entity
   ENTITY: 'ENTITY', // , id.id: string, version: string
@@ -90,6 +91,7 @@ export const queryKeys = {
   // web stuff is queried differently...
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
+  BLOCK_DISCUSSIONS: 'BLOCK_DISCUSSIONS', //, docId.id: string, blockId: string
 
   SETTINGS: 'SETTINGS', // key: string
 } as const

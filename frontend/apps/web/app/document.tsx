@@ -2,7 +2,9 @@ import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
+  BlockRange,
   deduplicateCitations,
+  ExpandedBlockRange,
   getDocumentTitle,
   HMDocument,
   HMEntityContent,
@@ -307,7 +309,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
   )
 
   const onBlockCommentClick = useCallback(
-    (blockId?: string | null) => {
+    (
+      blockId?: string | null,
+      range?: BlockRange | ExpandedBlockRange | undefined,
+      startCommentingNow?: boolean,
+    ) => {
+      if (!enableWebSigning && startCommentingNow) {
+        redirectToWebIdentityCommenting(id, {
+          quotingBlockId: blockId,
+        })
+      }
       setActivePanel({type: 'discussions', blockId: blockId || undefined})
       if (!media.gtSm) {
         setIsSheetOpen(true)
@@ -339,7 +350,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
           setIsSheetOpen(true)
         }
       } else {
-        redirectToWebIdentityCommenting(id, commentId, rootReplyCommentId)
+        redirectToWebIdentityCommenting(id, {
+          replyCommentId: commentId,
+          rootReplyCommentId,
+        })
       }
     },
     [enableWebSigning],
@@ -360,6 +374,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
             docId={id}
             replyCommentId={activePanel.commentId}
             rootReplyCommentId={activePanel.rootReplyCommentId}
+            quotingBlockId={activePanel.blockId}
             enableWebSigning={enableWebSigning || false}
             onSuccess={(data) => {
               setActivePanel({

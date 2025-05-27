@@ -101,6 +101,7 @@ export function useCitations(
   opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<HMCitationsPayload>(`/hm/api/citations?id=${id.id}`, {
+    queryKey: [queryKeys.DOC_CITATIONS, id.id],
     enabled: opts.enabled,
   })
 
@@ -113,7 +114,10 @@ export function useInteractionSummary(
 ) {
   const response = useAPI<InteractionSummaryPayload>(
     `/hm/api/interaction-summary?id=${id.id}`,
-    {enabled: opts.enabled},
+    {
+      queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id],
+      enabled: opts.enabled,
+    },
   )
   return response
 }
@@ -155,6 +159,7 @@ export function useBlockDiscussions(
   const response = useAPI<HMBlockDiscussionsPayload>(
     `/hm/api/block-discussions?targetId=${id.id}&blockId=${blockId}`,
     {
+      queryKey: [queryKeys.BLOCK_DISCUSSIONS, id.id, blockId],
       enabled: opts.enabled,
     },
   )

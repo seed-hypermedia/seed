@@ -898,7 +898,11 @@ export function BlockNodeContent({
                 borderRadius={layoutUnit / 4}
                 onPress={() => {
                   if (blockNode.block?.id) {
-                    onBlockCommentClick(blockNode.block.id)
+                    onBlockCommentClick(
+                      blockNode.block.id,
+                      undefined,
+                      citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                    )
                   } else {
                     console.error(
                       'onBlockCommentClick Error: no blockId available',

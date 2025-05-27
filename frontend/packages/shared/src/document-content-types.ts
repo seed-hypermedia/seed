@@ -22,7 +22,11 @@ export type DocContentContextValue = {
   onBlockReply?: null | ((blockId: string) => void)
   onBlockCommentClick?:
     | null
-    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
+    | ((
+        blockId: string,
+        blockRange?: BlockRange | ExpandedBlockRange | undefined,
+        startCommentingNow?: boolean,
+      ) => void)
   layoutUnit: number
   textUnit: number
   debug: boolean

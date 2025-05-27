@@ -75,7 +75,7 @@ export const loader = async ({
         ? targetFragment.slice(0, -1)
         : targetFragment
     const blockCounts = targetBlockId
-      ? (blocks[targetBlockId] = {
+      ? (blocks[targetBlockId] = blocks[targetBlockId] || {
           citations: 0,
           comments: 0,
         })

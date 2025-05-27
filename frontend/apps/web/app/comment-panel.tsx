@@ -220,6 +220,7 @@ function BlockDiscussions({
           onStartDiscussion={handleStartDiscussion}
           enableWebSigning={enableWebSigning}
           docId={docId}
+          quotingBlockId={blockId}
         />
       )
   }
@@ -313,12 +314,14 @@ export function EmptyDiscussions({
   rootReplyCommentId,
   enableWebSigning,
   onStartDiscussion,
+  quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
   commentId?: string
   rootReplyCommentId?: string
   enableWebSigning: boolean
   onStartDiscussion?: () => void
+  quotingBlockId?: string
 }) {
   return (
     <YStack alignItems="center" gap="$4" paddingVertical="$4">
@@ -330,11 +333,11 @@ export function EmptyDiscussions({
           if (enableWebSigning) {
             onStartDiscussion?.()
           } else {
-            redirectToWebIdentityCommenting(
-              docId,
-              commentId || null,
-              rootReplyCommentId || null,
-            )
+            redirectToWebIdentityCommenting(docId, {
+              replyCommentId: commentId,
+              rootReplyCommentId,
+              quotingBlockId,
+            })
           }
         }}
         bg="$brand5"
