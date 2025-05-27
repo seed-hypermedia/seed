@@ -213,6 +213,10 @@ message SearchEntitiesRequest {
   // Half of the size is before the match, and half after. 
   // Default is 48 runes.
   int32 context_size = 3;
+
+  // Optional. The account uid to filter the search by.
+  // If not set, the search will be performed across all accounts.
+  string account_uid = 4;
 }
 
 // A list of entities matching the request.

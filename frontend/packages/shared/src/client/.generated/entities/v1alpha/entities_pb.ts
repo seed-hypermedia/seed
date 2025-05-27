@@ -663,6 +663,14 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   contextSize = 0;
 
+  /**
+   * Optional. The account uid to filter the search by.
+   * If not set, the search will be performed across all accounts.
+   *
+   * @generated from field: string account_uid = 4;
+   */
+  accountUid = "";
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -674,6 +682,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

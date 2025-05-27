@@ -207,7 +207,6 @@ WITH fts_top100 AS (
   WHERE fts.raw_content MATCH :ftsStr
     AND fts.type IN (:entityTitle, :entityDoc, :entityComment)
   ORDER BY fts.type DESC, fts.rank DESC
-  LIMIT :limit
 )
 
 SELECT
@@ -257,7 +256,7 @@ FROM fts_top100 AS f
   JOIN document_generations
     ON document_generations.resource = resources.id
 
-WHERE resources.iri IS NOT NULL
+WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
 
 GROUP BY
   f.raw_content,
@@ -270,8 +269,8 @@ GROUP BY
 
 ORDER BY
   f.type DESC,
-  f.rank DESC;
-
+  f.rank DESC
+LIMIT :limit
 `)
 
 var qGetMetadata = dqb.Str(`
@@ -342,6 +341,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	if in.ContextSize < 2 {
 		in.ContextSize = 48
 	}
+	fmt.Println("context size:", in.ContextSize)
+	var iriGlob string = "hm://" + in.AccountUid + "*"
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 
@@ -422,7 +423,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				MatchedIndexes: offsets,
 			})
 			return nil
-		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment, resultsLmit)
+		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment, iriGlob, resultsLmit)
 	}); err != nil {
 		return nil, err
 	}
