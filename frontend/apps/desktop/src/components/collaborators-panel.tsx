@@ -101,7 +101,6 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   >([])
   const capabilities = useAllDocumentCapabilities(id)
 
-  console.log(`== ~ AddCollaboratorForm ~ capabilities:`, capabilities)
   const [search, setSearch] = useState('')
   const searchResults = useSearch(search, {})
 
@@ -229,19 +228,39 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   )
 }
 
+const COLLABORATOR_TABS = [
+  {key: 'granted', label: 'Granted'},
+  // {key: 'devices', label: 'Devices'},
+] as const
+
 function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const capabilities = useAllDocumentCapabilities(id)
-  const [tab, setTab] = useState<'granted' | 'pending'>('granted')
+  const [tab, setTab] = useState<'granted' | 'devices'>('granted')
   let content = (
     <GrantedCollabs
       capabilities={
         capabilities.data?.filter(
-          (cap) => cap.grantId.id === id.id && cap.role !== 'owner',
+          (cap) =>
+            cap.grantId.id === id.id &&
+            cap.role !== 'owner' &&
+            cap.role !== 'agent',
         ) || []
       }
       id={id}
     />
   )
+  if (tab === 'devices') {
+    content = (
+      <GrantedCollabs
+        capabilities={
+          capabilities.data?.filter(
+            (cap) => cap.grantId.id === id.id && cap.role === 'agent',
+          ) || []
+        }
+        id={id}
+      />
+    )
+  }
 
   const parentCapabilities =
     capabilities.data?.filter((cap) => cap.grantId.id !== id.id) || []
@@ -259,13 +278,9 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
         <RadioButtons
           activeColor="$brand5"
           size="$2"
-          options={[
-            {key: 'granted', label: 'Granted'},
-            // {key: 'pending', label: 'Pending'},
-          ]}
+          options={COLLABORATOR_TABS}
           value={tab}
-          // onValue={setTab}
-          onValue={() => {}}
+          onValue={setTab}
         />
       </XStack>
       {content}
