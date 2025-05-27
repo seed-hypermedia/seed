@@ -341,7 +341,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	if in.ContextSize < 2 {
 		in.ContextSize = 48
 	}
-	fmt.Println("context size:", in.ContextSize)
+	//fmt.Println("context size:", in.ContextSize)
 	var iriGlob string = "hm://" + in.AccountUid + "*"
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
