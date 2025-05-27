@@ -400,23 +400,23 @@ const trpcHandlers = createIPCHandler({router, windows: []})
 export type AppRouter = typeof router
 
 export async function handleUrlOpen(url: string) {
-  log.info('Deep Link Open', {url: url})
-  const id = unpackHmId(url)
-  const appRoute = id ? appRouteOfId(id) : null
-  if (appRoute) {
-    trpc.createAppWindow({
-      routes: [appRoute],
-    })
-    return
-  }
-
-  const connectionRegexp = /connect\/([\w\-\+]+)/
+  const connectionRegexp = /^hm:\/\/connect\/([\w\-\+]+)$/
   const parsedConnectUrl = url.match(connectionRegexp)
   if (parsedConnectUrl) {
     ensureFocusedWindowVisible()
     dispatchFocusedWindowAppEvent({
       key: 'connectPeer',
       connectionUrl: url,
+    })
+    return
+  }
+
+  log.info('Deep Link Open', {url: url})
+  const id = unpackHmId(url)
+  const appRoute = id ? appRouteOfId(id) : null
+  if (appRoute) {
+    trpc.createAppWindow({
+      routes: [appRoute],
     })
     return
   }
