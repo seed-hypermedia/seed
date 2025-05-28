@@ -1,14 +1,66 @@
 import {grpcClient} from '@/grpc-client'
-import {useAccount_deprecated} from '@/models/accounts'
+import {useAccount_deprecated, useAccountList} from '@/models/accounts'
 import {client} from '@/trpc'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {HMPeerConnectionRequestSchema} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
-import {UseMutationOptions, useMutation} from '@tanstack/react-query'
+import {
+  useMutation,
+  UseMutationOptions,
+  useQueries,
+  useQuery,
+} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
-import {useDaemonInfo} from './daemon'
+import {useDaemonInfo, useMyAccountIds} from './daemon'
 import {useConnectedPeers} from './networking'
+
+function queryContactsOfAccount(accountUid: string) {
+  return {
+    queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
+    queryFn: async () => {
+      const contacts = await grpcClient.documents.listContacts({
+        filter: {
+          case: 'account',
+          value: accountUid,
+        },
+      })
+      return contacts.contacts.map((c) => toPlainMessage(c))
+    },
+  }
+}
+
+export function useContactListOfAccount(accountUid: string) {
+  const contacts = useQuery(queryContactsOfAccount(accountUid))
+  return contacts
+}
+
+export function useContactListsOfAccount(accountUids: string[]) {
+  const contacts = useQueries({
+    queries: accountUids.map((aUid) => queryContactsOfAccount(aUid)),
+  })
+  return contacts
+}
+
+export function useMyContacts() {
+  const accts = useMyAccountIds()
+  const lists = useContactListsOfAccount(accts.data ?? [])
+  const output: {}[] = []
+  lists.forEach((list) => {
+    list.data?.forEach((contact) => {
+      console.log('~ contact', contact)
+    })
+  })
+  // console.log(lists.map((l) => l.data))
+  return output
+}
+
+export function useAllContacts() {
+  const allAccounts = useAccountList()
+  const myContacts = useMyContacts()
+  return allAccounts
+}
 
 export function useConnectionSummary() {
   const {data: deviceInfo} = useDaemonInfo()

@@ -1093,3 +1093,5 @@ export const HMPeerConnectionRequestSchema = z.object({
 export type HMPeerConnectionRequest = z.infer<
   typeof HMPeerConnectionRequestSchema
 >
+
+export type HMContact = {}

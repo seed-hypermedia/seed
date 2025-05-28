@@ -11,6 +11,12 @@ export type ExploreRoute = z.infer<typeof exploreRouteSchema>
 export const contactsRouteSchema = z.object({key: z.literal('contacts')})
 export type ContactsRoute = z.infer<typeof contactsRouteSchema>
 
+export const contactRouteSchema = z.object({
+  key: z.literal('contact'),
+  id: unpackedHmIdSchema,
+})
+export type ContactRoute = z.infer<typeof contactRouteSchema>
+
 export const documentVersionsAccessorySchema = z.object({
   key: z.literal('versions'),
 })
@@ -155,6 +161,7 @@ export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
   contactsRouteSchema,
+  contactRouteSchema,
   settingsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
