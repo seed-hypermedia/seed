@@ -1,6 +1,5 @@
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useAllContacts} from '@/models/contacts'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
@@ -9,10 +8,7 @@ import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {ListItemSkeleton} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Spinner} from '@shm/ui/spinner'
-import {useRef} from 'react'
 import {SizableText, Text, XStack, YStack} from 'tamagui'
-import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
   // todo, this!
@@ -29,55 +25,37 @@ function ErrorPage({}: {error: any}) {
   )
 }
 
-export default function ContactsPage() {
-  const contacts = useAllContacts()
-  // const contacts = useMyContacts()
-  // console.log('~~', contacts.data)
-  const ref = useRef(null)
-  return null
-  useShowTitleObserver(ref.current)
-  if (accounts.isLoading) {
-    return (
-      <PanelContainer>
-        <MainWrapper scrollable>
-          <Container centered>
-            <Spinner />
-          </Container>
-        </MainWrapper>
-      </PanelContainer>
-    )
-  }
-  if (accounts.error) {
-    return <ErrorPage error={accounts.error} />
-  }
+export default function ContactPage() {
+  //   const accounts = useAccountList()
+  //   const ref = useRef(null)
+  //   useShowTitleObserver(ref.current)
+  //   if (accounts.isLoading) {
+  //     return (
+  //       <PanelContainer>
+  //         <MainWrapper scrollable>
+  //           <Container centered>
+  //             <Spinner />
+  //           </Container>
+  //         </MainWrapper>
+  //       </PanelContainer>
+  //     )
+  //   }
+  //   if (accounts.error) {
+  //     return <ErrorPage error={accounts.error} />
+  //   }
 
   return (
     <PanelContainer>
       <MainWrapper scrollable>
         <Container centered>
-          <YStack paddingVertical="$4" marginHorizontal={-8}>
-            {accounts.data?.accounts.length ? (
-              accounts.data.accounts.map((account) => {
-                if (account.aliasAccount) return null
-                return (
-                  <ContactListItem
-                    key={account.id}
-                    account={account}
-                    accountsMetadata={accounts.data.accountsMetadata}
-                  />
-                )
-              })
-            ) : (
-              <YStack gap="$3">
-                {[...Array(5)].map((_, index) => (
-                  <ListItemSkeleton key={index} />
-                ))}
-                <XStack jc="center" ai="center" f={1} gap="$2">
-                  <SizableText color="$color10">No contacts yet...</SizableText>
-                  {/* <Button size="$2">Add a Connection</Button> */}
-                </XStack>
-              </YStack>
-            )}
+          <YStack gap="$3">
+            {[...Array(5)].map((_, index) => (
+              <ListItemSkeleton key={index} />
+            ))}
+            <XStack jc="center" ai="center" f={1} gap="$2">
+              <SizableText color="$color10">No contacts yet...</SizableText>
+              {/* <Button size="$2">Add a Connection</Button> */}
+            </XStack>
           </YStack>
         </Container>
       </MainWrapper>
@@ -107,7 +85,7 @@ function ContactListItem({
       paddingHorizontal={16}
       paddingVertical="$1"
       onPress={() => {
-        navigate({key: 'contact', id})
+        navigate({key: 'document', id})
       }}
       h={60}
       icon={
