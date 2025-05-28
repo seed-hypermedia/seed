@@ -263,7 +263,9 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   }
 
   const parentCapabilities =
-    capabilities.data?.filter((cap) => cap.grantId.id !== id.id) || []
+    capabilities.data?.filter(
+      (cap) => cap.grantId.id !== id.id && cap.role !== 'agent',
+    ) || []
 
   return (
     <YStack gap="$3">
