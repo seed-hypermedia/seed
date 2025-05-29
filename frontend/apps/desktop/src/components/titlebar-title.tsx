@@ -5,6 +5,7 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
+import {useContact} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
@@ -21,7 +22,7 @@ import {
 } from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
-import {DraftRoute} from '@shm/shared/routes'
+import {ContactRoute, DraftRoute} from '@shm/shared/routes'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {HoverCard} from '@shm/ui/hover-card'
 import {
@@ -78,7 +79,7 @@ export function TitleContent({
     if (route.key === 'favorites') return 'Favorites'
     if (route.key === 'library') return 'Library'
     if (route.key === 'drafts') return 'Drafts'
-    // document and draft are handled in the child components which have the relevant data!
+    // document, draft, contact are handled in the child components which have the relevant data!
     return null
   }, [route])
 
@@ -128,7 +129,9 @@ export function TitleContent({
       </>
     )
   }
-
+  if (route.key === 'contact') {
+    return <ContactTitle route={route} />
+  }
   if (route.key === 'document') {
     return <BreadcrumbTitle entityId={route.id} onPublishSite={onPublishSite} />
   }
@@ -840,5 +843,34 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
         </XStack>
       </XStack>
     </XStack>
+  )
+}
+
+function ContactTitle({route}: {route: ContactRoute}) {
+  const contact = useContact(route.id)
+  const navigate = useNavigate()
+
+  useWindowTitleSetter(async () => {
+    if (contact.data?.metadata?.name)
+      return `Contact: ${contact.data.metadata.name}`
+    return 'Contact'
+  }, [contact.data?.metadata?.name])
+
+  return (
+    <>
+      <Contact size={12} />
+      <TitleTextButton
+        className="no-window-drag"
+        onPress={() => {
+          navigate({key: 'contacts'})
+        }}
+      >
+        Contacts
+      </TitleTextButton>
+      <BreadcrumbSeparator key={`contacts-seperator`} />
+      <TitleText fontWeight="bold">
+        {contact.data?.metadata?.name || 'Untitled Contact'}
+      </TitleText>
+    </>
   )
 }
