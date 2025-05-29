@@ -28,6 +28,7 @@ import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Popover} from './TamaguiPopover'
 import {Tooltip} from './tooltip'
+import {dialogBoxShadow} from './universal-dialog'
 import {useIsDark} from './use-is-dark'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
@@ -657,7 +658,7 @@ function EditNavPopover({pane}: {pane: React.ReactNode}) {
           }}
         />
       </Popover.Trigger>
-      <Popover.Content bg="$backgroundStrong">
+      <Popover.Content bg="$backgroundStrong" boxShadow={dialogBoxShadow}>
         <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
         {pane}
       </Popover.Content>

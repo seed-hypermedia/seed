@@ -19,6 +19,7 @@ import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {zodResolver} from '@hookform/resolvers/zod'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {
@@ -42,6 +43,8 @@ import {
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
+import {FormInput} from '@shm/ui/form-input'
+import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -52,11 +55,14 @@ import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image, Pencil, Plus} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
+import {EllipsisVertical} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
+import {useForm} from 'react-hook-form'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Input, Separator, XStack, YStack} from 'tamagui'
+import {Button, Form, Input, Separator, Text, XStack, YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
+import {z} from 'zod'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
@@ -575,15 +581,20 @@ function EditNavigation({docNav}: {docNav: HMNavigationItem[]}) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   return (
-    <View>
+    <YStack gap="$2">
       {docNav.map((item) => {
         if (editingId === item.id) {
-          return <NavItemForm item={item} />
+          return <NavItemForm item={item} onSubmit={() => {}} />
         }
         return (
-          <XStack>
-            <Text key={item.id}>{item.text}</Text>
+          <XStack jc="space-between">
+            <XStack>
+              <EllipsisVertical />
+              <Text key={item.id}>{item.text}</Text>
+            </XStack>
             <Button
+              size="$1"
+              chromeless
               icon={Pencil}
               onPress={() => {
                 setEditingId(item.id)
@@ -593,18 +604,70 @@ function EditNavigation({docNav}: {docNav: HMNavigationItem[]}) {
         )
       })}
       {showAdd ? (
-        <NavItemForm />
+        <NavItemForm
+          onSubmit={() => {
+            setShowAdd(false)
+          }}
+        />
       ) : (
-        <Button onPress={() => {}} icon={Plus}>
+        <Button
+          onPress={() => {
+            setShowAdd(true)
+          }}
+          icon={Plus}
+        >
           Add
         </Button>
       )}
-    </View>
+    </YStack>
   )
 }
 
-function NavItemForm({item}: {item?: HMNavigationItem}) {
-  return <Form></Form>
+const NavItemFormSchema = z.object({
+  text: z.string(),
+  link: z.string(),
+})
+
+function NavItemForm({
+  item,
+  onSubmit,
+}: {
+  item?: HMNavigationItem
+  onSubmit: (result: z.infer<typeof NavItemFormSchema>) => void
+}) {
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<z.infer<typeof NavItemFormSchema>>({
+    resolver: zodResolver(NavItemFormSchema),
+    defaultValues: {
+      text: item?.text || '',
+      link: item?.link || '',
+    },
+  })
+  return (
+    <Form
+      onSubmit={handleSubmit((result) => {
+        onSubmit(result)
+      })}
+    >
+      <FormField name="text" label="Label" errors={errors}>
+        <FormInput control={control} name="text" placeholder="Nav Item Label" />
+      </FormField>
+      <FormField name="link" label="Link" errors={errors}>
+        <FormInput
+          control={control}
+          name="link"
+          placeholder="https://example.com"
+        />
+      </FormField>
+      <Form.Trigger asChild>
+        <Button>Add</Button>
+      </Form.Trigger>
+    </Form>
+  )
 }
 
 function DraftMetadataEditor({
