@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "3.3.1",
+    "@radix-ui/react-scroll-area": "^1.2.9",
     "@rehookify/datepicker": "6.6.8",
     "@shm/shared": "workspace:*",
     "@tailwindcss/vite": "^4.1.8",

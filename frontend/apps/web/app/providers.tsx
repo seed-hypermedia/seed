@@ -15,6 +15,7 @@ import {
 } from '@shm/shared'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
+import {TooltipProvider} from '@shm/ui/tooltip'
 import {TamaguiProvider} from '@tamagui/core'
 import {PortalProvider} from '@tamagui/portal'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -40,14 +41,16 @@ export const Providers = (props: {children: any}) => {
 
 export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
-    <TamaguiProvider
-      defaultTheme="light"
-      // disableInjectCSS
-      disableRootThemeClass
-      config={tamaConf}
-    >
-      {children}
-    </TamaguiProvider>
+    <TooltipProvider>
+      <TamaguiProvider
+        defaultTheme="light"
+        // disableInjectCSS
+        disableRootThemeClass
+        config={tamaConf}
+      >
+        {children}
+      </TamaguiProvider>
+    </TooltipProvider>
   )
 }
 

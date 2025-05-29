@@ -1,5 +1,6 @@
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryClient} from '@shm/shared/models/query-client'
+import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactNode, useMemo} from 'react'
 import {TamaguiProvider, TamaguiProviderProps} from 'tamagui'
@@ -103,17 +104,19 @@ export function StyleProvider({
   ...rest
 }: Omit<TamaguiProviderProps, 'config'> & {darkMode: boolean}) {
   return (
-    <TamaguiProvider
-      // @ts-ignore
-      config={tamaguiConfig}
-      // TODO: find a way to add this props without breaking all the styles
-      // disableInjectCSS
-      // disableRootThemeClass
-      className={darkMode ? 'seed-app-dark' : 'seed-app-light'}
-      defaultTheme={darkMode ? 'dark' : 'light'}
-      {...rest}
-    >
-      {children}
-    </TamaguiProvider>
+    <TooltipProvider>
+      <TamaguiProvider
+        // @ts-ignore
+        config={tamaguiConfig}
+        // TODO: find a way to add this props without breaking all the styles
+        // disableInjectCSS
+        // disableRootThemeClass
+        className={darkMode ? 'seed-app-dark' : 'seed-app-light'}
+        defaultTheme={darkMode ? 'dark' : 'light'}
+        {...rest}
+      >
+        {children}
+      </TamaguiProvider>
+    </TooltipProvider>
   )
 }
