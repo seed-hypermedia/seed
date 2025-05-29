@@ -10,10 +10,8 @@ import {
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {isClient} from '@tamagui/core'
-import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import Tamagui from '../tamagui.config'
-import {Providers, ThemeProvider} from './providers'
+import {Providers} from './providers'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 import globalTamaguiStyles from './tamagui.css?url'
@@ -81,40 +79,29 @@ export function ErrorBoundary({}: {}) {
         <title>Oops! Something went wrong</title>
       </head>
       <body>
-        <ThemeProvider>
-          <YStack>
-            <Container>
-              <YStack
-                alignSelf="center"
-                width={600}
-                gap="$5"
-                borderWidth={1}
-                borderColor="$color8"
-                borderRadius="$4"
-                padding="$5"
-                elevation="$4"
-              >
-                <XStack alignItems="center" gap="$3">
-                  <SizableText size="$10">🤕</SizableText>
-                  <SizableText size="$8" fontWeight="bold">
-                    Oh oh, it's not you, it's us...
-                  </SizableText>
-                </XStack>
-                <YStack gap="$3">
-                  <SizableText>
-                    Looks like something didn’t go as planned on our end. Don’t
-                    worry, it’s not your fault!
-                  </SizableText>
-                  <SizableText>
-                    Give it a quick refresh or come back in a bit, and we’ll
-                    have things sorted. If it keeps happening, just reach out to
-                    support and we’ll make it right in no time!
-                  </SizableText>
-                </YStack>
-              </YStack>
-            </Container>
-          </YStack>
-        </ThemeProvider>
+        <div className="flex flex-col">
+          <Container>
+            <div className="self-center w-[600px] flex flex-col gap-5 border border-gray-300 rounded-lg p-5 shadow-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-5xl">🤕</span>
+                <span className="text-4xl font-bold">
+                  Uh oh, it's not you, it's us...
+                </span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <p className="text-base">
+                  Looks like something didn't go as planned on our end. Don't
+                  worry, it's not your fault!
+                </p>
+                <p className="text-base">
+                  Give it a quick refresh or come back in a bit, and we'll have
+                  things sorted. If it keeps happening, just reach out to
+                  support and we'll make it right in no time!
+                </p>
+              </div>
+            </div>
+          </Container>
+        </div>
         <Scripts />
       </body>
     </html>

@@ -1,26 +1,29 @@
-import {styled} from '@tamagui/core'
-import {YStack} from '@tamagui/stacks'
+import {cn} from '@/utils/cn'
+import {ReactNode} from 'react'
 
-const variants = {
-  hide: {
-    true: {
-      pointerEvents: 'none',
-      opacity: 0,
-    },
-  },
-  clearVerticalSpace: {
-    true: {
-      paddingVertical: 0,
-    },
-  },
-} as const
+interface ContainerProps {
+  children: ReactNode
+  hide?: boolean
+  clearVerticalSpace?: boolean
+  className?: string
+}
 
-export const Container = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingTop: '$6',
-  width: '100%',
-  maxWidth: '80ch',
-  flexShrink: 'unset',
-  variants,
-})
+export const Container = ({
+  children,
+  hide = false,
+  clearVerticalSpace = false,
+  className,
+}: ContainerProps) => {
+  return (
+    <div
+      className={cn(
+        'mx-auto px-4 pt-6 w-full max-w-[80ch] flex-shrink-0 flex flex-col',
+        hide && 'pointer-events-none opacity-0',
+        clearVerticalSpace && 'py-0',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
