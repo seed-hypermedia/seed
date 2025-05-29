@@ -204,6 +204,9 @@ function BreadcrumbTitle({
 
   function updateWidths() {
     const containerWidth = widthInfo.current.container
+    // 83 is the measured width of the controls like favorite, copy link, options dropdown.
+    const availableContainerWidth = containerWidth - 83
+    // If you change the controls in a way that affects width, please update this value ^^
     const spacerWidth = 15
     const ellipsisWidth = 20
     const firstCrumbKey = crumbDetails[0]?.crumbKey
@@ -227,7 +230,7 @@ function BreadcrumbTitle({
       usableWidth +
         fixedItemWidth +
         (newCollapseCount ? spacerWidth + ellipsisWidth : 0) >
-        containerWidth &&
+        availableContainerWidth &&
       newCollapseCount < maxCollapseCount
     ) {
       usableWidth -= crumbWidths[1 + newCollapseCount] + spacerWidth
@@ -238,7 +241,9 @@ function BreadcrumbTitle({
 
   const containerObserverRef = useSizeObserver(({width}) => {
     widthInfo.current.container = width
-    updateWidths()
+    requestAnimationFrame(() => {
+      updateWidths()
+    })
   })
 
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
@@ -330,20 +335,21 @@ function BreadcrumbTitle({
         marginRight={'$4'}
         ai="center"
         width="100%"
-        // className="no-window-drag"
         height="100%"
       >
-        {displayItems.flatMap((item, itemIndex) => {
-          if (!item) return null
-          return [
-            item,
-            itemIndex < displayItems.length - 1 ? (
-              <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
-            ) : null,
-          ]
-        })}
+        <XStack overflow="hidden" ai="center" height="100%" flexShrink={1}>
+          {displayItems.flatMap((item, itemIndex) => {
+            if (!item) return null
+            return [
+              item,
+              itemIndex < displayItems.length - 1 ? (
+                <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
+              ) : null,
+            ]
+          })}
+        </XStack>
         {!hideControls ? (
-          <XStack ai="center" className="no-window-drag">
+          <XStack ai="center" className="no-window-drag" f={1} flexShrink={0}>
             <PendingDomain id={entityId} />
             <FavoriteButton id={entityId} />
             <CopyReferenceButton
