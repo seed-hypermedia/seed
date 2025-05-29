@@ -17,8 +17,9 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useMedia} from 'tamagui'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
-import {ArrowRight, Close, Menu, X} from './icons'
+import {ArrowRight, Close, Menu, Pencil, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
+
 import {
   DocNavigationDocument,
   DocumentOutline,
@@ -28,8 +29,10 @@ import {
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
+import {Popover} from './TamaguiPopover'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import {usePopoverState} from './use-popover-state'
 
 export function SiteHeader({
   originHomeId,
@@ -46,6 +49,7 @@ export function SiteHeader({
   onScroll,
   noScroll = false,
   isLatest = true,
+  editNavPane,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -61,6 +65,7 @@ export function SiteHeader({
   onScroll?: () => void
   noScroll?: boolean
   isLatest?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
@@ -127,6 +132,7 @@ export function SiteHeader({
         backgroundColor={isDark ? '$background' : '$backgroundStrong'}
         // this data attribute is used by the hypermedia highlight component
         data-docid={headerHomeId.id}
+        group="header"
       >
         <XStack // Rendered as YStack when isCenterLayout
           paddingVertical="$2"
@@ -164,6 +170,7 @@ export function SiteHeader({
               <SiteHeaderMenu
                 items={items}
                 docId={docId}
+                editNavPane={editNavPane}
                 isCenterLayout={isCenterLayout}
               />
             ) : null}
@@ -498,10 +505,12 @@ export function SiteHeaderMenu({
   items,
   docId,
   isCenterLayout = false,
+  editNavPane,
 }: {
   items?: DocNavigationDocument[]
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const media = useMedia()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -654,6 +663,7 @@ export function SiteHeaderMenu({
       // bg="red"
     >
       {/* Hidden measurement container */}
+      {editNavPane ? <EditNavPopover pane={editNavPane} /> : null}
       <XStack
         position="absolute"
         pointerEvents="none"
@@ -715,5 +725,28 @@ export function SiteHeaderMenu({
         </Tooltip>
       )}
     </XStack>
+  )
+}
+
+function EditNavPopover({pane}: {pane: React.ReactNode}) {
+  const popover = usePopoverState()
+  return (
+    <Popover {...popover}>
+      <Popover.Trigger className="no-window-drag">
+        <Button
+          onPress={() => {}}
+          size="$2"
+          icon={Pencil}
+          opacity={0}
+          $group-header-hover={{
+            opacity: 1,
+          }}
+        />
+      </Popover.Trigger>
+      <Popover.Content bg="$backgroundStrong">
+        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+        {pane}
+      </Popover.Content>
+    </Popover>
   )
 }

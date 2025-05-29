@@ -29,6 +29,7 @@ import {
   HMDraftContent,
   HMDraftMeta,
   HMEntityContent,
+  HMNavigationItem,
   HMQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -758,6 +759,24 @@ function useGetDoc() {
     return doc
   }
   return getDoc
+}
+
+export function useDocumentNavigation(
+  docId?: UnpackedHypermediaId | null,
+): HMNavigationItem[] {
+  const dir = useListDirectory(docId)
+  const doc = useEntity(docId)
+  // check if doc.data has detachedHeads.navigation,
+  // if (doc.data?.detachedHeads?.navigation) {
+  // }
+  return (
+    dir.data?.map((d) => ({
+      type: 'Link',
+      id: d.id,
+      link: d.id,
+      text: d.metadata?.name,
+    })) || []
+  )
 }
 
 export function usePublishToSite() {
