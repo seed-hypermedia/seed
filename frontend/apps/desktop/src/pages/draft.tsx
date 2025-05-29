@@ -19,6 +19,22 @@ import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {CSS} from '@dnd-kit/utilities'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
@@ -46,7 +62,7 @@ import {
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Smile} from '@shm/ui/icons'
+import {Check, Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -201,7 +217,9 @@ export default function DraftPage() {
                 docId={locationId || editId}
                 document={homeEntity.data?.document}
                 draftMetadata={state.context.metadata}
+                onDocNav={setDocNav}
               />
+
               <DocumentEditor
                 editor={editor}
                 state={state}
@@ -522,6 +540,7 @@ function DraftAppHeader({
   document,
   draftMetadata,
   isEditingHomeDoc = false,
+  onDocNav,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
@@ -529,6 +548,7 @@ function DraftAppHeader({
   document?: HMDocument
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
+  onDocNav: (docNav: HMNavigationItem[]) => void
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
@@ -565,7 +585,11 @@ function DraftAppHeader({
       }
       // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
       children={children}
-      editNavPane={isEditingHomeDoc ? <EditNavigation docNav={docNav} /> : null}
+      editNavPane={
+        isEditingHomeDoc ? (
+          <EditNavigation docNav={docNav} onDocNav={onDocNav} />
+        ) : null
+      }
       supportQueries={[
         {
           in: siteHomeEntity.id,
@@ -577,35 +601,102 @@ function DraftAppHeader({
   )
 }
 
-function EditNavigation({docNav}: {docNav: HMNavigationItem[]}) {
+function EditNavigation({
+  docNav,
+  onDocNav,
+}: {
+  docNav: HMNavigationItem[]
+  onDocNav: (docNav: HMNavigationItem[]) => void
+}) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  function handleDragStart(event: any) {
+    setActiveId(event.active.id)
+  }
+
+  function handleDragEnd(event: any) {
+    const {active, over} = event
+
+    if (active.id !== over?.id) {
+      // setItems((items) => {
+      //   const oldIndex = items.findIndex((item) => item.id === active.id)
+      //   const newIndex = items.findIndex((item) => item.id === over.id)
+      //   const newItems = arrayMove(items, oldIndex, newIndex)
+      //   console.log('Nav items reordered:', {
+      //     from: oldIndex,
+      //     to: newIndex,
+      //     items: newItems,
+      //   })
+      //   return newItems
+      // })
+    }
+
+    setActiveId(null)
+  }
+
+  function handleDragCancel() {
+    setActiveId(null)
+  }
+
+  const activeItem = activeId
+    ? docNav.find((item) => item.id === activeId)
+    : null
+
   return (
     <YStack gap="$2">
-      {docNav.map((item) => {
-        if (editingId === item.id) {
-          return <NavItemForm item={item} onSubmit={() => {}} />
-        }
-        return (
-          <XStack jc="space-between">
-            <XStack>
-              <EllipsisVertical />
-              <Text key={item.id}>{item.text}</Text>
-            </XStack>
-            <Button
-              size="$1"
-              chromeless
-              icon={Pencil}
-              onPress={() => {
-                setEditingId(item.id)
-              }}
-            />
-          </XStack>
-        )
-      })}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext items={docNav} strategy={verticalListSortingStrategy}>
+          {docNav.map((item) => {
+            if (editingId === item.id) {
+              return (
+                <NavItemForm
+                  key={item.id}
+                  item={item}
+                  onSubmit={() => setEditingId(null)}
+                  submitLabel="Done"
+                  onCancel={() => setEditingId(null)}
+                />
+              )
+            }
+            return (
+              <SortableNavItem
+                key={item.id}
+                item={item}
+                onEdit={() => setEditingId(item.id)}
+              />
+            )
+          })}
+        </SortableContext>
+        <DragOverlay>
+          {activeItem ? <DragOverlayItem item={activeItem} /> : null}
+        </DragOverlay>
+      </DndContext>
       {showAdd ? (
         <NavItemForm
           onSubmit={() => {
+            setShowAdd(false)
+          }}
+          submitLabel="Add"
+          onCancel={() => {
             setShowAdd(false)
           }}
         />
@@ -623,6 +714,92 @@ function EditNavigation({docNav}: {docNav: HMNavigationItem[]}) {
   )
 }
 
+function SortableNavItem({
+  item,
+  onEdit,
+}: {
+  item: HMNavigationItem
+  onEdit: () => void
+}) {
+  const {attributes, listeners, setNodeRef, transform, transition, isDragging} =
+    useSortable({id: item.id})
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <XStack
+      ref={setNodeRef}
+      style={{
+        ...style,
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
+      jc="space-between"
+      ai="center"
+      p="$2"
+      borderRadius="$2"
+      hoverStyle={{bg: '$color5'}}
+    >
+      <XStack ai="center" gap="$2" flex={1}>
+        <XStack
+          {...attributes}
+          {...listeners}
+          cursor="grab"
+          pressStyle={{cursor: 'grabbing'}}
+          p="$1"
+          borderRadius="$1"
+          hoverStyle={{bg: '$color6'}}
+          onMouseDown={(e) => {
+            // Prevent text selection
+            e.preventDefault()
+          }}
+        >
+          <EllipsisVertical size={16} />
+        </XStack>
+        <Text flex={1} userSelect="none">
+          {item.text}
+        </Text>
+      </XStack>
+      <Button
+        size="$1"
+        chromeless
+        icon={Pencil}
+        onPress={(e: any) => {
+          e.stopPropagation()
+          onEdit()
+        }}
+      />
+    </XStack>
+  )
+}
+
+function DragOverlayItem({item}: {item: HMNavigationItem}) {
+  return (
+    <XStack
+      jc="space-between"
+      ai="center"
+      p="$2"
+      borderRadius="$2"
+      bg="$color5"
+      borderWidth={1}
+      borderColor="$color8"
+      opacity={0.9}
+    >
+      <XStack ai="center" gap="$2" flex={1}>
+        <EllipsisVertical size={16} />
+        <Text flex={1} userSelect="none">
+          {item.text}
+        </Text>
+      </XStack>
+      <Button size="$1" chromeless icon={Pencil} disabled />
+    </XStack>
+  )
+}
+
 const NavItemFormSchema = z.object({
   text: z.string(),
   link: z.string(),
@@ -631,9 +808,13 @@ const NavItemFormSchema = z.object({
 function NavItemForm({
   item,
   onSubmit,
+  onCancel,
+  submitLabel,
 }: {
   item?: HMNavigationItem
   onSubmit: (result: z.infer<typeof NavItemFormSchema>) => void
+  onCancel: () => void
+  submitLabel: string
 }) {
   const {
     control,
@@ -652,6 +833,11 @@ function NavItemForm({
       onSubmit={handleSubmit((result) => {
         onSubmit(result)
       })}
+      gap="$4"
+      padding="$4"
+      borderWidth={1}
+      borderColor="$color8"
+      borderRadius="$3"
     >
       <FormField name="text" label="Label" errors={errors}>
         <FormInput control={control} name="text" placeholder="Nav Item Label" />
@@ -663,9 +849,16 @@ function NavItemForm({
           placeholder="https://example.com"
         />
       </FormField>
-      <Form.Trigger asChild>
-        <Button>Add</Button>
-      </Form.Trigger>
+      <XStack gap="$2">
+        <Button size="$2" onPress={onCancel}>
+          Cancel
+        </Button>
+        <Form.Trigger asChild>
+          <Button size="$2" theme="green" icon={Check}>
+            {submitLabel}
+          </Button>
+        </Form.Trigger>
+      </XStack>
     </Form>
   )
 }

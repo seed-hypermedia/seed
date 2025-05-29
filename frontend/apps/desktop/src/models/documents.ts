@@ -769,6 +769,7 @@ export function useDocumentNavigation(
   // check if doc.data has detachedHeads.navigation,
   // if (doc.data?.detachedHeads?.navigation) {
   // }
+
   return (
     dir.data?.map((d) => ({
       type: 'Link',
@@ -946,6 +947,9 @@ export function queryListDirectory(
         .map((d) => ({
           ...toPlainMessage(d),
           type: 'document',
+          id: hmId('d', d.account, {
+            path: entityQueryPathToHmIdPath(d.path),
+          }).id,
           metadata: HMDocumentMetadataSchema.parse(
             d.metadata?.toJson({emitDefaultValues: true}),
           ),
