@@ -1,4 +1,5 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
 import {tamaguiPlugin} from '@tamagui/vite-plugin'
 import react from '@vitejs/plugin-react'
 import {defineConfig} from 'vite'
@@ -40,6 +41,7 @@ export default defineConfig(({command, mode}) => {
           output: '../../packages/ui/src/themes-generated.ts',
         },
       }),
+      tailwindcss(),
     ],
     resolve: {
       extensions,

@@ -1,5 +1,6 @@
 import {vitePlugin as remix} from '@remix-run/dev'
 import {installGlobals} from '@remix-run/node'
+import tailwindcss from '@tailwindcss/vite'
 import {tamaguiExtractPlugin, tamaguiPlugin} from '@tamagui/vite-plugin'
 import path from 'path'
 import {defineConfig} from 'vite'
@@ -88,6 +89,7 @@ let config = {
     //     return code;
     //   },
     // },
+    tailwindcss(),
   ].filter(Boolean),
   resolve: {
     dedupe: [

@@ -15,12 +15,14 @@ import {SizableText} from '@tamagui/text'
 import Tamagui from '../tamagui.config'
 import {Providers, ThemeProvider} from './providers'
 import globalStyles from './styles.css?url'
+import localTailwindStyles from './tailwind.css?url'
 import globalTamaguiStyles from './tamagui.css?url'
 import {Container} from './ui/container'
 
 export const links: LinksFunction = () => {
   return [
     {rel: 'stylesheet', href: globalStyles},
+    {rel: 'stylesheet', href: localTailwindStyles},
     {rel: 'stylesheet', href: globalTamaguiStyles},
   ]
 }

@@ -5,9 +5,9 @@ import {
   useNavRoute,
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
+import {Tooltip} from '@shm/ui/components/tooltip'
 import {PanelContainer} from '@shm/ui/container'
 import {CollaboratorsIcon} from '@shm/ui/icons'
-import {Tooltip} from '@shm/ui/tooltip'
 import {FileClock, Folder, Pencil} from '@tamagui/lucide-icons'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
@@ -26,6 +26,7 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
+import '../tailwind.css'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,

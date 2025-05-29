@@ -8,7 +8,6 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {SwitchField} from '@shm/ui/form-fields'
-import '@tamagui/core/reset.css'
 import {
   CircleDot,
   File,

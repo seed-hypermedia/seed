@@ -1,6 +1,6 @@
+import downloadBg from '@/assets/download-bg.png'
 import {useFullRender} from '@/cache-policy'
 import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
-import downloadBg from '@/massets/download-bg.png'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {WebSiteProvider} from '@/providers'

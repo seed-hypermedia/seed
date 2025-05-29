@@ -1,17 +1,7 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
-import {tamaguiPlugin} from '@tamagui/vite-plugin'
 import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
-
-const _tamaguiPlugin = tamaguiPlugin({
-  components: ['@shm/ui', 'tamagui'],
-  config: './tamagui.config.ts',
-  themeBuilder: {
-    input: '../../packages/ui/src/themes/theme.ts',
-    output: '../../packages/ui/src/themes-generated.ts',
-  },
-})
 
 const extensions = [
   '.web.tsx',
@@ -87,13 +77,11 @@ export default defineConfig(({command, mode}) => {
               project: 'electron',
               telemetry: false,
             }),
-            _tamaguiPlugin,
           ]
         : [
             tsConfigPaths({
               root: '../../',
             }),
-            _tamaguiPlugin,
             // {
             //   name: 'log-files',
             //   transform(code, id) {
