@@ -14,8 +14,9 @@ import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './components/button'
 import {DraftBadge} from './draft-badge'
-import {ArrowRight, Close, Menu, X} from './icons'
+import {ArrowRight, Close, Menu, Pencil, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
+
 import {
   DocNavigationDocument,
   DocumentOutline,
@@ -25,8 +26,10 @@ import {
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
+import {Popover} from './TamaguiPopover'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
 
 export function SiteHeader({
@@ -44,6 +47,7 @@ export function SiteHeader({
   onScroll,
   noScroll = false,
   isLatest = true,
+  editNavPane,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -59,6 +63,7 @@ export function SiteHeader({
   onScroll?: () => void
   noScroll?: boolean
   isLatest?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
@@ -94,7 +99,6 @@ export function SiteHeader({
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
-
   return (
     <>
       {docId && document ? (
@@ -120,7 +124,7 @@ export function SiteHeader({
             'flex-start': !isCenterLayout,
           })}
         >
-          <div className="flex flex-1 justify-center">
+          <div className="flex justify-center flex-1">
             <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
           </div>
           {isCenterLayout ? headerSearch : null}
@@ -136,6 +140,7 @@ export function SiteHeader({
               items={items}
               docId={docId}
               isCenterLayout={isCenterLayout}
+              editNavPane={editNavPane}
             />
           ) : null}
         </div>
@@ -338,13 +343,13 @@ export function MobileMenu({
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="h-screen sticky top-0">
-        <div className="p-4 flex items-center justify-end">
+      <div className="sticky top-0 h-screen">
+        <div className="flex items-center justify-end p-4">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Close size={24} />
           </Button>
         </div>
-        <div className="p-4 pb-12 flex-1 overflow-scroll mobile-menu">
+        <div className="flex-1 p-4 pb-12 overflow-scroll mobile-menu">
           {open ? renderContent() : null}
         </div>
       </div>
@@ -385,7 +390,7 @@ function GotoLatestBanner({
         'absolute top-12 px-4 left-0 right-0 z-50 w-full flex justify-center pointer-events-none',
       )}
     >
-      <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg pointer-events-auto">
+      <div className="flex items-center max-w-xl gap-4 p-2 border rounded-sm shadow-lg pointer-events-auto bg-background border-border">
         <Button
           variant="ghost"
           size="icon"
@@ -411,10 +416,12 @@ export function SiteHeaderMenu({
   items,
   docId,
   isCenterLayout = false,
+  editNavPane,
 }: {
   items?: DocNavigationDocument[]
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
@@ -559,7 +566,8 @@ export function SiteHeaderMenu({
       )}
     >
       {/* Hidden measurement container */}
-      <div className="absolute pointer-events-none opacity-0 flex items-center gap-5">
+      <div className="absolute flex items-center gap-5 opacity-0 pointer-events-none">
+        {editNavPane ? <EditNavPopover pane={editNavPane} /> : null}
         {items.map((item) => {
           const key = item.id?.id || item.draftId || '?'
           return (
@@ -620,7 +628,7 @@ export function SiteHeaderMenu({
 function HypermediaHostBanner({origin}: {origin?: string}) {
   return (
     <div className="w-full bg-(--brand5) p-1">
-      <p className="text-sm flex gap-1 flex-wrap text-white items-center justify-center">
+      <p className="flex flex-wrap items-center justify-center gap-1 text-sm text-white">
         <span>Hosted on</span>
         <a href="/" className="underline">
           {hostnameStripProtocol(origin)}
@@ -631,5 +639,28 @@ function HypermediaHostBanner({origin}: {origin?: string}) {
         </a>
       </p>
     </div>
+  )
+}
+
+function EditNavPopover({pane}: {pane: React.ReactNode}) {
+  const popover = usePopoverState()
+  return (
+    <Popover {...popover}>
+      <Popover.Trigger className="no-window-drag">
+        <Button
+          onPress={() => {}}
+          size="$2"
+          icon={Pencil}
+          opacity={0}
+          $group-header-hover={{
+            opacity: 1,
+          }}
+        />
+      </Popover.Trigger>
+      <Popover.Content bg="$backgroundStrong">
+        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+        {pane}
+      </Popover.Content>
+    </Popover>
   )
 }

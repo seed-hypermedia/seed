@@ -9,6 +9,7 @@ import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
+  useDocumentNavigation,
   useDraftEditor,
   useListDirectory,
 } from '@/models/documents'
@@ -29,6 +30,7 @@ import {
   HMDocument,
   HMEntityContent,
   HMMetadata,
+  HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -48,13 +50,12 @@ import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {Image} from '@tamagui/lucide-icons'
+import {Image, Pencil, Plus} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {Button, Input, Separator, XStack, YStack} from 'tamagui'
-
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -525,6 +526,7 @@ function DraftAppHeader({
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
+  const docNav = useDocumentNavigation(siteHomeEntity?.id)
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -557,6 +559,7 @@ function DraftAppHeader({
       }
       // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
       children={children}
+      editNavPane={isEditingHomeDoc ? <EditNavigation docNav={docNav} /> : null}
       supportQueries={[
         {
           in: siteHomeEntity.id,
@@ -566,6 +569,42 @@ function DraftAppHeader({
       supportDocuments={[siteHomeEntity]}
     />
   )
+}
+
+function EditNavigation({docNav}: {docNav: HMNavigationItem[]}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  return (
+    <View>
+      {docNav.map((item) => {
+        if (editingId === item.id) {
+          return <NavItemForm item={item} />
+        }
+        return (
+          <XStack>
+            <Text key={item.id}>{item.text}</Text>
+            <Button
+              icon={Pencil}
+              onPress={() => {
+                setEditingId(item.id)
+              }}
+            />
+          </XStack>
+        )
+      })}
+      {showAdd ? (
+        <NavItemForm />
+      ) : (
+        <Button onPress={() => {}} icon={Plus}>
+          Add
+        </Button>
+      )}
+    </View>
+  )
+}
+
+function NavItemForm({item}: {item?: HMNavigationItem}) {
+  return <Form></Form>
 }
 
 function DraftMetadataEditor({

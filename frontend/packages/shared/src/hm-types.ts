@@ -1016,6 +1016,7 @@ export const HMDocumentSchema = z.object({
   createTime: z.union([HMTimestampSchema, z.string()]).default(''),
   updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
   metadata: HMDocumentMetadataSchema,
+  detachedHeads: z.record(z.string(), HMBlockNodeSchema).optional(),
   genesis: z.string(),
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
@@ -1094,3 +1095,11 @@ export const HMPeerConnectionRequestSchema = z.object({
 export type HMPeerConnectionRequest = z.infer<
   typeof HMPeerConnectionRequestSchema
 >
+
+export type HMNavigationLinkItem = {
+  id: string
+  type: 'Link'
+  text?: string | null
+  link: string
+}
+export type HMNavigationItem = HMNavigationLinkItem
