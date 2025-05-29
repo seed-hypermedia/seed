@@ -472,7 +472,7 @@ function MediaForm({
                 <>
                   <Tooltip
                     content="Select file if the input is empty"
-                    placement="top"
+                    side="top"
                   >
                     <Button
                       alignItems="center"

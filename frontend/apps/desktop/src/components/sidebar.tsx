@@ -8,6 +8,7 @@ import {useEntities} from '@shm/shared/models/entity'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
+import {Tooltip} from '@shm/ui/tooltip'
 import {
   ChevronDown,
   Forward as ChevronRight,
@@ -19,7 +20,7 @@ import {
   UserPlus2,
 } from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
-import {Button, SizableText, Tooltip, XStack, YStack} from 'tamagui'
+import {Button, SizableText, XStack, YStack} from 'tamagui'
 import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 

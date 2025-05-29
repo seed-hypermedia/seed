@@ -26,8 +26,9 @@ import {
   UnorderedList,
 } from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useState} from 'react'
-import {SizeTokens, Theme, Tooltip, XGroup, XStack} from 'tamagui'
+import {SizeTokens, Theme, XGroup, XStack} from 'tamagui'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 const size: SizeTokens = '$3'

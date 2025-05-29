@@ -285,7 +285,7 @@ function TemplateItem({
       </XStack>
       {e.data?.document ? null : (
         <>
-          <Tooltip content="Loading template..." placement="top">
+          <Tooltip content="Loading template..." side="top">
             <View
               position="absolute"
               top={0}
