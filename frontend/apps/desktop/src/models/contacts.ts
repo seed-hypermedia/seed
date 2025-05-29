@@ -3,7 +3,13 @@ import {useAccount_deprecated, useAccountList} from '@/models/accounts'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {HMPeerConnectionRequestSchema} from '@shm/shared'
+import {
+  HMContact,
+  HMPeerConnectionRequestSchema,
+  HMTimestamp,
+  UnpackedHypermediaId,
+} from '@shm/shared'
+import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {
@@ -16,7 +22,27 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
 import {useConnectedPeers} from './networking'
 
-function queryContactsOfAccount(accountUid: string) {
+function queryContactListOfSubject(accountUid: string) {
+  return {
+    queryKey: [queryKeys.CONTACTS_SUBJECT, accountUid],
+    queryFn: async () => {
+      const contacts = await grpcClient.documents.listContacts({
+        filter: {
+          case: 'subject',
+          value: accountUid,
+        },
+      })
+      return contacts.contacts.map((c) => toPlainMessage(c))
+    },
+  }
+}
+
+export function useContactListOfSubject(accountUid: string) {
+  const contacts = useQuery(queryContactListOfSubject(accountUid))
+  return contacts
+}
+
+function queryContactListOfAccount(accountUid: string) {
   return {
     queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
     queryFn: async () => {
@@ -32,13 +58,13 @@ function queryContactsOfAccount(accountUid: string) {
 }
 
 export function useContactListOfAccount(accountUid: string) {
-  const contacts = useQuery(queryContactsOfAccount(accountUid))
+  const contacts = useQuery(queryContactListOfAccount(accountUid))
   return contacts
 }
 
 export function useContactListsOfAccount(accountUids: string[]) {
   const contacts = useQueries({
-    queries: accountUids.map((aUid) => queryContactsOfAccount(aUid)),
+    queries: accountUids.map((aUid) => queryContactListOfAccount(aUid)),
   })
   return contacts
 }
@@ -46,20 +72,72 @@ export function useContactListsOfAccount(accountUids: string[]) {
 export function useMyContacts() {
   const accts = useMyAccountIds()
   const lists = useContactListsOfAccount(accts.data ?? [])
-  const output: {}[] = []
+  const output: {
+    account: string
+    name: string
+    subject: string
+    updateTime?: HMTimestamp | undefined
+    createTime?: HMTimestamp | undefined
+  }[] = []
   lists.forEach((list) => {
     list.data?.forEach((contact) => {
-      console.log('~ contact', contact)
+      output.push(contact)
     })
   })
-  // console.log(lists.map((l) => l.data))
   return output
 }
 
-export function useAllContacts() {
+export function useContact(id: UnpackedHypermediaId) {
+  const account = useAccount(id.uid)
+  const subjectContacts = useContactListOfSubject(id.uid)
+  const accountContacts = useContactListOfAccount(id.uid)
+  return {
+    ...account,
+    data: account.data?.metadata
+      ? ({
+          metadata: account.data.metadata,
+          contacts: accountContacts.data,
+          subjectContacts: subjectContacts.data,
+        } satisfies HMContact)
+      : undefined,
+  }
+}
+
+export function useAllAccountsWithContacts() {
   const allAccounts = useAccountList()
   const myContacts = useMyContacts()
-  return allAccounts
+  const data = allAccounts.data?.accounts.map((account) => {
+    return {
+      ...account,
+      metadata: account.metadata,
+      myContacts: myContacts?.filter((c) => c.subject === account.id) || [],
+    }
+  })
+  return {
+    ...allAccounts,
+    data,
+  }
+}
+
+export function useSaveContact() {
+  return useMutation({
+    mutationFn: async (contact: {
+      accountUid: string
+      name: string
+      subjectUid: string
+    }) => {
+      await grpcClient.documents.createContact({
+        signingKeyName: contact.accountUid,
+        account: contact.accountUid,
+        name: contact.name,
+        subject: contact.subjectUid,
+      })
+    },
+    onSuccess: (_, contact) => {
+      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
+      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
+    },
+  })
 }
 
 export function useConnectionSummary() {

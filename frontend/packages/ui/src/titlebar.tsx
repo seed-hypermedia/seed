@@ -47,9 +47,9 @@ export const TitleText = styled(SizableText, {
   fontSize: '$4',
   userSelect: 'none',
   cursor: 'default',
+  padding: 0,
   margin: 0,
   textTransform: 'none',
-  padding: '$1',
   borderRadius: '$1',
 })
 
@@ -57,6 +57,7 @@ export const TitleTextButton = styled(ButtonText, {
   whiteSpace: 'nowrap',
   flexShrink: 0,
   overflow: 'hidden',
+  fontWeight: 'bold',
   textOverflow: 'ellipsis',
   name: 'TitlebarLink',
   color: '$color12',

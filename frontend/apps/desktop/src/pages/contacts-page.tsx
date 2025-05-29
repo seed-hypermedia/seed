@@ -1,18 +1,16 @@
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useAllContacts} from '@/models/contacts'
+import {useAllAccountsWithContacts} from '@/models/contacts'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
-import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
+import {HMAccount} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {ListItemSkeleton} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
-import {useRef} from 'react'
 import {SizableText, Text, XStack, YStack} from 'tamagui'
-import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
   // todo, this!
@@ -30,13 +28,8 @@ function ErrorPage({}: {error: any}) {
 }
 
 export default function ContactsPage() {
-  const contacts = useAllContacts()
-  // const contacts = useMyContacts()
-  // console.log('~~', contacts.data)
-  const ref = useRef(null)
-  return null
-  useShowTitleObserver(ref.current)
-  if (accounts.isLoading) {
+  const allAccounts = useAllAccountsWithContacts()
+  if (allAccounts.isLoading) {
     return (
       <PanelContainer>
         <MainWrapper scrollable>
@@ -47,8 +40,8 @@ export default function ContactsPage() {
       </PanelContainer>
     )
   }
-  if (accounts.error) {
-    return <ErrorPage error={accounts.error} />
+  if (allAccounts.error) {
+    return <ErrorPage error={allAccounts.error} />
   }
 
   return (
@@ -56,14 +49,14 @@ export default function ContactsPage() {
       <MainWrapper scrollable>
         <Container centered>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
-            {accounts.data?.accounts.length ? (
-              accounts.data.accounts.map((account) => {
+            {allAccounts.data?.length ? (
+              allAccounts.data.map((account) => {
                 if (account.aliasAccount) return null
                 return (
                   <ContactListItem
                     key={account.id}
                     account={account}
-                    accountsMetadata={accounts.data.accountsMetadata}
+                    // accountsMetadata={accounts.data.accountsMetadata}
                   />
                 )
               })
@@ -87,13 +80,7 @@ export default function ContactsPage() {
 
 const hoverColor = '$color5'
 
-function ContactListItem({
-  account,
-  accountsMetadata,
-}: {
-  account: HMAccount
-  accountsMetadata: HMAccountsMetadata
-}) {
+function ContactListItem({account}: {account: HMAccount}) {
   const navigate = useNavigate()
   const id = hmId('d', account.id, {})
   return (
