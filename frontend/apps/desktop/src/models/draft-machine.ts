@@ -1,5 +1,10 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMEntityContent, invalidateQueries} from '@shm/shared'
+import {
+  HMDraft,
+  HMEntityContent,
+  HMNavigationItem,
+  invalidateQueries,
+} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -24,6 +29,7 @@ export const draftMachine = setup({
       editUid: HMDraft['editUid']
       editPath: HMDraft['editPath']
       signingAccount: HMDraft['signingAccount']
+      docNav?: HMNavigationItem[]
       error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
@@ -48,6 +54,10 @@ export const draftMachine = setup({
           signingAccount?: string
         }
       | {
+          type: 'change.docNav'
+          docNav: HMNavigationItem[]
+        }
+      | {
           type: 'reset.content'
         }
       | {
@@ -67,11 +77,63 @@ export const draftMachine = setup({
       invalidateQueries(['trpc.drafts.get', params.id])
     },
     onCreatingSuccess: ({context}) => {},
-    populateData: ({context, event}) => {},
+    populateData: assign({
+      metadata: ({context, event}) => {
+        if (event.type == 'fetch.success') {
+          if (event.payload.type == 'draft') {
+            return {
+              ...context.metadata,
+              ...event.payload.data.metadata,
+            }
+          } else if (event.payload.type != 'load.new.draft') {
+            return {
+              ...context.metadata,
+              ...event.payload.data.document?.metadata,
+            }
+          }
+        }
+        return context.metadata
+      },
+      signingAccount: ({context, event}) => {
+        if (event.type == 'fetch.success') {
+          if (
+            event.payload.type == 'draft' &&
+            event.payload.data.signingAccount
+          ) {
+            return event.payload.data.signingAccount
+          }
+        }
+        return context.signingAccount
+      },
+      deps: ({context, event}) => {
+        if (event.type == 'fetch.success') {
+          if (event.payload.type == 'draft' && event.payload.data.deps) {
+            return event.payload.data.deps
+          }
+        }
+        return context.deps
+      },
+      docNav: ({context, event}) => {
+        if (event.type == 'fetch.success') {
+          if (event.payload.type == 'draft') {
+            return event.payload.data.docNav
+          }
+        }
+        return context.docNav
+      },
+    }),
     focusContent: ({context}) => {},
     replaceRoute: ({context}, params: {id: string}) => {},
     setDraftId: assign({
       id: (_, params: {id: string}) => params.id,
+    }),
+    setDocNav: assign({
+      docNav: ({event}) => {
+        if (event.type === 'change.docNav') {
+          return event.docNav
+        }
+        return undefined
+      },
     }),
     setAttributes: assign({
       metadata: ({context, event}) => {
@@ -159,6 +221,7 @@ export const draftMachine = setup({
       editUid: input.editUid ?? '',
       editPath: input.editPath ?? [],
       signingAccount: '',
+      docNav: undefined,
       nameRef: null,
       changed: false,
       hasChangedWhileSaving: false,
@@ -210,6 +273,27 @@ export const draftMachine = setup({
           params: {status: 'idle'},
         },
       ],
+      on: {
+        'change.docNav': [
+          {
+            target: '.saving',
+            guard: ({context}) => !!context.id,
+            actions: [
+              {
+                type: 'setDocNav',
+              },
+            ],
+          },
+          {
+            target: '.creating',
+            actions: [
+              {
+                type: 'setDocNav',
+              },
+            ],
+          },
+        ],
+      },
       after: {
         200: {
           actions: [{type: 'focusContent'}],
@@ -282,6 +366,7 @@ export const draftMachine = setup({
               metadata: context.metadata,
               deps: context.deps,
               signingAccount: context.signingAccount,
+              docNav: context.docNav,
             }),
             onDone: [
               {
@@ -353,10 +438,10 @@ export const draftMachine = setup({
             id: 'writeDraft',
             src: 'writeDraft',
             input: ({context}) => ({
-              id: context.id,
               metadata: context.metadata,
               deps: context.deps,
               signingAccount: context.signingAccount,
+              docNav: context.docNav,
             }),
             onDone: [
               {

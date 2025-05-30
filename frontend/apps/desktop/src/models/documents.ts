@@ -523,6 +523,7 @@ export function useDraftEditor() {
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
       signingAccount: HMDraft['signingAccount']
+      docNav?: HMNavigationItem[]
     }
   >(async ({input}) => {
     // Implementation will be provided in documents.ts
@@ -537,6 +538,7 @@ export function useDraftEditor() {
         signingAccount: input.signingAccount,
         content: editor.topLevelBlocks,
         deps: input.deps,
+        docNav: input.docNav,
         locationUid,
         locationPath,
         editUid,
@@ -580,6 +582,7 @@ export function useDraftEditor() {
                 metadata: event.payload.data.metadata,
                 signingAccount: event.payload.data.signingAccount,
                 deps: event.payload.data.deps,
+                docNav: event.payload.data.docNav,
               }
             } else if (event.payload.type == 'edit') {
               if (context.editUid && editEntity.data?.document?.content) {

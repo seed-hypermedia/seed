@@ -9,7 +9,6 @@ import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
-  useDocumentNavigation,
   useDraftEditor,
   useListDirectory,
 } from '@/models/documents'
@@ -72,6 +71,7 @@ import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image, Pencil, Plus} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {EllipsisVertical} from 'lucide-react'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {useForm} from 'react-hook-form'
@@ -207,19 +207,23 @@ export default function DraftPage() {
         >
           <DraftRebaseBanner />
           {locationId || editId ? (
-            <>
-              <DraftAppHeader
-                siteHomeEntity={homeEntity.data}
-                isEditingHomeDoc={
-                  homeEntity.data?.id.id == locationId?.id ||
-                  homeEntity.data?.id.id == editId?.id
-                }
-                docId={locationId || editId}
-                document={homeEntity.data?.document}
-                draftMetadata={state.context.metadata}
-                onDocNav={setDocNav}
-              />
-
+            <DraftAppHeader
+              siteHomeEntity={homeEntity.data}
+              isEditingHomeDoc={
+                homeEntity.data?.id.id == locationId?.id ||
+                homeEntity.data?.id.id == editId?.id
+              }
+              docId={locationId || editId}
+              document={homeEntity.data?.document}
+              draftMetadata={state.context.metadata}
+              onDocNav={(docNav) => {
+                send({
+                  type: 'change.docNav',
+                  docNav,
+                })
+              }}
+              actor={actor}
+            >
               <DocumentEditor
                 editor={editor}
                 state={state}
@@ -229,7 +233,7 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-            </>
+            </DraftAppHeader>
           ) : (
             <DocumentEditor
               editor={editor}
@@ -541,6 +545,7 @@ function DraftAppHeader({
   draftMetadata,
   isEditingHomeDoc = false,
   onDocNav,
+  actor,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
@@ -549,10 +554,11 @@ function DraftAppHeader({
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
   onDocNav: (docNav: HMNavigationItem[]) => void
+  actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
-  const docNav = useDocumentNavigation(siteHomeEntity?.id)
+  const currentDocNav = useSelector(actor, (s: any) => s.context.docNav || [])
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -587,7 +593,7 @@ function DraftAppHeader({
       children={children}
       editNavPane={
         isEditingHomeDoc ? (
-          <EditNavigation docNav={docNav} onDocNav={onDocNav} />
+          <EditNavigation docNav={currentDocNav} onDocNav={onDocNav} />
         ) : null
       }
       supportQueries={[
@@ -631,17 +637,10 @@ function EditNavigation({
     const {active, over} = event
 
     if (active.id !== over?.id) {
-      // setItems((items) => {
-      //   const oldIndex = items.findIndex((item) => item.id === active.id)
-      //   const newIndex = items.findIndex((item) => item.id === over.id)
-      //   const newItems = arrayMove(items, oldIndex, newIndex)
-      //   console.log('Nav items reordered:', {
-      //     from: oldIndex,
-      //     to: newIndex,
-      //     items: newItems,
-      //   })
-      //   return newItems
-      // })
+      const oldIndex = docNav.findIndex((item) => item.id === active.id)
+      const newIndex = docNav.findIndex((item) => item.id === over.id)
+      const newItems = arrayMove(docNav, oldIndex, newIndex)
+      onDocNav(newItems)
     }
 
     setActiveId(null)
@@ -671,7 +670,15 @@ function EditNavigation({
                 <NavItemForm
                   key={item.id}
                   item={item}
-                  onSubmit={() => setEditingId(null)}
+                  onSubmit={(updatedItem) => {
+                    const updatedDocNav = docNav.map((navItem) =>
+                      navItem.id === item.id
+                        ? {...navItem, ...updatedItem}
+                        : navItem,
+                    )
+                    onDocNav(updatedDocNav)
+                    setEditingId(null)
+                  }}
                   submitLabel="Done"
                   onCancel={() => setEditingId(null)}
                 />
@@ -692,7 +699,14 @@ function EditNavigation({
       </DndContext>
       {showAdd ? (
         <NavItemForm
-          onSubmit={() => {
+          onSubmit={(newItem) => {
+            const newNavItem = {
+              ...newItem,
+              id: nanoid(),
+              type: 'Link' as const,
+            }
+            const newDocNav = [...docNav, newNavItem]
+            onDocNav(newDocNav)
             setShowAdd(false)
           }}
           submitLabel="Add"

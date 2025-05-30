@@ -596,10 +596,19 @@ export const HMCommentDraftSchema = z.object({
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
+export const HMNavigationItemSchema = z.object({
+  type: z.literal('Link'),
+  id: z.string(),
+  text: z.string(),
+  link: z.string(),
+})
+export type HMNavigationItem = z.infer<typeof HMNavigationItemSchema>
+
 export const HMDraftContentSchema = z.object({
   content: z.array(z.any()), // EditorBlock validation is handled elsewhere
   deps: z.array(z.string().min(1)).default([]),
   signingAccount: z.string().optional(),
+  docNav: z.array(HMNavigationItemSchema).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
@@ -1095,11 +1104,3 @@ export const HMPeerConnectionRequestSchema = z.object({
 export type HMPeerConnectionRequest = z.infer<
   typeof HMPeerConnectionRequestSchema
 >
-
-export type HMNavigationLinkItem = {
-  id: string
-  type: 'Link'
-  text?: string | null
-  link: string
-}
-export type HMNavigationItem = HMNavigationLinkItem
