@@ -74,18 +74,19 @@ export function BannerNewspaperCard({
       minHeight={200}
       onHoverIn={onHoverIn ? () => onHoverIn?.(id) : undefined}
       onHoverOut={onHoverOut ? () => onHoverOut?.(id) : undefined}
-      $gtMd={{flexDirection: 'row', maxHeight: 350}}
-      $gtLg={{maxHeight: 400}}
+      $gtMd={{flexDirection: 'row', maxHeight: 240}}
+      $gtLg={{maxHeight: 280}}
       {...linkProps}
       // this data attribute is used by the hypermedia highlight component
       data-docid={id.id}
     >
       {coverImage && (
         <View
-          height={300}
-          $gtSm={{height: 350}}
+          height={200}
+          $gtSm={{height: 250}}
           width="100%"
-          $gtMd={{width: '50%', height: 'auto', minHeight: 400}}
+          $gtMd={{width: '50%', height: 'auto', minHeight: 250}}
+          $gtLg={{minHeight: 280}}
         >
           <NewspaperCardImage coverImage={coverImage} height="100%" />
         </View>
