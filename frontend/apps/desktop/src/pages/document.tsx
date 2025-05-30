@@ -290,60 +290,59 @@ function _MainDocumentPage({
         document={entity.data?.document}
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
+      />
+      {!docIsNewspaperLayout && <DocumentCover docId={id} />}
+
+      <YStack
+        w="100%"
+        ref={elementRef}
+        f={1}
+        position="relative"
+        paddingTop="$4"
       >
-        {!docIsNewspaperLayout && <DocumentCover docId={id} />}
-
-        <YStack
-          w="100%"
-          ref={elementRef}
-          f={1}
-          position="relative"
-          paddingTop="$4"
-        >
-          <XStack {...wrapperProps}>
-            {showSidebars ? (
-              <YStack
-                {...sidebarProps}
-                marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
-              >
-                <YStack
-                  className="hide-scrollbar"
-                  overflow="scroll"
-                  height="100%"
-                  // paddingVertical="$4"
-                >
-                  <DocNavigation showCollapsed={showCollapsed} />
-                </YStack>
-              </YStack>
-            ) : null}
-
-            <DocContainer
-              {...mainContentProps}
-              $gtSm={{marginRight: 40, marginLeft: 0}}
+        <XStack {...wrapperProps}>
+          {showSidebars ? (
+            <YStack
+              {...sidebarProps}
+              marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
             >
-              {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
-                <DocPageContent
-                  blockRef={id.blockRef}
-                  blockRange={id.blockRange}
-                  entity={entity.data}
-                  isBlockFocused={isBlockFocused}
-                />
+              <YStack
+                className="hide-scrollbar"
+                overflow="scroll"
+                height="100%"
+                // paddingVertical="$4"
+              >
+                <DocNavigation showCollapsed={showCollapsed} />
               </YStack>
+            </YStack>
+          ) : null}
 
-              <DocPageAppendix
-                centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
-                metadata={metadata}
-                isCommentingPanelOpen={isCommentingPanelOpen}
-                docId={id}
-                onAccessory={onAccessory}
+          <DocContainer
+            {...mainContentProps}
+            $gtSm={{marginRight: 40, marginLeft: 0}}
+          >
+            {isHomeDoc ? null : <DocPageHeader docId={id} />}
+            <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+              <DocPageContent
+                blockRef={id.blockRef}
+                blockRange={id.blockRange}
+                entity={entity.data}
+                isBlockFocused={isBlockFocused}
               />
-            </DocContainer>
-            {showSidebars ? <YStack {...sidebarProps} /> : null}
-          </XStack>
-          <DocInteractionsSummary docId={id} />
-        </YStack>
-      </AppDocSiteHeader>
+            </YStack>
+
+            <DocPageAppendix
+              centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
+              metadata={metadata}
+              isCommentingPanelOpen={isCommentingPanelOpen}
+              docId={id}
+              onAccessory={onAccessory}
+            />
+          </DocContainer>
+          {showSidebars ? <YStack {...sidebarProps} /> : null}
+        </XStack>
+        <DocInteractionsSummary docId={id} />
+      </YStack>
     </YStack>
   )
 }
@@ -468,7 +467,6 @@ function _AppDocSiteHeader({
       }}
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       supportQueries={supportQueries}
-      children={children}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}

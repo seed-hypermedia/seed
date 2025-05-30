@@ -10,12 +10,9 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {ButtonText} from '@tamagui/button'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useMedia} from 'tamagui'
-import {Button} from './button'
+import {Button} from './components/button'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
@@ -30,6 +27,7 @@ import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import {cn} from './utils'
 
 export function SiteHeader({
   originHomeId,
@@ -76,14 +74,15 @@ export function SiteHeader({
   const headerSearch = (
     <>
       <Button
-        $gtSm={{display: 'none'}}
-        icon={<Menu size={20} />}
-        chromeless
-        size="$2"
-        onPress={() => {
+        variant="ghost"
+        size="icon"
+        className={cn('md:hidden')}
+        onClick={() => {
           setIsMobileMenuOpen(true)
         }}
-      />
+      >
+        <Menu size={20} />
+      </Button>
       {originHomeId ? (
         <XStack display="none" $gtSm={{display: 'flex'}}>
           <HeaderSearch originHomeId={originHomeId} />
@@ -95,147 +94,89 @@ export function SiteHeader({
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
-  const mainHeader = (
-    <YStack
-      position="relative"
-      overflow="hidden"
-      height={
-        noScroll
-          ? `calc(100vh - ${
-              originHomeId && origin && originHomeId.uid !== docId?.uid ? 34 : 0
-            }px)`
-          : `calc(100vh - ${
-              originHomeId && origin && originHomeId.uid !== docId?.uid
-                ? 34 + 56
-                : 56
-            }px)`
-      }
-      // This onscroll is important for when we render it for drafts. this will dismiss the blockside menu when we scroll
-      // @ts-ignore
-      onScroll={onScroll}
-      $gtSm={{overflow: onScroll ? 'scroll' : 'visible'}}
-    >
-      <YStack
-        borderBottomWidth={1}
-        borderColor="$borderColor"
-        zIndex="$zIndex.8"
-        // @ts-ignore
-        position="sticky"
-        top={0}
-        right={0}
-        left={0}
-        backgroundColor={isDark ? '$background' : '$backgroundStrong'}
-        // this data attribute is used by the hypermedia highlight component
-        data-docid={headerHomeId.id}
-      >
-        <XStack // Rendered as YStack when isCenterLayout
-          paddingVertical="$2"
-          paddingHorizontal="$4"
-          minHeight={56}
-          gap="$2"
-          ai={isCenterLayout ? undefined : 'center'}
-          flexDirection={isCenterLayout ? 'column' : 'row'}
-          jc={isCenterLayout ? 'center' : 'flex-start'}
-        >
-          <XStack
-            ai="center"
-            jc={isCenterLayout ? 'center' : 'flex-start'}
-            alignSelf="stretch"
-            flexShrink={0}
-          >
-            <XStack f={1} jc="center">
-              <SiteLogo
-                id={headerHomeId}
-                metadata={homeDoc.document?.metadata}
-              />
-            </XStack>
-            {isCenterLayout ? headerSearch : null}
-          </XStack>
 
-          <XStack
-            display={isCenterLayout ? 'none' : 'flex'}
-            $gtSm={{
-              display: 'flex',
-            }}
-            overflow="hidden"
-            f={1}
-          >
-            {items?.length ? (
-              <SiteHeaderMenu
-                items={items}
-                docId={docId}
-                isCenterLayout={isCenterLayout}
-              />
-            ) : null}
-          </XStack>
-
-          {isCenterLayout ? null : headerSearch}
-        </XStack>
-      </YStack>
-      {children}
-      <MobileMenu
-        open={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        renderContent={() => (
-          <YStack>
-            <MobileSearch originHomeId={originHomeId} />
-
-            {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
-              <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
-                {items?.map((item) => (
-                  <DocumentSmallListItem
-                    key={item.id?.id || ''}
-                    id={item.id}
-                    metadata={item.metadata}
-                    draftId={item.draftId}
-                    isPublished={item.isPublished}
-                  />
-                ))}
-              </YStack>
-            )}
-
-            {docId && document && !isHomeDoc && (
-              <MobileMenuOutline
-                onActivateBlock={(blockId) => {
-                  setIsMobileMenuOpen(false)
-                  onBlockFocus?.(blockId)
-                }}
-                document={document}
-                docId={docId}
-                supportDocuments={supportDocuments}
-              />
-            )}
-            {docId && isHomeDoc && (
-              <NavItems id={docId} supportQueries={supportQueries} />
-            )}
-          </YStack>
-        )}
-      />
-    </YStack>
-  )
   return (
     <>
       {docId && document ? (
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
       ) : null}
       {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
-        <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
-          <SizableText color="white" size="$3">
-            Hosted on{' '}
-            <ButtonText color="white" asChild>
-              <a href="/">{hostnameStripProtocol(origin)}</a>
-            </ButtonText>{' '}
-            via the{' '}
-            <ButtonText color="white" asChild>
-              <a href="https://hyper.media" target="_blank">
-                Hypermedia Protocol
-              </a>
-            </ButtonText>
-            .
-          </SizableText>
-        </YStack>
+        <HypermediaHostBanner origin={origin} />
       ) : null}
-      {mainHeader}
+      <header
+        className={cn('w-full p-4 border-b border-border flex bg-background', {
+          'flex-col': isCenterLayout,
+          'flex-row items-center': !isCenterLayout,
+        })}
+        // this data attribute is used by the hypermedia highlight component
+        data-docid={headerHomeId.id}
+      >
+        <div
+          className={cn(' flex items-center self-stretch shrink-0', {
+            'justify-center': isCenterLayout,
+            'flex-start': !isCenterLayout,
+          })}
+        >
+          <div className="flex flex-1 justify-center">
+            <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
+          </div>
+          {isCenterLayout ? headerSearch : null}
+        </div>
+
+        <div
+          className={cn('px-2 flex-1 overflow-hidden', {
+            flex: !isCenterLayout,
+          })}
+        >
+          {items?.length ? (
+            <SiteHeaderMenu
+              items={items}
+              docId={docId}
+              isCenterLayout={isCenterLayout}
+            />
+          ) : null}
+        </div>
+
+        {isCenterLayout ? null : headerSearch}
+        <MobileMenu
+          open={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+          renderContent={() => (
+            <div>
+              <MobileSearch originHomeId={originHomeId} />
+
+              {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
+                <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
+                  {items?.map((item) => (
+                    <DocumentSmallListItem
+                      key={item.id?.id || ''}
+                      id={item.id}
+                      metadata={item.metadata}
+                      draftId={item.draftId}
+                      isPublished={item.isPublished}
+                    />
+                  ))}
+                </YStack>
+              )}
+
+              {docId && document && !isHomeDoc && (
+                <MobileMenuOutline
+                  onActivateBlock={(blockId) => {
+                    setIsMobileMenuOpen(false)
+                    onBlockFocus?.(blockId)
+                  }}
+                  document={document}
+                  docId={docId}
+                  supportDocuments={supportDocuments}
+                />
+              )}
+              {docId && isHomeDoc && (
+                <NavItems id={docId} supportQueries={supportQueries} />
+              )}
+            </div>
+          )}
+        />
+      </header>
     </>
   )
 }
@@ -347,29 +288,20 @@ function HeaderLinkItem({
         }
       : null,
   )
-  const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
-    <XStack
-      ai="center"
-      gap="$1"
-      hoverStyle={draftId ? {bg: '$backgroundHover'} : undefined}
-      paddingHorizontal="$1"
-      // this data attribute is used by the hypermedia highlight component
-      data-docid={id?.id}
-    >
-      <SizableText
-        numberOfLines={1}
-        userSelect="none"
-        fontWeight="bold"
-        color={active ? '$color' : baseColor}
-        paddingHorizontal="$1"
-        hoverStyle={{cursor: 'pointer', color: active ? '$color' : '$color11'}}
+    <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
+      <span
+        className={cn(
+          'truncate select-none font-bold px-1 cursor-pointer transition-colors',
+          active ? 'text-foreground' : 'text-muted-foreground',
+          'hover:text-foreground',
+        )}
         {...linkProps}
       >
         {getMetadataName(metadata)}
-      </SizableText>
+      </span>
       {draftId ? <DraftBadge /> : null}
-    </XStack>
+    </div>
   )
 }
 
@@ -383,46 +315,23 @@ export function MobileMenu({
   onClose: () => void
 }) {
   return (
-    <YStack
-      $gtSm={{
-        display: 'none',
-      }}
-      backgroundColor="$background"
-      fullscreen
-      // @ts-ignore
-      position="absolute"
-      top={0}
-      right={0}
-      bottom={0}
-      zIndex="var(--z-index-9, 800)"
-      x={open ? 0 : '100%'}
-      animation="fast"
+    <div
+      className={cn(
+        'md:hidden bg-background fixed inset-0 z-[800] transition-transform duration-200',
+        open ? 'translate-x-0' : 'translate-x-full',
+      )}
     >
-      <YStack
-        height="calc(100vh - 64px)"
-        // @ts-ignore
-        position="sticky"
-        top={0}
-      >
-        <XStack p="$4" alignItems="center" justifyContent="flex-end">
-          <Button
-            icon={<Close size={24} />}
-            chromeless
-            size="$2"
-            onPress={onClose}
-          />
-        </XStack>
-        <YStack
-          p="$4"
-          paddingBottom={50}
-          flex={1}
-          overflow="scroll"
-          className="mobile-menu"
-        >
+      <div className="h-screen sticky top-0">
+        <div className="p-4 flex items-center justify-end">
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <Close size={24} />
+          </Button>
+        </div>
+        <div className="p-4 pb-12 flex-1 overflow-scroll mobile-menu">
           {open ? renderContent() : null}
-        </YStack>
-      </YStack>
-    </YStack>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -452,45 +361,28 @@ function GotoLatestBanner({
   })
 
   return show ? (
-    <XStack
-      borderColor="black"
-      position="absolute"
-      top={70}
-      left={0}
-      right={0}
-      zIndex="$zIndex.8"
-      h={0}
-      jc="center"
+    <div
+      className={cn(
+        ' absolute top-12 px-4 left-0 right-0 z-50 w-full flex justify-center',
+      )}
     >
-      <XStack
-        minHeight={60}
-        bg="$background"
-        elevation="$4"
-        overflow="hidden"
-        borderRadius="$4"
-        maxWidth={600}
-        alignItems="center"
-        width="100%"
-        p="$4"
-        paddingRight="$2"
-        gap="$2"
-      >
-        <Button size="$2" onPress={() => setHideVersionBanner(true)} icon={X} />
-        <SizableText flex={1}>
-          Version from {formattedDateLong(document.updateTime)}
-        </SizableText>
+      <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg">
         <Button
-          bg="$brand10"
-          hoverStyle={{bg: '$brand11'}}
-          focusStyle={{bg: '$brand11'}}
-          size="$2"
-          iconAfter={ArrowRight}
-          {...latestLinkProps}
+          variant="ghost"
+          size="icon"
+          onClick={() => setHideVersionBanner(true)}
         >
-          Go to Latest
+          <X color="var(--color-muted-foreground)" size={20} />
         </Button>
-      </XStack>
-    </XStack>
+        <p className="text-sm text-muted-foreground">
+          Version from {formattedDateLong(document.updateTime)}
+        </p>
+        <Button variant="outline" size="sm" {...latestLinkProps}>
+          <span className="text-muted-foreground">Go to Latest</span>
+          <ArrowRight color="var(--color-muted-foreground)" size={20} />
+        </Button>
+      </div>
+    </div>
   ) : null
 }
 
@@ -503,7 +395,6 @@ export function SiteHeaderMenu({
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
 }) {
-  const media = useMedia()
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
   const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
@@ -637,34 +528,21 @@ export function SiteHeaderMenu({
 
   if (!items?.length) return null
 
-  if (!media.gtSm) return null
-
   return (
-    <XStack
+    <div
       ref={containerRef}
-      ai="center"
-      gap="$5"
-      w="100%"
-      padding={0}
-      jc={isCenterLayout ? 'center' : 'flex-end'}
-      display="none"
-      flex={1}
-      overflow="hidden"
-      $gtSm={{display: 'flex', padding: '$2'}}
-      // bg="red"
+      className={cn(
+        'hidden flex-1 items-center gap-5 w-full p-0 overflow-hidden',
+        'md:flex md:p-2',
+        isCenterLayout ? 'justify-center' : 'justify-end',
+      )}
     >
       {/* Hidden measurement container */}
-      <XStack
-        position="absolute"
-        pointerEvents="none"
-        opacity={0}
-        ai="center"
-        gap="$5"
-      >
+      <div className="absolute pointer-events-none opacity-0 flex items-center gap-5">
         {items.map((item) => {
           const key = item.id?.id || item.draftId || '?'
           return (
-            <XStack
+            <div
               key={`measure-${key}`}
               ref={(el) => {
                 if (el) {
@@ -685,10 +563,10 @@ export function SiteHeaderMenu({
                   item.id.path?.[0] === docId.path[0]
                 }
               />
-            </XStack>
+            </div>
           )
         })}
-      </XStack>
+      </div>
 
       {/* Visible items */}
       {visibleItems.map((item) => {
@@ -714,6 +592,23 @@ export function SiteHeaderMenu({
           <LinkDropdown items={linkDropdownItems} />
         </Tooltip>
       )}
-    </XStack>
+    </div>
+  )
+}
+
+function HypermediaHostBanner({origin}: {origin?: string}) {
+  return (
+    <div className="w-full bg-(--brand5) py-1 flex items-center justify-center">
+      <p className="text-sm flex gap-1 text-white">
+        <span>Hosted on</span>
+        <a href="/" className="underline">
+          {hostnameStripProtocol(origin)}
+        </a>
+        <span>via the</span>
+        <a href="https://hyper.media" target="_blank" className="underline">
+          Hypermedia Protocol
+        </a>
+      </p>
+    </div>
   )
 }

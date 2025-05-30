@@ -2,7 +2,7 @@ import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryClient} from '@shm/shared/models/query-client'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClientProvider} from '@tanstack/react-query'
-import {ReactNode, useMemo} from 'react'
+import {ReactNode, useEffect, useMemo} from 'react'
 import {TamaguiProvider, TamaguiProviderProps} from 'tamagui'
 import tamaguiConfig from '../tamagui.config'
 import {AppContext, AppPlatform} from './app-context'
@@ -103,6 +103,17 @@ export function StyleProvider({
   darkMode,
   ...rest
 }: Omit<TamaguiProviderProps, 'config'> & {darkMode: boolean}) {
+  // Update document class when darkMode changes
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (darkMode) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  }, [darkMode])
+
   return (
     <TooltipProvider>
       <TamaguiProvider

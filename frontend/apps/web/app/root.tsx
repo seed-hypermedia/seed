@@ -37,7 +37,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         <Links />
         <Styles />
       </head>
-      <body className="min-h-screen font-sans antialiased bg-red-500">
+      <body className="min-h-screen font-sans antialiased bg-muted">
         <Providers>{children}</Providers>
         <ScrollRestoration />
         <Scripts />

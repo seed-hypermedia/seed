@@ -143,6 +143,24 @@ export function useRouteLink(
           }
         }
       : undefined,
+    onClick: context.openRoute
+      ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
+          e.preventDefault()
+          e.stopPropagation()
+          if (typeof route === 'string') {
+            context.openUrl(
+              route.startsWith('http') ? route : `https://${route}`,
+            )
+          } else if (context.openRoute) {
+            context.openRoute(route, opts?.replace)
+          } else {
+            console.error(
+              'No openRoute function in UniversalAppContext. Cannot open route',
+              route,
+            )
+          }
+        }
+      : undefined,
     href: href || '/',
     style: {
       textDecoration: 'none',

@@ -19,9 +19,26 @@ import {TooltipProvider} from '@shm/ui/tooltip'
 import {TamaguiProvider} from '@tamagui/core'
 import {PortalProvider} from '@tamagui/portal'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {createContext, useContext, useEffect, useState} from 'react'
 import tamaConf from '../tamagui.config'
 
 const queryClient = new QueryClient()
+
+type ThemeContextType = {
+  theme: 'light' | 'dark'
+  setTheme: (theme: 'light' | 'dark') => void
+  toggleTheme: () => void
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+
+export const useTheme = () => {
+  const context = useContext(ThemeContext)
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider')
+  }
+  return context
+}
 
 export const Providers = (props: {children: any}) => {
   return (
@@ -40,17 +57,56 @@ export const Providers = (props: {children: any}) => {
 }
 
 export function ThemeProvider({children}: {children: React.ReactNode}) {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    // Check system preference on initial load
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+    }
+    return 'light'
+  })
+
+  // Update document class when theme changes
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  }, [theme])
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = (e: MediaQueryListEvent) => {
+        setTheme(e.matches ? 'dark' : 'light')
+      }
+
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+  }
+
   return (
-    <TooltipProvider>
-      <TamaguiProvider
-        defaultTheme="light"
-        // disableInjectCSS
-        disableRootThemeClass
-        config={tamaConf}
-      >
-        {children}
-      </TamaguiProvider>
-    </TooltipProvider>
+    <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
+      <TooltipProvider>
+        <TamaguiProvider
+          defaultTheme={theme}
+          disableRootThemeClass
+          config={tamaConf}
+        >
+          {children}
+        </TamaguiProvider>
+      </TooltipProvider>
+    </ThemeContext.Provider>
   )
 }
 

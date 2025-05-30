@@ -11705,6 +11705,7 @@ __metadata:
   dependencies:
     "@hookform/resolvers": 3.3.1
     "@radix-ui/react-scroll-area": ^1.2.9
+    "@radix-ui/react-slot": ^1.2.3
     "@rehookify/datepicker": 6.6.8
     "@shm/shared": "workspace:*"
     "@tailwindcss/vite": ^4.1.8

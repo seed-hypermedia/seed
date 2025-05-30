@@ -2,6 +2,7 @@ import {styled, View} from '@tamagui/core'
 import {YStack} from '@tamagui/stacks'
 import {ViewProps} from 'tamagui'
 import {useIsDark} from './use-is-dark'
+import {cn} from './utils'
 
 const variants = {
   hide: {
@@ -101,3 +102,11 @@ export const ContainerXL = styled(YStack, {
 
 export const AppContainer = ContainerLarge
 export const Container = ContainerLarge
+
+export const windowContainerStyles = cn(
+  'flex flex-col w-screen h-screen min-h-svh bg-muted p-2',
+)
+
+export const panelContainerStyles = cn(
+  'flex flex-col w-full h-full bg-background border border-border rounded-md overflow-hidden',
+)

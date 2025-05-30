@@ -190,77 +190,76 @@ export default function DownloadPage() {
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
           origin={origin}
+        />
+        <YStack
+          minHeight="45vh"
+          justifyContent="center"
+          // backgroundColor="$brand12"
+          alignItems="center"
+          paddingVertical="$8"
         >
-          <YStack
-            minHeight="45vh"
-            justifyContent="center"
-            // backgroundColor="$brand12"
-            alignItems="center"
-            paddingVertical="$8"
-          >
-            <Container gap="$4" paddingHorizontal="$6">
-              <Heading size="$10" textAlign="center" $gtMd={{size: '$13'}}>
-                Download Seed Hypermedia Today!
-              </Heading>
-              <SizableText size="$6" textAlign="center">
-                Start writing and collaborating with your peers.
-              </SizableText>
-              {suggestedButtons.length > 0 && suggestedButtons}
-            </Container>
-          </YStack>
-          <Container>
-            <YStack gap="$4" ai="center">
-              <SizableText size="$8" fontWeight="bold">
-                Download Seed Hypermedia {stableRelease.name}
-              </SizableText>
-            </YStack>
-            <SizableStack
-              flexDirection="column"
-              $gtSm={{flexDirection: 'row'}}
-              gap="$4"
-              ai="center"
-              jc="center"
-              p="$4"
-            >
-              {stableRelease.assets?.macos && (
-                <PlatformItem
-                  label="MacOS"
-                  icon={Macos}
-                  assets={Object.entries(stableRelease.assets.macos).map(
-                    ([key, value]) => ({
-                      label: key,
-                      url: value?.download_url,
-                    }),
-                  )}
-                />
-              )}
-              {stableRelease.assets?.win32 && (
-                <PlatformItem
-                  label="Windows"
-                  icon={Win32}
-                  assets={Object.entries(stableRelease.assets.win32).map(
-                    ([key, value]) => ({
-                      label: key,
-                      url: value?.download_url,
-                    }),
-                  )}
-                />
-              )}
-              {stableRelease.assets?.linux && (
-                <PlatformItem
-                  label="Linux"
-                  icon={Linux}
-                  assets={Object.entries(stableRelease.assets.linux).map(
-                    ([key, value]) => ({
-                      label: key,
-                      url: value?.download_url,
-                    }),
-                  )}
-                />
-              )}
-            </SizableStack>
+          <Container gap="$4" paddingHorizontal="$6">
+            <Heading size="$10" textAlign="center" $gtMd={{size: '$13'}}>
+              Download Seed Hypermedia Today!
+            </Heading>
+            <SizableText size="$6" textAlign="center">
+              Start writing and collaborating with your peers.
+            </SizableText>
+            {suggestedButtons.length > 0 && suggestedButtons}
           </Container>
-        </WebSiteHeader>
+        </YStack>
+        <Container>
+          <YStack gap="$4" ai="center">
+            <SizableText size="$8" fontWeight="bold">
+              Download Seed Hypermedia {stableRelease.name}
+            </SizableText>
+          </YStack>
+          <SizableStack
+            flexDirection="column"
+            $gtSm={{flexDirection: 'row'}}
+            gap="$4"
+            ai="center"
+            jc="center"
+            p="$4"
+          >
+            {stableRelease.assets?.macos && (
+              <PlatformItem
+                label="MacOS"
+                icon={Macos}
+                assets={Object.entries(stableRelease.assets.macos).map(
+                  ([key, value]) => ({
+                    label: key,
+                    url: value?.download_url,
+                  }),
+                )}
+              />
+            )}
+            {stableRelease.assets?.win32 && (
+              <PlatformItem
+                label="Windows"
+                icon={Win32}
+                assets={Object.entries(stableRelease.assets.win32).map(
+                  ([key, value]) => ({
+                    label: key,
+                    url: value?.download_url,
+                  }),
+                )}
+              />
+            )}
+            {stableRelease.assets?.linux && (
+              <PlatformItem
+                label="Linux"
+                icon={Linux}
+                assets={Object.entries(stableRelease.assets.linux).map(
+                  ([key, value]) => ({
+                    label: key,
+                    url: value?.download_url,
+                  }),
+                )}
+              />
+            )}
+          </SizableStack>
+        </Container>
         <PageFooter enableWebSigning={enableWebSigning} />
       </YStack>
     </WebSiteProvider>

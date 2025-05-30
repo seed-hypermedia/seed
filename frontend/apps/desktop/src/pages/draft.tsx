@@ -189,16 +189,17 @@ export default function DraftPage() {
         >
           <DraftRebaseBanner />
           {locationId || editId ? (
-            <DraftAppHeader
-              siteHomeEntity={homeEntity.data}
-              isEditingHomeDoc={
-                homeEntity.data?.id.id == locationId?.id ||
-                homeEntity.data?.id.id == editId?.id
-              }
-              docId={locationId || editId}
-              document={homeEntity.data?.document}
-              draftMetadata={state.context.metadata}
-            >
+            <>
+              <DraftAppHeader
+                siteHomeEntity={homeEntity.data}
+                isEditingHomeDoc={
+                  homeEntity.data?.id.id == locationId?.id ||
+                  homeEntity.data?.id.id == editId?.id
+                }
+                docId={locationId || editId}
+                document={homeEntity.data?.document}
+                draftMetadata={state.context.metadata}
+              />
               <DocumentEditor
                 editor={editor}
                 state={state}
@@ -208,7 +209,7 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-            </DraftAppHeader>
+            </>
           ) : (
             <DocumentEditor
               editor={editor}

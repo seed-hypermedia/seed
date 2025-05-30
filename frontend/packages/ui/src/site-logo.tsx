@@ -1,8 +1,7 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {XStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {HMIcon} from './hm-icon'
+import {cn} from './utils'
 
 export function SiteLogo({
   id,
@@ -18,14 +17,9 @@ export function SiteLogo({
   })
   if (metadata?.seedExperimentalLogo) {
     return (
-      <XStack
+      <div
         {...homeLinkProps}
-        height={60}
-        ai="center"
-        jc="center"
-        $gtSm={{
-          flex: 0,
-        }}
+        className={cn('flex flex-1 items-center justify-center')}
         style={{height: '60px'}}
       >
         <img
@@ -33,21 +27,22 @@ export function SiteLogo({
           height={60}
           style={{objectFit: 'contain', height: '100%'}}
         />
-      </XStack>
+      </div>
     )
   }
   return (
-    <XStack {...homeLinkProps} ai="center" jc="center" gap="$2">
+    <div
+      {...homeLinkProps}
+      className={cn('flex items-center justify-center gap-2')}
+    >
       <HMIcon size={24} id={id} metadata={metadata} />
-      <SizableText
-        userSelect="none"
-        size="$4"
-        fontWeight="bold"
-        textAlign="center"
-        $gtSm={{textAlign: 'left'}}
+      <p
+        className={cn(
+          'select-none font-bold text-foreground text-center sm:text-left',
+        )}
       >
         {metadata?.name}
-      </SizableText>
-    </XStack>
+      </p>
+    </div>
   )
 }

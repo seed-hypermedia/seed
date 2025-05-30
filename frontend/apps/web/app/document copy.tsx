@@ -21,11 +21,8 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
-import {
-  Container,
-  panelContainerStyles,
-  windowContainerStyles,
-} from '@shm/ui/container'
+import {Container} from '@shm/ui/container'
+import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {BlockQuote, HistoryIcon, IconComponent} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -41,11 +38,17 @@ import {MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {ImperativePanelHandle, PanelGroup} from 'react-resizable-panels'
-import {Separator, useMedia} from 'tamagui'
+import {
+  ImperativePanelHandle,
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+} from 'react-resizable-panels'
+import {ScrollView, Separator, Sheet, useMedia} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebDiscussionsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
+import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {defaultSiteIcon} from './meta'
@@ -464,22 +467,322 @@ export function DocumentPage(props: SiteDocumentPayload) {
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <div className={windowContainerStyles}>
-          <div className={panelContainerStyles}>
-            <WebSiteHeader
-              noScroll={!!panel}
-              homeMetadata={homeMetadata}
-              originHomeId={originHomeId}
-              docId={id}
-              document={document}
-              supportDocuments={supportDocuments}
-              supportQueries={supportQueries}
-              origin={origin}
-              isLatest={isLatest}
-            />
-            <PanelGroup></PanelGroup>
-          </div>
-        </div>
+        <WebSiteHeader
+          noScroll={!!panel}
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
+          origin={origin}
+          isLatest={isLatest}
+        >
+          <PanelGroup
+            direction="horizontal"
+            autoSaveId="web-conditional"
+            style={{minHeight: '100%'}}
+          >
+            <Panel
+              ref={mainPanelRef}
+              collapsible
+              id="main-panel"
+              // style={{overflowY: panel ? 'scroll' : undefined}}
+              style={{overflowY: 'scroll'}}
+            >
+              <XStack
+                w="100%"
+                minHeight="100%"
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                marginBottom={56}
+                $gtSm={{
+                  marginBottom: 0,
+                }}
+              >
+                <YStack f={1}>
+                  <DocumentCover cover={document.metadata.cover} id={id} />
+                  <YStack w="100%" ref={elementRef} f={1} position="relative">
+                    {!media.gtSm ? null : (
+                      <XStack
+                        position="absolute"
+                        top={0}
+                        right={8}
+                        zIndex="$zIndex.7"
+                        padding="$4"
+                      >
+                        {activityEnabled && interactionSummary.data ? (
+                          <DocInteractionsSummary
+                            docId={id}
+                            citations={interactionSummary.data?.citations}
+                            comments={interactionSummary.data?.comments}
+                            changes={interactionSummary.data?.changes}
+                            onCitationsOpen={() => {
+                              setActivePanel({type: 'citations'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                            onCommentsOpen={() => {
+                              setActivePanel({type: 'discussions'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                            onVersionOpen={() => {
+                              setActivePanel({type: 'versions'})
+                            }}
+                          />
+                        ) : null}
+                      </XStack>
+                    )}
+                    <XStack {...wrapperProps}>
+                      {showSidebars ? (
+                        <YStack
+                          marginTop={document.metadata?.cover ? 152 : 220}
+                          {...sidebarProps}
+                        >
+                          <YStack
+                            className="hide-scrollbar"
+                            overflow="scroll"
+                            height="100%"
+                            // paddingTop={32}
+                            paddingBottom={32}
+                          >
+                            <WebDocumentOutline
+                              showCollapsed={showCollapsed}
+                              supportDocuments={props.supportDocuments}
+                              onActivateBlock={onActivateBlock}
+                              id={id}
+                              document={document}
+                            />
+                            {/* <DocNavigationWrapper showCollapsed={showCollapsed}>
+                              <DocumentOutline
+                                onActivateBlock={onActivateBlock}
+                                document={document}
+                                id={id}
+                                // onCloseNav={() => {}}
+                                supportDocuments={props.supportDocuments}
+                                activeBlockId={id.blockRef}
+                              />
+                            </DocNavigationWrapper> */}
+                          </YStack>
+                        </YStack>
+                      ) : null}
+                      <YStack {...mainContentProps}>
+                        {isHomeDoc ? null : (
+                          <PageHeader
+                            originHomeId={originHomeId}
+                            breadcrumbs={props.breadcrumbs}
+                            docMetadata={document.metadata}
+                            docId={id}
+                            authors={document.authors.map(
+                              (author) => accountsMetadata[author],
+                            )}
+                            updateTime={document.updateTime}
+                          />
+                        )}
+                        <WebDocContentProvider
+                          onBlockCitationClick={
+                            activityEnabled ? onBlockCitationClick : undefined
+                          }
+                          onBlockCommentClick={
+                            activityEnabled ? onBlockCommentClick : undefined
+                          }
+                          originHomeId={originHomeId}
+                          id={{...id, version: document.version}}
+                          siteHost={siteHost}
+                          supportDocuments={supportDocuments}
+                          supportQueries={supportQueries}
+                          blockCitations={interactionSummary.data?.blocks}
+                          routeParams={{
+                            uid: id.uid,
+                            version: id.version || undefined,
+                            blockRef: blockRef,
+                            blockRange: blockRange,
+                          }}
+                          // onHoverIn={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover in', id)
+                          // }}
+                          // onHoverOut={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover out', id)
+                          // }}
+                        >
+                          <DocContent
+                            document={document}
+                            handleBlockReplace={() => {
+                              // Replace the URL to not include fragment.
+                              replace(
+                                window.location.pathname +
+                                  window.location.search,
+                                {
+                                  replace: true,
+                                  preventScrollReset: true,
+                                },
+                              )
+                              return true
+                            }}
+                          />
+                        </WebDocContentProvider>
+                      </YStack>
+                      {showSidebars ? <YStack {...sidebarProps} /> : null}
+                    </XStack>
+                  </YStack>
+                  <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                </YStack>
+              </XStack>
+            </Panel>
+            {!media.gtSm ? null : panel ? (
+              <>
+                <PanelResizeHandle className="panel-resize-handle" />
+
+                <Panel
+                  defaultSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  minSize={media.gtSm ? 20 : 100}
+                >
+                  <YStack
+                    bg={isDark ? '$background' : '$backgroundStrong'}
+                    borderLeftWidth={1}
+                    borderLeftColor="$borderColor"
+                    minHeight="100%"
+                    height="100%"
+                    top={0}
+                    right={0}
+                    gap="$4"
+                  >
+                    <ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                      {panel}
+                    </ScrollView>
+                    {commentEditor}
+                  </YStack>
+                </Panel>
+              </>
+            ) : null}
+          </PanelGroup>
+        </WebSiteHeader>
+        {media.gtSm || !activityEnabled ? null : (
+          <>
+            <XStack
+              // @ts-expect-error tamagui mistake
+              position="fixed"
+              bottom={0}
+              left={0}
+              right={0}
+              zIndex="$zIndex.9"
+              bg={isDark ? '$background' : '$backgroundStrong'}
+              p="$4"
+              boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
+              height={56}
+              jc="space-between"
+              borderRadius="$4"
+              borderBottomLeftRadius={0}
+              borderBottomRightRadius={0}
+              overflow="hidden"
+              onPress={() => {
+                if (!panel) {
+                  setActivePanel({type: 'discussions', blockId: undefined})
+                }
+                setIsSheetOpen(true)
+              }}
+              ai="center"
+            >
+              <Button size="$3" chromeless icon={MessageSquare} color="$color9">
+                Start a Discussion...
+              </Button>
+              {interactionSummary.data ? (
+                <DocInteractionsSummary
+                  docId={id}
+                  citations={interactionSummary.data?.citations}
+                  comments={interactionSummary.data?.comments}
+                  changes={interactionSummary.data?.changes}
+                  onCitationsOpen={() => {
+                    setActivePanel({type: 'citations', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                  onCommentsOpen={() => {
+                    setActivePanel({type: 'discussions', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                  onVersionOpen={() => {
+                    setActivePanel({type: 'versions'})
+                  }}
+                />
+              ) : null}
+            </XStack>
+
+            <Sheet
+              snapPoints={[92]}
+              onOpenChange={setIsSheetOpen}
+              modal
+              open={isSheetOpen}
+              dismissOnSnapToBottom
+            >
+              <Sheet.Overlay
+                height="100vh"
+                bg={'#00000088'}
+                width="100vw"
+                animation="fast"
+                opacity={0.8}
+                enterStyle={{opacity: 0}}
+                exitStyle={{opacity: 0}}
+              />
+              <Sheet.Handle />
+              <Sheet.Frame
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                borderColor="$borderColor"
+                borderWidth={1}
+                borderRadius="$4"
+              >
+                <XStack jc="flex-end" padding="$4">
+                  {interactionSummary.data ? (
+                    <DocInteractionsSummary
+                      docId={id}
+                      citations={interactionSummary.data?.citations}
+                      comments={interactionSummary.data?.comments}
+                      changes={interactionSummary.data?.changes}
+                      onCitationsOpen={() => {
+                        setActivePanel({type: 'citations', blockId: undefined})
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onCommentsOpen={() => {
+                        setActivePanel({
+                          type: 'discussions',
+                          blockId: undefined,
+                        })
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onVersionOpen={() => {
+                        setActivePanel({type: 'versions'})
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                    />
+                  ) : null}
+                </XStack>
+                <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                  {/* <YStack f={1}>
+                    {new Array(2000).fill(0).map((_, i) => (
+                      <SizableText key={i} h={20} w="100%">
+                        {i}
+                      </SizableText>
+                    ))}
+                  </YStack> */}
+                  {panel}
+                </Sheet.ScrollView>
+                <XStack paddingVertical="$2">{commentEditor}</XStack>
+              </Sheet.Frame>
+            </Sheet>
+          </>
+        )}
       </DiscussionsProvider>
     </WebSiteProvider>
   )
