@@ -349,18 +349,20 @@ function BreadcrumbTitle({
           })}
         </XStack>
         {!hideControls ? (
-          <XStack ai="center" className="no-window-drag" f={1} flexShrink={0}>
-            <PendingDomain id={entityId} />
-            <FavoriteButton id={entityId} />
-            <CopyReferenceButton
-              docId={entityId}
-              isBlockFocused={false} // TODO: learn why isBlockFocused is needed
-              latest={isLatest}
-              size="$2"
-            />
-            {onPublishSite ? (
-              <DocOptionsButton onPublishSite={onPublishSite} />
-            ) : null}
+          <XStack ai="center" f={1} flexShrink={0} jc="flex-start">
+            <XStack ai="center" className="no-window-drag">
+              <PendingDomain id={entityId} />
+              <FavoriteButton id={entityId} />
+              <CopyReferenceButton
+                docId={entityId}
+                isBlockFocused={false} // TODO: learn why isBlockFocused is needed
+                latest={isLatest}
+                size="$2"
+              />
+              {onPublishSite ? (
+                <DocOptionsButton onPublishSite={onPublishSite} />
+              ) : null}
+            </XStack>
           </XStack>
         ) : null}
       </XStack>
