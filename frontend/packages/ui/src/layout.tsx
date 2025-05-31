@@ -1,7 +1,7 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {forwardRef, useMemo, useRef} from 'react'
-import {ScrollView, useMedia, XStackProps, YStack, YStackProps} from 'tamagui'
+import {forwardRef, useMemo, useRef, useState} from 'react'
+import {ScrollView, useMedia, YStack, YStackProps} from 'tamagui'
 
 export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
   function MainWrapper({children, noScroll = false, ...props}, ref) {
@@ -42,17 +42,26 @@ export const useDocumentLayout = (
   const elementRef = useRef<HTMLDivElement>(null)
   const media = useMedia()
 
-  // Initialize with default content width instead of 0
-  const initialWidth = useMemo(() => {
-    // Make sure we have a valid width even before the element is available
-    const configWidth = config.contentWidth
-    if (configWidth === 'S') return widthValues.S
-    if (configWidth === 'M') return widthValues.M
-    if (configWidth === 'L') return widthValues.L
-    return widthValues.M
-  }, [config.contentWidth])
+  // Get content width configuration
+  const contentMaxWidth = useMemo(
+    () => getContentWidth(config.contentWidth),
+    [config.contentWidth],
+  )
 
-  const widthState = useRef<number>(initialWidth)
+  // State for layout booleans - only updates when crossing breakpoints
+  const [layoutState, setLayoutState] = useState(() => {
+    // Initialize with reasonable defaults based on config
+    const initialShowSidebars = false // Will be corrected by ResizeObserver
+    const initialShowCollapsed = true // Will be corrected by ResizeObserver
+
+    return {
+      showSidebars: initialShowSidebars,
+      showCollapsed: initialShowCollapsed,
+    }
+  })
+
+  // Keep current width in ref for performance (no re-renders on every pixel change)
+  const currentWidthRef = useRef<number>(contentMaxWidth)
 
   useIsomorphicLayoutEffect(() => {
     // Check if we're in a browser environment
@@ -63,13 +72,34 @@ export const useDocumentLayout = (
 
     let element = elementRef.current
 
-    // Always set initial width, even if element isn't available yet
-    if (!element) {
-      const initialWidth = getContentWidth(config.contentWidth) || 0
-      widthState.current = initialWidth
-    } else {
-      const width = element.getBoundingClientRect().width
-      widthState.current = width
+    // Function to calculate and update layout if needed
+    const updateLayoutIfNeeded = (width: number) => {
+      currentWidthRef.current = width
+
+      const newShowSidebars = Boolean(
+        config.showSidebars && width > contentMaxWidth + 100,
+      )
+      const newShowCollapsed = width < contentMaxWidth + 700
+
+      // Only update state if layout actually changed (crossing breakpoints)
+      setLayoutState((prevState) => {
+        if (
+          prevState.showSidebars !== newShowSidebars ||
+          prevState.showCollapsed !== newShowCollapsed
+        ) {
+          return {
+            showSidebars: newShowSidebars,
+            showCollapsed: newShowCollapsed,
+          }
+        }
+        return prevState // No change, don't trigger re-render
+      })
+    }
+
+    // Set initial width if element exists
+    if (element) {
+      const initialWidth = element.getBoundingClientRect().width
+      updateLayoutIfNeeded(initialWidth)
     }
 
     // Create ResizeObserver to track element size changes
@@ -77,7 +107,7 @@ export const useDocumentLayout = (
       const observedElement = entries[0]
       if (observedElement) {
         const newWidth = observedElement.contentRect.width
-        widthState.current = newWidth
+        updateLayoutIfNeeded(newWidth)
       }
     })
 
@@ -89,10 +119,9 @@ export const useDocumentLayout = (
         // Observe the newly found element
         resizeObserver.observe(element)
 
-        // Get initial dimensions
+        // Get initial dimensions and update layout
         const initialWidth = element.getBoundingClientRect().width
-
-        widthState.current = initialWidth
+        updateLayoutIfNeeded(initialWidth)
 
         // Once we find the element, no need to continue observing mutations
         mutationObserver.disconnect()
@@ -115,66 +144,57 @@ export const useDocumentLayout = (
       resizeObserver.disconnect()
       mutationObserver.disconnect()
     }
-  }, [config.contentWidth, config.showSidebars])
+  }, [config.contentWidth, config.showSidebars, contentMaxWidth])
 
-  const contentMaxWidth = useMemo(
-    () => getContentWidth(config.contentWidth),
-    [config.contentWidth],
-  )
-
-  // Calculate properties based on current width
-  const showSidebars = useMemo(
-    () => config.showSidebars && widthState.current > contentMaxWidth + 100,
-    [config.showSidebars, widthState, contentMaxWidth],
-  )
-  const showCollapsed = useMemo(
-    () => widthState.current < contentMaxWidth + 700,
-    [widthState, contentMaxWidth],
-  )
-
-  // Get default value for fallbacks to avoid TypeScript errors
-  const defaultMaxWidth = useMemo(() => contentMaxWidth, [])
-
+  // Return layout properties - now properly reactive to state changes
   return useMemo(
     () => ({
       elementRef,
-      width: widthState,
+      width: currentWidthRef,
 
-      showSidebars: showSidebars || false,
-      showCollapsed: showCollapsed || false,
-      contentMaxWidth: contentMaxWidth || defaultMaxWidth,
+      showSidebars: layoutState.showSidebars,
+      showCollapsed: layoutState.showCollapsed,
+      contentMaxWidth,
       sidebarProps: {
-        maxWidth: showCollapsed ? 40 : 280,
-        flex: 1,
-        paddingRight: showCollapsed ? 0 : 40,
-        className: 'document-aside',
-        width: '100%',
+        className: `document-aside flex-1 w-full ${
+          layoutState.showCollapsed ? 'pr-0' : 'pr-10'
+        }`,
+        style: {
+          maxWidth: layoutState.showCollapsed ? 40 : 280,
+        },
       },
       mainContentProps: {
-        maxWidth: contentMaxWidth || defaultMaxWidth,
-        width: '100%',
+        className: 'w-full',
+        style: {
+          maxWidth: contentMaxWidth,
+        },
       },
       wrapperProps: {
-        maxWidth:
-          (contentMaxWidth || defaultMaxWidth) +
-          (showSidebars && config.showSidebars
-            ? showCollapsed
-              ? 100
-              : 700
-            : 0) +
-          /**
-           * this is added because we are showing the comment and citations button
-           * on the right of each block. in the future we might expand
-           * the block content to also have more space so we can render marginalia.
-           **/
-          (media.gtSm ? 44 : 0),
-        marginHorizontal: 'auto',
-        width: '100%',
-        justifyContent: 'space-between',
-        flex: 1,
-      } as XStackProps,
+        className: 'mx-auto w-full justify-between flex-1',
+        style: {
+          maxWidth:
+            contentMaxWidth +
+            (layoutState.showSidebars && config.showSidebars
+              ? layoutState.showCollapsed
+                ? 100
+                : 700
+              : 0) +
+            /**
+             * this is added because we are showing the comment and citations button
+             * on the right of each block. in the future we might expand
+             * the block content to also have more space so we can render marginalia.
+             **/
+            (media.gtSm ? 44 : 0),
+        },
+      },
     }),
-    [config.contentWidth, config.showSidebars, widthState.current],
+    [
+      layoutState.showSidebars,
+      layoutState.showCollapsed,
+      contentMaxWidth,
+      config.showSidebars,
+      media.gtSm,
+    ],
   )
 }
 

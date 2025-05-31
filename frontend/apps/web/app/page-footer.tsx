@@ -16,7 +16,7 @@ export function PageFooter({
   enableWebSigning?: boolean
 }) {
   return (
-    <Container>
+    <Container className="shrink-0">
       <XStack
         jc="space-between"
         ai="center"

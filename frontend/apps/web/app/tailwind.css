@@ -123,3 +123,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ScrollArea full height fix */
+[data-slot='scroll-area-viewport'] {
+  width: 100%;
+  border-radius: inherit;
+}
+
+/* ScrollArea full height fix */
+.scroll-area-full-height [data-slot='scroll-area-viewport'] {
+  height: 100% !important;
+}
+
+/* ScrollArea width overflow fix - prevents internal table from overflowing */
+[data-slot='scroll-area-viewport'] > div {
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.scroll-area-full-height [data-slot='scroll-area-viewport'] > div {
+  min-width: 100% !important;
+}
