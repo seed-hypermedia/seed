@@ -51,6 +51,7 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -87,7 +88,6 @@ import {
   ScrollView,
   Separator,
   SizableText,
-  Spinner,
   Tabs,
   TabsContentProps,
   TabsProps,
@@ -934,7 +934,11 @@ function DeviceLabelForm({
   }, [setFocus])
 
   if (linkDevice.isLoading) {
-    return <Spinner />
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   }
   return (
     <Form

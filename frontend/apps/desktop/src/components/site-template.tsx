@@ -2,18 +2,12 @@ import {grpcClient} from '@/grpc-client'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
 import {cloneSiteFromTemplate} from '@shm/shared/utils/clone'
+import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
-import {
-  Button,
-  ButtonProps,
-  SizableText,
-  Spinner,
-  View,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, ButtonProps, SizableText, View, XStack, YStack} from 'tamagui'
+
 import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
 

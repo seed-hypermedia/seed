@@ -1050,7 +1050,9 @@ function WebCitationsPanel({
             return <DocumentCitationEntry citation={citation} />
           })
         ) : (
-          <Spinner />
+          <div className="flex justify-center items-center">
+            <Spinner />
+          </div>
         )}
       </YStack>
     </YStack>

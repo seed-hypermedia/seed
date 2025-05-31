@@ -138,7 +138,9 @@ export function EmailNotificationsContent() {
           )}
         </>
       ) : (
-        <Spinner />
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
       )}
     </YStack>
   )

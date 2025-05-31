@@ -274,7 +274,11 @@ function IndicationTag({
   label: string
   status: null | 0 | 1 | 2
 }) {
-  let statusDot = <Spinner />
+  let statusDot = (
+    <div className="flex justify-center items-center">
+      <Spinner />
+    </div>
+  )
   if (status === 0) statusDot = <IndicationStatus color="$red9" />
   if (status === 1) statusDot = <IndicationStatus color="$orange9" />
   if (status === 2) statusDot = <IndicationStatus color="$green9" />

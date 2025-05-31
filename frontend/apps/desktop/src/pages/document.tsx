@@ -60,6 +60,7 @@ import {
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -69,7 +70,6 @@ import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {
   ButtonText,
   SizableText,
-  Spinner,
   Separator as TSeparator,
   XStack,
   XStackProps,
@@ -700,7 +700,11 @@ function DocMessageBox({
         <SizableText size="$8" fontWeight="bold">
           {title}
         </SizableText>
-        {spinner ? <Spinner /> : null}
+        {spinner ? (
+          <div className="flex justify-center items-center">
+            <Spinner />
+          </div>
+        ) : null}
         <SizableText>{message}</SizableText>
         {children}
       </YStack>

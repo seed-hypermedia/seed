@@ -1,7 +1,9 @@
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
+import {Spinner} from '@shm/ui/spinner'
 import {DialogTitle} from '@shm/ui/universal-dialog'
 import {Control, useController} from 'react-hook-form'
-import {SizableText, Spinner, YStack} from 'tamagui'
+import {SizableText, YStack} from 'tamagui'
+
 import {z} from 'zod'
 import {
   useEmailNotifications,
@@ -60,7 +62,12 @@ export function NotifSettingsDialog({onClose}: {onClose: () => void}) {
   const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
     useEmailNotifications()
   console.log('emailNotifications', emailNotifications)
-  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  if (isEmailNotificationsLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    ) // todo: make it look better
   return (
     <YStack gap="$4">
       <DialogTitle>Email Notification Settings</DialogTitle>

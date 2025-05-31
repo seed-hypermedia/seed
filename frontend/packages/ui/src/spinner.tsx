@@ -1,36 +1,36 @@
 // forked from tamagui because we cant import directly from tamagui package on web/remix
 
-import type {ColorTokens, TamaguiElement, ThemeTokens} from '@tamagui/core'
-import {themeable, useTheme, variableToString} from '@tamagui/core'
-import type {YStackProps} from '@tamagui/stacks'
-import {YStack} from '@tamagui/stacks'
+import {cn} from '@shm/ui/utils'
 import * as React from 'react'
-import {ActivityIndicator} from 'react-native-web'
 
-export type SpinnerProps = Omit<YStackProps, 'children'> & {
+export type SpinnerProps = React.HTMLAttributes<HTMLDivElement> & {
   size?: 'small' | 'large'
-  color?: (ColorTokens | ThemeTokens | (string & {})) | null
+  color?: string
 }
 
-export const Spinner: React.ForwardRefExoticComponent<
-  SpinnerProps & React.RefAttributes<any>
-> = YStack.styleable(
-  themeable(
-    React.forwardRef<TamaguiElement>((props: SpinnerProps, ref) => {
-      const {size, color: colorProp, ...stackProps} = props
-      const theme = useTheme()
-      let color = colorProp as string
-      if (color && color[0] === '$') {
-        color = variableToString(theme[color])
-      }
-      return (
-        <YStack ref={ref} {...stackProps}>
-          <ActivityIndicator size={size} color={color} />
-        </YStack>
-      )
-    }),
-    {
-      componentName: 'Spinner',
-    },
-  ),
-) as any
+export const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
+  ({size = 'small', color, className, ...props}, ref) => {
+    const sizeClasses = {
+      small: 'w-4 h-4 border-2',
+      large: 'w-8 h-8 border-4',
+    }
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'inline-block animate-spin rounded-full border-solid border-current border-r-transparent',
+          sizeClasses[size],
+          className,
+        )}
+        style={{
+          color: color || 'currentColor',
+          ...props.style,
+        }}
+        {...props}
+      />
+    )
+  },
+)
+
+Spinner.displayName = 'Spinner'

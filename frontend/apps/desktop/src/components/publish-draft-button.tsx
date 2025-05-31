@@ -21,6 +21,7 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Spinner} from '@shm/ui/spinner'
 import {
   ErrorToastDecoration,
   Hostname,
@@ -38,14 +39,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {
-  SizableText,
-  Spinner,
-  XGroup,
-  XStack,
-  YStack,
-  YStackProps,
-} from 'tamagui'
+import {SizableText, XGroup, XStack, YStack, YStackProps} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
@@ -401,7 +395,11 @@ function PublishedToast({
   let indicator: ReactNode = null
   let message: ReactNode = ''
   if (pushed === null) {
-    indicator = <Spinner />
+    indicator = (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
     message = (
       <>
         Published. Pushing to <Hostname host={host} />

@@ -4,7 +4,8 @@ import {
   useSetEmailNotifications,
 } from '@/models/email-notifications'
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
-import {Spinner, YStack} from 'tamagui'
+import {Spinner} from '@shm/ui/spinner'
+import {YStack} from 'tamagui'
 
 export function NotifSettingsDialog({
   onClose,
@@ -16,7 +17,12 @@ export function NotifSettingsDialog({
   const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
     useEmailNotifications(input.accountUid)
   const setEmailNotifications = useSetEmailNotifications(input.accountUid)
-  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  if (isEmailNotificationsLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    ) // todo: make it look better
   return (
     <YStack gap="$4">
       <DialogTitle>{input.title || 'Email Notification Settings'}</DialogTitle>

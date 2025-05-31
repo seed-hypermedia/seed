@@ -18,6 +18,7 @@ import {
 import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {SendHorizontal} from '@tamagui/lucide-icons'
@@ -26,7 +27,8 @@ import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
-import {SizableText, Spinner, XStack, YStack} from 'tamagui'
+import {SizableText, XStack, YStack} from 'tamagui'
+
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -405,7 +407,12 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
   const [mode, setMode] = useState<'prompt' | 'form' | 'success'>('prompt')
   const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
     useEmailNotifications()
-  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  if (isEmailNotificationsLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    ) // todo: make it look better
   if (mode === 'prompt') {
     return (
       <YStack gap="$3">

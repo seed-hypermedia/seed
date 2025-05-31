@@ -310,7 +310,12 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const view =
     (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
     'Content'
-  if (doc.isLoading) return <Spinner />
+  if (doc.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   if (!doc.data) return <ErrorBlock message="Could not load embed" />
   const id = narrowHmId(props)
   return (

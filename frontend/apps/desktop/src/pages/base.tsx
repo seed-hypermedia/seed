@@ -12,8 +12,8 @@ export function NotFoundPage() {
 
 export function BaseLoading() {
   return (
-    <YStack padding="$6">
+    <div className="flex justify-center items-center p-6">
       <Spinner />
-    </YStack>
+    </div>
   )
 }

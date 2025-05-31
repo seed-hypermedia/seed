@@ -45,21 +45,15 @@ import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
+import {Spinner} from '@shm/ui/spinner'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {
-  Button,
-  Input,
-  Separator,
-  SizableText,
-  Spinner,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, Input, Separator, SizableText, XStack, YStack} from 'tamagui'
+
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'

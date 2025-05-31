@@ -15,10 +15,10 @@ import {
   hmId,
   HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
+  packHmId,
   parseCustomURL,
   parseFragment,
   unpackHmId,
-  packHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
   RecentSearchResultItem,
@@ -28,7 +28,7 @@ import {
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
-import {Separator, SizableText, XStack, YStack} from 'tamagui'
+import {Separator, SizableText, XStack} from 'tamagui'
 
 export function SearchInput({
   onClose,
@@ -225,9 +225,9 @@ export function SearchInput({
 
   if (actionPromise) {
     content = (
-      <YStack marginVertical="$4">
+      <div className="flex justify-center items-center my-4">
         <Spinner />
-      </YStack>
+      </div>
     )
   }
   return (

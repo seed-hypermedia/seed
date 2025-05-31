@@ -20,8 +20,9 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
+import {Spinner} from '@shm/ui/spinner'
 import {useMemo} from 'react'
-import {SizableText, Spinner, YStack} from 'tamagui'
+import {SizableText, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {renderCommentContent} from './commenting'
 
@@ -105,7 +106,11 @@ function DocumentPreview({
 }) {
   const doc = useEntity(docId)
   if (doc.isInitialLoading) {
-    return <Spinner />
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   }
   if (!doc.data) return null
 

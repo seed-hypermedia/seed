@@ -96,6 +96,7 @@ export function useRouteLink(
   route: NavRoute | string | null,
   opts?: {
     replace?: boolean
+    onPress?: () => void
   },
 ) {
   const context = useContext(UniversalAppContext)
@@ -129,6 +130,7 @@ export function useRouteLink(
       ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
           e.preventDefault()
           e.stopPropagation()
+          opts?.onPress?.()
           if (typeof route === 'string') {
             context.openUrl(
               route.startsWith('http') ? route : `https://${route}`,
@@ -147,6 +149,7 @@ export function useRouteLink(
       ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
           e.preventDefault()
           e.stopPropagation()
+          opts?.onPress?.()
           if (typeof route === 'string') {
             context.openUrl(
               route.startsWith('http') ? route : `https://${route}`,

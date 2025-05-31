@@ -328,7 +328,9 @@ function PromiseToast<V>({
   if (state.state === 'loading')
     return (
       <XStack gap="$3" ai="center">
-        <Spinner />
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
         <SizableText>{messages.loading}</SizableText>
       </XStack>
     )

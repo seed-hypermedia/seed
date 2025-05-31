@@ -104,10 +104,13 @@ export function SiteHeader({
         <HypermediaHostBanner origin={origin} />
       ) : null}
       <header
-        className={cn('w-full p-4 border-b border-border flex bg-background', {
-          'flex-col': isCenterLayout,
-          'flex-row items-center': !isCenterLayout,
-        })}
+        className={cn(
+          'w-full p-4 border-b border-muted flex bg-white dark:bg-black',
+          {
+            'flex-col': isCenterLayout,
+            'flex-row items-center': !isCenterLayout,
+          },
+        )}
         // this data attribute is used by the hypermedia highlight component
         data-docid={headerHomeId.id}
       >
@@ -149,6 +152,10 @@ export function SiteHeader({
                 <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
                   {items?.map((item) => (
                     <DocumentSmallListItem
+                      onPress={() => {
+                        console.log('~ onPress')
+                        setIsMobileMenuOpen(false)
+                      }}
                       key={item.id?.id || ''}
                       id={item.id}
                       metadata={item.metadata}
@@ -171,7 +178,14 @@ export function SiteHeader({
                 />
               )}
               {docId && isHomeDoc && (
-                <NavItems id={docId} supportQueries={supportQueries} />
+                <NavItems
+                  id={docId}
+                  supportQueries={supportQueries}
+                  onPress={() => {
+                    console.log('~ onPress')
+                    setIsMobileMenuOpen(false)
+                  }}
+                />
               )}
             </div>
           )}
@@ -184,9 +198,11 @@ export function SiteHeader({
 function NavItems({
   id,
   supportQueries,
+  onPress,
 }: {
   id: UnpackedHypermediaId
   supportQueries?: HMQueryResult[]
+  onPress?: () => void
 }) {
   const directoryItems = getSiteNavDirectory({
     id,
@@ -198,6 +214,7 @@ function NavItems({
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
+              onPress={onPress}
               key={id.path?.join('/') || id.id}
               metadata={doc.metadata}
               id={doc.id}

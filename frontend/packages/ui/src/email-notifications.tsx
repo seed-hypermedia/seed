@@ -2,9 +2,10 @@ import {zodResolver} from '@hookform/resolvers/zod'
 import {Button} from '@shm/ui/button'
 import {FormCheckbox, FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
+import {Spinner} from '@shm/ui/spinner'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
-import {Form, SizableText, Spinner, XStack, YStack} from 'tamagui'
+import {Form, SizableText, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 
 const emailNotificationsSchema = z.object({

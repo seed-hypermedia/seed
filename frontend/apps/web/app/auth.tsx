@@ -503,7 +503,12 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
-  if (account.isLoading) return <Spinner />
+  if (account.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   const isAccountAliased = account.data?.id.uid !== keyPair.id
   return (
     <>

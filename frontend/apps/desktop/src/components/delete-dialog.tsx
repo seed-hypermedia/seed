@@ -8,6 +8,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {ReactNode} from 'react'
 import {
@@ -17,7 +18,6 @@ import {
   HeadingProps,
   ParagraphProps,
   SizableText,
-  Spinner,
   XStack,
   XStackProps,
   YStack,
@@ -66,7 +66,12 @@ export function DeleteEntityDialog({
   const cap = useMyCapability(id)
   const doc = useEntity(id)
 
-  if (doc.isLoading) return <Spinner />
+  if (doc.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   if (doc.isError || !doc.data?.document)
     return (
       <AlertDialog.Description theme="red">

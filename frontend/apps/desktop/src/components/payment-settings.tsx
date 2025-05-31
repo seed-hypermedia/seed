@@ -34,6 +34,7 @@ import {
   Upload,
 } from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
@@ -45,7 +46,6 @@ import {
   Heading,
   Input,
   SizableText,
-  Spinner,
   Tooltip,
   View,
   XStack,
@@ -62,8 +62,18 @@ export function AccountWallet({
   const createWallet = useCreateWallet()
   const wallets = useListWallets(accountUid)
   if (!wallets.data?.wallets) return null
-  if (wallets.isLoading) return <Spinner />
-  if (createWallet.isLoading) return <Spinner />
+  if (wallets.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
+  if (createWallet.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   if (wallets.data.wallets.length) {
     return wallets.data.wallets.map((wallet) => (
       <WalletButton
@@ -121,7 +131,9 @@ function WalletButton({
         <XStack ai="center" gap="$3">
           <Tag label="Account Wallet" />
           {wallet.isLoading ? (
-            <Spinner />
+            <div className="flex justify-center items-center">
+              <Spinner />
+            </div>
           ) : wallet.data ? (
             <SizableText
               fontFamily="$mono"
@@ -184,7 +196,9 @@ export function WalletPage({
       </XStack>
       {
         wallet.isLoading ? (
-          <Spinner />
+          <div className="flex justify-center items-center">
+            <Spinner />
+          </div>
         ) : wallet.isError ? (
           <YStack margin="$4">
             <Heading fontWeight="bold" color="$red10">
@@ -212,9 +226,9 @@ export function WalletPage({
             </SizableText>
           </YStack>
         ) : (
-          <YStack margin="$4">
+          <div className="flex justify-center items-center m-4">
             <Spinner />
-          </YStack>
+          </div>
         )}
       </TableList>
     </YStack>

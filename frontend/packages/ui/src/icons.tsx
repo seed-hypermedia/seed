@@ -224,7 +224,7 @@ export function CitationsIcon({
 }
 
 export function HistoryIcon({
-  color = DefaultIconColor,
+  color = 'currentColor',
   size = 20,
   ...props
 }: {

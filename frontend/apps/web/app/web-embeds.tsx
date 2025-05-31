@@ -133,7 +133,12 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const authors = useEntities(
     doc.data?.document?.authors.map((uid) => hmId('d', uid)) || [],
   )
-  if (doc.isLoading) return <Spinner />
+  if (doc.isLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   if (!doc.data) return <ErrorBlock message="Could not load embed" />
   const id = narrowHmId(props)
   return (

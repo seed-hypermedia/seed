@@ -100,7 +100,11 @@ function CopiedToast({
   let indicator: ReactNode = null
   let message: ReactNode = ''
   if (published === null) {
-    indicator = <Spinner />
+    indicator = (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
     message = (
       <>
         Copied URL, pushing to <Hostname host={host} />

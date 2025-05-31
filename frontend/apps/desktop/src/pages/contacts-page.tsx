@@ -37,9 +37,9 @@ export default function ContactsPage() {
     return (
       <PanelContainer>
         <MainWrapper scrollable>
-          <Container centered>
+          <div className="flex justify-center items-center p-6">
             <Spinner />
-          </Container>
+          </div>
         </MainWrapper>
       </PanelContainer>
     )

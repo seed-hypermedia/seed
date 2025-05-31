@@ -132,7 +132,11 @@ function CommentBlockAccessory({
       <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />
     )
   } else if (doc.isInitialLoading) {
-    quotedContent = <Spinner />
+    quotedContent = (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   }
   let panelContent = null
   if (citations.data) {

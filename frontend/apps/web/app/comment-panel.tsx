@@ -10,10 +10,12 @@ import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
+import {Spinner} from '@shm/ui/spinner'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff, X} from '@tamagui/lucide-icons'
 import React, {useCallback, useMemo} from 'react'
-import {Button, SizableText, Spinner, XStack, YStack} from 'tamagui'
+import {Button, SizableText, XStack, YStack} from 'tamagui'
+
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
@@ -32,12 +34,21 @@ type DiscussionsPanelProps = {
   handleBack: () => void
   handleClose: () => void
   handleStartDiscussion?: () => void
+  activitySummary?: React.ReactNode
 }
 
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {homeId, commentId, blockId, siteHost, handleBack, handleClose} = props
+  const {
+    homeId,
+    commentId,
+    blockId,
+    siteHost,
+    handleBack,
+    handleClose,
+    activitySummary = null,
+  } = props
 
   const isDark = useIsDark()
 
@@ -103,15 +114,15 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         h={56}
         borderBottomWidth={1}
         borderBottomColor="$borderColor"
-        bg={isDark ? '$background' : '$backgroundStrong'}
+        bg={'$backgroundStrong'}
         justifyContent="space-between"
       >
-        <SizableText size="$3" fontWeight="bold">
-          Discussions
-        </SizableText>
+        <p className="text-md font-bold">Discussions</p>
+        {activitySummary}
         <Button
           alignSelf="center"
           display="none"
+          size="$3"
           $gtSm={{display: 'flex'}}
           icon={X}
           chromeless
@@ -143,7 +154,11 @@ export function AllDiscussions({
   const commentGroups = allDiscussions?.data?.commentGroups || []
   let panelContent = null
   if (allDiscussions.isLoading && !allDiscussions.data) {
-    panelContent = <Spinner />
+    panelContent = (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   } else if (allDiscussions.data) {
     panelContent =
       commentGroups?.length > 0 ? (

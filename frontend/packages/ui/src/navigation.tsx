@@ -50,7 +50,7 @@ export function DocumentSmallListItem({
       'No route for DocumentSmallListItem. Must provide either id or draftId',
     )
   }
-  const linkProps = useRouteLink(route)
+  const linkProps = useRouteLink(route, {onPress})
   const color = isPublished === false ? '$color11' : undefined
 
   if (items)
@@ -66,6 +66,7 @@ export function DocumentSmallListItem({
         active={active}
         {...linkProps}
         onPress={(e) => {
+          console.log('~ HHH onPress')
           onPress?.()
           linkProps.onPress?.(e)
         }}

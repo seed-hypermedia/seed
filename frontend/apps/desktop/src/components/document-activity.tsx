@@ -153,9 +153,9 @@ export function ActivityList({
     childrenActivity.isInitialLoading
   if (isInitialLoad) {
     return (
-      <YStack padding="$4" jc="center" ai="center" gap="$4">
+      <div className="flex justify-center items-center p-4">
         <Spinner />
-      </YStack>
+      </div>
     )
   }
   if (activityWithGroups.length == 0) {

@@ -208,7 +208,11 @@ const display = ({
         height="auto"
         style={{border: 'none', overflow: 'hidden'}}
       ></iframe> */}
-      {loading && <Spinner />}
+      {loading && (
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
+      )}
       {error && (
         <YStack padding="$7" alignItems="center" alignContent="center">
           <SizableText

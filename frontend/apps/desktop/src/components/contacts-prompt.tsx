@@ -92,7 +92,11 @@ export function AddConnectionDialog({
         >
           Connect to Peer
         </Button>
-        {connect.isLoading ? <Spinner /> : null}
+        {connect.isLoading ? (
+          <div className="flex justify-center items-center">
+            <Spinner />
+          </div>
+        ) : null}
       </XStack>
     </>
   )

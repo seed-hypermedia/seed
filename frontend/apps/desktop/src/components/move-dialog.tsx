@@ -31,7 +31,12 @@ export function MoveDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
-  if (!entity) return <Spinner />
+  if (!entity)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   return (
     <YStack>
       <DialogTitle>Move "{entity?.document?.metadata.name}"</DialogTitle>
@@ -83,7 +88,9 @@ export function MoveDialog({
           </XStack>
         </>
       ) : (
-        <Spinner />
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
       )}
     </YStack>
   )

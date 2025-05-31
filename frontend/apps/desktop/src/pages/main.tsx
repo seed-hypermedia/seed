@@ -10,6 +10,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {NavRoute} from '@shm/shared/routes'
+import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -22,7 +23,7 @@ import {
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {Button, Spinner, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -176,7 +177,11 @@ function ConfirmConnectionDialogContent({
   return (
     <>
       <DialogTitle>Confirm Connection</DialogTitle>
-      {connect.isLoading ? <Spinner /> : null}
+      {connect.isLoading ? (
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
+      ) : null}
       <Button
         onPress={() => {
           console.log('Will attempt connection:', input)

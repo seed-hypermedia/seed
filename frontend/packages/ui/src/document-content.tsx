@@ -922,6 +922,7 @@ export function BlockNodeContent({
           {onBlockCopy ? (
             <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
               <Button
+                background={isDark ? '$background' : '$backgroundStrong'}
                 userSelect="none"
                 size="$1"
                 opacity={0}
@@ -2426,7 +2427,11 @@ export function BlockContentWebEmbed({
         }
       }}
     >
-      {loading && <Spinner />}
+      {loading && (
+        <div className="flex justify-center items-center">
+          <Spinner />
+        </div>
+      )}
       <div
         ref={containerRef}
         style={{

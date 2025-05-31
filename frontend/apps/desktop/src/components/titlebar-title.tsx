@@ -510,7 +510,11 @@ function BreadcrumbItem({
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
   if (details.isLoading) {
-    return <Spinner />
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
   }
   if (details.isError) {
     if (details.fallbackName) {

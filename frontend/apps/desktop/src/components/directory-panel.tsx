@@ -19,9 +19,9 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const isInitialLoad = childrenActivity.isInitialLoading
   if (isInitialLoad) {
     return (
-      <YStack padding="$4" jc="center" ai="center" gap="$4">
+      <div className="flex justify-center items-center p-4">
         <Spinner />
-      </YStack>
+      </div>
     )
   }
   if (directory.length == 0) {
