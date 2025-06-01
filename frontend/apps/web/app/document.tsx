@@ -295,14 +295,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  console.log('== useDocumentLayout', {
-    showSidebars,
-    showCollapsed,
-    wrapperProps,
-    sidebarProps,
-    mainContentProps,
-  })
-
   const activityEnabled = document?.metadata?.showActivity !== false
   const interactionSummary = useInteractionSummary(id, {
     enabled: activityEnabled,
@@ -714,17 +706,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   borderWidth={1}
                   borderRadius="$4"
                 >
-                  <div className="absolute top-0 right-0 z-[999] p-3 flex justify-end">
-                    {interactionSummary.data ? <>{activitySummary}</> : null}
-                  </div>
                   <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
-                    {/* <YStack f={1}>
-                    {new Array(2000).fill(0).map((_, i) => (
-                      <SizableText key={i} h={20} w="100%">
-                        {i}
-                      </SizableText>
-                    ))}
-                  </YStack> */}
                     {panel}
                   </Sheet.ScrollView>
                   <div className="p-2 border-t border-sidebar-border">
