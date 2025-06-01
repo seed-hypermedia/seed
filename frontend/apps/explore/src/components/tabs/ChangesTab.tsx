@@ -1,7 +1,9 @@
 import {packHmId, UnpackedHypermediaId} from "@shm/shared";
+import {History} from "lucide-react";
 import React, {useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import DataViewer from "../DataViewer";
+import EmptyState from "../EmptyState";
 
 const ChangesTab: React.FC<{changes: any[]; docId: UnpackedHypermediaId}> = ({
   changes,
@@ -9,7 +11,11 @@ const ChangesTab: React.FC<{changes: any[]; docId: UnpackedHypermediaId}> = ({
 }) => {
   const navigate = useNavigate();
   const preparedChanges = useMemo(() => {
-    return changes?.map((change) => {
+    if (!Array.isArray(changes)) {
+      console.warn("Changes is not an array:", changes);
+      return [];
+    }
+    return changes.map((change) => {
       const {id, author, deps, ...rest} = change;
       const out = {...rest};
       if (author) {
@@ -24,10 +30,15 @@ const ChangesTab: React.FC<{changes: any[]; docId: UnpackedHypermediaId}> = ({
       }
       return out;
     });
-  }, [changes]);
+  }, [changes, docId]);
+
+  if (!Array.isArray(changes) || changes.length === 0) {
+    return <EmptyState message="No changes available" icon={History} />;
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {preparedChanges?.map((change) => (
+      {preparedChanges.map((change) => (
         <div key={change.id}>
           <DataViewer data={change} onNavigate={navigate} />
         </div>

@@ -30,7 +30,7 @@ export default function Home() {
   };
 
   return (
-    <div className="container p-4 mx-auto bg-white rounded-lg shadow">
+    <div className="container p-4 mx-auto bg-white rounded-lg shadow max-w-2xl">
       <h1 className="mb-4 text-3xl font-bold text-gray-900">
         Explore Hypermedia
       </h1>
@@ -40,18 +40,18 @@ export default function Home() {
       </p>
 
       <form onSubmit={handleSearch} className="mb-6">
-        <div className="flex">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <input
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Enter URL to explore..."
-            className="flex-1 p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 p-4 text-base border border-gray-300 rounded-lg sm:rounded-l-lg sm:rounded-r-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
             type="submit"
             disabled={isLoading || !url}
-            className="flex items-center gap-2 px-6 py-3 text-white bg-blue-600 rounded-r-lg hover:bg-blue-700 disabled:bg-blue-300"
+            className="flex items-center justify-center gap-2 px-6 py-4 text-base font-semibold text-white bg-blue-600 rounded-lg sm:rounded-l-none sm:rounded-r-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors min-h-[56px]"
           >
             {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : "Search"}
           </button>

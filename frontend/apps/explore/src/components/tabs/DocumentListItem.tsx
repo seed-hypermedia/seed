@@ -14,14 +14,14 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
     <a
       key={doc.id.id}
       href={`/hm/${doc.id.uid}/${doc.id.path?.join("/") || ""}`}
-      className="flex items-center justify-between p-4 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 group"
+      className="flex items-center justify-between p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 group gap-3"
     >
-      <span className="font-medium">
+      <span className="font-medium text-gray-900 truncate flex-1 min-w-0">
         {doc.metadata?.name || doc.id.path?.at(-1) || "Untitled"}
       </span>
-      <div className="flex items-center space-x-2 transition-opacity opacity-0 group-hover:opacity-100">
+      <div className="flex items-center space-x-1 transition-opacity opacity-0 group-hover:opacity-100 flex-shrink-0">
         <button
-          className="relative p-2 rounded-full hover:bg-gray-100 group/button"
+          className="relative p-1.5 rounded-full hover:bg-gray-100 group/button"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -34,7 +34,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
           </span>
         </button>
         <button
-          className="relative p-2 rounded-full hover:bg-gray-100 group/button"
+          className="relative p-1.5 rounded-full hover:bg-gray-100 group/button"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -47,7 +47,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
           </span>
         </button>
         <button
-          className="relative p-2 rounded-full hover:bg-gray-100 group/button"
+          className="relative p-1.5 rounded-full hover:bg-gray-100 group/button"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
