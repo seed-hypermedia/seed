@@ -33,6 +33,7 @@ export default function Navbar() {
     {href: "https://seed.hyper.media/blog", label: "Blog"},
     {href: "https://seed.hyper.media/team", label: "Team"},
     {href: "https://seed.hyper.media/community", label: "Community"},
+    {href: "https://explore.hyper.media/", label: "Explore"},
   ];
 
   return (
