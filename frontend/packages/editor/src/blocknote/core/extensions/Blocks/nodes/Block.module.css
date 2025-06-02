@@ -520,9 +520,7 @@ NESTED BLOCKS
   line-height: 1.5;
 }
 
-.isEmpty
-  .blockContent[data-content-type='image']
-  .inlineContent::before {
+.isEmpty .blockContent[data-content-type='image'] .inlineContent::before {
   content: 'Image caption';
   position: absolute;
   left: 50%;
