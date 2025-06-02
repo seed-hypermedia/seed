@@ -1,19 +1,15 @@
-import {PlainMessage} from '@bufbuild/protobuf'
 import {useRouteLink} from '@shm/shared'
-import {DocumentChangeInfo} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {getMetadataName} from '@shm/shared/content'
 import {
-  HMChangeInfo,
-  HMDocumentChangeInfo,
-  HMDraftChange,
+  HMChangeSummary,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
-import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Version} from '@shm/ui/icons'
-import {ButtonText, SizableText, XStack, YStack} from 'tamagui'
+import {Button} from './components/button'
+import {HMIcon} from './hm-icon'
+import {Version} from './icons'
+import {cn} from './utils'
 
 export function ChangeItem({
   change,
@@ -21,21 +17,24 @@ export function ChangeItem({
   isLast = false,
   isCurrent,
   docId,
+  author,
 }: {
-  change: HMDocumentChangeInfo
+  change: HMChangeSummary | any // Using any to handle the type mismatch from activity.tsx
   isActive: boolean
   isLast: boolean
   isCurrent: boolean
   docId: UnpackedHypermediaId
+  author?: HMMetadataPayload | undefined
 }) {
-  const iconSize = 20
-  const isDraft = (c: HMChangeInfo): c is HMDraftChange =>
-    'type' in c && c.type === 'draftChange'
-  const getChangeTime = (c: HMChangeInfo) => {
-    if (isDraft(c))
-      return c.lastUpdateTime ? new Date(c.lastUpdateTime * 1000) : new Date()
-    return (c as PlainMessage<DocumentChangeInfo>).createTime
+  // Handle both data structures: separate author prop (desktop) or embedded in change (web)
+  const authorData = author || (change as any)?.author
+
+  if (!authorData || !authorData.id) {
+    console.warn('ChangeItem: no author data available', {change, author})
+    return null
   }
+
+  const iconSize = 20
 
   const linkProps = useRouteLink({
     key: 'document',
@@ -45,78 +44,49 @@ export function ChangeItem({
   return (
     <Button
       key={change.id}
-      h="auto"
-      p="$3"
-      paddingHorizontal="$1"
-      paddingRight="$3"
-      borderRadius="$2"
-      backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: isActive ? '$brand12' : '$color6',
-        borderColor: '$borderTransparent',
-      }}
-      ai="flex-start"
-      position="relative"
+      variant="ghost"
+      className={cn(
+        'h-auto p-3 rounded-md items-start relative transition-colors gap-2',
+        isActive
+          ? 'bg-brand/10 hover:bg-brand/20'
+          : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
+      )}
       {...linkProps}
     >
-      <XStack
-        w={1}
-        h="100%"
-        bg="$color8"
-        position="absolute"
-        top={14}
-        left={21}
-        opacity={isLast ? 0 : 1}
-        zi="$zIndex.1"
+      <div
+        className={cn(
+          'absolute w-px h-full bg-gray-300 dark:bg-gray-600 top-3.5 left-[22px] z-10',
+          isLast ? 'opacity-0' : 'opacity-100',
+        )}
       />
 
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        w={20}
-        h={20}
-        zi="$zIndex.2"
-        ai="center"
-        bg="#2C2C2C"
-        jc="center"
-        borderRadius={10}
-        p={1}
-      >
+      <div className="flex-shrink-0 size-5 z-20 flex items-center justify-center bg-gray-800 rounded-full p-0.5">
         <Version size={16} color="white" />
-      </XStack>
-      {change.author.id && (
+      </div>
+      <div
+        className="flex-shrink-0"
+        style={{width: iconSize, height: iconSize}}
+      >
         <HMIcon
-          flexGrow={0}
-          flexShrink={0}
           size={iconSize}
-          id={change.author.id}
-          metadata={change.author.metadata}
+          id={authorData.id}
+          metadata={authorData.metadata}
         />
-      )}
-      <YStack f={1}>
-        <XStack
-          h={iconSize}
-          ai="center"
-          gap="$2"
-          overflow="hidden"
-          width="100%"
+      </div>
+      <div className="flex-1 flex flex-col">
+        <div
+          className="flex items-center gap-2 overflow-hidden w-full"
+          style={{height: iconSize}}
         >
-          {change.author.id && <AuthorName author={change.author} />}
-          <SizableText size="$2" flexShrink={0}>
+          <AuthorName author={authorData} />
+          <span className="text-sm flex-shrink-0 font-light text-muted-foreground">
             {isCurrent ? 'current version' : 'version'}
-          </SizableText>
-        </XStack>
-        <SizableText
-          size="$1"
-          color="$color9"
-          flexShrink={1}
-          textOverflow="ellipsis"
-          overflow="hidden"
-          whiteSpace="nowrap"
-        >
-          {formattedDateMedium(getChangeTime(change))}
-        </SizableText>
-      </YStack>
+          </span>
+        </div>
+        <span className="text-xs text-muted-foreground flex-shrink-1 truncate text-left">
+          {change.createTime ? formattedDateMedium(change.createTime) : ''}
+        </span>
+      </div>
     </Button>
   )
 }
@@ -124,19 +94,13 @@ export function ChangeItem({
 function AuthorName({author}: {author: HMMetadataPayload}) {
   const linkProps = useRouteLink({key: 'document', id: author.id})
   return (
-    <ButtonText
-      size="$2"
-      flexShrink={1}
-      textOverflow="ellipsis"
-      overflow="hidden"
-      whiteSpace="nowrap"
-      fontWeight="bold"
-      hoverStyle={{
-        bg: '$color3',
-      }}
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-sm flex-shrink-1 truncate font-bold hover:bg-gray-200 dark:hover:bg-gray-700 p-0 h-auto"
       {...linkProps}
     >
       {getMetadataName(author.metadata)}
-    </ButtonText>
+    </Button>
   )
 }

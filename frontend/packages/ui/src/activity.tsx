@@ -5,7 +5,6 @@ import {
   HMAccountsMetadata,
   HMActivitySummary,
   HMChangeGroup,
-  HMChangeInfo,
   HMComment,
   hmId,
   HMLibraryDocument,
@@ -20,6 +19,7 @@ import {ChevronDown} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {useState} from 'react'
+import {ChangeItem} from './change-item'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
 
@@ -196,120 +196,6 @@ export function ChangeGroup({
       onExpand={() => setIsCollapsed(false)}
       author={author}
     />
-  )
-}
-
-export function ChangeItem({
-  change,
-  isActive,
-  isLast = false,
-  isCurrent,
-  author,
-  docId,
-}: {
-  change: HMChangeInfo
-  isActive: boolean
-  isLast: boolean
-  isCurrent: boolean
-  docId: UnpackedHypermediaId
-  author: HMMetadataPayload
-}) {
-  const iconSize = 20
-  const linkProps = useRouteLink(
-    {
-      key: 'document',
-      id: {
-        ...docId,
-        version: change.id,
-      },
-    },
-    undefined,
-    {
-      replace: true,
-    },
-  )
-  return (
-    <Button
-      key={change.id}
-      height="auto"
-      padding="$3"
-      paddingHorizontal="$1"
-      paddingRight="$3"
-      borderRadius="$2"
-      backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: isActive ? '$brand12' : '$color6',
-        borderColor: '$borderTransparent',
-      }}
-      alignItems="flex-start"
-      position="relative"
-      {...linkProps}
-    >
-      <XStack
-        width={1}
-        height="100%"
-        backgroundColor="$color8"
-        position="absolute"
-        top={14}
-        left={21}
-        opacity={isLast ? 0 : 1}
-        zi="$zIndex.1"
-      />
-
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        width={20}
-        height={20}
-        zIndex="$zIndex.2"
-        alignItems="center"
-        backgroundColor={'#2C2C2C'}
-        justifyContent="center"
-        borderRadius={10}
-        padding={1}
-      >
-        <Version size={16} color="white" />
-      </XStack>
-      <HMIcon
-        flexGrow={0}
-        flexShrink={0}
-        size={iconSize}
-        id={author.id}
-        metadata={author.metadata}
-      />
-      <YStack f={1}>
-        <XStack
-          height={iconSize}
-          alignItems="center"
-          gap="$2"
-          overflow="hidden"
-          width="100%"
-        >
-          <SizableText
-            size="$2"
-            flexShrink={1}
-            textOverflow="ellipsis"
-            overflow="hidden"
-            whiteSpace="nowrap"
-          >
-            {getMetadataName(author.metadata)}
-          </SizableText>
-          <SizableText size="$2" fontWeight={700} flexShrink={0}>
-            {isCurrent ? 'current version' : 'version'}
-          </SizableText>
-        </XStack>
-        <SizableText
-          size="$1"
-          color="$color9"
-          flexShrink={1}
-          textOverflow="ellipsis"
-          overflow="hidden"
-          whiteSpace="nowrap"
-        >
-          {formattedDateMedium(change.createTime)}
-        </SizableText>
-      </YStack>
-    </Button>
   )
 }
 

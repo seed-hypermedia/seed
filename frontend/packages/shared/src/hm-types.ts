@@ -573,12 +573,12 @@ export type HMLibraryDocument = HMDocumentInfo & {
   latestComment?: HMComment | null
 }
 
-type DraftChangeInfo = {
-  author: string
-  id: string
-  deps: Array<string>
-  isDraft: boolean
-}
+// type DraftChangeInfo = {
+//   author: string
+//   id: string
+//   deps: Array<string>
+//   isDraft: boolean
+// }
 
 export type HMDocumentChangeInfo = {
   author: HMMetadataPayload
@@ -587,7 +587,7 @@ export type HMDocumentChangeInfo = {
   id: string
 }
 
-export type HMChangeInfo = HMDocumentChangeInfo | DraftChangeInfo
+export type HMChangeInfo = HMDocumentChangeInfo
 
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),
