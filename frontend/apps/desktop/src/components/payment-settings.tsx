@@ -64,13 +64,13 @@ export function AccountWallet({
   if (!wallets.data?.wallets) return null
   if (wallets.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
   if (createWallet.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -131,7 +131,7 @@ function WalletButton({
         <XStack ai="center" gap="$3">
           <Tag label="Account Wallet" />
           {wallet.isLoading ? (
-            <div className="flex justify-center items-center">
+            <div className="flex items-center justify-center">
               <Spinner />
             </div>
           ) : wallet.data ? (
@@ -196,7 +196,7 @@ export function WalletPage({
       </XStack>
       {
         wallet.isLoading ? (
-          <div className="flex justify-center items-center">
+          <div className="flex items-center justify-center">
             <Spinner />
           </div>
         ) : wallet.isError ? (
@@ -226,7 +226,7 @@ export function WalletPage({
             </SizableText>
           </YStack>
         ) : (
-          <div className="flex justify-center items-center m-4">
+          <div className="flex items-center justify-center m-4">
             <Spinner />
           </div>
         )}
@@ -367,7 +367,7 @@ function WithdrawDialog({
           {invoice.description}
         </DialogDescription>
         <XStack marginVertical="$4" jc="center">
-          <Spinner opacity={payInvoice.isLoading ? 1 : 0} />
+          <Spinner hide={!payInvoice.isLoading} />
         </XStack>
         <XStack gap="$4">
           <Button
@@ -498,7 +498,7 @@ function AddFundsDialog({
             />
           </Field>
           <XStack jc="center">
-            <Spinner opacity={createInvoice.isLoading ? 1 : 0} />
+            <Spinner hide={!createInvoice.isLoading} />
           </XStack>
           <XStack gap="$4">
             <Button f={1} onPress={onClose}>

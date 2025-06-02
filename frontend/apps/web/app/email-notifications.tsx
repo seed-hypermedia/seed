@@ -26,6 +26,7 @@ export function EmailNotificationsForm({
   defaultValues?: z.infer<typeof emailNotificationsSchema>
 }) {
   const {mutateAsync, isLoading} = useSetEmailNotifications()
+  console.log('EmailNotificationsForm', isLoading)
   return (
     <UIEmailNotificationsForm
       setEmailNotifications={mutateAsync}
@@ -64,7 +65,7 @@ export function NotifSettingsDialog({onClose}: {onClose: () => void}) {
   console.log('emailNotifications', emailNotifications)
   if (isEmailNotificationsLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     ) // todo: make it look better

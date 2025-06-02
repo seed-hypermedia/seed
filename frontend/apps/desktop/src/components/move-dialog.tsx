@@ -4,9 +4,10 @@ import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
-import {Spinner, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 export function MoveDialog({
@@ -33,7 +34,7 @@ export function MoveDialog({
   )
   if (!entity)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -55,7 +56,7 @@ export function MoveDialog({
             allowedAccounts={input.accountsWhoCanMove}
           />
           <XStack gap="$2">
-            <Spinner opacity={moveDoc.isLoading ? 1 : 0} />
+            <Spinner hide={!moveDoc.isLoading} />
 
             {location && account ? (
               <Button
@@ -88,7 +89,7 @@ export function MoveDialog({
           </XStack>
         </>
       ) : (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}

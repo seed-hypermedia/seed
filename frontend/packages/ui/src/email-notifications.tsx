@@ -84,8 +84,8 @@ export function UIEmailNotificationsForm({
         />
       </YStack>
       <EmptyNotifWarning control={control} />
-      <XStack jc="flex-end" gap="$3">
-        <Spinner opacity={isLoading ? 1 : 0} />
+      <XStack jc="flex-end" gap="$3" alignItems="center">
+        <Spinner hide={!isLoading} />
         <Button
           // @ts-expect-error
           type="button" // Prevent form submission

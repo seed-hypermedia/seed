@@ -4,9 +4,10 @@ import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
-import {Spinner, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 
@@ -29,7 +30,7 @@ export function BranchDialog({
   )
   if (!entity)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -51,7 +52,7 @@ export function BranchDialog({
             }}
           />
           <XStack gap="$2">
-            <Spinner opacity={forkDoc.isLoading ? 1 : 0} />
+            <Spinner hide={!forkDoc.isLoading} />
 
             {location && account ? (
               <Button
@@ -84,7 +85,7 @@ export function BranchDialog({
           </XStack>
         </>
       ) : (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}
