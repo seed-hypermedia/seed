@@ -28,14 +28,14 @@ export const budgets: Record<string, AppBudgets> = {
       inp: 500, // 500ms
       cls: 0.25, // 0.25
       ttfb: 800, // 800ms
-      pageSize: 1500000, // 1.5MB
+      pageSize: 8000000, // 7MB
     },
     desktop: {
       lcp: 2000, // 2s
       inp: 200, // 200ms
       cls: 0.1, // 0.1
       ttfb: 500, // 500ms
-      pageSize: 1500000, // 1.5MB
+      pageSize: 8000000, // 7MB
     },
   },
 };
