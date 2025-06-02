@@ -1,29 +1,28 @@
 import {ChevronLeft} from '@tamagui/lucide-icons'
-import {Button} from 'tamagui'
-
-import {styled} from 'tamagui'
+import {HTMLAttributes} from 'react'
+import {Button} from './components/button'
 
 export function AccessoryBackButton({
   onPress,
   label,
+  className,
+  ...props
 }: {
   onPress: () => void
   label?: string
-}) {
+} & HTMLAttributes<HTMLButtonElement>) {
   return (
-    <StyledAccessoryBackButton icon={ChevronLeft} onPress={onPress}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`justify-start px-2 py-0 text-muted-foreground rounded-lg ${
+        className || ''
+      }`}
+      onClick={onPress}
+      {...props}
+    >
+      <ChevronLeft size={16} />
       {label || 'Back'}
-    </StyledAccessoryBackButton>
+    </Button>
   )
 }
-
-const StyledAccessoryBackButton = styled(Button, {
-  chromeless: true,
-  size: '$3',
-  name: 'StyledAccessoryBackButton',
-  color: '$color10',
-  borderRadius: '$4',
-  paddingHorizontal: '$2',
-  paddingVertical: 0,
-  justifyContent: 'flex-start',
-})
