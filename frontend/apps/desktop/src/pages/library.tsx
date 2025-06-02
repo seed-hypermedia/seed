@@ -459,6 +459,7 @@ function LibrarySiteItem({
         <YStack f={1}>
           <XStack gap="$3" ai="center">
             <SizableText
+              textAlign="left"
               f={1}
               fontWeight={isRead ? undefined : 'bold'}
               textOverflow="ellipsis"
@@ -548,6 +549,7 @@ export function LibraryDocumentItem({
         />
         <XStack gap="$3" ai="center">
           <SizableText
+            textAlign="left"
             f={1}
             fontWeight={isRead ? undefined : 'bold'}
             textOverflow="ellipsis"
