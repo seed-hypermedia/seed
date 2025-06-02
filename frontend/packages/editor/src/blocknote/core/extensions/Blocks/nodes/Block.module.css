@@ -520,7 +520,7 @@ NESTED BLOCKS
   line-height: 1.5;
 }
 
-.isEmpty.hasAnchor
+.isEmpty
   .blockContent[data-content-type='image']
   .inlineContent::before {
   content: 'Image caption';
