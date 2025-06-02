@@ -20,7 +20,7 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
   return (
     <li role="presentation">
       <button
-        className={`inline-block p-2 border-transparent ${
+        className={`inline-block p-2 border-transparent whitespace-nowrap flex-shrink-0 ${
           isActive
             ? "text-blue-600 border-b-2 border-blue-600 border-0 rounded-none"
             : "hover:text-gray-600 border-none rounded-none"
@@ -94,7 +94,10 @@ const Tabs: React.FC<TabsProps> = ({
 
   return (
     <div className="mb-4 border-b border-gray-200">
-      <ul className="flex text-sm font-medium text-center" role="tablist">
+      <ul
+        className="flex px-2 overflow-x-auto text-sm font-medium text-center flex-nowrap md:px-0"
+        role="tablist"
+      >
         {tabs.map((tab) => (
           <Tab
             key={tab.id}

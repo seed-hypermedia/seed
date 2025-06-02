@@ -159,7 +159,7 @@ export default function HM() {
   }
 
   return (
-    <div className="container p-4 mx-auto">
+    <div className="container max-w-full p-4 mx-auto overflow-hidden">
       <Title
         className="mb-4"
         buttons={
@@ -169,9 +169,8 @@ export default function HM() {
             <OpenInAppButton url={url} />
           </>
         }
-      >
-        {url}
-      </Title>
+        title={url}
+      />
 
       <Tabs
         id={id}

@@ -36,7 +36,7 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
     if (typeof data === "string") {
       if (data.includes("\n")) {
         return (
-          <div className="p-2 font-mono text-black whitespace-pre-wrap bg-white rounded">
+          <div className="p-2 overflow-auto font-mono text-black whitespace-pre-wrap bg-white rounded">
             {data}
           </div>
         );
@@ -90,24 +90,28 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
 
       return (
         <div
-          className={`bg-white rounded ${
+          className={`bg-white overflow-auto rounded ${
             isTopLevel ? "px-4 py-2 rounded-xl" : ""
           }`}
         >
-          <div className="flex">
+          <div className="flex overflow-auto">
             {!isTopLevel && (
               <div
-                className="flex items-center justify-center w-4 cursor-pointer hover:bg-black"
+                className="flex items-center justify-center w-4 overflow-auto cursor-pointer hover:bg-black"
                 onClick={toggleExpand}
               />
             )}
-            <div className="flex-1">
+            <div className="flex-1 overflow-auto">
               {isExpanded ? (
                 <div
-                  className={isTopLevel ? "" : "pl-2 border-l border-gray-200"}
+                  className={
+                    isTopLevel
+                      ? "overflow-auto"
+                      : "pl-2 border-l border-gray-200 overflow-auto"
+                  }
                 >
                   {data.map((item, index) => (
-                    <div key={index} className="my-2">
+                    <div key={index} className="my-2 overflow-auto">
                       <DataViewer
                         data={item}
                         level={level + 1}
@@ -132,21 +136,25 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
 
       return (
         <div
-          className={`bg-white rounded ${
+          className={`bg-white rounded overflow-auto ${
             isTopLevel ? "px-4 py-2 rounded-xl" : ""
           }`}
         >
-          <div className="flex">
+          <div className="flex overflow-auto">
             {!isTopLevel && (
               <div
-                className="flex items-center justify-center w-4 cursor-pointer hover:bg-black"
+                className="flex items-center justify-center w-4 overflow-auto cursor-pointer hover:bg-black"
                 onClick={toggleExpand}
               />
             )}
-            <div className="flex-1">
+            <div className="flex-1 overflow-auto">
               {isExpanded ? (
                 <div
-                  className={isTopLevel ? "" : "pl-2 border-l border-gray-200"}
+                  className={
+                    isTopLevel
+                      ? "overflow-auto"
+                      : "pl-2 border-l border-gray-200 overflow-auto"
+                  }
                 >
                   {keys.map((key) => {
                     const value = data[key];
@@ -162,8 +170,8 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
                         key={key}
                         className={
                           isSimpleValue
-                            ? "flex items-center my-1"
-                            : "flex flex-col my-1"
+                            ? "flex items-center my-1 overflow-auto"
+                            : "flex flex-col my-1 overflow-auto"
                         }
                       >
                         <span className="mr-2 font-bold text-gray-700">
@@ -177,7 +185,7 @@ export const DataViewer: React.FC<DataViewerProps> = memo(
                             onNavigate={onNavigate}
                           />
                         ) : (
-                          <div className="ml-4">
+                          <div className="ml-4 overflow-auto">
                             <DataViewer
                               data={value}
                               level={level + 1}

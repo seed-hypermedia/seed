@@ -31,9 +31,8 @@ const IPFS: React.FC = () => {
             <DownloadButton url={`${apiHost}/ipfs/${cid}`} />
           </>
         }
-      >
-        {`ipfs://${cid}`}
-      </Title>
+        title={`ipfs://${cid}`}
+      />
       {revisedData && (
         <div className="mt-4">
           <DataViewer data={revisedData} onNavigate={navigate} />
