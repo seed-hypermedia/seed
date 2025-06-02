@@ -7,6 +7,7 @@ import {TamaguiProvider, TamaguiProviderProps} from 'tamagui'
 import tamaguiConfig from '../tamagui.config'
 import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
+import {HMAI} from './models/assist'
 import {WindowUtils} from './models/window-utils'
 
 export function AppContextProvider({
@@ -24,6 +25,7 @@ export function AppContextProvider({
   windowUtils,
   saveCidAsFile,
   darkMode,
+  ai,
 }: {
   children: ReactNode
   platform: AppPlatform
@@ -70,6 +72,7 @@ export function AppContextProvider({
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
   darkMode: boolean
+  ai: HMAI | null
 }) {
   const appCtx = useMemo(
     () => ({
@@ -86,6 +89,7 @@ export function AppContextProvider({
       exportDocuments,
       windowUtils,
       saveCidAsFile,
+      ai,
     }),
     [],
   )

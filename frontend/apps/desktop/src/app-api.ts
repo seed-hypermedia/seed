@@ -17,6 +17,7 @@ import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
 import path from 'path'
 import z from 'zod'
+import {assistApi} from './app-assist'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
@@ -45,6 +46,7 @@ import {
   getWindowsState,
 } from './app-windows'
 import * as log from './logger'
+
 ipcMain.on('invalidate_queries', (_event, info) => {
   appInvalidateQueries(info)
 })
@@ -183,6 +185,7 @@ function getRouteRefocusKey(route: NavRoute): string | null {
 }
 
 export const router = t.router({
+  assist: assistApi,
   drafts: draftsApi,
   experiments: experimentsApi,
   diagnosis: diagnosisApi,

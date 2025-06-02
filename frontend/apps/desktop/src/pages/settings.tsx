@@ -41,6 +41,7 @@ import {getMetadataName} from '@shm/shared/content'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
@@ -67,6 +68,7 @@ import {
   Info,
   Plus,
   RadioTower,
+  Sparkles,
   Trash,
   UserRoundPlus,
   X,
@@ -160,6 +162,12 @@ export default function Settings() {
           icon={Code2}
           label="Developers"
         />
+        <Tab
+          value="assist"
+          active={activeTab === 'assist'}
+          icon={Sparkles}
+          label="Assist"
+        />
       </Tabs.List>
       <Separator />
       <TabsContent value="accounts">
@@ -180,6 +188,9 @@ export default function Settings() {
       </TabsContent> */}
       <TabsContent value="developer">
         <DeveloperSettings />
+      </TabsContent>
+      <TabsContent value="assist">
+        <AssistSettings />
       </TabsContent>
     </Tabs>
   )
@@ -1248,6 +1259,221 @@ function PushOnCopySetting({}: {}) {
   )
 }
 
+const ANTHROPIC_MODELS = {
+  'claude-4-opus-20250514': 'Claude 4 Opus',
+  'claude-4-sonnet-20250514': 'Claude 4 Sonnet',
+  'claude-3-7-sonnet-20250219': 'Claude 3.7 Sonnet',
+  'claude-3-5-sonnet-latest': 'Claude 3.5 Sonnet',
+  // 'claude-3-5-sonnet-20241022': "Claude 3.5 Sonnet",
+}
+
+const OPENAI_MODELS = {
+  'gpt-4o': 'GPT-4o',
+  'gpt-4o-mini': 'GPT-4o Mini',
+  'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+}
+
+const providerSchema = z.enum(['openai', 'anthropic'])
+
+function AssistSettings({}: {}) {
+  const settings = trpc.assist.getSettings.useQuery()
+  const setSettings = trpc.assist.setSettings.useMutation({
+    onSuccess: () => {
+      console.log('setSettings success')
+      invalidateQueries([queryKeys.ASSIST_SETTINGS])
+    },
+  })
+  const addAPIKeyDialog = useAppDialog(AddAPIKeyDialog)
+  if (!settings.data) return null
+  let selectedModel: string | null = null
+  if (settings.data.model && settings.data.provider) {
+    selectedModel = `${settings.data.provider}:${settings.data.model}`
+  } else {
+    selectedModel = 'none'
+  }
+  const {apiKeys} = settings.data
+  return (
+    <YStack gap="$6">
+      {apiKeys.openai || apiKeys.anthropic ? (
+        <YStack gap="$2">
+          <SizableText fontWeight="bold">Select AI Model</SizableText>
+          <SelectDropdown
+            width="100%"
+            options={[
+              ...(apiKeys.openai
+                ? Object.entries(OPENAI_MODELS).map(([key, value]) => ({
+                    label: `${value} (OpenAI)`,
+                    value: `openai:${key}`,
+                  }))
+                : []),
+              ...(apiKeys.anthropic
+                ? Object.entries(ANTHROPIC_MODELS).map(([key, value]) => ({
+                    label: `${value} (Anthropic)`,
+                    value: `anthropic:${key}`,
+                  }))
+                : []),
+              {
+                label: 'Assist Disabled',
+                value: 'none',
+              },
+            ]}
+            value={selectedModel}
+            onValue={(value) => {
+              if (value === 'none') {
+                setSettings.mutate({
+                  ...settings.data,
+                  model: null,
+                  provider: null,
+                })
+                return
+              }
+              const [provider, model] = value.split(':')
+              setSettings.mutate({
+                ...settings.data,
+                model,
+                provider: providerSchema.parse(provider),
+              })
+            }}
+          />
+        </YStack>
+      ) : null}
+      {apiKeys.openai ? (
+        <APIKeyRow
+          label="OpenAI"
+          onRemove={() => {
+            setSettings.mutate({
+              ...settings.data,
+              apiKeys: {...apiKeys, openai: null},
+              provider:
+                settings.data.provider === 'openai'
+                  ? null
+                  : settings.data.provider,
+              model:
+                settings.data.provider === 'openai'
+                  ? null
+                  : settings.data.model,
+            })
+          }}
+        />
+      ) : (
+        <AddAPIKeyButton
+          label="OpenAI"
+          onAdd={() => {
+            addAPIKeyDialog.open({
+              label: 'OpenAI',
+              onAPIKey: (apiKey) => {
+                setSettings.mutate({
+                  apiKeys: {...settings.data.apiKeys, openai: apiKey},
+                  model: settings.data.model || 'gpt-4o',
+                  provider: settings.data.provider || 'openai',
+                })
+              },
+            })
+          }}
+        />
+      )}
+      {apiKeys.anthropic ? (
+        <APIKeyRow
+          label="Anthropic"
+          onRemove={() => {
+            setSettings.mutate({
+              ...settings.data,
+              apiKeys: {...apiKeys, anthropic: null},
+              provider:
+                settings.data.provider === 'anthropic'
+                  ? null
+                  : settings.data.provider,
+              model:
+                settings.data.provider === 'anthropic'
+                  ? null
+                  : settings.data.model,
+            })
+          }}
+        />
+      ) : (
+        <AddAPIKeyButton
+          label="Anthropic"
+          onAdd={() => {
+            addAPIKeyDialog.open({
+              label: 'Anthropic',
+              onAPIKey: (apiKey) => {
+                setSettings.mutate({
+                  apiKeys: {...settings.data.apiKeys, anthropic: apiKey},
+                  model: settings.data.model || 'claude-4-sonnet-20250514',
+                  provider: settings.data.provider || 'anthropic',
+                })
+              },
+            })
+          }}
+        />
+      )}
+      {addAPIKeyDialog.content}
+    </YStack>
+  )
+}
+
+function AddAPIKeyButton({label, onAdd}: {label: string; onAdd: () => void}) {
+  return (
+    <XStack>
+      <Button size="$2" theme="blue" icon={Plus} onPress={onAdd}>
+        Add {label} API Key
+      </Button>
+    </XStack>
+  )
+}
+
+function APIKeyRow({label, onRemove}: {label: string; onRemove: () => void}) {
+  return (
+    <XStack gap="$3" ai="center">
+      <SizableText fontWeight="bold">{label} API Key Saved</SizableText>
+      <Check color="$brand5" />
+      <Button onPress={onRemove} size="$2" theme="red" icon={X}>
+        Delete Key
+      </Button>
+    </XStack>
+  )
+}
+
+function AddAPIKeyDialog({
+  input,
+  onClose,
+}: {
+  input: {
+    label: string
+    onAPIKey: (apiKey: string) => void
+  }
+  onClose: () => void
+}) {
+  const [apiKey, setApiKey] = useState('')
+  return (
+    <>
+      <DialogTitle>Add {input.label} API Key</DialogTitle>
+      <FormField name="apiKey" label="API Key" errors={{}}>
+        <Input
+          value={apiKey}
+          placeholder={`Paste key from ${input.label}`}
+          id="apiKey"
+          autoFocus
+          onKeyPress={(e) => {
+            if (e.nativeEvent.key === 'Enter') {
+              input.onAPIKey(apiKey)
+              onClose()
+            }
+          }}
+          onChangeText={setApiKey}
+        />
+      </FormField>
+      <Button
+        onPress={() => {
+          input.onAPIKey(apiKey)
+          onClose()
+        }}
+      >
+        Set API Key
+      </Button>
+    </>
+  )
+}
 function PushOnPublishSetting({}: {}) {
   const pushOnPublish = usePushOnPublish()
   const id = useId()

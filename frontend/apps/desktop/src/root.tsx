@@ -40,6 +40,7 @@ import {
   onQueryInvalidation,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey, queryKeys} from '@shm/shared/models/query-keys'
+import {setupAI} from './models/assist'
 import * as entities from './models/entities'
 import * as recents from './models/recents'
 import * as search from './models/search'
@@ -234,13 +235,6 @@ declare global {
 }
 
 function MainApp({}: {}) {
-  // Make window visible immediately - this should be the very first thing
-  useEffect(() => {
-    console.log('Making window visible immediately')
-    // @ts-expect-error
-    window.windowIsReady()
-  }, [])
-
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
@@ -310,6 +304,8 @@ function MainApp({}: {}) {
         } else if (value[0] == queryKeys.SETTINGS) {
           console.log('~~ invalidateSettings', value)
           utils.appSettings.getSetting.invalidate(value[1] as string)
+        } else if (value[0] == queryKeys.ASSIST_SETTINGS) {
+          utils.assist.getSettings.invalidate()
         } else if (value[0] == 'trpc.secureStorage.get') {
           utils.secureStorage.invalidate()
 
@@ -358,9 +354,12 @@ function MainApp({}: {}) {
   //   return window.docImport.readMediaFile(filePath)
   // }
 
+  const ai = useMemo(() => setupAI(), [])
+  console.log('root ai', ai)
   if (daemonState?.t == 'ready') {
     return (
       <AppContextProvider
+        ai={ai}
         grpcClient={grpcClient}
         platform={appInfo.platform()}
         ipc={ipc}

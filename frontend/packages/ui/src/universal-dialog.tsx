@@ -215,6 +215,7 @@ export function useAppDialog<DialogInput>(
             <Component.Content
               zIndex={10000000}
               backgroundColor={'$background'}
+              overflow="scroll"
               animation={[
                 'fast',
                 {

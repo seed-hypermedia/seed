@@ -1,3 +1,4 @@
+import {AssistMessage} from '@/app-assist'
 import {useEffect} from 'react'
 import {useIPC} from '../app-context'
 
@@ -15,13 +16,15 @@ export type AppWindowEvent =
   | {key: 'connectPeer'; connectionUrl: string}
   | {key: 'hypermediaHoverIn'; id: string}
   | {key: 'hypermediaHoverOut'; id: string}
+  | {key: 'assistMessage'; message: AssistMessage}
 
 export function useListenAppEvent(
   eventKey:
     | AppWindowSimpleEvent
     | 'connectPeer'
     | 'hypermediaHoverIn'
-    | 'hypermediaHoverOut',
+    | 'hypermediaHoverOut'
+    | 'assistMessage',
   handlerFn: (event: AppWindowEvent) => void,
 ) {
   useEffect(() => {

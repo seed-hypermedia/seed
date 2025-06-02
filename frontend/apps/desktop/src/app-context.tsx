@@ -3,6 +3,7 @@ import {createContext, useContext, useEffect} from 'react'
 
 import {AppIPC, Event, EventCallback} from './app-ipc'
 
+import {HMAI} from './models/assist'
 import {WindowUtils} from './models/window-utils'
 
 export type AppPlatform = typeof process.platform
@@ -51,6 +52,7 @@ export type AppContext = {
   ) => Promise<string>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
+  ai: HMAI | null
 }
 
 export const AppContext = createContext<AppContext | null>(null)

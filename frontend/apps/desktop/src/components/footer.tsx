@@ -7,6 +7,7 @@ import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'
 import {ReactNode} from 'react'
 import {ButtonProps, SizableText, XStack} from 'tamagui'
+import {AssistFooter} from './assist'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
@@ -39,6 +40,7 @@ export default function Footer({children}: {children?: ReactNode}) {
           </SizableText>
         )}
       </XStack>
+      <AssistFooter />
 
       <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
         {children}

@@ -223,7 +223,7 @@ export function createAppWindow(
         height: windowType.initHeight || windowType.minHeight,
       }
   const browserWindow = new BrowserWindow({
-    show: false,
+    show: true,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#151515' : '#f9f9f9',
     frame: false,
     autoHideMenuBar: true,
@@ -280,10 +280,6 @@ export function createAppWindow(
   })
   const releaseDaemonListener = subscribeDaemonState((goDaemonState) => {
     browserWindow.webContents.send('goDaemonState', goDaemonState)
-  })
-
-  browserWindow.webContents.ipc.on('windowIsReady', (e) => {
-    browserWindow.show()
   })
 
   function saveWindowPosition() {

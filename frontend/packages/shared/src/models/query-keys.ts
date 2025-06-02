@@ -98,6 +98,9 @@ export const queryKeys = {
   // hosting
   HOST_INFO: 'HOST_INFO',
   HOST_ABSORB_SESSION: 'HOST_ABSORB_SESSION', // pendingSessionToken: string
+
+  // assist
+  ASSIST_SETTINGS: 'ASSIST_SETTINGS',
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
