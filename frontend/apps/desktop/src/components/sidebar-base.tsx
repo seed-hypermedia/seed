@@ -1,18 +1,17 @@
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
-import {Hash, Settings} from '@tamagui/lucide-icons'
-import {ComponentProps, FC, ReactNode, useEffect, useRef, useState} from 'react'
+import {Settings} from '@tamagui/lucide-icons'
+import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Separator, useMedia, XStack, YStack} from 'tamagui'
+import {Separator, useMedia} from 'tamagui'
 
 const HoverRegionWidth = 30
 
@@ -72,22 +71,12 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   return (
     <>
       {isFocused && !isLocked && !isWindowTooNarrowForHoverSidebar ? (
-        <YStack
-          position="absolute"
-          left={-20} // this -20 is to make sure the rounded radius is not visible on the edge
-          borderRadius={'$3'}
-          bg="$backgroundStrong"
-          width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
-          top={0}
-          zi="$zIndex.9"
-          opacity={0}
-          hoverStyle={{
-            opacity: 0.1,
-          }}
-          bottom={0}
+        <div
+          className="absolute left-[-20px] rounded-lg bg-gray-100 dark:bg-gray-900 top-0 z-[900] opacity-0 hover:opacity-10 bottom-0"
+          style={{width: HoverRegionWidth + 20}}
           onMouseEnter={ctx.onMenuHoverDelayed}
           onMouseLeave={ctx.onMenuHoverLeave}
-          onPress={ctx.onMenuHover}
+          onClick={ctx.onMenuHover}
         />
       ) : null}
 
@@ -98,6 +87,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         ref={ref}
         collapsible
         id="sidebar"
+        className="h-full"
         onCollapse={() => {
           ctx.onCloseSidebar()
         }}
@@ -108,35 +98,31 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           ctx.onLockSidebarOpen()
         }}
       >
-        <YStack
-          bg={isDark ? '$backgroundStrong' : '$background'}
-          borderWidth={isLocked ? undefined : 1}
-          borderColor={isLocked ? undefined : '$color7'}
-          animation="fast"
-          position={isLocked ? 'relative' : 'absolute'}
-          zi={isLocked ? undefined : '$zIndex.9'}
-          x={isVisible ? 0 : -SidebarWidth}
-          width="100%"
-          maxWidth={isLocked ? undefined : SidebarWidth}
-          elevation={isLocked ? undefined : '$4'}
-          top={isLocked ? undefined : 8}
-          bottom={isLocked ? undefined : 8}
-          borderTopRightRadius={!isLocked ? '$3' : undefined}
-          borderBottomRightRadius={!isLocked ? '$3' : undefined}
+        <div
+          className={`
+            flex flex-col transition-all duration-200 ease-in-out h-full pr-2
+            ${isLocked ? 'relative' : 'absolute'}
+            ${isLocked ? '' : 'z-[900] shadow-lg'}
+            ${isLocked ? '' : 'border border-gray-300 dark:border-gray-600'}
+            ${isLocked ? '' : 'rounded-tr-lg rounded-br-lg'}
+            ${isVisible ? 'opacity-100' : 'opacity-0'}
+            ${isDark ? 'bg-black' : 'bg-background'}
+            w-full
+          `}
+          style={{
+            transform: `translateX(${
+              isVisible ? 0 : -SidebarWidth
+            }px) translateY(${isLocked ? 0 : 40}px)`,
+            maxWidth: isLocked ? undefined : SidebarWidth,
+            top: isLocked ? undefined : 8,
+            bottom: isLocked ? undefined : 8,
+            height: isLocked ? '100%' : 'calc(100% - 60px)',
+          }}
           onMouseEnter={ctx.onMenuHover}
           onMouseLeave={ctx.onMenuHoverLeave}
-          opacity={isVisible ? 1 : 0}
-          h="100%"
         >
-          <YStack
-            flex={1}
-            // @ts-expect-error why does Tamagui/TS not agree that this is an acceptable value? IT WORKS!
-            overflow="auto"
-            p={10}
-          >
-            {children}
-          </YStack>
-          <XStack padding="$2" jc="space-between">
+          <div className=" flex-1 overflow-y-auto pt-2 pb-8">{children}</div>
+          <div className="shrink-0 flex justify-between p-2">
             <Tooltip content="App Settings">
               <Button
                 size="$3"
@@ -148,8 +134,8 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
                 icon={Settings}
               />
             </Tooltip>
-          </XStack>
-        </YStack>
+          </div>
+        </div>
       </Panel>
       <PanelResizeHandle className="panel-resize-handle" />
     </>
@@ -198,15 +184,6 @@ function useIsWindowNarrowForHoverSidebar() {
     }
   }, [])
   return isWindowTooNarrowForHoverSidebar
-}
-
-type DocOutlineSection = {
-  title: string
-  id: string
-  entityId?: UnpackedHypermediaId
-  parentBlockId?: string
-  children?: DocOutlineSection[]
-  icon?: FC<ComponentProps<typeof Hash>>
 }
 
 export function SidebarDivider() {

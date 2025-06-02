@@ -1,56 +1,66 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
-import {ScrollView, XStack, YStack, YStackProps} from 'tamagui'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {HTMLAttributes} from 'react'
 
 export function MainWrapper({
   children,
   scrollable = false,
+  className,
   ...props
-}: YStackProps & {scrollable?: boolean}) {
+}: HTMLAttributes<HTMLDivElement> & {scrollable?: boolean}) {
   return (
-    <XStack {...props} flex={1} h="100%" w="100%">
+    <div {...props} className={`flex flex-1 h-full w-full ${className || ''}`}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <YStack flex={1} h="100%">
+      <div className="flex-1 h-full">
         {scrollable ? (
-          <ScrollView
+          <ScrollArea
             id="scroll-page-wrapper"
-            scrollEventThrottle={1000}
+            className="h-full"
             onScroll={() => {
               dispatchScroll('scroll')
             }}
           >
             {children}
-          </ScrollView>
+          </ScrollArea>
         ) : (
           children
         )}
-      </YStack>
-    </XStack>
+      </div>
+    </div>
   )
 }
 
-export function MainWrapperStandalone({children, ...props}: YStackProps & {}) {
+export function MainWrapperStandalone({
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
   return (
-    <XStack flex={1} {...props}>
+    <div className={`flex flex-1 ${className || ''}`} {...props}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollView
+      <ScrollArea
         id="scroll-page-wrapper"
-        scrollEventThrottle={1000}
+        className="h-full"
         onScroll={() => {
           dispatchScroll('scroll')
         }}
       >
         {children}
-      </ScrollView>
-    </XStack>
+      </ScrollArea>
+    </div>
   )
 }
 
-export function MainWrapperNoScroll({children, ...props}: YStackProps & {}) {
+export function MainWrapperNoScroll({
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
   return (
-    <XStack flex={1} {...props}>
+    <div className={`flex flex-1 ${className || ''}`} {...props}>
       {children}
-    </XStack>
+    </div>
   )
 }

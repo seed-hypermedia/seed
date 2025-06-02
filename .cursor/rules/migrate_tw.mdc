@@ -1,0 +1,60 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When migrating Tamagui components to Tailwind CSS, follow these patterns:
+
+1. **Component Replacements**:
+   - XStack → div with `flex` (horizontal layout)
+   - YStack → div with `flex flex-col` (vertical layout)  
+   - ScrollView → ScrollArea from `@shm/ui/components/scroll-area`
+   - Keep semantic HTML when appropriate (button, input, etc.)
+
+2. **Styling Property Conversions**:
+   - `flex={1}` → `flex-1`
+   - `width="100%"` → `w-full`
+   - `height="100%"` → `h-full`
+   - `padding="$2"` → `p-2` 
+   - `paddingHorizontal="$4"` → `px-4`
+   - `paddingVertical="$3"` → `py-3`
+   - `margin` props → `m-*` classes
+   - `bg="$background"` → `bg-white dark:bg-black` or appropriate theme colors
+   - `borderRadius="$3"` → `rounded-lg`
+   - `borderWidth={1}` → `border`
+   - `position="absolute"` → `absolute`
+   - `opacity={0}` → `opacity-0`
+   - `zi="$zIndex.9"` → `z-[900]` (use arbitrary values)
+   - `animation="fast"` → `transition-all duration-200 ease-in-out`
+
+3. **Layout Properties**:
+   - `jc="space-between"` → `justify-between`
+   - `ai="center"` → `items-center`
+   - `gap="$3"` → `gap-3`
+   - `overflow="auto"` → `overflow-auto`
+
+4. **Conditional Styling**:
+   - Use template literals with ternary operators: `${condition ? 'class-true' : 'class-false'}`
+   - For complex conditions, use inline styles in the `style` prop
+   - For dynamic values (variables), use inline styles: `style={{width: dynamicWidth}}`
+
+5. **Import Updates**:
+   - Remove Tamagui imports (XStack, YStack, etc.)
+   - Add `HTMLAttributes` from 'react' for div prop types
+   - Replace Tamagui component types with standard HTML element types
+   - Import UI components from `@shm/ui/components/*` when needed
+
+6. **Event Handling**:
+   - `onPress` → `onClick` for div elements
+   - Keep React event handlers as-is
+
+7. **Prop Types**:
+   - Replace `XStackProps` → `HTMLAttributes<HTMLDivElement>`
+   - Replace `YStackProps` → `HTMLAttributes<HTMLDivElement>`
+   - Extend with custom props as needed: `HTMLAttributes<HTMLDivElement> & {customProp?: boolean}`
+
+8. **Dark Mode**:
+   - Use `dark:` prefixes for dark mode variants
+   - Common patterns: `bg-white dark:bg-black`, `text-black dark:text-white`
+
+Apply these conversions while maintaining the exact same functionality and visual appearance. Preserve all event handlers, IDs, and dynamic behavior.

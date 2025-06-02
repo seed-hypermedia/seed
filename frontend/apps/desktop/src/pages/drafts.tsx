@@ -159,6 +159,7 @@ export function DraftItem({
           </XStack>
           <SizableText
             size="$4"
+            textAlign="left"
             f={1}
             fontWeight="bold"
             textOverflow="ellipsis"

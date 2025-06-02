@@ -10,12 +10,14 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {NavRoute} from '@shm/shared/routes'
+import {windowContainerStyles} from '@shm/ui/container'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
+import {cn} from '@shm/ui/utils'
 import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {
@@ -23,7 +25,7 @@ import {
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {Button, XStack, YStack} from 'tamagui'
+import {Button, XStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -86,11 +88,7 @@ export default function Main({className}: {className?: string}) {
       </TitlebarWrapper>
     )
     return (
-      <YStack
-        fullscreen
-        className={className}
-        bg={isDark ? '$backgroundStrong' : '$background'}
-      >
+      <div className={cn(windowContainerStyles, 'p-0', className)}>
         <ErrorBoundary
           key={routeKey}
           FallbackComponent={AppErrorPage}
@@ -101,7 +99,7 @@ export default function Main({className}: {className?: string}) {
           {titlebar}
           <PageComponent />
         </ErrorBoundary>
-      </YStack>
+      </div>
     )
   } else if (windowType === 'deleted-content') {
     titlebar = (
@@ -126,11 +124,7 @@ export default function Main({className}: {className?: string}) {
   }
 
   return (
-    <YStack
-      fullscreen
-      className={className}
-      bg={isDark ? '$backgroundStrong' : '$background'}
-    >
+    <div className={cn(windowContainerStyles, 'p-0', className)}>
       <SidebarContextProvider>
         <ErrorBoundary
           key={routeKey}
@@ -140,21 +134,21 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <XStack flex={1} h="100%">
-            <PanelContent>
-              {sidebar}
-              <Panel id="page" order={2}>
-                <PageComponent />
-              </Panel>
-            </PanelContent>
-          </XStack>
+
+          <PanelContent>
+            {sidebar}
+            <Panel id="page" order={2}>
+              <PageComponent />
+            </Panel>
+          </PanelContent>
+
           <Footer />
           <AutoUpdater />
           <ConfirmConnectionDialog />
           <HypermediaHighlight />
         </ErrorBoundary>
       </SidebarContextProvider>
-    </YStack>
+    </div>
   )
 }
 
@@ -229,7 +223,7 @@ function PanelContent({children}: {children: ReactNode}) {
     <PanelGroup
       ref={ref}
       direction="horizontal"
-      style={{flex: 1}}
+      className="flex flex-1 overflow-hidden"
       autoSaveId="main"
       storage={ctx.widthStorage}
     >
@@ -286,18 +280,8 @@ function getPageComponent(navRoute: NavRoute) {
 
 function WindowClose() {
   return (
-    <XStack
-      w={26}
-      h={26}
-      ai="center"
-      jc="center"
-      className="no-window-drag"
-      marginHorizontal="$2"
-      position="absolute"
-      right={0}
-      top={0}
-    >
+    <div className="size-[26px] items-center justify-center no-window-drag absolute right-0 top-0">
       <CloseButton />
-    </XStack>
+    </div>
   )
 }
