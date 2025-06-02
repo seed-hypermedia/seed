@@ -18,7 +18,8 @@ const handleLocalMediaPastePlugin = new Plugin({
         view.state.selection.$anchor.parent.type.name !== 'image' &&
         view.state.selection.$anchor.parent.nodeSize <= 2
           ? view.state.selection.$anchor.start() - 2
-          : view.state.selection.$anchor.end() + 2
+          : view.state.selection.$anchor.end() + 1
+      console.log(insertPos)
       const items = Array.from(event.clipboardData?.items || [])
       if (items.length === 0) return false
       for (const item of items) {
@@ -34,6 +35,7 @@ const handleLocalMediaPastePlugin = new Plugin({
                   url: data,
                   name: name,
                 })
+                console.log(insertPos, node)
                 view.dispatch(view.state.tr.insert(insertPos, node))
               })
               .catch((error) => {

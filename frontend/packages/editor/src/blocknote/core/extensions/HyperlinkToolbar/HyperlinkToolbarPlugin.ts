@@ -450,6 +450,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             }
           }
         } else if (this.selectedNode.type.name === 'embed') {
+          if (!this.selectedNode.attrs.url.length) return
           const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
             .node as HTMLElement
           const embedElement = dom.querySelector('[data-content-type="embed"]')
