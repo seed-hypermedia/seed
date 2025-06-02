@@ -13,29 +13,35 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeDagPB blobType = "DagPB"
+const blobTypeDagPB Type = "DagPB"
 
 func init() {
 	registerIndexer(blobTypeDagPB,
-		func(c cid.Cid, data []byte) (datamodel.Node, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[datamodel.Node], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagPb {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			b := dagpb.Type.PBNode.NewBuilder()
 			if err := dagpb.DecodeBytes(b, data); err != nil {
-				return nil, fmt.Errorf("failed to decode dagpb node %s: %w", c, err)
+				return eb, fmt.Errorf("failed to decode dagpb node %s: %w", c, err)
 			}
 
 			v := b.Build()
-			return v, nil
+
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexDagPB,
 	)
 }
 
-func indexDagPB(ictx *indexingCtx, id int64, c cid.Cid, v datamodel.Node) error {
+func indexDagPB(ictx *indexingCtx, _ int64, eb Encoded[datamodel.Node]) error {
+	c, v := eb.CID, eb.Decoded
+
 	sb := newSimpleStructuralBlob(c, blobTypeDagPB)
 
 	if err := traversal.WalkLocal(v, func(_ traversal.Progress, n ipld.Node) error {

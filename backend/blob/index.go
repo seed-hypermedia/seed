@@ -116,13 +116,6 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 	return idx.bs
 }
 
-// indexBlob is an uber-function that knows about all types of blobs we want to index.
-// This is probably a bad idea to put here, but for now it's easier to work with that way.
-// TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
-func (idx *Index) indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
-	return indexBlob(trackUnreads, conn, id, c, data, idx.bs, idx.log)
-}
-
 func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
@@ -906,47 +899,6 @@ var qIterComments = dqb.Str(`
 	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
 	ORDER BY sb.ts
 `)
-
-type blobType string
-
-type Encoded[T any] struct {
-	CID     cid.Cid
-	Data    []byte
-	Decoded T
-}
-
-func encodeBlob[T any](v T) (eb Encoded[T], err error) {
-	data, err := cbornode.DumpObject(v)
-	if err != nil {
-		return eb, err
-	}
-
-	blk := ipfs.NewBlock(uint64(multicodec.DagCbor), data)
-
-	return Encoded[T]{CID: blk.Cid(), Data: blk.RawData(), Decoded: v}, nil
-}
-
-// RawData implements blocks.Block interface.
-func (eb Encoded[T]) RawData() []byte {
-	return eb.Data
-}
-
-// Cid implements blocks.Block interface.
-func (eb Encoded[T]) Cid() cid.Cid {
-	return eb.CID
-}
-
-// String implements blocks.Block interface.
-func (eb Encoded[T]) String() string {
-	return fmt.Sprintf("[EncodedBlob %s]", eb.CID)
-}
-
-// Loggable implements blocks.Block interface.
-func (eb Encoded[T]) Loggable() map[string]interface{} {
-	return map[string]interface{}{
-		"cid": eb.CID,
-	}
-}
 
 type indexingCtx struct {
 	conn       *sqlite.Conn

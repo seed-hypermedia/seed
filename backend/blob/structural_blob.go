@@ -9,7 +9,7 @@ import (
 
 type structuralBlob struct {
 	CID         cid.Cid
-	Type        blobType
+	Type        Type
 	Author      core.Principal
 	Ts          time.Time
 	GenesisBlob cid.Cid
@@ -24,7 +24,7 @@ type structuralBlob struct {
 	ExtraAttrs    any
 }
 
-func newStructuralBlob(id cid.Cid, blobType blobType, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {
+func newStructuralBlob(id cid.Cid, blobType Type, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {
 	sb := structuralBlob{
 		CID:    id,
 		Type:   blobType,
@@ -39,7 +39,7 @@ func newStructuralBlob(id cid.Cid, blobType blobType, author core.Principal, ts 
 	return sb
 }
 
-func newSimpleStructuralBlob(id cid.Cid, blobType blobType) structuralBlob {
+func newSimpleStructuralBlob(id cid.Cid, blobType Type) structuralBlob {
 	return structuralBlob{CID: id, Type: blobType}
 }
 

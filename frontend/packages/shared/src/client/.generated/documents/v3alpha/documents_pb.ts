@@ -978,6 +978,163 @@ export class CreateContactRequest extends Message<CreateContactRequest> {
 }
 
 /**
+ * Request to get a contact by ID.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetContactRequest
+ */
+export class GetContactRequest extends Message<GetContactRequest> {
+  /**
+   * Required. ID of the account issuer of the contact record.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. ID of the contact within the account.
+   *
+   * @generated from field: string id = 2;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetContactRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetContactRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactRequest {
+    return new GetContactRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactRequest {
+    return new GetContactRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactRequest {
+    return new GetContactRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetContactRequest | PlainMessage<GetContactRequest> | undefined, b: GetContactRequest | PlainMessage<GetContactRequest> | undefined): boolean {
+    return proto3.util.equals(GetContactRequest, a, b);
+  }
+}
+
+/**
+ * Request to delete a contact.
+ *
+ * @generated from message com.seed.documents.v3alpha.UpdateContactRequest
+ */
+export class UpdateContactRequest extends Message<UpdateContactRequest> {
+  /**
+   * Required. Full snapshot of the updated contact record.
+   * Clients should update objects received from GetContact or CreateContact calls.
+   * The server will ignore output-only fields like timestamps.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Contact contact = 1;
+   */
+  contact?: Contact;
+
+  /**
+   * Required. Name of the key to use for signing the contact update.
+   *
+   * @generated from field: string signing_key_name = 2;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<UpdateContactRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.UpdateContactRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "contact", kind: "message", T: Contact },
+    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateContactRequest {
+    return new UpdateContactRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateContactRequest {
+    return new UpdateContactRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateContactRequest {
+    return new UpdateContactRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined, b: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateContactRequest, a, b);
+  }
+}
+
+/**
+ * Request to delete a contact.
+ *
+ * @generated from message com.seed.documents.v3alpha.DeleteContactRequest
+ */
+export class DeleteContactRequest extends Message<DeleteContactRequest> {
+  /**
+   * Required. ID of the account issuer of the contact record.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. ID of the contact within the account.
+   *
+   * @generated from field: string id = 2;
+   */
+  id = "";
+
+  /**
+   * Required. Name of the key to use for signing the contact deletion.
+   *
+   * @generated from field: string signing_key_name = 3;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<DeleteContactRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DeleteContactRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteContactRequest {
+    return new DeleteContactRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteContactRequest {
+    return new DeleteContactRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteContactRequest {
+    return new DeleteContactRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined, b: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteContactRequest, a, b);
+  }
+}
+
+/**
  * Request to list contacts for an account.
  *
  * @generated from message com.seed.documents.v3alpha.ListContactsRequest
@@ -1104,16 +1261,16 @@ export class ListContactsResponse extends Message<ListContactsResponse> {
 /**
  * Contact information for an account.
  *
- * ID of the contact.
- *
- * TODO(burdiyan): commented out for now until we figure
- * out the addressability of replaceable objects.
- *
- * string id = 1;
- *
  * @generated from message com.seed.documents.v3alpha.Contact
  */
 export class Contact extends Message<Contact> {
+  /**
+   * ID of the contact.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
   /**
    * Subject is the account that's being described by the contact record.
    *
@@ -1157,6 +1314,7 @@ export class Contact extends Message<Contact> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.Contact";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "create_time", kind: "message", T: Timestamp },

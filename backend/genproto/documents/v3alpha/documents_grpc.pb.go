@@ -29,6 +29,9 @@ const (
 	Documents_UpdateProfile_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateProfile"
 	Documents_CreateAlias_FullMethodName              = "/com.seed.documents.v3alpha.Documents/CreateAlias"
 	Documents_CreateContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/CreateContact"
+	Documents_GetContact_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetContact"
+	Documents_UpdateContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateContact"
+	Documents_DeleteContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/DeleteContact"
 	Documents_ListContacts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListContacts"
 	Documents_ListDirectory_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDirectory"
 	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
@@ -68,6 +71,12 @@ type DocumentsClient interface {
 	CreateAlias(ctx context.Context, in *CreateAliasRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Creates a new contact for an account.
 	CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*Contact, error)
+	// Gets a single contact by ID.
+	GetContact(ctx context.Context, in *GetContactRequest, opts ...grpc.CallOption) (*Contact, error)
+	// Updates an existing contact.
+	UpdateContact(ctx context.Context, in *UpdateContactRequest, opts ...grpc.CallOption) (*Contact, error)
+	// Deletes a contact from an account.
+	DeleteContact(ctx context.Context, in *DeleteContactRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Lists contacts for an account.
 	ListContacts(ctx context.Context, in *ListContactsRequest, opts ...grpc.CallOption) (*ListContactsResponse, error)
 	// Lists documents in a directory of an account.
@@ -185,6 +194,36 @@ func (c *documentsClient) CreateContact(ctx context.Context, in *CreateContactRe
 	return out, nil
 }
 
+func (c *documentsClient) GetContact(ctx context.Context, in *GetContactRequest, opts ...grpc.CallOption) (*Contact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Contact)
+	err := c.cc.Invoke(ctx, Documents_GetContact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) UpdateContact(ctx context.Context, in *UpdateContactRequest, opts ...grpc.CallOption) (*Contact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Contact)
+	err := c.cc.Invoke(ctx, Documents_UpdateContact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) DeleteContact(ctx context.Context, in *DeleteContactRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Documents_DeleteContact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) ListContacts(ctx context.Context, in *ListContactsRequest, opts ...grpc.CallOption) (*ListContactsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListContactsResponse)
@@ -294,6 +333,12 @@ type DocumentsServer interface {
 	CreateAlias(context.Context, *CreateAliasRequest) (*emptypb.Empty, error)
 	// Creates a new contact for an account.
 	CreateContact(context.Context, *CreateContactRequest) (*Contact, error)
+	// Gets a single contact by ID.
+	GetContact(context.Context, *GetContactRequest) (*Contact, error)
+	// Updates an existing contact.
+	UpdateContact(context.Context, *UpdateContactRequest) (*Contact, error)
+	// Deletes a contact from an account.
+	DeleteContact(context.Context, *DeleteContactRequest) (*emptypb.Empty, error)
 	// Lists contacts for an account.
 	ListContacts(context.Context, *ListContactsRequest) (*ListContactsResponse, error)
 	// Lists documents in a directory of an account.
@@ -345,6 +390,15 @@ func (UnimplementedDocumentsServer) CreateAlias(context.Context, *CreateAliasReq
 }
 func (UnimplementedDocumentsServer) CreateContact(context.Context, *CreateContactRequest) (*Contact, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateContact not implemented")
+}
+func (UnimplementedDocumentsServer) GetContact(context.Context, *GetContactRequest) (*Contact, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetContact not implemented")
+}
+func (UnimplementedDocumentsServer) UpdateContact(context.Context, *UpdateContactRequest) (*Contact, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateContact not implemented")
+}
+func (UnimplementedDocumentsServer) DeleteContact(context.Context, *DeleteContactRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteContact not implemented")
 }
 func (UnimplementedDocumentsServer) ListContacts(context.Context, *ListContactsRequest) (*ListContactsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListContacts not implemented")
@@ -552,6 +606,60 @@ func _Documents_CreateContact_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_GetContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).GetContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_GetContact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).GetContact(ctx, req.(*GetContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_UpdateContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).UpdateContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_UpdateContact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).UpdateContact(ctx, req.(*UpdateContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_DeleteContact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteContactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).DeleteContact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_DeleteContact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).DeleteContact(ctx, req.(*DeleteContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_ListContacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListContactsRequest)
 	if err := dec(in); err != nil {
@@ -738,6 +846,18 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateContact",
 			Handler:    _Documents_CreateContact_Handler,
+		},
+		{
+			MethodName: "GetContact",
+			Handler:    _Documents_GetContact_Handler,
+		},
+		{
+			MethodName: "UpdateContact",
+			Handler:    _Documents_UpdateContact_Handler,
+		},
+		{
+			MethodName: "DeleteContact",
+			Handler:    _Documents_DeleteContact_Handler,
 		},
 		{
 			MethodName: "ListContacts",

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetContactRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -116,6 +116,39 @@ export const Documents = {
       name: "CreateContact",
       I: CreateContactRequest,
       O: Contact,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets a single contact by ID.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.GetContact
+     */
+    getContact: {
+      name: "GetContact",
+      I: GetContactRequest,
+      O: Contact,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Updates an existing contact.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateContact
+     */
+    updateContact: {
+      name: "UpdateContact",
+      I: UpdateContactRequest,
+      O: Contact,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Deletes a contact from an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.DeleteContact
+     */
+    deleteContact: {
+      name: "DeleteContact",
+      I: DeleteContactRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
     /**

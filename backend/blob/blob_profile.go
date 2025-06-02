@@ -18,7 +18,7 @@ const (
 	maxProfileDescriptionLen = 512
 )
 
-const blobTypeProfile blobType = "Profile"
+const blobTypeProfile Type = "Profile"
 
 func init() {
 	cbornode.RegisterCborType(Profile{})
@@ -107,28 +107,33 @@ func NewProfile(kp *core.KeyPair, name string, icon URI, description string, acc
 func init() {
 	matcher := makeCBORTypeMatch(blobTypeProfile)
 	registerIndexer(blobTypeProfile,
-		func(c cid.Cid, data []byte) (*Profile, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Profile], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			v := &Profile{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
 			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexProfile,
 	)
 }
 
-func indexProfile(ictx *indexingCtx, _ int64, c cid.Cid, v *Profile) error {
+func indexProfile(ictx *indexingCtx, _ int64, eb Encoded[*Profile]) error {
+	c, v := eb.CID, eb.Decoded
+
 	iri, err := NewIRI(v.Signer, "")
 	if err != nil {
 		return err

@@ -252,14 +252,14 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		}
 	}
 
-	// Fill Capabilities and Comments.
+	// Fill Capabilities and Comments and Contacts.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
 			SELECT sb.id
 			FROM structural_blobs sb
 			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 			WHERE resource IN rbsr_iris
-			AND sb.type IN ('Capability', 'Comment', 'Profile')`
+			AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err

@@ -45,13 +45,14 @@ service Documents {
   // Creates a new contact for an account.
   rpc CreateContact(CreateContactRequest) returns (Contact);
 
-  // TODO(burdiyan): No update and delete for now, until we figure out the addressability of replaceable objects.
+  // Gets a single contact by ID.
+  rpc GetContact(GetContactRequest) returns (Contact);
 
   // Updates an existing contact.
-  // rpc UpdateContact(UpdateContactRequest) returns (Contact);
+  rpc UpdateContact(UpdateContactRequest) returns (Contact);
 
   // Deletes a contact from an account.
-  // rpc DeleteContact(DeleteContactRequest) returns (google.protobuf.Empty);
+  rpc DeleteContact(DeleteContactRequest) returns (google.protobuf.Empty);
 
   // Lists contacts for an account.
   rpc ListContacts(ListContactsRequest) returns (ListContactsResponse);
@@ -297,6 +298,38 @@ message CreateContactRequest {
   string name = 4;
 }
 
+// Request to get a contact by ID.
+message GetContactRequest {
+  // Required. ID of the account issuer of the contact record.
+  string account = 1;
+
+  // Required. ID of the contact within the account.
+  string id = 2;
+}
+
+// Request to delete a contact.
+message UpdateContactRequest {
+  // Required. Full snapshot of the updated contact record.
+  // Clients should update objects received from GetContact or CreateContact calls.
+  // The server will ignore output-only fields like timestamps.
+  Contact contact = 1;
+
+  // Required. Name of the key to use for signing the contact update.
+  string signing_key_name = 2;
+}
+
+// Request to delete a contact.
+message DeleteContactRequest {
+  // Required. ID of the account issuer of the contact record.
+  string account = 1;
+
+  // Required. ID of the contact within the account.
+  string id = 2;
+
+  // Required. Name of the key to use for signing the contact deletion.
+  string signing_key_name = 3;
+}
+
 // Request to list contacts for an account.
 message ListContactsRequest {
   // Optional. Number of results per page. Default is defined by the server.
@@ -328,11 +361,7 @@ message ListContactsResponse {
 // Contact information for an account.
 message Contact {
   // ID of the contact.
-  //
-  // TODO(burdiyan): commented out for now until we figure
-  // out the addressability of replaceable objects.
-  //
-  // string id = 1;
+  string id = 1;
 
   // Subject is the account that's being described by the contact record.
   string subject = 2;

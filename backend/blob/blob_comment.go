@@ -18,7 +18,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
-const blobTypeComment blobType = "Comment"
+const blobTypeComment Type = "Comment"
 
 func init() {
 	cbornode.RegisterCborType(Comment{})
@@ -112,10 +112,10 @@ func init() {
 	matcher := makeCBORTypeMatch(blobTypeComment)
 
 	registerIndexer(blobTypeComment,
-		func(c cid.Cid, data []byte) (*Comment, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Comment], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			// We validate the comment signature as an opaque map first,
@@ -123,21 +123,21 @@ func init() {
 			{
 				var v map[string]any
 				if err := cbornode.DecodeInto(data, &v); err != nil {
-					return nil, err
+					return eb, err
 				}
 
 				signerBytes, ok := v["signer"].([]byte)
 				if !ok {
-					return nil, fmt.Errorf("signer field must be bytes, but got %T", v["signer"])
+					return eb, fmt.Errorf("signer field must be bytes, but got %T", v["signer"])
 				}
 
 				signatureBytes, ok := v["sig"].([]byte)
 				if !ok {
-					return nil, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
+					return eb, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
 				}
 
 				if err := verifyBlob(core.Principal(signerBytes), v, signatureBytes); err != nil {
-					return nil, err
+					return eb, err
 				}
 			}
 
@@ -145,16 +145,21 @@ func init() {
 
 			v := &Comment{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexComment,
 	)
 }
 
-func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
+func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
+	c, v := eb.CID, eb.Decoded
+
 	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return fmt.Errorf("invalid comment target: %v", err)

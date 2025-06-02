@@ -28,25 +28,25 @@ var derivedTables = []string{
 }
 
 // Reindex forces deletes all the information derived from the blobs and reindexes them.
-func (bs *Index) Reindex(ctx context.Context) (err error) {
-	conn, release, err := bs.db.Conn(ctx)
+func (idx *Index) Reindex(ctx context.Context) (err error) {
+	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
 
-	return bs.reindex(conn)
+	return idx.reindex(conn)
 }
 
-func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
+func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 	start := time.Now()
 	var (
 		blobsTotal   int
 		blobsIndexed int
 	)
-	bs.log.Info("ReindexingStarted")
+	idx.log.Info("ReindexingStarted")
 	defer func() {
-		bs.log.Info("ReindexingFinished",
+		idx.log.Info("ReindexingFinished",
 			zap.Error(err),
 			zap.Duration("duration", time.Since(start)),
 			zap.Int("blobsTotal", blobsTotal),
@@ -83,7 +83,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 
 			scratch = scratch[:0]
 			scratch = slices.Grow(scratch, size)
-			scratch, err = bs.bs.decoder.DecodeAll(compressed, scratch)
+			scratch, err = idx.bs.decoder.DecodeAll(compressed, scratch)
 			if err != nil {
 				return fmt.Errorf("failed to decompress block: %w", err)
 			}
@@ -95,7 +95,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 			}
 
 			blobsIndexed++
-			return bs.indexBlob(false, conn, id, c, data)
+			return indexBlob(false, conn, id, c, data, idx.bs, idx.log)
 		}); err != nil {
 			return err
 		}
@@ -109,8 +109,8 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 }
 
 // MaybeReindex will trigger reindexing if it's needed.
-func (bs *Index) MaybeReindex(ctx context.Context) error {
-	conn, release, err := bs.db.Conn(ctx)
+func (idx *Index) MaybeReindex(ctx context.Context) error {
+	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
@@ -125,5 +125,5 @@ func (bs *Index) MaybeReindex(ctx context.Context) error {
 		return nil
 	}
 
-	return bs.reindex(conn)
+	return idx.reindex(conn)
 }

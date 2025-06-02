@@ -18,7 +18,7 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeCapability blobType = "Capability"
+const blobTypeCapability Type = "Capability"
 
 const labelLimitBytes = 512
 
@@ -98,28 +98,33 @@ func init() {
 
 	matcher := makeCBORTypeMatch(blobTypeCapability)
 	registerIndexer(blobTypeCapability,
-		func(c cid.Cid, data []byte) (*Capability, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Capability], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			v := &Capability{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
 			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexCapability,
 	)
 }
 
-func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) error {
+func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error {
+	c, v := eb.CID, eb.Decoded
+
 	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return err

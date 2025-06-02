@@ -30,7 +30,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		return idx.indexBlob(unreadsTrackingEnabled(ctx), conn, id, blk.Cid(), blk.RawData())
+		return indexBlob(unreadsTrackingEnabled(ctx), conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log)
 	})
 }
 
@@ -56,7 +56,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				continue
 			}
 
-			if err := idx.indexBlob(trackUnreads, conn, id, blk.Cid(), blk.RawData()); err != nil {
+			if err := indexBlob(trackUnreads, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
 				return err
 			}
 		}

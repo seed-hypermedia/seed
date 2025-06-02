@@ -21,7 +21,7 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
-const blobTypeChange blobType = "Change"
+const blobTypeChange Type = "Change"
 
 // Change is an atomic change to a document.
 // The linked DAG of Changes represents the state of a document over time.
@@ -329,28 +329,33 @@ func NewOpDeleteBlocks(blocks []string) OpMap {
 func init() {
 	matcher := makeCBORTypeMatch(blobTypeChange)
 	registerIndexer(blobTypeChange,
-		func(c cid.Cid, data []byte) (*Change, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Change], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			v := &Change{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
 			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexChange,
 	)
 }
 
-func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
+func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
+	c, v := eb.CID, eb.Decoded
+
 	author := v.Signer
 
 	switch {

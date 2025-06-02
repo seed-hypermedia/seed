@@ -24,7 +24,7 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeRef blobType = "Ref"
+const blobTypeRef Type = "Ref"
 
 func init() {
 	cbornode.RegisterCborType(Ref{})
@@ -134,28 +134,33 @@ func init() {
 	matcher := makeCBORTypeMatch(blobTypeRef)
 
 	registerIndexer(blobTypeRef,
-		func(c cid.Cid, data []byte) (*Ref, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Ref], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			v := &Ref{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
 			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexRef,
 	)
 }
 
-func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
+func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
+	c, v := eb.CID, eb.Decoded
+
 	type Meta struct {
 		Tombstone      bool   `json:"tombstone,omitempty"`
 		Generation     int64  `json:"generation,omitempty"`

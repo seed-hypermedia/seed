@@ -381,7 +381,6 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 						if ok && initialPos.Parent == dirtyPos.Parent && initialPos.Left == dirtyPos.Left {
 							continue
 						}
-
 					}
 
 					if !yield(mr) {

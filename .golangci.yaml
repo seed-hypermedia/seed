@@ -21,6 +21,9 @@ linters:
       - std-error-handling
     rules:
       - linters:
+          - staticcheck
+        text: QF1008
+      - linters:
           - revive
         path: _test\.go
         text: unused-parameter

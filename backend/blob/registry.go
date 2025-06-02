@@ -20,7 +20,7 @@ type indexFunc func(ictx *indexingCtx, id int64, c cid.Cid, data []byte) error
 // We have a list because all the indexers are called sequentially and it's faster than iterating over map by values.
 // See registerIndexer for more info.
 var (
-	indexersMap  = map[blobType]int{}
+	indexersMap  = map[Type]int{}
 	indexersList []indexFunc
 )
 
@@ -31,9 +31,9 @@ var (
 // It should return an error if data does match but fails to decode.
 // The indexFunc does the actual indexing work with the concrete type.
 func registerIndexer[T any](
-	bt blobType,
-	decodeFunc func(cid.Cid, []byte) (decoded T, err error), // !ok means skip indexing, but no error.
-	indexFunc func(ictx *indexingCtx, id int64, c cid.Cid, decoded T) error,
+	bt Type,
+	decodeFunc func(cid.Cid, []byte) (eb Encoded[T], err error), // !ok means skip indexing, but no error.
+	indexFunc func(ictx *indexingCtx, id int64, eb Encoded[T]) error,
 ) {
 	if _, ok := indexersMap[bt]; ok {
 		panic(fmt.Sprintf("RegisterIndexer: already registered: %s", bt))
@@ -48,7 +48,7 @@ func registerIndexer[T any](
 			return err
 		}
 
-		return indexFunc(ictx, id, c, decoded)
+		return indexFunc(ictx, id, decoded)
 	}
 
 	indexersList = append(indexersList, idxfn)
@@ -58,7 +58,7 @@ func registerIndexer[T any](
 // makeCBORTypeMatch returns a subslice of CBOR bytes that could be used to match
 // our CBOR blob types with `type` field. If we find this subslice
 // we can attempt to decode the blob as CBOR data into the corresponding concrete type.
-func makeCBORTypeMatch(blobType blobType) []byte {
+func makeCBORTypeMatch(blobType Type) []byte {
 	var b bytes.Buffer
 	if err := cbor.MarshalToBuffer("type", &b); err != nil {
 		panic(err)

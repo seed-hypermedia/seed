@@ -3,13 +3,16 @@ package blob
 
 import (
 	"errors"
+	"fmt"
 	"seed/backend/core"
+	"seed/backend/ipfs"
 	"seed/backend/util/cclock"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/multiformats/go-multicodec"
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
@@ -85,12 +88,39 @@ func mapToCBOR(data map[string]any, v any) {
 	}
 }
 
+// Type is a named type alias for blob types.
+type Type string
+
+// Blob is a common interface for our blobs.
+type Blob interface {
+	BlobTime() time.Time
+	BlobType() Type
+}
+
+// ReplacementBlob is a common interface for blobs for snapshot-style record,
+// where new blobs replace previous blobs in full.
+// These replacement blobs should return the TSID of the entity they replace.
+type ReplacementBlob interface {
+	Blob
+	TSID() TSID
+}
+
 // BaseBlob is the base struct for all blobs.
 type BaseBlob struct {
-	Type   blobType       `refmt:"type"`
+	Type   Type           `refmt:"type"`
 	Signer core.Principal `refmt:"signer"`
 	Sig    core.Signature `refmt:"sig"`
 	Ts     time.Time      `refmt:"ts"`
+}
+
+// BlobTime implements the Blob interface.
+func (b BaseBlob) BlobTime() time.Time {
+	return b.Ts
+}
+
+// BlobType implements the Blob interface.
+func (b BaseBlob) BlobType() Type {
+	return b.Type
 }
 
 // signBlob and fill in the signature.
@@ -140,6 +170,58 @@ func verifyBlob(pubkey core.Principal, v any, sig core.Signature) error {
 	copy(sig, sigCopy)
 
 	return nil
+}
+
+// Encoded is a type for a type-safe decoded with with its raw encoded data and CID.
+type Encoded[T any] struct {
+	CID     cid.Cid
+	Data    []byte
+	Decoded T
+}
+
+// TSID derives a TSID from the encoded blob.
+func (eb Encoded[T]) TSID() TSID {
+	switch blob := any(eb.Decoded).(type) {
+	case ReplacementBlob:
+		return blob.TSID()
+	case Blob:
+		return NewTSID(blob.BlobTime(), eb.Data)
+	default:
+		panic(fmt.Errorf("BUG: type %T doesn't implement Blob interface", eb.Decoded))
+	}
+}
+
+func encodeBlob[T any](v T) (eb Encoded[T], err error) {
+	data, err := cbornode.DumpObject(v)
+	if err != nil {
+		return eb, err
+	}
+
+	blk := ipfs.NewBlock(uint64(multicodec.DagCbor), data)
+
+	return Encoded[T]{CID: blk.Cid(), Data: blk.RawData(), Decoded: v}, nil
+}
+
+// RawData implements blocks.Block interface.
+func (eb Encoded[T]) RawData() []byte {
+	return eb.Data
+}
+
+// Cid implements blocks.Block interface.
+func (eb Encoded[T]) Cid() cid.Cid {
+	return eb.CID
+}
+
+// String implements blocks.Block interface.
+func (eb Encoded[T]) String() string {
+	return fmt.Sprintf("[EncodedBlob %s]", eb.CID)
+}
+
+// Loggable implements blocks.Block interface.
+func (eb Encoded[T]) Loggable() map[string]interface{} {
+	return map[string]interface{}{
+		"cid": eb.CID,
+	}
 }
 
 // WithCID is a type for a decoded blob with its CID.

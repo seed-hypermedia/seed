@@ -12,7 +12,7 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeContact blobType = "Contact"
+const blobTypeContact Type = "Contact"
 
 const contactNameMaxLength = 256
 
@@ -20,7 +20,11 @@ const contactNameMaxLength = 256
 type Contact struct {
 	BaseBlob
 
-	Genesis cid.Cid `refmt:"genesis,omitempty"`
+	// ID of the contact within the signer's authority that's being replaced.
+	// Only present on contact updates.
+	//
+	// TODO(burdiyan): figure out how to handle delegated signers.
+	ID TSID `refmt:"id,omitempty"`
 
 	// Subject is the account that's being described by the contact record.
 	Subject core.Principal `refmt:"subject,omitempty"`
@@ -30,14 +34,14 @@ type Contact struct {
 }
 
 // NewContact creates a new Contact blob.
-func NewContact(kp *core.KeyPair, genesis cid.Cid, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
+func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
 	cu := &Contact{
 		BaseBlob: BaseBlob{
 			Type:   blobTypeContact,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
-		Genesis: genesis,
+		ID:      id,
 		Subject: subject,
 		Name:    name,
 	}
@@ -54,47 +58,77 @@ func init() {
 
 	matcher := makeCBORTypeMatch(blobTypeContact)
 	registerIndexer(blobTypeContact,
-		func(c cid.Cid, data []byte) (*Contact, error) {
+		func(c cid.Cid, data []byte) (eb Encoded[*Contact], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return nil, errSkipIndexing
+				return eb, errSkipIndexing
 			}
 
 			v := &Contact{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+				return eb, err
 			}
 
 			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
-				return nil, err
+				return eb, err
 			}
 
-			return v, nil
+			eb.CID = c
+			eb.Data = data
+			eb.Decoded = v
+			return eb, nil
 		},
 		indexContact,
 	)
 }
 
-func indexContact(ictx *indexingCtx, id int64, c cid.Cid, v *Contact) error {
-	if v.Name == "" {
-		return fmt.Errorf("contacts must have a name")
+func indexContact(ictx *indexingCtx, _ int64, eb Encoded[*Contact]) error {
+	c, v := eb.CID, eb.Decoded
+
+	// Validate contact: either both name and subject are present, or both are empty (tombstone)
+	var isTombstone bool
+	switch {
+	case v.Name != "" && len(v.Subject) > 0:
+		if len(v.Name) > contactNameMaxLength {
+			return fmt.Errorf("contact name exceeds maximum length of %d characters", contactNameMaxLength)
+		}
+	case v.Name == "" && len(v.Subject) == 0:
+		isTombstone = true
+	default:
+		return fmt.Errorf("contacts must have either both name and subject, or neither (for tombstones)")
 	}
 
-	if len(v.Name) > contactNameMaxLength {
-		return fmt.Errorf("contact name exceeds maximum length of %d characters", contactNameMaxLength)
-	}
-
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, "", cid.Undef, v.Signer, time.Time{})
-
-	subjectID, err := ictx.ensurePubKey(v.Subject)
+	// TODO(burdiyan): temporarily we associate contacts with the resource of the Home document.
+	iri, err := NewIRI(v.Signer, "")
 	if err != nil {
-		return fmt.Errorf("failed to ensure subject public key: %w", err)
+		return err
 	}
 
-	sb.ExtraAttrs = map[string]any{
-		"subject": subjectID,
-		"name":    v.Name,
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Signer, time.Time{})
+
+	tsid := v.ID
+	if tsid == "" {
+		tsid = eb.TSID()
 	}
+
+	extraAttrs := map[string]any{
+		"tsid": tsid.String(),
+	}
+
+	// For active contacts, add subject and name
+	if !isTombstone {
+		subjectID, err := ictx.ensurePubKey(v.Subject)
+		if err != nil {
+			return fmt.Errorf("failed to ensure subject public key: %w", err)
+		}
+		extraAttrs["subject"] = subjectID
+		extraAttrs["name"] = v.Name
+	} else {
+		// For tombstones, mark as deleted
+		extraAttrs["deleted"] = true
+	}
+
+	sb.ExtraAttrs = extraAttrs
 
 	if err := ictx.SaveBlob(sb); err != nil {
 		return fmt.Errorf("failed to save structural blob: %w", err)
