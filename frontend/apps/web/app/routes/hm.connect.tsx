@@ -16,8 +16,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {ArrowUpRight} from '@shm/ui/icons'
 import {SmallSiteHeader} from '@shm/ui/site-header'
-import {ArrowUpRight} from '@tamagui/lucide-icons'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
 import {

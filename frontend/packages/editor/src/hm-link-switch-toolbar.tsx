@@ -10,7 +10,7 @@ import {
   Pencil,
   Quote,
   Unlink,
-} from '@tamagui/lucide-icons'
+} from '@shm/ui/icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
 import {Button, SizableText, Tooltip, XGroup, XStack, YStack} from 'tamagui'

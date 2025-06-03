@@ -1,5 +1,5 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import type {ComponentProps} from 'react'
 import {H3, SizableText} from 'tamagui'
 import {DialogContent, DialogFooter, DialogOverlay} from './dialog'

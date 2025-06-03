@@ -1,5 +1,5 @@
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {MenuItem} from '@shm/ui/menu-item'
 import {forwardRef} from 'react'
 import {

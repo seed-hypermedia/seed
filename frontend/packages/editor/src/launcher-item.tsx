@@ -1,12 +1,12 @@
+import {Timestamp} from '@bufbuild/protobuf'
 import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/button'
-import {useCollapsedPath, highlightSearchMatch} from '@shm/ui/search-input'
+import {Button} from '@shm/ui/components/button'
+import {highlightSearchMatch, useCollapsedPath} from '@shm/ui/search-input'
 import {useLayoutEffect, useRef} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
-import {Timestamp} from '@bufbuild/protobuf'
 
 export type SwitcherItem = {
   id?: UnpackedHypermediaId

@@ -1,8 +1,8 @@
-import {XStack, XStackProps} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
-import {useMemo} from 'react'
+import {HTMLAttributes, useMemo} from 'react'
+import {Avatar, AvatarFallback, AvatarImage} from './components/avatar'
+import {cn} from './utils'
 
-export type UIAvatarProps = XStackProps & {
+export type UIAvatarProps = HTMLAttributes<HTMLDivElement> & {
   url?: string
   size?: number
   color?: string
@@ -19,7 +19,9 @@ export function UIAvatar({
   color,
   onPress,
   borderRadius = size,
-}: UIAvatarProps & {borderRadius?: XStackProps['borderRadius']}) {
+  className,
+  ...props
+}: UIAvatarProps & {borderRadius?: number}) {
   let avatarColor = useMemo(() => {
     if (color) return color
     return id ? getRandomColor(id) : 'transparent'
@@ -28,47 +30,42 @@ export function UIAvatar({
   let text = label ? label[0] : id ? id[0] : '?'
 
   return (
-    <XStack
-      className="avatar"
-      width={size}
-      height={size}
-      borderRadius={borderRadius}
-      overflow="hidden"
-      backgroundColor={url ? '$color1' : avatarColor}
-      alignItems="center"
-      justifyContent="center"
-      position="relative"
-      onPress={onPress}
-      hoverStyle={{
-        cursor: onPress ? 'default' : undefined,
+    <Avatar
+      className={cn(
+        'avatar relative flex items-center justify-center overflow-hidden',
+        onPress && 'cursor-pointer hover:cursor-default',
+        className,
+      )}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: borderRadius,
+        backgroundColor: url ? undefined : avatarColor,
       }}
+      onClick={onPress}
+      {...props}
     >
       {url ? (
-        <img
+        <AvatarImage
           src={url}
-          style={{
-            minWidth: '100%',
-            minHeight: '100%',
-            objectFit: 'cover',
-            backgroundColor: 'transparent',
-          }}
+          alt={label || id || 'Avatar'}
+          className="min-w-full min-h-full object-cover bg-transparent"
         />
-      ) : (
-        <SizableText
-          fontWeight="600"
-          fontSize={size * 0.55}
-          display="block"
-          width={size / 2}
-          height={size / 2}
-          lineHeight={size / 2}
-          textAlign="center"
-          color="black"
-          userSelect="none"
-        >
-          {text.toUpperCase()}
-        </SizableText>
-      )}
-    </XStack>
+      ) : null}
+      <AvatarFallback
+        delayMs={500}
+        className="flex items-center justify-center text-black select-none"
+        style={{
+          fontSize: size * 0.55,
+          width: size / 2,
+          height: size / 2,
+          lineHeight: `${size / 2}px`,
+          backgroundColor: avatarColor,
+        }}
+      >
+        {text.toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
   )
 }
 

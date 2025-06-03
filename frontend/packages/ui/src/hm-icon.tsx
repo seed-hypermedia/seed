@@ -1,9 +1,13 @@
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {
+  getMetadataName,
+  HMMetadata,
+  UnpackedHypermediaId,
+  useRouteLink,
+} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Button} from '@tamagui/button'
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {YStack} from '@tamagui/stacks'
+import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
 import {Tooltip} from './tooltip'
@@ -85,20 +89,9 @@ export function LinkIcon({
 
 export function ErrorDot({error}: {error?: boolean}) {
   return error ? (
-    <YStack
-      backgroundColor="$red11"
-      display="flex"
-      position="absolute"
-      top={-8}
-      left={-8}
-      padding={0}
-      paddingLeft={-4}
-      width={16}
-      height={16}
-      borderRadius={8}
-    >
-      <AlertCircle size={16} />
-    </YStack>
+    <div className="absolute flex items-center justify-center bg-red-600 top-[-8px] left-[-8px] p-0 w-4 h-4 rounded-full">
+      <AlertCircle size={16} className="text-white" />
+    </div>
   ) : null
 }
 

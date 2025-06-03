@@ -6,7 +6,7 @@ import {
   getBlockInfoFromPos,
 } from '@shm/editor/blocknote'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {
   Event as NostrEvent,
   nip19,

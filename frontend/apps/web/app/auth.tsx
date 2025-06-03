@@ -10,17 +10,17 @@ import {
 } from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {LogOut, Megaphone, Pencil} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {
   DialogDescription,
   DialogTitle,
   useAppDialog,
 } from '@shm/ui/universal-dialog'
-import {LogOut, Megaphone, Pencil} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'

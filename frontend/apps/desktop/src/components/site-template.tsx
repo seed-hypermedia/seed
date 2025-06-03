@@ -2,11 +2,11 @@ import {grpcClient} from '@/grpc-client'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
 import {cloneSiteFromTemplate} from '@shm/shared/utils/clone'
+import {Button} from '@shm/ui/button'
+import {ExternalLink} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
-import {ExternalLink} from '@tamagui/lucide-icons'
-import {useEffect, useState} from 'react'
-import {Button, ButtonProps, SizableText, View, XStack, YStack} from 'tamagui'
+import {MouseEvent, useEffect, useState} from 'react'
 
 import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
@@ -84,11 +84,9 @@ export function SiteTemplate({
   }
 
   return (
-    <YStack alignItems="center" gap="$6">
-      <SizableText size="$6" fontWeight="bold">
-        Choose a Template to get Started
-      </SizableText>
-      <XStack>
+    <div className="flex flex-col items-center gap-6">
+      <h2 className="text-xl font-bold">Choose a Template to get Started</h2>
+      <div className="flex">
         <TemplateItem
           template={templates.blog}
           active={selectedTemplate === 'blog'}
@@ -135,64 +133,44 @@ export function SiteTemplate({
             })
           }}
         />
-        <YStack
-          p="$4"
-          paddingBottom="$2"
-          gap="$2"
-          borderRadius="$4"
-          bg={selectedTemplate === 'blank' ? '$brand5' : 'transparent'}
-          hoverStyle={{
-            bg: selectedTemplate === 'blank' ? '$brand5' : '$color5',
-          }}
-          alignItems="center"
-          onPress={() => {
+        <div
+          className={`flex flex-col p-4 pb-2 gap-2 rounded-lg items-center cursor-pointer transition-all duration-200 ease-in-out ${
+            selectedTemplate === 'blank'
+              ? 'bg-blue-500 dark:bg-blue-600'
+              : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800'
+          }`}
+          onClick={() => {
             setSelectedTemplate('blank')
           }}
         >
-          <View width={200} height={140} bg="$color7" />
-          <SizableText
-            color={selectedTemplate === 'blank' ? '$color1' : '$color10'}
+          <div className="w-[200px] h-[140px] bg-gray-300 dark:bg-gray-600" />
+          <span
+            className={
+              selectedTemplate === 'blank'
+                ? 'text-white'
+                : 'text-gray-600 dark:text-gray-400'
+            }
           >
             Blank
-          </SizableText>
-        </YStack>
-      </XStack>
+          </span>
+        </div>
+      </div>
       {!isOnline ? (
-        <YStack
-          bg="$red5"
-          p="$4"
-          borderRadius="$4"
-          width="100%"
-          alignItems="center"
-        >
-          <SizableText color="$color" textAlign="center">
+        <div className="bg-red-100 dark:bg-red-900 p-4 rounded-lg w-full flex items-center justify-center">
+          <p className="text-red-800 dark:text-red-200 text-center">
             You need to be connected to the internet to use templates
-          </SizableText>
-        </YStack>
+          </p>
+        </div>
       ) : null}
       <Button
-        opacity={selectedTemplate == null ? 0.5 : 1}
+        className={`${selectedTemplate == null ? 'opacity-50' : 'opacity-100'}`}
         disabled={selectedTemplate == null}
-        onPress={confirmTemplate}
-        bg="$brand5"
-        color="white"
-        justifyContent="center"
-        textAlign="center"
-        userSelect="none"
-        borderColor="$colorTransparent"
-        borderWidth={0}
-        hoverStyle={{
-          bg: '$brand4',
-          borderWidth: 0,
-        }}
-        focusStyle={{
-          bg: '$brand3',
-          borderWidth: 0,
-        }}
+        onClick={confirmTemplate}
+        variant="default"
       >
         Submit
       </Button>
-    </YStack>
+    </div>
   )
 }
 
@@ -243,70 +221,55 @@ function TemplateItem({
   template: string
   label: string
   isOnline: boolean
-  onPress: ButtonProps['onPress']
-  onPressExternal: ButtonProps['onPress']
+  onPress?: (e: MouseEvent<HTMLDivElement>) => void
+  onPressExternal: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
   const e = useSubscribedEntity(hmId('d', template))
   return (
-    <YStack
-      opacity={!!e.data?.document && isOnline ? 1 : 0.5}
-      p="$4"
-      paddingBottom="$2"
-      position="relative"
-      gap="$2"
-      borderRadius="$4"
-      hoverStyle={{
-        bg: active ? '$brand5' : '$color5',
-      }}
-      bg={active ? '$brand5' : 'transparent'}
-      alignItems="center"
-      onPress={onPress}
+    <div
+      className={`relative flex flex-col p-4 pb-2 gap-2 rounded-lg items-center cursor-pointer transition-all duration-200 ease-in-out ${
+        !!e.data?.document && isOnline ? 'opacity-100' : 'opacity-50'
+      } ${
+        active
+          ? 'bg-blue-500 dark:bg-blue-600'
+          : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800'
+      }`}
+      onClick={onPress}
     >
       <TemplateImage name={name} />
-      <XStack ai="center" gap="$3">
-        <SizableText color={active ? '$color1' : '$color10'}>
+      <div className="flex items-center gap-3">
+        <span
+          className={active ? 'text-white' : 'text-gray-600 dark:text-gray-400'}
+        >
           {label}
-        </SizableText>
+        </span>
         <Tooltip content="Preview Documentation Site">
-          <Button
-            chromeless
-            color={active ? '$color1' : '$color10'}
-            icon={ExternalLink}
-            onPress={onPressExternal}
-            size="$2"
-          />
+          <Button variant="ghost" size="sm" onClick={onPressExternal}>
+            <ExternalLink color={active ? 'white' : '$color10'} />
+          </Button>
         </Tooltip>
-      </XStack>
+      </div>
       {e.data?.document ? null : (
         <>
           <Tooltip content="Loading template..." side="top">
-            <View
-              position="absolute"
-              top={0}
-              left={0}
-              bg="$background"
-              opacity={0.5}
-              width="100%"
-              height="100%"
-              onPress={(e) => {
+            <div
+              className="absolute top-0 left-0 bg-white dark:bg-black opacity-50 w-full h-full"
+              onClick={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
               }}
             />
           </Tooltip>
-          <Spinner
-            position="absolute"
-            top="50%"
-            left="50%"
-            onPress={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-            }}
-            x={-10}
-            y={-10}
-          />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <Spinner
+              onClick={(e: MouseEvent<HTMLDivElement>) => {
+                e.stopPropagation()
+                e.preventDefault()
+              }}
+            />
+          </div>
         </>
       )}
-    </YStack>
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 import {fileUpload} from '@/utils/file-upload'
+import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Trash} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {Button, Stack, XStack, YStack} from 'tamagui'
 import appError from '../errors'

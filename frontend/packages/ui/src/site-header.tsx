@@ -12,7 +12,7 @@ import {
 } from '@shm/shared'
 import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {Button} from './components/button'
+import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
@@ -26,7 +26,6 @@ import {
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
 import {cn} from './utils'
 
 export function SiteHeader({
@@ -34,15 +33,12 @@ export function SiteHeader({
   docId,
   items,
   isCenterLayout = false,
-  children,
   document,
   supportDocuments,
   onBlockFocus,
   onShowMobileMenu,
   supportQueries,
   origin,
-  onScroll,
-  noScroll = false,
   isLatest = true,
 }: {
   originHomeId: UnpackedHypermediaId | null
@@ -60,7 +56,6 @@ export function SiteHeader({
   noScroll?: boolean
   isLatest?: boolean
 }) {
-  const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)

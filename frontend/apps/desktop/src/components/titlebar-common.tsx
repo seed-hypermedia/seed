@@ -32,12 +32,20 @@ import {
   pathMatches,
 } from '@shm/shared/utils/entity-id-url'
 import {
+  ArrowLeftFromLine,
   ArrowRight,
+  ArrowRightFromLine,
   Back,
   CloudOff,
   Download,
+  FilePlus,
   Forward,
+  Forward as ForwardIcon,
+  GitFork,
+  Import,
   Link,
+  PanelLeft,
+  PanelRight,
   Pencil,
   Trash,
   UploadCloud,
@@ -47,16 +55,6 @@ import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
-import {
-  ArrowLeftFromLine,
-  ArrowRightFromLine,
-  FilePlus,
-  Forward as ForwardIcon,
-  GitFork,
-  Import,
-  PanelLeft,
-  PanelRight,
-} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
 import {

@@ -1,7 +1,7 @@
 import {displayHostname} from '@shm/shared'
+import {AlertCircle, CheckCircle2} from '@shm/ui/icons'
 import {Button} from '@tamagui/button'
 import {styled} from '@tamagui/core'
-import {AlertCircle, CheckCircle2} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {

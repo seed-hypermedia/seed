@@ -1,4 +1,4 @@
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {Text, YStack} from 'tamagui'
 
 export function EmptyList({

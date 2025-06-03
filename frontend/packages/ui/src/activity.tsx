@@ -14,8 +14,8 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
+import {ChevronDown} from '@shm/ui/icons'
 import {Button} from '@tamagui/button'
-import {ChevronDown} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {useState} from 'react'

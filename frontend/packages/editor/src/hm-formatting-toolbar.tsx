@@ -13,7 +13,7 @@ import {
 } from '@/blocknote/react'
 import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
 import {EditorToggledStyle} from '@shm/shared/hm-types'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {
   Code,
   Emphasis,

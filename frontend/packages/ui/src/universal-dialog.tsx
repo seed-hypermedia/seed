@@ -1,8 +1,8 @@
+import {X} from '@shm/ui/icons'
 import {AlertDialog} from '@tamagui/alert-dialog'
 import {Button} from '@tamagui/button'
 import {styled, Unspaced} from '@tamagui/core'
 import {Dialog} from '@tamagui/dialog'
-import {X} from '@tamagui/lucide-icons'
 import {XStack, YStack, YStackProps} from '@tamagui/stacks'
 import {FC, useMemo, useState} from 'react'
 

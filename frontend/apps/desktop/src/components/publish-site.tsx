@@ -12,21 +12,11 @@ import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {loadEntity, useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HoverCard} from '@shm/ui/hover-card'
-import {
-  IconComponent,
-  PasteSetupUrl,
-  SeedHost,
-  SelfHost,
-  UploadCloud,
-} from '@shm/ui/icons'
-import {Spinner} from '@shm/ui/spinner'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
 import {
   AlertCircle,
   AlertTriangle,
@@ -35,9 +25,17 @@ import {
   Check,
   Copy,
   ExternalLink,
+  IconComponent,
+  PasteSetupUrl,
   Plus,
+  SeedHost,
+  SelfHost,
+  UploadCloud,
   X,
-} from '@tamagui/lucide-icons'
+} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {

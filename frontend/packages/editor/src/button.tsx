@@ -5,13 +5,13 @@ import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelecti
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {updateSelection} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
+import {useDocContentContext} from '@shm/ui/document-content-context'
+import {AlignCenter, AlignLeft, AlignRight} from '@shm/ui/icons'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useEffect, useState} from 'react'
 import {Label, SizableText} from 'tamagui'
-import {useDocContentContext} from '../../ui/src/document-content'
 
 export const ButtonBlock = createReactBlockSpec({
   type: 'button',

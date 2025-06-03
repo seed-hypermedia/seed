@@ -6,21 +6,22 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {SmallListItem} from '@shm/ui/list-item'
-import {Tooltip} from '@shm/ui/tooltip'
 import {
   ChevronDown,
-  Forward as ChevronRight,
+  ChevronRight,
   Contact,
   File,
   FilePlus2,
   Library,
   Plus,
   UserPlus2,
-} from '@tamagui/lucide-icons'
+} from '@shm/ui/icons'
+import {SmallListItem} from '@shm/ui/list-item'
+import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import React, {memo} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
 import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 
@@ -83,66 +84,54 @@ function CreateDocumentButton() {
   if (!myAccountIds.data?.length) return null
   return (
     <Button
-      icon={FilePlus2}
-      size="$2"
-      marginBottom="$3"
-      onPress={() => createDraft()}
-      backgroundColor="$brand5"
-      hoverStyle={{
-        backgroundColor: '$brand6',
-      }}
-      pressStyle={{
-        backgroundColor: '$brand7',
-      }}
-      color="white"
+      variant="brand"
+      onClick={() => createDraft()}
+      className="mb-3 w-full"
     >
+      <FilePlus2 color="white" />
       Create Document
     </Button>
   )
 }
+
 function SidebarSection({
   title,
   children,
   accessory,
+  className,
 }: {
   title: string
   children: React.ReactNode
   accessory?: React.ReactNode
+  className?: string
 }) {
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <YStack marginTop="$4" group="section">
-      <XStack paddingHorizontal="$2" ai="center" jc="space-between">
-        <XStack
-          gap="$1"
-          onPress={() => {
+    <div className="flex flex-col mt-4 relative">
+      <div
+        className={cn(
+          'flex items-center justify-between px-2',
+          accessory && 'pr-0',
+        )}
+      >
+        <div
+          className="flex gap-1 justify-center items-center cursor-pointer group"
+          onClick={() => {
             setCollapsed(!collapsed)
           }}
-          group="header"
-          jc="center"
-          ai="center"
         >
-          <SizableText
-            fontWeight="bold"
-            fontSize="$1"
-            color="$color11"
-            $group-header-hover={{
-              color: '$color12',
-            }}
-            textTransform="capitalize"
-            userSelect="none"
-          >
+          <span className="font-bold text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 capitalize select-none">
             {title}
-          </SizableText>
-          <XStack ai="center" jc="center" w={16} h={20}>
+          </span>
+          <div className="flex items-center justify-center w-4 h-5">
             <Icon size={12} color="$color11" />
-          </XStack>
-        </XStack>
-        <XStack>{accessory}</XStack>
-      </XStack>
+          </div>
+        </div>
+        {accessory ? <div className="flex">{accessory}</div> : null}
+      </div>
       {collapsed ? null : children}
-    </YStack>
+    </div>
   )
 }
 
@@ -188,15 +177,18 @@ function AccountsSection() {
       title="Accounts"
       accessory={
         hasAccounts ? (
-          <Tooltip content="Add Account">
-            <Button
-              bg="$colorTransparent"
-              chromeless
-              size="$1"
-              icon={Plus}
-              onPress={() => dispatchOnboardingDialog(true)}
-            />
-          </Tooltip>
+          <div className=" absolute top-0 right-0">
+            <Tooltip content="Add Account">
+              <Button
+                variant="ghost"
+                className="p-0"
+                size="xs"
+                onClick={() => dispatchOnboardingDialog(true)}
+              >
+                <Plus style={{width: 12, height: 12}} />
+              </Button>
+            </Tooltip>
+          </div>
         ) : undefined
       }
     >

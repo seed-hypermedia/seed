@@ -1,4 +1,4 @@
-import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
+import {Check, ChevronDown, ChevronUp} from '@shm/ui/icons'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {useState} from 'react'

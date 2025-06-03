@@ -3,8 +3,8 @@ import {
   DatePickerProvider as _DatePickerProvider,
   useDatePickerContext,
 } from '@rehookify/datepicker'
+import {Calendar, ChevronLeft, ChevronRight, X} from '@shm/ui/icons'
 import {getFontSized} from '@tamagui/get-font-sized'
-import {Calendar, ChevronLeft, ChevronRight, X} from '@tamagui/lucide-icons'
 import type {GestureReponderEvent} from '@tamagui/web'
 import type {PopoverProps} from 'tamagui'
 import {

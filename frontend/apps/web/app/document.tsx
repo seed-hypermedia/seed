@@ -18,9 +18,9 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import '@shm/shared/styles/document.css'
 import {AccessoryBackButton} from '@shm/ui/accessories'
+import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
-import {Button} from '@shm/ui/components/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {
   Container,
@@ -29,7 +29,7 @@ import {
 } from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
-import {BlockQuote, HistoryIcon} from '@shm/ui/icons'
+import {BlockQuote, HistoryIcon, MessageSquare, X} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocNavigationWrapper,
@@ -40,7 +40,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {

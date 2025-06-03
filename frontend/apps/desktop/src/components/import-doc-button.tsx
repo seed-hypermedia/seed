@@ -15,7 +15,7 @@ import {
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'

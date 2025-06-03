@@ -1,7 +1,7 @@
+import {ArrowDownRight, ChevronDown, ChevronRight} from '@shm/ui/icons'
 import {Button} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
 import {ListItem, ListItemProps} from '@tamagui/list-item'
-import {ArrowDownRight, ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {

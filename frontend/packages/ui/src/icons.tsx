@@ -1,123 +1,68 @@
+export * from 'lucide-react'
 export {
   Medal as Acknowledgements,
   Plus as Add,
   PlusSquare as AddSquare,
-  AlertCircle,
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  Archive,
-  ArrowDownRight,
-  ArrowDownUp,
-  ArrowLeftFromLine,
-  ArrowRight,
-  ArrowRightFromLine,
-  ArrowUpRight,
-  ArrowUpRightSquare,
   ChevronLeft as Back,
   Quote as BlockQuote,
-  Book,
-  Cable,
-  Camera,
-  ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  ChevronUp,
-  CircleDot,
-  CircleOff,
-  Clock,
   X as Close,
   XSquare as CloseAll,
-  CloudOff,
-  Code,
   Code2 as CodeBlock,
   MessageCircle as Comment,
-  Copy,
-  Delete,
   BookOpen as Documentation,
-  Download,
-  // FilePen as Draft,
   PenSquare as Draft,
   ChevronsUpDown as Drag,
   Italic as Emphasis,
   AlertOctagon as ErrorIcon,
-  ExternalLink,
   Star as Favorite,
-  File,
-  FileInput,
-  FileOutput,
-  FileText,
-  FileWarning,
-  Folder,
-  FolderInput,
   ChevronRight as Forward,
-  Globe,
   ListPlus as GroupIcon,
   Heading as HeadingIcon,
   HelpCircle as Help,
   EyeOff as Hide,
-  Home,
   ImagePlus as ImageIcon,
-  Info,
-  Instagram,
-  Library,
-  Link,
-  Menu,
-  MoreHorizontal,
-  MoveLeft,
   ArrowRight as Next,
   ListOrdered as OrderedList,
-  PanelBottom,
   Clipboard as Paste,
-  Pencil,
   ArrowLeft as Prev,
-  Quote,
   Redo2 as Redo,
-  RefreshCcw,
-  RefreshCw,
   CheckCircle2 as ReleaseNotes,
   RefreshCw as Reload,
-  Search,
   BoxSelect as SelectAll,
   Settings2 as Settings,
-  Settings2,
-  Share,
-  ShieldX,
-  Smile,
-  Sparkles,
   // AsteriskSquare as SquareAsterisk,
   SquareAsterisk as SquareAsterisk,
-  Star,
-  StarFull,
   Square as Statement,
-  Strikethrough,
   Bold as Strong,
-  Subscript,
-  Superscript,
-  TextCursorInput,
-  Trash,
-  Twitter,
-  Type,
-  Underline,
   Undo2 as Undo,
-  Undo2,
-  Unlink,
   List as UnorderedList,
-  Upload,
-  UploadCloud,
-  User,
-  UserPlus,
-  UserPlus2,
   Video as VideoIcon,
-  X,
-  XCircle,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 
 const DefaultIconColor = '#2C2C2C'
 
 export type IconComponent = React.FC<{color?: string; size?: number | string}>
 
-export function AppleIcon(props) {
+export function StarFull(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={20}
+      height={20}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.2}
+        d="M8.454 5.524c.655-1.635.983-2.452 1.546-2.452.564 0 .892.817 1.547 2.452l.03.076c.371.923.556 1.384.934 1.665.377.28.873.325 1.863.414l.18.016c1.62.145 2.432.218 2.605.733.174.516-.428 1.064-1.633 2.16l-.402.365c-.61.555-.914.832-1.056 1.196a1.664 1.664 0 0 0-.066.208c-.093.378-.004.78.174 1.585l.056.25c.328 1.48.492 2.218.206 2.537a.832.832 0 0 1-.401.248c-.414.112-1-.366-2.175-1.323-.77-.628-1.156-.942-1.599-1.013a1.667 1.667 0 0 0-.525 0c-.443.07-.828.385-1.6 1.013-1.173.957-1.76 1.435-2.174 1.323a.833.833 0 0 1-.4-.248c-.287-.319-.123-1.058.205-2.536l.056-.25c.178-.805.267-1.208.174-1.586-.017-.071-.04-.14-.066-.208-.142-.364-.447-.641-1.056-1.196l-.402-.365C3.27 9.492 2.668 8.944 2.842 8.428c.173-.515.984-.588 2.606-.733l.179-.016c.99-.089 1.486-.133 1.863-.414.378-.28.563-.742.933-1.665l.03-.076Z"
+      />
+    </svg>
+  )
+}
+
+export function AppleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       fill="currentColor"
@@ -132,7 +77,7 @@ export function AppleIcon(props) {
   )
 }
 
-export function WindowsIcon(props) {
+export function WindowsIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" height="1em" width="1em" {...props}>
       <path
@@ -143,7 +88,7 @@ export function WindowsIcon(props) {
   )
 }
 
-export function LinuxIcon(props) {
+export function LinuxIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -157,7 +102,7 @@ export function LinuxIcon(props) {
   )
 }
 
-export function DebianIcon(props) {
+export function DebianIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 32 32"
@@ -174,7 +119,7 @@ export function DebianIcon(props) {
   )
 }
 
-export function TwitterXIcon(props) {
+export function TwitterXIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 24 24"

@@ -9,16 +9,17 @@ import {
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
+import {Search} from '@shm/ui/icons'
 import {Popover} from '@shm/ui/TamaguiPopover'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
+import {Button, Input, ScrollView, SizableText} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
 import {highlightSearchMatch, useCollapsedPath} from './search-input'
+import {Separator} from './separator'
 
 export function MobileSearch({
   originHomeId,

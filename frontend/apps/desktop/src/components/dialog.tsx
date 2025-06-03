@@ -1,4 +1,4 @@
-import {X} from '@tamagui/lucide-icons'
+import {X} from '@shm/ui/icons'
 import {FC, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {
