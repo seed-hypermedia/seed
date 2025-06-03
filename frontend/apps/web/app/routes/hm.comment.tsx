@@ -29,19 +29,19 @@ import {
   HMPublishableBlock,
   UnpackedHypermediaId,
   unpackHmId,
+  useRouteLink,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {NewspaperCard} from '@shm/ui/newspaper'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
-import {Button, SizableText, View, XStack, YStack} from 'tamagui'
+import {Button, ButtonText, SizableText, View, XStack, YStack} from 'tamagui'
 
 import {CommentPayload} from './hm.api.comment'
 import {SyncCommentRequest} from './hm.api.sync-comment'
@@ -232,7 +232,25 @@ export default function CreateComment() {
           paddingHorizontal={0}
         >
           <View paddingHorizontal="$4">
-            <NewspaperCard
+            <SizableText fontSize="$5">
+              {replyComment ? (
+                <>
+                  Replying to{' '}
+                  <SizableText fontWeight="bold" fontSize="$5">
+                    {replyComment.author.metadata?.name ?? 'Unknown Author'}
+                  </SizableText>
+                </>
+              ) : (
+                <>
+                  Comment on{' '}
+                  <DocButtonLink
+                    docId={targetId}
+                    name={targetDocument.metadata.name ?? 'Untitled Document'}
+                  />
+                </>
+              )}
+            </SizableText>
+            {/* <NewspaperCard
               overflow="hidden"
               docId={targetId}
               entity={{
@@ -240,7 +258,7 @@ export default function CreateComment() {
                 document: targetDocument,
               }}
               accountsMetadata={targetAuthors}
-            />
+            /> */}
           </View>
           {quotingBlockId ? (
             <View marginHorizontal="$4">
@@ -256,7 +274,7 @@ export default function CreateComment() {
               </WebDocContentProvider>
             </View>
           ) : null}
-          <YStack flex={1} paddingHorizontal="$4">
+          <YStack paddingHorizontal="$4">
             {replyComment ? (
               <Comment
                 isLast={!publishedComment}
@@ -289,9 +307,7 @@ export default function CreateComment() {
               </>
             ) : null}
           </YStack>
-          {/* EXPANDING SPACE GOES HERE */}
-          <View f={1} />
-          <View paddingHorizontal="$4">
+          <View paddingHorizontal="$4" flex={1}>
             {publishedComment ? null : (
               <WebCommenting
                 docId={targetId}
@@ -337,6 +353,26 @@ export default function CreateComment() {
         </YStack>
       </YStack>
     </WebSiteProvider>
+  )
+}
+
+function DocButtonLink({
+  docId,
+  name,
+}: {
+  docId: UnpackedHypermediaId
+  name: string
+}) {
+  const linkProps = useRouteLink({key: 'document', id: docId})
+  return (
+    <ButtonText
+      {...linkProps}
+      textDecorationLine="underline"
+      fontWeight="bold"
+      fontSize="$5"
+    >
+      {name}
+    </ButtonText>
   )
 }
 
