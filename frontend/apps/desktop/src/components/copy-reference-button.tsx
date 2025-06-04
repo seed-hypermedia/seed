@@ -2,20 +2,19 @@ import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {
-  BlockRange,
-  ExpandedBlockRange,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {
+  BlockRange,
   createSiteUrl,
   createWebHMUrl,
+  ExpandedBlockRange,
   hmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/components/button'
-import {ExternalLink, Link} from '@shm/ui/icons'
+import {Button} from '@shm/ui/button'
+import {ExternalLink} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
+import {Link} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useState} from 'react'
 import {ButtonProps} from 'tamagui'
 

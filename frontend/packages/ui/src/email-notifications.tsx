@@ -1,5 +1,5 @@
 import {zodResolver} from '@hookform/resolvers/zod'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {FormCheckbox, FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {Spinner} from '@shm/ui/spinner'

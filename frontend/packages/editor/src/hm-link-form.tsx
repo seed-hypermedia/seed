@@ -7,7 +7,6 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {useDocContentContext} from '@shm/ui/document-content-context'
 import {SwitchField} from '@shm/ui/form-fields'
 import {
   CircleDot,
@@ -16,19 +15,20 @@ import {
   PanelBottom,
   Quote,
   Search,
-} from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
+} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {
   Button,
   Input,
   Label,
+  Separator,
   SizableText,
   SizeTokens,
   XStack,
   YStack,
 } from 'tamagui'
+import {useDocContentContext} from '../../ui/src/document-content'
 import {
   AlignCenter,
   AlignLeft,
@@ -308,7 +308,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       {props.children}
 
-      <Separator />
+      <Separator background="$color11" />
 
       <XStack justifyContent="flex-end">
         <Button

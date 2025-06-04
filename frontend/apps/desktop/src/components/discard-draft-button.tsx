@@ -1,8 +1,8 @@
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {useNavigationDispatch, useNavRoute} from '@/utils/navigation'
-import {Button} from '@shm/ui/components/button'
-import {Trash} from '@shm/ui/icons'
+import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
+import {Trash} from '@tamagui/lucide-icons'
 
 export default function DiscardDraftButton() {
   const route = useNavRoute()

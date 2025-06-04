@@ -9,11 +9,10 @@ import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Home} from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {ButtonText} from '@tamagui/button'
-
+import {Home} from '@tamagui/lucide-icons'
+import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
 import {H1, SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
@@ -111,7 +110,7 @@ export function PageHeader({
                 ])}
               </XStack>
             ) : null}
-            {authors?.length ? <Separator vertical /> : null}
+            {authors?.length ? <VerticalSeparator /> : null}
             {updateTime ? (
               <DocumentDate
                 metadata={docMetadata || undefined}

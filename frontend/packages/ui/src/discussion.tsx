@@ -11,14 +11,14 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
+import {Button, ButtonText} from '@tamagui/button'
+import {useTheme, View} from '@tamagui/core'
 import {
   ChevronDown,
   ChevronRight,
   ChevronsDown,
   ChevronsUp,
-} from '@shm/ui/icons'
-import {Button, ButtonText} from '@tamagui/button'
-import {useTheme, View} from '@tamagui/core'
+} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {ReactNode, useEffect, useMemo, useRef, useState} from 'react'

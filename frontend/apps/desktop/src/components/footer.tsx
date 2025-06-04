@@ -3,31 +3,47 @@ import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
+import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'
 import {ReactNode} from 'react'
+import {ButtonProps, SizableText, XStack} from 'tamagui'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
 export default function Footer({children}: {children?: ReactNode}) {
   const updateStatus = useUpdateStatus()
   return (
-    <div className="flex py-0 w-full border-transparent border border-solid flex-none min-h-6 select-none items-stretch">
+    <FooterWrapper style={{flex: 'none'}}>
       <FooterNetworkingButton />
-      <div className="flex items-center px-2 gap-4">
-        <span className="text-xs select-none cursor-default text-gray-400 dark:text-gray-600">
+      <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
+        <SizableText
+          fontSize={10}
+          userSelect="none"
+          hoverStyle={{
+            cursor: 'default',
+          }}
+          color="$color8"
+        >
           {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
-        </span>
+        </SizableText>
         {updateStatus && updateStatus?.type != 'idle' && (
-          <span className="text-xs select-none cursor-default text-gray-500 dark:text-gray-400">
+          <SizableText
+            fontSize={10}
+            userSelect="none"
+            hoverStyle={{
+              cursor: 'default',
+            }}
+            color="$color8"
+          >
             {getUpdateStatusLabel(updateStatus)}
-          </span>
+          </SizableText>
         )}
-      </div>
+      </XStack>
 
-      <div className="flex flex-1 items-center justify-end gap-1">
+      <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
         {children}
-      </div>
-    </div>
+      </XStack>
+    </FooterWrapper>
   )
 }
 
@@ -39,17 +55,18 @@ export function FooterButton({
 }: {
   active?: boolean
   label: string
-  icon?: React.ReactNode
+  icon?: ButtonProps['icon']
   onPress: () => void
 }) {
   return (
     <Button
-      size="sm"
-      variant={active ? 'default' : 'ghost'}
-      onClick={onPress}
-      className="px-2"
+      size="$1"
+      chromeless={!active}
+      onPress={onPress}
+      theme={active ? 'blue' : undefined}
+      icon={icon}
+      paddingHorizontal="$2"
     >
-      {icon}
       {label}
     </Button>
   )
@@ -59,24 +76,22 @@ function FooterNetworkingButton() {
   const route = useNavRoute()
   const networkDialog = useNetworkDialog()
   const summary = useConnectionSummary()
-  const isActive = route.key === 'contacts'
-
   return (
-    <div className="flex items-center gap-2">
+    <XStack alignItems="center" gap="$2">
       <Button
-        size="sm"
-        variant={isActive ? 'default' : 'ghost'}
-        className=""
-        onClick={() => networkDialog.open(true)}
+        size="$1"
+        chromeless={route.key != 'contacts'}
+        color={route.key == 'contacts' ? '$brand5' : undefined}
+        paddingHorizontal="$2"
+        onPress={() => networkDialog.open(true)}
       >
         <OnlineIndicator online={summary.online} />
-        {/* @ts-ignore */}
-        <Cable className="size-3" />
-        <span className="text-xs text-gray-500 dark:text-gray-400">
+        <Cable size={12} />
+        <SizableText size="$1" color="$color">
           {summary.connectedCount}
-        </span>
+        </SizableText>
       </Button>
       {networkDialog.content}
-    </div>
+    </XStack>
   )
 }

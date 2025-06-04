@@ -19,7 +19,7 @@ import {
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
 import {useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {FullCheckbox} from '@shm/ui/form-input'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'

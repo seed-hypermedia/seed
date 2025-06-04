@@ -1,5 +1,5 @@
 import {BlockSchema} from '@/blocknote/core'
-import {useDocContentContext} from '@shm/ui/document-content-context'
+import {useDocContentContext} from '@shm/ui/document-content'
 import {Link} from '@shm/ui/icons'
 import {XStack} from 'tamagui'
 import {DragHandleMenuProps} from '../DragHandleMenu'

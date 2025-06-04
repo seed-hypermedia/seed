@@ -23,8 +23,8 @@ import {
   ErrorBlock,
   getBlockNodeById,
   InlineEmbedButton,
+  useDocContentContext,
 } from '@shm/ui/document-content'
-import {useDocContentContext} from '@shm/ui/document-content-context'
 import {
   BlankQueryBlockMessage,
   QueryBlockPlaceholder,

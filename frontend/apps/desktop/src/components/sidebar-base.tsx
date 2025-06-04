@@ -1,17 +1,17 @@
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {Button} from '@shm/ui/components/button'
-import {Settings} from '@shm/ui/icons'
+import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
+import {Settings} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {useMedia} from 'tamagui'
+import {Separator, useMedia} from 'tamagui'
 
 const HoverRegionWidth = 30
 
@@ -100,7 +100,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
       >
         <div
           className={`
-            flex flex-col transition-all duration-200 ease-in-out h-full px-2
+            flex flex-col transition-all duration-200 ease-in-out h-full pr-2
             ${isLocked ? 'relative' : 'absolute'}
             ${isLocked ? '' : 'z-[900] shadow-lg'}
             ${isLocked ? '' : 'border border-gray-300 dark:border-gray-600'}
@@ -184,4 +184,8 @@ function useIsWindowNarrowForHoverSidebar() {
     }
   }, [])
   return isWindowTooNarrowForHoverSidebar
+}
+
+export function SidebarDivider() {
+  return <Separator marginVertical="$2" />
 }

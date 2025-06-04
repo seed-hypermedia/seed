@@ -25,11 +25,10 @@ import {
   SearchInput as SearchInputUI,
   SearchResultItem,
 } from '@shm/ui/search-input'
-import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
-import {SizableText, XStack} from 'tamagui'
+import {Separator, SizableText, XStack} from 'tamagui'
 
 export function SearchInput({
   onClose,

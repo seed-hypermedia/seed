@@ -49,32 +49,28 @@ import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {
-  AtSign,
-  Check,
-  Code2,
-  Cog,
-  Copy,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Info,
-  Pencil,
-  Plus,
-  RadioTower,
-  Trash,
-  UserRoundPlus,
-  X,
-} from '@shm/ui/icons'
+import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
-import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {cn} from '@shm/ui/utils'
+import {
+  AtSign,
+  Check,
+  Code2,
+  Settings as Cog,
+  Eye,
+  EyeOff,
+  Info,
+  Plus,
+  RadioTower,
+  Trash,
+  UserRoundPlus,
+  X,
+} from '@tamagui/lucide-icons'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
@@ -90,6 +86,7 @@ import {
   Paragraph,
   RadioGroup,
   ScrollView,
+  Separator,
   SizableText,
   Tabs,
   TabsContentProps,
@@ -1623,11 +1620,7 @@ function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
       hoverStyle={{cursor: 'default', bg: '$color6'}}
       {...rest}
     >
-      <Icon
-        size={20}
-        className={cn(active && 'stroke-(--brand5)')}
-        // color={active ? '$brand5' : '$color'}
-      />
+      <Icon size={20} color={active ? '$brand5' : '$color'} />
       <SizableText flex={1} size="$1" color={active ? '$brand5' : '$color'}>
         {label}
       </SizableText>

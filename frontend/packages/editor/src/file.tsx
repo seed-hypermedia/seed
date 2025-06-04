@@ -4,7 +4,7 @@ import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {formatBytes} from '@shm/shared/utils/format-bytes'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {File} from '@shm/ui/icons'
 import {SizableText} from 'tamagui'
 

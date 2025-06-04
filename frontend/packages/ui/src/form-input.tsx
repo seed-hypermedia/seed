@@ -1,4 +1,4 @@
-import {Check} from '@shm/ui/icons'
+import {Check} from '@tamagui/lucide-icons'
 import {useId} from 'react'
 import {
   Control,

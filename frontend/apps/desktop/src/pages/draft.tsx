@@ -36,22 +36,24 @@ import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
 import {Container} from '@shm/ui/container'
-import {useHeadingTextStyles} from '@shm/ui/document-content'
-import {useDocContentContext} from '@shm/ui/document-content-context'
+import {
+  useDocContentContext,
+  useHeadingTextStyles,
+} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Image, Smile} from '@shm/ui/icons'
+import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Input, SizableText, XStack, YStack} from 'tamagui'
+import {Button, Input, Separator, SizableText, XStack, YStack} from 'tamagui'
 
-import {Separator} from '@shm/ui/separator'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -761,7 +763,7 @@ function DraftMetadataEditor({
             {...headingTextStyles}
             padding={0}
           />
-          <Separator />
+          <Separator borderColor="$color8" />
         </YStack>
       </Container>
     </YStack>

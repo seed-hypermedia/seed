@@ -5,7 +5,7 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {DocContentProvider} from '@shm/ui/document-content-context'
+import {DocContentProvider} from '@shm/ui/document-content'
 import {getHref} from './href'
 import {
   EmbedComment,

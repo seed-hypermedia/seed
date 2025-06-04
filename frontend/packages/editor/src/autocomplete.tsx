@@ -1,6 +1,6 @@
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {keymap} from 'prosemirror-keymap'

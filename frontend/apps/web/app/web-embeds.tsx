@@ -17,13 +17,13 @@ import {
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
   ErrorBlock,
   InlineEmbedButton,
+  useDocContentContext,
 } from '@shm/ui/document-content'
-import {useDocContentContext} from '@shm/ui/document-content-context'
 import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'

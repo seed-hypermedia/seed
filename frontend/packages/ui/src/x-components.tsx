@@ -1,6 +1,6 @@
+import {Separator} from '@tamagui/separator'
 import {YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {Separator} from './separator'
 
 export const XPostNotFound = (error: any) => {
   const errorToString = error.error
@@ -53,7 +53,7 @@ export const XPostSkeleton = () => {
         height={150}
         backgroundColor="$color6"
       />
-      <Separator className="my-2" />
+      <Separator marginTop="$2" marginBottom="$2" />
       <YStack
         marginLeft="$2"
         width="98%"

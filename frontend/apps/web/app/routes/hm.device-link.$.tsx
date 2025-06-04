@@ -7,10 +7,16 @@ import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
-import * as cbor from '@ipld/dag-cbor'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {postCBOR} from '../api'
+import type {DelegateDevicePayload} from './hm.api.delegate-device'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+import {createAccount, LocalWebIdentity, logout} from '../auth'
+import {linkDevice, LinkingResult, LinkingEvent} from '../device-linking'
+import * as cbor from '@ipld/dag-cbor'
 import {
   DeviceLinkSessionSchema,
   hmId,
@@ -23,12 +29,11 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {ArrowRight, Check} from '@shm/ui/icons'
 import {SmallSiteHeader} from '@shm/ui/site-header'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {Spinner} from '@shm/ui/spinner'
+import {ArrowRight, Check} from '@tamagui/lucide-icons'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
 import {
@@ -41,10 +46,6 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-import {postCBOR} from '../api'
-import {createAccount, LocalWebIdentity, logout} from '../auth'
-import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
-import type {DelegateDevicePayload} from './hm.api.delegate-device'
 
 injectModels()
 // export async function loader({request}: LoaderFunctionArgs) {

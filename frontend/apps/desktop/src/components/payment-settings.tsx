@@ -19,14 +19,14 @@ import {useEntity} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {
   AlertCircle,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  Back as ChevronLeft,
+  Forward as ChevronRight,
   ChevronUp,
   Copy,
   Download,

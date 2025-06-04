@@ -1,5 +1,5 @@
 import {useWindowUtils} from '@/app-context'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Close} from '@shm/ui/icons'
 import {XStack, useTheme} from 'tamagui'
 

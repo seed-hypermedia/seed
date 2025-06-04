@@ -18,11 +18,11 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {DocContentProvider} from '@shm/ui/document-content'
 import {
   contentLayoutUnit,
   contentTextUnit,
 } from '@shm/ui/document-content-constants'
-import {DocContentProvider} from '@shm/ui/document-content-context'
 import {useDocumentUrl} from '../components/copy-reference-button'
 
 export function AppDocContentProvider({

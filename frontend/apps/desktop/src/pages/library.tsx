@@ -32,6 +32,9 @@ import {
 } from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {useIsDark} from '@shm/ui/use-is-dark'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   Check,
   CheckCheck,
@@ -41,10 +44,7 @@ import {
   ListFilter,
   MessageSquare,
   X,
-} from '@shm/ui/icons'
-import {OptionsDropdown} from '@shm/ui/options-dropdown'
-import {useIsDark} from '@shm/ui/use-is-dark'
-import {usePopoverState} from '@shm/ui/use-popover-state'
+} from '@tamagui/lucide-icons'
 import {ComponentProps, createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {

@@ -11,13 +11,13 @@ import {
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {useDocContentContext} from '@shm/ui/document-content-context'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {YStack} from '@tamagui/stacks'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
 import {SizableText, useTheme} from 'tamagui'
+import {useDocContentContext} from '../../ui/src/document-content'
 
 export const WebEmbed = createReactBlockSpec({
   type: 'web-embed',

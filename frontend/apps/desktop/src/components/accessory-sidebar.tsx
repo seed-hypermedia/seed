@@ -6,8 +6,9 @@ import {
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {PanelContainer} from '@shm/ui/container'
-import {CollaboratorsIcon, FileClock, Folder, Pencil} from '@shm/ui/icons'
+import {CollaboratorsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
+import {FileClock, Folder, Pencil} from '@tamagui/lucide-icons'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,

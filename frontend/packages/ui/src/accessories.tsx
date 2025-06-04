@@ -1,4 +1,4 @@
-import {ChevronLeft} from '@shm/ui/icons'
+import {ChevronLeft} from '@tamagui/lucide-icons'
 import {HTMLAttributes} from 'react'
 import {Button} from './components/button'
 

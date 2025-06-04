@@ -1,7 +1,7 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {Search} from '@shm/ui/icons'
 import {toast} from '@shm/ui/toast'
+import {Search} from '@tamagui/lucide-icons'
 import {useState} from 'react'
 import {Button, View, XStack, YStack} from 'tamagui'
 import {usePublishSite} from './publish-site'

@@ -29,6 +29,7 @@ import {
 } from '@shm/shared'
 import {
   BlockContentProps,
+  DocContentContextValue,
   EntityComponentProps,
 } from '@shm/shared/document-content-types'
 import {
@@ -36,10 +37,16 @@ import {
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
+import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
+import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
+import {SizeTokens, Text, TextProps, Theme, useThemeName} from '@tamagui/core'
+import {ColorProp} from '@tamagui/helpers-tamagui'
+import {Label} from '@tamagui/label'
 import {
   AlertCircle,
+  Check,
   ChevronDown,
-  Forward as ChevronRight,
+  ChevronRight,
   File,
   Link,
   MessageSquare,
@@ -47,10 +54,8 @@ import {
   MoveLeft,
   Reply,
   Undo2,
-} from '@shm/ui/icons'
-import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
-import {Text, TextProps, Theme, useThemeName} from '@tamagui/core'
-import {ColorProp} from '@tamagui/helpers-tamagui'
+} from '@tamagui/lucide-icons'
+import {RadioGroup} from '@tamagui/radio-group'
 import {
   extractIpfsUrlCid,
   getDaemonFileUrl,
@@ -58,7 +63,6 @@ import {
   useFileUrl,
   useImageUrl,
 } from './get-file-url'
-import {InlineContentView} from './inline-content'
 
 import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
 import {SizableText, SizableTextProps} from '@tamagui/text'
@@ -68,9 +72,11 @@ import {common} from 'lowlight'
 import {
   ComponentProps,
   PropsWithChildren,
+  createContext,
   createElement,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -86,10 +92,7 @@ import {
 //   enrichTweet,
 //   useTweet,
 // } from "react-tweet";
-import {
-  DocContentProvider,
-  useDocContentContext,
-} from './document-content-context'
+import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
 import {SeedHeading} from './heading'
@@ -98,6 +101,131 @@ import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
+
+export const docContentContext = createContext<DocContentContextValue | null>(
+  null,
+)
+
+export function DocContentProvider({
+  children,
+  debugTop = 0,
+  showDevMenu = false,
+  comment = false,
+  routeParams = {},
+  layoutUnit = contentLayoutUnit,
+  textUnit = contentTextUnit,
+  ...docContextContent
+}: PropsWithChildren<
+  DocContentContextValue & {
+    debugTop?: number
+    showDevMenu?: boolean
+    ffSerif?: boolean
+  }
+>) {
+  const [tUnit, setTUnit] = useState(textUnit)
+  const [lUnit, setLUnit] = useState(layoutUnit)
+  const [debug, setDebug] = useState(false)
+  const [ffSerif, toggleSerif] = useState(true)
+  const [collapsedBlocks, setCollapsed] = useState<Set<string>>(new Set())
+
+  const setCollapsedBlocks = (id: string, val: boolean) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (val) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }
+
+  return (
+    <docContentContext.Provider
+      value={{
+        ...docContextContent,
+        layoutUnit: lUnit,
+        textUnit: comment ? 14 : tUnit,
+        debug,
+        ffSerif,
+        comment,
+        routeParams,
+        collapsedBlocks,
+        setCollapsedBlocks,
+      }}
+    >
+      {children}
+      {showDevMenu ? (
+        <YStack
+          zIndex="$zIndex.4"
+          padding="$2"
+          // @ts-ignore
+          position="fixed"
+          borderColor="$color7"
+          borderWidth={1}
+          bottom={16}
+          right={16}
+          backgroundColor="$backgroundHover"
+        >
+          <CheckboxWithLabel
+            label="debug"
+            checked={debug}
+            // @ts-ignore
+            onCheckedChange={setDebug}
+            size="$1"
+          />
+          <CheckboxWithLabel
+            label="body sans-serif"
+            checked={ffSerif}
+            // @ts-ignore
+            onCheckedChange={toggleSerif}
+            size="$1"
+          />
+          <RadioGroup
+            aria-labelledby="text unit"
+            defaultValue="18"
+            name="form"
+            onValueChange={(val) => setTUnit(Number(val))}
+          >
+            <XStack gap="$2">
+              <SizableText size="$1">Text unit:</SizableText>
+              <RadioGroupItemWithLabel value="14" label="14" />
+              <RadioGroupItemWithLabel value="16" label="16" />
+              <RadioGroupItemWithLabel value="18" label="18" />
+              <RadioGroupItemWithLabel value="20" label="20" />
+              <RadioGroupItemWithLabel value="24" label="24" />
+            </XStack>
+          </RadioGroup>
+          <RadioGroup
+            aria-labelledby="layout unit"
+            defaultValue="24"
+            name="form"
+            onValueChange={(val) => setLUnit(Number(val))}
+          >
+            <XStack gap="$2">
+              <SizableText size="$1">Layout unit:</SizableText>
+              <RadioGroupItemWithLabel value="16" label="16" />
+              <RadioGroupItemWithLabel value="20" label="20" />
+              <RadioGroupItemWithLabel value="24" label="24" />
+              <RadioGroupItemWithLabel value="28" label="28" />
+              <RadioGroupItemWithLabel value="32" label="32" />
+            </XStack>
+          </RadioGroup>
+        </YStack>
+      ) : null}
+    </docContentContext.Provider>
+  )
+}
+
+export function useDocContentContext() {
+  let context = useContext(docContentContext)
+
+  if (!context) {
+    throw new Error(`Please wrap <DocContent /> with <DocContentProvider />`)
+  }
+
+  return context
+}
 
 function debugStyles(debug: boolean = false, color: ColorProp = '$color7') {
   return debug
@@ -861,6 +989,19 @@ export const blockStyles: YStackProps = {
   flex: 1,
 }
 
+function inlineContentSize(unit: number): TextProps {
+  return {
+    fontSize: unit,
+    lineHeight: unit * 1.3,
+    $gtMd: {
+      fontSize: unit * 1.1,
+    },
+    $gtLg: {
+      fontSize: unit * 1.2,
+    },
+  }
+}
+
 function BlockContent(props: BlockContentProps) {
   const dataProps = {
     depth: props.depth || 1,
@@ -922,7 +1063,7 @@ function BlockContentParagraph({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {debug, comment} = useDocContentContext()
+  const {debug, textUnit, comment} = useDocContentContext()
 
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block)
@@ -935,10 +1076,12 @@ function BlockContentParagraph({
       {...debugStyles(debug, 'blue')}
       className="block-content block-paragraph"
     >
-      <InlineContentView
+      <Text
         className={`content-inline ${comment ? 'is-comment' : ''}`}
-        inline={inline}
-      />
+        {...inlineContentSize(textUnit)}
+      >
+        <InlineContentView inline={inline} />
+      </Text>
     </YStack>
   )
 }
@@ -1290,11 +1433,9 @@ function BlockContentVideo({
         <Text>Video block wrong state</Text>
       )}
       {inline.length ? (
-        <InlineContentView
-          className="opacity-75"
-          fontSize={textUnit * 0.85}
-          inline={inline}
-        />
+        <Text opacity={0.7}>
+          <InlineContentView fontSize={textUnit * 0.85} inline={inline} />
+        </Text>
       ) : null}
     </YStack>
   )
@@ -1324,7 +1465,7 @@ function getInlineContentOffset(inline: HMInlineContent): number {
   return inline.text?.length || 0
 }
 
-function _InlineContentView({
+function InlineContentView({
   inline,
   style,
   linkType = null,
@@ -1505,7 +1646,6 @@ function _InlineContentView({
               <InlineContentView
                 fontSize={fSize}
                 lineHeight={fSize * 1.5}
-                x
                 inline={content.content}
                 linkType={isHmScheme ? 'hypermedia' : 'basic'}
                 rangeOffset={inlineContentOffset}
@@ -1847,9 +1987,16 @@ export function ContentEmbed({
 
 function ErrorBlockMessage({message}: {message: string}) {
   return (
-    <div className="bg-muted border border-border p-4">
-      <p className="text-muted-foreground text-center">{message}</p>
-    </div>
+    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
+      <SizableText
+        fontSize="$4"
+        color="$color9"
+        fontWeight="bold"
+        fontStyle="italic"
+      >
+        {message}
+      </SizableText>
+    </YStack>
   )
 }
 
@@ -2515,6 +2662,27 @@ function getSourceType(name?: string) {
   return `video/${nameArray[nameArray.length - 1]}`
 }
 
+function CheckboxWithLabel({
+  size,
+  label,
+  ...checkboxProps
+}: CheckboxProps & {size: SizeTokens; label: string}) {
+  const id = `checkbox-${size.toString().slice(1)}`
+  return (
+    <XStack alignItems="center" space="$2">
+      <Checkbox id={id} size={size} {...checkboxProps}>
+        <Checkbox.Indicator>
+          <Check />
+        </Checkbox.Indicator>
+      </Checkbox>
+
+      <Label size={size} htmlFor={id}>
+        {label}
+      </Label>
+    </XStack>
+  )
+}
+
 export function InlineEmbedButton({
   children,
   entityId,
@@ -2542,6 +2710,21 @@ export function InlineEmbedButton({
     >
       {children}
     </ButtonText>
+  )
+}
+
+function RadioGroupItemWithLabel(props: {value: string; label: string}) {
+  const id = `radiogroup-${props.value}`
+  return (
+    <XStack alignItems="center" space="$2">
+      <RadioGroup.Item value={props.value} id={id} size="$1">
+        <RadioGroup.Indicator />
+      </RadioGroup.Item>
+
+      <Label size="$1" htmlFor={id}>
+        {props.label}
+      </Label>
+    </XStack>
   )
 }
 

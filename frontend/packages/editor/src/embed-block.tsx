@@ -18,14 +18,16 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {BlockContentEmbed, ErrorBlock} from '@shm/ui/document-content'
-import {useDocContentContext} from '@shm/ui/document-content-context'
+import {
+  BlockContentEmbed,
+  ErrorBlock,
+  useDocContentContext,
+} from '@shm/ui/document-content'
 import {ExternalLink} from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Input, SizableText, YStack} from 'tamagui'
+import {Input, Separator, SizableText, YStack} from 'tamagui'
 import {toast} from '../../ui/src/toast'
 
 function EmbedError() {

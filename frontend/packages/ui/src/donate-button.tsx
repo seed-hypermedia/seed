@@ -13,11 +13,16 @@ import {
   useCreateInvoice,
   useInvoiceStatus,
 } from '@shm/shared'
-import {AlertCircle, CircleDollarSign, Copy, PartyPopper} from '@shm/ui/icons'
 import {Button} from '@tamagui/button'
 import {DialogDescription} from '@tamagui/dialog'
 import {Input} from '@tamagui/input'
 import {Label} from '@tamagui/label'
+import {
+  AlertCircle,
+  CircleDollarSign,
+  Copy,
+  PartyPopper,
+} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Heading, SizableText} from '@tamagui/text'
 import {useState} from 'react'

@@ -5,16 +5,15 @@ import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks
 import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
-import {useDocContentContext} from '@shm/ui/document-content-context'
 import {TextArea} from '@tamagui/input'
-
-import {Separator} from '@shm/ui/separator'
+import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {useDocContentContext} from '../../ui/src/document-content'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
 
 export const MathBlock = (type: 'math') =>
@@ -228,7 +227,7 @@ const Render = (
       </YStack>
       {opened && (
         <YStack>
-          <Separator />
+          <Separator backgroundColor="$color12" />
           <XStack
             minHeight="$7"
             paddingVertical="10px"

@@ -18,8 +18,11 @@ import {
 import {useAccounts} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
-import {BlocksContent, getBlockNodeById} from '@shm/ui/document-content'
-import {useDocContentContext} from '@shm/ui/document-content-context'
+import {
+  BlocksContent,
+  getBlockNodeById,
+  useDocContentContext,
+} from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'

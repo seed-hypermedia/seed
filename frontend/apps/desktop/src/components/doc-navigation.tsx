@@ -13,7 +13,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Plus} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {
   DocNavigationWrapper,
@@ -21,6 +20,7 @@ import {
   DraftOutline,
   useNodesOutline,
 } from '@shm/ui/navigation'
+import {Plus as Add} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
@@ -46,7 +46,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   if (roleCanWrite(capability?.role)) {
     createDirItem = ({indented}) => (
       <SmallListItem
-        icon={Plus}
+        icon={Add}
         title="Create"
         onPress={createDraft}
         color="$green10"

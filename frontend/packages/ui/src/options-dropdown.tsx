@@ -1,13 +1,12 @@
-import {MoreHorizontal} from '@shm/ui/icons'
 import {Button} from '@tamagui/button'
 import {YGroup} from '@tamagui/group'
+import {MoreHorizontal} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {PopoverProps} from 'tamagui'
+import {PopoverProps, Separator} from 'tamagui'
 import {MenuItem} from './menu-item'
-import {Separator} from './separator'
 import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
 
@@ -79,7 +78,10 @@ export function OptionsDropdown({
               item
                 ? [
                     index > 0 ? (
-                      <Separator key={`${item.key}-separator`} />
+                      <Separator
+                        key={`${item.key}-separator`}
+                        borderColor="$color7"
+                      />
                     ) : null,
                     <YGroup.Item key={item.key}>
                       <MenuItem

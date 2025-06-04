@@ -7,7 +7,7 @@ import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
 import {useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {ReactNode} from 'react'

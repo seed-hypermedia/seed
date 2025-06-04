@@ -17,7 +17,7 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'

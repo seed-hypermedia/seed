@@ -4,7 +4,7 @@ import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {
   AddSquare,
   Close,
@@ -16,7 +16,6 @@ import {
   Search,
   Settings,
 } from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
@@ -24,6 +23,7 @@ import {
   ListItem,
   ListItemProps,
   Popover,
+  Separator,
   SizableText,
   XStack,
   YGroup,

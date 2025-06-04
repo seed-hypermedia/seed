@@ -6,6 +6,7 @@ import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
+import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
@@ -42,7 +43,7 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
@@ -54,23 +55,22 @@ import {
   BlockQuote,
   HistoryIcon,
   IconComponent,
-  MessageSquare,
   MoreHorizontal,
-  Plus,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
-import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {MessageSquare, Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {
   ButtonText,
   SizableText,
+  Separator as TSeparator,
   XStack,
   XStackProps,
   YStack,
@@ -603,7 +603,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               )}
             </XStack>
           </YStack>
-          <TSeparator />
+          <TSeparator borderColor="$color8" />
         </YStack>
       </Container>
     </YStack>
@@ -720,7 +720,7 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
     />
   )
 }
-const Separator = () => <TSeparator vertical className="h-5" />
+const Separator = () => <TSeparator borderColor="$color8" vertical h={20} />
 
 function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   const open = useOpenUrl()
@@ -790,6 +790,11 @@ function DocPageContent({
   const route = useNavRoute()
   const citations = useEntityCitations(entity.id)
   const docRoute = route.key === 'document' ? route : null
+  if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
+    return (
+      <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
+    )
+  }
   return (
     <AppDocContentProvider
       routeParams={{

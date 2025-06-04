@@ -22,14 +22,14 @@ import {
 } from '@shm/shared'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AlertCircle, Search, Undo2} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {
   Input,

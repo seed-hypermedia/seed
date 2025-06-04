@@ -51,6 +51,7 @@
     "@tamagui/config": "1.108.2",
     "@tamagui/core": "1.108.2",
     "@tamagui/input": "1.108.2",
+    "@tamagui/lucide-icons": "1.108.2",
     "@tiptap/core": "2.0.3",
     "@tiptap/extension-bold": "2.0.3",
     "@tiptap/extension-code": "2.0.3",

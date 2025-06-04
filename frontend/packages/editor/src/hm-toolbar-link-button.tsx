@@ -6,9 +6,10 @@ import {
 } from '@/blocknote'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {Check, Close, Link, Unlink} from '@shm/ui/icons'
+import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Check, Link, Unlink} from '@tamagui/lucide-icons'
 import {useCallback, useEffect, useState} from 'react'
 import {
   Button,
