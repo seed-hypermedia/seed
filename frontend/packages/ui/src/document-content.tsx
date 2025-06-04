@@ -761,7 +761,6 @@ export function BlockNodeContent({
                 userSelect="none"
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
-                bg="red"
                 opacity={citationsCount?.comments ? 1 : 0}
                 $group-blocknode-hover={{
                   opacity: 1,
