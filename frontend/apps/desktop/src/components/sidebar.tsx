@@ -6,8 +6,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/components/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {
   ChevronDown,
@@ -20,7 +22,7 @@ import {
   UserPlus2,
 } from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 
@@ -83,20 +85,11 @@ function CreateDocumentButton() {
   if (!myAccountIds.data?.length) return null
   return (
     <Button
-      icon={FilePlus2}
-      size="$2"
-      marginBottom="$3"
-      onPress={() => createDraft()}
-      backgroundColor="$brand5"
-      hoverStyle={{
-        backgroundColor: '$brand6',
-      }}
-      pressStyle={{
-        backgroundColor: '$brand7',
-      }}
-      color="white"
+      variant="brand"
+      onClick={() => createDraft()}
+      className="w-full mb-5"
     >
-      Create Document
+      <FilePlus2 color="currentColor" size={16} /> <span>Create Document</span>
     </Button>
   )
 }
@@ -124,14 +117,10 @@ function SidebarSection({
           ai="center"
         >
           <SizableText
-            fontWeight="bold"
-            fontSize="$1"
-            color="$color11"
-            $group-header-hover={{
-              color: '$color12',
-            }}
-            textTransform="capitalize"
-            userSelect="none"
+            weight="bold"
+            size="xs"
+            color="muted"
+            className="capitalize select-none group-hover/header:text-foreground"
           >
             {title}
           </SizableText>

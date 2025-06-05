@@ -15,18 +15,23 @@ export function SiteLogo({
     key: 'document',
     id,
   })
+  console.log(homeLinkProps)
   if (metadata?.seedExperimentalLogo) {
     return (
       <div
-        {...homeLinkProps}
         className={cn('flex flex-1 items-center justify-center')}
         style={{height: '60px'}}
       >
-        <img
-          src={imageUrl(metadata.seedExperimentalLogo, 'M')}
-          height={60}
-          style={{objectFit: 'contain', height: '100%'}}
-        />
+        <a
+          {...homeLinkProps}
+          className="flex items-center justify-center h-full"
+        >
+          <img
+            src={imageUrl(metadata.seedExperimentalLogo, 'M')}
+            height={60}
+            style={{objectFit: 'contain', height: '100%'}}
+          />
+        </a>
       </div>
     )
   }

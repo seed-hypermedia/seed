@@ -4,6 +4,7 @@ import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
+import {cn} from '@shm/ui/utils'
 import {Settings} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
@@ -99,16 +100,13 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         }}
       >
         <div
-          className={`
-            flex flex-col transition-all duration-200 ease-in-out h-full pr-2
-            ${isLocked ? 'relative' : 'absolute'}
-            ${isLocked ? '' : 'z-[900] shadow-lg'}
-            ${isLocked ? '' : 'border border-gray-300 dark:border-gray-600'}
-            ${isLocked ? '' : 'rounded-tr-lg rounded-br-lg'}
-            ${isVisible ? 'opacity-100' : 'opacity-0'}
-            ${isDark ? 'bg-black' : 'bg-background'}
-            w-full
-          `}
+          className={cn(
+            `w-full flex flex-col transition-all duration-200 ease-in-out h-full px-3`,
+            isLocked
+              ? 'relative'
+              : 'absolute z-[900] shadow-lg border border-gray-300 dark:border-gray-600rounded-tr-lg rounded-br-lg',
+            isVisible ? 'opacity-100' : 'opacity-0',
+          )}
           style={{
             transform: `translateX(${
               isVisible ? 0 : -SidebarWidth
