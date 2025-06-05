@@ -9,12 +9,13 @@ import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {ButtonText} from '@tamagui/button'
 import {Home} from '@tamagui/lucide-icons'
 import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
-import {H1, SizableText} from '@tamagui/text'
+import {H1} from '@tamagui/text'
 import {useMemo} from 'react'
 import {getHref} from './href'
 
@@ -94,15 +95,11 @@ export function PageHeader({
                   </ButtonText>,
                   index !== authors.length - 1 ? (
                     index === authors.length - 2 ? (
-                      <SizableText key={`${a}-and`} size="$2" fontWeight="bold">
+                      <SizableText key={`${a}-and`} size="sm" weight="bold">
                         {' & '}
                       </SizableText>
                     ) : (
-                      <SizableText
-                        size="$2"
-                        key={`${a}-comma`}
-                        fontWeight="bold"
-                      >
+                      <SizableText size="sm" key={`${a}-comma`} weight="bold">
                         {', '}
                       </SizableText>
                     )
@@ -161,64 +158,40 @@ function Breadcrumbs({
         <XStack alignItems="center" gap="$1">
           <Home color="$color10" size={12} />
           <SizableText
-            color="$color10"
-            tag="a"
-            key={first.id.id}
-            href={originHomeId ? getHref(originHomeId, first.id) : undefined}
-            size="$1"
-            overflow="hidden"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            textDecorationLine="none"
-            hoverStyle={{
-              textDecorationLine: 'underline',
-              textDecorationColor: 'currentColor',
-            }}
-            maxWidth="15ch"
+            color="muted"
+            asChild
+            size="xs"
+            className="overflow-hidden truncate whitespace-nowrap max-w-[15ch] no-underline hover:underline"
           >
-            {first.metadata?.name}
+            <a
+              key={first.id.id}
+              href={originHomeId ? getHref(originHomeId, first.id) : undefined}
+            >
+              {first.metadata?.name}
+            </a>
           </SizableText>
         </XStack>
       ) : null}
       {rest.flatMap((crumb, index) => {
         return [
-          <SizableText color="$color10" key={`${crumb.id.id}-slash`} size="$1">
+          <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
             /
           </SizableText>,
           <SizableText
-            color="$color10"
-            tag="a"
+            color="muted"
+            asChild
+            size="xs"
             key={crumb.id.id}
-            href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}
-            size="$1"
-            textDecorationLine="none"
-            overflow="hidden"
-            hoverStyle={{
-              textDecorationLine: 'underline',
-              textDecorationColor: 'currentColor',
-            }}
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            textDecoration="none"
-            maxWidth="15ch"
-            // minWidth="8ch"
+            className="no-underline overflow-hidden hover:underline truncate whitespace-nowrap max-w-[15ch]"
           >
-            {crumb.metadata?.name}
+            <a
+              href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}
+            >
+              {crumb.metadata?.name}
+            </a>
           </SizableText>,
         ]
       })}
-      {/* {docId?.id != homeId?.id ? (
-        <SizableText
-          size="$1"
-          // fontWeight="bold"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          // flex={1}
-        >
-          {docMetadata?.name}
-        </SizableText>
-      ) : null} */}
     </XStack>
   )
 }

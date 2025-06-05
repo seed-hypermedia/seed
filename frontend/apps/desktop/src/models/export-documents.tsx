@@ -8,8 +8,9 @@ import {EditorBlock} from '@shm/shared/editor-types'
 import {HMDocumentMetadataSchema, HMDocumentSchema} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {SizableText, YStack} from 'tamagui'
+import {YStack} from 'tamagui'
 
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()
@@ -50,19 +51,21 @@ export function useExportDocuments() {
         const success = (
           <>
             <YStack gap="$1.5" maxWidth={700}>
-              <SizableText wordWrap="break-word" textOverflow="break-word">
+              <SizableText className="break-words">
                 Successfully exported documents to: <b>{`${res}`}</b>.
               </SizableText>
               <SizableText
-                textDecorationLine="underline"
-                textDecorationColor="currentColor"
-                color="$brand5"
-                tag={'a'}
-                onPress={() => {
-                  openDirectory(res)
-                }}
+                color="brand"
+                asChild
+                className="underline cursor-pointer"
               >
-                Show directory
+                <a
+                  onClick={() => {
+                    openDirectory(res)
+                  }}
+                >
+                  Show directory
+                </a>
               </SizableText>
             </YStack>
           </>

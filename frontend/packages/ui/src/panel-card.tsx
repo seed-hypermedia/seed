@@ -1,6 +1,7 @@
 // @ts-nocheck
+import {SizableText} from '@shm/ui/text'
 import * as React from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 
 export function PanelCard({
   title,
@@ -50,11 +51,11 @@ export function PanelCard({
       >
         {avatar}
         {author && (
-          <SizableText size="$2">{author.profile?.alias || '...'}</SizableText>
+          <SizableText size="sm">{author.profile?.alias || '...'}</SizableText>
         )}
         <XStack flex={1} />
         {date && (
-          <SizableText size="$2" color="$color9" paddingHorizontal="$1">
+          <SizableText size="sm" color="muted" className="px-1">
             {date}
           </SizableText>
         )}
@@ -62,21 +63,18 @@ export function PanelCard({
       <YStack gap="$2" flex={1}>
         {title && (
           <SizableText
-            fontWeight={600}
-            textOverflow="ellipsis"
-            overflow="hidden"
-            whiteSpace="nowrap"
+            weight="semibold"
+            className="truncate whitespace-nowrap overflow-hidden"
           >
             {title}
           </SizableText>
         )}
         {content && (
           <SizableText
-            color="$color10"
-            overflow="hidden"
-            maxHeight={23 * 3}
-            size="$1"
-            lineHeight="$5"
+            color="muted"
+            size="xs"
+            className="overflow-hidden leading-6"
+            style={{maxHeight: 23 * 3}}
           >
             {content}
           </SizableText>

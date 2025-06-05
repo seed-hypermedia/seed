@@ -1,11 +1,12 @@
 import {fileUpload} from '@/utils/file-upload'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {SizableText, Stack, XStack} from 'tamagui'
+import {Stack, XStack} from 'tamagui'
 import appError from '../errors'
 
 export function IconForm({
@@ -101,7 +102,7 @@ export function IconForm({
             jc="center"
             pointerEvents="none"
           >
-            <SizableText textAlign="center" size="$1" color="white">
+            <SizableText size="xs" className="text-center text-white">
               {emptyLabel}
             </SizableText>
           </XStack>
@@ -119,7 +120,7 @@ export function IconForm({
           jc="center"
           pointerEvents="none"
         >
-          <SizableText textAlign="center" size="$1" color="white">
+          <SizableText size="xs" className="text-center text-white">
             {url ? 'UPDATE' : emptyLabel || 'ADD ICON'}
           </SizableText>
         </XStack>

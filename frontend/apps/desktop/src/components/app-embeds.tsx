@@ -33,6 +33,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowUpRightSquare} from '@shm/ui/icons'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -41,7 +42,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Button, SizableText, XStack, YStack, YStackProps} from 'tamagui'
+import {Button, XStack, YStack, YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 import {LibraryListItem} from './list-item'
@@ -261,7 +262,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
-      <SizableText color="$color9" fontSize={textUnit}>
+      <SizableText color="muted" className="text-[length:var(--text-unit)]">
         Embed: Parent document (skipped)
       </SizableText>
     )
@@ -371,12 +372,12 @@ export function EmbedComment(props: EntityComponentProps) {
               metadata={account.data?.document?.metadata}
             />
           )}
-          <SizableText fontWeight="bold">
+          <SizableText weight="bold">
             {account.data?.document?.metadata?.name}
           </SizableText>
         </XStack>
         {comment.data?.createTime ? (
-          <SizableText fontSize="$2" color="$color10">
+          <SizableText size="sm" color="muted">
             {formattedDateMedium(comment.data.createTime)}
           </SizableText>
         ) : null}

@@ -6,11 +6,11 @@ import {useAccount} from '@shm/shared/src/models/entity'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
-import {SizableText} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -624,9 +624,9 @@ export function CommentEditor2({
             <HyperMediaEditorView editor={editor} openUrl={openUrl} />
           ) : (
             <SizableText
-              size="$2"
+              size="sm"
               onPress={() => setIsEditorFocused(true)}
-              color="$color8"
+              color="muted"
             >
               Start a Comment
             </SizableText>

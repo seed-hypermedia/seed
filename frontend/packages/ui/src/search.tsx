@@ -15,10 +15,11 @@ import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Button, Input, ScrollView, Separator, SizableText} from 'tamagui'
+import {Button, Input, ScrollView, Separator} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
 import {highlightSearchMatch, useCollapsedPath} from './search-input'
+import {SizableText} from './text'
 
 export function MobileSearch({
   originHomeId,
@@ -312,7 +313,7 @@ function SearchResultItem({
               justifyContent="flex-start"
               alignItems="center"
             >
-              <SizableText numberOfLines={1} fontWeight={600}>
+              <SizableText size="md" weight="semibold" className="line-clamp-1">
                 {highlightSearchMatch(item.title, item.searchQuery, {
                   fontWeight: 600,
                 })}
@@ -323,10 +324,10 @@ function SearchResultItem({
                 alignItems="flex-end"
               >
                 <SizableText
-                  numberOfLines={1}
-                  fontWeight={300}
-                  fontSize="$2"
-                  color={unpackHmId(item.key)?.latest ? '$green10' : undefined}
+                  size="sm"
+                  weight="light"
+                  className="line-clamp-1"
+                  color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
                 >
                   {unpackHmId(item.key)?.latest
                     ? 'Latest Version'
@@ -338,7 +339,7 @@ function SearchResultItem({
             </XStack>
 
             {!!item.path ? (
-              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+              <SizableText size="md" weight="light" className="line-clamp-1">
                 {collapsedPath.join(' / ')}
               </SizableText>
             ) : null}

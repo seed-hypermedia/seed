@@ -8,9 +8,10 @@ import {HMBlockSchema} from '@/schema'
 import {isValidUrl, youtubeParser} from '@/utils'
 import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
+import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
-import {SizableText, XStack, useTheme} from 'tamagui'
+import {XStack, useTheme} from 'tamagui'
 import {toast} from '../../ui/src/toast'
 
 export const getSourceType = (name: string) => {

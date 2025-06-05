@@ -17,11 +17,11 @@ import {
 import {Button} from '@tamagui/button'
 import {ChevronDown} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {useState} from 'react'
 import {ChangeItem} from './change-item'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
+import {SizableText} from './text'
 
 export function SubDocumentItem({
   item,
@@ -75,11 +75,8 @@ export function SubDocumentItem({
       <YStack f={1}>
         <XStack gap="$3" ai="center">
           <SizableText
-            f={1}
-            fontWeight={isRead ? undefined : 'bold'}
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
+            weight={isRead ? 'normal' : 'bold'}
+            className="flex-1 truncate whitespace-nowrap overflow-hidden"
           >
             {getMetadataName(metadata)}
           </SizableText>
@@ -129,7 +126,7 @@ export function LibraryEntryUpdateSummary({
   }
   return (
     <XStack gap="$2">
-      <SizableText numberOfLines={1} size="$1" color="$color9">
+      <SizableText size="xs" color="muted" className="line-clamp-1">
         {summaryText}
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
@@ -152,7 +149,7 @@ export function ActivityTime({
       : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText flexShrink={0} numberOfLines={1} size="$1" color="$color9">
+      <SizableText size="xs" color="muted" className="shrink-0 line-clamp-1">
         ({formattedDate(displayTime)})
       </SizableText>
     )
@@ -253,27 +250,21 @@ function ExpandChangeGroupButton({
           width="100%"
         >
           <SizableText
-            size="$2"
-            flexShrink={1}
-            textOverflow="ellipsis"
-            overflow="hidden"
-            whiteSpace="nowrap"
+            size="sm"
+            className="shrink truncate overflow-hidden whitespace-nowrap"
           >
             {getMetadataName(author.metadata)}
           </SizableText>
 
-          <SizableText size="$2" fontWeight={700} flexShrink={0}>
+          <SizableText size="sm" weight="bold" className="shrink-0">
             {item.changes.length} versions
           </SizableText>
           <ChevronDown size={16} />
         </XStack>
         <SizableText
-          size="$1"
-          color="$color9"
-          flexShrink={1}
-          textOverflow="ellipsis"
-          overflow="hidden"
-          whiteSpace="nowrap"
+          size="xs"
+          color="muted"
+          className="shrink truncate overflow-hidden whitespace-nowrap"
         >
           {formattedDateMedium(item.changes.at(-1)?.createTime)}
         </SizableText>

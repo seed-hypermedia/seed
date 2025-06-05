@@ -7,6 +7,7 @@ import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
 import {useStream} from '@shm/ui/use-stream'
 // import '@tamagui/core/reset.css'
@@ -16,7 +17,7 @@ import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import {SizableText, YStack} from 'tamagui'
+import {YStack} from 'tamagui'
 import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {
@@ -479,13 +480,11 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
     <YStack fullscreen ai="center" jc="center" gap="$4" className="window-drag">
       <Spinner />
       <SizableText
-        opacity={message ? 1 : 0}
-        animation="slow"
-        size="$5"
-        color="$color9"
-        fontWeight="300"
-        textAlign="center"
-        minHeight="$4"
+        size="md"
+        color="muted"
+        weight="normal"
+        className="text-center min-h-4"
+        style={{opacity: message ? 1 : 0}}
       >
         {message}
       </SizableText>

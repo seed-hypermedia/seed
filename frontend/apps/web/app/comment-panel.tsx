@@ -11,10 +11,11 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff, X} from '@tamagui/lucide-icons'
 import React, {useCallback, useMemo} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -341,7 +342,7 @@ export function EmptyDiscussions({
   return (
     <YStack alignItems="center" gap="$4" paddingVertical="$4">
       <MessageSquareOff size={48} color="$color8" />
-      <SizableText size="$3">No discussions</SizableText>
+      <SizableText size="md">No discussions</SizableText>
       <Button
         size="$3"
         onPress={() => {

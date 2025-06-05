@@ -6,10 +6,10 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import ReactDOM from 'react-dom/client'
-import {SizableText} from 'tamagui'
 import './inline-embed.css'
 /**
  * we need
@@ -123,20 +123,12 @@ function DocumentMention({
 export function MentionText(props: any) {
   return (
     <SizableText
-      fontSize="1em"
-      fontWeight="bold"
-      paddingBottom={1}
-      paddingHorizontal={1}
+      weight="bold"
+      color="brand"
+      className="mention-text inline-block pb-0.5 px-0.5 hover:border-b hover:border-brand"
       style={{
-        display: 'inline-block',
+        fontSize: '1em',
         fontFamily: 'inherit',
-      }}
-      color="$brand5"
-      outlineColor="$brand5"
-      className="mention-text"
-      hoverStyle={{
-        borderBottomWidth: 1,
-        borderBottomColor: '$brand5',
       }}
     >
       {props.children}

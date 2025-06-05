@@ -8,7 +8,8 @@ import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
-import {Heading, SizableText} from '@tamagui/text'
+import {SizableText} from '@shm/ui/text'
+import {Heading} from '@tamagui/text'
 import {Container} from '../ui/container'
 
 import type {Email} from '@/db'
@@ -158,9 +159,7 @@ function AccountTitle({accountId}: {accountId: string}) {
           metadata={entity?.document?.metadata}
         />
       ) : null}
-      <SizableText fontWeight="bold">
-        {entity?.document?.metadata.name}
-      </SizableText>
+      <SizableText weight="bold">{entity?.document?.metadata.name}</SizableText>
     </XStack>
   )
 }

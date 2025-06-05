@@ -1,5 +1,6 @@
 import {Button} from '@shm/ui/button'
-import {Text, YStack} from 'tamagui'
+import {Text} from '@shm/ui/text'
+import {YStack} from 'tamagui'
 
 export function EmptyList({
   description,
@@ -10,9 +11,7 @@ export function EmptyList({
 }) {
   return (
     <YStack gap="$5" paddingVertical="$4" width="100%" maxWidth={850}>
-      <Text fontFamily="$body" fontSize="$3">
-        {description}
-      </Text>
+      <Text size="md">{description}</Text>
       <Button size="$4" onPress={() => action()} alignSelf="flex-start">
         Create a new Document
       </Button>

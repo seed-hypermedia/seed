@@ -1,5 +1,6 @@
 import {Spinner} from '@shm/ui/spinner'
-import {Heading, Text, YStack} from 'tamagui'
+import {Text} from '@shm/ui/text'
+import {Heading, YStack} from 'tamagui'
 
 export function NotFoundPage() {
   return (

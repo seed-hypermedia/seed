@@ -5,9 +5,10 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
+import {SizableText} from '@shm/ui/text'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 import {Pencil} from '../../ui/src/icons'
 import {
   BlockNoteEditor,
@@ -181,12 +182,9 @@ export function HypermediaLinkPreview(
             onPress={() => props.openUrl(props.url)}
           >
             <SizableText
-              size="$4"
-              color="$brand5"
-              flex={1}
-              overflow="hidden"
-              whiteSpace="nowrap"
-              textOverflow="ellipsis"
+              size="lg"
+              color="brand"
+              className="flex-1 overflow-hidden whitespace-nowrap truncate"
             >
               {!!unpackedRef
                 ? entity.data?.document?.metadata.name ?? props.url

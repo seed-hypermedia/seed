@@ -22,6 +22,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {
   ErrorToastDecoration,
   Hostname,
@@ -39,7 +40,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {SizableText, XGroup, XStack, YStack, YStackProps} from 'tamagui'
+import {XGroup, XStack, YStack, YStackProps} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
@@ -424,7 +425,7 @@ function PublishedToast({
     <YStack f={1} gap="$3">
       <XStack gap="$4" ai="center">
         {indicator}
-        <SizableText flexWrap="wrap">{message}</SizableText>
+        <SizableText className="flex-wrap">{message}</SizableText>
       </XStack>
     </YStack>
   )

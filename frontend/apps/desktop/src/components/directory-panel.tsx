@@ -6,7 +6,8 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {EmptyDiscussion} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {ScrollView, SizableText, useTheme, XStack, YStack} from 'tamagui'
+import {SizableText} from '@shm/ui/text'
+import {ScrollView, useTheme, XStack, YStack} from 'tamagui'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
@@ -28,7 +29,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
         <EmptyDiscussion color={theme.color6.val} />
-        <SizableText color="$color7" fontWeight="500" size="$5">
+        <SizableText color="muted" weight="medium" size="xl">
           There are no children documents
         </SizableText>
         <XStack padding="$3">

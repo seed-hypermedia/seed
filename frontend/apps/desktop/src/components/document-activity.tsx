@@ -22,8 +22,9 @@ import {CommentGroup} from '@shm/ui/discussion'
 import {ChevronUp, EmptyDiscussion} from '@shm/ui/icons'
 import {ActivitySection} from '@shm/ui/page-components'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {SizableText, useTheme, YStack} from 'tamagui'
+import {useTheme, YStack} from 'tamagui'
 import {
   CommentBox,
   renderCommentContent,
@@ -162,7 +163,7 @@ export function ActivityList({
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
         <EmptyDiscussion color={theme.color6.val} />
-        <SizableText color="$color7" fontWeight="500" size="$5">
+        <SizableText color="muted" weight="medium" size="xl">
           There is no activity yet.
         </SizableText>
       </YStack>

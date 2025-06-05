@@ -1,8 +1,9 @@
+import {SizableText} from '@shm/ui/text'
 import type {ComponentProps, PropsWithChildren} from 'react'
 import React from 'react'
-import {AlertDialog, Button, DialogContent, H3, SizableText} from 'tamagui'
+import {AlertDialog, Button, DialogContent, H3} from 'tamagui'
 
-function Root({children, ...props}: AlertDialogPrimitive.AlertDialogProps) {
+function Root({children, ...props}: ComponentProps<typeof AlertDialog>) {
   return <AlertDialog {...props}>{children}</AlertDialog>
 }
 

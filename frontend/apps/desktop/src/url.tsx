@@ -1,8 +1,9 @@
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Copy, ExternalLink} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, useState} from 'react'
-import {Button, Separator, SizableText, Stack, XGroup} from 'tamagui'
+import {Button, Separator, Stack, XGroup} from 'tamagui'
 import {useOpenUrl} from './open-url'
 
 export function AccessURLRow({
@@ -45,13 +46,8 @@ export function AccessURLRow({
             <IconComponent size={12} />
           </Stack>
           <SizableText
-            size="$2"
-            opacity={0.8}
-            textAlign="left"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
-            color="$color"
+            size="sm"
+            className="opacity-80 text-left truncate whitespace-nowrap overflow-hidden"
           >
             {title || url}
           </SizableText>

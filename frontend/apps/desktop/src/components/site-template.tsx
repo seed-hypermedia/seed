@@ -3,10 +3,11 @@ import {useNavigate} from '@/utils/useNavigate'
 import {DocumentRoute, hmId, invalidateQueries, queryKeys} from '@shm/shared'
 import {cloneSiteFromTemplate} from '@shm/shared/utils/clone'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
-import {Button, ButtonProps, SizableText, View, XStack, YStack} from 'tamagui'
+import {Button, ButtonProps, View, XStack, YStack} from 'tamagui'
 
 import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
@@ -85,7 +86,7 @@ export function SiteTemplate({
 
   return (
     <YStack alignItems="center" gap="$6">
-      <SizableText size="$6" fontWeight="bold">
+      <SizableText size="xl" weight="bold">
         Choose a Template to get Started
       </SizableText>
       <XStack>
@@ -151,7 +152,7 @@ export function SiteTemplate({
         >
           <View width={200} height={140} bg="$color7" />
           <SizableText
-            color={selectedTemplate === 'blank' ? '$color1' : '$color10'}
+            color={selectedTemplate === 'blank' ? 'default' : 'muted'}
           >
             Blank
           </SizableText>
@@ -165,7 +166,7 @@ export function SiteTemplate({
           width="100%"
           alignItems="center"
         >
-          <SizableText color="$color" textAlign="center">
+          <SizableText className="text-center">
             You need to be connected to the internet to use templates
           </SizableText>
         </YStack>
@@ -264,13 +265,11 @@ function TemplateItem({
     >
       <TemplateImage name={name} />
       <XStack ai="center" gap="$3">
-        <SizableText color={active ? '$color1' : '$color10'}>
-          {label}
-        </SizableText>
+        <SizableText color={active ? 'default' : 'muted'}>{label}</SizableText>
         <Tooltip content="Preview Documentation Site">
           <Button
             chromeless
-            color={active ? '$color1' : '$color10'}
+            color={active ? 'default' : 'muted'}
             icon={ExternalLink}
             onPress={onPressExternal}
             size="$2"

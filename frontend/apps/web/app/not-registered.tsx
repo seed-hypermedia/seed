@@ -1,6 +1,6 @@
 import {Link} from '@remix-run/react'
+import {SizableText} from '@shm/ui/text'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {Container} from './ui/container'
 
 export function NotRegisteredPage({}: {}) {
@@ -19,8 +19,8 @@ export function NotRegisteredPage({}: {}) {
           elevation="$4"
         >
           <XStack alignItems="center" gap="$3">
-            <SizableText size="$10">🚧</SizableText>
-            <SizableText size="$8" fontWeight="bold">
+            <SizableText size="3xl">🚧</SizableText>
+            <SizableText size="2xl" weight="bold">
               Seed Hypermedia Site Coming Soon
             </SizableText>
           </XStack>
@@ -57,8 +57,8 @@ export function NoSitePage({}: {}) {
           elevation="$4"
         >
           <XStack alignItems="center" gap="$3">
-            <SizableText size="$10">☁️</SizableText>
-            <SizableText size="$8" fontWeight="bold">
+            <SizableText size="3xl">☁️</SizableText>
+            <SizableText size="2xl" weight="bold">
               Nothing Here, (yet!)
             </SizableText>
           </XStack>

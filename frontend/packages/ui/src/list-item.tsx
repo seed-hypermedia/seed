@@ -3,7 +3,6 @@ import {useTheme, View} from '@tamagui/core'
 import {ListItem, ListItemProps} from '@tamagui/list-item'
 import {ArrowDownRight, ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {
   ComponentProps,
   createElement,
@@ -14,6 +13,7 @@ import {
 import {type GestureResponderEvent} from 'react-native'
 import {DraftBadge} from './draft-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 
 export function FocusButton({
@@ -152,20 +152,20 @@ export function SmallListItem({
         {children}
         <XStack f={1} ai="center" gap="$1">
           <SizableText
-            f={isDraft ? 0 : 1}
-            {...(multiline
-              ? {numberOfLines: 2}
-              : {
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                })}
-            width="100%"
-            size="$2"
-            color={color || '$gray12'}
-            fontWeight={bold ? 'bold' : undefined}
-            userSelect="none"
-            className="mobile-menu-item-label"
+            size="sm"
+            weight={bold ? 'bold' : 'normal'}
+            className={`
+              ${isDraft ? 'flex-none' : 'flex-1'} 
+              ${
+                multiline
+                  ? 'line-clamp-2'
+                  : 'truncate whitespace-nowrap overflow-hidden'
+              } 
+              w-full select-none mobile-menu-item-label
+            `.trim()}
+            style={{
+              color: typeof color === 'string' ? color : theme.gray12.val,
+            }}
           >
             {title}
           </SizableText>

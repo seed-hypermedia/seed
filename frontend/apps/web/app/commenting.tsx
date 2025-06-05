@@ -19,6 +19,7 @@ import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {SendHorizontal} from '@tamagui/lucide-icons'
@@ -27,7 +28,7 @@ import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
@@ -450,7 +451,7 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
         <DialogTitle>Email Notifications</DialogTitle>
         <SizableText>
           Email notifications have been set for{' '}
-          <SizableText fontWeight="bold">
+          <SizableText weight="bold">
             {emailNotifications?.account?.email}
           </SizableText>
           .

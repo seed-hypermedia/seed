@@ -1,8 +1,8 @@
-import {SizableText} from 'tamagui'
+import {SizableText} from '@shm/ui/text'
 
 export function Slash() {
   return (
-    <SizableText color="$color8" fontSize="$6" userSelect="none">
+    <SizableText color="muted" size="xl" className="select-none">
       /
     </SizableText>
   )

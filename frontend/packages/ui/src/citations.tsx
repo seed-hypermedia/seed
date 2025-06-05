@@ -6,7 +6,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button, SizableText, styled, XStack} from 'tamagui'
+import {SizableText} from '@shm/ui/text'
+import {Button, styled, XStack} from 'tamagui'
 import {HoverCard} from './hover-card'
 
 export function DocumentCitationEntry({
@@ -73,7 +74,7 @@ function HMAuthor({author}: {author: HMMetadataPayload}) {
     <Button size="$2" chromeless {...linkProps}>
       <XStack gap="$2" ai="center">
         <HMIcon size={20} id={author.id} metadata={author.metadata} />
-        <SizableText fontWeight="bold">{author.metadata?.name}</SizableText>
+        <SizableText weight="bold">{author.metadata?.name}</SizableText>
       </XStack>
     </Button>
   )

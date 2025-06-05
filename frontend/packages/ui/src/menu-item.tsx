@@ -1,5 +1,5 @@
 import {ListItem, ListItemProps} from '@tamagui/list-item'
-import {SizableText} from '@tamagui/text'
+import {SizableText} from './text'
 
 export function MenuItem({
   disabled,
@@ -27,10 +27,10 @@ export function MenuItem({
       title={
         title ? (
           <SizableText
-            fontSize="$2"
-            cursor={disabled ? 'not-allowed' : 'default'}
-            userSelect="none"
-            color={props.color}
+            size="sm"
+            className={`select-none ${
+              disabled ? 'cursor-not-allowed' : 'cursor-default'
+            }`}
           >
             {title}
           </SizableText>

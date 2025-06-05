@@ -1,5 +1,6 @@
+import {SizableText} from '@shm/ui/text'
 import {ReactNode} from 'react'
-import {SizableText, XStack} from 'tamagui'
+import {XStack} from 'tamagui'
 
 export function AppBanner({
   children,
@@ -41,5 +42,5 @@ export function AppBanner({
 }
 
 export function BannerText(props: any) {
-  return <SizableText {...props} size="$1" textAlign="center" />
+  return <SizableText {...props} size="xs" className="text-center" />
 }

@@ -5,10 +5,10 @@ import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks
 import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
+import {SizableText} from '@shm/ui/text'
 import {TextArea} from '@tamagui/input'
 import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
@@ -223,7 +223,7 @@ const Render = (
         }}
         ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
       >
-        <SizableText ref={mathRef} userSelect="none" />
+        <SizableText ref={mathRef} style={{userSelect: 'none'}} />
       </YStack>
       {opened && (
         <YStack>

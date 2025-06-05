@@ -12,9 +12,10 @@ import {
 } from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
 import {Container, PanelContainer} from '@shm/ui/container'
+import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 
 export default function DraftsPage() {
   const drafts = useDraftList()
@@ -145,12 +146,7 @@ export function DraftItem({
                     '?'}
                 </Button>
                 {idx === breadcrumbs.length - 1 ? null : (
-                  <SizableText
-                    size="$1"
-                    color="$color9"
-                    margin={0}
-                    marginRight="$1"
-                  >
+                  <SizableText size="xs" color="muted" className="mr-1">
                     /
                   </SizableText>
                 )}
@@ -158,13 +154,9 @@ export function DraftItem({
             ))}
           </XStack>
           <SizableText
-            size="$4"
-            textAlign="left"
-            f={1}
-            fontWeight="bold"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
+            size="lg"
+            weight="bold"
+            className="text-left flex-1 truncate whitespace-nowrap overflow-hidden"
           >
             {getMetadataName(metadata)}
           </SizableText>
@@ -173,7 +165,11 @@ export function DraftItem({
             item={item}
             accountsMetadata={accountsMetadata}
           /> */}
-        <SizableText size="$1" color="$color9" flexShrink={0} flexGrow={0}>
+        <SizableText
+          size="xs"
+          color="muted"
+          className="flex-shrink-0 flex-grow-0"
+        >
           {formattedDateMedium(new Date(item.lastUpdateTime))}
         </SizableText>
       </XStack>

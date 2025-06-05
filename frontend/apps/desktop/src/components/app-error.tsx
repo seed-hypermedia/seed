@@ -1,5 +1,6 @@
+import {SizableText} from '@shm/ui/text'
 import {FallbackProps} from 'react-error-boundary'
-import {Button, Heading, SizableText, XStack, YStack} from 'tamagui'
+import {Button, Heading, XStack, YStack} from 'tamagui'
 import {ErrorBar} from './error-bar'
 
 export function AppErrorPage({error, resetErrorBoundary}: FallbackProps) {
@@ -42,8 +43,8 @@ export function AppErrorContent({
       >
         <Heading color="$red10">Something went wrong</Heading>
         <YStack padding="$4" backgroundColor={'$gray2'} borderRadius="$2">
-          <SizableText tag="pre" fontFamily={'$mono'}>
-            {message}
+          <SizableText asChild family="mono">
+            <pre>{message}</pre>
           </SizableText>
         </YStack>
         {resetErrorBoundary && (

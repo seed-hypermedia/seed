@@ -11,10 +11,11 @@ import {unwrap} from '@/wrapping'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {Linux, Macos, Win32} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Button} from '@tamagui/button'
 import {Download} from '@tamagui/lucide-icons'
 import {SizableStack, XStack, YStack} from '@tamagui/stacks'
-import {Heading, SizableText} from '@tamagui/text'
+import {H1} from '@tamagui/text'
 import {useEffect, useState} from 'react'
 import {z} from 'zod'
 import {Container} from '../ui/container'
@@ -199,10 +200,10 @@ export default function DownloadPage() {
           paddingVertical="$8"
         >
           <Container gap="$4" paddingHorizontal="$6">
-            <Heading size="$10" textAlign="center" $gtMd={{size: '$13'}}>
+            <H1 size="$10" textAlign="center" $gtMd={{size: '$13'}}>
               Download Seed Hypermedia Today!
-            </Heading>
-            <SizableText size="$6" textAlign="center">
+            </H1>
+            <SizableText size="xl" className="text-center">
               Start writing and collaborating with your peers.
             </SizableText>
             {suggestedButtons.length > 0 && suggestedButtons}
@@ -210,7 +211,7 @@ export default function DownloadPage() {
         </YStack>
         <Container>
           <YStack gap="$4" ai="center">
-            <SizableText size="$8" fontWeight="bold">
+            <SizableText size="2xl" weight="bold">
               Download Seed Hypermedia {stableRelease.name}
             </SizableText>
           </YStack>
@@ -290,7 +291,7 @@ function PlatformItem({
       ai="center"
     >
       <Icon color="hsl(171, 96%, 28%)" size={60} />
-      <SizableText size="$5" fontWeight="bold">
+      <SizableText size="lg" weight="bold">
         {label}
       </SizableText>
       <XStack gap="$2">

@@ -1,5 +1,5 @@
+import {SizableText} from '@shm/ui/text'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {SiteDocumentPayload} from './loaders'
 import {Container} from './ui/container'
 
@@ -24,8 +24,8 @@ export function NotFoundPage({
           elevation="$4"
         >
           <XStack alignItems="center" gap="$3">
-            <SizableText size="$10">☹️</SizableText>
-            <SizableText size="$8" fontWeight="bold">
+            <SizableText size="3xl">☹️</SizableText>
+            <SizableText size="2xl" weight="bold">
               Document Not Found
             </SizableText>
           </XStack>

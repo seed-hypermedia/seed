@@ -13,10 +13,11 @@ import {
 } from '@shm/shared/utils/web-embed-scripts'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {YStack} from '@tamagui/stacks'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
-import {SizableText, useTheme} from 'tamagui'
+import {useTheme} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 
 export const WebEmbed = createReactBlockSpec({
@@ -215,13 +216,7 @@ const display = ({
       )}
       {error && (
         <YStack padding="$7" alignItems="center" alignContent="center">
-          <SizableText
-            color="$red11"
-            padding="$1"
-            // borderWidth="$1.5"
-            // borderRadius="$3"
-            // borderColor="$color8"
-          >
+          <SizableText color="danger" className="p-1">
             Error loading embed, please check the link!
           </SizableText>
         </YStack>

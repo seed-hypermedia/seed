@@ -8,8 +8,9 @@ import {SimpleDatePicker} from '@shm/ui/datepicker'
 import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {ButtonText, Input, Label, SizableText, YStack} from 'tamagui'
+import {ButtonText, Input, Label, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
@@ -45,12 +46,9 @@ export function OptionsPanel({
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
             <SizableText
-              userSelect="none"
-              size="$3"
-              fontWeight="600"
-              paddingHorizontal="$1"
-              mt="$4"
-              f={1}
+              className="select-none px-1 mt-4 flex-1"
+              size="md"
+              weight="semibold"
             >
               Document Options
             </SizableText>

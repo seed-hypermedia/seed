@@ -7,11 +7,11 @@ import {
   getOriginRequestData,
   resolveHMDocument,
 } from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
+
 import {unwrap, wrapJSON} from '@/wrapping'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData, useSearchParams} from '@remix-run/react'
@@ -34,15 +34,17 @@ import {
 import {useEntity} from '@shm/shared/models/entity'
 import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
-import {Button, ButtonText, SizableText, View, XStack, YStack} from 'tamagui'
+import {Button, ButtonText, View, XStack, YStack} from 'tamagui'
 
+import {defaultSiteIcon} from '@/meta'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {CommentPayload} from './hm.api.comment'
 import {SyncCommentRequest} from './hm.api.sync-comment'
 
@@ -232,11 +234,11 @@ export default function CreateComment() {
           paddingHorizontal={0}
         >
           <View paddingHorizontal="$4">
-            <SizableText fontSize="$5">
+            <SizableText size="lg">
               {replyComment ? (
                 <>
                   Replying to{' '}
-                  <SizableText fontWeight="bold" fontSize="$5">
+                  <SizableText weight="bold" size="lg">
                     {replyComment.author.metadata?.name ?? 'Unknown Author'}
                   </SizableText>
                 </>
@@ -406,7 +408,7 @@ function SyncCommentFeedback({
       padding="$2"
       backgroundColor={bgColor}
     >
-      <SizableText color={borderColor}>{statusText}</SizableText>
+      <SizableText className="text-current">{statusText}</SizableText>
       {isLoading && <Spinner width={20} height={20} />}
       {retry && !isLoading ? (
         <Button onPress={retry} size="$1" theme="red">

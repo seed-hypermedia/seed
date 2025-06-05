@@ -1,5 +1,6 @@
+import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 import {useHasDevTools} from '../models/experiments'
 
 export function DebugData({data}: {data: any}) {
@@ -18,8 +19,8 @@ export function DebugData({data}: {data: any}) {
             whiteSpace: 'wrap',
           }}
         >
-          <SizableText tag="code" size="$1">
-            {JSON.stringify(data, null, 3)}
+          <SizableText asChild size="xs">
+            <code>{JSON.stringify(data, null, 3)}</code>
           </SizableText>
         </XStack>
       )}

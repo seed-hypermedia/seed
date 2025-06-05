@@ -9,10 +9,11 @@ import {useAccounts, useEntity} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {MessageSquareOff} from '@tamagui/lucide-icons'
 import {YStack} from '@tamagui/stacks'
 import {memo, useEffect, useMemo, useState} from 'react'
-import {Button, Separator, SizableText, View} from 'tamagui'
+import {Button, Separator, View} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -259,7 +260,7 @@ function FocusedCommentReplies({
   if (!isOpen)
     return (
       <Button onPress={() => setIsOpen(true)} size="$1">
-        <SizableText size="$1">{`Show ${replies.data.length} ${pluralS(
+        <SizableText size="xs">{`Show ${replies.data.length} ${pluralS(
           replies.data.length,
           'Reply',
           'Replies',
@@ -297,7 +298,7 @@ function EmptyDiscussions({
   return (
     <YStack alignItems="center" gap="$4" paddingVertical="$4">
       <MessageSquareOff size={48} color="$color8" />
-      <SizableText size="$3">No discussions</SizableText>
+      <SizableText size="md">No discussions</SizableText>
       <Button
         size="$3"
         onPress={() => triggerCommentDraftFocus(docId.id, commentId)}

@@ -23,6 +23,7 @@ import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
@@ -30,7 +31,7 @@ import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {Form, SizableText, YStack} from 'tamagui'
+import {Form, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
@@ -369,7 +370,7 @@ function WebImportInProgress({
           </SizableText>
         ) : null}
         {scrapeStatus ? (
-          <SizableText color="$color10" size="$2" numberOfLines={1}>
+          <SizableText color="muted" size="sm" className="truncate">
             {scrapeStatus?.activeUrl}
           </SizableText>
         ) : null}
@@ -386,7 +387,7 @@ function WebImportInProgress({
     return (
       <YStack gap="$4">
         <DialogTitle>Error importing from {hostname}</DialogTitle>
-        <SizableText color="$red10">Error: {status.error}</SizableText>
+        <SizableText color="danger">Error: {status.error}</SizableText>
       </YStack>
     )
   }

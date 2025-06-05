@@ -1,6 +1,6 @@
 import {XStack, XStackProps} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
+import {SizableText} from './text'
 
 export type UIAvatarProps = XStackProps & {
   url?: string
@@ -55,15 +55,15 @@ export function UIAvatar({
         />
       ) : (
         <SizableText
-          fontWeight="600"
-          fontSize={size * 0.55}
-          display="block"
-          width={size / 2}
-          height={size / 2}
-          lineHeight={size / 2}
-          textAlign="center"
-          color="black"
-          userSelect="none"
+          weight="semibold"
+          className="block text-center select-none"
+          style={{
+            fontSize: size * 0.55,
+            width: size / 2,
+            height: size / 2,
+            lineHeight: `${size / 2}px`,
+            color: 'black',
+          }}
         >
           {text.toUpperCase()}
         </SizableText>

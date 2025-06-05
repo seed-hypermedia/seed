@@ -64,8 +64,8 @@ import {
   useImageUrl,
 } from './get-file-url'
 
+import {SizableText, SizableTextProps} from '@shm/ui/text'
 import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
-import {SizableText, SizableTextProps} from '@tamagui/text'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
@@ -82,16 +82,6 @@ import {
   useRef,
   useState,
 } from 'react'
-// import {
-//   QuotedTweet,
-//   TweetBody,
-//   TweetHeader,
-//   TweetInReplyTo,
-//   TweetInfo,
-//   TweetMedia,
-//   enrichTweet,
-//   useTweet,
-// } from "react-tweet";
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -100,7 +90,6 @@ import {BlockQuote} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
-// import {XPostNotFound, XPostSkeleton} from "./x-components";
 
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
@@ -443,59 +432,6 @@ export function BlockNodeList({
     </YStack>
   )
 }
-
-// function BlockNodeMarker({
-//   block,
-//   childrenType,
-//   index = 0,
-//   start = '1',
-// }: {
-//   block: Block
-//   childrenType?: string
-//   start?: string
-//   index?: number
-//   headingTextStyles: TextProps
-// }) {
-//   const {layoutUnit, textUnit, debug} = useDocContentContext()
-//   let styles = useMemo(
-//     () =>
-//       childrenType == 'ol'
-//         ? ({
-//             position: 'absolute',
-//             right: layoutUnit / 4,
-//             marginTop: layoutUnit / 7,
-//             fontSize: textUnit * 0.7,
-//           } satisfies SizableTextProps)
-//         : {},
-//     [childrenType, textUnit, layoutUnit],
-//   )
-//   let marker
-
-//   if (childrenType == 'ol') {
-//     marker = `${index + Number(start)}.`
-//   }
-
-//   if (childrenType == 'ul') {
-//     marker = '•'
-//   }
-
-//   if (!marker) return null
-
-//   return (
-//     <XStack
-//       flex={0}
-//       width={layoutUnit}
-//       height={textUnit * 1.5}
-//       alignItems="center"
-//       justifyContent="flex-start"
-//       {...debugStyles(debug, 'green')}
-//     >
-//       <Text {...styles} fontFamily="$body" userSelect="none" opacity={0.7}>
-//         {marker}
-//       </Text>
-//     </XStack>
-//   )
-// }
 
 export function BlockNodeContent({
   blockNode,

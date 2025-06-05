@@ -1,10 +1,11 @@
-import {SizableText, styled, XStack, YStack} from 'tamagui'
+import {styled, XStack, YStack} from 'tamagui'
+import {SizableText} from './text'
 
 export const onboardingColor = '#755EFF'
 
 export const Title = styled(SizableText, {
-  size: '$7',
-  fontWeight: 'bold',
+  size: '3xl',
+  weight: 'bold',
 })
 
 export const Text = styled(SizableText, {})

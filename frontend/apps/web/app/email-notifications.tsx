@@ -1,8 +1,9 @@
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {DialogTitle} from '@shm/ui/universal-dialog'
 import {Control, useController} from 'react-hook-form'
-import {SizableText, YStack} from 'tamagui'
+import {YStack} from 'tamagui'
 
 import {z} from 'zod'
 import {
@@ -53,7 +54,7 @@ function EmptyNotifWarning({
   })
   if (notifyAllMentionsField.value || notifyAllRepliesField.value) return null
   return (
-    <SizableText color="$red10">
+    <SizableText color="danger">
       You will not receive any notifications.
     </SizableText>
   )

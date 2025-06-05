@@ -2,12 +2,13 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getAccountName} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {ButtonProps, ButtonText, SizableText, SizableTextProps} from 'tamagui'
+import {SizableText} from '@shm/ui/text'
+import {ButtonProps, ButtonText} from 'tamagui'
 
 export function NameComponent({
   accountId,
   ...props
-}: SizableTextProps & {accountId?: string}) {
+}: {accountId?: string} & React.ComponentProps<typeof SizableText>) {
   const id = accountId ? hmId('d', accountId) : undefined
   const entity = useEntity(id)
   if (!id) return null

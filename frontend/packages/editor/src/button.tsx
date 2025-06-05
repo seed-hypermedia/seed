@@ -6,11 +6,12 @@ import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {updateSelection} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {Button} from '@shm/ui/button'
+import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useEffect, useState} from 'react'
-import {Label, SizableText} from 'tamagui'
+import {Label} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 
 export const ButtonBlock = createReactBlockSpec({
@@ -205,13 +206,14 @@ const Render = (
             }}
           >
             <SizableText
-              size="$4"
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              fontWeight="600"
-              fontStyle={block.props.name ? 'normal' : 'italic'}
-              color={block.props.name ? 'white' : 'lightgrey'}
-              opacity={block.props.name ? 1 : 0.6}
+              size="lg"
+              className="truncate"
+              weight="semibold"
+              style={{
+                fontStyle: block.props.name ? 'normal' : 'italic',
+                color: block.props.name ? 'white' : 'lightgrey',
+                opacity: block.props.name ? 1 : 0.6,
+              }}
             >
               {block.props.name || 'Button Text'}
             </SizableText>

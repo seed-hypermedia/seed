@@ -1,12 +1,13 @@
+import {Timestamp} from '@bufbuild/protobuf'
 import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {useCollapsedPath, highlightSearchMatch} from '@shm/ui/search-input'
+import {highlightSearchMatch, useCollapsedPath} from '@shm/ui/search-input'
+import {SizableText} from '@shm/ui/text'
 import {useLayoutEffect, useRef} from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
-import {Timestamp} from '@bufbuild/protobuf'
 
 export type SwitcherItem = {
   id?: UnpackedHypermediaId
@@ -77,7 +78,7 @@ export function LauncherItem({
               justifyContent="flex-start"
               alignItems="center"
             >
-              <SizableText numberOfLines={1} fontWeight={600}>
+              <SizableText className="truncate" weight="semibold">
                 {highlightSearchMatch(item.title, item.searchQuery, {
                   fontWeight: 600,
                 })}
@@ -88,10 +89,10 @@ export function LauncherItem({
                 alignItems="flex-end"
               >
                 <SizableText
-                  numberOfLines={1}
-                  fontWeight={300}
-                  fontSize="$2"
-                  color={unpackHmId(item.key)?.latest ? '$green10' : undefined}
+                  className="truncate"
+                  weight="normal"
+                  size="sm"
+                  color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
                 >
                   {unpackHmId(item.key)?.latest
                     ? 'Latest Version'
@@ -103,7 +104,7 @@ export function LauncherItem({
             </XStack>
 
             {!!item.path ? (
-              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
+              <SizableText className="truncate" weight="normal" size="md">
                 {collapsedPath.join(' / ')}
               </SizableText>
             ) : null}

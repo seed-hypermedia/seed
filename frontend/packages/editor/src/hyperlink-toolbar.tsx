@@ -1,7 +1,8 @@
 import {HyperlinkToolbarProps} from '@/blocknote'
 import {HMEntityType} from '@shm/shared/utils/entity-id-url'
+import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
-import {SizableText, SizeTokens, YStack} from 'tamagui'
+import {SizeTokens, YStack} from 'tamagui'
 import {HypermediaLinkForm} from './hm-link-form'
 export function HypermediaLinkToolbar(
   props: HyperlinkToolbarProps & {
@@ -58,7 +59,7 @@ export function HypermediaLinkToolbar(
       onMouseEnter={props.stopHideTimer}
       onMouseLeave={props.startHideTimer}
     >
-      <SizableText fontWeight="700">{`${
+      <SizableText weight="bold">{`${
         props.type.charAt(0).toUpperCase() + props.type.slice(1)
       } settings`}</SizableText>
       <HypermediaLinkForm

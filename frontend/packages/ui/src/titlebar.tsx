@@ -1,5 +1,6 @@
 // @ts-nocheck
-import {ButtonText, SizableText, styled, XStack, YStack} from 'tamagui'
+import {ButtonText, styled, XStack, YStack} from 'tamagui'
+import {SizableText} from './text'
 
 export const TitlebarWrapper = styled(YStack, {
   name: 'TitlebarWrapper',

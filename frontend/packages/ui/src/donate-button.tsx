@@ -24,13 +24,14 @@ import {
   PartyPopper,
 } from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {Heading, SizableText} from '@tamagui/text'
+import {Heading} from '@tamagui/text'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './checkbox-field'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {Spinner} from './spinner'
+import {SizableText} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {DialogTitle, useAppDialog} from './universal-dialog'
@@ -263,7 +264,7 @@ function DonateForm({
             <XStack key={author.id.uid} jc="space-between">
               <XStack ai="center" gap="$4">
                 <HMIcon id={author.id} metadata={author.metadata} />
-                <SizableText color={isAllowedRecipient ? undefined : '$color9'}>
+                <SizableText color={isAllowedRecipient ? 'default' : 'muted'}>
                   {getMetadataName(author.metadata)}
                 </SizableText>
               </XStack>

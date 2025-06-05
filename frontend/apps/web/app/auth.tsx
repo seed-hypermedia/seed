@@ -15,6 +15,7 @@ import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {
   DialogDescription,
   DialogTitle,
@@ -34,7 +35,7 @@ import {
   useController,
   useForm,
 } from 'react-hook-form'
-import {Form, SizableText, Stack, XStack, YStack} from 'tamagui'
+import {Form, Stack, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import {
   createDocumentGenesisChange,
@@ -458,7 +459,7 @@ function ImageField<Fields extends FieldValues>({
           jc="center"
           pointerEvents="none"
         >
-          <SizableText textAlign="center" size="$1" color="white">
+          <SizableText size="xs" className="text-center text-white">
             Add {label}
           </SizableText>
         </XStack>
@@ -490,7 +491,7 @@ function ImageField<Fields extends FieldValues>({
           jc="center"
           pointerEvents="none"
         >
-          <SizableText textAlign="center" size="$1" color="white">
+          <SizableText size="xs" className="text-center text-white">
             Edit {label}
           </SizableText>
         </XStack>

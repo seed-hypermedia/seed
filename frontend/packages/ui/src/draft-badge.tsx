@@ -1,5 +1,5 @@
-import {SizableText} from '@tamagui/text'
 import {XStack} from 'tamagui'
+import {SizableText} from './text'
 
 export function DraftBadge() {
   return (
@@ -11,7 +11,7 @@ export function DraftBadge() {
       borderRadius="$2"
       borderWidth={1}
     >
-      <SizableText size="$1" color="$yellow9">
+      <SizableText size="xs" color="warning">
         Draft
       </SizableText>
     </XStack>

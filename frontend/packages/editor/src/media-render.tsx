@@ -9,6 +9,7 @@ import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
@@ -19,7 +20,7 @@ import {
   useEffect,
   useState,
 } from 'react'
-import {Input, Label, SizableText} from 'tamagui'
+import {Input, Label} from 'tamagui'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 
@@ -415,7 +416,7 @@ function MediaForm({
           backgroundColor="rgb(255, 255, 255, 0.5)"
           borderRadius="$2"
         >
-          <SizableText fontWeight="bold">DROP MEDIA HERE</SizableText>
+          <SizableText weight="bold">DROP MEDIA HERE</SizableText>
         </XStack>
       )}
       <XStack
@@ -568,7 +569,7 @@ function MediaForm({
               )}
             </XStack>
             {fileName.color && fileName.color === 'red' && (
-              <SizableText size="$2" color={fileName.color} paddingTop="$2">
+              <SizableText size="sm" color="danger" className="pt-2">
                 {fileName.name}
               </SizableText>
             )}
@@ -595,12 +596,7 @@ function MediaForm({
               {!drag && (
                 <>
                   <Upload size={18} />
-                  <SizableText
-                    padding="$2"
-                    overflow="hidden"
-                    whiteSpace="nowrap"
-                    textOverflow="ellipsis"
-                  >
+                  <SizableText className="p-2 overflow-hidden whitespace-nowrap truncate">
                     Upload File
                   </SizableText>
                 </>

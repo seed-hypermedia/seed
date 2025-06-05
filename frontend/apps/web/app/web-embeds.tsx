@@ -28,9 +28,9 @@ import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {StackProps, Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {useMemo, useState} from 'react'
 
 injectModels()
@@ -175,9 +175,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
-      <SizableText color="$color9">
-        Embed: Parent document (skipped)
-      </SizableText>
+      <SizableText color="muted">Embed: Parent document (skipped)</SizableText>
     )
   }
   // return <div>{JSON.stringify(doc.data)}</div>;
@@ -411,15 +409,13 @@ function QueryListStyle({
           >
             <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
               <SizableText
-                fontWeight="bold"
-                textOverflow="ellipsis"
-                whiteSpace="nowrap"
-                overflow="hidden"
+                weight="bold"
+                className="text-ellipsis whitespace-nowrap overflow-hidden"
               >
                 {item.metadata.name}
               </SizableText>
             </XStack>
-            <SizableText size="$1" color="$color10">
+            <SizableText size="xs" color="muted">
               {formattedDate(item.updateTime)}
             </SizableText>
           </Button>

@@ -1,7 +1,8 @@
 import {XStack, XStackProps, YStack} from '@tamagui/stacks'
 import 'katex/dist/katex.min.css'
-import {Button, ColorTokens, SizableText, View, ViewProps} from 'tamagui'
+import {Button, ColorTokens, View, ViewProps} from 'tamagui'
 import './document-content.css'
+import {SizableText} from './text'
 
 export function QueryBlockPlaceholder({
   styleType,
@@ -141,12 +142,7 @@ function Skeleton(props: ViewProps) {
 export function BlankQueryBlockMessage({message}: {message: string}) {
   return (
     <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
-      <SizableText
-        fontSize="$4"
-        color="$color9"
-        fontWeight="bold"
-        fontStyle="italic"
-      >
+      <SizableText size="lg" color="muted" weight="bold" className="italic">
         {message}
       </SizableText>
     </YStack>

@@ -1,6 +1,7 @@
 import {ChevronDown, ChevronUp} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Control, FieldValues, Path, useController} from 'react-hook-form'
-import {Select, SizableText, YStack} from 'tamagui'
+import {Select, YStack} from 'tamagui'
 
 export function SelectInput<Fields extends FieldValues>({
   control,
@@ -18,7 +19,7 @@ export function SelectInput<Fields extends FieldValues>({
 }) {
   const c = useController({control, name})
   if (options.length === 0 && noOptionsMessage) {
-    return <SizableText color="$red10">{noOptionsMessage}</SizableText>
+    return <SizableText color="danger">{noOptionsMessage}</SizableText>
   }
   return (
     <Select

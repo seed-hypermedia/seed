@@ -1,5 +1,6 @@
 import React from 'react'
-import {Label, RadioGroup, SizableText, XStack, YStack} from 'tamagui'
+import {Label, RadioGroup, XStack, YStack} from 'tamagui'
+import {SizableText} from './text'
 
 type RadioOption = {
   value: string
@@ -28,7 +29,7 @@ export function RadioOptionSection<Options extends RadioOptions>({
       padding="$4"
       gap="$3"
     >
-      <SizableText fontWeight="bold">{title}</SizableText>
+      <SizableText weight="bold">{title}</SizableText>
       <RadioGroup value={value} onValueChange={onValue}>
         {options.map((option) => {
           return (

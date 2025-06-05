@@ -6,7 +6,7 @@ import {HMBlockSchema} from '@/schema'
 import {formatBytes} from '@shm/shared/utils/format-bytes'
 import {Button} from '@shm/ui/button'
 import {File} from '@shm/ui/icons'
-import {SizableText} from 'tamagui'
+import {SizableText} from '@shm/ui/text'
 
 export const MaxFileSizeMB = 150
 export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024
@@ -91,15 +91,12 @@ const display = ({
         userSelect="none"
       >
         <SizableText
-          size="$5"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          flex={1}
+          size="md"
+          className="overflow-hidden truncate whitespace-nowrap flex-1"
         >
           {block.props.name}
         </SizableText>
-        <SizableText paddingTop="$1" color="$color10" size="$2">
+        <SizableText className="pt-1" color="muted" size="sm">
           {formatBytes(parseInt(block.props.size))}
         </SizableText>
       </Button>

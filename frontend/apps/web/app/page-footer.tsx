@@ -1,11 +1,11 @@
 import {createHMUrl, UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
+import {SizableText} from '@shm/ui/text'
 import {ButtonText} from '@tamagui/button'
 import {View} from '@tamagui/core'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {AccountFooterActionsLazy} from './client-lazy'
 
 export function PageFooter({
@@ -27,7 +27,7 @@ export function PageFooter({
       >
         {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
         <XStack gap="$4" ai="center">
-          <SizableText size="$1">
+          <SizableText size="xs">
             Powered by{' '}
             <ButtonText
               size="$1"

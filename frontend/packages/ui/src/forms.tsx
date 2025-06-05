@@ -1,6 +1,7 @@
+import {SizableText} from '@shm/ui/text'
 import {ComponentProps, PropsWithChildren} from 'react'
 import {FieldErrors, FieldValues} from 'react-hook-form'
-import {Fieldset, Label, SizableText, XStack} from 'tamagui'
+import {Fieldset, Label, XStack} from 'tamagui'
 
 export function FormErrors<Fields extends FieldValues>({
   errors,
@@ -8,7 +9,7 @@ export function FormErrors<Fields extends FieldValues>({
   errors: FieldErrors<Fields>
 }) {
   if (errors.root) {
-    return <SizableText color="$red10">{errors.root.message}</SizableText>
+    return <SizableText color="danger">{errors.root.message}</SizableText>
   }
   return null
 }
@@ -39,7 +40,7 @@ export function FormField<Fields extends FieldValues>({
             {label}
           </Label>
         ) : null}
-        <SizableText color="$red10">{errors[name]?.message}</SizableText>
+        <SizableText color="danger">{errors[name]?.message}</SizableText>
       </XStack>
       {children}
     </Fieldset>

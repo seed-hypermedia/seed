@@ -1,6 +1,7 @@
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/button'
+import {SizableText} from '@shm/ui/text'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {keymap} from 'prosemirror-keymap'
@@ -12,7 +13,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import {ButtonProps, SizableText, XStack, YStack} from 'tamagui'
+import {ButtonProps, XStack, YStack} from 'tamagui'
 import {keyboardStack, useKeyboard} from './keyboard-helpers'
 
 export const autocompletePluginKey = new PluginKey('inline-embed')
@@ -447,7 +448,7 @@ function AutocompletePopupInner(
             paddingVertical="$2"
             gap="$2"
           >
-            <SizableText size="$2" f={1}>
+            <SizableText size="sm" className="flex-1">
               No Results
             </SizableText>
           </XStack>
@@ -468,11 +469,11 @@ function AutocompletePopupInner(
                   paddingVertical="$2"
                   gap="$2"
                 >
-                  <SizableText size="$2" f={1}>
+                  <SizableText size="sm" className="flex-1">
                     {group}
                   </SizableText>
                   {suggestions[group].length >= 1 ? (
-                    <SizableText size="$1">
+                    <SizableText size="xs">
                       {suggestions[group].length == 1
                         ? '1 item'
                         : suggestions[group].length > 1
@@ -592,16 +593,13 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       // icon={<Avatar size={18} url={props.embedRef?.profile?.avatar} />} avatars make everything slooow
     >
       <SizableText
-        size="$2"
-        p={0}
-        fontWeight="400"
-        f={1}
-        color="$color"
-        textAlign="left"
+        size="sm"
+        className="p-0 font-normal flex-1 text-left"
+        color="default"
       >
         {props.title}
       </SizableText>
-      <SizableText p={0} size="$1" color="$color">
+      <SizableText className="p-0" size="xs" color="default">
         {props.subtitle}
       </SizableText>
     </Button>

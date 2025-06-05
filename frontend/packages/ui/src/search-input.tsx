@@ -6,7 +6,6 @@ import {
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {
   PropsWithChildren,
   useEffect,
@@ -18,6 +17,7 @@ import {Button, Input, InputProps, ScrollView} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
+import {SizableText} from './text'
 
 export function SearchInput({
   children,
@@ -110,7 +110,7 @@ export function highlightSearchMatch(
   text: string,
   highlight: string = '',
   normalProps = {},
-  highlightProps = {color: '$yellow10', fontWeight: '800'},
+  highlightProps = {color: 'warning', weight: 'extrabold'},
 ) {
   if (!highlight) return <SizableText {...normalProps}>{text}</SizableText>
   const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'))
@@ -184,9 +184,9 @@ export function SearchResultItem({
               justifyContent="flex-start"
               alignItems="center"
             >
-              <SizableText numberOfLines={1} fontWeight={600}>
+              <SizableText weight="semibold" className="line-clamp-1">
                 {highlightSearchMatch(item.title, item.searchQuery, {
-                  fontWeight: 600,
+                  weight: 'semibold',
                 })}
               </SizableText>
               <YStack
@@ -194,27 +194,11 @@ export function SearchResultItem({
                 justifyContent="flex-start"
                 alignItems="flex-end"
               >
-                <SizableText
-                  numberOfLines={1}
-                  fontWeight={300}
-                  fontSize="$2"
-                  color={unpackHmId(item.key)?.latest ? '$green10' : undefined}
-                >
-                  {unpackHmId(item.key)?.latest
-                    ? 'Latest Version'
-                    : item.versionTime
-                    ? item.versionTime + ' Version'
-                    : ''}
+                <SizableText size="sm" weight="normal" className="line-clamp-1">
+                  {collapsedPath.join(' > ')}
                 </SizableText>
               </YStack>
             </XStack>
-
-            {!!item.path ? (
-              <SizableText numberOfLines={1} fontWeight={300} fontSize="$3">
-                {collapsedPath.join(' / ')}
-              </SizableText>
-            ) : null}
-            {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
           </YStack>
         </XStack>
       </Button>

@@ -8,8 +8,9 @@ import {
 import {Button} from '@shm/ui/button'
 import {ShieldX} from '@shm/ui/icons'
 import {List} from '@shm/ui/list'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {SizableText, View, XStack} from 'tamagui'
+import {View, XStack} from 'tamagui'
 
 export default function DeletedContent() {
   const deleted = useDeletedContent()
@@ -30,7 +31,7 @@ export default function DeletedContent() {
             group="item"
           >
             <Tooltip content={`Reason: ${item.deletedReason}`}>
-              <SizableText fontWeight={'bold'} color="$red10">
+              <SizableText weight="bold" color="danger">
                 {item.metadata}
               </SizableText>
             </Tooltip>
@@ -40,7 +41,7 @@ export default function DeletedContent() {
                 item.deleteTime,
               )}`}
             >
-              <SizableText color="$color9">
+              <SizableText color="muted">
                 {formattedDateMedium(item.deleteTime)}
               </SizableText>
             </Tooltip>

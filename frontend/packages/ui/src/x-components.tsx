@@ -1,6 +1,6 @@
 import {Separator} from '@tamagui/separator'
 import {YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
+import {SizableText} from './text'
 
 export const XPostNotFound = (error: any) => {
   const errorToString = error.error
@@ -20,10 +20,10 @@ export const XPostNotFound = (error: any) => {
       ac="center"
       ai="center"
     >
-      <SizableText size="$7" fontSize="$5" color="$red10">
+      <SizableText size="xl" color="danger">
         Error fetching the X Post
       </SizableText>
-      <SizableText size="$5" fontSize="$4" color="$red10">
+      <SizableText size="lg" color="danger">
         {errorToString}
       </SizableText>
     </YStack>

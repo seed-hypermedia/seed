@@ -1,4 +1,5 @@
-import {AlertDialog, Button, Text, XStack, YStack} from 'tamagui'
+import {Text} from '@shm/ui/text'
+import {AlertDialog, Button, XStack, YStack} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export type ImportedDocument = {
@@ -104,7 +105,7 @@ function ImportConfirmDialog({
 
     <YStack gap="$4" padding="$4" borderRadius="$3">
       <AlertDialog.Title>
-        <Text fontWeight="bold">{`${documentCount} documents found.`}</Text>
+        <Text weight="bold">{`${documentCount} documents found.`}</Text>
       </AlertDialog.Title>
       <AlertDialog.Description>
         <Text>Do you want to continue with the import?</Text>

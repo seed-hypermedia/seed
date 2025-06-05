@@ -24,10 +24,11 @@ import {
   useDocContentContext,
 } from '@shm/ui/document-content'
 import {ExternalLink} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Input, Separator, SizableText, YStack} from 'tamagui'
+import {Input, Separator, YStack} from 'tamagui'
 import {toast} from '../../ui/src/toast'
 
 function EmbedError() {
@@ -326,7 +327,7 @@ const EmbedLauncherInput = ({
       }}
     >
       {isDisplayingRecents && (
-        <SizableText color="$color10" marginHorizontal="$4">
+        <SizableText color="muted" className="mx-4">
           Recent Resources
         </SizableText>
       )}

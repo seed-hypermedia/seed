@@ -26,9 +26,10 @@ import {
   SearchResultItem,
 } from '@shm/ui/search-input'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
-import {Separator, SizableText, XStack} from 'tamagui'
+import {Separator, XStack} from 'tamagui'
 
 export function SearchInput({
   onClose,
@@ -192,7 +193,7 @@ export function SearchInput({
     <>
       {isDisplayingRecents ? (
         <XStack padding={4}>
-          <SizableText fontSize={10} color="$color10">
+          <SizableText size="xs" color="muted" className="uppercase">
             RECENT DOCUMENTS
           </SizableText>
         </XStack>

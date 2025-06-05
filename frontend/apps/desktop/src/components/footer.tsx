@@ -5,8 +5,9 @@ import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {ReactNode} from 'react'
-import {ButtonProps, SizableText, XStack} from 'tamagui'
+import {ButtonProps, XStack} from 'tamagui'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
@@ -17,23 +18,19 @@ export default function Footer({children}: {children?: ReactNode}) {
       <FooterNetworkingButton />
       <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
         <SizableText
-          fontSize={10}
-          userSelect="none"
-          hoverStyle={{
-            cursor: 'default',
-          }}
-          color="$color8"
+          size="xs"
+          color="muted"
+          className="select-none cursor-default"
+          style={{fontSize: 10}}
         >
           {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
         </SizableText>
         {updateStatus && updateStatus?.type != 'idle' && (
           <SizableText
-            fontSize={10}
-            userSelect="none"
-            hoverStyle={{
-              cursor: 'default',
-            }}
-            color="$color8"
+            size="xs"
+            color="muted"
+            className="select-none cursor-default"
+            style={{fontSize: 10}}
           >
             {getUpdateStatusLabel(updateStatus)}
           </SizableText>
@@ -87,9 +84,7 @@ function FooterNetworkingButton() {
       >
         <OnlineIndicator online={summary.online} />
         <Cable size={12} />
-        <SizableText size="$1" color="$color">
-          {summary.connectedCount}
-        </SizableText>
+        <SizableText size="xs">{summary.connectedCount}</SizableText>
       </Button>
       {networkDialog.content}
     </XStack>

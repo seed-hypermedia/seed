@@ -2,6 +2,7 @@ import {HMDocument, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {SizableText} from '@shm/ui/text'
 import {
   CircleDot,
   ExternalLink,
@@ -13,7 +14,7 @@ import {
 } from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, SizableText, Tooltip, XGroup, XStack, YStack} from 'tamagui'
+import {Button, Tooltip, XGroup, XStack, YStack} from 'tamagui'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
@@ -73,7 +74,7 @@ export function HypermediaLinkSwitchToolbar(
           onMouseEnter={props.stopHideTimer}
           onMouseLeave={props.startHideTimer}
         >
-          <SizableText fontWeight="700">{`${
+          <SizableText weight="bold">{`${
             props.type.charAt(0).toUpperCase() + props.type.slice(1)
           } settings`}</SizableText>
           {props.formComponents && props.formComponents()}

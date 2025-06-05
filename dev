@@ -94,8 +94,8 @@ def main():
 
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
-        run("node scripts/cleanup-desktop.js")
-        run("./scripts/cleanup-frontend.sh")
+        # run("node scripts/cleanup-desktop.js")
+        # run("./scripts/cleanup-frontend.sh")
         run("yarn install")
         run("plz build //backend:seed-daemon //:yarn")
 

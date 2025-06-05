@@ -1,6 +1,6 @@
 import {defaultPageMeta} from '@/meta'
+import {SizableText} from '@shm/ui/text'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {Container} from '../ui/container'
 
 export const loader = async ({request}: {request: Request}) => {
@@ -24,8 +24,8 @@ export default function RegisterPage() {
           elevation="$4"
         >
           <XStack alignItems="center" gap="$3">
-            <SizableText size="$10">🚀</SizableText>
-            <SizableText size="$8" fontWeight="bold">
+            <SizableText size="3xl">🚀</SizableText>
+            <SizableText size="2xl" weight="bold">
               Secret Site Setup Link
             </SizableText>
           </XStack>
@@ -41,7 +41,7 @@ export default function RegisterPage() {
             </SizableText>
             <SizableText>
               Then your content will be published to this site. Your account
-              will be registered in this domain, so all future content in your
+              will be registered in this domain, so all future content in your
               publication will be sent here and published to the web.
             </SizableText>
             <SizableText>

@@ -1,10 +1,11 @@
 import {fileUpload} from '@/utils/file-upload'
 import {Button} from '@shm/ui/button'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {SizableText, Stack, View, XStack} from 'tamagui'
+import {Stack, View, XStack} from 'tamagui'
 import appError from '../errors'
 
 export function ImageForm({
@@ -112,7 +113,7 @@ export function ImageForm({
             jc="center"
             pointerEvents="none"
           >
-            <SizableText textAlign="center" size="$1">
+            <SizableText size="xs" className="text-center">
               {emptyLabel}
             </SizableText>
           </XStack>
@@ -131,7 +132,7 @@ export function ImageForm({
           pointerEvents="none"
           borderRadius="$4"
         >
-          <SizableText textAlign="center" size="$1">
+          <SizableText size="xs" className="text-center">
             {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
           </SizableText>
         </XStack>

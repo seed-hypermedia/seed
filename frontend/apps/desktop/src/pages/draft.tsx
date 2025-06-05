@@ -46,13 +46,14 @@ import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Input, Separator, SizableText, XStack, YStack} from 'tamagui'
+import {Button, Input, Separator, XStack, YStack} from 'tamagui'
 
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -881,7 +882,7 @@ function DraftRebaseBanner() {
       p="$3"
       gap="$4"
     >
-      <SizableText size="$2">
+      <SizableText size="sm">
         A new change has been published to this document.{' '}
       </SizableText>
       <Button bg="$backgroundFocus" size="$2" onPress={() => performRebase()}>

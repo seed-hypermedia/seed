@@ -1,6 +1,7 @@
 import {UpdateStatus} from '@/types/updater-types'
+import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {Button, Progress, SizableText, XStack, YStack} from 'tamagui'
+import {Button, Progress, XStack, YStack} from 'tamagui'
 
 import {useEffect} from 'react'
 
@@ -59,7 +60,7 @@ export function AutoUpdater() {
       enterStyle={{x: 500, opacity: 0}}
       exitStyle={{y: 500, opacity: 0}}
     >
-      <SizableText size="$2">{getUpdateStatusLabel(updateStatus)}</SizableText>
+      <SizableText size="sm">{getUpdateStatusLabel(updateStatus)}</SizableText>
       {updateStatus?.type == 'update-available' && updateStatus.updateInfo ? (
         <XStack gap="$2">
           <Button

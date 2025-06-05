@@ -20,12 +20,12 @@ import {
   ChevronsUp,
 } from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
+import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
@@ -257,11 +257,9 @@ export function Comment({
                 }}
               >
                 <SizableText
-                  size="$1"
-                  color="$brand5"
-                  hoverStyle={{color: '$brand6'}}
-                  focusStyle={{color: '$brand7'}}
-                  pressStyle={{color: '$brand7'}}
+                  size="xs"
+                  color="brand"
+                  className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
                 >
                   Replies ({replyCount})
                 </SizableText>
@@ -296,11 +294,9 @@ export function Comment({
                 }}
               >
                 <SizableText
-                  size="$1"
-                  color="$brand5"
-                  hoverStyle={{color: '$brand6'}}
-                  focusStyle={{color: '$brand7'}}
-                  pressStyle={{color: '$brand7'}}
+                  size="xs"
+                  color="brand"
+                  className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
                 >
                   Reply
                 </SizableText>

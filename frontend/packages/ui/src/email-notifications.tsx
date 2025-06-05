@@ -5,8 +5,9 @@ import {FormField} from '@shm/ui/forms'
 import {Spinner} from '@shm/ui/spinner'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
-import {Form, SizableText, XStack, YStack} from 'tamagui'
+import {Form, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
+import {SizableText} from './text'
 
 const emailNotificationsSchema = z.object({
   email: z.string().email(),
@@ -118,7 +119,7 @@ function EmptyNotifWarning({
   })
   if (notifyAllMentionsField.value || notifyAllRepliesField.value) return null
   return (
-    <SizableText color="$red10">
+    <SizableText color="danger">
       You will not receive any notifications.
     </SizableText>
   )

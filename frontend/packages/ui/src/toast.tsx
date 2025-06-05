@@ -3,7 +3,6 @@ import {Button} from '@tamagui/button'
 import {styled} from '@tamagui/core'
 import {AlertCircle, CheckCircle2} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {
   ComponentProps,
   ReactElement,
@@ -13,6 +12,7 @@ import {
   useState,
 } from 'react'
 import {Spinner} from './spinner'
+import {SizableText} from './text'
 
 function DecorationIcon({
   Icon,
@@ -33,7 +33,7 @@ export function ErrorToastDecoration() {
 }
 
 export function Hostname({host}: {host: string}) {
-  return <SizableText fontWeight="bold">{displayHostname(host)}</SizableText>
+  return <SizableText weight="bold">{displayHostname(host)}</SizableText>
 }
 
 const ToastXStack = styled(XStack, {

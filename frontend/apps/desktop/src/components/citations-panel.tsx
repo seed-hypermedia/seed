@@ -21,8 +21,9 @@ import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
-import {SizableText, YStack} from 'tamagui'
+import {YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {renderCommentContent} from './commenting'
 
@@ -115,14 +116,9 @@ function DocumentPreview({
   if (!doc.data) return null
 
   return (
-    <YStack maxHeight="50vh" maxWidth={600} overflowY="auto">
-      <SizableText
-        fontSize="$9"
-        fontWeight="bold"
-        marginHorizontal="$2"
-        marginVertical="$5"
-      >
-        {metadata?.name}
+    <YStack maxHeight="50vh" maxWidth={600} overflow="auto">
+      <SizableText size="2xl" weight="bold" className="mx-2 my-5">
+        {metadata?.name || 'Untitled'}
       </SizableText>
       <AppDocContentProvider>
         <BlocksContent

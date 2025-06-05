@@ -15,9 +15,9 @@ import {
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {View} from '@tamagui/core'
 import {XStack, YStack, YStackProps} from '@tamagui/stacks'
-import {SizableText} from '@tamagui/text'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {FacePile} from './face-pile'
+import {SizableText} from './text'
 import {useIsDark} from './use-is-dark'
 
 // Custom hook for resize observer
@@ -266,16 +266,12 @@ function NewspaperCardContent({
       data-docid={entity?.id.id}
     >
       <YStack overflow="hidden" maxHeight={(banner ? 30 : 23) * 3}>
-        <SizableText size={banner ? '$8' : '$5'} fontWeight="bold">
+        <SizableText size={banner ? '3xl' : 'xl'} weight="bold">
           {entity?.document?.metadata?.name}
         </SizableText>
       </YStack>
       <YStack overflow="hidden" maxHeight={(banner ? 27 : 21) * 3}>
-        <SizableText
-          color="$color10"
-          fontFamily="$editorBody"
-          size={banner ? '$4' : '$2'}
-        >
+        <SizableText color="muted" family="mono" size={banner ? 'lg' : 'sm'}>
           {textContent}
         </SizableText>
       </YStack>
@@ -303,14 +299,7 @@ function NewspaperCardFooter({
     >
       {(entity?.document?.metadata?.displayPublishTime ||
         entity?.document?.updateTime) && (
-        <SizableText
-          size="$1"
-          // color={
-          //   entity?.document?.metadata?.displayPublishTime
-          //     ? '$blue10'
-          //     : undefined
-          // }
-        >
+        <SizableText size="xs">
           {entity?.document?.metadata?.displayPublishTime
             ? formattedDateDayOnly(
                 new Date(entity.document.metadata.displayPublishTime),

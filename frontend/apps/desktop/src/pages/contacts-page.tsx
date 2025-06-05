@@ -10,8 +10,9 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {ListItemSkeleton} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText, Text} from '@shm/ui/text'
 import {useRef} from 'react'
-import {SizableText, Text, XStack, YStack} from 'tamagui'
+import {XStack, YStack} from 'tamagui'
 import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
@@ -20,9 +21,7 @@ function ErrorPage({}: {error: any}) {
     <PanelContainer>
       <MainWrapper scrollable>
         <Container centered>
-          <Text fontFamily="$body" fontSize="$3">
-            Error
-          </Text>
+          <Text className="font-body text-md">Error</Text>
         </Container>
       </MainWrapper>
     </PanelContainer>
@@ -70,7 +69,7 @@ export default function ContactsPage() {
                   <ListItemSkeleton key={index} />
                 ))}
                 <XStack jc="center" ai="center" f={1} gap="$2">
-                  <SizableText color="$color10">No contacts yet...</SizableText>
+                  <SizableText color="muted">No contacts yet...</SizableText>
                   {/* <Button size="$2">Add a Connection</Button> */}
                 </XStack>
               </YStack>
@@ -120,10 +119,8 @@ function ContactListItem({
         <YStack f={1} gap="$1.5">
           <XStack ai="center" gap="$2">
             <SizableText
-              fontWeight="bold"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
+              weight="bold"
+              className="truncate whitespace-nowrap overflow-hidden"
             >
               {getMetadataName(account.metadata)}
             </SizableText>
