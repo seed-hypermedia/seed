@@ -1,5 +1,4 @@
 import {
-  formattedDateLong,
   getMetadataName,
   HMDocument,
   HMEntityContent,
@@ -10,6 +9,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
+import {useTxString, useTxUtils} from '@shm/shared/translation'
 import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './components/button'
@@ -363,6 +363,8 @@ function GotoLatestBanner({
 }) {
   const [hideVersionBanner, setHideVersionBanner] = useState(false)
 
+  const tx = useTxString()
+  const {formattedDateLong} = useTxUtils()
   const show = useMemo(() => {
     if (hideVersionBanner) return false
     return !isLatest
@@ -392,10 +394,12 @@ function GotoLatestBanner({
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
         <p className="text-sm text-muted-foreground">
-          Version from {formattedDateLong(document.updateTime)}
+          {tx('version_from', ({date}) => `Version from ${date}`, {
+            date: formattedDateLong(document.updateTime),
+          })}
         </p>
         <Button variant="outline" size="sm" {...latestLinkProps}>
-          <span className="text-muted-foreground">Go to Latest</span>
+          <span className="text-muted-foreground">{tx('Go to Latest')}</span>
           <ArrowRight color="var(--color-muted-foreground)" size={20} />
         </Button>
       </div>

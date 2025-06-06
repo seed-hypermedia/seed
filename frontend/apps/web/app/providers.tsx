@@ -13,13 +13,14 @@ import {
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
+import {languagePacks} from '@shm/shared/language-packs'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {TamaguiProvider} from '@tamagui/core'
 import {PortalProvider} from '@tamagui/portal'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
-import {createContext, useContext, useEffect, useState} from 'react'
+import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import tamaConf from '../tamagui.config'
 
 const queryClient = new QueryClient()
@@ -121,12 +122,21 @@ export function WebSiteProvider(props: {
   children: React.ReactNode
   siteHost?: string
   origin?: string
+  prefersLanguages?: (keyof typeof languagePacks)[]
 }) {
   const navigate = useNavigate()
+  const languagePack = useMemo(() => {
+    const language = props.prefersLanguages?.[0]
+    if (language) {
+      return languagePacks[language]
+    }
+    return undefined
+  }, [props.prefersLanguages])
   return (
     <UniversalAppProvider
       origin={props.origin}
       originHomeId={props.originHomeId}
+      languagePack={languagePack}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
       openUrl={(url) => {

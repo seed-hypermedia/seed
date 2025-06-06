@@ -10,6 +10,7 @@ import {
 } from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
@@ -339,7 +340,7 @@ function EditProfileForm({
   defaultValues?: SiteMetaFields
   submitLabel?: string
 }) {
-  console.log('~~ EditProfileForm')
+  const tx = useTx()
   const {
     control,
     handleSubmit,
@@ -360,10 +361,14 @@ function EditProfileForm({
   return (
     <Form onSubmit={handleSubmit(onSubmit)}>
       <YStack gap="$2">
-        <Field id="name" label="Account Name">
-          <FormInput control={control} name="name" placeholder="Account Name" />
+        <Field id="name" label={tx('Account Name')}>
+          <FormInput
+            control={control}
+            name="name"
+            placeholder={tx('Account Name')}
+          />
         </Field>
-        <ImageField control={control} name="icon" label="Site Icon" />
+        <ImageField control={control} name="icon" label={tx('Site Icon')} />
         <XStack jc="center">
           <Form.Trigger asChild>
             <Button
@@ -371,7 +376,7 @@ function EditProfileForm({
                 AccountWithImage || 'false'
               }`}
             >
-              {submitLabel || 'Save Account'}
+              {submitLabel || tx('Save Account')}
             </Button>
           </Form.Trigger>
         </XStack>
@@ -503,6 +508,7 @@ function ImageField<Fields extends FieldValues>({
 function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)
+  const tx = useTx()
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
     return (
@@ -513,11 +519,17 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
   const isAccountAliased = account.data?.id.uid !== keyPair.id
   return (
     <>
-      <DialogTitle>Really Logout?</DialogTitle>
+      <DialogTitle>{tx('Really Logout?')}</DialogTitle>
       <DialogDescription>
         {isAccountAliased
-          ? 'This account will remain accessible on other devices.'
-          : 'This account key is not saved anywhere else. By logging out, you will loose access to this identity forever.'}
+          ? tx(
+              'logout_account_saved',
+              'This account will remain accessible on other devices.',
+            )
+          : tx(
+              'logout_account_not_saved',
+              'This account key is not saved anywhere else. By logging out, you will loose access to this identity forever.',
+            )}
       </DialogDescription>
       <Button
         onPress={() => {
@@ -526,7 +538,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
         }}
         theme="red"
       >
-        {isAccountAliased ? 'Log out' : 'Log out Forever'}
+        {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
       </Button>
     </>
   )
@@ -542,7 +554,7 @@ function EditProfileDialog({
   console.log('EditProfileDialog', input)
   const keyPair = useLocalKeyPair()
   const id = hmId('d', input.accountUid)
-  console.log('id', id)
+  const tx = useTx()
   const account = useAccount(input.accountUid)
   const accountDocument = useEntity(account?.data?.id)
   const queryClient = useQueryClient()
@@ -578,7 +590,7 @@ function EditProfileDialog({
   })
   return (
     <>
-      <DialogTitle>Edit Profile</DialogTitle>
+      <DialogTitle>{tx('Edit Profile')}</DialogTitle>
       {document && (
         <EditProfileForm
           defaultValues={{
@@ -599,6 +611,7 @@ export function AccountFooterActions() {
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
+  const tx = useTx()
   if (!userKeyPair) return null
   return (
     <XStack gap="$2" flexWrap="wrap" maxWidth="100%" jc="flex-end">
@@ -609,7 +622,7 @@ export function AccountFooterActions() {
           backgroundColor="$color4"
           icon={Megaphone}
         >
-          Notification Settings
+          {tx('Notification Settings')}
         </Button>
       )}
       <Button
@@ -618,7 +631,7 @@ export function AccountFooterActions() {
         backgroundColor="$color4"
         icon={Pencil}
       >
-        Edit Profile
+        {tx('Edit Profile')}
       </Button>
       <Button
         size="$2"
@@ -626,7 +639,7 @@ export function AccountFooterActions() {
         backgroundColor="$color4"
         icon={LogOut}
       >
-        Logout
+        {tx('Logout')}
       </Button>
       {logoutDialog.content}
       {editProfileDialog.content}

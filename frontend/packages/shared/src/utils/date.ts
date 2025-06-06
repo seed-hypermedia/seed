@@ -1,5 +1,5 @@
 import {Timestamp} from '@bufbuild/protobuf'
-import {format, intlFormat} from 'date-fns'
+import {format, Locale} from 'date-fns'
 import type {Document} from '../client'
 import {HMTimestamp} from '../hm-types'
 
@@ -30,8 +30,10 @@ var months = [
 const hasRelativeDate =
   typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined'
 
+export type AnyTimestamp = string | Date | Timestamp | HMTimestamp | undefined
+
 export function formattedDate(
-  value?: string | Date | Timestamp | HMTimestamp | undefined,
+  value?: AnyTimestamp,
   options?: {onlyRelative?: boolean},
 ) {
   let date = normalizeDate(value)
@@ -48,7 +50,7 @@ export function formattedDate(
   }
 }
 
-export function normalizeDate(value: undefined | string | Date | HMTimestamp) {
+export function normalizeDate(value: AnyTimestamp) {
   let date: Date | null = null
   if (typeof value == 'string') {
     date = new Date(value)
@@ -63,62 +65,75 @@ export function normalizeDate(value: undefined | string | Date | HMTimestamp) {
 }
 
 export function formattedDateLong(
-  value?: undefined | string | Date | Timestamp | HMTimestamp,
+  value?: AnyTimestamp,
+  options?: {
+    locale?: Locale
+  },
 ) {
   let date = normalizeDate(value)
   if (!date) return ''
-  return format(date, 'MMMM do yyyy, HH:mm:ss z')
+  return format(date, 'MMMM do yyyy, HH:mm:ss z', {
+    locale: options?.locale,
+  })
 }
 
 export function formattedDateShort(
-  value?: undefined | string | Date | Timestamp | HMTimestamp,
+  value?: AnyTimestamp,
+  options?: {
+    locale?: Locale
+  },
 ) {
   let date = normalizeDate(value)
   if (!date) return ''
   // if within the last 24 hours, show the time
   if (date.getTime() > Date.now() - 24 * 60 * 60 * 1000) {
-    return format(date, 'HH:mm')
+    return format(date, 'HH:mm', {
+      locale: options?.locale,
+    })
   }
   // if within the last year, show the month and day
   if (date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000) {
-    return format(date, 'MMM d')
+    return format(date, 'MMM d', {
+      locale: options?.locale,
+    })
   }
   // otherwise, show the date
-  return format(date, 'MMM d, yyyy')
+  return format(date, 'MMM d, yyyy', {
+    locale: options?.locale,
+  })
 }
 
 export function formattedDateMedium(
-  value?: undefined | string | Date | Timestamp | HMTimestamp,
+  value?: AnyTimestamp,
+  options?: {
+    locale?: Locale
+  },
 ) {
   let date = normalizeDate(value)
   if (!date) return ''
   // if (hasRelativeDate) {
   //   return relativeFormattedDate(date, {onlyRelative: false})
   // }
-  return intlFormat(date, {
-    hour: 'numeric',
-    minute: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-    month: 'long',
+  return format(date, 'd MMMM yyyy, HH:mm', {
+    locale: options?.locale,
   })
-  // return `${format(date, 'EEEE, MMMM do, yyyy')}`
 }
 
 export function formattedDateDayOnly(
-  value?: undefined | string | Date | Timestamp | HMTimestamp,
+  value?: AnyTimestamp,
+  options?: {
+    locale?: Locale
+  },
 ) {
   let date = normalizeDate(value)
   if (!date) return ''
-  return intlFormat(date, {
-    day: 'numeric',
-    year: 'numeric',
-    month: 'long',
+  return format(date, 'd MMMM yyyy', {
+    locale: options?.locale,
   })
 }
 
 export function relativeFormattedDate(
-  value?: undefined | string | Date | Timestamp | HMTimestamp,
+  value?: AnyTimestamp,
   options?: {onlyRelative?: boolean},
 ) {
   const onlyRelative = !!options?.onlyRelative

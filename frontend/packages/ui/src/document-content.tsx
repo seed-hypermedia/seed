@@ -82,6 +82,17 @@ import {
   useRef,
   useState,
 } from 'react'
+// import {
+//   QuotedTweet,
+//   TweetBody,
+//   TweetHeader,
+//   TweetInReplyTo,
+//   TweetInfo,
+//   TweetMedia,
+//   enrichTweet,
+//   useTweet,
+// } from "react-tweet";
+import {useTxString} from '@shm/shared/translation'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -266,6 +277,8 @@ export function DocContent({
     ? clipContentBlocks(focusedBlocks || [], maxBlockCount)
     : focusedBlocks
 
+  const tx = useTxString()
+
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
       if (event.key == 'a' && event.metaKey) {
@@ -300,7 +313,7 @@ export function DocContent({
         userSelect="none"
       >
         {onBlockCopy ? (
-          <Tooltip content="Copy Block Range">
+          <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
               size="$2"
               icon={Link}
@@ -625,6 +638,7 @@ export function BlockNodeContent({
   //   )
   // }, [blockNode.block])
 
+  const tx = useTxString()
   const themeName = useThemeName()
   const highlightColor =
     themeName === 'dark'
@@ -675,8 +689,14 @@ export function BlockNodeContent({
             delay={1000}
             content={
               _expanded
-                ? 'You can collapse this block and hide its children'
-                : 'This block is collapsed. you can expand it and see its children'
+                ? tx(
+                    'collapse_block',
+                    'You can collapse this block and hide its children',
+                  )
+                : tx(
+                    'block_is_collapsed',
+                    'This block is collapsed. you can expand it and see its children',
+                  )
             }
           >
             <Button
@@ -723,7 +743,12 @@ export function BlockNodeContent({
           // {...interactiveProps}
         />
         {!hideCollapseButtons && bnChildren && !_expanded ? (
-          <Tooltip content="This block is collapsed. you can expand it and see its children">
+          <Tooltip
+            content={tx(
+              'block_is_collapsed',
+              'This block is collapsed. you can expand it and see its children',
+            )}
+          >
             <Button
               userSelect="none"
               marginHorizontal={layoutUnit / 4}
@@ -762,10 +787,12 @@ export function BlockNodeContent({
         >
           {citationsCount?.citations ? (
             <Tooltip
-              content={`${citationsCount.citations} ${pluralS(
-                citationsCount.citations,
-                'document',
-              )} citing this block`}
+              content={tx(
+                'block_citation_count',
+                ({count}) =>
+                  `${count} ${pluralS(count, 'document')} citing this block`,
+                {count: citationsCount.citations},
+              )}
               delay={800}
             >
               <Button
@@ -813,11 +840,12 @@ export function BlockNodeContent({
             <Tooltip
               content={
                 citationsCount?.comments
-                  ? `${citationsCount.comments} ${pluralS(
-                      citationsCount.comments,
-                      'comment',
-                    )}`
-                  : 'Comment on this block'
+                  ? tx(
+                      'block_comment_count',
+                      ({count}) => `${count} ${pluralS(count, 'comment')}`,
+                      {count: citationsCount.comments},
+                    )
+                  : tx('Comment on this block')
               }
               delay={800}
             >
@@ -855,7 +883,13 @@ export function BlockNodeContent({
             </Tooltip>
           ) : null}
           {onBlockCopy ? (
-            <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
+            <Tooltip
+              content={tx(
+                'copy_block_exact',
+                'Copy Block Link (Exact Version)',
+              )}
+              delay={800}
+            >
               <Button
                 background={isDark ? '$background' : '$backgroundStrong'}
                 userSelect="none"

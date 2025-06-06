@@ -1,5 +1,4 @@
 import {
-  formattedDateDayOnly,
   HMAccountsMetadata,
   HMBlock,
   HMBlockNode,
@@ -12,6 +11,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
+import {useTxUtils} from '@shm/shared/translation'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {View} from '@tamagui/core'
 import {XStack, YStack, YStackProps} from '@tamagui/stacks'
@@ -287,6 +287,7 @@ function NewspaperCardFooter({
   accountsMetadata: HMAccountsMetadata
 }) {
   const isDark = useIsDark()
+  const {formattedDateDayOnly} = useTxUtils()
   return (
     <XStack
       jc="space-between"

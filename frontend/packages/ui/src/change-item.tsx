@@ -5,7 +5,7 @@ import {
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {formattedDateMedium} from '@shm/shared/utils/date'
+import {useTx, useTxUtils} from '@shm/shared/translation'
 import {Button} from './components/button'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
@@ -26,6 +26,8 @@ export function ChangeItem({
   docId: UnpackedHypermediaId
   author?: HMMetadataPayload | undefined
 }) {
+  const tx = useTx()
+  const {formattedDateMedium} = useTxUtils()
   // Handle both data structures: separate author prop (desktop) or embedded in change (web)
   const authorData = author || (change as any)?.author
 
@@ -73,17 +75,17 @@ export function ChangeItem({
           metadata={authorData.metadata}
         />
       </div>
-      <div className="flex-1 flex flex-col">
+      <div className="flex flex-col flex-1">
         <div
-          className="flex items-center gap-2 overflow-hidden w-full"
+          className="flex items-center w-full gap-2 overflow-hidden"
           style={{height: iconSize}}
         >
           <AuthorName author={authorData} />
-          <span className="text-sm flex-shrink-0 font-light text-muted-foreground">
-            {isCurrent ? 'current version' : 'version'}
+          <span className="flex-shrink-0 text-sm font-light text-muted-foreground">
+            {isCurrent ? tx('current version') : tx('version')}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground flex-shrink-1 truncate text-left">
+        <span className="text-xs text-left truncate text-muted-foreground flex-shrink-1">
           {change.createTime ? formattedDateMedium(change.createTime) : ''}
         </span>
       </div>
@@ -97,7 +99,7 @@ function AuthorName({author}: {author: HMMetadataPayload}) {
     <Button
       variant="ghost"
       size="sm"
-      className="text-sm flex-shrink-1 truncate font-bold hover:bg-gray-200 dark:hover:bg-gray-700 p-0 h-auto"
+      className="h-auto p-0 text-sm font-bold truncate flex-shrink-1 hover:bg-gray-200 dark:hover:bg-gray-700"
       {...linkProps}
     >
       {getMetadataName(author.metadata)}

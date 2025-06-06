@@ -1,6 +1,4 @@
 import {
-  formattedDateLong,
-  formattedDateMedium,
   HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
@@ -11,6 +9,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
+import {useTx, useTxUtils} from '@shm/shared/translation'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
 import {
@@ -120,7 +119,8 @@ export function Comment({
   )
   const theme = useTheme()
   const isDark = useIsDark()
-
+  const tx = useTx()
+  const {formattedDateMedium, formattedDateLong} = useTxUtils()
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
       setShowReplies(defaultExpandReplies)
@@ -261,7 +261,10 @@ export function Comment({
                   color="brand"
                   className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
                 >
-                  Replies ({replyCount})
+                  {tx(
+                    'replies_count',
+                    (args: {count: number}) => `Replies (${args.count})`,
+                  )}
                 </SizableText>
               </Button>
             ) : null}
@@ -298,7 +301,7 @@ export function Comment({
                   color="brand"
                   className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
                 >
-                  Reply
+                  {tx('Reply')}
                 </SizableText>
               </Button>
             ) : null}
@@ -369,6 +372,8 @@ export function QuotedDocBlock({
     }
   }, [contentRef.current, blockId])
 
+  const tx = useTx()
+
   return (
     <YStack bg="$brand12" borderRadius="$2">
       <XStack
@@ -395,7 +400,7 @@ export function QuotedDocBlock({
         </YStack>
       </XStack>
       {canExpand && (
-        <Tooltip content={expanded ? 'Collapse' : 'Expand'}>
+        <Tooltip content={expanded ? tx('Collapse') : tx('Expand')}>
           <Button
             flexShrink={0}
             size="$2"

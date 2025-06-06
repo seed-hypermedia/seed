@@ -1,4 +1,5 @@
 import {zodResolver} from '@hookform/resolvers/zod'
+import {useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {FormCheckbox, FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -34,6 +35,7 @@ export function UIEmailNotificationsForm({
   ) => Promise<void>
   isLoading: boolean
 }) {
+  const tx = useTxString()
   const {
     control,
     handleSubmit,
@@ -61,7 +63,7 @@ export function UIEmailNotificationsForm({
     <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
       <FormField
         name="email"
-        label="Notification Email"
+        label={tx('Notification Email')}
         errors={errors}
         paddingHorizontal={0}
       >
@@ -72,15 +74,15 @@ export function UIEmailNotificationsForm({
         />
       </FormField>
       <YStack gap="$3">
-        <SizableText>Notify me when:</SizableText>
+        <SizableText>{tx('Notify me when')}:</SizableText>
         <FormCheckbox
           name="notifyAllMentions"
-          label="Someone mentions me"
+          label={tx('Someone mentions me')}
           control={control}
         />
         <FormCheckbox
           name="notifyAllReplies"
-          label="Someone replies to me"
+          label={tx('Someone replies to me')}
           control={control}
         />
       </YStack>
@@ -94,10 +96,10 @@ export function UIEmailNotificationsForm({
             onClose()
           }}
         >
-          Cancel
+          {tx('Cancel')}
         </Button>
         <Form.Trigger asChild>
-          <Button theme="blue">Save Notification Settings</Button>
+          <Button theme="blue">{tx('Save Notification Settings')}</Button>
         </Form.Trigger>
       </XStack>
     </Form>
@@ -109,6 +111,7 @@ function EmptyNotifWarning({
 }: {
   control: Control<z.infer<typeof emailNotificationsSchema>>
 }) {
+  const tx = useTxString()
   const {field: notifyAllMentionsField} = useController({
     control,
     name: 'notifyAllMentions',
@@ -119,8 +122,8 @@ function EmptyNotifWarning({
   })
   if (notifyAllMentionsField.value || notifyAllRepliesField.value) return null
   return (
-    <SizableText color="danger">
-      You will not receive any notifications.
+    <SizableText color="$red10">
+      {tx('You will not receive any notifications.')}
     </SizableText>
   )
 }

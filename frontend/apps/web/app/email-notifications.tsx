@@ -1,10 +1,9 @@
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
 import {DialogTitle} from '@shm/ui/universal-dialog'
-import {Control, useController} from 'react-hook-form'
 import {YStack} from 'tamagui'
 
+import {useTxString} from '@shm/shared/translation'
 import {z} from 'zod'
 import {
   useEmailNotifications,
@@ -39,31 +38,10 @@ export function EmailNotificationsForm({
   )
 }
 
-function EmptyNotifWarning({
-  control,
-}: {
-  control: Control<z.infer<typeof emailNotificationsSchema>>
-}) {
-  const {field: notifyAllMentionsField} = useController({
-    control,
-    name: 'notifyAllMentions',
-  })
-  const {field: notifyAllRepliesField} = useController({
-    control,
-    name: 'notifyAllReplies',
-  })
-  if (notifyAllMentionsField.value || notifyAllRepliesField.value) return null
-  return (
-    <SizableText color="danger">
-      You will not receive any notifications.
-    </SizableText>
-  )
-}
-
 export function NotifSettingsDialog({onClose}: {onClose: () => void}) {
   const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
     useEmailNotifications()
-  console.log('emailNotifications', emailNotifications)
+  const tx = useTxString()
   if (isEmailNotificationsLoading)
     return (
       <div className="flex items-center justify-center">
@@ -72,7 +50,7 @@ export function NotifSettingsDialog({onClose}: {onClose: () => void}) {
     ) // todo: make it look better
   return (
     <YStack gap="$4">
-      <DialogTitle>Email Notification Settings</DialogTitle>
+      <DialogTitle>{tx('Email Notification Settings')}</DialogTitle>
       <EmailNotificationsForm
         onClose={onClose}
         onComplete={onClose}

@@ -44,6 +44,7 @@ import {useCallback, useMemo, useState} from 'react'
 import {Button, ButtonText, View, XStack, YStack} from 'tamagui'
 
 import {defaultSiteIcon} from '@/meta'
+import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {CommentPayload} from './hm.api.comment'
 import {SyncCommentRequest} from './hm.api.sync-comment'
@@ -185,6 +186,7 @@ export default function CreateComment() {
     raw: CommentPayload
   } | null>(null)
 
+  const tx = useTx()
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -234,23 +236,30 @@ export default function CreateComment() {
           paddingHorizontal={0}
         >
           <View paddingHorizontal="$4">
-            <SizableText size="lg">
-              {replyComment ? (
-                <>
-                  Replying to{' '}
-                  <SizableText weight="bold" size="lg">
-                    {replyComment.author.metadata?.name ?? 'Unknown Author'}
-                  </SizableText>
-                </>
-              ) : (
-                <>
-                  Comment on{' '}
-                  <DocButtonLink
-                    docId={targetId}
-                    name={targetDocument.metadata.name ?? 'Untitled Document'}
-                  />
-                </>
-              )}
+            <SizableText fontSize="$5">
+              {replyComment
+                ? tx(
+                    'replying_to',
+                    (args) => <>Replying to {args.replyAuthor}</>,
+                    {
+                      replyAuthor: (
+                        <SizableText fontWeight="bold" fontSize="$5">
+                          {replyComment.author.metadata?.name ??
+                            'Unknown Author'}
+                        </SizableText>
+                      ),
+                    },
+                  )
+                : tx('comment_on', (args) => <>Comment on {args.target}</>, {
+                    target: (
+                      <DocButtonLink
+                        docId={targetId}
+                        name={
+                          targetDocument.metadata.name ?? 'Untitled Document'
+                        }
+                      />
+                    ),
+                  })}
             </SizableText>
             {/* <NewspaperCard
               overflow="hidden"

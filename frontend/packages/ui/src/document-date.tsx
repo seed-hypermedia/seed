@@ -1,12 +1,8 @@
-import {
-  formattedDateDayOnly,
-  formattedDateLong,
-  formattedDateMedium,
-  HMMetadata,
-} from '@shm/shared'
+import {HMMetadata} from '@shm/shared'
+import {useTx, useTxUtils} from '@shm/shared/translation'
+import {SizableText} from '@tamagui/text'
 import {YStack} from 'tamagui'
 import {HoverCard} from './hover-card'
-import {SizableText} from './text'
 
 export function DocumentDate({
   metadata,
@@ -31,12 +27,15 @@ export function DocumentDate({
     )
   disableTooltip?: boolean
 }) {
+  const tx = useTx()
+  const {formattedDateDayOnly, formattedDateMedium, formattedDateLong} =
+    useTxUtils()
   const displayText = metadata?.displayPublishTime
     ? formattedDateDayOnly(new Date(metadata.displayPublishTime))
     : formattedDateMedium(updateTime)
   const content: React.ReactNode[] = [
-    <SizableText size="md">
-      Last Update: {formattedDateLong(updateTime)}
+    <SizableText size="$3">
+      {tx('Last Update')}: {formattedDateLong(updateTime)}
     </SizableText>,
     // // Disabled because this is always 1969 because the backend looks at the deterministic genesis blob instead of the actual creation time
     // <SizableText size="sm">
@@ -45,8 +44,8 @@ export function DocumentDate({
   ]
   if (metadata?.displayPublishTime) {
     content.unshift(
-      <SizableText color="brand" size="md">
-        Original Publish date: {displayText}
+      <SizableText color="$blue10" size="$3">
+        {tx('Original Publish date')}: {displayText}
       </SizableText>,
     )
   }

@@ -1,10 +1,11 @@
-import {formattedDateShort, useRouteLink} from '@shm/shared'
+import {useRouteLink} from '@shm/shared'
 import {
   HMDocumentCitation,
   HMMetadata,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useTx, useTxUtils} from '@shm/shared/translation'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
 import {Button, styled, XStack} from 'tamagui'
@@ -21,6 +22,8 @@ export function DocumentCitationEntry({
   }>
 }) {
   if (!citation.author || !citation.document) return null
+  const tx = useTx()
+  const {formattedDateShort} = useTxUtils()
   return (
     <XStack gap="$1" ai="center" flexWrap="wrap">
       <HMAuthor author={citation.author} />
@@ -28,7 +31,7 @@ export function DocumentCitationEntry({
         {formattedDateShort(citation.source.time)}
       </CitationDateText>
       <XStack gap="$2" ai="center">
-        <SizableText>cited on</SizableText>
+        <SizableText>{tx('cited on')}</SizableText>
         <DocumentCitationToken
           docId={citation.source.id}
           metadata={citation.document.metadata}

@@ -3,6 +3,7 @@ import {HMBlockNode} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useAccount} from '@shm/shared/src/models/entity'
+import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
@@ -385,7 +386,7 @@ export function CommentEditor2({
   )
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
-
+  const tx = useTx()
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
   }
@@ -628,7 +629,7 @@ export function CommentEditor2({
               onPress={() => setIsEditorFocused(true)}
               color="muted"
             >
-              Start a Comment
+              {tx('Start a Comment')}
             </SizableText>
           )}
         </YStack>

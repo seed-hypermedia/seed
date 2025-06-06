@@ -17,6 +17,7 @@ import {MessageSquareOff, X} from '@tamagui/lucide-icons'
 import React, {useCallback, useMemo} from 'react'
 import {Button, XStack, YStack} from 'tamagui'
 
+import {useTx, useTxString} from '@shm/shared/translation'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
@@ -52,6 +53,8 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   } = props
 
   const isDark = useIsDark()
+
+  const tx = useTx()
 
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
@@ -118,7 +121,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         bg={'$backgroundStrong'}
         justifyContent="space-between"
       >
-        <p className="text-md font-bold">Discussions</p>
+        <p className="font-bold text-md">{tx('Discussions')}</p>
         {activitySummary}
         <Button
           alignSelf="center"
@@ -156,7 +159,7 @@ export function AllDiscussions({
   let panelContent = null
   if (allDiscussions.isLoading && !allDiscussions.data) {
     panelContent = (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -339,10 +342,11 @@ export function EmptyDiscussions({
   onStartDiscussion?: () => void
   quotingBlockId?: string
 }) {
+  const tx = useTxString()
   return (
     <YStack alignItems="center" gap="$4" paddingVertical="$4">
       <MessageSquareOff size={48} color="$color8" />
-      <SizableText size="md">No discussions</SizableText>
+      <SizableText size="$3">{tx('No discussions')}</SizableText>
       <Button
         size="$3"
         onPress={() => {
@@ -361,7 +365,7 @@ export function EmptyDiscussions({
         hoverStyle={{bg: '$brand4'}}
         focusStyle={{bg: '$brand4'}}
       >
-        Start a discussion
+        {tx('Start a discussion')}
       </Button>
     </YStack>
   )

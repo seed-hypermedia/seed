@@ -2,6 +2,7 @@ import {createContext, useContext} from 'react'
 import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
+import {LanguagePack} from './translation'
 import {createHMUrl, idToUrl, unpackHmId} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -17,6 +18,7 @@ type UniversalAppContextValue = {
 
   // set this to true if you want all <a href="" values to be full hypermedia urls. otherwise, web URLs will be prepared
   hmUrlHref?: boolean
+  languagePack?: LanguagePack
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -36,6 +38,7 @@ export function UniversalAppProvider(props: {
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   hmUrlHref?: boolean
+  languagePack?: LanguagePack
 }) {
   return (
     <UniversalAppContext.Provider
@@ -48,6 +51,7 @@ export function UniversalAppProvider(props: {
         openRoute: props.openRoute,
         onCopyReference: props.onCopyReference,
         hmUrlHref: props.hmUrlHref,
+        languagePack: props.languagePack,
       }}
     >
       {props.children}

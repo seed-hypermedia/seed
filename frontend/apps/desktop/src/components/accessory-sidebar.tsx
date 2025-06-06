@@ -5,6 +5,7 @@ import {
   useNavRoute,
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
+import {useTx} from '@shm/shared/translation'
 import {PanelContainer} from '@shm/ui/container'
 import {CollaboratorsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -49,6 +50,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
+  const tx = useTx()
 
   const widthStorage = useMemo(
     () => ({
@@ -91,15 +93,15 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     }
   }, [state?.accessoryWidth])
 
-  let accessoryTitle = 'Activity'
+  let accessoryTitle = tx('Activity')
   if (accessoryKey == 'collaborators') {
-    accessoryTitle = 'Collaborators'
+    accessoryTitle = tx('Collaborators')
   } else if (accessoryKey == 'directory') {
-    accessoryTitle = 'Directory'
+    accessoryTitle = tx('Directory')
   } else if (accessoryKey == 'discussions') {
-    accessoryTitle = 'Discussions'
+    accessoryTitle = tx('Discussions')
   } else if (accessoryKey == 'options') {
-    accessoryTitle = 'Draft Options'
+    accessoryTitle = tx('Draft Options')
   }
 
   return (

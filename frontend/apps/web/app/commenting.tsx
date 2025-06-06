@@ -30,6 +30,7 @@ import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {XStack, YStack} from 'tamagui'
 
+import {useTx} from '@shm/shared/translation'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -77,6 +78,7 @@ export function ExternalWebCommenting(props: {
   rootReplyCommentId?: string
   quotingBlockId?: string
 }) {
+  const tx = useTx()
   return (
     <Button
       bg="$brand5"
@@ -91,7 +93,13 @@ export function ExternalWebCommenting(props: {
         })
       }}
     >
-      {`Comment with ${hostnameStripProtocol(WEB_IDENTITY_ORIGIN)} Identity`}
+      {tx(
+        'comment_with_identity',
+        (args: {host: string}) => `Comment with ${args.host} Identity`,
+        {
+          host: hostnameStripProtocol(WEB_IDENTITY_ORIGIN),
+        },
+      )}
     </Button>
   )
 }

@@ -63,6 +63,8 @@ import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
 
+import {supportedLanguages} from '@shm/shared/language-packs'
+import {useTx} from '@shm/shared/translation'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -194,7 +196,9 @@ type WebAccessory =
 
 const DEFAULT_MAIN_PANEL_SIZE = 65
 
-export function DocumentPage(props: SiteDocumentPayload) {
+export function DocumentPage(
+  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+) {
   const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
@@ -215,6 +219,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     origin,
     comment,
     isLatest,
+    prefersLanguages,
   } = props
 
   useEffect(() => {
@@ -402,7 +407,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const commentEditor =
     activePanel?.type == 'discussions' ? (
-      <div className="px-4 py-2 w-full">
+      <div className="w-full px-4 py-2">
         {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             autoFocus={editorAutoFocus}
@@ -500,6 +505,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
+      prefersLanguages={supportedLanguages(prefersLanguages)}
     >
       <DiscussionsProvider
         onReplyClick={onReplyClick}
@@ -529,7 +535,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 id="main-panel"
                 className="h-full"
               >
-                <div className="flex flex-col h-full relative" ref={elementRef}>
+                <div className="relative flex flex-col h-full" ref={elementRef}>
                   {media.gtSm ? (
                     <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-black shadow-md rounded-md">
                       {!activePanel &&
@@ -539,7 +545,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="flex flex-1 min-h-full flex-col overflow-y-auto">
+                  <div className="flex flex-col flex-1 min-h-full overflow-y-auto">
                     <DocumentCover cover={document.metadata.cover} id={id} />
 
                     <div
@@ -557,7 +563,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                             marginTop: document.metadata?.cover ? 152 : 220,
                           }}
                         >
-                          <div className="hide-scrollbar overflow-scroll h-full pb-6">
+                          <div className="h-full pb-6 overflow-scroll hide-scrollbar">
                             <WebDocumentOutline
                               showCollapsed={showCollapsed}
                               supportDocuments={props.supportDocuments}
@@ -672,12 +678,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
               >
                 <Button
                   variant="ghost"
-                  className="flex-1 flex items-center justify-start min-w-0"
+                  className="flex items-center justify-start flex-1 min-w-0"
                 >
                   <div className="shrink-0">
                     <MessageSquare />
                   </div>
-                  <span className="truncate flex-1 text-left ml-2">
+                  <span className="flex-1 ml-2 text-left truncate">
                     Start a Discussion
                   </span>
                 </Button>
@@ -963,6 +969,7 @@ function WebCitationsPanel({
     const dedupedCitations = deduplicateCitations(filteredCitations)
     return dedupedCitations
   }, [citations.data, blockId])
+  const tx = useTx()
   return (
     <YStack gap="$4">
       <XStack
@@ -978,11 +985,11 @@ function WebCitationsPanel({
         bg={'$backgroundStrong'}
         justifyContent="space-between"
       >
-        <p className="text-md font-bold">Citations</p>
+        <p className="font-bold text-md">{tx('Citations')}</p>
         {activitySummary}
         <Button
           variant="ghost"
-          className=" flex items-center justify-center hidden sm:block"
+          className="flex items-center justify-center hidden sm:block"
           onClick={handleClose}
         >
           <X />
@@ -990,14 +997,17 @@ function WebCitationsPanel({
       </XStack>
       <YStack gap="$2" padding="$3">
         {blockId ? (
-          <AccessoryBackButton onPress={handleBack} label="All Citations" />
+          <AccessoryBackButton
+            onPress={handleBack}
+            label={tx('All Citations')}
+          />
         ) : null}
         {displayCitations ? (
           displayCitations.map((citation) => {
             return <DocumentCitationEntry citation={citation} />
           })
         ) : (
-          <div className="flex justify-center items-center">
+          <div className="flex items-center justify-center">
             <Spinner />
           </div>
         )}
@@ -1017,6 +1027,7 @@ function WebVersionsPanel({
 }) {
   const changes = useDocumentChanges(id)
   const changesList = changes.data?.changes || []
+  const tx = useTx()
   return (
     <YStack gap="$4">
       <XStack
@@ -1032,7 +1043,7 @@ function WebVersionsPanel({
         bg={'$backgroundStrong'}
         justifyContent="space-between"
       >
-        <p className="text-md font-bold">Versions</p>
+        <p className="font-bold text-md">{tx('Versions')}</p>
         {activitySummary}
         <Button
           variant="ghost"
