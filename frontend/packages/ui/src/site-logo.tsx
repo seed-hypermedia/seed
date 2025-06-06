@@ -15,7 +15,6 @@ export function SiteLogo({
     key: 'document',
     id,
   })
-  console.log(homeLinkProps)
   if (metadata?.seedExperimentalLogo) {
     return (
       <div

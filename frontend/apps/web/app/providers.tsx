@@ -149,7 +149,7 @@ export function WebSiteProvider(props: {
             originHomeId: props.originHomeId,
           })
         }
-        if (href) {
+        if (href !== null) {
           navigate(href, {
             replace,
           })
