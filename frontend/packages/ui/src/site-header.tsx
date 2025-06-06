@@ -382,10 +382,10 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        ' absolute top-12 px-4 left-0 right-0 z-50 w-full flex justify-center',
+        'absolute top-12 px-4 left-0 right-0 z-50 w-full flex justify-center pointer-events-none',
       )}
     >
-      <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg">
+      <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg pointer-events-auto">
         <Button
           variant="ghost"
           size="icon"
