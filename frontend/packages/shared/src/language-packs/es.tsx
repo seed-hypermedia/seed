@@ -1,4 +1,4 @@
-import {es} from 'date-fns/locale'
+import {es} from 'date-fns/locale/es'
 import {ReactNode} from 'react'
 import {LanguagePack} from '../translation'
 import {
