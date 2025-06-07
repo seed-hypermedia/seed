@@ -1,4 +1,3 @@
-import {es} from 'date-fns/locale/es'
 import {ReactNode} from 'react'
 import {LanguagePack} from '../translation'
 import {
@@ -8,6 +7,10 @@ import {
   formattedDateMedium,
   formattedDateShort,
 } from '../utils'
+
+// Use require to avoid ESM import issues
+const esLocale = require('date-fns/locale/es')
+const es = esLocale.es
 
 const Translations = {
   Activity: 'Actividad',
