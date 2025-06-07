@@ -6,6 +6,7 @@ import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccounts, useEntity} from '@shm/shared/models/entity'
+import {useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {Spinner} from '@shm/ui/spinner'
@@ -115,6 +116,7 @@ function CommentBlockAccessory({
   autoFocus?: boolean
   onBack: () => void
 }) {
+  const tx = useTxString()
   const citations = useEntityCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (
@@ -135,7 +137,7 @@ function CommentBlockAccessory({
     )
   } else if (doc.isInitialLoading) {
     quotedContent = (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -165,7 +167,7 @@ function CommentBlockAccessory({
         </View>
       }
     >
-      <AccessoryBackButton onPress={onBack} label="All Discussions" />
+      <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
       <AppDocContentProvider docId={docId}>
         {quotedContent}
       </AppDocContentProvider>
@@ -192,6 +194,7 @@ function CommentReplyAccessory({
   }, [threadComments])
   const commentAuthors = useAccounts(threadAuthorIds)
   const rootCommentId = threadComments?.at(0)?.id
+  const tx = useTxString()
   return (
     <AccessoryContent
       footer={
@@ -206,7 +209,7 @@ function CommentReplyAccessory({
         ) : null
       }
     >
-      <AccessoryBackButton onPress={onBack} label="All Discussions" />
+      <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (
         threadComments.length > 0 ? (
           <CommentGroup

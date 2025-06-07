@@ -17,7 +17,7 @@ import {MessageSquareOff, X} from '@tamagui/lucide-icons'
 import React, {useCallback, useMemo} from 'react'
 import {Button, XStack, YStack} from 'tamagui'
 
-import {useTx, useTxString} from '@shm/shared/translation'
+import {useTxString} from '@shm/shared/translation'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
@@ -54,7 +54,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
   const isDark = useIsDark()
 
-  const tx = useTx()
+  const tx = useTxString()
 
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
@@ -135,7 +135,10 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       </XStack>
       <YStack gap="$2" paddingHorizontal="$2">
         {commentId || blockId ? (
-          <AccessoryBackButton onPress={handleBack} label="All Discussions" />
+          <AccessoryBackButton
+            onPress={handleBack}
+            label={tx('All Discussions')}
+          />
         ) : null}
       </YStack>
       {content}
