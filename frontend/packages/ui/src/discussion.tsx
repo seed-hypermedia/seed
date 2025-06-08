@@ -264,6 +264,7 @@ export function Comment({
                   {tx(
                     'replies_count',
                     (args: {count: number}) => `Replies (${args.count})`,
+                    {count: replyCount},
                   )}
                 </SizableText>
               </Button>
