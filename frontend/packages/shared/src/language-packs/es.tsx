@@ -8,9 +8,9 @@ import {
   formattedDateShort,
 } from '../utils'
 
-// Use require to avoid ESM import issues
-const esLocale = require('date-fns/locale/es')
-const es = esLocale.es
+// // Use require to avoid ESM import issues
+// const esLocale = require('date-fns/locale/es')
+// const es = esLocale.es
 
 const Translations = {
   Activity: 'Actividad',
@@ -76,16 +76,28 @@ const Translations = {
 const Spanish: LanguagePack = {
   translations: Translations,
   formattedDateShort: (date: AnyTimestamp) => {
-    return formattedDateShort(date, {locale: es})
+    return formattedDateShort(
+      date,
+      //{locale: es}
+    )
   },
   formattedDateLong: (date: AnyTimestamp) => {
-    return formattedDateLong(date, {locale: es})
+    return formattedDateLong(
+      date,
+      //{locale: es}
+    )
   },
   formattedDateMedium: (date: AnyTimestamp) => {
-    return formattedDateMedium(date, {locale: es})
+    return formattedDateMedium(
+      date,
+      //{locale: es}
+    )
   },
   formattedDateDayOnly: (date: AnyTimestamp) => {
-    return formattedDateDayOnly(date, {locale: es})
+    return formattedDateDayOnly(
+      date,
+      //{locale: es}
+    )
   },
 }
 export default Spanish
