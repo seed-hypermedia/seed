@@ -75,7 +75,7 @@ export function ChangeItem({
           metadata={authorData.metadata}
         />
       </div>
-      <div className="flex flex-col flex-1 bg-red-500">
+      <div className="flex flex-col flex-1">
         <div
           className="flex items-center w-full gap-2 overflow-hidden"
           style={{height: iconSize}}
