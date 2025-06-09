@@ -31,10 +31,11 @@ export function HoverCard({
       </Popover.Trigger>
       <Popover.Content
         borderColor="$borderColor"
+        backgroundColor="$backgroundStrong"
         borderWidth={1}
         elevation="$4"
         gap="$2"
-        padding="$2"
+        padding="$3"
         ai="flex-start"
         {...contentProps}
       >
