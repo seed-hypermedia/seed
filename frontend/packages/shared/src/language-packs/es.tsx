@@ -31,9 +31,11 @@ const Translations = {
   ),
   comment_on: (args: {target: ReactNode}) => <>Comentar en {args.target}</>,
   replies_count: (args: {count: number}) => <>Respuestas ({args.count})</>,
-  comment_with_identity: (args: {host: string}) => `Comentar con ${args.host}`,
+  comment_with_identity: (args: {host: string}) => (
+    <>Comentar con {args.host}</>
+  ),
   powered_by: (args: {seedLink: ReactNode}) => (
-    <>Publicado con ${args.seedLink}</>
+    <>Publicado con {args.seedLink}</>
   ),
   'Notification Settings': 'Configuración de notificaciones',
   Logout: 'Cerrar sesión',
