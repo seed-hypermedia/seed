@@ -24,6 +24,7 @@ import {Button} from '@shm/ui/button'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {NewspaperCard} from '@shm/ui/newspaper'
+import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
@@ -34,7 +35,6 @@ import {
   Input,
   Separator,
   SizableText,
-  Tooltip,
   View,
   XStack,
   YStack,

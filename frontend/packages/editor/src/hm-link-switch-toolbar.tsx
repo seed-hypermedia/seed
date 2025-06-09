@@ -3,6 +3,7 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
 import {
   CircleDot,
   ExternalLink,
@@ -14,7 +15,7 @@ import {
 } from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, Tooltip, XGroup, XStack, YStack} from 'tamagui'
+import {Button, XGroup, XStack, YStack} from 'tamagui'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,

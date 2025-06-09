@@ -8,6 +8,7 @@ import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
+import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Check, Link, Unlink} from '@tamagui/lucide-icons'
 import {useCallback, useEffect, useState} from 'react'
@@ -17,7 +18,6 @@ import {
   Popover,
   SizeTokens,
   Theme,
-  Tooltip,
   XGroup,
   XStack,
 } from 'tamagui'

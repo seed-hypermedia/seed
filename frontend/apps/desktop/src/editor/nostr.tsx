@@ -7,6 +7,7 @@ import {
 } from '@shm/editor/blocknote'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
+import {Tooltip} from '@shm/ui/tooltip'
 import {
   Event as NostrEvent,
   nip19,
@@ -26,7 +27,6 @@ import {
   SizableText,
   Tabs,
   Text,
-  Tooltip,
   XStack,
   YStack,
   useTheme,

@@ -11,6 +11,7 @@ import {
   Subscribe,
   SubscribeSpace,
 } from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   AlertDialog,
@@ -18,7 +19,6 @@ import {
   ColorTokens,
   Popover,
   Text,
-  Tooltip,
   useTheme,
   XStack,
   YStack,

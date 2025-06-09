@@ -37,6 +37,7 @@ import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {
@@ -46,7 +47,6 @@ import {
   Heading,
   Input,
   SizableText,
-  Tooltip,
   View,
   XStack,
   YStack,
