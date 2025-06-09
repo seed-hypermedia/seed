@@ -734,7 +734,7 @@ export function BlockNodeContent({
                 opacity: 1,
               }}
               bg="$background"
-              $group-blocknode-hover={{
+              $group-blocknode-md-hover={{
                 opacity: 1,
               }}
             />
@@ -831,7 +831,7 @@ export function BlockNodeContent({
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
                 opacity={0}
-                $group-blocknode-hover={{
+                $group-blocknode-md-hover={{
                   opacity: 1,
                 }}
                 padding={layoutUnit / 4}
@@ -865,7 +865,7 @@ export function BlockNodeContent({
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
                 opacity={citationsCount?.comments ? 1 : 0}
-                $group-blocknode-hover={{
+                $group-blocknode-md-hover={{
                   opacity: 1,
                 }}
                 padding={layoutUnit / 4}
@@ -906,7 +906,7 @@ export function BlockNodeContent({
                 userSelect="none"
                 size="$1"
                 opacity={0}
-                $group-blocknode-hover={{
+                $group-blocknode-md-hover={{
                   opacity: 1,
                 }}
                 padding={layoutUnit / 4}
