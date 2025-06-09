@@ -874,7 +874,7 @@ export function BlockNodeContent({
                 }}
                 icon={<MessageSquare size={12} color="$color9" />}
               >
-                <SizableText color="$color9" size="$1">
+                <SizableText color="muted" size="xs">
                   {citationsCount?.comments
                     ? String(citationsCount.comments)
                     : ' '}
