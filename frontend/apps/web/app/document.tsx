@@ -670,28 +670,17 @@ export function DocumentPage(
           </div>
           {media.gtSm || !activityEnabled ? null : (
             <>
-              <div
-                className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-black shadow-md rounded-md shadow-md border border-sidebar-border"
+              <MobileInteractionCardCollapsed
                 onClick={() => {
                   if (!panel) {
                     setActivePanel({type: 'discussions', blockId: undefined})
                   }
                   setIsSheetOpen(true)
                 }}
-              >
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start flex-1 min-w-0"
-                >
-                  <div className="shrink-0">
-                    <MessageSquare />
-                  </div>
-                  <span className="flex-1 ml-2 text-left truncate">
-                    {tx('Start a Discussion')}
-                  </span>
-                </Button>
-                {interactionSummary.data ? <>{activitySummary}</> : null}
-              </div>
+                interactionSummary={
+                  interactionSummary.data ? <>{activitySummary}</> : null
+                }
+              />
               <Sheet
                 snapPoints={[92]}
                 onOpenChange={setIsSheetOpen}
@@ -728,6 +717,35 @@ export function DocumentPage(
         </div>
       </DiscussionsProvider>
     </WebSiteProvider>
+  )
+}
+
+function MobileInteractionCardCollapsed({
+  onClick,
+  interactionSummary,
+}: {
+  onClick: () => void
+  interactionSummary: React.ReactNode
+}) {
+  const tx = useTx()
+  return (
+    <div
+      className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-black shadow-md rounded-md shadow-md border border-sidebar-border"
+      onClick={onClick}
+    >
+      <Button
+        variant="ghost"
+        className="flex items-center justify-start flex-1 min-w-0"
+      >
+        <div className="shrink-0">
+          <MessageSquare />
+        </div>
+        <span className="flex-1 ml-2 text-left truncate">
+          {tx('Start a Discussion')}
+        </span>
+      </Button>
+      {interactionSummary}
+    </div>
   )
 }
 
