@@ -48,7 +48,7 @@ export function ChangeItem({
       key={change.id}
       variant="ghost"
       className={cn(
-        'h-auto p-3 rounded-md items-start relative transition-colors gap-2',
+        'justify-start h-auto p-3 rounded-md items-start relative transition-colors gap-2',
         isActive
           ? 'bg-brand/10 hover:bg-brand/20'
           : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -75,7 +75,7 @@ export function ChangeItem({
           metadata={authorData.metadata}
         />
       </div>
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 bg-red-500">
         <div
           className="flex items-center w-full gap-2 overflow-hidden"
           style={{height: iconSize}}
