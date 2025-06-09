@@ -900,6 +900,81 @@ var qIterComments = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
+// CommentByAuthorResult holds the result of iterating comments by author.
+type CommentByAuthorResult struct {
+	CID     cid.Cid
+	Comment *Comment
+	ID      int64
+}
+
+// IterCommentsByAuthor iterates over comments made by a specific author.
+func (idx *Index) IterCommentsByAuthor(ctx context.Context, author core.Principal, afterID int64, limit int32) (it iter.Seq[CommentByAuthorResult], check func() error) {
+	var outErr error
+
+	check = func() error { return outErr }
+	it = func(yield func(CommentByAuthorResult) bool) {
+		conn, release, err := idx.db.Conn(ctx)
+		if err != nil {
+			outErr = err
+			return
+		}
+		defer release()
+
+		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+		rows, check := sqlitex.Query(conn, qIterCommentsByAuthor(), author, afterID, limit)
+		for row := range rows {
+			var (
+				sbID  = row.ColumnInt64(0)
+				codec = row.ColumnInt64(1)
+				hash  = row.ColumnBytesUnsafe(2)
+				data  = row.ColumnBytesUnsafe(3)
+			)
+
+			buf, err = idx.bs.decoder.DecodeAll(data, buf)
+			if err != nil {
+				outErr = err
+				break
+			}
+
+			chcid := cid.NewCidV1(uint64(codec), hash)
+			cmt := &Comment{}
+			if err := cbornode.DecodeInto(buf, cmt); err != nil {
+				outErr = fmt.Errorf("IterCommentsByAuthor: failed to decode comment %s for author %s: %w", chcid, author, err)
+				break
+			}
+
+			if !yield(CommentByAuthorResult{
+				CID:     chcid,
+				Comment: cmt,
+				ID:      sbID,
+			}) {
+				break
+			}
+
+			buf = buf[:0] // reset the slice reusing the backing array
+		}
+
+		outErr = errors.Join(outErr, check())
+	}
+
+	return it, check
+}
+
+var qIterCommentsByAuthor = dqb.Str(`
+	SELECT
+		sb.id,
+		b.codec,
+		b.multihash,
+		b.data
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Comment'
+	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	AND sb.id < :afterID
+	ORDER BY sb.id DESC
+	LIMIT :limit
+`)
+
 type indexingCtx struct {
 	conn       *sqlite.Conn
 	blockStore *blockStore

@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Comments_CreateComment_FullMethodName    = "/com.seed.documents.v3alpha.Comments/CreateComment"
-	Comments_GetComment_FullMethodName       = "/com.seed.documents.v3alpha.Comments/GetComment"
-	Comments_BatchGetComments_FullMethodName = "/com.seed.documents.v3alpha.Comments/BatchGetComments"
-	Comments_ListComments_FullMethodName     = "/com.seed.documents.v3alpha.Comments/ListComments"
+	Comments_CreateComment_FullMethodName        = "/com.seed.documents.v3alpha.Comments/CreateComment"
+	Comments_GetComment_FullMethodName           = "/com.seed.documents.v3alpha.Comments/GetComment"
+	Comments_BatchGetComments_FullMethodName     = "/com.seed.documents.v3alpha.Comments/BatchGetComments"
+	Comments_ListComments_FullMethodName         = "/com.seed.documents.v3alpha.Comments/ListComments"
+	Comments_ListCommentsByAuthor_FullMethodName = "/com.seed.documents.v3alpha.Comments/ListCommentsByAuthor"
 )
 
 // CommentsClient is the client API for Comments service.
@@ -39,6 +40,8 @@ type CommentsClient interface {
 	BatchGetComments(ctx context.Context, in *BatchGetCommentsRequest, opts ...grpc.CallOption) (*BatchGetCommentsResponse, error)
 	// Lists comments for a given target.
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
+	// Lists comments by author.
+	ListCommentsByAuthor(ctx context.Context, in *ListCommentsByAuthorRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
 }
 
 type commentsClient struct {
@@ -89,6 +92,16 @@ func (c *commentsClient) ListComments(ctx context.Context, in *ListCommentsReque
 	return out, nil
 }
 
+func (c *commentsClient) ListCommentsByAuthor(ctx context.Context, in *ListCommentsByAuthorRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCommentsResponse)
+	err := c.cc.Invoke(ctx, Comments_ListCommentsByAuthor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommentsServer is the server API for Comments service.
 // All implementations should embed UnimplementedCommentsServer
 // for forward compatibility.
@@ -103,6 +116,8 @@ type CommentsServer interface {
 	BatchGetComments(context.Context, *BatchGetCommentsRequest) (*BatchGetCommentsResponse, error)
 	// Lists comments for a given target.
 	ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error)
+	// Lists comments by author.
+	ListCommentsByAuthor(context.Context, *ListCommentsByAuthorRequest) (*ListCommentsResponse, error)
 }
 
 // UnimplementedCommentsServer should be embedded to have
@@ -123,6 +138,9 @@ func (UnimplementedCommentsServer) BatchGetComments(context.Context, *BatchGetCo
 }
 func (UnimplementedCommentsServer) ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListComments not implemented")
+}
+func (UnimplementedCommentsServer) ListCommentsByAuthor(context.Context, *ListCommentsByAuthorRequest) (*ListCommentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCommentsByAuthor not implemented")
 }
 func (UnimplementedCommentsServer) testEmbeddedByValue() {}
 
@@ -216,6 +234,24 @@ func _Comments_ListComments_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Comments_ListCommentsByAuthor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCommentsByAuthorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentsServer).ListCommentsByAuthor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Comments_ListCommentsByAuthor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentsServer).ListCommentsByAuthor(ctx, req.(*ListCommentsByAuthorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Comments_ServiceDesc is the grpc.ServiceDesc for Comments service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -238,6 +274,10 @@ var Comments_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListComments",
 			Handler:    _Comments_ListComments_Handler,
+		},
+		{
+			MethodName: "ListCommentsByAuthor",
+			Handler:    _Comments_ListCommentsByAuthor_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

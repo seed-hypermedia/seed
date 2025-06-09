@@ -20,6 +20,9 @@ service Comments {
 
   // Lists comments for a given target.
   rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+
+  // Lists comments by author.
+  rpc ListCommentsByAuthor(ListCommentsByAuthorRequest) returns (ListCommentsResponse);
 }
 
 // Request to create a comment.
@@ -80,6 +83,18 @@ message ListCommentsRequest {
 
   // Optional. The page token obtained from a previous request (if any).
   string page_token = 4;
+}
+
+// Request to list comments by author.
+message ListCommentsByAuthorRequest {
+  // Required. Account ID of the author to list comments for.
+  string author = 1;
+
+  // Optional. The maximum number of comments to return.
+  int32 page_size = 2;
+
+  // Optional. The page token obtained from a previous request (if any).
+  string page_token = 3;
 }
 
 // Response with a list of comments.

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/util/apiutil"
 	"seed/backend/util/cclock"
 	"seed/backend/util/errutil"
 	"seed/backend/util/must"
@@ -178,6 +180,61 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 			break
 		}
 		resp.Comments = append(resp.Comments, pb)
+	}
+	outErr = errors.Join(outErr, check())
+	if outErr != nil {
+		return nil, outErr
+	}
+
+	return resp, nil
+}
+
+// ListCommentsByAuthor implements Comments API.
+func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListCommentsByAuthorRequest) (*documents.ListCommentsResponse, error) {
+	author, err := core.DecodePrincipal(in.Author)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse author '%s': %v", in.Author, err)
+	}
+
+	if in.PageSize == 0 {
+		in.PageSize = defaultPageSize
+	}
+
+	var cursor struct {
+		CommentID int64 `json:"c_id"`
+	}
+
+	cursor.CommentID = math.MaxInt64
+
+	if in.PageToken != "" {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+
+	resp := &documents.ListCommentsResponse{
+		Comments: make([]*documents.Comment, 0, min(in.PageSize, maxPageAllocBuffer)),
+	}
+
+	var outErr error
+	comments, check := srv.idx.IterCommentsByAuthor(ctx, author, cursor.CommentID, in.PageSize+1)
+	for result := range comments {
+		if len(resp.Comments) == int(in.PageSize) {
+			resp.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to encode page token: %v", err)
+			}
+			break
+		}
+
+		pb, err := commentToProto(result.CID, result.Comment)
+		if err != nil {
+			outErr = err
+			break
+		}
+		resp.Comments = append(resp.Comments, pb)
+
+		cursor.CommentID = result.ID
 	}
 	outErr = errors.Join(outErr, check())
 	if outErr != nil {

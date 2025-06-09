@@ -288,6 +288,63 @@ export class ListCommentsRequest extends Message<ListCommentsRequest> {
 }
 
 /**
+ * Request to list comments by author.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCommentsByAuthorRequest
+ */
+export class ListCommentsByAuthorRequest extends Message<ListCommentsByAuthorRequest> {
+  /**
+   * Required. Account ID of the author to list comments for.
+   *
+   * @generated from field: string author = 1;
+   */
+  author = "";
+
+  /**
+   * Optional. The maximum number of comments to return.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. The page token obtained from a previous request (if any).
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListCommentsByAuthorRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCommentsByAuthorRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCommentsByAuthorRequest | PlainMessage<ListCommentsByAuthorRequest> | undefined, b: ListCommentsByAuthorRequest | PlainMessage<ListCommentsByAuthorRequest> | undefined): boolean {
+    return proto3.util.equals(ListCommentsByAuthorRequest, a, b);
+  }
+}
+
+/**
  * Response with a list of comments.
  *
  * @generated from message com.seed.documents.v3alpha.ListCommentsResponse

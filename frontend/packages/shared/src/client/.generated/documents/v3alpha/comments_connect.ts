@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, GetCommentRequest, ListCommentsRequest, ListCommentsResponse } from "./comments_pb";
+import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse } from "./comments_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -55,6 +55,17 @@ export const Comments = {
     listComments: {
       name: "ListComments",
       I: ListCommentsRequest,
+      O: ListCommentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists comments by author.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.ListCommentsByAuthor
+     */
+    listCommentsByAuthor: {
+      name: "ListCommentsByAuthor",
+      I: ListCommentsByAuthorRequest,
       O: ListCommentsResponse,
       kind: MethodKind.Unary,
     },
