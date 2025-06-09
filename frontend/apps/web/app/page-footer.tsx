@@ -30,7 +30,7 @@ export function PageFooter({
       >
         {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
         <XStack gap="$4" ai="center">
-          <SizableText size="$1">
+          <SizableText size="xs">
             {tx(
               'powered_by',
               ({seedLink}: {seedLink: ReactNode}) => (
