@@ -116,17 +116,20 @@ function DocumentPreview({
   if (!doc.data) return null
 
   return (
-    <YStack maxHeight="50vh" maxWidth={600} overflow="auto">
-      <SizableText size="2xl" weight="bold" className="mx-2 my-5">
-        {metadata?.name || 'Untitled'}
-      </SizableText>
-      <AppDocContentProvider>
-        <BlocksContent
-          blocks={doc.data.document?.content}
-          parentBlockId={null}
-        />
-      </AppDocContentProvider>
-    </YStack>
+    <div className="p-4">
+      <div className="shadow-lg bg-white dark:bg-black rounded-lg max-h-96 w-full max-w-xl overflow-y-auto p-3 flex flex-col gap-3">
+        <SizableText size="2xl" weight="bold" className="px-2">
+          {metadata?.name || 'Untitled'}
+        </SizableText>
+        <div className="bg-gray-200 dark:bg-gray-800 h-px w-full flex-shrink-0" />
+        <AppDocContentProvider>
+          <BlocksContent
+            blocks={doc.data.document?.content}
+            parentBlockId={null}
+          />
+        </AppDocContentProvider>
+      </div>
+    </div>
   )
 }
 
