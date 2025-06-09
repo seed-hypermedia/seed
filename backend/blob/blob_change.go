@@ -396,9 +396,6 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		if err != nil {
 			return err
 		}
-		var ftsType string
-		var ftsContent string
-		var ftsBlkID string
 		switch op := op.(type) {
 		case OpSetKey:
 			k, v := op.Key, op.Value
@@ -417,6 +414,9 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			// TODO(hm24): index other relevant metadata for list response and so on.
 			if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
 				extra.Title = vs
+				if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String()); err != nil {
+					return fmt.Errorf("failed to insert record in fts table: %w", err)
+				}
 			}
 
 			u, err := url.Parse(vs)
@@ -454,8 +454,9 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 					// TODO(hm24): index other relevant metadata for list response and so on.
 					if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
 						extra.Title = vs
-						ftsType = "title"
-						ftsContent = vs
+						if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String()); err != nil {
+							return fmt.Errorf("failed to insert record in fts table: %w", err)
+						}
 					}
 				}
 
@@ -477,9 +478,6 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			}
 		case OpReplaceBlock:
 			blk := op.Block
-			ftsBlkID = blk.ID()
-			ftsType = "document"
-			ftsContent = blk.Text
 			if err := indexURL(&sb, ictx.log, blk.ID(), "doc/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
@@ -489,10 +487,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 					return err
 				}
 			}
-		}
-
-		if ftsType != "" && ftsContent != "" {
-			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID, sb.CID.String()); err != nil {
+			if err := dbFTSInsertOrReplace(ictx.conn, blk.Text, "document", id, blk.ID(), sb.CID.String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
 		}

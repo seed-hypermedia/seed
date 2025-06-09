@@ -57,6 +57,10 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-06-09.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		// Reindexing to get the home document titles in search.
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-06-02.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to IDs on contacts.
 		return scheduleReindex(conn)
