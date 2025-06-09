@@ -9,11 +9,6 @@ import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON, Wrapped} from '@/wrapping'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
-import {Button} from '@tamagui/button'
-
-// Remove this if you want the error:
-Button
-// seriously, wtf
 
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
@@ -42,6 +37,7 @@ export const loader = async ({request}: {request: Request}) => {
   const result = await loadSiteDocument(
     parsedRequest,
     hmId('d', registeredAccountUid, {version, path: [], latest}),
+    {prefersLanguages: parsedRequest.prefersLanguages},
   )
   debugTiming('homepage loader resolved')
   return result

@@ -20,9 +20,6 @@ export const loader = async ({
 }) => {
   const parsedRequest = parseRequest(request)
   if (!useFullRender(parsedRequest)) return null
-  const acceptLangHeader = request.headers.get('Accept-Language')
-  const acceptLangsFirstTerm = acceptLangHeader?.split(';')[0]
-  const prefersLanguages = acceptLangsFirstTerm?.split(',') || []
   const {url, hostname} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
@@ -34,7 +31,7 @@ export const loader = async ({
   return await loadSiteDocument(
     parsedRequest,
     hmId('d', registeredAccountUid, {path, version, latest}),
-    {prefersLanguages},
+    {prefersLanguages: parsedRequest.prefersLanguages},
   )
 }
 

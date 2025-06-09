@@ -10,6 +10,10 @@ export function parseRequest(request: Request) {
   if (pathParts.at(-1) === '') {
     pathParts = pathParts.slice(0, -1)
   }
+  const acceptLangHeader = request.headers.get('Accept-Language')
+  const acceptLangsFirstTerm = acceptLangHeader?.split(';')[0]
+  const prefersLanguages = acceptLangsFirstTerm?.split(',') || []
+
   return {
     hostname,
     origin: `${protocol}//${hostname}${url.port ? `:${url.port}` : ''}`,
@@ -18,6 +22,7 @@ export function parseRequest(request: Request) {
     method: request.method,
     headers: request.headers,
     searchParams: url.searchParams,
+    prefersLanguages,
   }
 }
 

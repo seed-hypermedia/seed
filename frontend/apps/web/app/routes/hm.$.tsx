@@ -41,7 +41,9 @@ export const loader = async ({
     if (!docId) throw new Error('Document not found')
     return await loadSiteDocument(parsedRequest, docId, {comment})
   }
-  return await loadSiteDocument(parsedRequest, id)
+  return await loadSiteDocument(parsedRequest, id, {
+    prefersLanguages: parsedRequest.prefersLanguages,
+  })
 }
 
 function produceHmId(
