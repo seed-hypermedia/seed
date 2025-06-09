@@ -804,7 +804,7 @@ export function BlockNodeContent({
                 onPress={() => onBlockCitationClick?.(blockNode.block?.id)}
                 icon={<BlockQuote size={12} color="$color9" />}
               >
-                <SizableText color="$color9" size="$1">
+                <SizableText color="muted" size="xs">
                   {citationsCount.citations
                     ? String(citationsCount.citations)
                     : ' '}
@@ -910,7 +910,7 @@ export function BlockNodeContent({
                   }
                 }}
               >
-                <SizableText color="$color9" size="$1">
+                <SizableText color="muted" size="xs">
                   {' '}
                 </SizableText>
               </Button>
