@@ -14,7 +14,7 @@ import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './components/button'
 import {DraftBadge} from './draft-badge'
-import {ArrowRight, Close, Menu, Pencil, X} from './icons'
+import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
 
 import {
@@ -26,11 +26,8 @@ import {
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
-import {Popover} from './TamaguiPopover'
 import {Tooltip} from './tooltip'
-import {dialogBoxShadow} from './universal-dialog'
 import {useIsDark} from './use-is-dark'
-import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
 
 export function SiteHeader({
@@ -566,9 +563,9 @@ export function SiteHeaderMenu({
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
+      {editNavPane}
       {/* Hidden measurement container */}
       <div className="absolute flex items-center gap-5 opacity-0 pointer-events-none">
-        {editNavPane ? <EditNavPopover pane={editNavPane} /> : null}
         {items.map((item) => {
           const key = item.id?.id || item.draftId || '?'
           return (
@@ -640,28 +637,5 @@ function HypermediaHostBanner({origin}: {origin?: string}) {
         </a>
       </p>
     </div>
-  )
-}
-
-function EditNavPopover({pane}: {pane: React.ReactNode}) {
-  const popover = usePopoverState()
-  return (
-    <Popover {...popover}>
-      <Popover.Trigger className="no-window-drag">
-        <Button
-          onPress={() => {}}
-          size="$2"
-          icon={Pencil}
-          opacity={0}
-          $group-header-hover={{
-            opacity: 1,
-          }}
-        />
-      </Popover.Trigger>
-      <Popover.Content bg="$backgroundStrong" boxShadow={dialogBoxShadow}>
-        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
-        {pane}
-      </Popover.Content>
-    </Popover>
   )
 }

@@ -9,6 +9,7 @@ import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
+  useDocumentNavigation,
   useDraftEditor,
   useListDirectory,
 } from '@/models/documents'
@@ -28,6 +29,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import {
+  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -67,7 +69,9 @@ import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Image, Pencil, Plus} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {EllipsisVertical} from 'lucide-react'
@@ -76,7 +80,16 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {useForm} from 'react-hook-form'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Form, Input, Separator, Text, XStack, YStack} from 'tamagui'
+import {
+  Button,
+  Form,
+  Input,
+  Popover,
+  Separator,
+  Text,
+  XStack,
+  YStack,
+} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {z} from 'zod'
 import {useShowTitleObserver} from './app-title'
@@ -558,7 +571,21 @@ function DraftAppHeader({
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
-  const currentDocNav = useSelector(actor, (s: any) => s.context.docNav || [])
+  const currentDocNav = useSelector(actor, (s: any) => s.context.docNav)
+
+  // Use directory results as fallback when docNav is undefined (missing from draft)
+  const directoryNav = useDocumentNavigation(siteHomeEntity?.id)
+  const effectiveDocNav =
+    currentDocNav !== undefined ? currentDocNav : directoryNav || []
+
+  console.log(
+    'currentDocNav',
+    currentDocNav,
+    'directoryNav',
+    directoryNav,
+    'effectiveDocNav',
+    effectiveDocNav,
+  )
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -593,7 +620,7 @@ function DraftAppHeader({
       children={children}
       editNavPane={
         isEditingHomeDoc ? (
-          <EditNavigation docNav={currentDocNav} onDocNav={onDocNav} />
+          <EditNavPopover docNav={effectiveDocNav} editDocNav={onDocNav} />
         ) : null
       }
       supportQueries={[
@@ -604,6 +631,27 @@ function DraftAppHeader({
       ]}
       supportDocuments={[siteHomeEntity]}
     />
+  )
+}
+
+function EditNavPopover({
+  docNav,
+  editDocNav,
+}: {
+  docNav: HMNavigationItem[]
+  editDocNav: (docNav: HMNavigationItem[]) => void
+}) {
+  const popover = usePopoverState()
+  return (
+    <Popover {...popover}>
+      <Popover.Trigger className="no-window-drag">
+        <Button onPress={() => {}} size="$2" icon={Pencil} opacity={1} />
+      </Popover.Trigger>
+      <Popover.Content bg="$backgroundStrong" boxShadow={dialogBoxShadow}>
+        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+        <EditNavigation docNav={docNav} onDocNav={editDocNav} />
+      </Popover.Content>
+    </Popover>
   )
 }
 
