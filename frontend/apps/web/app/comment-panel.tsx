@@ -368,7 +368,7 @@ export function EmptyDiscussions({
         hoverStyle={{bg: '$brand4'}}
         focusStyle={{bg: '$brand4'}}
       >
-        {tx('Start a discussion')}
+        {tx('Start a Discussion')}
       </Button>
     </YStack>
   )

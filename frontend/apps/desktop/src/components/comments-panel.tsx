@@ -6,7 +6,7 @@ import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccounts, useEntity} from '@shm/shared/models/entity'
-import {useTxString} from '@shm/shared/translation'
+import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {Spinner} from '@shm/ui/spinner'
@@ -298,6 +298,7 @@ function EmptyDiscussions({
   docId: UnpackedHypermediaId
   commentId?: string
 }) {
+  const tx = useTx()
   return (
     <YStack alignItems="center" gap="$4" paddingVertical="$4">
       <MessageSquareOff size={48} color="$color8" />
@@ -310,7 +311,7 @@ function EmptyDiscussions({
         hoverStyle={{bg: '$brand4'}}
         focusStyle={{bg: '$brand4'}}
       >
-        Start a discussion
+        {tx('Start a Discussion')}
       </Button>
     </YStack>
   )

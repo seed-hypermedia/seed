@@ -372,6 +372,8 @@ export function DocumentPage(
     [enableWebSigning],
   )
 
+  const tx = useTx()
+
   const activitySummary = (
     <DocInteractionsSummary
       activePanel={activePanel}
@@ -685,7 +687,7 @@ export function DocumentPage(
                     <MessageSquare />
                   </div>
                   <span className="flex-1 ml-2 text-left truncate">
-                    Start a Discussion
+                    {tx('Start a Discussion')}
                   </span>
                 </Button>
                 {interactionSummary.data ? <>{activitySummary}</> : null}
