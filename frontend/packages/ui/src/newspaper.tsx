@@ -270,8 +270,8 @@ function NewspaperCardContent({
           {entity?.document?.metadata?.name}
         </SizableText>
       </YStack>
-      <YStack overflow="hidden" maxHeight={(banner ? 27 : 21) * 3}>
-        <SizableText color="muted" family="mono" size={banner ? 'lg' : 'sm'}>
+      <YStack overflow="hidden" maxHeight={(banner ? 28 : 24) * 3}>
+        <SizableText color="muted" family="default" size={banner ? 'lg' : 'md'}>
           {textContent}
         </SizableText>
       </YStack>

@@ -66,6 +66,7 @@ const textVariants = cva(
         default: 'font-sans',
         mono: 'font-mono',
         heading: 'font-heading',
+        serif: 'font-serif',
       },
     },
     defaultVariants: {
