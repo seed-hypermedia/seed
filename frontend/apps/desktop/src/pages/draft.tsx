@@ -5,7 +5,6 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
@@ -37,7 +36,7 @@ import {
 } from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {
   chromiumSupportedImageMimeTypes,
@@ -76,6 +75,7 @@ import {Image, Pencil, Plus} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {EllipsisVertical} from 'lucide-react'
 import {nanoid} from 'nanoid'
+import {Selection} from 'prosemirror-state'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {useForm} from 'react-hook-form'
@@ -220,23 +220,25 @@ export default function DraftPage() {
         >
           <DraftRebaseBanner />
           {locationId || editId ? (
-            <DraftAppHeader
-              siteHomeEntity={homeEntity.data}
-              isEditingHomeDoc={
-                homeEntity.data?.id.id == locationId?.id ||
-                homeEntity.data?.id.id == editId?.id
-              }
-              docId={locationId || editId}
-              document={homeEntity.data?.document}
-              draftMetadata={state.context.metadata}
-              onDocNav={(navigation) => {
-                send({
-                  type: 'change.navigation',
-                  navigation,
-                })
-              }}
-              actor={actor}
-            >
+            <>
+              <DraftAppHeader
+                siteHomeEntity={homeEntity.data}
+                isEditingHomeDoc={
+                  homeEntity.data?.id.id == locationId?.id ||
+                  homeEntity.data?.id.id == editId?.id
+                }
+                docId={locationId || editId}
+                document={homeEntity.data?.document}
+                draftMetadata={state.context.metadata}
+                onDocNav={(navigation) => {
+                  console.log('Sending navigation change:', navigation)
+                  send({
+                    type: 'change.navigation',
+                    navigation,
+                  })
+                }}
+                actor={actor}
+              />
               <DocumentEditor
                 editor={editor}
                 state={state}
@@ -246,7 +248,7 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-            </DraftAppHeader>
+            </>
           ) : (
             <DocumentEditor
               editor={editor}
@@ -340,80 +342,80 @@ function DocumentEditor({
     })
   }, [id])
 
-  if (state.matches('editing'))
-    return (
-      <YStack
-        onDragStart={() => {
-          setIsDragging(true)
-        }}
-        onDragEnd={() => {
-          setIsDragging(false)
-        }}
-        onDragOver={(event: DragEvent) => {
-          event.preventDefault()
-          setIsDragging(true)
-        }}
-        onDrop={onDrop}
-        onPress={handleFocusAtMousePos}
+  // Remove state checking for now to debug - always render editor
+  return (
+    <YStack
+      onDragStart={() => {
+        setIsDragging(true)
+      }}
+      onDragEnd={() => {
+        setIsDragging(false)
+      }}
+      onDragOver={(event: DragEvent) => {
+        event.preventDefault()
+        setIsDragging(true)
+      }}
+      onDrop={onDrop}
+      onPress={handleFocusAtMousePos}
+    >
+      <AppDocContentProvider
+        // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
+        importWebFile={importWebFile}
       >
-        <AppDocContentProvider
-          // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
-          importWebFile={importWebFile}
-        >
-          <DraftCover
-            draftActor={actor}
-            disabled={!state.matches('editing')}
-            show={showCover}
-            setShow={setShowCover}
-            showOutline={showOutline}
-          />
-          <YStack ref={elementRef} w="100%" f={1}>
-            <XStack {...wrapperProps}>
-              {showSidebars ? (
-                <YStack
-                  marginTop={showCover ? 152 : 220}
-                  onPress={(e) => e.stopPropagation()}
-                  {...sidebarProps}
-                >
-                  <DocNavigationDraftLoader
-                    showCollapsed={showCollapsed}
-                    id={id}
-                  />
-                </YStack>
-              ) : null}
-              <YStack {...mainContentProps}>
-                {!isHomeDoc ? (
-                  <DraftMetadataEditor
-                    draftActor={actor}
-                    onEnter={() => {
-                      editor._tiptapEditor.commands.focus()
-                      editor._tiptapEditor.commands.setTextSelection(0)
-                    }}
-                    // disabled={!state.matches('ready')}
-                    showCover={showCover}
-                    setShowCover={setShowCover}
-                  />
-                ) : null}
-                <Container
-                  paddingLeft="$4"
-                  marginBottom={300}
-                  onPress={(e: GestureResponderEvent) => {
-                    // this prevents to fire handleFocusAtMousePos on click
-                    e.stopPropagation()
-                    // editor?._tiptapEditor.commands.focus()
-                  }}
-                >
-                  {editor ? (
-                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                  ) : null}
-                </Container>
+        <DraftCover
+          draftActor={actor}
+          disabled={!state.matches('editing')}
+          show={showCover}
+          setShow={setShowCover}
+          showOutline={showOutline}
+        />
+        <YStack ref={elementRef} w="100%" f={1}>
+          <XStack {...wrapperProps}>
+            {showSidebars ? (
+              <YStack
+                marginTop={showCover ? 152 : 220}
+                onPress={(e) => e.stopPropagation()}
+                {...sidebarProps}
+              >
+                <DocNavigationDraftLoader
+                  showCollapsed={showCollapsed}
+                  id={id}
+                />
               </YStack>
-              {showSidebars ? <YStack {...sidebarProps} /> : null}
-            </XStack>
-          </YStack>
-        </AppDocContentProvider>
-      </YStack>
-    )
+            ) : null}
+            <YStack {...mainContentProps}>
+              {!isHomeDoc ? (
+                <DraftMetadataEditor
+                  draftActor={actor}
+                  onEnter={() => {
+                    editor._tiptapEditor.commands.focus()
+                    editor._tiptapEditor.commands.setTextSelection(0)
+                  }}
+                  // disabled={!state.matches('ready')}
+                  showCover={showCover}
+                  setShowCover={setShowCover}
+                />
+              ) : null}
+              <Container
+                paddingLeft="$4"
+                marginBottom={300}
+                onPress={(e: GestureResponderEvent) => {
+                  // this prevents to fire handleFocusAtMousePos on click
+                  e.stopPropagation()
+                  // editor?._tiptapEditor.commands.focus()
+                }}
+              >
+                {editor ? (
+                  <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                ) : null}
+              </Container>
+            </YStack>
+            {showSidebars ? <YStack {...sidebarProps} /> : null}
+          </XStack>
+        </YStack>
+      </AppDocContentProvider>
+    </YStack>
+  )
 
   return null
 

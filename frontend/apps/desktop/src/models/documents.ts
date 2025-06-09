@@ -532,6 +532,7 @@ export function useDraftEditor() {
       const locationPath = route.locationPath || data?.locationPath
       const editUid = route.editUid || data?.editUid
       const editPath = route.editPath || data?.editPath
+      console.log('Saving draft with navigation:', input.navigation)
       const newDraft = await saveDraft.mutateAsync({
         id: route.id,
         metadata: input.metadata,
@@ -604,6 +605,18 @@ export function useDraftEditor() {
                 deps: event.payload.data.document?.version
                   ? [event.payload.data.document?.version]
                   : undefined,
+              }
+            } else if (event.payload.type == 'location') {
+              if (locationEntity.data?.document?.content) {
+                content = hmBlocksToEditorContent(
+                  locationEntity.data.document.content || [],
+                  {
+                    childrenType: 'Group',
+                  },
+                )
+                editor.replaceBlocks(editor.topLevelBlocks, content as any)
+                const tiptap = editor?._tiptapEditor
+                setGroupTypes(tiptap, content as any)
               }
             }
           }

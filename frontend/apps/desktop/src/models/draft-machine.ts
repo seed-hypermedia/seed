@@ -130,6 +130,7 @@ export const draftMachine = setup({
     setNavigation: assign({
       navigation: ({event}) => {
         if (event.type === 'change.navigation') {
+          console.log('Setting navigation in draft machine:', event.navigation)
           return event.navigation
         }
         return undefined
