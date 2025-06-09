@@ -2,7 +2,12 @@ import {queryClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, getCommentGroups, unpackHmId} from '@shm/shared'
+import {
+  BIG_INT,
+  getCommentGroups,
+  hmIdPathToEntityQueryPath,
+  unpackHmId,
+} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMComment,
@@ -27,31 +32,15 @@ export const loader = async ({
   let result: HMDiscussionsPayload | {error: string}
 
   try {
-    const res = await queryClient.entities.listEntityMentions({
-      id: targetId.id,
+    const data = await queryClient.comments.listComments({
+      targetAccount: targetId.uid,
+      targetPath: hmIdPathToEntityQueryPath(targetId.path),
       pageSize: BIG_INT,
     })
 
-    const allComments: HMComment[] = []
-    const alreadyCommentIds = new Set<string>()
-    for (const mention of res.mentions) {
-      try {
-        const sourceId = unpackHmId(mention.source)
-        if (!sourceId) continue
-        if (sourceId.type !== 'c') continue
-        if (!mention.sourceBlob?.cid) continue
-        if (alreadyCommentIds.has(mention.sourceBlob?.cid)) continue
-        const comment = await queryClient.comments.getComment({
-          id: mention.sourceBlob.cid,
-        })
-        alreadyCommentIds.add(mention.sourceBlob.cid)
-        if (!comment) continue
-        allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
-      } catch (error) {
-        console.error('=== comment error', error)
-      }
-    }
-
+    const allComments = data.comments.map(
+      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
+    )
     const commentGroups = getCommentGroups(allComments, undefined)
 
     const authorAccounts = new Set<string>()
@@ -75,9 +64,63 @@ export const loader = async ({
         authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),
     } satisfies HMDiscussionsPayload
-  } catch (e: any) {
-    result = {error: e.message}
+  } catch (error: any) {
+    console.error('=== comment error', error)
+    result = {error: error.message}
   }
+
+  // try {
+  //   const res = await queryClient.entities.listEntityMentions({
+  //     id: targetId.id,
+  //     pageSize: BIG_INT,
+  //   })
+
+  //   const allComments: HMComment[] = []
+  //   const alreadyCommentIds = new Set<string>()
+  //   for (const mention of res.mentions) {
+  //     try {
+  //       const sourceId = unpackHmId(mention.source)
+  //       if (!sourceId) continue
+  //       if (sourceId.type !== 'c') continue
+  //       if (!mention.sourceBlob?.cid) continue
+  //       if (alreadyCommentIds.has(mention.sourceBlob?.cid)) continue
+  //       const comment = await queryClient.comments.getComment({
+  //         id: mention.sourceBlob.cid,
+  //       })
+  //       alreadyCommentIds.add(mention.sourceBlob.cid)
+  //       if (!comment) continue
+  //       allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
+  //     } catch (error) {
+  //       console.error('=== comment error', error)
+  //     }
+  //   }
+
+  //   const commentGroups = getCommentGroups(allComments, undefined)
+
+  //   const authorAccounts = new Set<string>()
+
+  //   commentGroups.forEach((group) => {
+  //     group.comments.forEach((comment) => {
+  //       authorAccounts.add(comment.author)
+  //     })
+  //   })
+
+  //   const authorAccountUids = Array.from(authorAccounts)
+  //   const accounts = await Promise.all(
+  //     authorAccountUids.map(async (accountUid) => {
+  //       return await getAccount(accountUid)
+  //     }),
+  //   )
+
+  //   result = {
+  //     commentGroups: commentGroups,
+  //     authors: Object.fromEntries(
+  //       authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
+  //     ),
+  //   } satisfies HMDiscussionsPayload
+  // } catch (e: any) {
+  //   result = {error: e.message}
+  // }
 
   return wrapJSON(result)
 }

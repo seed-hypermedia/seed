@@ -45,6 +45,12 @@ export const loader = async ({
     pageSize: BIG_INT,
   })
 
+  const comments = await queryClient.comments.listComments({
+    targetAccount: id.uid,
+    targetPath: hmIdPathToEntityQueryPath(id.path),
+    pageSize: BIG_INT,
+  })
+
   const docCitations = mentions.mentions
     .map((mention) => {
       const sourceId = unpackHmId(mention.source)
@@ -102,7 +108,7 @@ export const loader = async ({
 
   return wrapJSON({
     citations: citationCount,
-    comments: commentCount,
+    comments: comments.comments.length,
     changes: changes.changes.length,
     blocks,
   } satisfies InteractionSummaryPayload)
