@@ -578,6 +578,17 @@ function DraftAppHeader({
   const effectiveDocNav =
     currentDocNav !== undefined ? currentDocNav : directoryNav || []
 
+  // Convert HMNavigationItem[] to DocNavigationDocument[] format for SiteHeader
+  const convertedNavItems = useMemo(() => {
+    return effectiveDocNav.map((navItem: HMNavigationItem) => ({
+      id: undefined,
+      draftId: undefined,
+      metadata: {name: navItem.text || 'Untitled Document'},
+      sortTime: new Date(),
+      isPublished: true,
+    }))
+  }, [effectiveDocNav])
+
   console.log(
     'currentDocNav',
     currentDocNav,
@@ -605,7 +616,7 @@ function DraftAppHeader({
         dispatchScroll('scroll')
       }}
       originHomeId={siteHomeEntity.id}
-      items={navItems}
+      items={isEditingHomeDoc ? convertedNavItems : navItems}
       document={
         isEditingHomeDoc
           ? {...document, metadata: draftMetadata}
@@ -723,6 +734,13 @@ function EditNavigation({
                       navItem.id === item.id
                         ? {...navItem, ...updatedItem}
                         : navItem,
+                    )
+                    onDocNav(updatedDocNav)
+                    setEditingId(null)
+                  }}
+                  onRemove={() => {
+                    const updatedDocNav = docNav.filter(
+                      (navItem) => navItem.id !== item.id,
                     )
                     onDocNav(updatedDocNav)
                     setEditingId(null)
@@ -871,11 +889,13 @@ function NavItemForm({
   item,
   onSubmit,
   onCancel,
+  onRemove,
   submitLabel,
 }: {
   item?: HMNavigationItem
   onSubmit: (result: z.infer<typeof NavItemFormSchema>) => void
   onCancel: () => void
+  onRemove?: () => void
   submitLabel: string
 }) {
   const {
@@ -911,15 +931,22 @@ function NavItemForm({
           placeholder="https://example.com"
         />
       </FormField>
-      <XStack gap="$2">
-        <Button size="$2" onPress={onCancel}>
-          Cancel
-        </Button>
-        <Form.Trigger asChild>
-          <Button size="$2" theme="green" icon={Check}>
-            {submitLabel}
+      <XStack gap="$2" jc="space-between">
+        {onRemove && (
+          <Button size="$2" theme="red" onPress={onRemove}>
+            Remove
           </Button>
-        </Form.Trigger>
+        )}
+        <XStack gap="$2" flex={1} jc="flex-end">
+          <Button size="$2" onPress={onCancel}>
+            Cancel
+          </Button>
+          <Form.Trigger asChild>
+            <Button size="$2" theme="green" icon={Check}>
+              {submitLabel}
+            </Button>
+          </Form.Trigger>
+        </XStack>
       </XStack>
     </Form>
   )
