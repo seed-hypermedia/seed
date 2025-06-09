@@ -337,7 +337,13 @@ function BreadcrumbTitle({
         width="100%"
         height="100%"
       >
-        <XStack overflow="hidden" ai="center" height="100%" flexShrink={1}>
+        <XStack
+          overflow="hidden"
+          ai="center"
+          height="100%"
+          flexShrink={1}
+          gap="$2"
+        >
           {displayItems.flatMap((item, itemIndex) => {
             if (!item) return null
             return [
