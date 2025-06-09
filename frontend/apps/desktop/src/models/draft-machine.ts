@@ -29,7 +29,7 @@ export const draftMachine = setup({
       editUid: HMDraft['editUid']
       editPath: HMDraft['editPath']
       signingAccount: HMDraft['signingAccount']
-      docNav?: HMNavigationItem[]
+      navigation?: HMNavigationItem[]
       error: any // TODO: fix types
       changed: boolean
       hasChangedWhileSaving: boolean
@@ -54,8 +54,8 @@ export const draftMachine = setup({
           signingAccount?: string
         }
       | {
-          type: 'change.docNav'
-          docNav: HMNavigationItem[]
+          type: 'change.navigation'
+          navigation: HMNavigationItem[]
         }
       | {
           type: 'reset.content'
@@ -113,13 +113,13 @@ export const draftMachine = setup({
         }
         return context.deps
       },
-      docNav: ({context, event}) => {
+      navigation: ({context, event}) => {
         if (event.type == 'fetch.success') {
           if (event.payload.type == 'draft') {
-            return event.payload.data.docNav
+            return event.payload.data.navigation
           }
         }
-        return context.docNav
+        return context.navigation
       },
     }),
     focusContent: ({context}) => {},
@@ -127,10 +127,10 @@ export const draftMachine = setup({
     setDraftId: assign({
       id: (_, params: {id: string}) => params.id,
     }),
-    setDocNav: assign({
-      docNav: ({event}) => {
-        if (event.type === 'change.docNav') {
-          return event.docNav
+    setNavigation: assign({
+      navigation: ({event}) => {
+        if (event.type === 'change.navigation') {
+          return event.navigation
         }
         return undefined
       },
@@ -221,7 +221,7 @@ export const draftMachine = setup({
       editUid: input.editUid ?? '',
       editPath: input.editPath ?? [],
       signingAccount: '',
-      docNav: undefined,
+      navigation: undefined,
       nameRef: null,
       changed: false,
       hasChangedWhileSaving: false,
@@ -274,13 +274,13 @@ export const draftMachine = setup({
         },
       ],
       on: {
-        'change.docNav': [
+        'change.navigation': [
           {
             target: '.saving',
             guard: ({context}) => !!context.id,
             actions: [
               {
-                type: 'setDocNav',
+                type: 'setNavigation',
               },
             ],
           },
@@ -288,7 +288,7 @@ export const draftMachine = setup({
             target: '.creating',
             actions: [
               {
-                type: 'setDocNav',
+                type: 'setNavigation',
               },
             ],
           },
@@ -366,7 +366,7 @@ export const draftMachine = setup({
               metadata: context.metadata,
               deps: context.deps,
               signingAccount: context.signingAccount,
-              docNav: context.docNav,
+              navigation: context.navigation,
             }),
             onDone: [
               {
@@ -441,7 +441,7 @@ export const draftMachine = setup({
               metadata: context.metadata,
               deps: context.deps,
               signingAccount: context.signingAccount,
-              docNav: context.docNav,
+              navigation: context.navigation,
             }),
             onDone: [
               {

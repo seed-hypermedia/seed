@@ -229,10 +229,10 @@ export default function DraftPage() {
               docId={locationId || editId}
               document={homeEntity.data?.document}
               draftMetadata={state.context.metadata}
-              onDocNav={(docNav) => {
+              onDocNav={(navigation) => {
                 send({
-                  type: 'change.docNav',
-                  docNav,
+                  type: 'change.navigation',
+                  navigation,
                 })
               }}
               actor={actor}
@@ -566,12 +566,12 @@ function DraftAppHeader({
   document?: HMDocument
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
-  onDocNav: (docNav: HMNavigationItem[]) => void
+  onDocNav: (navigation: HMNavigationItem[]) => void
   actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId?.uid)
-  const currentDocNav = useSelector(actor, (s: any) => s.context.docNav)
+  const currentDocNav = useSelector(actor, (s: any) => s.context.navigation)
 
   // Use directory results as fallback when docNav is undefined (missing from draft)
   const directoryNav = useDocumentNavigation(siteHomeEntity?.id)
@@ -639,7 +639,7 @@ function EditNavPopover({
   editDocNav,
 }: {
   docNav: HMNavigationItem[]
-  editDocNav: (docNav: HMNavigationItem[]) => void
+  editDocNav: (navigation: HMNavigationItem[]) => void
 }) {
   const popover = usePopoverState()
   return (
@@ -660,7 +660,7 @@ function EditNavigation({
   onDocNav,
 }: {
   docNav: HMNavigationItem[]
-  onDocNav: (docNav: HMNavigationItem[]) => void
+  onDocNav: (navigation: HMNavigationItem[]) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
