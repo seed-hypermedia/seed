@@ -15,12 +15,13 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {GestureReponderEvent, useMedia} from '@tamagui/web'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {XStack, YStack} from 'tamagui'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {Popover} from './TamaguiPopover'
+import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
 
 export function DocumentSmallListItem({
@@ -356,7 +357,7 @@ function OutlineNode({
         active={node.id === activeBlockId}
         title={node.title}
         indented={indented}
-        onPress={(e: GestureReponderEvent) => {
+        onPress={(e: GestureResponderEvent) => {
           e.preventDefault()
           if (outlineProps && outlineProps.onPress) {
             outlineProps.onPress(e)

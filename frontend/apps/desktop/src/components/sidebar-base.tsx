@@ -2,7 +2,7 @@ import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useIsDark} from '@shm/ui/use-is-dark'
+import useMedia from '@shm/ui/use-media'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {Settings} from '@tamagui/lucide-icons'
@@ -12,7 +12,7 @@ import {
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Separator, useMedia} from 'tamagui'
+import {Separator} from 'tamagui'
 
 const HoverRegionWidth = 30
 
@@ -27,7 +27,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const sidebarWidth = useStream(ctx.sidebarWidth)
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
-  const isDark = useIsDark()
   const ref = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
 

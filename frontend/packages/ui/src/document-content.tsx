@@ -101,6 +101,7 @@ import {BlockQuote} from './icons'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import useMedia from './use-media'
 
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
@@ -269,7 +270,8 @@ export function DocContent({
   marginVertical?: any
   handleBlockReplace?: () => boolean
 }) {
-  const {wrapper, bubble, coords, state} = useRangeSelection()
+  const media = useMedia()
+  const {wrapper, bubble, coords, state, actor} = useRangeSelection()
   const {layoutUnit, onBlockCopy} = useDocContentContext()
   const allBlocks = document?.content || []
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
@@ -296,6 +298,14 @@ export function DocContent({
     }
   }, [])
 
+  useEffect(() => {
+    if (media.gtSm) {
+      actor.send({type: 'ENABLE'})
+    } else {
+      actor.send({type: 'DISABLE'})
+    }
+  }, [media.gtSm])
+
   return (
     <YStack
       ref={wrapper}
@@ -311,6 +321,7 @@ export function DocContent({
         position="absolute"
         elevation="$4"
         userSelect="none"
+        display={media.gtSm && !state.matches('disable') ? 'flex' : 'none'}
       >
         {onBlockCopy ? (
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>

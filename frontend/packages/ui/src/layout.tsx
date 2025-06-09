@@ -1,7 +1,8 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {forwardRef, useMemo, useRef, useState} from 'react'
-import {ScrollView, useMedia, YStack, YStackProps} from 'tamagui'
+import {ScrollView, YStack, YStackProps} from 'tamagui'
+import {useMedia} from './use-media'
 
 export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
   function MainWrapper({children, noScroll = false, ...props}, ref) {

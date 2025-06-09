@@ -108,7 +108,9 @@ const machine = setup({
       | {type: 'COMMENT_CANCEL'}
       | {type: 'COMMENT_SUBMIT'}
       | {type: 'MOUSEDOWN'}
-      | {type: 'MOUSEUP'},
+      | {type: 'MOUSEUP'}
+      | {type: 'ENABLE'}
+      | {type: 'DISABLE'},
   },
   actions: {
     setMouse: assign(({context, event}) => {
@@ -190,8 +192,23 @@ const machine = setup({
     mouseDown: false,
   },
   id: 'Range Selection',
-  initial: 'idle',
+  initial: 'disable',
+  on: {
+    ENABLE: {
+      target: '.idle',
+    },
+    DISABLE: {
+      target: '.disable',
+    },
+    MOUSEDOWN: {
+      actions: ['setMouse'],
+    },
+    MOUSEUP: {
+      actions: ['setMouse'],
+    },
+  },
   states: {
+    disable: {},
     idle: {
       on: {
         SELECT: {
@@ -244,14 +261,6 @@ const machine = setup({
           },
         },
       },
-    },
-  },
-  on: {
-    MOUSEDOWN: {
-      actions: ['setMouse'],
-    },
-    MOUSEUP: {
-      actions: ['setMouse'],
     },
   },
 })

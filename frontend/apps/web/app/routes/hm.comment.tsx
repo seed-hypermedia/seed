@@ -236,14 +236,14 @@ export default function CreateComment() {
           paddingHorizontal={0}
         >
           <View paddingHorizontal="$4">
-            <SizableText fontSize="$5">
+            <SizableText size="lg">
               {replyComment
                 ? tx(
                     'replying_to',
                     (args) => <>Replying to {args.replyAuthor}</>,
                     {
                       replyAuthor: (
-                        <SizableText fontWeight="bold" fontSize="$5">
+                        <SizableText size="lg" weight="bold">
                           {replyComment.author.metadata?.name ??
                             'Unknown Author'}
                         </SizableText>
@@ -381,6 +381,7 @@ function DocButtonLink({
       textDecorationLine="underline"
       fontWeight="bold"
       fontSize="$5"
+      whiteSpace="wrap"
     >
       {name}
     </ButtonText>

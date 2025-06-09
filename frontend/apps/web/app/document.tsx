@@ -49,7 +49,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Sheet, useMedia} from 'tamagui'
+import {Sheet} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebDiscussionsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
@@ -65,6 +65,7 @@ import {getOptimizedImageUrl, WebSiteProvider} from './providers'
 
 import {supportedLanguages} from '@shm/shared/language-packs'
 import {useTx} from '@shm/shared/translation'
+import {useMedia} from '@shm/ui/use-media'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 

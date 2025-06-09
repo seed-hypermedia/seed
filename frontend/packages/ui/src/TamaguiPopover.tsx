@@ -27,7 +27,6 @@ import {
   createStyledContext,
   useEvent,
   useGet,
-  useMedia,
   useThemeName,
 } from '@tamagui/core'
 import type {DismissableProps} from '@tamagui/dismissable'
@@ -61,6 +60,7 @@ import {
 } from './TamaguiPopper'
 
 import {useFloatingContext} from './TamaguiPopoverUseFloatingContext'
+import {useMedia} from './use-media'
 
 // adapted from radix-ui popover
 

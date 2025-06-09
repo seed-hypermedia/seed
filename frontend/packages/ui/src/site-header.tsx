@@ -619,8 +619,8 @@ export function SiteHeaderMenu({
 
 function HypermediaHostBanner({origin}: {origin?: string}) {
   return (
-    <div className="w-full bg-(--brand5) py-1 flex items-center justify-center">
-      <p className="text-sm flex gap-1 text-white">
+    <div className="w-full bg-(--brand5) p-1">
+      <p className="text-sm flex gap-1 flex-wrap text-white items-center justify-center">
         <span>Hosted on</span>
         <a href="/" className="underline">
           {hostnameStripProtocol(origin)}
