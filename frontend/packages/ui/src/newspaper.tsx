@@ -265,7 +265,7 @@ function NewspaperCardContent({
       f={1}
       data-docid={entity?.id.id}
     >
-      <YStack overflow="hidden" maxHeight={(banner ? 32 : 28) * 3}>
+      <YStack overflow="hidden" maxHeight={banner ? undefined : 28 * 3}>
         <SizableText size={banner ? '2xl' : 'xl'} weight="bold">
           {entity?.document?.metadata?.name}
         </SizableText>
