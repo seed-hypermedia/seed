@@ -55,3 +55,21 @@ export function eventStream<EventValue>(): readonly [
 
   return [dispatch, stream] as const
 }
+
+export function streamSelector<S, T extends Object | null>(
+  sourceStream: StateStream<S>,
+  selectorFn: (state: S) => T,
+): StateStream<T> {
+  const [setDerivedState, derivedStream] = writeableStateStream(
+    selectorFn(sourceStream.get()),
+  )
+
+  sourceStream.subscribe((newState) => {
+    const newValue = selectorFn(newState)
+    if (newValue !== derivedStream.get()) {
+      setDerivedState(newValue)
+    }
+  })
+
+  return derivedStream
+}

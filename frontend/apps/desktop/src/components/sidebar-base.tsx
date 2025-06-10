@@ -1,6 +1,9 @@
+import {useMyAccounts} from '@/models/daemon'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
+import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
@@ -118,24 +121,61 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onMouseEnter={ctx.onMenuHover}
           onMouseLeave={ctx.onMenuHoverLeave}
         >
-          <div className=" flex-1 overflow-y-auto pt-2 pb-8">{children}</div>
-          <div className="shrink-0 flex justify-between p-2">
-            <Tooltip content="App Settings">
-              <Button
-                size="$3"
-                backgroundColor={'$colorTransparent'}
-                chromeless
-                onPress={() => {
-                  navigate({key: 'settings'})
-                }}
-                icon={Settings}
-              />
-            </Tooltip>
+          <div className="flex-1 pt-2 pb-8 overflow-y-auto ">{children}</div>
+          <div className="flex justify-between p-2 shrink-0">
+            <IdentitySelector />
           </div>
         </div>
       </Panel>
       <PanelResizeHandle className="panel-resize-handle" />
     </>
+  )
+}
+
+function IdentitySelector() {
+  const navigate = useNavigate()
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
+  const myAccounts = useMyAccounts()
+  const options = myAccounts
+    ?.map((a) => {
+      const id = a.data?.id
+      if (id) {
+        return {
+          label: a.data?.document?.metadata?.name || `?${id.uid?.slice(-8)}`,
+          value: id.uid,
+        }
+      }
+      return null
+    })
+    .filter((d) => !!d)
+  if (!options?.length || !selectedIdentityValue) {
+    options.push({
+      label: 'None',
+      value: '',
+    })
+  }
+  return (
+    <div className="flex flex-row">
+      <SelectDropdown
+        options={options}
+        value={selectedIdentityValue || ''}
+        onValue={(value) => {
+          setSelectedIdentity?.(value || null)
+        }}
+      />
+      <Tooltip content="App Settings">
+        <Button
+          size="$3"
+          backgroundColor={'$colorTransparent'}
+          chromeless
+          onPress={() => {
+            navigate({key: 'settings'})
+          }}
+          icon={Settings}
+        />
+      </Tooltip>
+    </div>
   )
 }
 
