@@ -148,8 +148,6 @@ function IdentitySelector() {
       const id = a.data?.id
       if (id) {
         return {
-          label: a.data?.document?.metadata?.name || `?${id.uid?.slice(-8)}`,
-          value: id.uid,
           id,
           metadata: a.data?.document?.metadata,
         }
@@ -200,22 +198,22 @@ function IdentitySelector() {
       <PopoverContent className="flex flex-col items-stretch gap-1 max-h-[80vh] overflow-y-auto">
         {accountOptions.map((option) => (
           <div
-            key={option.value}
+            key={option.id.uid}
             className={cn(
               'flex flex-row items-center gap-4 p-2 rounded-sm hover:bg-gray-100 dark:hover:bg-neutral-900',
-              selectedAccount?.data?.id?.uid === option.value
+              selectedAccount?.data?.id?.uid === option.id.uid
                 ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900'
                 : '',
             )}
             onClick={() => {
-              setSelectedIdentity?.(option.value || null)
+              setSelectedIdentity?.(option.id.uid || null)
               setIsOpen(false)
             }}
           >
             {option.id ? (
               <HMIcon id={option?.id} metadata={option?.metadata} />
             ) : null}
-            {option.label}
+            {option.metadata?.name}
           </div>
         ))}
         <CreateAccountButton className="mt-3" />
