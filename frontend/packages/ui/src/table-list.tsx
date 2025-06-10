@@ -5,19 +5,12 @@ import {
   useMemo,
   useState,
 } from 'react'
-import {
-  Button,
-  ButtonProps,
-  ListItem,
-  ListItemProps,
-  SizableText,
-  XStack,
-  XStackProps,
-  YStack,
-} from 'tamagui'
+import {Button} from './components/button'
 import {Copy, ExternalLink} from './icons'
+import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import {cn} from './utils'
 
 function useHover() {
   const [hover, setHover] = useState(false)
@@ -25,8 +18,8 @@ function useHover() {
   return useMemo(
     () => ({
       hover,
-      onHoverIn: () => setHover(true),
-      onHoverOut: () => setHover(false),
+      onMouseEnter: () => setHover(true),
+      onMouseLeave: () => setHover(false),
     }),
     [hover],
   )
@@ -37,59 +30,65 @@ TableList.Item = TableItem
 
 export function TableList({
   children,
+  className,
   ...props
-}: {children: ReactNode} & ComponentProps<typeof YStack>) {
+}: {
+  children: ReactNode
+  className?: string
+} & ComponentProps<'div'>) {
   const isDark = useIsDark()
   return (
-    <YStack
-      userSelect="none"
-      hoverStyle={{
-        cursor: 'default',
-      }}
-      borderWidth={1}
-      borderColor="$borderColor"
-      bg={isDark ? '$background' : '$backgroundStrong'}
-      f={1}
-      // aria-label={}
-      // aria-labelledby={ariaLabelledBy}
-      br="$4"
-      ov="hidden"
-      // mx="$-4"
-      $sm={{
-        //@ts-ignore
-        mx: 0,
-      }}
+    <div
+      className={cn(
+        'select-none cursor-default border rounded-lg overflow-hidden',
+        isDark ? 'border-gray-700 bg-black' : 'border-gray-200 bg-gray-50',
+        'sm:mx-0',
+        className,
+      )}
       {...props}
     >
       {children}
-    </YStack>
+    </div>
   )
 }
 
-function TableHeader({children, ...props}: PropsWithChildren<XStackProps>) {
+function TableHeader({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
   return (
-    <XStack
-      alignItems="center"
-      //@ts-ignore
-      py="$2"
-      px="$4"
-      backgroundColor="$borderColor"
-      gap="$3"
+    <div
+      className={cn(
+        'flex items-center py-2 px-4 bg-gray-200 dark:bg-gray-800 gap-3',
+        className,
+      )}
       {...props}
     >
       {children}
-    </XStack>
+    </div>
   )
 }
 
-function TableItem({children, ...props}: PropsWithChildren<ListItemProps>) {
+function TableItem({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
   const isDark = useIsDark()
   return (
-    <ListItem {...props} bg={isDark ? '$background' : '$backgroundStrong'}>
-      <XStack alignItems="flex-start" width="100%">
-        {children}
-      </XStack>
-    </ListItem>
+    <div
+      className={cn(
+        'flex items-start w-full p-4',
+        isDark ? 'bg-black' : 'bg-gray-50',
+        'hover:bg-gray-100 dark:hover:bg-gray-900',
+        'border-b border-gray-200 dark:border-gray-700 last:border-b-0',
+        className,
+      )}
+      {...props}
+    >
+      <div className="flex items-start w-full">{children}</div>
+    </div>
   )
 }
 
@@ -102,10 +101,8 @@ export function InfoListHeader({
 }) {
   return (
     <TableList.Header>
-      <SizableText fontWeight="700">{title}</SizableText>
-      <XStack flex={1} alignItems="center" justifyContent="flex-end">
-        {right}
-      </XStack>
+      <SizableText weight="bold">{title}</SizableText>
+      <div className="flex-1 flex items-center justify-end">{right}</div>
     </TableList.Header>
   )
 }
@@ -118,52 +115,59 @@ export function InfoListItem({
 }: {
   label: string
   value?: string | string[]
-  onCopy?: ButtonProps['onPress'] | undefined
-  onOpen?: ButtonProps['onPress'] | undefined
+  onCopy?: () => void
+  onOpen?: () => void
 }) {
   const values = Array.isArray(value) ? value : [value]
   const {hover, ...hoverProps} = useHover()
+
   return (
     <TableList.Item {...hoverProps}>
-      <SizableText size="$1" flex={0} minWidth={140} width={140}>
+      <SizableText
+        size="xs"
+        className="flex-none min-w-[140px] w-[140px] text-muted-foreground"
+      >
         {label}:
       </SizableText>
-      <YStack flex={1}>
+      <div className="flex-1 min-w-0 overflow-hidden">
         {values.map((value, index) => (
           <SizableText
-            flex={1}
             key={index}
-            fontFamily="$mono"
-            size="$1"
-            width="100%"
-            overflow="hidden"
-            textOverflow="ellipsis"
-            userSelect="text"
+            size="xs"
+            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap select-text font-mono"
           >
             {value}
           </SizableText>
         ))}
-      </YStack>
+      </div>
       {!!value && onCopy ? (
         <Tooltip content={`Copy ${label}`}>
           <Button
-            opacity={hover ? 1 : 0}
-            size="$2"
-            marginLeft="$2"
-            icon={Copy}
-            onPress={onCopy}
-          />
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'ml-2 transition-opacity flex-none',
+              hover ? 'opacity-100' : 'opacity-0',
+            )}
+            onClick={onCopy}
+          >
+            <Copy />
+          </Button>
         </Tooltip>
       ) : null}
       {!!value && onOpen ? (
         <Tooltip content={`Open ${label}`}>
           <Button
-            opacity={hover ? 1 : 0}
-            size="$2"
-            marginLeft="$2"
-            icon={ExternalLink}
-            onPress={onOpen}
-          />
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'ml-2 transition-opacity flex-none',
+              hover ? 'opacity-100' : 'opacity-0',
+            )}
+            onClick={onOpen}
+          >
+            <ExternalLink />
+          </Button>
         </Tooltip>
       ) : null}
     </TableList.Item>

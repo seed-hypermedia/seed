@@ -1439,10 +1439,10 @@ function AppSettings() {
   const addrs = peer.data?.addrs?.join('\n')
 
   return (
-    <YStack gap="$5">
+    <div className="flex flex-col gap-3">
       <TableList>
         <InfoListHeader title="Auto Update" />
-        <TableList.Item ai="center">
+        <TableList.Item className="items-center">
           <SizableText size="$1" flex={0} minWidth={140} width={140}>
             Check for updates?
           </SizableText>
@@ -1534,7 +1534,7 @@ function AppSettings() {
           }}
         />
       </TableList>
-      <TableList marginBottom="$4">
+      <TableList>
         <InfoListHeader
           title="Bundle Information"
           right={
@@ -1583,7 +1583,7 @@ function AppSettings() {
         <Separator />
         <InfoListItem label="Lightning URL" value={LIGHTNING_API_URL} />
       </TableList>
-    </YStack>
+    </div>
   )
 }
 
