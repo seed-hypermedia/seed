@@ -4,10 +4,9 @@ import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useAccount} from '@shm/shared/src/models/entity'
 import {useTx} from '@shm/shared/translation'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
@@ -275,12 +274,9 @@ export default function CommentEditor({
       <XStack gap="$3" jc="flex-end">
         {onDiscardDraft ? (
           <Tooltip content="Discard Comment Draft">
-            <Button
-              theme="red"
-              size="$2"
-              onPress={onDiscardDraft}
-              icon={Trash}
-            />
+            <Button variant="destructive" size="sm" onClick={onDiscardDraft}>
+              <Trash size={16} />
+            </Button>
           </Tooltip>
         ) : null}
         {submitButton({
@@ -580,7 +576,7 @@ export function CommentEditor2({
           justifyContent={isEditorFocused ? 'flex-start' : 'center'}
           flex={1}
           className="comment-editor"
-          paddingHorizontal="$3"
+          paddingHorizontal={isEditorFocused ? '$3' : undefined}
           // marginTop="$1"
 
           // minHeight={isEditorFocused ? 105 : 40}
@@ -624,13 +620,18 @@ export function CommentEditor2({
           {isEditorFocused ? (
             <HyperMediaEditorView editor={editor} openUrl={openUrl} />
           ) : (
-            <SizableText
-              size="sm"
-              onPress={() => setIsEditorFocused(true)}
-              color="muted"
+            <Button
+              onClick={() => {
+                setIsEditorFocused(true)
+                setTimeout(() => {
+                  editor._tiptapEditor.commands.focus()
+                }, 100)
+              }}
+              variant="ghost"
+              className="justify-start"
             >
               {tx('Start a Comment')}
-            </SizableText>
+            </Button>
           )}
         </YStack>
         {isEditorFocused ? (
