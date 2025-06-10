@@ -15,10 +15,11 @@ import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Button, Input, ScrollView, Separator} from 'tamagui'
+import {Button, Input, ScrollView} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {getDaemonFileUrl} from './get-file-url'
 import {highlightSearchMatch, useCollapsedPath} from './search-input'
+import {Separator} from './separator'
 import {SizableText} from './text'
 
 export function MobileSearch({

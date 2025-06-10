@@ -46,6 +46,8 @@ const textVariants = cva(
         xl: 'text-xl', // 20px
         '2xl': 'text-2xl', // 24px
         '3xl': 'text-3xl', // 30px
+        '4xl': 'text-4xl', // 40px
+        '5xl': 'text-5xl', // 50px
       },
       color: {
         default: 'text-foreground',

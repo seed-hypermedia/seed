@@ -22,11 +22,7 @@ import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Button} from '@shm/ui/components/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {
-  Container,
-  panelContainerStyles,
-  windowContainerStyles,
-} from '@shm/ui/container'
+import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
 import {BlockQuote, HistoryIcon} from '@shm/ui/icons'
@@ -40,8 +36,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, X} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
+import {MessageSquare, X} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
@@ -371,8 +367,6 @@ export function DocumentPage(
     },
     [enableWebSigning],
   )
-
-  const tx = useTx()
 
   const activitySummary = (
     <DocInteractionsSummary
@@ -804,46 +798,24 @@ function DocumentDiscoveryPage({
     })
   }, [id])
   return (
-    <YStack>
-      <PageHeader
-        originHomeId={originHomeId}
-        docMetadata={null}
-        docId={id}
-        authors={[]}
-        updateTime={null}
-        breadcrumbs={[]}
-      />
-      <YStack>
-        <Container>
-          <YStack
-            alignSelf="center"
-            width={600}
-            gap="$5"
-            borderWidth={1}
-            borderColor="$color8"
-            borderRadius="$4"
-            padding="$5"
-            elevation="$4"
-          >
-            <XStack alignItems="center" gap="$3">
-              <h2 className="text-2xl font-bold">Looking for a document...</h2>
-            </XStack>
-            <YStack gap="$3">
-              <p>
-                Hang tight! We're currently searching the network to locate your
-                document. This may take a moment as we retrieve the most
-                up-to-date version.
-              </p>
-              <p>
-                If the document is available, it will appear shortly. Thank you
-                for your patience!
-              </p>
-            </YStack>
-          </YStack>
-        </Container>
-      </YStack>
+    <div className="h-screen w-screen flex flex-col">
+      <div className="flex-1 justify-center flex items-start py-12 px-4">
+        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+          <h2 className="text-2xl font-bold">Looking for a document...</h2>
+
+          <p>
+            Hang tight! We're currently searching the network to locate your
+            document. This may take a moment as we retrieve the most up-to-date
+            version.
+          </p>
+          <p>
+            If the document is available, it will appear shortly. Thank you for
+            your patience!
+          </p>
+        </div>
+      </div>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
-    </YStack>
+    </div>
   )
 }
 

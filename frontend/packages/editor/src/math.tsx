@@ -5,9 +5,9 @@ import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks
 import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
+import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {TextArea} from '@tamagui/input'
-import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -227,7 +227,7 @@ const Render = (
       </YStack>
       {opened && (
         <YStack>
-          <Separator backgroundColor="$color12" />
+          <Separator />
           <XStack
             minHeight="$7"
             paddingVertical="10px"

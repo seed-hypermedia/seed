@@ -48,7 +48,7 @@ export function ChangeItem({
       key={change.id}
       variant="ghost"
       className={cn(
-        'justify-start h-auto p-3 rounded-md items-start relative transition-colors gap-2',
+        'justify-start h-auto p-3 rounded-md items-start relative transition-colors gap-2 flex',
         isActive
           ? 'bg-brand/10 hover:bg-brand/20'
           : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -57,7 +57,7 @@ export function ChangeItem({
     >
       <div
         className={cn(
-          'absolute w-px h-full bg-gray-300 dark:bg-gray-600 top-3.5 left-[22px] z-10',
+          'absolute w-px h-full bg-gray-300 dark:bg-gray-600 top-3.5 left-[21px] z-10',
           isLast ? 'opacity-0' : 'opacity-100',
         )}
       />
@@ -75,9 +75,9 @@ export function ChangeItem({
           metadata={authorData.metadata}
         />
       </div>
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 overflow-hidden">
         <div
-          className="flex items-center w-full gap-2 overflow-hidden"
+          className="flex items-center gap-2 overflow-hidden flex-1"
           style={{height: iconSize}}
         >
           <AuthorName author={authorData} />

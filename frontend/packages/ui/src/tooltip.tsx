@@ -1,6 +1,6 @@
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
-import {cn} from '@shm/ui/utils'
 import * as React from 'react'
+import {cn} from './utils'
 
 export function Tooltip({
   content,

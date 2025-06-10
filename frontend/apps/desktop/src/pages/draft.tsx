@@ -44,6 +44,7 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -53,7 +54,7 @@ import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {Button, Input, Separator, XStack, YStack} from 'tamagui'
+import {Button, Input, XStack, YStack} from 'tamagui'
 
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -764,7 +765,7 @@ function DraftMetadataEditor({
             {...headingTextStyles}
             padding={0}
           />
-          <Separator borderColor="$color8" />
+          <Separator />
         </YStack>
       </Container>
     </YStack>

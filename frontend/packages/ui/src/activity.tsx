@@ -14,14 +14,15 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {Button} from '@tamagui/button'
-import {ChevronDown} from '@tamagui/lucide-icons'
-import {XStack, YStack} from '@tamagui/stacks'
+import {ChevronDown} from 'lucide-react'
 import {useState} from 'react'
 import {ChangeItem} from './change-item'
+import {Button} from './components/button'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
 import {SizableText} from './text'
+
+const iconSize = 20
 
 export function SubDocumentItem({
   item,
@@ -42,45 +43,25 @@ export function SubDocumentItem({
   const linkProps = useRouteLink({key: 'document', id})
   return (
     <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: '$color5',
-      }}
-      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
-      // elevation="$1"
-      paddingHorizontal={16}
-      paddingVertical="$2"
-      height="auto"
-      marginVertical={'$1'}
-      alignItems="center"
+      variant={isRead ? 'ghost' : 'outline'}
+      className="items-start h-auto justify-start"
       {...linkProps}
     >
       {!hideIcon && (
-        <XStack
-          flexGrow={0}
-          flexShrink={0}
-          width={20}
-          height={20}
-          zIndex="$zIndex.2"
-          alignItems="center"
-          backgroundColor={'#2C2C2C'}
-          justifyContent="center"
-          borderRadius={10}
-          padding={1}
+        <div
+          className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center bg-gray-800 rounded-full p-0.5`}
         >
           <Version size={16} color="white" />
-        </XStack>
+        </div>
       )}
-      <YStack f={1}>
-        <XStack gap="$3" ai="center">
-          <SizableText
-            weight={isRead ? 'normal' : 'bold'}
-            className="flex-1 truncate whitespace-nowrap overflow-hidden"
-          >
-            {getMetadataName(metadata)}
-          </SizableText>
-        </XStack>
+      <div className="flex-1 flex flex-col justify-start">
+        <SizableText
+          weight={isRead ? 'normal' : 'bold'}
+          className="flex-1 truncate whitespace-nowrap overflow-hidden text-left"
+        >
+          {getMetadataName(metadata)}
+        </SizableText>
+
         {item.activitySummary && (
           <LibraryEntryUpdateSummary
             accountsMetadata={accountsMetadata}
@@ -88,7 +69,7 @@ export function SubDocumentItem({
             activitySummary={item.activitySummary}
           />
         )}
-      </YStack>
+      </div>
     </Button>
   )
 }
@@ -125,12 +106,12 @@ export function LibraryEntryUpdateSummary({
     }
   }
   return (
-    <XStack gap="$2">
+    <div className="flex items-center justify-start gap-2">
       <SizableText size="xs" color="muted" className="line-clamp-1">
         {summaryText}
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
-    </XStack>
+    </div>
   )
 }
 
@@ -205,35 +186,18 @@ function ExpandChangeGroupButton({
   onExpand: () => void
   author: HMMetadataPayload
 }) {
-  const iconSize = 20
   return (
     <Button
-      onPress={onExpand}
+      variant="outline"
+      onClick={onExpand}
+      className="h-auto items-start"
       key={item.id}
-      height="auto"
-      padding="$3"
-      borderRadius="$2"
-      hoverStyle={{
-        backgroundColor: '$color6',
-        borderColor: '$borderTransparent',
-      }}
-      alignItems="flex-start"
-      position="relative"
     >
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        width={20}
-        height={20}
-        zIndex="$zIndex.2"
-        alignItems="center"
-        backgroundColor={'#2C2C2C'}
-        justifyContent="center"
-        borderRadius={10}
-        padding={1}
+      <div
+        className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center bg-gray-800 rounded-full p-0.5`}
       >
         <Version size={16} color="white" />
-      </XStack>
+      </div>
       <HMIcon
         flexGrow={0}
         flexShrink={0}
@@ -241,14 +205,8 @@ function ExpandChangeGroupButton({
         id={author.id}
         metadata={author.metadata}
       />
-      <YStack f={1} alignItems="flex-start">
-        <XStack
-          height={iconSize}
-          alignItems="center"
-          gap="$2"
-          overflow="hidden"
-          width="100%"
-        >
+      <div className="flex-1 flex flex-col justify-start">
+        <p className="h-[${iconSize}px] overflow-hidden w-full flex items-center justify-start gap-2">
           <SizableText
             size="sm"
             className="shrink truncate overflow-hidden whitespace-nowrap"
@@ -256,19 +214,25 @@ function ExpandChangeGroupButton({
             {getMetadataName(author.metadata)}
           </SizableText>
 
-          <SizableText size="sm" weight="bold" className="shrink-0">
+          <SizableText
+            size="sm"
+            weight="bold"
+            className="shrink-0 flex-1 text-left"
+          >
             {item.changes.length} versions
           </SizableText>
-          <ChevronDown size={16} />
-        </XStack>
+        </p>
         <SizableText
           size="xs"
           color="muted"
-          className="shrink truncate overflow-hidden whitespace-nowrap"
+          className="shrink truncate overflow-hidden whitespace-nowrap text-left"
         >
           {formattedDateMedium(item.changes.at(-1)?.createTime)}
         </SizableText>
-      </YStack>
+      </div>
+      <div className="flex items-center justify-center h-full">
+        <ChevronDown size={16} color="gray" />
+      </div>
     </Button>
   )
 }

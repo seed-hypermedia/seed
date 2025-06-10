@@ -26,7 +26,6 @@ import {
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
 import {cn} from './utils'
 
 export function SiteHeader({
@@ -60,7 +59,6 @@ export function SiteHeader({
   noScroll?: boolean
   isLatest?: boolean
 }) {
-  const isDark = useIsDark()
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)

@@ -8,6 +8,7 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {SwitchField} from '@shm/ui/form-fields'
+import {Separator} from '@shm/ui/separator'
 import {
   CircleDot,
   File,
@@ -22,7 +23,6 @@ import {
   Button,
   Input,
   Label,
-  Separator,
   SizableText,
   SizeTokens,
   XStack,
@@ -308,7 +308,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       {props.children}
 
-      <Separator background="$color11" />
+      <Separator />
 
       <XStack justifyContent="flex-end">
         <Button

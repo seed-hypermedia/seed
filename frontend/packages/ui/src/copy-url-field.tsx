@@ -1,58 +1,36 @@
 import {useUniversalAppContext} from '@shm/shared/routing'
-import {Button} from '@tamagui/button'
 import {Copy, ExternalLink} from '@tamagui/lucide-icons'
-import {useRef} from 'react'
-import {TamaguiTextElement, Text, XGroup, XStack} from 'tamagui'
+import {Button} from './components/button'
 import {copyTextToClipboard} from './copy-to-clipboard'
+import {Text} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 
 export function CopyUrlField({url, label}: {url: string; label: string}) {
   const {openUrl} = useUniversalAppContext()
-  const textRef = useRef<TamaguiTextElement>(null)
   return (
-    <XGroup borderColor="$color8" borderWidth={1}>
-      <XGroup.Item>
-        <XStack flex={1} alignItems="center">
-          <Text
-            onPress={(e) => {
-              e.preventDefault()
-              if (textRef.current) {
-                const range = document.createRange()
-                range.selectNode(textRef.current)
-                window.getSelection()?.removeAllRanges()
-                window.getSelection()?.addRange(range)
-              }
-            }}
-            fontSize={18}
-            color="$color11"
-            ref={textRef}
-            marginHorizontal="$3"
-            overflow="hidden"
-            numberOfLines={1}
-            textOverflow="ellipsis"
-          >
-            {url}
-          </Text>
-          <Tooltip content="Copy URL">
-            <Button
-              chromeless
-              size="$2"
-              margin="$2"
-              icon={Copy}
-              onPress={() => {
-                copyTextToClipboard(url)
-                toast(`Copied ${label} URL`)
-              }}
-            />
-          </Tooltip>
-        </XStack>
-      </XGroup.Item>
-      <XGroup.Item>
-        <Button onPress={() => openUrl(url)} iconAfter={ExternalLink}>
-          Open
+    <div className="flex items-center border border-gray-200 rounded-md p-2">
+      <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+        <Text color="muted">{url}</Text>
+      </div>
+      <Tooltip content="Copy URL">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            copyTextToClipboard(url).then(() => {
+              toast.success(`Copied ${label} URL`)
+            })
+          }}
+        >
+          <Copy size={16} />
         </Button>
-      </XGroup.Item>
-    </XGroup>
+      </Tooltip>
+      <Tooltip content="Open URL">
+        <Button onClick={() => openUrl(url)} variant="ghost" size="sm">
+          <ExternalLink size={16} />
+        </Button>
+      </Tooltip>
+    </div>
   )
 }

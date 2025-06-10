@@ -5,8 +5,9 @@ import {XStack} from '@tamagui/stacks'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {PopoverProps, Separator} from 'tamagui'
+import {PopoverProps} from 'tamagui'
 import {MenuItem} from './menu-item'
+import {Separator} from './separator'
 import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
 
@@ -78,10 +79,7 @@ export function OptionsDropdown({
               item
                 ? [
                     index > 0 ? (
-                      <Separator
-                        key={`${item.key}-separator`}
-                        borderColor="$color7"
-                      />
+                      <Separator key={`${item.key}-separator`} />
                     ) : null,
                     <YGroup.Item key={item.key}>
                       <MenuItem

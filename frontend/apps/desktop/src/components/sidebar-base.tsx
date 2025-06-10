@@ -1,6 +1,7 @@
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {Button} from '@shm/ui/button'
+import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
 import {useStream} from '@shm/ui/use-stream'
@@ -12,7 +13,6 @@ import {
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Separator} from 'tamagui'
 
 const HoverRegionWidth = 30
 
@@ -184,5 +184,5 @@ function useIsWindowNarrowForHoverSidebar() {
 }
 
 export function SidebarDivider() {
-  return <Separator marginVertical="$2" />
+  return <Separator className="my-2" />
 }

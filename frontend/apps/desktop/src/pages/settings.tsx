@@ -51,6 +51,7 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
@@ -86,7 +87,6 @@ import {
   Paragraph,
   RadioGroup,
   ScrollView,
-  Separator,
   SizableText,
   Tabs,
   TabsContentProps,

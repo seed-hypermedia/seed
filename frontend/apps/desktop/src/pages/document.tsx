@@ -59,6 +59,7 @@ import {
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -70,7 +71,6 @@ import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {
   ButtonText,
   SizableText,
-  Separator as TSeparator,
   XStack,
   XStackProps,
   YStack,
@@ -487,9 +487,11 @@ export function NewSubDocumentButton({
   })
   return (
     <>
-      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
-        Create
-      </Button>
+      <Tooltip content="Create a new document">
+        <Button icon={Plus} color="$brand5" onPress={createDraft} size="$2">
+          Create
+        </Button>
+      </Tooltip>
       {importDropdown && (
         <ImportDropdownButton
           id={locationId}
@@ -603,7 +605,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               )}
             </XStack>
           </YStack>
-          <TSeparator borderColor="$color8" />
+          <TSeparator />
         </YStack>
       </Container>
     </YStack>
@@ -720,7 +722,7 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
     />
   )
 }
-const Separator = () => <TSeparator borderColor="$color8" vertical h={20} />
+const Separator = () => <TSeparator vertical />
 
 function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   const open = useOpenUrl()

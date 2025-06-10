@@ -1,18 +1,11 @@
 import {createStyles} from '@mantine/core'
 import {createHmDocLink_DEPRECATED} from '@shm/shared'
 import {Check, ExternalLink, TextCursorInput, Unlink} from '@shm/ui/icons'
+import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Link as LinkIcon} from '@tamagui/lucide-icons'
 import {HTMLAttributes, forwardRef, useState} from 'react'
-import {
-  Button,
-  Checkbox,
-  Input,
-  Label,
-  Separator,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, Checkbox, Input, Label, XStack, YStack} from 'tamagui'
 
 export type EditHyperlinkMenuProps = {
   url: string

@@ -9,13 +9,13 @@ import {
   useRouteError,
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+import {SizableText} from '@shm/ui/text'
 import {isClient} from '@tamagui/core'
 import Tamagui from '../tamagui.config'
 import {Providers} from './providers'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 import globalTamaguiStyles from './tamagui.css?url'
-import {Container} from './ui/container'
 
 export const links: LinksFunction = () => {
   return [
@@ -79,28 +79,29 @@ export function ErrorBoundary({}: {}) {
         <title>Oops! Something went wrong</title>
       </head>
       <body>
-        <div className="flex flex-col">
-          <Container>
-            <div className="self-center w-[600px] flex flex-col gap-5 border border-gray-300 rounded-lg p-5 shadow-lg">
-              <div className="flex items-center gap-3">
-                <span className="text-5xl">🤕</span>
-                <span className="text-4xl font-bold">
-                  Uh oh, it's not you, it's us...
-                </span>
-              </div>
-              <div className="flex flex-col gap-3">
-                <p className="text-base">
+        <div className="h-screen w-screen flex flex-col">
+          <div className="flex-1 justify-center flex items-start py-12 px-4">
+            <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+              <SizableText size="5xl">🤕</SizableText>
+              <SizableText size="2xl" weight="bold">
+                Uh oh, it's not you, it's us...
+              </SizableText>
+
+              <SizableText asChild>
+                <p>
                   Looks like something didn't go as planned on our end. Don't
                   worry, it's not your fault!
                 </p>
-                <p className="text-base">
+              </SizableText>
+              <SizableText asChild>
+                <p>
                   Give it a quick refresh or come back in a bit, and we'll have
                   things sorted. If it keeps happening, just reach out to
                   support and we'll make it right in no time!
                 </p>
-              </div>
+              </SizableText>
             </div>
-          </Container>
+          </div>
         </div>
         <Scripts />
       </body>

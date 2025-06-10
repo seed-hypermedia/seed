@@ -24,6 +24,7 @@ import {Button} from '@shm/ui/button'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {NewspaperCard} from '@shm/ui/newspaper'
+import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
@@ -33,7 +34,6 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   ButtonFrame,
   Input,
-  Separator,
   SizableText,
   View,
   XStack,
@@ -720,7 +720,7 @@ function QuerySettings({
                 />
               ) : null}
               <YStack gap="$2" marginTop="$-1">
-                <Separator background="$color11" />
+                <Separator />
 
                 <XStack justifyContent="flex-end">
                   <Button

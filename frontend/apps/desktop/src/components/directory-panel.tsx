@@ -4,10 +4,11 @@ import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {EmptyDiscussion} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {ScrollView, useTheme, XStack, YStack} from 'tamagui'
+import {useTheme, XStack, YStack} from 'tamagui'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
@@ -40,8 +41,8 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   }
 
   return (
-    <ScrollView>
-      <YStack gap="$2" paddingHorizontal="$2">
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-2 py-2 px-4 h-full">
         {directory.map((activityItem) => {
           if (activityItem.type === 'document') {
             return (
@@ -55,10 +56,10 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
           }
           return null
         })}
-        <XStack padding="$3">
+        <div className="mt-5 w-full">
           <NewSubDocumentButton locationId={docId} importDropdown={false} />
-        </XStack>
-      </YStack>
-    </ScrollView>
+        </div>
+      </div>
+    </ScrollArea>
   )
 }

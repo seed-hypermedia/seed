@@ -1,5 +1,4 @@
-import {Separator} from '@tamagui/separator'
-import {YStack} from '@tamagui/stacks'
+import {Separator} from './separator'
 import {SizableText} from './text'
 
 export const XPostNotFound = (error: any) => {
@@ -10,64 +9,29 @@ export const XPostNotFound = (error: any) => {
     : ''
 
   return (
-    <YStack
-      // @ts-ignore
-      contentEditable={false}
-      display="flex"
-      flexDirection="column"
-      width={'100%'}
-      height={'100%'}
-      ac="center"
-      ai="center"
-    >
+    <div className="flex flex-col items-center justify-center w-full h-full">
       <SizableText size="xl" color="danger">
         Error fetching the X Post
       </SizableText>
       <SizableText size="lg" color="danger">
         {errorToString}
       </SizableText>
-    </YStack>
+    </div>
   )
 }
 
 export const XPostSkeleton = () => {
   return (
-    <YStack
-      // @ts-ignore
-      contentEditable={false}
-      width={'100%'}
-      height={'100%'}
-      gap="$2"
-    >
-      <YStack
-        width={50}
-        height={50}
-        margin="$2"
-        backgroundColor="$color6"
-        borderRadius="$10"
+    <div className="flex flex-col items-center justify-center w-full h-full gap-2">
+      <div className="w-20 h-20 bg-gray-500 rounded-full" />
+      <div className="h-15 bg-gray-500 rounded-lg" style={{width: '98%'}} />
+      <Separator className="my-2" />
+      <div
+        className="h-15 ml-2 bg-gray-500 rounded-lg"
+        style={{width: '98%'}}
       />
-      <YStack
-        marginLeft="$2"
-        width="98%"
-        borderRadius="$3"
-        height={150}
-        backgroundColor="$color6"
-      />
-      <Separator marginTop="$2" marginBottom="$2" />
-      <YStack
-        marginLeft="$2"
-        width="98%"
-        borderRadius="$3"
-        height={25}
-        backgroundColor="$color6"
-      />
-      <YStack
-        marginLeft="$2"
-        width="98%"
-        borderRadius="$3"
-        height={25}
-        backgroundColor="$color6"
-      />
-    </YStack>
+      <Separator className="my-2" />
+      <div className="h-15 bg-gray-500 rounded-lg" style={{width: '98%'}} />
+    </div>
   )
 }

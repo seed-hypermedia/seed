@@ -9,13 +9,11 @@ import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {ButtonText} from '@tamagui/button'
 import {Home} from '@tamagui/lucide-icons'
-import {Separator} from '@tamagui/separator'
-import {XStack, YStack} from '@tamagui/stacks'
-import {H1} from '@tamagui/text'
+import {XStack} from '@tamagui/stacks'
 import {useMemo} from 'react'
 import {getHref} from './href'
 
@@ -40,9 +38,8 @@ export function PageHeader({
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
-  const isDark = useIsDark()
   return (
-    <YStack id="page-header">
+    <div id="page-header">
       <Container
         $gtSm={{
           marginTop: hasCover ? -40 : 0,
@@ -53,30 +50,19 @@ export function PageHeader({
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
-        <YStack gap="$4">
+        <div className="flex flex-col gap-4">
           {!isHomeDoc && docId && hasIcon ? (
-            <XStack marginTop={hasCover ? -80 : 0}>
+            <div className={`mt-[${hasCover ? -80 : 0}px]`}>
               <HMIcon size={100} id={docId} metadata={docMetadata} />
-            </XStack>
+            </div>
           ) : null}
           <Breadcrumbs breadcrumbs={breadcrumbs} originHomeId={originHomeId} />
-          <H1 size="$9" style={{fontWeight: 'bold'}}>
+          <SizableText size="4xl" weight="bold">
             {docMetadata?.name}
-          </H1>
-          <XStack
-            marginBlock="$4"
-            gap="$3"
-            alignItems="center"
-            flex={1}
-            flexWrap="wrap"
-          >
+          </SizableText>
+          <div className="flex gap-4 items-center flex-1 flex-wrap">
             {authors?.length ? (
-              <XStack
-                alignItems="center"
-                gap={0}
-                flexWrap="wrap"
-                maxWidth="100%"
-              >
+              <div className="flex flex-col gap-0 items-center flex-wrap max-w-full">
                 {authors.flatMap((a, index) => [
                   <ButtonText
                     hoverStyle={{
@@ -105,9 +91,11 @@ export function PageHeader({
                     )
                   ) : null,
                 ])}
-              </XStack>
+              </div>
             ) : null}
-            {authors?.length ? <VerticalSeparator /> : null}
+            {authors?.length ? (
+              <Separator vertical className="self-stretch h-" />
+            ) : null}
             {updateTime ? (
               <DocumentDate
                 metadata={docMetadata || undefined}
@@ -115,17 +103,13 @@ export function PageHeader({
               />
             ) : null}
             {docId && <DonateButton docId={docId} authors={authors} />}
-          </XStack>
+          </div>
           <Separator />
-        </YStack>
+        </div>
       </Container>
-    </YStack>
+    </div>
   )
 }
-
-const VerticalSeparator = () => (
-  <XStack flexShrink={0} flexGrow={0} width={1} height={20} bg="$color8" />
-)
 
 function Breadcrumbs({
   breadcrumbs,

@@ -16,6 +16,7 @@ import {
   Search,
   Settings,
 } from '@shm/ui/icons'
+import {Separator} from '@shm/ui/separator'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
@@ -23,7 +24,6 @@ import {
   ListItem,
   ListItemProps,
   Popover,
-  Separator,
   SizableText,
   XStack,
   YGroup,

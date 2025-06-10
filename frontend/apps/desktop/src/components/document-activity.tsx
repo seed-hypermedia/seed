@@ -17,12 +17,12 @@ import {useAccounts, useEntity} from '@shm/shared/models/entity'
 import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {CommentGroup} from '@shm/ui/discussion'
 import {ChevronUp, EmptyDiscussion} from '@shm/ui/icons'
 import {ActivitySection} from '@shm/ui/page-components'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
+import {SizableText, Text} from '@shm/ui/text'
 import {useState} from 'react'
 import {useTheme, YStack} from 'tamagui'
 import {
@@ -176,19 +176,22 @@ export function ActivityList({
     <>
       {visibleCount < activityWithGroups.length && prevActivity && (
         <Button
-          onPress={() => setVisibleCount((count) => count + 10)}
-          size="$2"
-          icon={ChevronUp}
+          variant="outline"
+          onClick={() => setVisibleCount((count) => count + 10)}
+          size="sm"
         >
-          {prevActivityTime
-            ? `Activity before ${formattedDateMedium(prevActivityTime)}`
-            : 'Previous Activity'}
+          <ChevronUp size={12} color="gray" />
+          <Text color="muted" size="sm">
+            {prevActivityTime
+              ? `Activity before ${formattedDateMedium(prevActivityTime)}`
+              : 'Previous Activity'}
+          </Text>
         </Button>
       )}
       {activityWithGroups.slice(-visibleCount).map((activityItem) => {
         if (activityItem.type === 'commentGroup') {
           return (
-            <YStack key={activityItem.id} paddingHorizontal="$1.5">
+            <div key={activityItem.id} className="p-1.5">
               <CommentGroup
                 rootReplyCommentId={null}
                 key={activityItem.id}
@@ -214,7 +217,7 @@ export function ActivityList({
                 //     : undefined
                 // }
               />
-            </YStack>
+            </div>
           )
         }
         if (activityItem.type === 'changeGroup') {
