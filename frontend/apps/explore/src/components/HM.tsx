@@ -10,6 +10,7 @@ import {useMemo} from "react";
 import {useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {useApiHost} from "../apiHostStore";
 import {
+  useAuthoredComments,
   useCapabilities,
   useChanges,
   useChildrenList,
@@ -20,6 +21,7 @@ import {
 import {CopyTextButton} from "./CopyTextButton";
 import {ExternalOpenButton, OpenInAppButton} from "./ExternalOpenButton";
 import Tabs, {TabType} from "./Tabs";
+import AuthoredCommentsTab from "./tabs/AuthoredCommentsTab";
 import CapabilitiesTab from "./tabs/CapabilitiesTab";
 import ChangesTab from "./tabs/ChangesTab";
 import {ChildrenDocsTab} from "./tabs/ChildrenDocsTab";
@@ -49,6 +51,8 @@ export default function HM() {
   });
   const {data, isLoading} = useEntity(id);
   const {data: comments, isLoading: commentsLoading} = useComments(id);
+  const {data: authoredComments, isLoading: authoredCommentsLoading} =
+    useAuthoredComments(id);
   const {data: citations, isLoading: citationsLoading} = useCitations(id);
   const {data: changes, isLoading: changesLoading} = useChanges(id);
   const {data: capabilities, isLoading: capabilitiesLoading} =
@@ -146,6 +150,8 @@ export default function HM() {
         return <CapabilitiesTab capabilities={capabilities?.capabilities} />;
       case "children":
         return <ChildrenDocsTab list={childrenDocs} id={id} />;
+      case "authored-comments":
+        return <AuthoredCommentsTab comments={authoredComments?.comments} />;
       default:
         return null;
     }
@@ -181,6 +187,7 @@ export default function HM() {
         citationCount={citations?.citations?.length}
         capabilityCount={capabilities?.capabilities?.length}
         childrenCount={childrenDocs?.length}
+        authoredCommentCount={authoredComments?.comments?.length}
       />
       <div className="tab-content">{renderTabContent()}</div>
     </div>

@@ -42,9 +42,17 @@ export function useComments(hmId: UnpackedHypermediaId) {
     queryKey: ["comments", hmId.id],
     queryFn: () =>
       getAPI<any>(
-        `comments/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
+        `comments/d/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
       ),
     enabled: hmId.type === "d",
+  });
+}
+
+export function useAuthoredComments(hmId: UnpackedHypermediaId) {
+  return useQuery({
+    queryKey: ["authored-comments", hmId.id],
+    queryFn: () => getAPI<any>(`authored-comments/d/${hmId.uid}`),
+    enabled: hmId.type === "d" && !hmId.path?.filter((p) => !!p).length,
   });
 }
 
