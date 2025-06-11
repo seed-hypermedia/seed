@@ -2,7 +2,7 @@ import fs from "fs";
 import {sendNotificationsEmail} from "./notifier";
 
 const {email, opts, notifications} = JSON.parse(
-  fs.readFileSync("./mock-notification3.json", "utf-8")
+  fs.readFileSync("./mock-notification.json", "utf-8")
 );
 
 (async () => {

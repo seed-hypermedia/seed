@@ -1,0 +1,199 @@
+{"email": "iskak@mintter.com",
+  "opts": {
+    "adminToken": "531c21368547c2d9ca898a8e8b796226d962bb6e2295c945d8615b1f0436a119",
+    "isUnsubscribed": false,
+    "createdAt": "2025-05-23 06:25:43"
+  },
+  "notifications": [
+    {
+      "accountId": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "accountMeta": {
+        "name": "Test"
+      },
+      "notif": {
+        "type": "reply",
+        "comment": {
+          "id": "bafy2bzaceaxxfhzbz5ivefufxsewfc4itgai7h6d2ovemlg5vlpsfsuermshi",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "",
+          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+          "threadRoot": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+          "replyParent": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+          "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+          "content": [
+            {
+              "block": {
+                "id": "ZO0I2CtR",
+                "type": "Paragraph",
+                "text": "test videos and other blocks",
+                "link": "",
+                "annotations": [
+                  {
+                    "type": "Code",
+                    "link": "",
+                    "attributes": {
+                      "fields": {}
+                    },
+                    "starts": [
+                      0
+                    ],
+                    "ends": [
+                      28
+                    ]
+                  }
+                ],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "HlfsKpDW",
+                "type": "Video",
+                "text": "",
+                "link": "ipfs://bafybeihlhg52qa5bwm6ww5v34b5lzgz2tekrzv7w73rpvfptu5vicrajki",
+                "attributes": {
+                  "fields": {
+                    "name": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "blockquote.mp4"
+                      }
+                    },
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "4f6REdru",
+                "type": "Video",
+                "text": "",
+                "link": "https://www.youtube.com/embed/Man4Xw8Xypo",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "8JjPbU3t",
+                "type": "WebEmbed",
+                "text": "",
+                "link": "https://www.instagram.com/p/DKppYczPFJl/?utm_source=ig_web_copy_link",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "8gCoKrJ4",
+                "type": "Math",
+                "text": "x = 2x - 1",
+                "link": "",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            }
+          ],
+          "createTime": {
+            "seconds": "1749469554",
+            "nanos": 544000000
+          },
+          "capability": ""
+        },
+        "parentComments": [
+          {
+            "id": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "",
+            "replyParent": "",
+            "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "content": [
+              {
+                "block": {
+                  "id": "dgQpb2oW",
+                  "type": "Paragraph",
+                  "text": "hi",
+                  "link": "",
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1749469292",
+              "nanos": 299000000
+            },
+            "capability": ""
+          }
+        ],
+        "commentAuthorMeta": {
+          "name": "Iskak Toltay",
+          "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+        },
+        "targetMeta": {
+          "name": "Test"
+        },
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+      }
+    }
+  ]
+}

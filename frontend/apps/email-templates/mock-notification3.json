@@ -1,0 +1,534 @@
+{
+  "email": "iskak@mintter.com",
+  "opts": {
+    "adminToken": "531c21368547c2d9ca898a8e8b796226d962bb6e2295c945d8615b1f0436a119",
+    "isUnsubscribed": false,
+    "createdAt": "2025-05-23 06:25:43"
+  },
+  "notifications": [
+    {
+      "accountId": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "accountMeta": {
+        "name": "Test"
+      },
+      "notif": {
+        "type": "reply",
+        "comment": {
+          "id": "bafy2bzacedgrpcca3mms5lkucqyn3wyuqu6sl22qyun55d3yedi246t6z4zvs",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "",
+          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+          "threadRoot": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+          "replyParent": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+          "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+          "content": [
+            {
+              "block": {
+                "id": "HvTlgF8l",
+                "type": "Paragraph",
+                "text": "Test reply with multiple blocks",
+                "link": "",
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "xUwBqRDA",
+                "type": "Heading",
+                "text": "Some heading",
+                "link": "",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": [
+                {
+                  "block": {
+                    "id": "F9EPBAcM",
+                    "type": "Image",
+                    "text": "Image caption here",
+                    "link": "ipfs://bafybeihnafgimethvrdx53s4k4kug4iogujuqwlrdht57exipv5gh7ipva",
+                    "attributes": {
+                      "fields": {
+                        "childrenType": {
+                          "kind": {
+                            "case": "stringValue",
+                            "value": "Group"
+                          }
+                        },
+                        "width": {
+                          "kind": {
+                            "case": "numberValue",
+                            "value": 238
+                          }
+                        }
+                      }
+                    },
+                    "annotations": [],
+                    "revision": "b"
+                  },
+                  "children": []
+                },
+                {
+                  "block": {
+                    "id": "-nbpVHNX",
+                    "type": "Paragraph",
+                    "text": "can emails render videos?",
+                    "link": "",
+                    "annotations": [
+                      {
+                        "type": "Bold",
+                        "link": "",
+                        "attributes": {
+                          "fields": {}
+                        },
+                        "starts": [
+                          4
+                        ],
+                        "ends": [
+                          10
+                        ]
+                      }
+                    ],
+                    "revision": "b"
+                  },
+                  "children": []
+                },
+                {
+                  "block": {
+                    "id": "-r9SUz1F",
+                    "type": "Paragraph",
+                    "text": "https://freeimage.host/",
+                    "link": "",
+                    "annotations": [
+                      {
+                        "type": "Link",
+                        "link": "https://freeimage.host/",
+                        "attributes": {
+                          "fields": {}
+                        },
+                        "starts": [
+                          0
+                        ],
+                        "ends": [
+                          23
+                        ]
+                      }
+                    ],
+                    "revision": "b"
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "createTime": {
+            "seconds": "1749191979",
+            "nanos": 902000000
+          },
+          "capability": ""
+        },
+        "parentComments": [
+          {
+            "id": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "",
+            "replyParent": "",
+            "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "content": [
+              {
+                "block": {
+                  "id": "HKxOpfEK",
+                  "type": "File",
+                  "text": "",
+                  "link": "ipfs://bafybeihnafgimethvrdx53s4k4kug4iogujuqwlrdht57exipv5gh7ipva",
+                  "attributes": {
+                    "fields": {
+                      "size": {
+                        "kind": {
+                          "case": "numberValue",
+                          "value": 2206251
+                        }
+                      },
+                      "childrenType": {
+                        "kind": {
+                          "case": "stringValue",
+                          "value": "Group"
+                        }
+                      },
+                      "name": {
+                        "kind": {
+                          "case": "stringValue",
+                          "value": "third.jpg"
+                        }
+                      }
+                    }
+                  },
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1745309688",
+              "nanos": 423000000
+            },
+            "capability": ""
+          }
+        ],
+        "commentAuthorMeta": {
+          "name": "Iskak Toltay",
+          "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+        },
+        "targetMeta": {
+          "name": "Test"
+        },
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+      }
+    },
+    {
+      "accountId": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "accountMeta": {
+        "name": "Test"
+      },
+      "notif": {
+        "type": "reply",
+        "comment": {
+          "id": "bafy2bzaceaxxfhzbz5ivefufxsewfc4itgai7h6d2ovemlg5vlpsfsuermshi",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "",
+          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+          "threadRoot": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+          "replyParent": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+          "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+          "content": [
+            {
+              "block": {
+                "id": "ZO0I2CtR",
+                "type": "Paragraph",
+                "text": "test videos and other blocks",
+                "link": "",
+                "annotations": [
+                  {
+                    "type": "Code",
+                    "link": "",
+                    "attributes": {
+                      "fields": {}
+                    },
+                    "starts": [
+                      0
+                    ],
+                    "ends": [
+                      28
+                    ]
+                  }
+                ],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "HlfsKpDW",
+                "type": "Video",
+                "text": "",
+                "link": "ipfs://bafybeihlhg52qa5bwm6ww5v34b5lzgz2tekrzv7w73rpvfptu5vicrajki",
+                "attributes": {
+                  "fields": {
+                    "name": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "blockquote.mp4"
+                      }
+                    },
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "4f6REdru",
+                "type": "Video",
+                "text": "",
+                "link": "https://www.youtube.com/embed/Man4Xw8Xypo",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "8JjPbU3t",
+                "type": "WebEmbed",
+                "text": "",
+                "link": "https://www.instagram.com/p/DKppYczPFJl/?utm_source=ig_web_copy_link",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            },
+            {
+              "block": {
+                "id": "8gCoKrJ4",
+                "type": "Math",
+                "text": "x = 2x - 1",
+                "link": "",
+                "attributes": {
+                  "fields": {
+                    "childrenType": {
+                      "kind": {
+                        "case": "stringValue",
+                        "value": "Group"
+                      }
+                    }
+                  }
+                },
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            }
+          ],
+          "createTime": {
+            "seconds": "1749469554",
+            "nanos": 544000000
+          },
+          "capability": ""
+        },
+        "parentComments": [
+          {
+            "id": "bafy2bzaceahh6cvdmxq7c45ztlfhajzqfsrqblhls4af5bswa4vdso26w25ys",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "",
+            "replyParent": "",
+            "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "content": [
+              {
+                "block": {
+                  "id": "dgQpb2oW",
+                  "type": "Paragraph",
+                  "text": "hi",
+                  "link": "",
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1749469292",
+              "nanos": 299000000
+            },
+            "capability": ""
+          }
+        ],
+        "commentAuthorMeta": {
+          "name": "Iskak Toltay",
+          "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+        },
+        "targetMeta": {
+          "name": "Test"
+        },
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+      }
+    },
+    {
+      "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+      "accountMeta": {
+        "name": "Iskak Toltay",
+        "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+      },
+      "notif": {
+        "type": "mention",
+        "comment": {
+          "id": "bafy2bzaceaiwp6z5rhkqsm25shjsoikd7sortpkw5jbd5chztdc6golc6p3oo",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "",
+          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+          "threadRoot": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
+          "replyParent": "bafy2bzacedc3kdvwvephdye442osku3fbgyzgfuwk567tjffmwmjo7ksvw7x6",
+          "author": "z6MktffS1U44ch9pgwXKE8THo5MPqAN9q4JXTZruaiAmmE9T",
+          "content": [
+            {
+              "block": {
+                "id": "6CxhCOVI",
+                "type": "Paragraph",
+                "text": " ",
+                "link": "",
+                "annotations": [
+                  {
+                    "type": "Embed",
+                    "link": "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+                    "attributes": {
+                      "fields": {}
+                    },
+                    "starts": [
+                      0
+                    ],
+                    "ends": [
+                      1
+                    ]
+                  }
+                ],
+                "revision": "b"
+              },
+              "children": []
+            }
+          ],
+          "createTime": {
+            "seconds": "1749022791",
+            "nanos": 529000000
+          },
+          "capability": ""
+        },
+        "parentComments": [
+          {
+            "id": "bafy2bzacedc3kdvwvephdye442osku3fbgyzgfuwk567tjffmwmjo7ksvw7x6",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
+            "replyParent": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
+            "author": "z6MktffS1U44ch9pgwXKE8THo5MPqAN9q4JXTZruaiAmmE9T",
+            "content": [
+              {
+                "block": {
+                  "id": "TKzTDI9v",
+                  "type": "Paragraph",
+                  "text": "aaaaaaaaa test",
+                  "link": "",
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1749022787",
+              "nanos": 411000000
+            },
+            "capability": ""
+          },
+          {
+            "id": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "",
+            "replyParent": "",
+            "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+            "content": [
+              {
+                "block": {
+                  "id": "KvAKeBWE",
+                  "type": "Paragraph",
+                  "text": "test",
+                  "link": "",
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1747981561",
+              "nanos": 84000000
+            },
+            "capability": ""
+          }
+        ],
+        "commentAuthorMeta": {
+          "name": "New account?"
+        },
+        "targetMeta": {
+          "name": "Test"
+        },
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+      }
+    }
+  ]
+}
