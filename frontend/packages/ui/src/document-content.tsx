@@ -1,3 +1,4 @@
+// @ts-nocheck - Tamagui component typing issues with children props
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
@@ -39,7 +40,7 @@ import {
 } from '@shm/shared/utils/web-embed-scripts'
 import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
-import {SizeTokens, Text, TextProps, Theme, useThemeName} from '@tamagui/core'
+import {SizeTokens, useThemeName} from '@tamagui/core'
 import {ColorProp} from '@tamagui/helpers-tamagui'
 import {Label} from '@tamagui/label'
 import {
@@ -56,6 +57,7 @@ import {
   Undo2,
 } from '@tamagui/lucide-icons'
 import {RadioGroup} from '@tamagui/radio-group'
+import React from 'react'
 import {
   extractIpfsUrlCid,
   getDaemonFileUrl,
@@ -63,8 +65,9 @@ import {
   useFileUrl,
   useImageUrl,
 } from './get-file-url'
+import {SizableText, SizableTextProps, Text, TextProps} from './text'
+import {cn} from './utils'
 
-import {SizableText, SizableTextProps} from '@shm/ui/text'
 import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -964,21 +967,17 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   }
 }
 
-export const blockStyles: YStackProps = {
-  width: '100%',
-  alignSelf: 'center',
-  flex: 1,
-}
+export const blockStyles = 'w-full flex-1 self-center'
 
 function inlineContentSize(unit: number): TextProps {
   return {
     fontSize: unit,
-    lineHeight: unit * 1.3,
+    lineHeight: 1.3,
     $gtMd: {
-      fontSize: unit * 1.1,
+      fontSize: 1.1,
     },
     $gtLg: {
-      fontSize: unit * 1.2,
+      fontSize: 1.2,
     },
   }
 }
@@ -1050,20 +1049,24 @@ function BlockContentParagraph({
     const editorBlock = hmBlockToEditorBlock(block)
     return editorBlock.content
   }, [block])
+  console.log('=== BLOCK STYLE ===', blockStyles)
+  console.log('=== BLOCK PROPS ===', props)
   return (
-    <YStack
-      {...blockStyles}
+    <Text
       {...props}
       {...debugStyles(debug, 'blue')}
-      className="block-content block-paragraph"
+      className={cn(
+        'block-content block-paragraph content-inline',
+        comment && 'is-comment',
+        blockStyles,
+      )}
+      {...inlineContentSize(textUnit)}
+      asChild
     >
-      <Text
-        className={`content-inline ${comment ? 'is-comment' : ''}`}
-        {...inlineContentSize(textUnit)}
-      >
+      <p>
         <InlineContentView inline={inline} />
-      </Text>
-    </YStack>
+      </p>
+    </Text>
   )
 }
 
@@ -1073,74 +1076,19 @@ export function BlockContentHeading({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {textUnit, debug, comment} = useDocContentContext()
+  const {debug} = useDocContentContext()
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
-  let headingTextStyles = useHeadingTextStyles(
-    depth,
-    comment ? textUnit * 0.8 : textUnit,
-    comment,
-  )
 
   return (
-    <YStack
-      {...blockStyles}
+    <SeedHeading
       {...props}
       {...debugStyles(debug, 'blue')}
-      className="block-content block-heading"
+      level={depth as 1 | 2 | 3 | 4 | undefined}
+      className={cn('block-content block-heading', blockStyles)}
+      maxWidth="95%"
     >
-      <SeedHeading
-        level={depth as 1 | 2 | 3 | 4 | undefined}
-        className="content-inline"
-        maxWidth="95%"
-      >
-        <InlineContentView
-          inline={inline}
-          fontWeight="bold"
-          fontFamily="$heading"
-          {...headingTextStyles}
-        />
-      </SeedHeading>
-    </YStack>
-  )
-}
-
-export function DocHeading({
-  children,
-  right,
-}: {
-  children?: string
-  right?: React.ReactNode
-}) {
-  const {debug, layoutUnit} = useDocContentContext()
-  return (
-    <Theme name="subtle">
-      <YStack
-        paddingHorizontal={layoutUnit / 3}
-        $gtMd={{paddingHorizontal: layoutUnit / 2}}
-        group="header"
-      >
-        <YStack
-          padding={layoutUnit / 3}
-          // marginBottom={layoutUnit}
-          paddingBottom={layoutUnit / 2}
-          // {...headingMarginStyles}
-        >
-          <XStack>
-            <YStack {...blockStyles} {...debugStyles(debug, 'blue')}>
-              <SeedHeading
-                level={1}
-                className="content-inline"
-                fontFamily={'$body'}
-                maxWidth="95%"
-              >
-                {children}
-              </SeedHeading>
-            </YStack>
-            {right}
-          </XStack>
-        </YStack>
-      </YStack>
-    </Theme>
+      <InlineContentView inline={inline} fontWeight="bold" fontSize={null} />
+    </SeedHeading>
   )
 }
 
@@ -1297,9 +1245,8 @@ function BlockContentImage({
   if (!block?.link) return null
   return (
     <YStack
-      {...blockStyles}
       {...props}
-      className="block-content block-image"
+      className={cn('block-content block-image', blockStyles)}
       data-content-type="image"
       data-url={block?.link}
       data-name={block?.attributes?.name}
@@ -1310,12 +1257,13 @@ function BlockContentImage({
       ai="center"
       width="100%"
     >
-      <YStack
-        width={
-          getBlockAttribute(block.attributes, 'width')
+      <div
+        className={cn('max-w-full')}
+        style={{
+          width: getBlockAttribute(block.attributes, 'width')
             ? `${getBlockAttribute(block.attributes, 'width')}px`
-            : undefined
-        }
+            : undefined,
+        }}
         maxWidth="100%"
       >
         <img
@@ -1327,11 +1275,13 @@ function BlockContentImage({
             objectFit: 'contain',
           }}
         />
-      </YStack>
+      </div>
       {inline.length ? (
-        <Text opacity={0.7} fontFamily="$body">
-          <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
-        </Text>
+        <InlineContentView
+          inline={inline}
+          fontSize={textUnit * 0.85}
+          className="text-muted-foreground"
+        />
       ) : null}
     </YStack>
   )
@@ -1351,9 +1301,8 @@ function BlockContentVideo({
 
   return (
     <YStack
-      {...blockStyles}
       {...props}
-      className="block-content block-video"
+      className={cn('block-content block-video', blockStyles)}
       paddingVertical="$3"
       gap="$2"
       data-content-type="video"
@@ -1414,7 +1363,7 @@ function BlockContentVideo({
         <Text>Video block wrong state</Text>
       )}
       {inline.length ? (
-        <Text opacity={0.7}>
+        <Text className="text-muted-foreground" asChild>
           <InlineContentView fontSize={textUnit * 0.85} inline={inline} />
         </Text>
       ) : null}
@@ -1448,9 +1397,199 @@ function getInlineContentOffset(inline: HMInlineContent): number {
 
 function InlineContentView({
   inline,
+  linkType = null,
+  fontSize,
+  fontWeight,
+  rangeOffset,
+  isRange = false,
+  ...props
+}: {
+  inline: HMInlineContent[]
+  linkType?: LinkType
+  fontSize?: number | null
+  rangeOffset?: number
+  isRange?: boolean
+  fontWeight?: string
+} & React.HTMLAttributes<HTMLSpanElement>) {
+  const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
+    useDocContentContext()
+
+  const InlineEmbed = entityComponents.Inline
+  let contentOffset = rangeOffset || 0
+  const theme = useThemeName()
+
+  const fSize = fontSize === null ? null : fontSize || textUnit
+
+  const getLinkColor = (linkType: LinkType): string => {
+    if (linkType === 'basic')
+      return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+    if (linkType === 'hypermedia')
+      return 'text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300'
+    return 'text-gray-800 dark:text-gray-100'
+  }
+
+  const buildStyleClasses = (styles: any): string => {
+    const classes: string[] = []
+
+    if (styles.bold) classes.push('font-bold')
+    if (styles.italic) classes.push('italic')
+    if (styles.code)
+      classes.push(
+        'font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700',
+      )
+    if (styles.underline) classes.push('underline')
+    if (styles.strike) classes.push('line-through')
+    if (styles.range || isRange)
+      classes.push('bg-yellow-200/50 dark:bg-yellow-900/70')
+
+    return classes.join(' ')
+  }
+
+  const buildTextDecorationStyle = (
+    styles: any,
+    linkType: LinkType,
+  ): React.CSSProperties => {
+    const decorations: string[] = []
+
+    if (linkType || styles.underline) decorations.push('underline')
+    if (styles.strike) decorations.push('line-through')
+
+    return decorations.length > 0
+      ? {
+          textDecorationLine: decorations.join(' ') as any,
+          textDecorationColor: 'currentColor',
+        }
+      : {}
+  }
+
+  return (
+    <>
+      {inline.map((content, index) => {
+        const inlineContentOffset = contentOffset
+        contentOffset += getInlineContentOffset(content)
+
+        if (content.type === 'text') {
+          const styleClasses = buildStyleClasses(content.styles)
+          const textDecorationStyle = buildTextDecorationStyle(
+            content.styles,
+            linkType,
+          )
+          const linkColorClass = getLinkColor(linkType)
+
+          // Handle line breaks - only split if it's the last item and has multiple lines
+          let children: React.ReactNode = content.text
+          if (inline.length === index + 1 && content.text.includes('\n')) {
+            children = content.text.split('\n').map((line, i, arr) => (
+              <React.Fragment key={i}>
+                {line}
+                {i < arr.length - 1 && <br />}
+              </React.Fragment>
+            ))
+          }
+
+          // Make code text smaller
+          const actualFontSize =
+            fSize === null ? null : content.styles.code ? fSize * 0.85 : fSize
+
+          const dynamicStyles: React.CSSProperties = {
+            lineHeight: 1.5,
+            ...textDecorationStyle,
+          }
+
+          if (actualFontSize !== null) {
+            dynamicStyles.fontSize = actualFontSize
+          }
+
+          return (
+            <span
+              key={`${content.type}-${index}`}
+              className={cn(
+                'whitespace-pre-wrap',
+                linkColorClass,
+                styleClasses,
+                fontWeight && `font-${fontWeight}`,
+                props.className,
+              )}
+              style={dynamicStyles}
+              data-range-offset={inlineContentOffset}
+            >
+              {children}
+            </span>
+          )
+        }
+
+        if (content.type === 'link') {
+          const isHmScheme = isHypermediaScheme(content.href)
+          const {onPress, ...linkProps} = useRouteLinkHref(content.href)
+          const id = unpackHmId(content.href)
+
+          return (
+            <a
+              key={index}
+              {...linkProps}
+              onClick={onPress}
+              className={cn(
+                'cursor-pointer transition-colors',
+                isHmScheme ? 'hm-link' : 'link',
+              )}
+              target={isHmScheme ? undefined : '_blank'}
+              onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
+              onMouseLeave={id ? () => onHoverOut?.(id) : undefined}
+              data-blockid={id?.blockRef}
+              data-docid={id?.blockRef ? undefined : id?.id}
+            >
+              <InlineContentView
+                inline={content.content}
+                fontSize={fSize}
+                linkType={isHmScheme ? 'hypermedia' : 'basic'}
+                rangeOffset={inlineContentOffset}
+                fontWeight={fontWeight}
+              />
+            </a>
+          )
+        }
+
+        if (content.type === 'inline-embed') {
+          const unpackedRef = unpackHmId(content.link)
+          return (
+            <InlineEmbed
+              key={content.link}
+              comment={comment}
+              {...unpackedRef}
+            />
+          )
+        }
+
+        if (content.type === 'range') {
+          return (
+            <Text
+              asChild
+              key={index}
+              className="bg-yellow-200/50 dark:bg-yellow-900/70"
+            >
+              <InlineContentView
+                inline={content.content}
+                fontSize={fSize}
+                rangeOffset={inlineContentOffset}
+                isRange={true}
+                fontWeight={fontWeight}
+              />
+            </Text>
+          )
+        }
+
+        return null
+      })}
+    </>
+  )
+}
+
+function _InlineContentView({
+  inline,
   style,
   linkType = null,
   fontSize,
+  fontWeight,
   rangeOffset,
   isRange = false,
   ...props
@@ -1460,10 +1599,12 @@ function InlineContentView({
   fontSize?: number
   rangeOffset?: number
   isRange?: boolean
+  fontWeight?: TextProps['weight']
 }) {
   const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
     useDocContentContext()
 
+  console.log('== inline ==', inline)
   const InlineEmbed = entityComponents.Inline
 
   let contentOffset = rangeOffset || 0
@@ -1474,195 +1615,159 @@ function InlineContentView({
     theme === 'dark'
       ? CONTENT_HIGHLIGHT_COLOR_DARK
       : CONTENT_HIGHLIGHT_COLOR_LIGHT
-  return (
-    <Text
-      fontSize={fSize}
-      lineHeight={fSize * 1.5}
-      data-range-offset={contentOffset}
-      whiteSpace="pre-wrap"
-      {...props}
-      alignContent="flex-start"
-      alignItems="flex-start"
-    >
-      {inline.map((content, index) => {
-        const inlineContentOffset = contentOffset
-        contentOffset += getInlineContentOffset(content)
-        if (content.type === 'text') {
-          let textDecorationLine:
-            | 'none'
-            | 'line-through'
-            | 'underline'
-            | 'underline line-through'
-            | undefined
-          const underline = linkType || content.styles.underline
-          if (underline) {
-            if (content.styles.strike) {
-              textDecorationLine = 'underline line-through'
-            } else {
-              textDecorationLine = 'underline'
-            }
-          } else if (content.styles.strike) {
-            textDecorationLine = 'line-through'
-          }
 
-          let children: any = content.text.split('\n')
+  return inline.map((content, index) => {
+    const inlineContentOffset = contentOffset
+    contentOffset += getInlineContentOffset(content)
+    if (content.type === 'text') {
+      let textDecorationLine:
+        | 'none'
+        | 'line-through'
+        | 'underline'
+        | 'underline line-through'
+        | undefined
+      const underline = linkType || content.styles.underline
+      if (underline) {
+        if (content.styles.strike) {
+          textDecorationLine = 'underline line-through'
+        } else {
+          textDecorationLine = 'underline'
+        }
+      } else if (content.styles.strike) {
+        textDecorationLine = 'line-through'
+      }
 
-          // we are checking if this is the last inline content and if it has more than one line
-          // if so, we are rendering a <br /> for each line
-          if (inline.length == index + 1 && children.length > 1) {
-            children = children.map(
-              (l: string, i: number, a: Array<string>) => {
-                if (a.length == i - 1) {
-                  return l
-                } else {
-                  return (
-                    <>
-                      {l}
-                      <br />
-                    </>
-                  )
-                }
-              },
-            )
+      let children: any = content.text.split('\n')
+
+      // we are checking if this is the last inline content and if it has more than one line
+      // if so, we are rendering a <br /> for each line
+      if (inline.length == index + 1 && children.length > 1) {
+        children = children.map((l: string, i: number, a: Array<string>) => {
+          if (a.length == i - 1) {
+            return l
           } else {
-            children = content.text
-          }
-
-          if (content.styles.range) {
-            children = <Text backgroundColor={rangeColor}>{children}</Text>
-          }
-
-          if (content.styles.bold) {
-            children = (
-              <Text
-                fontWeight="bold"
-                fontSize={fSize}
-                lineHeight={fSize * 1.5}
-                data-range-offset={inlineContentOffset}
-              >
-                {children}
-              </Text>
+            return (
+              <>
+                {l}
+                <br />
+              </>
             )
           }
+        })
+      } else {
+        children = content.text
+      }
 
-          if (content.styles.italic) {
-            children = (
-              <Text
-                fontStyle="italic"
-                fontSize={fSize}
-                lineHeight={fSize * 1.5}
-                data-range-offset={inlineContentOffset}
-              >
-                {children}
-              </Text>
-            )
-          }
+      if (content.styles.range) {
+        children = (
+          <Text className="bg-yellow-200/50 dark:bg-yellow-900/70">
+            {children}
+          </Text>
+        )
+      }
 
-          if (content.styles.code) {
-            children = (
-              <Text
-                backgroundColor={isRange ? rangeColor : '$color4'}
-                fontFamily="$mono"
-                tag="code"
-                borderRadius="$2"
-                overflow="hidden"
-                fontSize={fSize * 0.85}
-                lineHeight={fSize * 1.5}
-                paddingHorizontal="$2"
-                paddingVertical={2}
-                data-range-offset={inlineContentOffset}
-              >
-                {children}
-              </Text>
-            )
-          }
+      if (content.styles.bold) {
+        children = (
+          <strong data-range-offset={inlineContentOffset}>{children}</strong>
+        )
+      }
 
-          // does anything use this?
-          // if (content.styles.backgroundColor) {
-          //   children = (
-          //     <span style={{backgroundColor: content.styles.backgroundColor}}>
-          //       {children}
-          //     </span>
-          //   )
-          // }
+      if (content.styles.italic) {
+        children = <em data-range-offset={inlineContentOffset}>{children}</em>
+      }
 
-          // if (content.styles.strike) {
-          //   children = <s>{children}</s>
-          // }
+      if (content.styles.code) {
+        children = (
+          <code data-range-offset={inlineContentOffset}>{children}</code>
+        )
+      }
 
-          // does anything use this?
-          // if (content.styles.textColor) {
-          //   children = (
-          //     <span style={{color: content.styles.textColor}}>{children}</span>
-          //   )
-          // }
+      // does anything use this?
+      // if (content.styles.backgroundColor) {
+      //   children = (
+      //     <span style={{backgroundColor: content.styles.backgroundColor}}>
+      //       {children}
+      //     </span>
+      //   )
+      // }
 
-          return (
-            <Text
-              key={`${content.type}-${index}`}
-              color={hmTextColor(linkType)}
-              textDecorationColor="currentColor"
-              style={{textDecorationLine, textDecorationColor: 'currentColor'}}
-              fontSize={fSize}
-              lineHeight={fSize * 1.5}
-              data-range-offset={inlineContentOffset}
-            >
-              {children}
-            </Text>
-          )
-        }
-        if (content.type === 'link') {
-          const isHmScheme = isHypermediaScheme(content.href)
-          return (
-            <HrefLink
-              href={content.href}
-              key={index}
-              buttonProps={{
-                className: isHmScheme ? 'hm-link' : 'link',
-                target: isHmScheme ? undefined : '_blank',
-              }}
-              onHoverIn={onHoverIn}
-              onHoverOut={onHoverOut}
-            >
-              <InlineContentView
-                fontSize={fSize}
-                lineHeight={fSize * 1.5}
-                inline={content.content}
-                linkType={isHmScheme ? 'hypermedia' : 'basic'}
-                rangeOffset={inlineContentOffset}
-              />
-            </HrefLink>
-          )
-        }
+      // if (content.styles.strike) {
+      //   children = <s>{children}</s>
+      // }
 
-        if (content.type == 'inline-embed') {
-          const unpackedRef = unpackHmId(content.link)
-          return (
-            <InlineEmbed
-              comment={comment}
-              key={content.link}
-              {...unpackedRef}
-            />
-          )
-        }
+      // does anything use this?
+      // if (content.styles.textColor) {
+      //   children = (
+      //     <span style={{color: content.styles.textColor}}>{children}</span>
+      //   )
+      // }
 
-        if (content.type == 'range') {
-          return (
-            <Text backgroundColor={rangeColor}>
-              <InlineContentView
-                isRange
-                fontSize={fSize}
-                lineHeight={fSize * 1.5}
-                inline={content.content}
-                rangeOffset={inlineContentOffset}
-              />
-            </Text>
-          )
-        }
-        return null
-      })}
-    </Text>
-  )
+      return (
+        <Text
+          key={`${content.type}-${index}`}
+          color={hmTextColor(linkType)}
+          className={cn(
+            `whitespace-pre-wrap font-${fontWeight} leading-[${
+              fSize * 1.5
+            }] content-start items-start`,
+            {
+              color: hmTextColor(linkType),
+            },
+            props.className,
+          )}
+          style={{textDecorationLine, textDecorationColor: 'currentColor'}}
+          data-range-offset={inlineContentOffset}
+        >
+          {children}
+        </Text>
+      )
+    }
+    if (content.type === 'link') {
+      const isHmScheme = isHypermediaScheme(content.href)
+      return (
+        <HrefLink
+          href={content.href}
+          key={index}
+          buttonProps={{
+            className: isHmScheme ? 'hm-link' : 'link',
+            target: isHmScheme ? undefined : '_blank',
+          }}
+          onHoverIn={onHoverIn}
+          onHoverOut={onHoverOut}
+        >
+          <InlineContentView
+            fontSize={fSize}
+            lineHeight={fSize * 1.5}
+            inline={content.content}
+            linkType={isHmScheme ? 'hypermedia' : 'basic'}
+            rangeOffset={inlineContentOffset}
+          />
+        </HrefLink>
+      )
+    }
+
+    if (content.type == 'inline-embed') {
+      const unpackedRef = unpackHmId(content.link)
+      return (
+        <InlineEmbed comment={comment} key={content.link} {...unpackedRef} />
+      )
+    }
+
+    if (content.type == 'range') {
+      return (
+        <Text asChild className="bg-yellow-200/50 dark:bg-yellow-900/70">
+          <InlineContentView
+            isRange
+            fontSize={fSize}
+            lineHeight={fSize * 1.5}
+            inline={content.content}
+            rangeOffset={inlineContentOffset}
+          />
+        </Text>
+      )
+    }
+    return null
+  })
 }
 
 function HrefLink({
@@ -1736,23 +1841,11 @@ export function ErrorBlock({
           <AlertCircle color="$red10" size={12} />
         </ButtonFrame>
         {open ? (
-          <XStack
-            padding="$2"
-            borderRadius="$3"
-            margin="$2"
-            backgroundColor="$backgroundHover"
-          >
-            <Text tag="pre" wordWrap="break-word" width="100%" fontSize={12}>
-              <Text
-                tag="code"
-                fontSize={12}
-                backgroundColor="transparent"
-                fontFamily="$mono"
-              >
-                {JSON.stringify(debugData, null, 4)}
-              </Text>
-            </Text>
-          </XStack>
+          <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded-md border border-border">
+            <code className="text-xs wrap-break-word font-mono">
+              {JSON.stringify(debugData, null, 4)}
+            </code>
+          </pre>
         ) : null}
       </YStack>
     </Tooltip>
@@ -2386,7 +2479,6 @@ export function BlockContentWebEmbed({
 
   return (
     <YStack
-      {...blockStyles}
       {...props}
       borderColor="$color6"
       backgroundColor="$color4"
@@ -2396,7 +2488,7 @@ export function BlockContentWebEmbed({
       overflow="hidden"
       width="100%"
       marginHorizontal={(-1 * layoutUnit) / 2}
-      className="x-post-container"
+      className={cn('x-post-container', blockStyles)}
       data-content-type="web-embed"
       data-url={block.link}
       onPress={(e) => {
@@ -2468,12 +2560,12 @@ export function BlockContentCode({
 
   return (
     <YStack
-      {...blockStyles}
       {...props}
       borderColor="$color6"
       backgroundColor="$color4"
       borderWidth={1}
       borderRadius={layoutUnit / 4}
+      className={cn(blockStyles)}
       padding={layoutUnit / 2}
       overflow="hidden"
       data-content-type="code"
@@ -2609,9 +2701,8 @@ export function BlockContentMath({
 
   return (
     <YStack
-      {...blockStyles}
       {...props}
-      className="block-content block-katex"
+      className={cn('block-content block-katex', blockStyles)}
       paddingVertical="$3"
       gap="$2"
       ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}

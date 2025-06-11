@@ -11,7 +11,7 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
   addAttributes() {
     return {
       level: {
-        default: '1',
+        default: '2',
         // instead of "level" attributes, use "data-level"
         parseHTML: (element) => element.getAttribute('data-level'),
         renderHTML: (attributes) => {

@@ -34,6 +34,7 @@ import {ArrowUpRightSquare} from '@shm/ui/icons'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -142,8 +143,7 @@ function EmbedWrapper({
       // @ts-expect-error this is a tamagui error
       contentEditable={false}
       userSelect="none"
-      {...blockStyles}
-      className="block-embed"
+      className={cn('block-embed', blockStyles)}
       data-content-type="embed"
       data-url={id ? packHmId(id) : ''}
       data-view={viewType}
@@ -214,14 +214,6 @@ function EmbedWrapper({
       {...props}
     >
       {children}
-
-      {/* {!comment && viewType == 'Content' ? (
-        <EmbedSideAnnotation
-          sidePos={sidePos}
-          ref={sideannotationRef}
-          id={hmRef}
-        />
-      ) : null} */}
     </YStack>
   ) : null
 }

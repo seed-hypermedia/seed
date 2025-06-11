@@ -1,63 +1,48 @@
-import {styled} from '@tamagui/core'
-import {Heading as THeading} from '@tamagui/text'
+import {cva, type VariantProps} from 'class-variance-authority'
+import {forwardRef} from 'react'
+import {cn} from './utils'
 
-export const SeedHeading = styled(THeading, {
-  fontWeight: 'bold',
-  fontSize: '$5',
-  lineHeight: '$5',
+const headingVariants = cva('font-bold text-gray-900 dark:text-gray-100', {
+  variants: {
+    level: {
+      1: 'text-2xl leading-9 md:text-3xl md:leading-10',
+      2: 'text-xl leading-8 md:text-2xl md:leading-9 ',
+      3: 'text-lg leading-7 md:text-xl md:leading-8',
+      4: 'text-base leading-6 md:text-lg md:leading-7',
+    },
+  },
   defaultVariants: {
     level: 2,
   },
-  variants: {
-    level: {
-      1: {
-        tag: 'h1',
-        fontSize: '$8',
-        lineHeight: '$8',
-        $gtMd: {
-          fontSize: '$9',
-          lineHeight: '$9',
-        },
-      },
-      2: {
-        tag: 'h2',
-        fontSize: '$7',
-        lineHeight: '$7',
-        $gtMd: {
-          fontSize: '$8',
-          lineHeight: '$8',
-        },
-        $gtLg: {
-          fontSize: '$9',
-          lineHeight: '$9',
-        },
-      },
-      3: {
-        tag: 'h3',
-        fontSize: '$6',
-        lineHeight: '$6',
-        $gtMd: {
-          fontSize: '$7',
-          lineHeight: '$7',
-        },
-        $gtLg: {
-          fontSize: '$8',
-          lineHeight: '$8',
-        },
-      },
-      4: {
-        tag: 'h4',
-        fontSize: '$5',
-        lineHeight: '$5',
-        $gtMd: {
-          fontSize: '$6',
-          lineHeight: '$6',
-        },
-        $gtLg: {
-          fontSize: '$7',
-          lineHeight: '$7',
-        },
-      },
-    },
-  },
 })
+
+export interface SeedHeadingProps
+  extends React.HTMLAttributes<HTMLHeadingElement>,
+    VariantProps<typeof headingVariants> {
+  asChild?: boolean
+}
+
+export const SeedHeading = forwardRef<HTMLHeadingElement, SeedHeadingProps>(
+  ({className, level, asChild = false, ...props}, ref) => {
+    const Tag =
+      level === 1
+        ? 'h2'
+        : level === 2
+        ? 'h3'
+        : level === 3
+        ? 'h4'
+        : level === 4
+        ? 'h5'
+        : 'h3'
+
+    return (
+      <Tag
+        ref={ref}
+        className={cn(headingVariants({level}), className)}
+        {...props}
+      />
+    )
+  },
+)
+
+SeedHeading.displayName = 'SeedHeading'

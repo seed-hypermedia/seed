@@ -2,13 +2,13 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.block-paragraph .content-inline,
-.block-paragraph .content-inline * :not(code) {
+p.block-paragraph,
+p.block-paragraph * :not(code) {
   font-family: Georgia, 'Times New Roman', Times, serif !important;
 }
 
-.block-paragraph .content-inline.is-comment,
-.block-paragraph .content-inline.is-comment *:not(code) {
+p.block-paragraph.is-comment,
+p.block-paragraph.is-comment *:not(code) {
   font-family:
     'Inter',
     'SF Pro Display',

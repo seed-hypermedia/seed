@@ -71,12 +71,6 @@ const textVariants = cva(
         serif: 'font-serif',
       },
     },
-    defaultVariants: {
-      size: 'md',
-      color: 'default',
-      weight: 'normal',
-      family: 'default',
-    },
   },
 )
 
@@ -106,3 +100,6 @@ function Text({
 const SizableText = Text
 
 export {SizableText, Text, textVariants}
+
+export type SizableTextProps = React.ComponentProps<typeof SizableText>
+export type TextProps = React.ComponentProps<typeof Text>
