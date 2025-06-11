@@ -1,4 +1,4 @@
-import {PlainMessage} from "@bufbuild/protobuf";
+import {PlainMessage} from '@bufbuild/protobuf'
 import {
   Mjml,
   MjmlBody,
@@ -9,97 +9,96 @@ import {
   MjmlSection,
   MjmlText,
   MjmlTitle,
-} from "@faire/mjml-react";
-import {renderToMjml} from "@faire/mjml-react/utils/renderToMjml";
+} from '@faire/mjml-react'
+import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {
   Comment,
   HMMetadata,
   SITE_BASE_URL,
   UnpackedHypermediaId,
-} from "@shm/shared";
-import mjml2html from "mjml";
-import {MJMLParseResults} from "mjml-core";
-import React from "react";
-import {sendEmail} from "../web/app/mailer";
-import {EmailContent} from "./components/EmailContent";
-import {EmailHeader} from "./components/EmailHeader";
+} from '@shm/shared'
+import mjml2html from 'mjml'
+import {MJMLParseResults} from 'mjml-core'
+import React from 'react'
+import {EmailContent} from './components/EmailContent'
+import {EmailHeader} from './components/EmailHeader'
 
 type GroupedNotifications = Record<
-  Notification["type"],
-  Record<string, FullNotification[]> // targetId.id
->;
+  Notification['type'],
+  Record<string, FullNotification[]>
+>
 
-export async function sendNotificationsEmail(
+export async function createNotificationsEmail(
   email: string,
   opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
-  notifications: FullNotification[]
+  notifications: FullNotification[],
 ) {
-  if (!notifications.length) return;
+  if (!notifications.length) return
 
   const grouped: GroupedNotifications = {
     reply: {},
     mention: {},
-  };
+  }
 
   for (const notif of notifications) {
-    const type = notif.notif.type;
-    const docId = notif.notif.targetId.id;
-    if (!grouped[type][docId]) grouped[type][docId] = [];
-    grouped[type][docId].push(notif);
+    const type = notif.notif.type
+    const docId = notif.notif.targetId.id
+    if (!grouped[type][docId]) grouped[type][docId] = []
+    grouped[type][docId].push(notif)
   }
-  const subscriberNames: Set<string> = new Set();
-  const notificationsByDocument: Record<string, FullNotification[]> = {};
+  const subscriberNames: Set<string> = new Set()
+  const notificationsByDocument: Record<string, FullNotification[]> = {}
   for (const notification of notifications) {
     if (!notificationsByDocument[notification.notif.targetId.id]) {
-      notificationsByDocument[notification.notif.targetId.id] = [];
+      notificationsByDocument[notification.notif.targetId.id] = []
     }
-    notificationsByDocument[notification.notif.targetId.id].push(notification);
-    subscriberNames.add(notification.accountMeta?.name || "You");
+    notificationsByDocument[notification.notif.targetId.id].push(notification)
+    subscriberNames.add(notification.accountMeta?.name || 'You')
   }
-  const docNotifs = Object.values(notificationsByDocument);
+  const docNotifs = Object.values(notificationsByDocument)
   const baseNotifsSubject =
     notifications.length > 1
       ? `${notifications.length} Notifications`
-      : "Notification";
-  let subject = baseNotifsSubject;
+      : 'Notification'
+  let subject = baseNotifsSubject
   const singleDocumentTitle = notifications.every(
-    (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name
+    (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name,
   )
     ? notifications[0].notif.targetMeta?.name
-    : undefined;
+    : undefined
   if (singleDocumentTitle) {
-    subject = `${baseNotifsSubject} on ${singleDocumentTitle}`;
+    subject = `${baseNotifsSubject} on ${singleDocumentTitle}`
   }
   const firstNotificationSummary = getNotificationSummary(
     notifications[0].notif,
-    notifications[0].accountMeta
-  );
-  const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`;
+    notifications[0].accountMeta,
+  )
+  const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
 
   const text = `${baseNotifsSubject}
 
 ${docNotifs
   .map((notifications) => {
     const docName =
-      notifications[0].notif.targetMeta?.name || "Untitled Document";
+      notifications[0].notif.targetMeta?.name || 'Untitled Document'
     return `${docName}
 
 ${notifications
   .map((notification) => {
-    const comment = notification.notif.comment;
-    return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`;
+    const comment = notification.notif.comment
+    return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`
   })
-  .join("\n")}
+  .join('\n')}
   
 ${notifications[0].notif.url}
 
-`;
+`
   })
-  .join("\n")}
+  .join('\n')}
 
-Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`;
+Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html: emailHtml} = renderReactToMjml(
     <Mjml>
       <MjmlHead>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -116,18 +115,18 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`;
           name={notifications[0].accountMeta.name}
         />
 
-        {(["reply", "mention"] as const).map((type) => {
-          const docs = grouped[type];
-          const docEntries = Object.entries(docs);
+        {(['reply', 'mention'] as const).map((type) => {
+          const docs = grouped[type]
+          const docEntries = Object.entries(docs)
 
-          if (!docEntries.length) return null;
+          if (!docEntries.length) return null
 
           const sectionTitle =
-            type === "reply"
+            type === 'reply'
               ? `You have ${docEntries.flatMap(([, n]) => n).length} new repl${
-                  docEntries.flatMap(([, n]) => n).length === 1 ? "y" : "ies"
+                  docEntries.flatMap(([, n]) => n).length === 1 ? 'y' : 'ies'
                 }!`
-              : "You have been mentioned!";
+              : 'You have been mentioned!'
 
           return (
             <>
@@ -141,24 +140,24 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`;
 
               {docEntries.map(([docId, docNotifs]) => {
                 const targetName =
-                  docNotifs[0].notif.targetMeta?.name || "Untitled Document";
-                const docUrl = docNotifs[0].notif.url;
+                  docNotifs[0].notif.targetMeta?.name || 'Untitled Document'
+                const docUrl = docNotifs[0].notif.url
 
                 return (
                   <>
                     <MjmlSection padding="0px 0px 10px">
                       <MjmlColumn>
                         <MjmlText fontSize="14px" color="#888">
-                          {type === "reply" ? (
+                          {type === 'reply' ? (
                             <>
                               You have ({docNotifs.length}) repl
-                              {docNotifs.length === 1 ? "y" : "ies"}
-                              {" on  "}
+                              {docNotifs.length === 1 ? 'y' : 'ies'}
+                              {' on  '}
                               <span
                                 style={{
-                                  fontWeight: "bold",
-                                  color: "black",
-                                  backgroundColor: "lightgray",
+                                  fontWeight: 'bold',
+                                  color: 'black',
+                                  backgroundColor: 'lightgray',
                                 }}
                               >
                                 {targetName}
@@ -192,32 +191,27 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`;
                           href={docUrl}
                           backgroundColor={
                             // type === "reply" ? "#008060" : "#008060"
-                            "#008060"
+                            '#008060'
                           }
                         >
-                          {type === "reply" ? "Reply" : "Open Mention"}
+                          {type === 'reply' ? 'Reply' : 'Open Mention'}
                         </MjmlButton>
                       </MjmlColumn>
                     </MjmlSection>
                   </>
-                );
+                )
               })}
             </>
-          );
+          )
         })}
 
         {/* <NotifSettings url={notifSettingsUrl} /> */}
       </MjmlBody>
       ;
-    </Mjml>
-  );
+    </Mjml>,
+  )
 
-  await sendEmail(
-    email,
-    subject,
-    {text, html},
-    `Hypermedia Updates for ${Array.from(subscriberNames).join(", ")}`
-  );
+  return {email, subject, text, html: emailHtml, subscriberNames}
 }
 
 function NotifSettings({url}: {url: string}) {
@@ -235,52 +229,52 @@ function NotifSettings({url}: {url: string}) {
         Manage Email Notifications
       </MjmlButton>
     </MjmlSection>
-  );
+  )
 }
 
 export type Notification =
   | {
-      type: "mention";
-      comment: PlainMessage<Comment>;
-      commentAuthorMeta: HMMetadata | null;
-      targetMeta: HMMetadata | null;
-      targetId: UnpackedHypermediaId;
-      parentComments: PlainMessage<Comment>[];
-      url: string;
+      type: 'mention'
+      comment: PlainMessage<Comment>
+      commentAuthorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      parentComments: PlainMessage<Comment>[]
+      url: string
     }
   | {
-      type: "reply";
-      comment: PlainMessage<Comment>;
-      commentAuthorMeta: HMMetadata | null;
-      targetMeta: HMMetadata | null;
-      targetId: UnpackedHypermediaId;
-      parentComments: PlainMessage<Comment>[];
-      url: string;
-    };
+      type: 'reply'
+      comment: PlainMessage<Comment>
+      commentAuthorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      parentComments: PlainMessage<Comment>[]
+      url: string
+    }
 
 export type FullNotification = {
-  accountId: string;
-  accountMeta: HMMetadata | null;
-  notif: Notification;
-};
+  accountId: string
+  accountMeta: HMMetadata | null
+  notif: Notification
+}
 
 function getNotificationSummary(
   notification: Notification,
-  accountMeta: HMMetadata | null
+  accountMeta: HMMetadata | null,
 ): string {
-  if (notification.type === "mention") {
-    return `${accountMeta?.name || "You were"} mentioned by ${
+  if (notification.type === 'mention') {
+    return `${accountMeta?.name || 'You were'} mentioned by ${
       notification.commentAuthorMeta?.name || notification.comment.author
-    }.`;
+    }.`
   }
-  if (notification.type === "reply") {
+  if (notification.type === 'reply') {
     return `You have a new reply from ${
       notification.commentAuthorMeta?.name || notification.comment.author
-    }.`;
+    }.`
   }
-  return "";
+  return ''
 }
 
 export function renderReactToMjml(email: React.ReactElement): MJMLParseResults {
-  return mjml2html(renderToMjml(email));
+  return mjml2html(renderToMjml(email))
 }

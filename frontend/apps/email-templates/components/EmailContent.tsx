@@ -5,38 +5,29 @@ import {
   MjmlRaw,
   MjmlSection,
   MjmlText,
-} from "@faire/mjml-react";
-import {HMBlockNode} from "@shm/shared";
-import {format} from "date-fns";
-import React from "react";
-import {Notification} from "../notifier";
-import {extractIpfsUrlCid, getDaemonFileUrl} from "./EmailHeader";
-
-//  {
-//   title: string; // e.g. "You have a new reply!"
-//   senderAvatar?: string;
-//   senderName: string;
-//   createdAt: string; // formatted date
-//   blocks: HMBlockNode[]; // content
-//   url: string; // for reply button
-// }
+} from '@faire/mjml-react'
+import {HMBlockNode} from '@shm/shared'
+import {format} from 'date-fns'
+import React from 'react'
+import {Notification} from '../notifier'
+import {extractIpfsUrlCid, getDaemonFileUrl} from './EmailHeader'
 
 export function EmailContent({notification}: {notification: Notification}) {
   const authorName =
-    notification.commentAuthorMeta?.name || notification.comment.author;
+    notification.commentAuthorMeta?.name || notification.comment.author
 
   const authorAvatar = notification.commentAuthorMeta?.icon
     ? getDaemonFileUrl(notification.commentAuthorMeta?.icon)
-    : "";
+    : ''
 
-  const fallbackLetter = authorName[0].toUpperCase();
+  const fallbackLetter = authorName[0].toUpperCase()
 
   const createdAt = notification.comment.createTime?.seconds
     ? format(
         new Date(Number(notification.comment.createTime.seconds) * 1000),
-        "MMM d"
+        'MMM d',
       )
-    : "";
+    : ''
 
   return (
     <>
@@ -56,10 +47,10 @@ export function EmailContent({notification}: {notification: Notification}) {
                 src={authorAvatar}
                 alt="Sender Avatar"
                 style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  marginLeft: "23px",
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  marginLeft: '23px',
                 }}
               />
             </MjmlRaw>
@@ -67,17 +58,17 @@ export function EmailContent({notification}: {notification: Notification}) {
             <MjmlRaw>
               <div
                 style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  backgroundColor: "#ccc",
-                  textAlign: "center",
-                  lineHeight: "28px",
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                  color: "#ffffff",
-                  fontFamily: "sans-serif",
-                  marginLeft: "23px",
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ccc',
+                  textAlign: 'center',
+                  lineHeight: '28px',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  color: '#ffffff',
+                  fontFamily: 'sans-serif',
+                  marginLeft: '23px',
                 }}
               >
                 {fallbackLetter}
@@ -92,18 +83,18 @@ export function EmailContent({notification}: {notification: Notification}) {
             paddingBottom="4px"
             paddingRight="10px"
           >
-            {authorName}{" "}
+            {authorName}{' '}
             <span
-              style={{color: "#888", fontWeight: "normal", fontSize: "12px"}}
+              style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}
             >
               {createdAt}
             </span>
           </MjmlText>
         </MjmlColumn>
-        {notification.type === "mention" ? (
+        {notification.type === 'mention' ? (
           renderMention({
             blocks: notification.comment.content,
-            targetDocName: notification.targetMeta?.name ?? "Untitled Document",
+            targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
           })
         ) : (
           <MjmlColumn width="100%" verticalAlign="middle">
@@ -112,15 +103,15 @@ export function EmailContent({notification}: {notification: Notification}) {
         )}
       </MjmlSection>
     </>
-  );
+  )
 }
 
 export function renderMention({
   blocks,
   targetDocName,
 }: {
-  blocks: HMBlockNode[];
-  targetDocName: string;
+  blocks: HMBlockNode[]
+  targetDocName: string
 }) {
   return (
     <>
@@ -136,7 +127,7 @@ export function renderMention({
       {/* Comment block with green border on the left */}
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(blocks, "")}
+          {renderBlocks(blocks, '')}
         </MjmlColumn>
       </MjmlSection>
 
@@ -144,13 +135,13 @@ export function renderMention({
       <MjmlSection padding="0 0 16px 0">
         <MjmlColumn>
           <MjmlText fontSize="14px" color="#888">
-            on:{" "}
+            on:{' '}
             <span
               style={{
-                backgroundColor: "#eee",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                display: "inline-block",
+                backgroundColor: '#eee',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                display: 'inline-block',
               }}
             >
               {targetDocName}
@@ -159,7 +150,7 @@ export function renderMention({
         </MjmlColumn>
       </MjmlSection>
     </>
-  );
+  )
 }
 
 function renderBlocks(blocks: HMBlockNode[], notifUrl: string) {
@@ -170,23 +161,23 @@ function renderBlocks(blocks: HMBlockNode[], notifUrl: string) {
         ? renderBlocks(blockNode.children, notifUrl)
         : null}
     </React.Fragment>
-  ));
+  ))
 }
 
 function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
-  const {type, text, annotations, link, attributes} = blockNode.block;
+  const {type, text, annotations, link, attributes} = blockNode.block
 
-  const innerHtml = renderInlineTextWithAnnotations(text, annotations);
+  const innerHtml = renderInlineTextWithAnnotations(text, annotations)
 
-  if (type === "Paragraph") {
+  if (type === 'Paragraph') {
     return (
       <MjmlText align="left" paddingBottom="8px" fontSize="14px">
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
-    );
+    )
   }
 
-  if (type === "Heading") {
+  if (type === 'Heading') {
     return (
       <MjmlText
         align="left"
@@ -196,24 +187,24 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
       >
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
-    );
+    )
   }
 
-  if (type === "Image") {
-    const width = attributes?.fields?.width?.kind?.value ?? 400;
-    let src: string | undefined = undefined;
-    if (link?.startsWith("ipfs://")) {
-      const cid = extractIpfsUrlCid(link);
-      src = `http://localhost:58001/ipfs/${cid}`;
+  if (type === 'Image') {
+    const width = attributes?.fields?.width?.kind?.value ?? 400
+    let src: string | undefined = undefined
+    if (link?.startsWith('ipfs://')) {
+      const cid = extractIpfsUrlCid(link)
+      src = `http://localhost:58001/ipfs/${cid}`
     } else {
-      src = link;
+      src = link
     }
 
     return (
       <>
         <MjmlImage
           src={src}
-          alt={text || "Image"}
+          alt={text || 'Image'}
           width={width}
           paddingBottom="8px"
         />
@@ -228,11 +219,11 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
           </MjmlText>
         )}
       </>
-    );
+    )
   }
 
-  if (type === "Video") {
-    if (link?.includes("youtube.com") || link?.includes("youtu.be")) {
+  if (type === 'Video') {
+    if (link?.includes('youtube.com') || link?.includes('youtu.be')) {
       return (
         <MjmlButton
           href={link}
@@ -242,7 +233,7 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
         >
           Watch Video on YouTube
         </MjmlButton>
-      );
+      )
     } else {
       return (
         <MjmlButton
@@ -253,11 +244,11 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
         >
           Watch Video in the Comment
         </MjmlButton>
-      );
+      )
     }
   }
 
-  if (type === "WebEmbed" && link?.includes("instagram.com")) {
+  if (type === 'WebEmbed' && link?.includes('instagram.com')) {
     return (
       <MjmlButton
         href={link}
@@ -267,10 +258,10 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
       >
         Open in Instagram
       </MjmlButton>
-    );
+    )
   }
 
-  if (type === "Math") {
+  if (type === 'Math') {
     return (
       <MjmlText
         align="left"
@@ -281,48 +272,48 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
       >
         {text}
       </MjmlText>
-    );
+    )
   }
 
-  return null;
+  return null
 }
 
 function renderInlineTextWithAnnotations(text: string, annotations: any[]) {
-  if (!annotations.length) return text;
+  if (!annotations.length) return text
 
-  let result = [];
-  let lastIndex = 0;
+  let result = []
+  let lastIndex = 0
 
   annotations.forEach((annotation, index) => {
-    const start = annotation.starts[0];
-    const end = annotation.ends[0];
+    const start = annotation.starts[0]
+    const end = annotation.ends[0]
 
     if (start > lastIndex) {
-      result.push(text.slice(lastIndex, start));
+      result.push(text.slice(lastIndex, start))
     }
 
-    let annotatedText = text.slice(start, end);
-    if (annotation.type === "Bold") {
-      annotatedText = `<b>${annotatedText}</b>`;
-    } else if (annotation.type === "Italic") {
-      annotatedText = `<i>${annotatedText}</i>`;
-    } else if (annotation.type === "Strikethrough") {
-      annotatedText = `<s>${annotatedText}</s>`;
-    } else if (annotation.type === "Code") {
-      annotatedText = `<code>${annotatedText}</code>`;
-    } else if (annotation.type === "Link") {
-      annotatedText = `<a href="${annotation.link}" style="color: #346DB7;">${annotatedText}</a>`;
-    } else if (annotation.type === "Embed") {
-      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${annotation.link}</a>`;
+    let annotatedText = text.slice(start, end)
+    if (annotation.type === 'Bold') {
+      annotatedText = `<b>${annotatedText}</b>`
+    } else if (annotation.type === 'Italic') {
+      annotatedText = `<i>${annotatedText}</i>`
+    } else if (annotation.type === 'Strikethrough') {
+      annotatedText = `<s>${annotatedText}</s>`
+    } else if (annotation.type === 'Code') {
+      annotatedText = `<code>${annotatedText}</code>`
+    } else if (annotation.type === 'Link') {
+      annotatedText = `<a href="${annotation.link}" style="color: #346DB7;">${annotatedText}</a>`
+    } else if (annotation.type === 'Embed') {
+      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${annotation.link}</a>`
     }
 
-    result.push(annotatedText);
-    lastIndex = end;
-  });
+    result.push(annotatedText)
+    lastIndex = end
+  })
 
   if (lastIndex < text.length) {
-    result.push(text.slice(lastIndex));
+    result.push(text.slice(lastIndex))
   }
 
-  return result.join("");
+  return result.join('')
 }

@@ -5,29 +5,30 @@ import {
   MjmlRaw,
   MjmlSection,
   MjmlText,
-} from "@faire/mjml-react";
+} from '@faire/mjml-react'
+import {DAEMON_FILE_URL} from '@shm/shared'
 
 export function getDaemonFileUrl(ipfsUrl?: string) {
   if (ipfsUrl) {
-    return `http://localhost:58001/ipfs/${extractIpfsUrlCid(ipfsUrl)}`;
+    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
   }
-  return "";
+  return ''
 }
 
 export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
-  const regex = /^ipfs:\/\/(.+)$/;
-  const match = cidOrIPFSUrl.match(regex);
-  return match ? match[1] : cidOrIPFSUrl;
+  const regex = /^ipfs:\/\/(.+)$/
+  const match = cidOrIPFSUrl.match(regex)
+  return match ? match[1] : cidOrIPFSUrl
 }
 
 export function EmailHeader({
   avatarUrl,
   name,
 }: {
-  avatarUrl: string;
-  name: string;
+  avatarUrl: string
+  name: string
 }) {
-  const fallbackLetter = name[0].toUpperCase();
+  const fallbackLetter = name[0].toUpperCase()
 
   return (
     <MjmlSection padding="16px 24px" border-bottom="1px solid #eee">
@@ -62,21 +63,21 @@ export function EmailHeader({
               border={0}
               cellPadding="0"
               cellSpacing="0"
-              style={{float: "right"}}
+              style={{float: 'right'}}
             >
               <tr>
                 <td
                   style={{
-                    width: "24px",
-                    height: "24px",
-                    borderRadius: "50%",
-                    backgroundColor: "#ccc",
-                    textAlign: "center",
-                    lineHeight: "24px",
-                    fontWeight: "bold",
-                    fontSize: "12px",
-                    color: "#ffffff",
-                    fontFamily: "sans-serif",
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ccc',
+                    textAlign: 'center',
+                    lineHeight: '24px',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    color: '#ffffff',
+                    fontFamily: 'sans-serif',
                   }}
                 >
                   {fallbackLetter}
@@ -87,5 +88,5 @@ export function EmailHeader({
         )}
       </MjmlColumn>
     </MjmlSection>
-  );
+  )
 }
