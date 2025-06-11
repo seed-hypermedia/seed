@@ -24,14 +24,21 @@ import {SizableText} from './text'
 
 export function MobileSearch({
   originHomeId,
+  onSelect,
 }: {
   originHomeId: UnpackedHypermediaId | null
+  onSelect: () => void
 }) {
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(searchValue, {
-    enabled: !!searchValue,
-    accountUid: originHomeId?.uid,
-  })
+  const searchResults = useSearch(
+    searchValue,
+    {
+      enabled: !!searchValue,
+      accountUid: originHomeId?.uid,
+    },
+    true,
+    48 - searchValue.length,
+  )
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
@@ -40,28 +47,35 @@ export function MobileSearch({
           id: item.id,
           key: packHmId(item.id),
           title,
-          path: [...item.parentNames, title],
+          path: item.parentNames,
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime
-            ? item.versionTime.toDate().toLocaleString()
-            : '',
+          versionTime:
+            typeof item.versionTime === 'string'
+              ? item.versionTime
+              : item.versionTime
+              ? item.versionTime.toDate().toLocaleString()
+              : '',
         }
       })
       .filter(Boolean) ?? []
+
   return (
-    <YStack
+    <div
+      className="p-2 w-full"
       gap="$2"
       padding="$2"
       position="relative"
       borderRadius="$4"
-      flex={1}
+      h="100%"
+      maxHeight="50%"
     >
       <Input
+        className="w-full"
         value={searchValue}
         size="$3"
         flex={1}
@@ -70,19 +84,8 @@ export function MobileSearch({
         }}
         placeholder="Search Documents"
       />
-      {searchResults.data?.entities.length ? (
-        <YStack
-          position="absolute"
-          backgroundColor="$background"
-          top="100%"
-          width="calc(100% - 16px)"
-          zIndex="$zIndex.1"
-          padding="$2"
-          borderRadius="$4"
-          borderColor="$borderColor"
-          borderWidth={1}
-          elevation="$4"
-        >
+      {searchResults.data?.entities[0] ? (
+        <div className="mb-8">
           {searchItems.map((item: SearchResult, index: number) => {
             return (
               <Fragment key={item.key}>
@@ -90,14 +93,18 @@ export function MobileSearch({
                   item={item}
                   originHomeId={originHomeId}
                   selected={false}
+                  onSelect={onSelect}
                 />
-                {index === searchItems.length - 1 ? undefined : <Separator />}
+                {index === searchItems.length - 1 ? undefined : (
+                  <Separator className="bg-gray-200" />
+                )}
               </Fragment>
             )
           })}
-        </YStack>
+          <Separator className="bg-gray-400 my-10" />
+        </div>
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -237,6 +244,9 @@ export function HeaderSearch({
                         item={item}
                         originHomeId={originHomeId}
                         selected={focusedIndex === index}
+                        onSelect={() => {
+                          popoverState.onOpenChange(false)
+                        }}
                       />
                       {index === searchItems.length - 1 ? undefined : (
                         <Separator />
@@ -257,10 +267,12 @@ function SearchResultItem({
   item,
   originHomeId,
   selected = false,
+  onSelect,
 }: {
   item: SearchResult
   originHomeId: UnpackedHypermediaId | null
   selected: boolean
+  onSelect?: () => void
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
@@ -279,75 +291,57 @@ function SearchResultItem({
           id: unpackedId,
         }
       : null,
-    originHomeId,
+    {...originHomeId, onPress: onSelect},
   )
   return (
-    <YStack paddingVertical="$1" ref={elm}>
-      <Button
-        {...linkProps}
-        justifyContent="flex-start"
-        backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
-        hoverStyle={{
-          backgroundColor: selected ? '$brand12' : undefined,
-        }}
-      >
-        <XStack
-          flex={1}
-          gap="$3"
-          justifyContent="flex-start"
-          alignItems="center"
-        >
-          {item.icon ? (
-            <UIAvatar
-              label={item.title}
-              size={20}
-              id={item.key}
-              url={getDaemonFileUrl(item.icon)}
-            />
-          ) : item.path?.length === 1 ? (
-            <UIAvatar label={item.title} size={20} id={item.key} />
-          ) : null}
-          <YStack flex={1} justifyContent="space-between">
-            <XStack
-              flex={1}
-              gap="$3"
-              justifyContent="flex-start"
-              alignItems="center"
-            >
-              <SizableText size="md" weight="semibold" className="line-clamp-1">
-                {highlightSearchMatch(item.title, item.searchQuery, {
-                  fontWeight: 600,
-                })}
-              </SizableText>
-              <YStack
-                flex={1}
-                justifyContent="flex-start"
-                alignItems="flex-end"
-              >
-                <SizableText
-                  size="sm"
-                  weight="light"
-                  className="line-clamp-1"
-                  color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
-                >
-                  {unpackHmId(item.key)?.latest
-                    ? 'Latest Version'
-                    : item.versionTime
-                    ? item.versionTime + ' Version'
-                    : ''}
-                </SizableText>
-              </YStack>
-            </XStack>
+    <Button
+      h="auto"
+      {...linkProps}
+      alignItems="flex-start"
+      justifyContent="flex-start"
+      backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
+      paddingVertical="$2.5"
+      hoverStyle={{
+        backgroundColor: selected ? '$brand12' : undefined,
+      }}
+    >
+      {item.icon ? (
+        <UIAvatar
+          label={item.title}
+          size={20}
+          id={item.key}
+          url={getDaemonFileUrl(item.icon)}
+        />
+      ) : item.path?.length === 1 ? (
+        <UIAvatar label={item.title} size={20} id={item.key} />
+      ) : null}
+      <div className="flex flex-col flex-1">
+        <div className="h-5 flex items-center mb-2">
+          <SizableText className="line-clamp-1">
+            {highlightSearchMatch(item.title, item.searchQuery, {
+              weight: 'bold',
+              size: 'md',
+            })}
+          </SizableText>
+        </div>
 
-            {!!item.path ? (
-              <SizableText size="md" weight="light" className="line-clamp-1">
-                {collapsedPath.join(' / ')}
-              </SizableText>
-            ) : null}
-            {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
-          </YStack>
-        </XStack>
-      </Button>
-    </YStack>
+        {!!item.path ? (
+          <SizableText size="sm" className="line-clamp-1 text-muted-foreground">
+            {collapsedPath.join(' / ')}
+          </SizableText>
+        ) : null}
+
+        <SizableText
+          size="xs"
+          color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
+        >
+          {unpackHmId(item.key)?.latest
+            ? 'Latest Version'
+            : item.versionTime
+            ? item.versionTime + ' Version'
+            : ''}
+        </SizableText>
+      </div>
+    </Button>
   )
 }

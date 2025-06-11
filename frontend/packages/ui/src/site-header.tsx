@@ -13,6 +13,7 @@ import {useTxString, useTxUtils} from '@shm/shared/translation'
 import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './components/button'
+import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
@@ -143,15 +144,18 @@ export function SiteHeader({
           open={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
           renderContent={() => (
-            <div>
-              <MobileSearch originHomeId={originHomeId} />
-
+            <>
+              <MobileSearch
+                originHomeId={originHomeId}
+                onSelect={() => {
+                  setIsMobileMenuOpen(false)
+                }}
+              />
               {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
                 <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
                   {items?.map((item) => (
                     <DocumentSmallListItem
                       onPress={() => {
-                        console.log('~ onPress')
                         setIsMobileMenuOpen(false)
                       }}
                       key={item.id?.id || ''}
@@ -185,7 +189,7 @@ export function SiteHeader({
                   }}
                 />
               )}
-            </div>
+            </>
           )}
         />
       </header>
@@ -332,19 +336,20 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'md:hidden bg-background fixed inset-0 z-[800] transition-transform duration-200',
+        'md:hidden bg-background fixed inset-0 z-[800] transition-transform duration-200 h-screen',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="h-screen sticky top-0">
-        <div className="p-4 flex items-center justify-end">
+      <div className="h-screen sticky top-0 flex flex-col">
+        <div className="p-4 flex items-center justify-end flex-0">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Close size={24} />
           </Button>
         </div>
-        <div className="p-4 pb-12 flex-1 overflow-scroll mobile-menu">
+        <ScrollArea className="p-4 flex-1 mobile-menu h-3/4">
           {open ? renderContent() : null}
-        </div>
+          <div className="h-20"></div>
+        </ScrollArea>
       </div>
     </div>
   )
@@ -380,7 +385,7 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        'absolute top-12 px-4 left-0 right-0 z-50 w-full flex justify-center pointer-events-none',
+        'absolute top-12 px-4 left-0 right-0 z-[999] w-full flex justify-center pointer-events-none',
       )}
     >
       <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg pointer-events-auto">

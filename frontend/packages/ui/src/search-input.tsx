@@ -110,7 +110,7 @@ export function highlightSearchMatch(
   text: string,
   highlight: string = '',
   normalProps = {},
-  highlightProps = {color: 'warning', weight: 'extrabold'},
+  highlightProps = {color: 'success', weight: 'extrabold'},
 ) {
   if (!highlight) return <SizableText {...normalProps}>{text}</SizableText>
   const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'))
@@ -184,11 +184,8 @@ export function SearchResultItem({
               justifyContent="flex-start"
               alignItems="center"
             >
-              <SizableText weight="semibold" className="line-clamp-1">
-                {highlightSearchMatch(item.title, item.searchQuery, {
-                  weight: 'semibold',
-                })}
-              </SizableText>
+              {highlightSearchMatch(item.title, item.searchQuery)}
+
               <YStack
                 flex={1}
                 justifyContent="flex-start"
