@@ -1,0 +1,118 @@
+{
+  "email": "iskak@mintter.com",
+  "opts": {
+    "adminToken": "531c21368547c2d9ca898a8e8b796226d962bb6e2295c945d8615b1f0436a119",
+    "isUnsubscribed": false,
+    "createdAt": "2025-05-23 06:25:43"
+  },
+  "notifications": [
+    {
+      "accountId": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "accountMeta": {
+        "name": "Test"
+      },
+      "notif": {
+        "type": "reply",
+        "comment": {
+          "id": "bafy2bzacea7lvbhcdl4azm2dkfvx3yuclmvu2vybvsuqprg7tzubymplbyxxm",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "",
+          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+          "threadRoot": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+          "replyParent": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+          "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+          "content": [
+            {
+              "block": {
+                "id": "LTfsxdyR",
+                "type": "Paragraph",
+                "text": "test for avatar",
+                "link": "",
+                "annotations": [],
+                "revision": "b"
+              },
+              "children": []
+            }
+          ],
+          "createTime": {
+            "seconds": "1749032925",
+            "nanos": 405000000
+          },
+          "capability": ""
+        },
+        "parentComments": [
+          {
+            "id": "bafy2bzaceazidms75vccqskd4dowwe72h3dpkjgwfah53h6fuaioyizlvqfg4",
+            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "targetPath": "",
+            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
+            "threadRoot": "",
+            "replyParent": "",
+            "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+            "content": [
+              {
+                "block": {
+                  "id": "HKxOpfEK",
+                  "type": "File",
+                  "text": "",
+                  "link": "ipfs://bafybeihnafgimethvrdx53s4k4kug4iogujuqwlrdht57exipv5gh7ipva",
+                  "attributes": {
+                    "fields": {
+                      "name": {
+                        "kind": {
+                          "case": "stringValue",
+                          "value": "third.jpg"
+                        }
+                      },
+                      "size": {
+                        "kind": {
+                          "case": "numberValue",
+                          "value": 2206251
+                        }
+                      },
+                      "childrenType": {
+                        "kind": {
+                          "case": "stringValue",
+                          "value": "Group"
+                        }
+                      }
+                    }
+                  },
+                  "annotations": [],
+                  "revision": "b"
+                },
+                "children": []
+              }
+            ],
+            "createTime": {
+              "seconds": "1745309688",
+              "nanos": 423000000
+            },
+            "capability": ""
+          }
+        ],
+        "commentAuthorMeta": {
+          "name": "Iskak Toltay",
+          "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+        },
+        "targetMeta": {
+          "name": "Test"
+        },
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import {
   MjmlColumn,
   MjmlGroup,
   MjmlImage,
+  MjmlRaw,
   MjmlSection,
   MjmlText,
 } from "@faire/mjml-react";
@@ -19,7 +20,15 @@ export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
   return match ? match[1] : cidOrIPFSUrl;
 }
 
-export function EmailHeader({avatarUrl}: {avatarUrl: string}) {
+export function EmailHeader({
+  avatarUrl,
+  name,
+}: {
+  avatarUrl: string;
+  name: string;
+}) {
+  const fallbackLetter = name[0].toUpperCase();
+
   return (
     <MjmlSection padding="16px 24px" border-bottom="1px solid #eee">
       {/* <MjmlColumn width="50%" verticalAlign="middle"> */}
@@ -37,14 +46,45 @@ export function EmailHeader({avatarUrl}: {avatarUrl: string}) {
       </MjmlGroup>
       {/* </MjmlColumn> */}
       <MjmlColumn width="50%" verticalAlign="middle">
-        <MjmlImage
-          src={getDaemonFileUrl(avatarUrl)}
-          alt="User Avatar"
-          align="right"
-          borderRadius="50%"
-          width="24px"
-          height="24px"
-        />
+        {avatarUrl ? (
+          <MjmlImage
+            src={getDaemonFileUrl(avatarUrl)}
+            alt="User Avatar"
+            align="right"
+            borderRadius="50%"
+            width="24px"
+            height="24px"
+          />
+        ) : (
+          <MjmlRaw>
+            <table
+              role="presentation"
+              border={0}
+              cellPadding="0"
+              cellSpacing="0"
+              style={{float: "right"}}
+            >
+              <tr>
+                <td
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    backgroundColor: "#ccc",
+                    textAlign: "center",
+                    lineHeight: "24px",
+                    fontWeight: "bold",
+                    fontSize: "12px",
+                    color: "#ffffff",
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  {fallbackLetter}
+                </td>
+              </tr>
+            </table>
+          </MjmlRaw>
+        )}
       </MjmlColumn>
     </MjmlSection>
   );
