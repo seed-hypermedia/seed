@@ -24,12 +24,29 @@ import {sendEmail} from "../web/app/mailer";
 import {EmailContent} from "./components/EmailContent";
 import {EmailHeader} from "./components/EmailHeader";
 
+type GroupedNotifications = Record<
+  Notification["type"],
+  Record<string, FullNotification[]> // targetId.id
+>;
+
 export async function sendNotificationsEmail(
   email: string,
   opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
   notifications: FullNotification[]
 ) {
   if (!notifications.length) return;
+
+  const grouped: GroupedNotifications = {
+    reply: {},
+    mention: {},
+  };
+
+  for (const notif of notifications) {
+    const type = notif.notif.type;
+    const docId = notif.notif.targetId.id;
+    if (!grouped[type][docId]) grouped[type][docId] = [];
+    grouped[type][docId].push(notif);
+  }
   const subscriberNames: Set<string> = new Set();
   const notificationsByDocument: Record<string, FullNotification[]> = {};
   for (const notification of notifications) {
@@ -94,53 +111,104 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`;
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
-        {/* <MjmlSection fullWidth backgroundColor="#efefef">
-            <MjmlColumn>
-              <MjmlImage src="https://static.wixstatic.com/media/5cb24728abef45dabebe7edc1d97ddd2.jpg" />
-            </MjmlColumn>
-          </MjmlSection> */}
-        {docNotifs.map((notifications) => {
+        <EmailHeader
+          avatarUrl={notifications[0].accountMeta.icon}
+          name={notifications[0].accountMeta.name}
+        />
+
+        {(["reply", "mention"] as const).map((type) => {
+          const docs = grouped[type];
+          const docEntries = Object.entries(docs);
+
+          if (!docEntries.length) return null;
+
+          const sectionTitle =
+            type === "reply"
+              ? `You have ${docEntries.flatMap(([, n]) => n).length} new repl${
+                  docEntries.flatMap(([, n]) => n).length === 1 ? "y" : "ies"
+                }!`
+              : "You have been mentioned!";
+
           return (
             <>
-              <EmailHeader avatarUrl={notifications[0].accountMeta.icon} />
-              <MjmlSection>
-                <MjmlText fontSize={20} fontWeight={"bold"}>
-                  {notifications[0].notif.targetMeta?.name ||
-                    "Untitled Document"}
-                </MjmlText>
-                {notifications.map((notification) => {
-                  return (
-                    // <MjmlText paddingBottom={8} paddingTop={8}>
-                    //   {getNotificationSummary(
-                    //     notification.notif,
-                    //     notification.accountMeta
-                    //   )}
-                    // </MjmlText>
-                    <>
-                      <EmailContent notification={notification.notif} />
-                      <MjmlSection padding="0px">
-                        <MjmlColumn>
-                          <MjmlText lineHeight="1" fontSize="1px">
-                            &nbsp;
-                          </MjmlText>
-                        </MjmlColumn>
-                      </MjmlSection>
-                    </>
-                  );
-                })}
-                <MjmlButton
-                  padding="8px"
-                  backgroundColor="#346DB7"
-                  href={notifications[0].notif.url}
-                >
-                  Open Document
-                </MjmlButton>
+              <MjmlSection padding="10px 0px 0px">
+                <MjmlColumn padding="0px">
+                  <MjmlText fontSize="20px" fontWeight="bold">
+                    {sectionTitle}
+                  </MjmlText>
+                </MjmlColumn>
               </MjmlSection>
+
+              {docEntries.map(([docId, docNotifs]) => {
+                const targetName =
+                  docNotifs[0].notif.targetMeta?.name || "Untitled Document";
+                const docUrl = docNotifs[0].notif.url;
+
+                return (
+                  <>
+                    <MjmlSection padding="0px 0px 10px">
+                      <MjmlColumn>
+                        <MjmlText fontSize="14px" color="#888">
+                          {type === "reply" ? (
+                            <>
+                              You have ({docNotifs.length}) repl
+                              {docNotifs.length === 1 ? "y" : "ies"}
+                              {" on  "}
+                              <span
+                                style={{
+                                  fontWeight: "bold",
+                                  color: "black",
+                                  backgroundColor: "lightgray",
+                                }}
+                              >
+                                {targetName}
+                              </span>
+                            </>
+                          ) : null}
+                        </MjmlText>
+                      </MjmlColumn>
+                    </MjmlSection>
+
+                    {docNotifs.map((notif) => (
+                      <>
+                        <EmailContent
+                          key={notif.notif.comment.id}
+                          notification={notif.notif}
+                        />
+                        <MjmlSection padding="0px">
+                          <MjmlColumn>
+                            <MjmlText lineHeight="1" fontSize="1px">
+                              &nbsp;
+                            </MjmlText>
+                          </MjmlColumn>
+                        </MjmlSection>
+                      </>
+                    ))}
+
+                    <MjmlSection>
+                      <MjmlColumn>
+                        <MjmlButton
+                          align="left"
+                          href={docUrl}
+                          backgroundColor={
+                            // type === "reply" ? "#008060" : "#008060"
+                            "#008060"
+                          }
+                        >
+                          {type === "reply" ? "Reply" : "Open Mention"}
+                        </MjmlButton>
+                      </MjmlColumn>
+                    </MjmlSection>
+                  </>
+                );
+              })}
             </>
           );
         })}
-        <NotifSettings url={notifSettingsUrl} />
+
+        {/* <NotifSettings url={notifSettingsUrl} /> */}
       </MjmlBody>
+      ;
     </Mjml>
   );
 
