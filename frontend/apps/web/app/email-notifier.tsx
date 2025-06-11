@@ -152,40 +152,62 @@ async function handleEventsForEmailNotifications(
   }[] = []
   for (const event of events) {
     if (event.data.case === 'newBlob') {
-      const blob = event.data.value
-      if (blob.blobType !== 'Comment') continue
-      const comment = await queryClient.comments.getComment({id: blob.cid})
-      const parentComments = await getParentComments(comment)
-      const parentAuthors: Set<string> = new Set()
-      for (const parentComment of parentComments) {
-        parentAuthors.add(parentComment.author)
+      try {
+        const blob = event.data.value
+        if (blob.blobType !== 'Comment') continue
+        const comment = await queryClient.comments.getComment({id: blob.cid})
+        const parentComments = await getParentComments(comment)
+        const parentAuthors: Set<string> = new Set()
+        for (const parentComment of parentComments) {
+          parentAuthors.add(parentComment.author)
+        }
+        const resolvedParentAuthors: Set<string> = new Set()
+        for (const parentAuthor of parentAuthors) {
+          try {
+            const account = await resolveAccount(parentAuthor)
+            resolvedParentAuthors.add(account.id.uid)
+          } catch (e) {
+            console.error(
+              'Error resolving parent author',
+              parentAuthor,
+              `when processing event id ipfs://${event.data.value?.cid}`,
+              e,
+            )
+          }
+        }
+        const explicitMentions = getMentions(comment)
+        const mentions: Set<string> = new Set()
+        for (const mentionedAuthor of explicitMentions) {
+          try {
+            const account = await resolveAccount(mentionedAuthor)
+            mentions.add(account.id.uid)
+          } catch (e) {
+            console.error(
+              'Error resolving mentioned author',
+              mentionedAuthor,
+              `when processing event id ipfs://${event.data.value?.cid}`,
+              e,
+            )
+          }
+        }
+        newComments.push({
+          comment: toPlainMessage(comment),
+          parentComments,
+          parentAuthors: resolvedParentAuthors,
+          commentAuthorMeta: (await getMetadata(hmId('d', comment.author)))
+            .metadata,
+          targetMeta: (
+            await getMetadata(
+              hmId('d', comment.targetAccount, {
+                path: entityQueryPathToHmIdPath(comment.targetPath),
+              }),
+            )
+          ).metadata,
+          mentions,
+        })
+      } catch (e) {
+        console.error('Failed to process event', event, e)
       }
-      const resolvedParentAuthors: Set<string> = new Set()
-      for (const parentAuthor of parentAuthors) {
-        const account = await resolveAccount(parentAuthor)
-        resolvedParentAuthors.add(account.id.uid)
-      }
-      const explicitMentions = getMentions(comment)
-      const mentions: Set<string> = new Set()
-      for (const mentionedAuthor of explicitMentions) {
-        const account = await resolveAccount(mentionedAuthor)
-        mentions.add(account.id.uid)
-      }
-      newComments.push({
-        comment: toPlainMessage(comment),
-        parentComments,
-        parentAuthors: resolvedParentAuthors,
-        commentAuthorMeta: (await getMetadata(hmId('d', comment.author)))
-          .metadata,
-        targetMeta: (
-          await getMetadata(
-            hmId('d', comment.targetAccount, {
-              path: entityQueryPathToHmIdPath(comment.targetPath),
-            }),
-          )
-        ).metadata,
-        mentions,
-      })
     }
   }
   for (const newComment of newComments) {
@@ -277,11 +299,6 @@ async function getParentComments(comment: PlainMessage<Comment>) {
 
 async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   const newestEvent = events.at(0)
-  console.log(
-    'will markEventsAsProcessed',
-    events.length,
-    newestEvent?.data.value?.cid,
-  )
   if (!newestEvent) return
   const lastProcessedBlobCid = newestEvent.data.value?.cid
   if (!lastProcessedBlobCid) return
