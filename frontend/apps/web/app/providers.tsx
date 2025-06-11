@@ -150,9 +150,18 @@ export function WebSiteProvider(props: {
           })
         }
         if (href !== null) {
-          navigate(href, {
-            replace,
-          })
+          if (
+            // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.
+            window.location.host == 'seed.hyper.media' &&
+            typeof href == 'string' &&
+            href === ''
+          ) {
+            window.location.replace(window.location.origin)
+          } else {
+            navigate(href, {
+              replace,
+            })
+          }
         } else {
           toast.error('Failed to open route')
         }
