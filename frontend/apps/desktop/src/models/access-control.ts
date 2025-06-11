@@ -1,4 +1,5 @@
 import {grpcClient} from '@/grpc-client'
+import {useSelectedAccountId} from '@/selected-account'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
@@ -134,8 +135,11 @@ export type HMWritableDocument = {
   accountsWithWrite: string[]
 }
 
-export function useMyWritableDocuments(): HMWritableDocument[] {
-  const accountsCaps = useMyAccountsCapabilities()
+export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
+  const selectedAccountId = useSelectedAccountId()
+  const accountsCaps = useAccountsCapabilities(
+    selectedAccountId ? [selectedAccountId] : [],
+  )
   const writableDocumentIds: UnpackedHypermediaId[] = []
   function addWritableId(id: UnpackedHypermediaId) {
     // if writableDocumentIds already has this id, don't add it
@@ -143,16 +147,18 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
     // add the parent
     writableDocumentIds.push(id)
   }
-  accountsCaps?.forEach(({capabilities}) => {
+  accountsCaps?.forEach((q) => {
+    const capabilities = q.data?.capabilities
     capabilities?.forEach((cap) => {
       if (roleCanWrite(cap.role)) {
         addWritableId(cap.grantId)
       }
     })
   })
-  accountsCaps?.forEach(({accountId}) => {
-    addWritableId(hmId('d', accountId))
-  })
+  if (selectedAccountId) {
+    addWritableId(hmId('d', selectedAccountId))
+  }
+
   const writableDocuments = useEntities(writableDocumentIds)
     .map((doc) => doc.data)
     .filter((doc) => !!doc)
@@ -160,7 +166,9 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
   const allWritableDocuments = writableDocuments.map((doc) => ({
     entity: doc,
     accountsWithWrite: accountsCaps
-      .filter(({accountId, capabilities}) => {
+      .filter((q) => {
+        const accountId = q.data?.accountId
+        const capabilities = q.data?.capabilities
         if (doc.id.uid === accountId) return true
         return !!capabilities?.find(
           (cap) =>
@@ -169,7 +177,8 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
             isPathParentOfOrEqual(cap.grantId.path, doc.id.path),
         )
       })
-      .map(({accountId}) => accountId),
+      .map((q) => q.data?.accountId)
+      .filter((accountId) => !!accountId) as string[],
   }))
   return allWritableDocuments
 }

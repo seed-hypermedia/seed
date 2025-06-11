@@ -1,9 +1,11 @@
 import {useForkDocument} from '@/models/documents'
+import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
@@ -20,7 +22,6 @@ export function BranchDialog({
 }) {
   const {data: entity} = useEntity(input)
   const forkDoc = useForkDocument()
-  const [account, setAccount] = useState<string | null>(null)
   const navigate = useNavigate()
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)
   const isAvailable = useRef(true)
@@ -28,6 +29,10 @@ export function BranchDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
+  const selectedAccount = useSelectedAccount()
+  if (!selectedAccount) {
+    return <div>No account selected</div>
+  }
   if (!entity)
     return (
       <div className="flex items-center justify-center">
@@ -43,18 +48,16 @@ export function BranchDialog({
             location={location}
             setLocation={setLocation}
             newName={entity?.document?.metadata.name || 'Untitled'}
-            account={account}
-            setAccount={setAccount}
+            account={selectedAccount.id.uid}
             actionLabel="branch"
             onAvailable={(isAvail) => {
-              console.log('~~ isAvail', isAvail)
               isAvailable.current = isAvail
             }}
           />
           <XStack gap="$2">
             <Spinner hide={!forkDoc.isLoading} />
 
-            {location && account ? (
+            {location && selectedAccount ? (
               <Button
                 onPress={() => {
                   if (!isAvailable.current) {
@@ -71,7 +74,7 @@ export function BranchDialog({
                     .mutateAsync({
                       from: input,
                       to: location,
-                      signingAccountId: account,
+                      signingAccountId: selectedAccount.id.uid,
                     })
                     .then(() => {
                       onClose()
@@ -79,6 +82,11 @@ export function BranchDialog({
                     })
                 }}
               >
+                <HMIcon
+                  id={selectedAccount.id}
+                  metadata={selectedAccount.document?.metadata}
+                  size={24}
+                />
                 Create Document Branch
               </Button>
             ) : null}
