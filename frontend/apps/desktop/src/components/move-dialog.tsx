@@ -19,7 +19,6 @@ export function MoveDialog({
   onClose: () => void
   input: {
     id: UnpackedHypermediaId
-    accountsWhoCanMove: string[]
   }
 }) {
   const {data: entity} = useEntity(input.id)
@@ -28,10 +27,6 @@ export function MoveDialog({
   const selectedAccount = useSelectedAccount()
   if (!selectedAccount) {
     return <div>No account selected</div>
-  }
-  if (!input.accountsWhoCanMove.includes(selectedAccount.id.uid)) {
-    toast.error('You do not have permission to move this document')
-    return <div>You do not have permission to move this document</div>
   }
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.id,

@@ -1,5 +1,5 @@
 import {grpcClient} from '@/grpc-client'
-import {useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
@@ -195,6 +195,36 @@ export function useMyAccountsCapabilities() {
   })
 }
 
+export function useSelectedAccountCapability(
+  id?: UnpackedHypermediaId,
+  minimumRole: HMRole = 'writer',
+): HMCapability | null {
+  if (!id) return null
+  const selectedAccount = useSelectedAccount()
+  const capabilities = useAllDocumentCapabilities(id)
+  if (selectedAccount?.id.uid === id.uid) {
+    // owner is the highest role so we don't need to check for minimumRole
+    return {
+      id: '_owner',
+      accountUid: id.uid,
+      role: 'owner',
+      grantId: hmId('d', id.uid),
+    } satisfies HMCapability
+  }
+  const myCapability = [...(capabilities.data || [])]
+    ?.sort(
+      // sort by capability id for deterministic capability selection
+      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
+    )
+    .filter((cap) => {
+      return isGreaterOrEqualRole(minimumRole, cap.role)
+    })
+    .find((cap) => {
+      return selectedAccount?.id.uid === cap.accountUid
+    })
+  return myCapability || null
+}
+
 export function useMyCapability(
   id?: UnpackedHypermediaId,
   minimumRole: HMRole = 'writer',
@@ -227,16 +257,16 @@ export function useMyCapability(
   return myCapability || null
 }
 
-export function useMyCapabilities(
+export function useSelectedAccountCapabilities(
   id?: UnpackedHypermediaId,
   minimumRole: HMRole = 'writer',
 ): HMCapability[] {
   if (!id) return []
-  const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
+  const selectedAccount = useSelectedAccount()
 
   const ownerCap: HMCapability[] =
-    myAccounts.data && myAccounts.data.indexOf(id.uid) > -1
+    selectedAccount?.id.uid && selectedAccount.id.uid === id.uid
       ? [
           {
             id: '_owner',
@@ -255,9 +285,7 @@ export function useMyCapabilities(
       return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .filter((cap) => {
-      return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.accountUid,
-      )
+      return selectedAccount?.id.uid === cap.accountUid
     })
   return [...ownerCap, ...myCapabilities]
 }

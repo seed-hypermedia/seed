@@ -8,7 +8,6 @@ import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
   useAccountDraftList,
@@ -254,9 +253,6 @@ function _MainDocumentPage({
     ? NewspaperDocContainer
     : BaseDocContainer
 
-  const capability = useMyCapability(id)
-  const canEditDoc = roleCanWrite(capability?.role)
-
   const {
     showSidebars,
     sidebarProps,
@@ -428,8 +424,6 @@ function _AppDocSiteHeader({
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const homeDir = useListDirectory(siteHomeEntity?.id)
-  // const capability = useMyCapability(siteHomeEntity?.id)
-  // const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId.uid)
   const docDir = useListDirectory(docId, {mode: 'Children'})
   const replace = useNavigate('replace')
@@ -703,7 +697,7 @@ function DocMessageBox({
           {title}
         </SizableText>
         {spinner ? (
-          <div className="flex justify-center items-center">
+          <div className="flex items-center justify-center">
             <Spinner />
           </div>
         ) : null}

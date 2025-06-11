@@ -73,13 +73,14 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!location) {
-      handleSetLocation(
-        hmId('d', account, {
-          path: [pathNameify(newName)],
-        }),
-      )
+      const id = hmId('d', account, {
+        path: [pathNameify(newName)],
+      })
+      console.log('SET LOCATION', id)
+      handleSetLocation(id)
     }
   }, [location, account])
+  console.log('~~ LocationPicker', {location, newName, account})
 
   const newDestinationAlreadyDocument = useEntity(location)
   useEffect(() => {

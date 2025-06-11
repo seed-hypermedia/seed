@@ -1,4 +1,7 @@
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
 
@@ -63,12 +66,12 @@ export function DeleteEntityDialog({
       onClose?.(), onSuccess?.()
     },
   })
-  const cap = useMyCapability(id)
+  const cap = useSelectedAccountCapability(id)
   const doc = useEntity(id)
 
   if (doc.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )

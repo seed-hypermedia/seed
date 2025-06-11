@@ -591,7 +591,6 @@ export type HMChangeInfo = HMDocumentChangeInfo
 
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),
-  account: z.string(),
 })
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>

@@ -3,7 +3,7 @@ import {
   HMCapability,
   useAddCapabilities,
   useAllDocumentCapabilities,
-  useMyCapability,
+  useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
@@ -94,7 +94,7 @@ type SearchResult = {
 }
 
 function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
-  const myCapability = useMyCapability(id, 'owner')
+  const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<
     SearchResult[]

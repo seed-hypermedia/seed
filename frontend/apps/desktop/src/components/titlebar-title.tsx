@@ -1,6 +1,9 @@
 import {useAppContext} from '@/app-context'
 import {useSizeObserver} from '@/components/app-embeds'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {useIdEntities, useItemsFromId} from '@/models/entities'
@@ -517,7 +520,7 @@ function BreadcrumbItem({
   const observerRef = useSizeObserver(onSize)
   if (details.isLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -615,7 +618,7 @@ function PathItemCard({
 }) {
   const docId = details.id ?? undefined
   const dir = useListDirectory(docId, {mode: 'Children'})
-  const capability = useMyCapability(docId)
+  const capability = useSelectedAccountCapability(docId)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId?.uid)
   if (!docId) return null

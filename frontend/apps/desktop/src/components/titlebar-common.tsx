@@ -3,8 +3,7 @@ import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {
   roleCanWrite,
-  useMyCapabilities,
-  useMyCapability,
+  useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList, useCreateDraft} from '@/models/documents'
@@ -119,8 +118,7 @@ export function DocOptionsButton({
     version: doc.data?.document?.version || null,
   }
   const removeSite = useRemoveSiteDialog()
-  const capability = useMyCapability(route.id)
-  const capabilities = useMyCapabilities(route.id)
+  const capability = useSelectedAccountCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
@@ -299,7 +297,6 @@ export function DocOptionsButton({
       onPress: () => {
         moveDialog.open({
           id: route.id,
-          accountsWhoCanMove: capabilities.map((cap) => cap.accountUid),
         })
       },
     })
@@ -340,7 +337,7 @@ function EditDocButton() {
 
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
-  const capability = useMyCapability(route.id)
+  const capability = useSelectedAccountCapability(route.id)
   const navigate = useNavigate()
 
   const existingDraft = useExistingDraft(route)
@@ -494,7 +491,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
     latestDoc.data?.id?.version == route.id.version
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
-  const capability = useMyCapability(id)
+  const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useEntity(id)
   const showPublishSiteButton =
