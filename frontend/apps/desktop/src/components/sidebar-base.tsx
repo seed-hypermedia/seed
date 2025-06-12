@@ -3,8 +3,12 @@ import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {HoverCard} from '@shm/ui/hover-card'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
@@ -171,48 +175,48 @@ function IdentitySelector() {
       </div>
     )
   }
+  const [isOpen, setIsOpen] = useState(false)
   return (
-    <HoverCard
-      placement="top-start"
-      content={
-        <div className="flex flex-col items-stretch items-center gap-1">
-          {accountOptions.map((option) => (
-            <div
-              key={option.value}
-              className={cn(
-                'flex flex-row items-center gap-2 p-2 rounded-sm hover:bg-gray-100',
-                selectedAccount?.data?.id?.uid === option.value
-                  ? 'bg-blue-100 hover:bg-blue-200'
-                  : '',
-              )}
-              onClick={() => {
-                setSelectedIdentity?.(option.value || null)
-              }}
-            >
-              {option.id ? (
-                <HMIcon id={option?.id} metadata={option?.metadata} />
-              ) : null}
-              {option.label}
-            </div>
-          ))}
-          <CreateAccountButton className="mt-3" />
-        </div>
-      }
-    >
-      <div className="flex flex-row items-center justify-between gap-4 p-4 bg-white rounded-sm shadow-sm">
-        <div className="flex flex-row items-center gap-2">
-          {selectedAccount.data ? (
-            <HMIcon
-              key={selectedAccount?.data?.id?.uid}
-              id={selectedAccount?.data?.id}
-              metadata={selectedAccount?.data?.document?.metadata}
-            />
-          ) : null}
-          <div>{selectedAccount?.data?.document?.metadata?.name}</div>
-        </div>
-        <AppSettingsButton />
-      </div>
-    </HoverCard>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex flex-row items-center justify-between w-full gap-4 p-2 px-3 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
+          <div className="flex flex-row items-center gap-4">
+            {selectedAccount.data ? (
+              <HMIcon
+                key={selectedAccount?.data?.id?.uid}
+                id={selectedAccount?.data?.id}
+                metadata={selectedAccount?.data?.document?.metadata}
+              />
+            ) : null}
+            <div>{selectedAccount?.data?.document?.metadata?.name}</div>
+          </div>
+          <AppSettingsButton />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="flex flex-col items-stretch gap-1">
+        {accountOptions.map((option) => (
+          <div
+            key={option.value}
+            className={cn(
+              'flex flex-row items-center gap-4 p-2 rounded-sm hover:bg-gray-100 dark:hover:bg-neutral-900',
+              selectedAccount?.data?.id?.uid === option.value
+                ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900'
+                : '',
+            )}
+            onClick={() => {
+              setSelectedIdentity?.(option.value || null)
+              setIsOpen(false)
+            }}
+          >
+            {option.id ? (
+              <HMIcon id={option?.id} metadata={option?.metadata} />
+            ) : null}
+            {option.label}
+          </div>
+        ))}
+        <CreateAccountButton className="mt-3" />
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -244,7 +248,8 @@ function AppSettingsButton() {
         size="$3"
         backgroundColor={'$colorTransparent'}
         chromeless
-        onPress={() => {
+        onPress={(e) => {
+          e.preventDefault()
           navigate({key: 'settings'})
         }}
         icon={Settings}
