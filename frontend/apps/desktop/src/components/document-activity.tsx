@@ -1,5 +1,5 @@
-import {useAccountList} from '@/models/accounts'
 import {useAllDocumentComments} from '@/models/comments'
+import {useContactList} from '@/models/contacts'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
@@ -13,7 +13,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
-import {useAccounts, useEntity} from '@shm/shared/models/entity'
+import {useEntity} from '@shm/shared/models/entity'
 import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
@@ -77,7 +77,7 @@ export function ActivityList({
   const commentGroups = useCommentGroups(comments.data)
   const activeChangeIds = useVersionChanges(docId)
   const childrenActivity = useChildrenActivity(docId)
-  const accounts = useAccountList()
+  const accounts = useContactList()
   const changes = useDocumentPublishedChanges(docId)
   const [visibleCount, setVisibleCount] = useState(10)
   const authors = useCommentGroupAuthors(commentGroups.data)
@@ -141,10 +141,9 @@ export function ActivityList({
     item?.author && changeAuthorIdsSet.add(item?.author)
   })
   const changeAuthorIds = Array.from(changeAuthorIdsSet)
-  const changeAuthorQueries = useAccounts(changeAuthorIds)
   const changeAuthors: HMAccountsMetadata = Object.fromEntries(
     changeAuthorIds
-      .map((uid, index) => [uid, changeAuthorQueries[index].data])
+      .map((uid, index) => [uid, accounts?.find((a) => a.id === uid)?.metadata])
       .filter(([k, v]) => !!v),
   )
   if (route.key !== 'document') return null
@@ -154,7 +153,7 @@ export function ActivityList({
     childrenActivity.isInitialLoading
   if (isInitialLoad) {
     return (
-      <div className="flex justify-center items-center p-4">
+      <div className="flex items-center justify-center p-4">
         <Spinner />
       </div>
     )

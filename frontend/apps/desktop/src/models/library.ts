@@ -16,8 +16,8 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
-import {useAccountList} from './accounts'
 import {useComments} from './comments'
+import {useContactList} from './contacts'
 import {useFavorites} from './favorites'
 import {HMSubscription, useListSubscriptions} from './subscription'
 
@@ -86,7 +86,7 @@ export function useLibrary({
   grouping: 'site' | 'none'
   displayMode: 'all' | 'subscribed' | 'favorites'
 }) {
-  const accounts = useAccountList()
+  const accounts = useContactList()
   const favorites = useFavorites()
   const subscriptions = useListSubscriptions()
   const allDocuments = useAllDocuments(grouping === 'none')
@@ -120,12 +120,11 @@ export function useLibrary({
       documents = documents?.filter(
         (doc) =>
           favorites?.find((fav) => {
-            console.log('filter.. doc.path', doc.path)
             return (
               fav &&
               fav.id ===
                 hmId('d', doc.account, {
-                  path: entityQueryPathToHmIdPath(doc.path),
+                  path: doc.path,
                 }).id
             )
           }),

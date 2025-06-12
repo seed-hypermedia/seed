@@ -5,7 +5,7 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useContact} from '@/models/contacts'
+import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
@@ -20,7 +20,7 @@ import {
   hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {getDocumentTitle} from '@shm/shared/content'
+import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
 import {DraftBadge} from '@shm/ui/draft-badge'
@@ -165,6 +165,7 @@ function BreadcrumbTitle({
   draft?: boolean
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
+  const contacts = useSelectedAccountContacts()
   const latestDoc = useEntity({...entityId, version: null, latest: true})
   const isLatest =
     entityId.latest || entityId.version === latestDoc.data?.document?.version
@@ -177,9 +178,19 @@ function BreadcrumbTitle({
     const crumbs: (CrumbDetails | null)[] = []
     let items = entityIds.flatMap((id, idIndex) => {
       const contents = entityContents[idIndex]
+      let name: string
+      if (id.path?.length) {
+        name = getDocumentTitle(contents.entity?.document) || ''
+      } else {
+        name = getContactMetadata(
+          id,
+          contents.entity?.document?.metadata,
+          contacts.data,
+        ).name
+      }
       return [
         {
-          name: getDocumentTitle(contents.entity?.document) || undefined,
+          name,
           fallbackName: id.path?.at(-1),
           isError: contents.entity && !contents.entity.document,
           isLoading: !contents.entity,

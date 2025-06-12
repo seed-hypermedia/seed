@@ -1,4 +1,5 @@
 import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
+import {Contact} from './client'
 import {
   HMBlockNode,
   HMBlockQuery,
@@ -45,6 +46,18 @@ export function getDocumentTitle(document?: HMDocument | null) {
   }
 
   return document.metadata?.name || document.account! + document.path!
+}
+
+export function getContactMetadata(
+  id: UnpackedHypermediaId,
+  metadata: HMDocument['metadata'] | null | undefined,
+  contacts?: PlainMessage<Contact>[] | null,
+) {
+  const contact = contacts?.find((c) => c.subject === id.uid)
+  if (contact) {
+    return {...(metadata || {}), name: contact.name}
+  }
+  return {...(metadata || {}), name: metadata?.name || 'Untitled Contact'}
 }
 
 export function getMetadataName(metadata?: HMDocument['metadata'] | null) {

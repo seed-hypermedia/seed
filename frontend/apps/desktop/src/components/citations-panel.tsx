@@ -1,6 +1,6 @@
 import {useEntityCitations} from '@/models/citations'
 import {useComment, useCommentReplies} from '@/models/comments'
-import {useAccountsMetadata} from '@/models/entities'
+import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   DocumentCitationsAccessory,
@@ -68,7 +68,7 @@ export function CitationsPanel({
       )
       .filter((id) => id !== null) as UnpackedHypermediaId[]) || [],
   )
-  const accounts = useAccountsMetadata(Array.from(accountsToLoad))
+  const accounts = useContactsMetadata(Array.from(accountsToLoad))
   return (
     <AccessoryContent>
       <YStack gap="$3">
@@ -108,7 +108,7 @@ function DocumentPreview({
   const doc = useEntity(docId)
   if (doc.isInitialLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -116,11 +116,11 @@ function DocumentPreview({
   if (!doc.data) return null
 
   return (
-    <div className="rounded-lg max-h-96 w-full max-w-xl overflow-y-auto flex flex-col gap-3">
+    <div className="flex flex-col w-full max-w-xl gap-3 overflow-y-auto rounded-lg max-h-96">
       <SizableText size="2xl" weight="bold" className="px-2">
         {metadata?.name || 'Untitled'}
       </SizableText>
-      <div className="bg-gray-200 dark:bg-gray-800 h-px w-full flex-shrink-0" />
+      <div className="flex-shrink-0 w-full h-px bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
         <BlocksContent
           blocks={doc.data.document?.content}

@@ -1,9 +1,10 @@
+import {useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle} from '@shm/shared/content'
+import {getContactMetadata} from '@shm/shared/content'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/components/button'
@@ -137,6 +138,7 @@ function SidebarSection({
 
 function FavoritesSection() {
   const favorites = useFavorites()
+  const contacts = useSelectedAccountContacts()
   const favoriteEntities = useEntities(favorites || [])
   const navigate = useNavigate()
   const route = useNavRoute()
@@ -146,12 +148,17 @@ function FavoritesSection() {
       {favoriteEntities?.map((favorite) => {
         if (!favorite.data) return null
         const {id, document} = favorite.data
+        const metadata = getContactMetadata(
+          id,
+          document?.metadata,
+          contacts.data,
+        )
         return (
           <SmallListItem
             key={id.id}
             docId={id.id}
-            title={getDocumentTitle(document)}
-            icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
+            title={metadata.name}
+            icon={<HMIcon id={id} metadata={metadata} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
             onPress={() => {
               navigate({key: 'document', id})
@@ -168,7 +175,7 @@ function AccountsSection() {
   const accounts = useEntities(
     accountIds.data?.map((uid) => hmId('d', uid)) || [],
   )
-
+  const contacts = useSelectedAccountContacts()
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -192,12 +199,17 @@ function AccountsSection() {
       {accounts.map((account) => {
         if (!account.data) return null
         const {id, document} = account.data
+        const metadata = getContactMetadata(
+          id,
+          document?.metadata,
+          contacts.data,
+        )
         return (
           <SmallListItem
             key={id.uid}
             docId={id.id}
-            title={getDocumentTitle(document) || id.uid}
-            icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
+            title={metadata.name}
+            icon={<HMIcon id={id} metadata={metadata} size={20} />}
             onPress={() => {
               navigate({key: 'document', id: latestId(id)})
             }}
