@@ -95,7 +95,6 @@ export function EmailContent({notification}: {notification: Notification}) {
           renderMention({
             blocks: notification.comment.content,
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-            resolvedNames: notification.resolvedNames,
           })
         ) : (
           <MjmlColumn width="100%" verticalAlign="middle">
@@ -110,11 +109,9 @@ export function EmailContent({notification}: {notification: Notification}) {
 export function renderMention({
   blocks,
   targetDocName,
-  resolvedNames,
 }: {
   blocks: HMBlockNode[]
   targetDocName: string
-  resolvedNames?: Record<string, string>
 }) {
   return (
     <>
@@ -130,7 +127,7 @@ export function renderMention({
       {/* Comment block with green border on the left */}
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(blocks, '', resolvedNames)}
+          {renderBlocks(blocks, '')}
         </MjmlColumn>
       </MjmlSection>
 
@@ -156,42 +153,25 @@ export function renderMention({
   )
 }
 
-function renderBlocks(
-  blocks: HMBlockNode[],
-  notifUrl: string,
-  resolvedNames?: Record<string, string>,
-) {
+function renderBlocks(blocks: HMBlockNode[], notifUrl: string) {
   return blocks.map((blockNode, index) => (
     <React.Fragment key={index}>
-      {renderBlock(blockNode, notifUrl, resolvedNames)}
+      {renderBlock(blockNode, notifUrl)}
       {blockNode.children?.length
-        ? renderBlocks(blockNode.children, notifUrl, resolvedNames)
+        ? renderBlocks(blockNode.children, notifUrl)
         : null}
     </React.Fragment>
   ))
 }
 
-function renderBlock(
-  blockNode: HMBlockNode,
-  notifUrl: string,
-  resolvedNames?: Record<string, string>,
-) {
+function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
   const {type, text, annotations, link, attributes} = blockNode.block
 
-  const innerHtml = renderInlineTextWithAnnotations(
-    text,
-    annotations,
-    resolvedNames,
-  )
+  const innerHtml = renderInlineTextWithAnnotations(text, annotations)
 
   if (type === 'Paragraph') {
     return (
-      <MjmlText
-        align="left"
-        lineHeight="1.6"
-        paddingBottom="12px"
-        fontSize="14px"
-      >
+      <MjmlText align="left" paddingBottom="8px" fontSize="14px">
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
     )
@@ -201,10 +181,9 @@ function renderBlock(
     return (
       <MjmlText
         align="left"
-        fontSize="18px"
+        paddingBottom="8px"
+        fontSize="24px"
         fontWeight="bold"
-        lineHeight="1.4"
-        paddingBottom="12px"
       >
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
@@ -259,7 +238,7 @@ function renderBlock(
       return (
         <MjmlButton
           href={notifUrl}
-          backgroundColor="#068f7b"
+          backgroundColor="#346DB7"
           fontSize="14px"
           align="left"
         >
@@ -269,41 +248,15 @@ function renderBlock(
     }
   }
 
-  if (type === 'WebEmbed') {
-    if (link?.includes('instagram.com')) {
-      return (
-        <MjmlButton
-          href={link}
-          backgroundColor="#346DB7"
-          fontSize="14px"
-          align="left"
-        >
-          Open in Instagram
-        </MjmlButton>
-      )
-    } else if (link.includes('x.com')) {
-      return (
-        <MjmlButton
-          href={link}
-          backgroundColor="#346DB7"
-          fontSize="14px"
-          align="left"
-        >
-          Open in X.com
-        </MjmlButton>
-      )
-    }
-  }
-
-  if (type === 'Button') {
+  if (type === 'WebEmbed' && link?.includes('instagram.com')) {
     return (
       <MjmlButton
         href={link}
-        backgroundColor="#068f7b"
+        backgroundColor="#C13584"
         fontSize="14px"
         align="left"
       >
-        {attributes.fields?.name?.kind?.value || link}
+        Open in Instagram
       </MjmlButton>
     )
   }
@@ -325,11 +278,7 @@ function renderBlock(
   return null
 }
 
-function renderInlineTextWithAnnotations(
-  text: string,
-  annotations: any[],
-  resolvedNames?: Record<string, string>,
-) {
+function renderInlineTextWithAnnotations(text: string, annotations: any[]) {
   if (!annotations.length) return text
 
   let result = []
@@ -348,15 +297,14 @@ function renderInlineTextWithAnnotations(
       annotatedText = `<b>${annotatedText}</b>`
     } else if (annotation.type === 'Italic') {
       annotatedText = `<i>${annotatedText}</i>`
-    } else if (annotation.type === 'Strike') {
+    } else if (annotation.type === 'Strikethrough') {
       annotatedText = `<s>${annotatedText}</s>`
     } else if (annotation.type === 'Code') {
       annotatedText = `<code>${annotatedText}</code>`
     } else if (annotation.type === 'Link') {
       annotatedText = `<a href="${annotation.link}" style="color: #346DB7;">${annotatedText}</a>`
     } else if (annotation.type === 'Embed') {
-      const resolved = resolvedNames?.[annotation.link] || annotation.link
-      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${resolved}</a>`
+      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${annotation.link}</a>`
     }
 
     result.push(annotatedText)

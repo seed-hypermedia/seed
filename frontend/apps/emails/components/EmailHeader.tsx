@@ -33,37 +33,28 @@ export function EmailHeader({
   return (
     <MjmlSection padding="16px 24px" border-bottom="1px solid #eee">
       {/* <MjmlColumn width="50%" verticalAlign="middle"> */}
-      <MjmlGroup width="70%">
-        <MjmlColumn width="24px" paddingRight="10px" verticalAlign="middle">
-          <MjmlImage
-            src="https://iili.io/FJ0pBl1.png"
-            alt="Seed Logo"
-            width="16px"
-            height="20px"
-            padding="0"
-          />
-        </MjmlColumn>
-        <MjmlColumn padding="0" verticalAlign="middle">
-          <MjmlText
-            fontSize="16px"
-            fontWeight="bold"
-            color="#068f7b"
-            padding="0"
-          >
-            Seed Hypermedia
-          </MjmlText>
-        </MjmlColumn>
+      <MjmlGroup direction="ltr" verticalAlign="top" width="50%">
+        <MjmlImage
+          src="https://iili.io/FJ0pBl1.png"
+          alt="Seed Logo"
+          width="16px"
+          height="20px"
+          paddingRight="10px"
+        />
+        <MjmlText fontSize="16px" fontWeight="bold" color="#068f7b" padding="0">
+          Seed Hypermedia
+        </MjmlText>
       </MjmlGroup>
       {/* </MjmlColumn> */}
-      <MjmlColumn width="30%" verticalAlign="middle">
+      <MjmlColumn width="50%" verticalAlign="middle">
         {avatarUrl ? (
           <MjmlImage
             src={getDaemonFileUrl(avatarUrl)}
             alt="User Avatar"
             align="right"
             borderRadius="50%"
-            width="28px"
-            height="28px"
+            width="24px"
+            height="24px"
           />
         ) : (
           <MjmlRaw>
