@@ -65,7 +65,7 @@ import {
   useFileUrl,
   useImageUrl,
 } from './get-file-url'
-import {SizableText, SizableTextProps, Text, TextProps} from './text'
+import {SizableText, Text, TextProps} from './text'
 import {cn} from './utils'
 
 import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
@@ -160,17 +160,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <YStack
-          zIndex="$zIndex.4"
-          padding="$2"
-          // @ts-ignore
-          position="fixed"
-          borderColor="$color7"
-          borderWidth={1}
-          bottom={16}
-          right={16}
-          backgroundColor="$backgroundHover"
-        >
+        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border">
           <CheckboxWithLabel
             label="debug"
             checked={debug}
@@ -191,14 +181,14 @@ export function DocContentProvider({
             name="form"
             onValueChange={(val) => setTUnit(Number(val))}
           >
-            <XStack gap="$2">
-              <SizableText size="$1">Text unit:</SizableText>
+            <div className="flex gap-2">
+              <SizableText size="xs">Text unit:</SizableText>
               <RadioGroupItemWithLabel value="14" label="14" />
               <RadioGroupItemWithLabel value="16" label="16" />
               <RadioGroupItemWithLabel value="18" label="18" />
               <RadioGroupItemWithLabel value="20" label="20" />
               <RadioGroupItemWithLabel value="24" label="24" />
-            </XStack>
+            </div>
           </RadioGroup>
           <RadioGroup
             aria-labelledby="layout unit"
@@ -206,16 +196,16 @@ export function DocContentProvider({
             name="form"
             onValueChange={(val) => setLUnit(Number(val))}
           >
-            <XStack gap="$2">
+            <div className="flex gap-2">
               <SizableText size="$1">Layout unit:</SizableText>
               <RadioGroupItemWithLabel value="16" label="16" />
               <RadioGroupItemWithLabel value="20" label="20" />
               <RadioGroupItemWithLabel value="24" label="24" />
               <RadioGroupItemWithLabel value="28" label="28" />
               <RadioGroupItemWithLabel value="32" label="32" />
-            </XStack>
+            </div>
           </RadioGroup>
-        </YStack>
+        </div>
       ) : null}
     </docContentContext.Provider>
   )
@@ -310,21 +300,22 @@ export function DocContent({
   }, [media.gtSm])
 
   return (
-    <YStack
+    <div
       ref={wrapper}
-      paddingHorizontal={layoutUnit / 3}
-      $gtMd={{paddingHorizontal: layoutUnit / 2}}
-      marginVertical={marginVertical}
+      style={{
+        paddingHorizontal: layoutUnit / 3,
+        marginVertical: marginVertical,
+      }}
       {...props}
     >
-      <XStack
+      <div
         ref={bubble}
-        {...coords}
-        zIndex="$zIndex.5"
-        position="absolute"
-        elevation="$4"
         userSelect="none"
-        display={media.gtSm && !state.matches('disable') ? 'flex' : 'none'}
+        className={cn(
+          'z-50 absolute top-0 left-0 hidden',
+          media.gtSm && !state.matches('disable') ? 'block' : 'hidden',
+        )}
+        style={{...coords}}
       >
         {onBlockCopy ? (
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
@@ -348,34 +339,13 @@ export function DocContent({
             />
           </Tooltip>
         ) : null}
-        {/* {onBlockCommentClick ? (
-          <Tooltip content="Add a Comment">
-            <Button
-              size="$2"
-              icon={Comment}
-              onPress={() => {
-                // send({type: "CREATE_COMMENT"});
-                // onBlockCommentClick(
-                //   state.context.blockId,
-                //   typeof state.context.rangeStart == "number" &&
-                //     typeof state.context.rangeEnd == "number"
-                //     ? {
-                //         start: state.context.rangeStart,
-                //         end: state.context.rangeEnd,
-                //       }
-                //     : undefined
-                // );
-              }}
-            />
-          </Tooltip>
-        ) : null} */}
-      </XStack>
+      </div>
       <BlocksContent
         blocks={displayBlocks}
         parentBlockId={null}
         handleBlockReplace={handleBlockReplace}
       />
-    </YStack>
+    </div>
   )
 }
 export const BlocksContent = memo(_BlocksContent)
@@ -1049,8 +1019,6 @@ function BlockContentParagraph({
     const editorBlock = hmBlockToEditorBlock(block)
     return editorBlock.content
   }, [block])
-  console.log('=== BLOCK STYLE ===', blockStyles)
-  console.log('=== BLOCK PROPS ===', props)
   return (
     <Text
       {...props}
@@ -1244,18 +1212,16 @@ function BlockContentImage({
   if (block.type !== 'Image') return null
   if (!block?.link) return null
   return (
-    <YStack
+    <div
       {...props}
-      className={cn('block-content block-image', blockStyles)}
+      className={cn(
+        'block-content block-image max-w-full py-3 items-center flex flex-col w-full gap-2',
+        blockStyles,
+      )}
       data-content-type="image"
       data-url={block?.link}
       data-name={block?.attributes?.name}
       data-width={getBlockAttribute(block.attributes, 'width')}
-      maxWidth="100%"
-      paddingVertical="$3"
-      gap="$2"
-      ai="center"
-      width="100%"
     >
       <div
         className={cn('max-w-full')}
@@ -1283,7 +1249,7 @@ function BlockContentImage({
           className="text-muted-foreground"
         />
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -1300,11 +1266,12 @@ function BlockContentVideo({
   const isIpfs = isIpfsUrl(link)
 
   return (
-    <YStack
+    <div
       {...props}
-      className={cn('block-content block-video', blockStyles)}
-      paddingVertical="$3"
-      gap="$2"
+      className={cn(
+        'block-content block-video max-w-full py-3 items-center flex flex-col w-full gap-2',
+        blockStyles,
+      )}
       data-content-type="video"
       data-url={link}
       data-name={getBlockAttribute(block.attributes, 'name')}
@@ -1313,25 +1280,17 @@ function BlockContentVideo({
       ai="center"
     >
       {link ? (
-        <YStack
-          width={
-            getBlockAttribute(block.attributes, 'width')
+        <div
+          className={cn('aspect-video w-full max-w-full relative')}
+          style={{
+            width: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
-              : '100%'
-          }
-          maxWidth="100%"
-          position="relative"
-          paddingBottom={isIpfs || link.startsWith('http') ? '56.25%' : 'auto'}
-          height={0}
+              : '100%',
+          }}
         >
           {isIpfs ? (
-            <XStack
-              tag="video"
-              top={0}
-              left={0}
-              position="absolute"
-              width="100%"
-              height="100%"
+            <video
+              className={cn('absolute top-0 left-0 w-full h-full')}
               // @ts-expect-error this is a bug in tamagui
               contentEditable={false}
               playsInline
@@ -1344,21 +1303,16 @@ function BlockContentVideo({
                   getBlockAttribute(block.attributes, 'name'),
                 )}
               />
-            </XStack>
+            </video>
           ) : (
-            <XStack
-              tag="iframe"
-              top={0}
-              left={0}
-              position="absolute"
-              width="100%"
-              height="100%"
+            <iframe
+              className={cn('absolute top-0 left-0 w-full h-full')}
               src={getVideoIframeSrc(block.link)}
               frameBorder="0"
               allowFullScreen
             />
           )}
-        </YStack>
+        </div>
       ) : (
         <Text>Video block wrong state</Text>
       )}
@@ -1367,7 +1321,7 @@ function BlockContentVideo({
           <InlineContentView fontSize={textUnit * 0.85} inline={inline} />
         </Text>
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -1584,192 +1538,6 @@ function InlineContentView({
   )
 }
 
-function _InlineContentView({
-  inline,
-  style,
-  linkType = null,
-  fontSize,
-  fontWeight,
-  rangeOffset,
-  isRange = false,
-  ...props
-}: SizableTextProps & {
-  inline: HMInlineContent[]
-  linkType?: LinkType
-  fontSize?: number
-  rangeOffset?: number
-  isRange?: boolean
-  fontWeight?: TextProps['weight']
-}) {
-  const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
-    useDocContentContext()
-
-  console.log('== inline ==', inline)
-  const InlineEmbed = entityComponents.Inline
-
-  let contentOffset = rangeOffset || 0
-  const theme = useThemeName()
-
-  const fSize = fontSize || textUnit
-  const rangeColor =
-    theme === 'dark'
-      ? CONTENT_HIGHLIGHT_COLOR_DARK
-      : CONTENT_HIGHLIGHT_COLOR_LIGHT
-
-  return inline.map((content, index) => {
-    const inlineContentOffset = contentOffset
-    contentOffset += getInlineContentOffset(content)
-    if (content.type === 'text') {
-      let textDecorationLine:
-        | 'none'
-        | 'line-through'
-        | 'underline'
-        | 'underline line-through'
-        | undefined
-      const underline = linkType || content.styles.underline
-      if (underline) {
-        if (content.styles.strike) {
-          textDecorationLine = 'underline line-through'
-        } else {
-          textDecorationLine = 'underline'
-        }
-      } else if (content.styles.strike) {
-        textDecorationLine = 'line-through'
-      }
-
-      let children: any = content.text.split('\n')
-
-      // we are checking if this is the last inline content and if it has more than one line
-      // if so, we are rendering a <br /> for each line
-      if (inline.length == index + 1 && children.length > 1) {
-        children = children.map((l: string, i: number, a: Array<string>) => {
-          if (a.length == i - 1) {
-            return l
-          } else {
-            return (
-              <>
-                {l}
-                <br />
-              </>
-            )
-          }
-        })
-      } else {
-        children = content.text
-      }
-
-      if (content.styles.range) {
-        children = (
-          <Text className="bg-yellow-200/50 dark:bg-yellow-900/70">
-            {children}
-          </Text>
-        )
-      }
-
-      if (content.styles.bold) {
-        children = (
-          <strong data-range-offset={inlineContentOffset}>{children}</strong>
-        )
-      }
-
-      if (content.styles.italic) {
-        children = <em data-range-offset={inlineContentOffset}>{children}</em>
-      }
-
-      if (content.styles.code) {
-        children = (
-          <code data-range-offset={inlineContentOffset}>{children}</code>
-        )
-      }
-
-      // does anything use this?
-      // if (content.styles.backgroundColor) {
-      //   children = (
-      //     <span style={{backgroundColor: content.styles.backgroundColor}}>
-      //       {children}
-      //     </span>
-      //   )
-      // }
-
-      // if (content.styles.strike) {
-      //   children = <s>{children}</s>
-      // }
-
-      // does anything use this?
-      // if (content.styles.textColor) {
-      //   children = (
-      //     <span style={{color: content.styles.textColor}}>{children}</span>
-      //   )
-      // }
-
-      return (
-        <Text
-          key={`${content.type}-${index}`}
-          color={hmTextColor(linkType)}
-          className={cn(
-            `whitespace-pre-wrap font-${fontWeight} leading-[${
-              fSize * 1.5
-            }] content-start items-start`,
-            {
-              color: hmTextColor(linkType),
-            },
-            props.className,
-          )}
-          style={{textDecorationLine, textDecorationColor: 'currentColor'}}
-          data-range-offset={inlineContentOffset}
-        >
-          {children}
-        </Text>
-      )
-    }
-    if (content.type === 'link') {
-      const isHmScheme = isHypermediaScheme(content.href)
-      return (
-        <HrefLink
-          href={content.href}
-          key={index}
-          buttonProps={{
-            className: isHmScheme ? 'hm-link' : 'link',
-            target: isHmScheme ? undefined : '_blank',
-          }}
-          onHoverIn={onHoverIn}
-          onHoverOut={onHoverOut}
-        >
-          <InlineContentView
-            fontSize={fSize}
-            lineHeight={fSize * 1.5}
-            inline={content.content}
-            linkType={isHmScheme ? 'hypermedia' : 'basic'}
-            rangeOffset={inlineContentOffset}
-          />
-        </HrefLink>
-      )
-    }
-
-    if (content.type == 'inline-embed') {
-      const unpackedRef = unpackHmId(content.link)
-      return (
-        <InlineEmbed comment={comment} key={content.link} {...unpackedRef} />
-      )
-    }
-
-    if (content.type == 'range') {
-      return (
-        <Text asChild className="bg-yellow-200/50 dark:bg-yellow-900/70">
-          <InlineContentView
-            isRange
-            fontSize={fSize}
-            lineHeight={fSize * 1.5}
-            inline={content.content}
-            rangeOffset={inlineContentOffset}
-          />
-        </Text>
-      )
-    }
-    return null
-  })
-}
-
 function HrefLink({
   href,
   children,
@@ -1826,7 +1594,7 @@ export function ErrorBlock({
     <Tooltip
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
-      <YStack f={1} className="block-content block-unknown">
+      <div className="block-content block-unknown flex flex-col flex-1">
         <ButtonFrame
           theme="red"
           gap="$2"
@@ -1835,10 +1603,10 @@ export function ErrorBlock({
             toggleOpen((v) => !v)
           }}
         >
-          <SizableText flex={1} color="$red10">
+          <SizableText color="danger">
             {message ? message : 'Error'}
           </SizableText>
-          <AlertCircle color="$red10" size={12} />
+          <AlertCircle color="danger" size={12} />
         </ButtonFrame>
         {open ? (
           <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded-md border border-border">
@@ -1847,7 +1615,7 @@ export function ErrorBlock({
             </code>
           </pre>
         ) : null}
-      </YStack>
+      </div>
     </Tooltip>
   )
 }
@@ -2000,7 +1768,7 @@ export function ContentEmbed({
           )}
         </BlockNodeList>
         {showReferenced ? (
-          <XStack jc="flex-end">
+          <div className="flex justify-end">
             <Tooltip content="The latest reference was not found. Click to try again.">
               <Button
                 size="$2"
@@ -2015,7 +1783,7 @@ export function ContentEmbed({
                 Back to Reference
               </Button>
             </Tooltip>
-          </XStack>
+          </div>
         ) : null}
       </>
     )
@@ -2024,7 +1792,7 @@ export function ContentEmbed({
       <BlockNotFoundError
         message={`Block #${props.blockRef} was not found in this version`}
       >
-        <XStack gap="$2" paddingHorizontal="$4">
+        <div className="flex gap-2 p-4">
           {props.version ? (
             <Button
               size="$2"
@@ -2037,7 +1805,7 @@ export function ContentEmbed({
             </Button>
           ) : null}
           {renderOpenButton()}
-        </XStack>
+        </div>
       </BlockNotFoundError>
     )
   }
@@ -2061,16 +1829,9 @@ export function ContentEmbed({
 
 function ErrorBlockMessage({message}: {message: string}) {
   return (
-    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
-      <SizableText
-        fontSize="$4"
-        color="$color9"
-        fontWeight="bold"
-        fontStyle="italic"
-      >
-        {message}
-      </SizableText>
-    </YStack>
+    <div className="bg-muted p-4 rounded-md flex items-center">
+      <SizableText size="md">{message}</SizableText>
+    </div>
   )
 }
 
@@ -2102,20 +1863,15 @@ export function BlockNotFoundError({
   message: string
 }>) {
   return (
-    <YStack
-      theme="red"
-      backgroundColor="$backgroundHover"
-      f={1}
-      paddingVertical="$2"
-    >
-      <XStack gap="$2" paddingHorizontal="$4" paddingVertical="$2" ai="center">
-        <AlertCircle color="$red10" size={12} />
-        <SizableText flex={1} color="$red10">
+    <div className="bg-red-100/50 dark:bg-red-900/50 flex flex-col flex-1 p-2">
+      <div className="flex gap-2 p-4 items-center">
+        <AlertCircle className="text-red-500 flex-0" size={12} />
+        <SizableText className="flex-1" color="danger">
           {message ? message : 'Error'}
         </SizableText>
-      </XStack>
+      </div>
       {children}
-    </YStack>
+    </div>
   )
 }
 
@@ -2156,49 +1912,23 @@ export function BlockContentFile({block}: BlockContentProps) {
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
   return (
-    <YStack
-      // backgroundColor="$color3"
-      borderColor="$color6"
-      {...hoverProps}
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      f={1}
-      className="block-content block-file"
+    <div
       data-content-type="file"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
       data-size={getBlockAttribute(block.attributes, 'size')}
-      hoverStyle={{
-        backgroundColor: '$backgroundHover',
-      }}
-      // Props include some hover handlers that interrupt local hover handlers
-      // {...props}
+      {...hoverProps}
+      className={cn(
+        'block-content block-file border border-border rounded-md p-4 overflow-hidden',
+      )}
     >
-      <XStack
-        borderWidth={0}
-        outlineWidth={0}
-        alignItems="center"
-        space
-        flex={1}
-        width="100%"
-      >
-        <File size={18} />
-
-        <SizableText
-          size="$5"
-          // maxWidth="17em"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          userSelect="text"
-          flex={1}
-        >
+      <div className="flex items-center gap-2 flex-1 w-full">
+        <File size={18} className="flex-0" />
+        <SizableText className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
-          <SizableText paddingTop="$1" color="$color10" size="$2">
+          <SizableText color="muted" size="xs">
             {formatBytes(parseInt(getBlockAttribute(block.attributes, 'size')))}
           </SizableText>
         )}
@@ -2238,8 +1968,8 @@ export function BlockContentFile({block}: BlockContentProps) {
             </Button>
           </Tooltip>
         )}
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -2741,7 +2471,7 @@ function CheckboxWithLabel({
 }: CheckboxProps & {size: SizeTokens; label: string}) {
   const id = `checkbox-${size.toString().slice(1)}`
   return (
-    <XStack alignItems="center" space="$2">
+    <div className="flex items-center gap-2">
       <Checkbox id={id} size={size} {...checkboxProps}>
         <Checkbox.Indicator>
           <Check />
@@ -2751,7 +2481,7 @@ function CheckboxWithLabel({
       <Label size={size} htmlFor={id}>
         {label}
       </Label>
-    </XStack>
+    </div>
   )
 }
 
@@ -2788,15 +2518,15 @@ export function InlineEmbedButton({
 function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
-    <XStack alignItems="center" space="$2">
+    <div className="flex items-center gap-2">
       <RadioGroup.Item value={props.value} id={id} size="$1">
         <RadioGroup.Indicator />
       </RadioGroup.Item>
 
-      <Label size="$1" htmlFor={id}>
+      <label className="text-xs" htmlFor={id}>
         {props.label}
-      </Label>
-    </XStack>
+      </label>
+    </div>
   )
 }
 
