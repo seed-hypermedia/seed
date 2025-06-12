@@ -1,5 +1,5 @@
 {
-  "name": "@shm/email-templates",
+  "name": "@shm/emails",
   "version": "1.0.0",
   "private": true,
   "main": "render.ts",

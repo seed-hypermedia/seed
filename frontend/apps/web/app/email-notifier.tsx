@@ -1,4 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {createNotificationsEmail} from '@shm/emails/notifier'
 import {
   Comment,
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -19,12 +20,12 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {Notification, sendNotificationsEmail} from './emails'
+import {Notification} from './emails'
 import {getMetadata} from './loaders'
+import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
   if (!ENABLE_EMAIL_NOTIFICATIONS) return
-
   console.log('Email Notifications Enabled')
 
   await handleEmailNotifications()
@@ -249,7 +250,15 @@ async function handleEventsForEmailNotifications(
   for (const [email, notifications] of emailsToSend) {
     const opts = emailOptions[email]
     if (opts.isUnsubscribed) continue
-    await sendNotificationsEmail(email, opts, notifications)
+    const notificationEmail = await createNotificationsEmail(
+      email,
+      opts,
+      notifications,
+    )
+    if (notificationEmail) {
+      const {subject, text, html} = notificationEmail
+      await sendEmail(email, subject, {text, html})
+    }
   }
 }
 

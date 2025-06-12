@@ -1,7 +1,6 @@
 import dotenv from 'dotenv'
-import fs from 'fs'
 import nodemailer from 'nodemailer'
-import {createNotificationsEmail} from './notifier'
+import {createNotificationsEmail, FullNotification} from './notifier'
 
 dotenv.config()
 
@@ -41,10 +40,14 @@ export async function sendEmail(
   return info
 }
 
-export const sendNotificationsEmail = async () => {
-  const {email, opts, notifications} = JSON.parse(
-    fs.readFileSync('./mock-notification3.json', 'utf-8'),
-  )
+export const sendNotificationsEmail = async (
+  email: string,
+  opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
+  notifications: FullNotification[],
+) => {
+  // const {email, opts, notifications} = JSON.parse(
+  //   fs.readFileSync('./mock-notification3.json', 'utf-8'),
+  // )
 
   const {subject, text, html, subscriberNames} = await createNotificationsEmail(
     email,
