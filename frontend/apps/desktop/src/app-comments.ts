@@ -41,7 +41,6 @@ export const commentsApi = t.router({
       z.object({
         targetDocId: z.string(),
         replyCommentId: z.string().optional(),
-        account: z.string(),
         blocks: z.array(z.any()),
       }),
     )
@@ -49,9 +48,7 @@ export const commentsApi = t.router({
       const {targetDocId, replyCommentId} = input
       const commentId = getCommentStoreId(targetDocId, replyCommentId)
       typedCommentStore.set(commentId, {
-        // ...comment,
         blocks: input.blocks,
-        account: input.account,
       })
       return targetDocId
     }),

@@ -17,6 +17,11 @@ export type ForwardAction = {type: 'forward'}
 export type SetSidebarLockedAction = {type: 'sidebarLocked'; value: boolean}
 export type SetSidebarWidthAction = {type: 'sidebarWidth'; value: number}
 export type SetAccessoryWidthAction = {type: 'accessoryWidth'; value: number}
+export type SetSelectedIdentityAction = {
+  type: 'selectedIdentity'
+  value: string | null
+}
+
 export type NavAction =
   | PushAction
   | ReplaceAction
@@ -27,6 +32,7 @@ export type NavAction =
   | SetSidebarLockedAction
   | SetSidebarWidthAction
   | SetAccessoryWidthAction
+  | SetSelectedIdentityAction
 export type NavState = {
   sidebarLocked?: boolean
   sidebarWidth?: number
@@ -34,6 +40,7 @@ export type NavState = {
   routes: NavRoute[]
   routeIndex: number
   lastAction: NavAction['type']
+  selectedIdentity?: string | null
 }
 export type NavigationContext = {
   state: StateStream<NavState>
@@ -124,25 +131,14 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
         ...state,
         accessoryWidth: action.value,
       }
+    case 'selectedIdentity':
+      return {
+        ...state,
+        selectedIdentity: action.value,
+      }
     default:
       return state
   }
-}
-
-export function simpleStringy(obj: any): string {
-  if (Array.isArray(obj)) {
-    return obj.map(simpleStringy).join(', ')
-  }
-  if (obj === null) return 'null'
-  if (typeof obj === 'string') return obj
-  if (typeof obj === 'number') return String(obj)
-  if (typeof obj === 'boolean') return String(obj)
-  if (typeof obj === 'object') {
-    return Object.entries(obj)
-      .map(([k, v]) => `${k}: ${simpleStringy(v)}`)
-      .join(', ')
-  }
-  return '?'
 }
 
 let appNavDispatch: null | React.Dispatch<NavAction> = null
@@ -174,12 +170,9 @@ export function useNavRoute() {
   const nav = useContext(NavContext)
   if (!nav)
     throw new Error('useNavRoute must be used within a NavigationProvider')
-  const navRoute = useStreamSelector<NavState, NavRoute>(
-    nav.state,
-    (state, prevSelected) => {
-      return state.routes[state.routeIndex] || defaultRoute
-    },
-  )
+  const navRoute = useStreamSelector<NavState, NavRoute>(nav.state, (state) => {
+    return state.routes[state.routeIndex] || defaultRoute
+  })
   return navRoute
 }
 

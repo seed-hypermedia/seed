@@ -231,23 +231,6 @@ export function usePublishDraft(
               invalidateQueries(['trpc.recentSigners.get'])
             })
 
-            // // TODO: move this logic to the LocationPicker component
-            // const path = id.path?.length
-            //   ? `/${id.path
-            //       .map((p, idx) =>
-            //         idx == id.path!.length - 1
-            //           ? p.startsWith('_') && draft.metadata.name
-            //             ? pathNameify(draft.metadata.name)
-            //             : p.replace('_', '')
-            //           : p.replace('_', ''),
-            //       )
-            //       .join('/')}`
-            //   : ''
-            // const invalid = validatePath(path)
-
-            // if (invalid) {
-            //   throw new Error(invalid.error)
-            // }
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: accountId,

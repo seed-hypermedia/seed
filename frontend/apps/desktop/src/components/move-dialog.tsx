@@ -1,9 +1,11 @@
 import {useMoveDocument} from '@/models/documents'
+import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
@@ -17,13 +19,15 @@ export function MoveDialog({
   onClose: () => void
   input: {
     id: UnpackedHypermediaId
-    accountsWhoCanMove: string[]
   }
 }) {
   const {data: entity} = useEntity(input.id)
   const moveDoc = useMoveDocument()
-  const [account, setAccount] = useState<string | null>(null)
   const navigate = useNavigate()
+  const selectedAccount = useSelectedAccount()
+  if (!selectedAccount) {
+    return <div>No account selected</div>
+  }
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.id,
   )
@@ -47,18 +51,16 @@ export function MoveDialog({
             location={location}
             setLocation={setLocation}
             newName={entity?.document?.metadata.name || 'Untitled'}
-            account={account}
-            setAccount={setAccount}
+            account={selectedAccount.id.uid}
             actionLabel="move"
             onAvailable={(isAvail) => {
               isAvailable.current = isAvail
             }}
-            allowedAccounts={input.accountsWhoCanMove}
           />
           <XStack gap="$2">
             <Spinner hide={!moveDoc.isLoading} />
 
-            {location && account ? (
+            {location ? (
               <Button
                 onPress={() => {
                   if (!isAvailable.current) {
@@ -75,7 +77,7 @@ export function MoveDialog({
                     .mutateAsync({
                       from: input.id,
                       to: location,
-                      signingAccountId: account,
+                      signingAccountId: selectedAccount.id.uid,
                     })
                     .then(() => {
                       onClose()
@@ -83,6 +85,11 @@ export function MoveDialog({
                     })
                 }}
               >
+                <HMIcon
+                  id={selectedAccount.id}
+                  metadata={selectedAccount.document?.metadata}
+                  size={24}
+                />
                 Move
               </Button>
             ) : null}

@@ -2,7 +2,7 @@ import {
   HMWritableDocument,
   roleCanWrite,
   useAllDocumentCapabilities,
-  useMyWritableDocuments,
+  useSelectedAccountWritableDocuments,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useListDirectory} from '@/models/documents'
@@ -25,7 +25,6 @@ import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
@@ -45,29 +44,18 @@ export function LocationPicker({
   location,
   setLocation,
   account,
-  setAccount,
   newName,
   actionLabel,
   onAvailable,
-  allowedAccounts,
 }: {
   location: UnpackedHypermediaId | null
   setLocation: (location: UnpackedHypermediaId | null) => void
-  account: string | null
-  setAccount: (account: string | null) => void
+  account: string
   newName: string
   actionLabel: string
   onAvailable?: (isAvailable: boolean) => void
-  allowedAccounts?: string[]
 }) {
-  const defaultAccountId = useDefaultAccountId(allowedAccounts, location)
-  const {data: myAccountIds} = useMyAccountIds()
-  const accts = useEntities(myAccountIds?.map((id) => hmId('d', id)) || [])
-  const filteredAccounts = useMemo(() => {
-    if (!allowedAccounts) return accts
-    return accts.filter((a) => allowedAccounts.includes(a.data?.id.uid || ''))
-  }, [accts, allowedAccounts])
-  const writableDocuments = useMyWritableDocuments()
+  const writableDocuments = useSelectedAccountWritableDocuments()
   const newUrlPath = location?.path?.at(-1) || ''
 
   function handleSetLocation(location: UnpackedHypermediaId) {
@@ -79,49 +67,21 @@ export function LocationPicker({
       account &&
       allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
     if (thisAccountWithWrite) {
-      console.log('write location', location)
       setLocation(location)
     } else {
-      if (allAcctsWithWrite.length) {
-        setAccount(allAcctsWithWrite[0].accountsWithWrite[0])
-        console.log('write location2', location)
-
-        setLocation(location)
-      } else {
-        toast.error('No account has write access to this location')
-      }
-    }
-  }
-
-  function handleSetAccount(account: string) {
-    setAccount(account)
-    // make sure the account can write to this location. if not, change the location to the account home
-    if (
-      location &&
-      !writableDocuments.find(
-        (d) =>
-          isIdParentOfOrEqual(d.entity.id, location) &&
-          d.accountsWithWrite.includes(account),
-      )
-    ) {
-      setLocation(hmId('d', account, {path: [newUrlPath]}))
+      toast.error('You are not allowed to write to this location')
     }
   }
 
   useEffect(() => {
-    if (!location && defaultAccountId) {
-      handleSetLocation(
-        hmId('d', defaultAccountId, {
-          path: [pathNameify(newName)],
-        }),
-      )
+    if (!location && account) {
+      const id = hmId('d', account, {
+        path: [pathNameify(newName)],
+      })
+      setLocation(id)
     }
-  }, [location, defaultAccountId])
-  useEffect(() => {
-    if (!account && defaultAccountId) {
-      handleSetAccount(defaultAccountId)
-    }
-  }, [account, defaultAccountId])
+  }, [location, account])
+
   const newDestinationAlreadyDocument = useEntity(location)
   useEffect(() => {
     if (onAvailable) {
@@ -132,31 +92,6 @@ export function LocationPicker({
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
   return (
     <YStack gap="$3" marginVertical="$4">
-      <Field label="Author Account" id="account">
-        {account && (
-          <SelectDropdown
-            value={account}
-            options={filteredAccounts
-              .map((a) => {
-                const id = a.data?.id
-                if (!id) return null
-                return {
-                  label: a.data?.document?.metadata.name || '',
-                  icon: (
-                    <HMIcon
-                      size={24}
-                      id={id}
-                      metadata={a.data?.document?.metadata}
-                    />
-                  ),
-                  value: id.uid,
-                }
-              })
-              .filter((a) => !!a)}
-            onValue={handleSetAccount}
-          />
-        )}
-      </Field>
       {location ? (
         <Field label={`${capitalize(actionLabel)} to Location`} id="location">
           <XStack jc="space-between" ai="center" flexWrap="wrap">

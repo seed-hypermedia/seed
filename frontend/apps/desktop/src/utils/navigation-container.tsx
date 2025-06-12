@@ -10,7 +10,7 @@ import {
 } from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {writeableStateStream} from '@shm/shared/utils/stream'
+import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode, useEffect, useMemo} from 'react'
@@ -53,6 +53,10 @@ export function NavigationContainer({
         }
       },
       state: navState,
+      selectedIdentity: streamSelector<NavState, string | null>(
+        navState,
+        (state) => state.selectedIdentity || null,
+      ),
     }
   }, [])
   const {send} = useIPC()
@@ -65,7 +69,6 @@ export function NavigationContainer({
   }, [navigation, send])
 
   useEffect(() => {
-    // @ts-expect-error
     return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
       if (event === 'back') {
         navigation.dispatch({type: 'pop'})
@@ -107,6 +110,10 @@ export function NavigationContainer({
         onCopyReference(hmId)
       }}
       hmUrlHref={true}
+      selectedIdentity={navigation.selectedIdentity}
+      setSelectedIdentity={(keyId: string | null) => {
+        navigation.dispatch({type: 'selectedIdentity', value: keyId})
+      }}
     >
       <NavContextProvider value={navigation}>
         {children}

@@ -1,6 +1,7 @@
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
+import {useSelectedAccount} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -20,7 +21,6 @@ import {
   HMCommentDraft,
   HMCommentDraftSchema,
   HMDocumentMetadataSchema,
-  HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -136,7 +136,6 @@ export function useAllDocumentComments(
 
 export function useCommentEditor(
   targetDocId: UnpackedHypermediaId,
-  accounts: HMEntityContent[],
   {
     onDiscardDraft,
     replyCommentId,
@@ -151,6 +150,8 @@ export function useCommentEditor(
     quotingBlockId?: string
   } = {},
 ) {
+  const selectedAccount = useSelectedAccount()
+  console.log('~~ selectedAccount', selectedAccount?.document?.metadata?.name)
   const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -183,11 +184,6 @@ export function useCommentEditor(
     setGroupTypes(editor._tiptapEditor, editorBlocks)
   }
   async function writeDraft() {
-    const signerUid = account.get()
-    if (!signerUid) {
-      console.warn('trying to write draft without account')
-      return
-    }
     setIsSaved(false)
     const blocks = serverBlockNodesFromEditorBlocks(
       editor,
@@ -197,7 +193,6 @@ export function useCommentEditor(
       blocks,
       targetDocId: targetDocId.id,
       replyCommentId,
-      account: signerUid,
     })
     invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
@@ -280,22 +275,6 @@ export function useCommentEditor(
       window.removeEventListener('keydown', handleSelectAll)
     }
   }, [])
-
-  const recentSigners = trpc.recentSigners.get.useQuery()
-  const availableRecentSigner = recentSigners.data
-    ? recentSigners.data.recentSigners.find((signer) =>
-        accounts.find((a) => a.id.uid === signer),
-      ) || accounts[0]?.id.uid
-    : null
-  const accountRef = useRef(
-    writeableStateStream<string | null>(
-      initCommentDraft?.account || availableRecentSigner || null,
-    ),
-  )
-  const [setAccountStream, account] = accountRef.current
-  if (availableRecentSigner && !account.get()) {
-    setAccountStream(availableRecentSigner)
-  }
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   const publishComment = useMutation({
     mutationFn: async ({
@@ -385,7 +364,7 @@ export function useCommentEditor(
       // })
       publishComment.mutate({
         content,
-        signingKeyName: account.get()!,
+        signingKeyName: selectedAccount?.id.uid!,
       })
     }
     function onDiscard() {
@@ -396,19 +375,14 @@ export function useCommentEditor(
       })
     }
 
-    function onSetAccount(accountId: string) {
-      setAccountStream(accountId)
-      writeDraft()
-    }
     return {
       editor,
       onSubmit,
       onDiscard,
       isSaved,
-      account,
-      onSetAccount,
+      account: selectedAccount,
     }
-  }, [targetDocId])
+  }, [targetDocId, selectedAccount?.id.uid])
 }
 
 function usePushComments() {

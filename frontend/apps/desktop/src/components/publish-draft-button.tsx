@@ -1,6 +1,7 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
+import {useSelectedAccount} from '@/selected-account'
 import {client, trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
@@ -320,9 +321,6 @@ function FirstPublishDialog({
   }
   onClose: () => void
 }) {
-  const [account, setAccount] = useState<string | null>(
-    input.defaultAccount || null,
-  )
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.defaultLocation
       ? hmId('d', input.defaultLocation.uid, {
@@ -338,6 +336,8 @@ function FirstPublishDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
+  const selectedAccount = useSelectedAccount()
+  if (!selectedAccount?.id.uid) return null
   return (
     <YStack>
       <DialogTitle>Publish Document</DialogTitle>
@@ -345,8 +345,7 @@ function FirstPublishDialog({
         newName={input.newDefaultName}
         location={location}
         setLocation={setLocation}
-        account={account}
-        setAccount={setAccount}
+        account={selectedAccount?.id.uid}
         actionLabel="publish"
         onAvailable={(isAvail) => {
           isAvailable.current = isAvail
@@ -362,8 +361,8 @@ function FirstPublishDialog({
             toast.error(pathInvalid.error)
             return
           }
-          if (location && account) {
-            input.onSelectDestination(location, account)
+          if (location) {
+            input.onSelectDestination(location, selectedAccount.id.uid)
           }
         }}
       >
@@ -397,7 +396,7 @@ function PublishedToast({
   let message: ReactNode = ''
   if (pushed === null) {
     indicator = (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )

@@ -40,7 +40,6 @@ import {
   createAppWindow,
   dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
-  getAllWindows,
   getFocusedWindow,
   getWindowsState,
 } from './app-windows'
@@ -146,6 +145,7 @@ export function openInitialWindows() {
       trpc.createAppWindow({
         routes: window.routes,
         routeIndex: window.routeIndex,
+        selectedIdentity: window.selectedIdentity,
         sidebarLocked: window.sidebarLocked,
         sidebarWidth: window.sidebarWidth,
         bounds: window.bounds,
@@ -258,6 +258,7 @@ export const router = t.router({
           })
           .or(z.null())
           .optional(),
+        selectedIdentity: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -266,34 +267,6 @@ export const router = t.router({
         await new Promise<void>((resolve) => {
           app.whenReady().then(() => resolve())
         })
-      }
-      const allWindows = getWindowsState()
-      const destRoute = input.routes[input.routeIndex]
-      const destRouteKey = getRouteRefocusKey(destRoute)
-      const matchedWindow = Object.entries(allWindows).find(
-        ([windowId, window]) => {
-          if (
-            !window ||
-            !Array.isArray(window.routes) ||
-            typeof window.routeIndex !== 'number'
-          ) {
-            return false
-          }
-          const activeRoute = window.routes[window.routeIndex]
-          if (!activeRoute) {
-            return false
-          }
-          const activeRouteKey = getRouteRefocusKey(activeRoute)
-          return activeRouteKey && activeRouteKey === destRouteKey
-        },
-      )
-      if (matchedWindow && input.routes.length === 1) {
-        const [matchedWindowId] = matchedWindow
-        const window = getAllWindows().get(matchedWindowId)
-        if (window) {
-          window.focus()
-          return
-        }
       }
       const browserWindow = createAppWindow(input)
 

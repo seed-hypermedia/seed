@@ -1,18 +1,15 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
-import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
   HMBlockEmbed,
   HMComment,
   HMCommentDraft,
   HMCommentGroup,
-  HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useAccounts} from '@shm/shared/models/entity'
@@ -25,7 +22,6 @@ import {
 } from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
@@ -110,8 +106,6 @@ function _CommentBox({
   replyCommentId?: string
   autoFocus?: boolean
 }) {
-  const myAccountsQuery = useMyAccounts()
-  const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, undefined)
   const route = useNavRoute()
   const replace = useNavigate('replace')
@@ -136,13 +130,11 @@ function _CommentBox({
     }
   }, [docId.id, replyCommentId])
 
-  if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
     content = (
       <CommentDraftEditor
         docId={docId}
-        accounts={accounts}
         autoFocus={isStartingComment}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
@@ -229,7 +221,6 @@ const focusSubscribers = new Map<string, Set<() => void>>()
 const CommentDraftEditor = memo(_CommentDraftEditor)
 function _CommentDraftEditor({
   docId,
-  accounts,
   onDiscardDraft,
   autoFocus,
   replyCommentId,
@@ -238,7 +229,6 @@ function _CommentDraftEditor({
   quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
-  accounts: HMEntityContent[]
   onDiscardDraft?: () => void
   autoFocus?: boolean
   replyCommentId?: string
@@ -251,14 +241,16 @@ function _CommentDraftEditor({
     setIsHorizontal(rect.width > 322)
   })
   const isDark = useIsDark()
-  const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
-    useCommentEditor(docId, accounts, {
+  const {editor, onSubmit, onDiscard, isSaved, account} = useCommentEditor(
+    docId,
+    {
       onDiscardDraft,
       replyCommentId,
       initCommentDraft,
       onSuccess,
       quotingBlockId,
-    })
+    },
+  )
   const openUrl = useOpenUrl()
   useEffect(() => {
     if (autoFocus) {
@@ -271,6 +263,7 @@ function _CommentDraftEditor({
     docId.id,
     replyCommentId,
   ])
+  if (!account) return null
 
   return (
     <YStack
@@ -321,26 +314,31 @@ function _CommentDraftEditor({
       >
         <XStack gap="$2" f={1}>
           <AutosaveIndicator isSaved={isSaved} />
-          <SelectAccountDropdown
-            accounts={accounts}
-            account={account}
-            onSetAccount={onSetAccount}
-          />
         </XStack>
-        <XStack gap="$2" f={1}>
-          <Button
-            flex={1}
-            w="100%"
-            size="$2"
-            // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
-            onPress={(e: GestureResponderEvent) => {
-              e.stopPropagation()
-              onSubmit()
-            }}
-            disabled={!isSaved.get()}
+        <XStack gap="$2">
+          <Tooltip
+            content={`Publish Comment as "${account?.document?.metadata.name}"`}
           >
-            Publish
-          </Button>
+            <Button
+              flex={1}
+              w="100%"
+              size="$2"
+              onPress={(e: GestureResponderEvent) => {
+                e.stopPropagation()
+                onSubmit()
+              }}
+              disabled={!isSaved.get()}
+            >
+              {account ? (
+                <HMIcon
+                  id={account.id}
+                  metadata={account.document?.metadata}
+                  size={20}
+                />
+              ) : null}
+              Publish
+            </Button>
+          </Tooltip>
           <Tooltip content="Discard Comment Draft">
             <Button
               // marginLeft="$2"
@@ -373,39 +371,6 @@ function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
       width={autosaveIndicatorSize}
       height={autosaveIndicatorSize}
       borderRadius={autosaveIndicatorSize / 2}
-    />
-  )
-}
-
-function SelectAccountDropdown({
-  account,
-  onSetAccount,
-  accounts,
-  ...props
-}: {
-  account: StateStream<string | null>
-  onSetAccount: (account: string) => void
-  accounts: HMEntityContent[]
-}) {
-  const currentAccount = useStream(account)
-  const options: {label: string; value: string; icon: React.ReactNode}[] =
-    accounts.map((acct) => {
-      return {
-        label: getDocumentTitle(acct.document) || '',
-        value: acct.id.uid,
-        icon: (
-          <HMIcon size={20} id={acct.id} metadata={acct.document?.metadata} />
-        ),
-      }
-    })
-  if (!options || !currentAccount) return null
-  return (
-    <SelectDropdown
-      size="$2"
-      f={1}
-      options={options}
-      value={currentAccount}
-      onValue={onSetAccount}
     />
   )
 }

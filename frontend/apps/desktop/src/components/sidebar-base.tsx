@@ -1,18 +1,24 @@
+import {useMyAccounts} from '@/models/daemon'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
+import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {HoverCard} from '@shm/ui/hover-card'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {Settings} from '@tamagui/lucide-icons'
+import {Plus} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {dispatchOnboardingDialog} from './onboarding'
 
 const HoverRegionWidth = 30
 
@@ -118,24 +124,132 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onMouseEnter={ctx.onMenuHover}
           onMouseLeave={ctx.onMenuHoverLeave}
         >
-          <div className=" flex-1 overflow-y-auto pt-2 pb-8">{children}</div>
-          <div className="shrink-0 flex justify-between p-2">
-            <Tooltip content="App Settings">
-              <Button
-                size="$3"
-                backgroundColor={'$colorTransparent'}
-                chromeless
-                onPress={() => {
-                  navigate({key: 'settings'})
-                }}
-                icon={Settings}
-              />
-            </Tooltip>
+          <div className="flex-1 pt-2 pb-8 overflow-y-auto ">{children}</div>
+          <div className="flex justify-between p-2 shrink-0">
+            <IdentitySelector />
           </div>
         </div>
       </Panel>
       <PanelResizeHandle className="panel-resize-handle" />
     </>
+  )
+}
+
+function IdentitySelector() {
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
+  const myAccounts = useMyAccounts()
+  const accountOptions = myAccounts
+    ?.map((a) => {
+      const id = a.data?.id
+      if (id) {
+        return {
+          label: a.data?.document?.metadata?.name || `?${id.uid?.slice(-8)}`,
+          value: id.uid,
+          id,
+          metadata: a.data?.document?.metadata,
+        }
+      }
+      return null
+    })
+    .filter((d) => !!d)
+  useEffect(() => {
+    const firstValidAccount = myAccounts?.find((a) => !!a.data?.id?.uid)?.data
+      ?.id?.uid
+    if (setSelectedIdentity && !selectedIdentityValue && firstValidAccount) {
+      setSelectedIdentity(firstValidAccount)
+    }
+  }, [setSelectedIdentity, selectedIdentityValue, myAccounts])
+  const selectedAccount = myAccounts?.find(
+    (a) => a.data?.id?.uid === selectedIdentityValue,
+  )
+  if (!accountOptions?.length || !selectedIdentityValue || !selectedAccount) {
+    return (
+      <div className="flex flex-row items-center justify-between w-full gap-4 p-4 bg-white rounded-sm shadow-sm">
+        <CreateAccountButton />
+        <AppSettingsButton />
+      </div>
+    )
+  }
+  return (
+    <HoverCard
+      placement="top-start"
+      content={
+        <div className="flex flex-col items-stretch items-center gap-1">
+          {accountOptions.map((option) => (
+            <div
+              key={option.value}
+              className={cn(
+                'flex flex-row items-center gap-2 p-2 rounded-sm hover:bg-gray-100',
+                selectedAccount?.data?.id?.uid === option.value
+                  ? 'bg-blue-100 hover:bg-blue-200'
+                  : '',
+              )}
+              onClick={() => {
+                setSelectedIdentity?.(option.value || null)
+              }}
+            >
+              {option.id ? (
+                <HMIcon id={option?.id} metadata={option?.metadata} />
+              ) : null}
+              {option.label}
+            </div>
+          ))}
+          <CreateAccountButton className="mt-3" />
+        </div>
+      }
+    >
+      <div className="flex flex-row items-center justify-between gap-4 p-4 bg-white rounded-sm shadow-sm">
+        <div className="flex flex-row items-center gap-2">
+          {selectedAccount.data ? (
+            <HMIcon
+              key={selectedAccount?.data?.id?.uid}
+              id={selectedAccount?.data?.id}
+              metadata={selectedAccount?.data?.document?.metadata}
+            />
+          ) : null}
+          <div>{selectedAccount?.data?.document?.metadata?.name}</div>
+        </div>
+        <AppSettingsButton />
+      </div>
+    </HoverCard>
+  )
+}
+
+function CreateAccountButton({className}: {className?: string}) {
+  return (
+    <Button
+      className={cn('flex-1', className)}
+      backgroundColor="$brand5"
+      hoverStyle={{backgroundColor: '$brand4'}}
+      pressStyle={{backgroundColor: '$brand3'}}
+      borderWidth={0}
+      color="white"
+      size="$2"
+      icon={Plus}
+      onPress={() => {
+        dispatchOnboardingDialog(true)
+      }}
+    >
+      Create Account
+    </Button>
+  )
+}
+
+function AppSettingsButton() {
+  const navigate = useNavigate()
+  return (
+    <Tooltip content="App Settings">
+      <Button
+        size="$3"
+        backgroundColor={'$colorTransparent'}
+        chromeless
+        onPress={() => {
+          navigate({key: 'settings'})
+        }}
+        icon={Settings}
+      />
+    </Tooltip>
   )
 }
 

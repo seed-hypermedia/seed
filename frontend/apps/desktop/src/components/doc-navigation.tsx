@@ -1,5 +1,8 @@
 import {focusDraftBlock} from '@/draft-focusing'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
@@ -35,7 +38,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
     locationUid: id.uid,
     locationPath: id.path || undefined,
   })
-  const capability = useMyCapability(id)
+  const capability = useSelectedAccountCapability(id)
   const siteList = useListSite(id)
   const isHome = !id.path?.length
   const siteListQuery = siteList?.data ? {in: id, results: siteList.data} : null

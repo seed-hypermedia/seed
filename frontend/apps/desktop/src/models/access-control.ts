@@ -1,4 +1,5 @@
 import {grpcClient} from '@/grpc-client'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
@@ -134,8 +135,11 @@ export type HMWritableDocument = {
   accountsWithWrite: string[]
 }
 
-export function useMyWritableDocuments(): HMWritableDocument[] {
-  const accountsCaps = useMyAccountsCapabilities()
+export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
+  const selectedAccountId = useSelectedAccountId()
+  const accountsCaps = useAccountsCapabilities(
+    selectedAccountId ? [selectedAccountId] : [],
+  )
   const writableDocumentIds: UnpackedHypermediaId[] = []
   function addWritableId(id: UnpackedHypermediaId) {
     // if writableDocumentIds already has this id, don't add it
@@ -143,16 +147,18 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
     // add the parent
     writableDocumentIds.push(id)
   }
-  accountsCaps?.forEach(({capabilities}) => {
+  accountsCaps?.forEach((q) => {
+    const capabilities = q.data?.capabilities
     capabilities?.forEach((cap) => {
       if (roleCanWrite(cap.role)) {
         addWritableId(cap.grantId)
       }
     })
   })
-  accountsCaps?.forEach(({accountId}) => {
-    addWritableId(hmId('d', accountId))
-  })
+  if (selectedAccountId) {
+    addWritableId(hmId('d', selectedAccountId))
+  }
+
   const writableDocuments = useEntities(writableDocumentIds)
     .map((doc) => doc.data)
     .filter((doc) => !!doc)
@@ -160,7 +166,9 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
   const allWritableDocuments = writableDocuments.map((doc) => ({
     entity: doc,
     accountsWithWrite: accountsCaps
-      .filter(({accountId, capabilities}) => {
+      .filter((q) => {
+        const accountId = q.data?.accountId
+        const capabilities = q.data?.capabilities
         if (doc.id.uid === accountId) return true
         return !!capabilities?.find(
           (cap) =>
@@ -169,7 +177,8 @@ export function useMyWritableDocuments(): HMWritableDocument[] {
             isPathParentOfOrEqual(cap.grantId.path, doc.id.path),
         )
       })
-      .map(({accountId}) => accountId),
+      .map((q) => q.data?.accountId)
+      .filter((accountId) => !!accountId) as string[],
   }))
   return allWritableDocuments
 }
@@ -184,6 +193,36 @@ export function useMyAccountsCapabilities() {
       capabilities: caps?.data?.capabilities,
     }
   })
+}
+
+export function useSelectedAccountCapability(
+  id?: UnpackedHypermediaId,
+  minimumRole: HMRole = 'writer',
+): HMCapability | null {
+  if (!id) return null
+  const selectedAccount = useSelectedAccount()
+  const capabilities = useAllDocumentCapabilities(id)
+  if (selectedAccount?.id.uid === id.uid) {
+    // owner is the highest role so we don't need to check for minimumRole
+    return {
+      id: '_owner',
+      accountUid: id.uid,
+      role: 'owner',
+      grantId: hmId('d', id.uid),
+    } satisfies HMCapability
+  }
+  const myCapability = [...(capabilities.data || [])]
+    ?.sort(
+      // sort by capability id for deterministic capability selection
+      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
+    )
+    .filter((cap) => {
+      return isGreaterOrEqualRole(minimumRole, cap.role)
+    })
+    .find((cap) => {
+      return selectedAccount?.id.uid === cap.accountUid
+    })
+  return myCapability || null
 }
 
 export function useMyCapability(
@@ -218,16 +257,16 @@ export function useMyCapability(
   return myCapability || null
 }
 
-export function useMyCapabilities(
+export function useSelectedAccountCapabilities(
   id?: UnpackedHypermediaId,
   minimumRole: HMRole = 'writer',
 ): HMCapability[] {
   if (!id) return []
-  const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
+  const selectedAccount = useSelectedAccount()
 
   const ownerCap: HMCapability[] =
-    myAccounts.data && myAccounts.data.indexOf(id.uid) > -1
+    selectedAccount?.id.uid && selectedAccount.id.uid === id.uid
       ? [
           {
             id: '_owner',
@@ -246,9 +285,7 @@ export function useMyCapabilities(
       return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .filter((cap) => {
-      return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.accountUid,
-      )
+      return selectedAccount?.id.uid === cap.accountUid
     })
   return [...ownerCap, ...myCapabilities]
 }

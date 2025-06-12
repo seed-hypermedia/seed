@@ -44,6 +44,7 @@ export function closeAppWindow(windowId: string) {
       sidebarLocked: true,
       sidebarWidth: 15,
       accessoryWidth: 20,
+      selectedIdentity: null,
     })
   }
 }
@@ -100,6 +101,7 @@ const appWindowSchema = z.object({
   sidebarLocked: z.boolean(),
   sidebarWidth: z.number(),
   accessoryWidth: z.number(),
+  selectedIdentity: z.string().nullable().optional(),
 })
 
 type AppWindow = z.infer<typeof appWindowSchema>
@@ -183,12 +185,26 @@ export function dispatchAllWindowsAppEvent(event: AppWindowEvent) {
   })
 }
 
+export function getCurrentWindowSelectedIdentity() {
+  const focusedWindow = getFocusedWindow()
+  if (!focusedWindow) return null
+  const foundEntry = Array.from(allWindows.entries()).find(
+    ([id, window]) => window === focusedWindow,
+  )
+  if (!foundEntry) return null
+  const customWindowId = foundEntry[0]
+  const windowState = getWindowsState()[customWindowId]
+  return windowState?.selectedIdentity || null
+}
+
 export function createAppWindow(
   input: Partial<AppWindow> & {id?: string},
 ): BrowserWindow {
   if (!app.isReady()) {
     throw new Error('Cannot create BrowserWindow before app is ready')
   }
+  const selectedIdentity =
+    input.selectedIdentity || getCurrentWindowSelectedIdentity()
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const win = getAWindow()
   const prevWindowBounds = win?.getBounds()
@@ -266,6 +282,7 @@ export function createAppWindow(
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
+    selectedIdentity,
   }
   windowNavState[windowId] = windValue
 
@@ -321,11 +338,13 @@ export function createAppWindow(
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
+    selectedIdentity,
     bounds: null,
   })
 
   browserWindow.webContents.send('initWindow', {
     routes: initRoutes,
+    selectedIdentity,
     routeIndex: input.routeIndex,
     daemonState: getDaemonState(),
     windowId,
@@ -340,6 +359,7 @@ export function createAppWindow(
         sidebarLocked,
         sidebarWidth,
         accessoryWidth,
+        selectedIdentity,
       }: NavState,
     ) => {
       windowNavState[windowId] = {
@@ -349,6 +369,7 @@ export function createAppWindow(
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
         accessoryWidth: accessoryWidth || 20,
+        selectedIdentity,
       }
       updateWindowState(windowId, (window) => ({
         ...window,
@@ -358,6 +379,7 @@ export function createAppWindow(
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
         accessoryWidth: accessoryWidth || 20,
+        selectedIdentity: selectedIdentity || null,
       }))
       updateRecentRoute(routes[routeIndex])
     },
