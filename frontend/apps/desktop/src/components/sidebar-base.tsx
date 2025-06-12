@@ -5,19 +5,20 @@ import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {HoverCard} from '@shm/ui/hover-card'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {Settings} from '@tamagui/lucide-icons'
+import {Plus} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {dispatchOnboardingDialog} from './onboarding'
 
 const HoverRegionWidth = 30
 
@@ -135,7 +136,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
 }
 
 function IdentitySelector() {
-  const navigate = useNavigate()
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccounts = useMyAccounts()
@@ -164,13 +164,18 @@ function IdentitySelector() {
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
   if (!accountOptions?.length || !selectedIdentityValue || !selectedAccount) {
-    return <CreateAccountButton />
+    return (
+      <div className="flex flex-row items-center justify-between w-full gap-4 p-4 bg-white rounded-sm shadow-sm">
+        <CreateAccountButton />
+        <AppSettingsButton />
+      </div>
+    )
   }
   return (
     <HoverCard
       placement="top-start"
       content={
-        <div className="flex flex-col items-stretch items-center">
+        <div className="flex flex-col items-stretch items-center gap-1">
           {accountOptions.map((option) => (
             <div
               key={option.value}
@@ -190,10 +195,11 @@ function IdentitySelector() {
               {option.label}
             </div>
           ))}
+          <CreateAccountButton className="mt-3" />
         </div>
       }
     >
-      <div className="flex flex-row items-center justify-between p-4 bg-white rounded-sm">
+      <div className="flex flex-row items-center justify-between gap-4 p-4 bg-white rounded-sm shadow-sm">
         <div className="flex flex-row items-center gap-2">
           {selectedAccount.data ? (
             <HMIcon
@@ -204,70 +210,46 @@ function IdentitySelector() {
           ) : null}
           <div>{selectedAccount?.data?.document?.metadata?.name}</div>
         </div>
-        <Tooltip content="App Settings">
-          <Button
-            size="$3"
-            backgroundColor={'$colorTransparent'}
-            chromeless
-            onPress={() => {
-              navigate({key: 'settings'})
-            }}
-            icon={Settings}
-          />
-        </Tooltip>
+        <AppSettingsButton />
       </div>
     </HoverCard>
   )
 }
 
-function CreateAccountButton() {
-  return <div>Create Account</div>
+function CreateAccountButton({className}: {className?: string}) {
+  return (
+    <Button
+      className={cn('flex-1', className)}
+      backgroundColor="$brand5"
+      hoverStyle={{backgroundColor: '$brand4'}}
+      pressStyle={{backgroundColor: '$brand3'}}
+      borderWidth={0}
+      color="white"
+      size="$2"
+      icon={Plus}
+      onPress={() => {
+        dispatchOnboardingDialog(true)
+      }}
+    >
+      Create Account
+    </Button>
+  )
 }
 
-function IdentitySelectorSimple() {
+function AppSettingsButton() {
   const navigate = useNavigate()
-  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
-  const selectedIdentityValue = useStream(selectedIdentity)
-  const myAccounts = useMyAccounts()
-  const options = myAccounts
-    ?.map((a) => {
-      const id = a.data?.id
-      if (id) {
-        return {
-          label: a.data?.document?.metadata?.name || `?${id.uid?.slice(-8)}`,
-          value: id.uid,
-        }
-      }
-      return null
-    })
-    .filter((d) => !!d)
-  if (!options?.length || !selectedIdentityValue) {
-    options.push({
-      label: 'None',
-      value: '',
-    })
-  }
   return (
-    <div className="flex flex-row">
-      <SelectDropdown
-        options={options}
-        value={selectedIdentityValue || ''}
-        onValue={(value) => {
-          setSelectedIdentity?.(value || null)
+    <Tooltip content="App Settings">
+      <Button
+        size="$3"
+        backgroundColor={'$colorTransparent'}
+        chromeless
+        onPress={() => {
+          navigate({key: 'settings'})
         }}
+        icon={Settings}
       />
-      <Tooltip content="App Settings">
-        <Button
-          size="$3"
-          backgroundColor={'$colorTransparent'}
-          chromeless
-          onPress={() => {
-            navigate({key: 'settings'})
-          }}
-          icon={Settings}
-        />
-      </Tooltip>
-    </div>
+    </Tooltip>
   )
 }
 
