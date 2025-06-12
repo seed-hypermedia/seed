@@ -4,7 +4,6 @@ import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
-import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -439,31 +438,6 @@ function AccountKeys() {
             ))}
           </ScrollView>
         </YStack>
-        <XStack p="$1">
-          <Button
-            f={1}
-            icon={Plus}
-            size="$3"
-            onPress={() => dispatchOnboardingDialog(true)}
-            color="white"
-            bg="$brand5"
-            borderColor="$colorTransparent"
-            hoverStyle={{
-              backgroundColor: '$brand4',
-              borderColor: '$colorTransparent',
-            }}
-            activeStyle={{
-              backgroundColor: '$brand4',
-              borderColor: '$colorTransparent',
-            }}
-            focusStyle={{
-              backgroundColor: '$brand4',
-              borderColor: '$colorTransparent',
-            }}
-          >
-            Add Account
-          </Button>
-        </XStack>
       </YStack>
       <YStack
         f={3}
@@ -935,7 +909,7 @@ function DeviceLabelForm({
 
   if (linkDevice.isLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
