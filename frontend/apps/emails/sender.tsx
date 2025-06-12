@@ -45,10 +45,6 @@ export const sendNotificationsEmail = async (
   opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
   notifications: FullNotification[],
 ) => {
-  // const {email, opts, notifications} = JSON.parse(
-  //   fs.readFileSync('./mock-notification3.json', 'utf-8'),
-  // )
-
   const {subject, text, html, subscriberNames} = await createNotificationsEmail(
     email,
     opts,

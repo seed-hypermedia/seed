@@ -238,7 +238,7 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
       return (
         <MjmlButton
           href={notifUrl}
-          backgroundColor="#346DB7"
+          backgroundColor="#068f7b"
           fontSize="14px"
           align="left"
         >
@@ -248,15 +248,41 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
     }
   }
 
-  if (type === 'WebEmbed' && link?.includes('instagram.com')) {
+  if (type === 'WebEmbed') {
+    if (link?.includes('instagram.com')) {
+      return (
+        <MjmlButton
+          href={link}
+          backgroundColor="#346DB7"
+          fontSize="14px"
+          align="left"
+        >
+          Open in Instagram
+        </MjmlButton>
+      )
+    } else if (link.includes('x.com')) {
+      return (
+        <MjmlButton
+          href={link}
+          backgroundColor="#346DB7"
+          fontSize="14px"
+          align="left"
+        >
+          Open in X.com
+        </MjmlButton>
+      )
+    }
+  }
+
+  if (type === 'Button') {
     return (
       <MjmlButton
         href={link}
-        backgroundColor="#C13584"
+        backgroundColor="#068f7b"
         fontSize="14px"
         align="left"
       >
-        Open in Instagram
+        {attributes.fields?.name?.kind?.value || link}
       </MjmlButton>
     )
   }
@@ -297,7 +323,7 @@ function renderInlineTextWithAnnotations(text: string, annotations: any[]) {
       annotatedText = `<b>${annotatedText}</b>`
     } else if (annotation.type === 'Italic') {
       annotatedText = `<i>${annotatedText}</i>`
-    } else if (annotation.type === 'Strikethrough') {
+    } else if (annotation.type === 'Strike') {
       annotatedText = `<s>${annotatedText}</s>`
     } else if (annotation.type === 'Code') {
       annotatedText = `<code>${annotatedText}</code>`
