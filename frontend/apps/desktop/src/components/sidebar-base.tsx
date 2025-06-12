@@ -3,6 +3,8 @@ import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {HoverCard} from '@shm/ui/hover-card'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -133,6 +135,96 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
 }
 
 function IdentitySelector() {
+  const navigate = useNavigate()
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
+  const myAccounts = useMyAccounts()
+  const accountOptions = myAccounts
+    ?.map((a) => {
+      const id = a.data?.id
+      if (id) {
+        return {
+          label: a.data?.document?.metadata?.name || `?${id.uid?.slice(-8)}`,
+          value: id.uid,
+          id,
+          metadata: a.data?.document?.metadata,
+        }
+      }
+      return null
+    })
+    .filter((d) => !!d)
+  useEffect(() => {
+    const firstValidAccount = myAccounts?.find((a) => !!a.data?.id?.uid)?.data
+      ?.id?.uid
+    if (setSelectedIdentity && !selectedIdentityValue && firstValidAccount) {
+      setSelectedIdentity(firstValidAccount)
+    }
+  }, [setSelectedIdentity, selectedIdentityValue, myAccounts])
+  const selectedAccount = myAccounts?.find(
+    (a) => a.data?.id?.uid === selectedIdentityValue,
+  )
+  if (!accountOptions?.length || !selectedIdentityValue || !selectedAccount) {
+    return <CreateAccountButton />
+  }
+  return (
+    <HoverCard
+      placement="top-start"
+      content={
+        <div className="flex flex-col items-stretch items-center">
+          {accountOptions.map((option) => (
+            <div
+              key={option.value}
+              className={cn(
+                'flex flex-row items-center gap-2 p-2 rounded-sm hover:bg-gray-100',
+                selectedAccount?.data?.id?.uid === option.value
+                  ? 'bg-blue-100 hover:bg-blue-200'
+                  : '',
+              )}
+              onClick={() => {
+                setSelectedIdentity?.(option.value || null)
+              }}
+            >
+              {option.id ? (
+                <HMIcon id={option?.id} metadata={option?.metadata} />
+              ) : null}
+              {option.label}
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <div className="flex flex-row items-center justify-between p-4 bg-white rounded-sm">
+        <div className="flex flex-row items-center gap-2">
+          {selectedAccount.data ? (
+            <HMIcon
+              key={selectedAccount?.data?.id?.uid}
+              id={selectedAccount?.data?.id}
+              metadata={selectedAccount?.data?.document?.metadata}
+            />
+          ) : null}
+          <div>{selectedAccount?.data?.document?.metadata?.name}</div>
+        </div>
+        <Tooltip content="App Settings">
+          <Button
+            size="$3"
+            backgroundColor={'$colorTransparent'}
+            chromeless
+            onPress={() => {
+              navigate({key: 'settings'})
+            }}
+            icon={Settings}
+          />
+        </Tooltip>
+      </div>
+    </HoverCard>
+  )
+}
+
+function CreateAccountButton() {
+  return <div>Create Account</div>
+}
+
+function IdentitySelectorSimple() {
   const navigate = useNavigate()
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
