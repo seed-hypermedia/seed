@@ -1,5 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
+import {createNotificationsEmail} from '@shm/emails/notifier'
 import {
   Comment,
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -20,6 +20,7 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
+import {Notification} from './emails'
 import {getAccount, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 

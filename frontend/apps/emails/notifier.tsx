@@ -241,7 +241,6 @@ export type Notification =
       targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
       url: string
-      resolvedNames?: Record<string, string>
     }
   | {
       type: 'reply'
