@@ -25,6 +25,7 @@ import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
@@ -66,21 +67,20 @@ export function LocationPicker({
       account &&
       allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
     if (thisAccountWithWrite) {
-      console.log('write location', location)
       setLocation(location)
+    } else {
+      toast.error('You are not allowed to write to this location')
     }
   }
 
   useEffect(() => {
-    if (!location) {
+    if (!location && account) {
       const id = hmId('d', account, {
         path: [pathNameify(newName)],
       })
-      console.log('SET LOCATION', id)
-      handleSetLocation(id)
+      setLocation(id)
     }
   }, [location, account])
-  console.log('~~ LocationPicker', {location, newName, account})
 
   const newDestinationAlreadyDocument = useEntity(location)
   useEffect(() => {
