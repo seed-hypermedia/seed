@@ -8,6 +8,10 @@ import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {
   useAccountDraftList,
@@ -475,10 +479,13 @@ export function NewSubDocumentButton({
   locationId: UnpackedHypermediaId
   importDropdown?: boolean
 }) {
+  const capability = useSelectedAccountCapability(locationId)
+  const canEditDoc = roleCanWrite(capability?.role)
   const createDraft = useCreateDraft({
     locationUid: locationId.uid,
-    locationPath: locationId.path,
+    locationPath: locationId.path || undefined,
   })
+  if (!canEditDoc) return null
   return (
     <>
       <Tooltip content="Create a new document">
