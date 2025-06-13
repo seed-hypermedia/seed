@@ -193,6 +193,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         range,
         nodeId,
         this.pmView,
+        this,
       )
       markOrNode = nodeAndRange.markOrNode
       range = nodeAndRange.range
@@ -214,7 +215,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
 
     // console.log(this.hoveredId, this.hoveredNode, this.hoveredNodeRange)
-    const nodeAndRange = getNodeAndRange(markOrNode, range, nodeId, this.pmView)
+    const nodeAndRange = getNodeAndRange(
+      markOrNode,
+      range,
+      nodeId,
+      this.pmView,
+      this,
+    )
     markOrNode = nodeAndRange.markOrNode
     range = nodeAndRange.range
     if (this.hyperlinkToolbarState) {
@@ -617,6 +624,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         undefined,
         this.hyperlinkToolbarState.id,
         this.pmView,
+        this,
       )
 
       if (
@@ -722,44 +730,59 @@ function getNodeAndRange(
   range: Range | undefined,
   nodeId: string | undefined,
   view: EditorView,
+  pluginView: HyperlinkToolbarView<any>,
 ) {
   if (!markOrNode && !range && nodeId) {
     const {state} = view
-    const {posBeforeNode} = getNodeById(nodeId, state.doc)
-    const contentNode = state.doc.nodeAt(posBeforeNode + 1)
+    try {
+      const {posBeforeNode} = getNodeById(nodeId, state.doc)
+      const contentNode = state.doc.nodeAt(posBeforeNode + 1)
 
-    if (contentNode) {
-      if (
-        contentNode.type.name === 'embed' ||
-        contentNode.type.name === 'button'
-      ) {
-        markOrNode = contentNode
-        range = {
-          from: posBeforeNode + 1,
-          to: posBeforeNode + 1 + contentNode.nodeSize,
+      if (contentNode) {
+        if (
+          contentNode.type.name === 'embed' ||
+          contentNode.type.name === 'button'
+        ) {
+          markOrNode = contentNode
+          range = {
+            from: posBeforeNode + 1,
+            to: posBeforeNode + 1 + contentNode.nodeSize,
+          }
+        } else {
+          contentNode.descendants((child, childPos) => {
+            const linkMark = child.marks?.find(
+              (mark) => mark.type.name === 'link',
+            )
+            if (linkMark) {
+              markOrNode = linkMark
+              range = {
+                from: posBeforeNode + 2 + childPos,
+                to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
+              }
+              return false
+            }
+            if (child.type.name === 'inline-embed') {
+              markOrNode = child
+              range = {
+                from: posBeforeNode + 2 + childPos,
+                to: posBeforeNode + 2 + childPos + child.nodeSize,
+              }
+              return false
+            }
+          })
         }
-      } else {
-        contentNode.descendants((child, childPos) => {
-          const linkMark = child.marks?.find(
-            (mark) => mark.type.name === 'link',
-          )
-          if (linkMark) {
-            markOrNode = linkMark
-            range = {
-              from: posBeforeNode + 2 + childPos,
-              to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
-            }
-            return false
-          }
-          if (child.type.name === 'inline-embed') {
-            markOrNode = child
-            range = {
-              from: posBeforeNode + 2 + childPos,
-              to: posBeforeNode + 2 + childPos + child.nodeSize,
-            }
-            return false
-          }
-        })
+      }
+    } catch (e) {
+      let missingId
+      state.doc.descendants((node, pos) => {
+        if (node.attrs.id && node.attrs.id === nodeId) {
+          console.log(node)
+          missingId = nodeId
+        }
+      })
+
+      if (!missingId) {
+        pluginView?.resetHyperlink()
       }
     }
   }
