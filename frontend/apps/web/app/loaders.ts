@@ -47,7 +47,6 @@ import {
 } from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
 import {queryClient} from './client'
-import {logDebug} from './logger'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
 import {discoverDocument} from './utils/discovery'
@@ -289,15 +288,24 @@ export async function getBaseDocument(
 
   // now we need to get the author content for queried docs
   supportDocuments.push(
-    ...(await Promise.all(
-      Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
-        const document = await getHMDocument(hmId('d', uid))
-        return {
-          id: hmId('d', uid),
-          document,
-        }
-      }),
-    )),
+    ...(
+      await Promise.all(
+        Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
+          try {
+            const document = await getHMDocument(hmId('d', uid), {
+              discover: true,
+            })
+            return {
+              id: hmId('d', uid),
+              document,
+            }
+          } catch (e) {
+            console.error('error fetching author', uid, e)
+            return null
+          }
+        }),
+      )
+    ).filter((doc) => !!doc),
   )
 
   return {
@@ -328,7 +336,6 @@ export async function getDocument(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
 ): Promise<WebDocumentPayload> {
-  logDebug('getDocument', entityId.id)
   const document = await getBaseDocument(entityId, parsedRequest)
   const crumbs = getParentPaths(entityId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
@@ -624,7 +631,6 @@ export async function loadSiteDocument<T>(
   extraData?: T,
 ): Promise<WrappedResponse<SiteDocumentPayload & T>> {
   const {hostname, origin} = parsedRequest
-  logDebug('loadSiteDocument', id.id)
   const config = await getConfig(hostname)
   if (!config) {
     throw new Error('No config found for hostname ' + hostname)
