@@ -4,6 +4,7 @@ import {MainWrapper} from '@/components/main-wrapper'
 import {
   useAllAccountsWithContacts,
   useContact,
+  useDeleteContact,
   useSaveContact,
   useSelectedAccountContacts,
 } from '@/models/contacts'
@@ -26,6 +27,8 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -38,6 +41,7 @@ import {
   ShieldCheck,
   ShieldPlus,
 } from '@tamagui/lucide-icons'
+import {Trash} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Form, Paragraph, Text, XStack, YStack} from 'tamagui'
@@ -216,6 +220,7 @@ function ContactListItem({
 function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   const contact = useContact(contactId)
   const contactFormDialog = useAppDialog(ContactFormDialog)
+  const deleteContactDialog = useAppDialog(DeleteContactDialog)
   const navigate = useNavigate()
   const selectedAccountContacts = useSelectedAccountContacts()
 
@@ -249,7 +254,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
           </Tooltip>
         )}
         {contact.data ? <ContactEdgeNames contact={contact.data} /> : null}
-        <XStack jc="center" gap="$3">
+        <XStack jc="center" gap="$3" ai="center">
           <Button
             icon={ArrowUpRight}
             onPress={() =>
@@ -262,18 +267,32 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
             Open Site
           </Button>
           {myContact ? (
-            <Button
-              icon={Pencil}
-              onPress={() => {
-                contactFormDialog.open({
-                  editId: myContact.id,
-                  name: myContact.name,
-                  subjectUid: contactId?.uid,
-                })
-              }}
-            >
-              Edit Contact
-            </Button>
+            <>
+              <Button
+                icon={Pencil}
+                onPress={() => {
+                  contactFormDialog.open({
+                    editId: myContact.id,
+                    name: myContact.name,
+                    subjectUid: contactId?.uid,
+                  })
+                }}
+              >
+                Edit Contact
+              </Button>
+              <OptionsDropdown
+                menuItems={[
+                  {
+                    key: 'delete',
+                    icon: Trash,
+                    label: 'Delete Contact',
+                    onPress: () => {
+                      deleteContactDialog.open({contact: myContact})
+                    },
+                  },
+                ]}
+              />
+            </>
           ) : (
             <Button
               icon={ShieldPlus}
@@ -296,6 +315,40 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
           />
         ) : null}
         {contactFormDialog.content}
+        {deleteContactDialog.content}
+      </div>
+    </div>
+  )
+}
+
+function DeleteContactDialog({
+  input,
+  onClose,
+}: {
+  input: {contact: PlainMessage<Contact>}
+  onClose: () => void
+}) {
+  const deleteContact = useDeleteContact()
+  return (
+    <div className="flex flex-col gap-4">
+      <DialogTitle>Delete Contact?</DialogTitle>
+      <div>
+        You will publicly delete this contact named "{input.contact.name}".
+      </div>
+      <div className="flex flex-row items-center justify-between gap-2">
+        <Spinner hide={!deleteContact.isLoading} />
+        <Button
+          theme="red"
+          icon={Trash}
+          onPress={() => {
+            console.log('~ will deleteContact', input.contact)
+            deleteContact.mutateAsync(input.contact).then(() => {
+              onClose()
+            })
+          }}
+        >
+          Confirm Delete
+        </Button>
       </div>
     </div>
   )

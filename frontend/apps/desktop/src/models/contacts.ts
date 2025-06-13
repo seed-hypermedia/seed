@@ -37,8 +37,6 @@ function queryContactListOfSubject(accountUid: string | undefined) {
           value: accountUid,
         },
       })
-      console.log('~ contacts of subject', contacts)
-
       return contacts.contacts.map((c) => toPlainMessage(c))
     },
     enabled: !!accountUid,
@@ -61,7 +59,6 @@ function queryContactListOfAccount(accountUid: string | null | undefined) {
           value: accountUid,
         },
       })
-      console.log('~ contacts of account', contacts)
       return contacts.contacts.map((c) => toPlainMessage(c))
     },
     enabled: !!accountUid,
@@ -160,6 +157,28 @@ export function useSaveContact() {
     onSuccess: (_, contact) => {
       invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
       invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
+    },
+  })
+}
+
+export function useDeleteContact() {
+  const selectedAccount = useSelectedAccountId()
+  return useMutation({
+    mutationFn: async (contact: {
+      id: string
+      account: string
+      subject: string
+    }) => {
+      if (!selectedAccount) throw new Error('No selected account')
+      await grpcClient.documents.deleteContact({
+        id: contact.id,
+        account: contact.account,
+        signingKeyName: selectedAccount,
+      })
+    },
+    onSuccess: (_, contact) => {
+      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
+      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.account])
     },
   })
 }
