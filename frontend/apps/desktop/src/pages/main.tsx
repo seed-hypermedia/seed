@@ -75,14 +75,7 @@ export default function Main({className}: {className?: string}) {
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
         <XStack className="window-drag" ai="center" jc="center" w="100%">
-          <TitleText
-            marginHorizontal="$4"
-            fontWeight="bold"
-            f={1}
-            textAlign="center"
-          >
-            Settings
-          </TitleText>
+          <TitleText marginHorizontal="$4">Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </XStack>
       </TitlebarWrapper>
