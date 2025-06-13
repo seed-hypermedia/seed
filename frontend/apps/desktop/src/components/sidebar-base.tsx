@@ -167,6 +167,8 @@ function IdentitySelector() {
   const selectedAccount = myAccounts?.find(
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
+  const [isOpen, setIsOpen] = useState(false)
+
   if (!accountOptions?.length || !selectedIdentityValue || !selectedAccount) {
     return (
       <div className="flex flex-row items-center justify-between w-full gap-4 p-4 bg-white rounded-sm shadow-sm">
@@ -175,7 +177,6 @@ function IdentitySelector() {
       </div>
     )
   }
-  const [isOpen, setIsOpen] = useState(false)
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
@@ -193,7 +194,7 @@ function IdentitySelector() {
           <AppSettingsButton />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="flex flex-col items-stretch gap-1">
+      <PopoverContent className="flex flex-col items-stretch gap-1 max-h-[80vh] overflow-y-auto">
         {accountOptions.map((option) => (
           <div
             key={option.value}
