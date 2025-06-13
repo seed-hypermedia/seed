@@ -1,8 +1,9 @@
+import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
-import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
+import {getContactMetadata, queryBlockSortedItems} from '@shm/shared/content'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
   HMAccountsMetadata,
@@ -305,7 +306,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
     'Content'
   if (doc.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -414,6 +415,7 @@ export function EmbedInline(props: EntityComponentProps) {
 
 function DocInlineEmbed(props: EntityComponentProps) {
   const pubId = props?.type == 'd' ? props.id : undefined
+  const contacts = useSelectedAccountContacts()
   if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useSubscribedEntity(props)
   const document = doc.data?.document
@@ -426,7 +428,8 @@ function DocInlineEmbed(props: EntityComponentProps) {
       onHoverIn={props.onHoverIn}
       onHoverOut={props.onHoverOut}
     >
-      {`@${getDocumentTitle(document) || '...'}`}
+      {getContactMetadata(props.uid, document?.metadata, contacts.data).name ||
+        '?'}
     </InlineEmbedButton>
   )
 }
