@@ -169,7 +169,7 @@ function IdentitySelector() {
   )
   const [isOpen, setIsOpen] = useState(false)
 
-  if (!accountOptions?.length || !selectedIdentityValue || !selectedAccount) {
+  if (!selectedIdentityValue) {
     return (
       <div className="flex flex-row items-center justify-between w-full gap-4 p-4 bg-white rounded-sm shadow-sm">
         <CreateAccountButton />
@@ -182,14 +182,17 @@ function IdentitySelector() {
       <PopoverTrigger asChild>
         <button className="flex flex-row items-center justify-between w-full gap-4 p-2 px-3 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
           <div className="flex flex-row items-center gap-4">
-            {selectedAccount.data ? (
+            {selectedAccount?.data ? (
               <HMIcon
-                key={selectedAccount?.data?.id?.uid}
-                id={selectedAccount?.data?.id}
-                metadata={selectedAccount?.data?.document?.metadata}
+                key={selectedAccount.data?.id?.uid}
+                id={selectedAccount.data?.id}
+                metadata={selectedAccount.data?.document?.metadata}
               />
             ) : null}
-            <div>{selectedAccount?.data?.document?.metadata?.name}</div>
+            <div>
+              {selectedAccount?.data?.document?.metadata?.name ||
+                `?${selectedIdentityValue.slice(-8)}`}
+            </div>
           </div>
           <AppSettingsButton />
         </button>
