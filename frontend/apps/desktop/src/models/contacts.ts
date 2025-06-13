@@ -306,7 +306,7 @@ export function useContacts(accountUids: string[]) {
         ? {
             id: account.data.id,
             metadata: getContactMetadata(
-              account.data.id,
+              account.data.id.uid,
               account.data.metadata,
               contacts.data,
             ),
@@ -326,7 +326,7 @@ export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
         {
           id: account.id,
           metadata: getContactMetadata(
-            account.id,
+            account.id.uid,
             account.metadata,
             contacts.data,
           ),

@@ -149,7 +149,7 @@ function FavoritesSection() {
         if (!favorite.data) return null
         const {id, document} = favorite.data
         const metadata = getContactMetadata(
-          id,
+          id.uid,
           document?.metadata,
           contacts.data,
         )
@@ -200,7 +200,7 @@ function AccountsSection() {
         if (!account.data) return null
         const {id, document} = account.data
         const metadata = getContactMetadata(
-          id,
+          id.uid,
           document?.metadata,
           contacts.data,
         )

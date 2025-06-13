@@ -49,11 +49,11 @@ export function getDocumentTitle(document?: HMDocument | null) {
 }
 
 export function getContactMetadata(
-  id: UnpackedHypermediaId,
+  accountUid: string,
   metadata: HMDocument['metadata'] | null | undefined,
   contacts?: PlainMessage<Contact>[] | null,
 ) {
-  const contact = contacts?.find((c) => c.subject === id.uid)
+  const contact = contacts?.find((c) => c.subject === accountUid)
   if (contact) {
     return {...(metadata || {}), name: contact.name}
   }

@@ -183,7 +183,7 @@ function BreadcrumbTitle({
         name = getDocumentTitle(contents.entity?.document) || ''
       } else {
         name = getContactMetadata(
-          id,
+          id.uid,
           contents.entity?.document?.metadata,
           contacts.data,
         ).name
