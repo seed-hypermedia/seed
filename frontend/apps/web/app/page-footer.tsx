@@ -19,7 +19,7 @@ export function PageFooter({
 }) {
   const tx = useTx()
   return (
-    <Container className="shrink-0">
+    <Container className="shrink-0 mb-10 md:mb-0">
       <XStack
         jc="space-between"
         ai="center"
