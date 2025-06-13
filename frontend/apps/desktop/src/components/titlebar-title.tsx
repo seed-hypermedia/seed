@@ -36,6 +36,7 @@ import {
 } from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
+import {TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
@@ -47,7 +48,6 @@ import {
   FontSizeTokens,
   Popover,
   Text,
-  TextProps,
   Theme,
   View,
   XStack,
@@ -68,8 +68,8 @@ export function TitleContent({
 }) {
   const route = useNavRoute()
   const titleProps: TextProps = {
-    size,
-    fontWeight: 'bold',
+    size: 'md',
+    weight: 'bold',
     'data-testid': 'titlebar-title',
   }
   useWindowTitleSetter(async () => {
