@@ -1,6 +1,7 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocumentAccessory} from '@shm/shared/routes'
-import {ScrollView, View} from 'tamagui'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {View} from 'tamagui'
 import {ActivityList} from './document-activity'
 
 export function ActivityPanel({
@@ -11,7 +12,7 @@ export function ActivityPanel({
   onAccessory: (accessory: DocumentAccessory) => void
 }) {
   return (
-    <ScrollView>
+    <ScrollArea>
       <View paddingHorizontal="$2">
         <ActivityList
           docId={docId}
@@ -25,6 +26,6 @@ export function ActivityPanel({
           }}
         />
       </View>
-    </ScrollView>
+    </ScrollArea>
   )
 }

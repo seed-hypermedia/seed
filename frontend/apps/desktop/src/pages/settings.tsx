@@ -41,6 +41,7 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {Field} from '@shm/ui/form-fields'
@@ -85,7 +86,6 @@ import {
   Label,
   Paragraph,
   RadioGroup,
-  ScrollView,
   SizableText,
   Tabs,
   TabsContentProps,
@@ -428,7 +428,7 @@ function AccountKeys() {
     <XStack style={{flex: 1}} gap="$3" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
         <YStack f={1}>
-          <ScrollView>
+          <ScrollArea className="h-full">
             {keys.data?.map((key) => (
               <KeyItem
                 item={key}
@@ -436,7 +436,7 @@ function AccountKeys() {
                 onSelect={() => setSelectedAccount(key)}
               />
             ))}
-          </ScrollView>
+          </ScrollArea>
         </YStack>
       </YStack>
       <YStack
@@ -446,7 +446,7 @@ function AccountKeys() {
         borderRadius="$3"
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <ScrollView>
+        <ScrollArea className="h-full">
           <YStack p="$4" gap="$4">
             <XStack marginBottom="$4" gap="$4">
               {selectedAccountId ? (
@@ -653,7 +653,7 @@ function AccountKeys() {
               accountUid={selectedAccount}
             />
           </YStack>
-        </ScrollView>
+        </ScrollArea>
       </YStack>
     </XStack>
   ) : (
@@ -1569,11 +1569,11 @@ const TabsContent = (props: TabsContentProps) => {
       flex={1}
       {...props}
     >
-      <ScrollView contentContainerStyle={{flex: 1}}>
+      <ScrollArea className="h-full">
         <YStack gap="$4" padding="$4" paddingBottom="$5" f={1}>
           {props.children}
         </YStack>
-      </ScrollView>
+      </ScrollArea>
     </Tabs.Content>
   )
 }

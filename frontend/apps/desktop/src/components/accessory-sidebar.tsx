@@ -6,6 +6,7 @@ import {
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {PanelContainer} from '@shm/ui/container'
 import {CollaboratorsIcon} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -18,15 +19,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {
-  Button,
-  ScrollView,
-  SizableText,
-  View,
-  XGroup,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, SizableText, View, XGroup, XStack, YStack} from 'tamagui'
 import '../tailwind.css'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
@@ -217,9 +210,9 @@ export function AccessoryContent({
 } & ComponentProps<typeof YStack>) {
   return (
     <YStack gap="$2" flex={1} {...props}>
-      <ScrollView f={1} paddingHorizontal="$3">
+      <ScrollArea className="flex-1 h-full px-3">
         <YStack gap="$2">{children}</YStack>
-      </ScrollView>
+      </ScrollArea>
       {footer ? (
         <YStack borderTopWidth={1} borderColor="$color6">
           {footer}

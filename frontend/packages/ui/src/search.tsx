@@ -15,8 +15,9 @@ import {Search} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {Fragment, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Button, Input, ScrollView} from 'tamagui'
+import {Button, Input} from 'tamagui'
 import {UIAvatar} from './avatar'
+import {ScrollArea} from './components/scroll-area'
 import {getDaemonFileUrl} from './get-file-url'
 import {highlightSearchMatch, useCollapsedPath} from './search-input'
 import {Separator} from './separator'
@@ -236,7 +237,7 @@ export function HeaderSearch({
               />
             </XStack>
             <YStack width="100%" maxHeight="60vh">
-              <ScrollView overflow="scroll">
+              <ScrollArea className="h-full">
                 {searchItems.map((item: SearchResult, index: number) => {
                   return (
                     <Fragment key={item.key}>
@@ -254,7 +255,7 @@ export function HeaderSearch({
                     </Fragment>
                   )
                 })}
-              </ScrollView>
+              </ScrollArea>
             </YStack>
           </YStack>
         </Popover.Content>

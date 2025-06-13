@@ -1,7 +1,8 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {forwardRef, useMemo, useRef, useState} from 'react'
-import {ScrollView, YStack, YStackProps} from 'tamagui'
+import {YStack, YStackProps} from 'tamagui'
+import {ScrollArea} from './components/scroll-area'
 import {useMedia} from './use-media'
 
 export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
@@ -12,7 +13,7 @@ export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
           children
         ) : (
           // TODO: we cannot remove this ID here because the SlashMenu is referencing this!
-          <ScrollView id="scroll-page-wrapper">{children}</ScrollView>
+          <ScrollArea id="scroll-page-wrapper">{children}</ScrollArea>
         )}
       </YStack>
     )

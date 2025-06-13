@@ -13,8 +13,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Button, Input, InputProps, ScrollView} from 'tamagui'
+import {Button, Input, InputProps} from 'tamagui'
 import {UIAvatar} from './avatar'
+import {ScrollArea} from './components/scroll-area'
 import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
@@ -97,7 +98,7 @@ export function SearchInput({
         // paddingHorizontal="$2"
         // zi="$zIndex.8"
       >
-        <ScrollView>{children}</ScrollView>
+        <ScrollArea className="h-full">{children}</ScrollArea>
       </YStack>
     </YStack>
   )

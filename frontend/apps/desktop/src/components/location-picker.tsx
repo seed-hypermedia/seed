@@ -23,6 +23,7 @@ import {
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
@@ -30,15 +31,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
-import {
-  Input,
-  Popover,
-  ScrollView,
-  SizableText,
-  View,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Input, Popover, SizableText, View, XStack, YStack} from 'tamagui'
 
 export function LocationPicker({
   location,
@@ -126,12 +119,7 @@ export function LocationPicker({
               />
             </XStack>
           </XStack>
-          <ScrollView
-            height={200}
-            borderWidth={1}
-            borderColor="$borderColor"
-            borderRadius="$4"
-          >
+          <ScrollArea className="h-40 border border-border rounded-md">
             <YStack>
               {directory?.map((d, index) => {
                 return (
@@ -162,7 +150,7 @@ export function LocationPicker({
                 )
               })}
             </YStack>
-          </ScrollView>
+          </ScrollArea>
         </Field>
       ) : null}
       <Field label="New URL Path" id="url-path">

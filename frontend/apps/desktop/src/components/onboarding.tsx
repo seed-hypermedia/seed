@@ -12,6 +12,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CheckboxField} from '@shm/ui/checkbox-field'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast} from '@shm/ui/toast'
 import {ArrowLeft} from '@tamagui/lucide-icons'
@@ -24,7 +25,6 @@ import {
   Form,
   H2,
   Input,
-  ScrollView,
   SizableText,
   Text,
   TextArea,
@@ -1261,14 +1261,14 @@ export function OnboardingDebugBox() {
       width={300}
       maxHeight={300}
     >
-      <ScrollView>
+      <ScrollArea className="h-full">
         <Text fontSize="$3" fontFamily="$mono">
           Debug: Onboarding State
         </Text>
         <Text fontSize="$2" fontFamily="$mono" color="$gray11">
           {JSON.stringify(state, null, 2)}
         </Text>
-      </ScrollView>
+      </ScrollArea>
     </YStack>
   )
 }
