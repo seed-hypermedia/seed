@@ -44,6 +44,7 @@
     "@sentry/tracing": "7.49.0",
     "@sentry/vite-plugin": "latest",
     "@shm/editor": "*",
+    "@shm/emails": "*",
     "@shm/shared": "*",
     "@shm/ui": "*",
     "@simplewebauthn/server": "^13.1.1",
