@@ -1,6 +1,5 @@
 import {DialogTitle} from '@/components/dialog'
 import {FavoriteButton} from '@/components/favoriting'
-import {MainWrapper} from '@/components/main-wrapper'
 import {
   useAllAccountsWithContacts,
   useContact,
@@ -23,7 +22,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {Button} from '@shm/ui/button'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -44,25 +43,11 @@ import {
 import {Trash} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
+import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Form, Paragraph, Text, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 
-function ErrorPage({}: {error: any}) {
-  // todo, this!
-  return (
-    <PanelContainer>
-      <MainWrapper scrollable>
-        <Container centered>
-          <Text fontFamily="$body" fontSize="$3">
-            Error
-          </Text>
-        </Container>
-      </MainWrapper>
-    </PanelContainer>
-  )
-}
-
-export default function ContactRoutePage() {
+export default function ContactPage() {
   const route = useNavRoute()
   const contactRoute = route.key === 'contact' ? route : null
   if (!contactRoute) throw new Error('Invalid route for contact page')
@@ -76,10 +61,15 @@ export function ContactListPage({
 }) {
   return (
     <PanelContainer>
-      <div className="flex flex-row items-stretch h-full">
-        <ContactPageSidebar contactId={contactId} />
-        {contactId ? <ContactPageMain contactId={contactId} /> : null}
-      </div>
+      <PanelGroup direction="horizontal" autoSaveId="contact-page">
+        <Panel defaultSize={30} minSize={20} maxSize={40}>
+          <ContactPageSidebar contactId={contactId} />
+        </Panel>
+        <PanelResizeHandle className="panel-resize-handle panel-resize-handle-visible" />
+        <Panel>
+          {contactId ? <ContactPageMain contactId={contactId} /> : null}
+        </Panel>
+      </PanelGroup>
     </PanelContainer>
   )
 }
@@ -98,7 +88,7 @@ function Tab({
       className={cn(
         'inline-block p-4 whitespace-nowrap border-b-3 flex-shrink-0',
         isActive
-          ? 'text-black font-bold border-green-600 rounded-none'
+          ? 'text-black font-bold border-brand-5 bg-brand-5 rounded-none'
           : 'text-gray-600 hover:text-gray-800 border-transparent rounded-none',
       )}
       onClick={onPress}
@@ -184,7 +174,6 @@ function ContactListItem({
       }}
       paddingHorizontal={16}
       marginVertical="$1"
-      width="100%"
       onPress={() => {
         navigate({key: 'contact', id})
       }}
@@ -242,7 +231,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
     }
   }
   return (
-    <div className="flex flex-col items-center flex-1 p-4 overflow-y-auto border-l-2 border-color-gray-200">
+    <div className="flex flex-col items-center flex-1 p-4 overflow-y-auto">
       <div className="flex flex-col items-center flex-1 max-w-md gap-3 p-4 bg-gray-100 rounded-lg py-7">
         <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
         <Tooltip content={primaryTooltip}>
