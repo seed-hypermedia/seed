@@ -1,8 +1,8 @@
-import publishingDemoVideo from "../../public/publishing-demo.mp4";
+import publishingDemoVideo from '../../public/publishing-demo.mp4'
 
 export default function Publishing() {
   return (
-    <section className="w-full px-4 py-20 bg-green-fade-to text-center">
+    <section className="w-full px-4 py-20 text-center bg-[linear-gradient(to_bottom,_#038e7a1a_0%,_#038e7a00_33%)]">
       <div className="max-w-5xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-left">
           Your Publications With No Barriers
@@ -14,21 +14,21 @@ export default function Publishing() {
         <div className="mt-12 grid gap-6 sm:grid-cols-1 md:grid-cols-3">
           {[
             {
-              title: "Quick & Easy Publishing",
-              points: ["No coding required.", "No gatekeepers.", "No hassle."],
+              title: 'Quick & Easy Publishing',
+              points: ['No coding required.', 'No gatekeepers.', 'No hassle.'],
             },
             {
-              title: "Publish Freely, Without Censorship",
+              title: 'Publish Freely, Without Censorship',
               points: [
-                "All you need is a computer.",
-                "Share your ideas, stories, and creations without restrictions.",
+                'All you need is a computer.',
+                'Share your ideas, stories, and creations without restrictions.',
               ],
             },
             {
-              title: "Portable & Shareable",
+              title: 'Portable & Shareable',
               points: [
-                "Publish directly to your own domain or hyper.media.",
-                "Instantly share your work with friends, followers, and the world.",
+                'Publish directly to your own domain or hyper.media.',
+                'Instantly share your work with friends, followers, and the world.',
               ],
             },
           ].map((card, i) => (
@@ -59,5 +59,5 @@ export default function Publishing() {
         </div>
       </div>
     </section>
-  );
+  )
 }

@@ -1,10 +1,10 @@
-import embedsVideo from "../../public/embeds.mp4";
-import linkingImage from "../../public/linking.png";
-import referencingImage from "../../public/referencing.png";
+import embedsVideo from '../../public/embeds.mp4'
+import linkingImage from '../../public/linking.png'
+import referencingImage from '../../public/referencing.png'
 
 export default function Linking() {
   return (
-    <section className="w-full py-20 bg-[linear-gradient(to_bottom,_#e5f4ee_1%,_#fefefe_30%)]">
+    <section className="w-full py-20 bg-[linear-gradient(to_bottom,_#e5f4ee_0%,_#fefefe_33%)]">
       <div className="max-w-5xl mx-auto px-6">
         {/* Heading */}
         <div className="text-left mb-16">
@@ -83,5 +83,5 @@ export default function Linking() {
         </div>
       </div>
     </section>
-  );
+  )
 }

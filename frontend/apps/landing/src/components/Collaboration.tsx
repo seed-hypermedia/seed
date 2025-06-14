@@ -1,8 +1,9 @@
-import collaboratorsImage from "../../public/collaborators.png";
-import commentsImage from "../../public/comments.png";
+import collaboratorsImage from '../../public/collaborators.png'
+import commentsImage from '../../public/comments.png'
+
 export default function Collaboration() {
   return (
-    <section className="w-full py-20 bg-green-fade-from">
+    <section className="w-full py-20 bg-[linear-gradient(to_bottom,_#54cd8533_0%,_#54cd8500_33%)]">
       <div className="max-w-5xl mx-auto px-6">
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-gray-900">
@@ -56,5 +57,5 @@ export default function Collaboration() {
         <div className="w-full border-t border-gray-200" />
       </div>
     </section>
-  );
+  )
 }
