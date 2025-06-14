@@ -24,7 +24,7 @@ import {
   RecentSearchResultItem,
   SearchInput as SearchInputUI,
   SearchResultItem,
-} from '@shm/ui/search-input'
+} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'

@@ -83,9 +83,9 @@ export function SiteHeader({
         <Menu size={20} />
       </Button>
       {originHomeId ? (
-        <XStack display="none" $gtSm={{display: 'flex'}}>
+        <div className="hidden sm:block">
           <HeaderSearch originHomeId={originHomeId} />
-        </XStack>
+        </div>
       ) : null}
     </>
   )

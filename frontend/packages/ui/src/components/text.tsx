@@ -58,6 +58,8 @@ const textVariants = cva(
         muted: 'text-muted-foreground',
       },
       weight: {
+        thin: 'font-thin',
+        light: 'font-light',
         normal: 'font-normal',
         medium: 'font-medium',
         semibold: 'font-semibold',

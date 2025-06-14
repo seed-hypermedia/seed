@@ -15,7 +15,7 @@ export function Separator({
       decorative
       orientation={vertical ? 'vertical' : 'horizontal'}
       className={cn(
-        'bg-gray-300 shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
+        'bg-gray-200 dark:bg-gray-800 shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
         className,
       )}
     />

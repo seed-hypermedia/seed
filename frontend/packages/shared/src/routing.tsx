@@ -114,6 +114,7 @@ export function useRouteLink(
   if (!route)
     return {
       onPress: undefined,
+      onClick: undefined,
       href: undefined,
       style: {textDecoration: 'none'},
       tag: 'a',

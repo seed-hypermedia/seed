@@ -3,7 +3,7 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {toast} from '@shm/ui/toast'
 import {Search} from '@tamagui/lucide-icons'
 import {useState} from 'react'
-import {Button, View, XStack, YStack} from 'tamagui'
+import {Button, XStack} from 'tamagui'
 import {usePublishSite} from './publish-site'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
@@ -55,36 +55,11 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   const navigate = useNavigate()
   return (
     <>
-      <View
-        onPress={onClose}
-        top={0}
-        left={0}
-        right={0}
-        bottom={0}
-        // @ts-ignore
-        position="fixed"
-        zIndex="$zIndex.9"
+      <div
+        className="fixed top-0 left-0 right-0 bottom-0 z-50"
+        onClick={onClose}
       />
-      <YStack
-        elevation="$4"
-        className="no-window-drag"
-        minHeight="80%"
-        position="absolute"
-        top={0}
-        left={0}
-        zi={5000}
-        width="100%"
-        maxWidth={800}
-        bg="$backgroundStrong"
-        backgroundColor="$backgroundStrong"
-        borderColor="$color7"
-        borderWidth={1}
-        borderRadius={6}
-        h={260}
-        padding="$2"
-        overflow="hidden"
-        marginTop="$3"
-      >
+      <div className="no-window-drag absolute top-0 left-0 z-[999] w-full bg-white dark:bg-black min-h-8/10 border-border border rounded-md h-[260px] p-2 overflow-hidden mt-6 max-w-2xl">
         <SearchInput
           onClose={onClose}
           onSelect={({id, route}) => {
@@ -95,7 +70,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             }
           }}
         />
-      </YStack>
+      </div>
     </>
   )
 }
