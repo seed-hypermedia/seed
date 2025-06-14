@@ -1,11 +1,11 @@
 import {useEntityCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
-import {useAccountsMetadata} from '@/models/entities'
+import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useAccounts, useEntity} from '@shm/shared/models/entity'
+import {useEntity} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
@@ -130,7 +130,7 @@ function CommentBlockAccessory({
     citation.source.author && accountIds.add(citation.source.author)
   })
   const doc = useEntity(docId)
-  const accounts = useAccountsMetadata(Array.from(accountIds))
+  const accounts = useContactsMetadata(Array.from(accountIds))
   let quotedContent = null
   if (doc.data?.document) {
     quotedContent = (
@@ -193,7 +193,7 @@ function CommentReplyAccessory({
   const threadAuthorIds = useMemo(() => {
     return threadComments?.map((doc) => doc.author) || []
   }, [threadComments])
-  const commentAuthors = useAccounts(threadAuthorIds)
+  const commentAuthors = useContacts(threadAuthorIds)
   const rootCommentId = threadComments?.at(0)?.id
   const tx = useTxString()
   return (

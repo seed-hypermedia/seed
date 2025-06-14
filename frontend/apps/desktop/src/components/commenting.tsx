@@ -1,4 +1,5 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
+import {useContacts} from '@/models/contacts'
 import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
@@ -12,7 +13,6 @@ import {
   HMCommentGroup,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useAccounts} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {
@@ -84,7 +84,7 @@ export function useCommentGroupAuthors(
     })
   })
   const commentGroupAuthorsList = Array.from(commentGroupAuthors)
-  const authorEntities = useAccounts(commentGroupAuthorsList)
+  const authorEntities = useContacts(commentGroupAuthorsList)
   return Object.fromEntries(
     commentGroupAuthorsList
       .map((uid, index) => [uid, authorEntities[index].data])

@@ -22,6 +22,7 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
               docId={docId}
               isLast={idx === changes.data.length - 1}
               isCurrent={change.id === currentEntity.data?.document?.version}
+              author={change.author}
             />
           )
         })}

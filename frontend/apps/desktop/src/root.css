@@ -15,6 +15,9 @@ body {
   /* background-color: var(--color7); */
   position: relative;
 }
+.panel-resize-handle.visible {
+  background-color: var(--color7);
+}
 
 .panel-resize-handle::after {
   content: '';

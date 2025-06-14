@@ -98,6 +98,10 @@ export const queryKeys = {
   // hosting
   HOST_INFO: 'HOST_INFO',
   HOST_ABSORB_SESSION: 'HOST_ABSORB_SESSION', // pendingSessionToken: string
+
+  // contacts
+  CONTACTS_ACCOUNT: 'CONTACTS_ACCOUNT', // accountUid: string
+  CONTACTS_SUBJECT: 'CONTACTS_SUBJECT', // accountUid: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

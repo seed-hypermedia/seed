@@ -42,7 +42,7 @@ export const TitleText = (props) => (
   <SizableText
     name="TitlebarH1"
     size="sm"
-    className="whitespace-nowrap max-w-full overflow-hidden text-ellipsis text-foreground font-bold cursor-default m-0 rounded-sm"
+    className="max-w-full m-0 overflow-hidden font-bold rounded-sm cursor-default whitespace-nowrap text-ellipsis text-foreground"
     {...props}
   />
 )
@@ -66,6 +66,7 @@ export const TitleTextButton = styled(ButtonText, {
   whiteSpace: 'nowrap',
   flexShrink: 0,
   overflow: 'hidden',
+  fontWeight: 'bold',
   textOverflow: 'ellipsis',
   name: 'TitlebarLink',
   color: '$color12',

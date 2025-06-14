@@ -1,5 +1,6 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
+  Contact,
   type Account,
   type ActivitySummary,
   type Block,
@@ -1093,3 +1094,9 @@ export const HMPeerConnectionRequestSchema = z.object({
 export type HMPeerConnectionRequest = z.infer<
   typeof HMPeerConnectionRequestSchema
 >
+
+export type HMContact = {
+  metadata: HMMetadata
+  contacts: PlainMessage<Contact>[] | undefined
+  subjectContacts: PlainMessage<Contact>[] | undefined
+}

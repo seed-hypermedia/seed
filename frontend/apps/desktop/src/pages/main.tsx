@@ -37,6 +37,7 @@ import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
+var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
@@ -223,6 +224,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'contacts':
       return {
         PageComponent: Contacts,
+        Fallback: BaseLoading,
+      }
+    case 'contact':
+      return {
+        PageComponent: Contact,
         Fallback: BaseLoading,
       }
     case 'document':

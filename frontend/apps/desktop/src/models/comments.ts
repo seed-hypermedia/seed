@@ -151,7 +151,6 @@ export function useCommentEditor(
   } = {},
 ) {
   const selectedAccount = useSelectedAccount()
-  console.log('~~ selectedAccount', selectedAccount?.document?.metadata?.name)
   const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr

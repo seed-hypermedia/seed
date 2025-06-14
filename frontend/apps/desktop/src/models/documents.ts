@@ -1293,8 +1293,6 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   const result = attributesToCompare.every((attr) => {
     if (attr === 'query') {
-      console.log(`== ~ changes a1.query:`, a1.query)
-      console.log(`== ~ changes a2.query:`, a2.query)
       return isQueryEqual(a1.query, a2.query)
     }
     return (

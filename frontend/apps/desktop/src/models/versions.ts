@@ -7,10 +7,11 @@ import {
   HMDocumentChangeInfo,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useAccounts, useEntity} from '@shm/shared/models/entity'
+import {useEntity} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
+import {useContacts} from './contacts'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   const entity = useEntity({...id, version: null})
@@ -42,7 +43,7 @@ export function useDocumentChanges(id: UnpackedHypermediaId) {
     changeAuthorIds.add(change.author)
   })
   const changeAuthorIdList = Array.from(changeAuthorIds)
-  const changeAuthors = useAccounts(changeAuthorIdList)
+  const changeAuthors = useContacts(changeAuthorIdList)
   const changes: HMDocumentChangeInfo[] = []
   const authors = Object.fromEntries(
     changeAuthorIdList

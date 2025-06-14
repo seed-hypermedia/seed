@@ -28,10 +28,8 @@ export function ChangeItem({
 }) {
   const tx = useTx()
   const {formattedDateMedium} = useTxUtils()
-  // Handle both data structures: separate author prop (desktop) or embedded in change (web)
-  const authorData = author || (change as any)?.author
 
-  if (!authorData || !authorData.id) {
+  if (!author || !author.id) {
     console.warn('ChangeItem: no author data available', {change, author})
     return null
   }
@@ -69,18 +67,14 @@ export function ChangeItem({
         className="flex-shrink-0"
         style={{width: iconSize, height: iconSize}}
       >
-        <HMIcon
-          size={iconSize}
-          id={authorData.id}
-          metadata={authorData.metadata}
-        />
+        <HMIcon size={iconSize} id={author.id} metadata={author.metadata} />
       </div>
       <div className="flex flex-col flex-1 overflow-hidden">
         <div
-          className="flex items-center gap-2 overflow-hidden flex-1"
+          className="flex items-center flex-1 gap-2 overflow-hidden"
           style={{height: iconSize}}
         >
-          <AuthorName author={authorData} />
+          <AuthorName author={author} />
           <span className="flex-shrink-0 text-sm font-light text-muted-foreground">
             {isCurrent ? tx('current version') : tx('version')}
           </span>

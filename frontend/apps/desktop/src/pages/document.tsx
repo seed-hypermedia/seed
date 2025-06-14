@@ -3,7 +3,6 @@ import {triggerCommentDraftFocus} from '@/components/commenting'
 import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
-import {LinkNameComponent} from '@/components/document-name'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {NewspaperLayout} from '@/components/newspaper-layout'
@@ -13,6 +12,7 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
+import {useContactsMetadata} from '@/models/contacts'
 import {
   useAccountDraftList,
   useCreateDraft,
@@ -514,15 +514,13 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
     () => !!entity.data?.document?.metadata.icon,
     [entity.data],
   )
-
-  // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
+  const navigate = useNavigate()
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
+  const authorContacts = useContactsMetadata(authors || [])
+  console.log('~~~ ', authors)
 
   if (entity.isLoading) return null
   if (entity.data?.document === undefined) return null
-
-  if (entity.data?.document?.metadata.layout == 'Seed/Experimental/Newspaper')
-    return null
 
   return (
     <YStack>
@@ -564,27 +562,46 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                   <>
                     <XStack ai="center" gap={0} flexWrap="wrap" maxWidth="100%">
                       {authors
-                        ?.map((a, index) => [
-                          <LinkNameComponent key={a} accountId={a} />,
-                          index !== authors.length - 1 ? (
-                            index === authors.length - 2 ? (
-                              <SizableText
-                                key={`${a}-and`}
-                                size="$1"
-                                fontWeight={'bold'}
-                              >
-                                {' & '}
-                              </SizableText>
-                            ) : (
-                              <SizableText
-                                key={`${a}-comma`}
-                                fontWeight={'bold'}
-                              >
-                                {', '}
-                              </SizableText>
-                            )
-                          ) : null,
-                        ])
+                        ?.map((a, index) => {
+                          const contact = authorContacts[a]
+                          if (!contact) return null
+                          return [
+                            <ButtonText
+                              borderColor="$colorTransparent"
+                              outlineColor="$colorTransparent"
+                              hoverStyle={{
+                                borderColor: '$colorTransparent',
+                                textDecorationLine: 'underline',
+                                textDecorationColor: 'currentColor',
+                              }}
+                              size="$2"
+                              fontWeight="bold"
+                              onPress={() => {
+                                navigate({key: 'document', id: contact.id})
+                              }}
+                            >
+                              {contact.metadata?.name || 'Untitled Contact'}
+                            </ButtonText>,
+                            index !== authors.length - 1 ? (
+                              index === authors.length - 2 ? (
+                                <SizableText
+                                  key={`${a}-and`}
+                                  size="$1"
+                                  fontWeight={'bold'}
+                                >
+                                  {' & '}
+                                </SizableText>
+                              ) : (
+                                <SizableText
+                                  key={`${a}-comma`}
+                                  fontWeight={'bold'}
+                                >
+                                  {', '}
+                                </SizableText>
+                              )
+                            ) : null,
+                          ]
+                        })
                         .filter(Boolean)}
                     </XStack>
                     <Separator />
