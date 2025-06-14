@@ -3,6 +3,7 @@ import {FavoriteButton} from '@/components/favoriting'
 import {
   useAllAccountsWithContacts,
   useContact,
+  useContactList,
   useDeleteContact,
   useSaveContact,
   useSelectedAccountContacts,
@@ -17,6 +18,7 @@ import {
   Contact,
   getMetadataName,
   HMAccount,
+  HMAccountsMetadata,
   HMContact,
   hmId,
   UnpackedHypermediaId,
@@ -65,7 +67,7 @@ export function ContactListPage({
         <Panel defaultSize={30} minSize={20} maxSize={40}>
           <ContactPageSidebar contactId={contactId} />
         </Panel>
-        <PanelResizeHandle className="panel-resize-handle panel-resize-handle-visible" />
+        <PanelResizeHandle className="visible panel-resize-handle" />
         <Panel>
           {contactId ? <ContactPageMain contactId={contactId} /> : null}
         </Panel>
@@ -212,7 +214,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   const deleteContactDialog = useAppDialog(DeleteContactDialog)
   const navigate = useNavigate()
   const selectedAccountContacts = useSelectedAccountContacts()
-
+  const accounts = useContactList()
   const myContact = selectedAccountContacts.data?.find(
     (c) => c.subject === contactId?.uid,
   )
@@ -231,80 +233,87 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
     }
   }
   return (
-    <div className="flex flex-col items-center flex-1 p-4 overflow-y-auto">
-      <div className="flex flex-col items-center flex-1 max-w-md gap-3 p-4 bg-gray-100 rounded-lg py-7">
-        <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
-        <Tooltip content={primaryTooltip}>
-          <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
-        </Tooltip>
-        {secondaryTitle && (
-          <Tooltip content={secondaryTooltip}>
-            <h3 className="text-2xl text-gray-600">{secondaryTitle}</h3>
+    <div className="h-full overflow-y-auto ">
+      <div className="flex flex-row justify-center flex-1 min-h-full p-4">
+        <div className="flex flex-col items-center w-full max-w-lg gap-3 p-4 mx-auto bg-gray-100 rounded-lg py-7">
+          <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
+          <Tooltip content={primaryTooltip}>
+            <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
           </Tooltip>
-        )}
-        {contact.data ? <ContactEdgeNames contact={contact.data} /> : null}
-        <XStack jc="center" gap="$3" ai="center">
-          <Button
-            icon={ArrowUpRight}
-            onPress={() =>
-              navigate({
-                key: 'document',
-                id: contactId,
-              })
-            }
-          >
-            Open Site
-          </Button>
-          {myContact ? (
-            <>
+          {secondaryTitle && (
+            <Tooltip content={secondaryTooltip}>
+              <h3 className="text-2xl text-gray-600">{secondaryTitle}</h3>
+            </Tooltip>
+          )}
+          {contact.data ? (
+            <ContactEdgeNames
+              contact={contact.data}
+              accounts={accounts.data?.accountsMetadata}
+            />
+          ) : null}
+          <XStack jc="center" gap="$3" ai="center">
+            <Button
+              icon={ArrowUpRight}
+              onPress={() =>
+                navigate({
+                  key: 'document',
+                  id: contactId,
+                })
+              }
+            >
+              Open Site
+            </Button>
+            {myContact ? (
+              <>
+                <Button
+                  icon={Pencil}
+                  onPress={() => {
+                    contactFormDialog.open({
+                      editId: myContact.id,
+                      name: myContact.name,
+                      subjectUid: contactId?.uid,
+                    })
+                  }}
+                >
+                  Edit Contact
+                </Button>
+                <OptionsDropdown
+                  menuItems={[
+                    {
+                      key: 'delete',
+                      icon: Trash,
+                      label: 'Delete Contact',
+                      onPress: () => {
+                        deleteContactDialog.open({contact: myContact})
+                      },
+                    },
+                  ]}
+                />
+              </>
+            ) : (
               <Button
-                icon={Pencil}
+                icon={ShieldPlus}
+                theme="green"
                 onPress={() => {
                   contactFormDialog.open({
-                    editId: myContact.id,
-                    name: myContact.name,
+                    name: contact.data?.metadata?.name || '?',
                     subjectUid: contactId?.uid,
                   })
                 }}
               >
-                Edit Contact
+                Save Contact
               </Button>
-              <OptionsDropdown
-                menuItems={[
-                  {
-                    key: 'delete',
-                    icon: Trash,
-                    label: 'Delete Contact',
-                    onPress: () => {
-                      deleteContactDialog.open({contact: myContact})
-                    },
-                  },
-                ]}
-              />
-            </>
-          ) : (
-            <Button
-              icon={ShieldPlus}
-              theme="green"
-              onPress={() => {
-                contactFormDialog.open({
-                  name: contact.data?.metadata?.name || '?',
-                  subjectUid: contactId?.uid,
-                })
-              }}
-            >
-              Save Contact
-            </Button>
-          )}
-        </XStack>
-        {contact.data ? (
-          <AccountContacts
-            contact={contact.data}
-            ownerLabel={primaryTitle || 'Untitled'}
-          />
-        ) : null}
-        {contactFormDialog.content}
-        {deleteContactDialog.content}
+            )}
+          </XStack>
+          {contact.data ? (
+            <AccountContacts
+              contact={contact.data}
+              ownerLabel={primaryTitle || 'Untitled'}
+            />
+          ) : null}
+          {contactFormDialog.content}
+          {deleteContactDialog.content}
+        </div>
       </div>
     </div>
   )
@@ -343,7 +352,13 @@ function DeleteContactDialog({
   )
 }
 
-function ContactEdgeNames({contact}: {contact: HMContact}) {
+function ContactEdgeNames({
+  contact,
+  accounts,
+}: {
+  contact: HMContact
+  accounts: HMAccountsMetadata
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
   const buttonLabel = isExpanded
     ? 'Collapse List of Edge Names'
@@ -367,7 +382,23 @@ function ContactEdgeNames({contact}: {contact: HMContact}) {
           {isExpanded ? (
             <YStack>
               {contact.subjectContacts?.map((contact) => {
-                return <Text>{contact.name}</Text>
+                const account = accounts[contact.account]
+                return (
+                  <div className="flex flex-row items-center justify-between gap-2">
+                    <Text fontWeight="bold">{contact.name}</Text>
+                    {account ? (
+                      <Tooltip
+                        content={account.metadata?.name || 'Unknown Account'}
+                      >
+                        <HMIcon
+                          id={account.id}
+                          metadata={account.metadata}
+                          size={24}
+                        />
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                )
               })}
             </YStack>
           ) : null}
