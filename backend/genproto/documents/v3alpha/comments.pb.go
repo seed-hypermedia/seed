@@ -478,7 +478,9 @@ type Comment struct {
 	// Timestamp when the comment was created.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Optional. ID of the capability this comment was created with, if any.
-	Capability    string `protobuf:"bytes,10,opt,name=capability,proto3" json:"capability,omitempty"`
+	Capability string `protobuf:"bytes,10,opt,name=capability,proto3" json:"capability,omitempty"`
+	// Version of the comment blob.
+	Version       string `protobuf:"bytes,11,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -583,6 +585,13 @@ func (x *Comment) GetCapability() string {
 	return ""
 }
 
+func (x *Comment) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 var File_documents_v3alpha_comments_proto protoreflect.FileDescriptor
 
 const file_documents_v3alpha_comments_proto_rawDesc = "" +
@@ -619,7 +628,7 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListCommentsResponse\x12?\n" +
 	"\bcomments\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.CommentR\bcomments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x82\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x9c\x03\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0etarget_account\x18\x02 \x01(\tR\rtargetAccount\x12\x1f\n" +
@@ -636,7 +645,8 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"\n" +
 	"capability\x18\n" +
 	" \x01(\tR\n" +
-	"capability2\xca\x04\n" +
+	"capability\x12\x18\n" +
+	"\aversion\x18\v \x01(\tR\aversion2\xca\x04\n" +
 	"\bComments\x12f\n" +
 	"\rCreateComment\x120.com.seed.documents.v3alpha.CreateCommentRequest\x1a#.com.seed.documents.v3alpha.Comment\x12`\n" +
 	"\n" +

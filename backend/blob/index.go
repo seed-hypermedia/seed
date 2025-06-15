@@ -51,6 +51,11 @@ func NewIRI(account core.Principal, path string) (IRI, error) {
 	return IRI("hm://" + account.String() + path), nil
 }
 
+// String implements fmt.Stringer.
+func (iri IRI) String() string {
+	return string(iri)
+}
+
 // SpacePath parses IRI into space+path tuple if possible.
 func (iri IRI) SpacePath() (space core.Principal, path string, err error) {
 	u, err := url.Parse(string(iri))
@@ -841,140 +846,6 @@ var qWalkCapabilitiesForDelegate = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
-func (idx *Index) IterComments(ctx context.Context, resource IRI) (it iter.Seq2[cid.Cid, *Comment], check func() error) {
-	var outErr error
-
-	check = func() error { return outErr }
-	it = func(yield func(cid.Cid, *Comment) bool) {
-		conn, release, err := idx.db.Conn(ctx)
-		if err != nil {
-			outErr = err
-			return
-		}
-		defer release()
-
-		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterComments(), resource)
-		for row := range rows {
-			var (
-				codec = row.ColumnInt64(0)
-				hash  = row.ColumnBytesUnsafe(1)
-				data  = row.ColumnBytesUnsafe(2)
-			)
-
-			buf, err = idx.bs.decoder.DecodeAll(data, buf)
-			if err != nil {
-				outErr = err
-				break
-			}
-
-			chcid := cid.NewCidV1(uint64(codec), hash)
-			cmt := &Comment{}
-			if err := cbornode.DecodeInto(buf, cmt); err != nil {
-				outErr = fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
-				break
-			}
-
-			if !yield(chcid, cmt) {
-				break
-			}
-
-			buf = buf[:0] // reset the slice reusing the backing array
-		}
-
-		outErr = errors.Join(outErr, check())
-	}
-
-	return it, check
-}
-
-var qIterComments = dqb.Str(`
-	SELECT
-		b.codec,
-		b.multihash,
-		b.data
-	FROM structural_blobs sb
-	JOIN blobs b ON b.id = sb.id
-	WHERE sb.type = 'Comment'
-	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
-	ORDER BY sb.ts
-`)
-
-// CommentByAuthorResult holds the result of iterating comments by author.
-type CommentByAuthorResult struct {
-	CID     cid.Cid
-	Comment *Comment
-	ID      int64
-}
-
-// IterCommentsByAuthor iterates over comments made by a specific author.
-func (idx *Index) IterCommentsByAuthor(ctx context.Context, author core.Principal, afterID int64, limit int32) (it iter.Seq[CommentByAuthorResult], check func() error) {
-	var outErr error
-
-	check = func() error { return outErr }
-	it = func(yield func(CommentByAuthorResult) bool) {
-		conn, release, err := idx.db.Conn(ctx)
-		if err != nil {
-			outErr = err
-			return
-		}
-		defer release()
-
-		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterCommentsByAuthor(), author, afterID, limit)
-		for row := range rows {
-			var (
-				sbID  = row.ColumnInt64(0)
-				codec = row.ColumnInt64(1)
-				hash  = row.ColumnBytesUnsafe(2)
-				data  = row.ColumnBytesUnsafe(3)
-			)
-
-			buf, err = idx.bs.decoder.DecodeAll(data, buf)
-			if err != nil {
-				outErr = err
-				break
-			}
-
-			chcid := cid.NewCidV1(uint64(codec), hash)
-			cmt := &Comment{}
-			if err := cbornode.DecodeInto(buf, cmt); err != nil {
-				outErr = fmt.Errorf("IterCommentsByAuthor: failed to decode comment %s for author %s: %w", chcid, author, err)
-				break
-			}
-
-			if !yield(CommentByAuthorResult{
-				CID:     chcid,
-				Comment: cmt,
-				ID:      sbID,
-			}) {
-				break
-			}
-
-			buf = buf[:0] // reset the slice reusing the backing array
-		}
-
-		outErr = errors.Join(outErr, check())
-	}
-
-	return it, check
-}
-
-var qIterCommentsByAuthor = dqb.Str(`
-	SELECT
-		sb.id,
-		b.codec,
-		b.multihash,
-		b.data
-	FROM structural_blobs sb
-	JOIN blobs b ON b.id = sb.id
-	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
-	AND sb.id < :afterID
-	ORDER BY sb.id DESC
-	LIMIT :limit
-`)
-
 type indexingCtx struct {
 	conn       *sqlite.Conn
 	blockStore *blockStore
@@ -1152,20 +1023,33 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 	return nil
 }
 
-func (idx *indexingCtx) AssertBlobData(c cid.Cid) (err error) {
+// BlobPresence defines the state of a blob in the database.
+type BlobPresence byte
+
+// Blob presence values.
+// Each subsequent value indicates a more complete state of the blob.
+const (
+	BlobPresenceNotFound BlobPresence = 0
+	BlobPresenceKnown    BlobPresence = 1
+	BlobPresenceHasData  BlobPresence = 2
+)
+
+// GetBlobPresence returns the current state of the blob.
+func (idx *indexingCtx) GetBlobPresence(c cid.Cid) (bp BlobPresence, err error) {
 	delid, err := dbBlobsGetSize(idx.conn, c.Hash())
 	if err != nil {
-		return err
+		return 0, err
 	}
+
 	if delid.BlobsID == 0 {
-		return fmt.Errorf("blob %q not found", c)
+		return BlobPresenceNotFound, nil
 	}
 
 	if delid.BlobsSize < 0 {
-		return fmt.Errorf("blob %q is known, but has no data", c)
+		return BlobPresenceKnown, nil
 	}
 
-	return nil
+	return BlobPresenceHasData, nil
 }
 
 func (idx *indexingCtx) ensureAccount(key core.Principal) (aid, kid int64, err error) {
@@ -1428,6 +1312,44 @@ type LookupCache struct {
 	publicKeys     map[int64]core.Principal
 	cids           map[int64]cid.Cid
 	documentTitles map[IRI]string
+	recordIDs      map[cid.Cid]RecordID
+}
+
+// RecordID is the fully-qualified ID of a replaceable object.
+type RecordID struct {
+	Authority core.Principal
+	TSID      TSID
+}
+
+// DecodeRecordID parses the record ID from string.
+func DecodeRecordID(s string) (RecordID, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 2 {
+		return RecordID{}, fmt.Errorf("invalid record id '%v'", s)
+	}
+
+	authority, err := core.DecodePrincipal(parts[0])
+	if err != nil {
+		return RecordID{}, fmt.Errorf("invalid authority in record id '%v': %w", s, err)
+	}
+
+	tsid := TSID((parts[1]))
+
+	if _, _, err := tsid.Parse(); err != nil {
+		return RecordID{}, fmt.Errorf("invalid TSID in record id '%v': %w", s, err)
+	}
+
+	return RecordID{Authority: authority, TSID: tsid}, nil
+}
+
+// IRI converts the RecordID into an IRI.
+func (rid RecordID) IRI() IRI {
+	return IRI("hm://" + rid.String())
+}
+
+// String returns a string representation of the RecordID.
+func (rid RecordID) String() string {
+	return rid.Authority.String() + "/" + rid.TSID.String()
 }
 
 // NewLookupCache creates a new [LookupCache].
@@ -1437,6 +1359,7 @@ func NewLookupCache(conn *sqlite.Conn) *LookupCache {
 		publicKeys:     make(map[int64]core.Principal),
 		cids:           make(map[int64]cid.Cid),
 		documentTitles: make(map[IRI]string),
+		recordIDs:      make(map[cid.Cid]RecordID),
 	}
 }
 
@@ -1532,6 +1455,49 @@ var qLookupPublicKey = dqb.Str(`
 	SELECT principal
 	FROM public_keys
 	WHERE id = :id;
+`)
+
+// RecordID looks up the RecordID for a given CID.
+func (l *LookupCache) RecordID(c cid.Cid) (rid RecordID, err error) {
+	if recID, ok := l.recordIDs[c]; ok {
+		return recID, nil
+	}
+
+	rows, check := sqlitex.Query(l.conn, qLookupRecordID(), c.Prefix().Codec, c.Hash())
+	for row := range rows {
+		principal := core.Principal(row.ColumnBytes(0))
+		tsid := TSID(row.ColumnText(1))
+
+		rid = RecordID{
+			Authority: principal,
+			TSID:      tsid,
+		}
+		l.recordIDs[c] = rid
+		break
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return RecordID{}, err
+	}
+
+	if len(rid.Authority) == 0 || rid.TSID == "" {
+		return RecordID{}, fmt.Errorf("record ID for CID %s not found", c)
+	}
+
+	return rid, nil
+}
+
+var qLookupRecordID = dqb.Str(`
+	SELECT
+		pk.principal,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM structural_blobs sb
+	JOIN blobs b INDEXED BY blobs_metadata_by_hash
+		ON b.id = sb.id
+		AND (b.codec, b.multihash) = (:codec, :multihash)
+	JOIN public_keys pk ON pk.id = sb.author
+	LIMIT 1
 `)
 
 func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger) (err error) {

@@ -2,6 +2,7 @@ package blob
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"time"
 
 	"github.com/multiformats/go-multibase"
@@ -15,35 +16,41 @@ const maxTS = 1<<48 - 1
 type TSID string
 
 // Timestamp extracts the timestamp from the TSID.
+// If the TSID is malformed this method may panic.
 func (o TSID) Timestamp() time.Time {
-	b := o.Bytes()
+	b, err := o.Bytes()
+	if err != nil {
+		panic(err)
+	}
 	ms := decodeTime(b[:6])
 	return time.UnixMilli(ms)
 }
 
 // Parse extract the timestamp and the hash from the TSID.
-func (o *TSID) Parse() (ts time.Time, hash [4]byte) {
-	b := o.Bytes()
+func (o TSID) Parse() (ts time.Time, hash [4]byte, err error) {
+	b, err := o.Bytes()
+	if err != nil {
+		return ts, hash, err
+	}
 	ms := decodeTime(b[:6])
 	ts = time.UnixMilli(ms)
 	copy(hash[:], b[6:10])
-	return ts, hash
+	return ts, hash, nil
 }
 
 // Bytes returns the byte representation of the TSID.
-func (o TSID) Bytes() [10]byte {
+func (o TSID) Bytes() (out [10]byte, err error) {
 	_, b, err := multibase.Decode(string(o))
 	if err != nil {
-		panic(err)
+		return out, err
 	}
 
 	if len(b) != 10 {
-		panic("BUG: TSID byte representation must be 10 bytes long")
+		return out, fmt.Errorf("BUG: TSID byte representation must be 10 bytes long")
 	}
 
-	var id [10]byte
-	copy(id[:], b)
-	return id
+	copy(out[:], b)
+	return out, nil
 }
 
 // String implements fmt.Stringer.

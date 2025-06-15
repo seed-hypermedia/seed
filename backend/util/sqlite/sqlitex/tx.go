@@ -51,3 +51,50 @@ func (p *Pool) WithSave(ctx context.Context, fn func(*sqlite.Conn) error) (err e
 
 	return fn(conn)
 }
+
+// Read is a generic function for reading from the database.
+// Currently this function can be used to write data too, but eventually it will only provide read-only connections.
+func Read[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*sqlite.Conn) (T, error)) (out T, err error) {
+	var conn *sqlite.Conn
+	switch db := any(db).(type) {
+	case *sqlite.Conn:
+		conn = db
+	case *Pool:
+		c, release, err := db.Conn(ctx)
+		if err != nil {
+			return out, err
+		}
+		defer release()
+		conn = c
+	}
+
+	defer Save(conn)(&err)
+
+	return fn(conn)
+}
+
+// Write is a generic function for writing to the database.
+func Write[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*sqlite.Conn) (T, error)) (out T, err error) {
+	var conn *sqlite.Conn
+	switch db := any(db).(type) {
+	case *sqlite.Conn:
+		conn = db
+	case *Pool:
+		c, release, err := db.Conn(ctx)
+		if err != nil {
+			return out, err
+		}
+		defer release()
+		conn = c
+	}
+
+	if err := WithTx(conn, func() error {
+		var err error
+		out, err = fn(conn)
+		return err
+	}); err != nil {
+		return out, err
+	}
+
+	return out, nil
+}

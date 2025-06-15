@@ -97,7 +97,7 @@ func TestListCommentsByAuthor(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	bob := coretest.NewTester("bob")
 	ctx := context.Background()
-	
+
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial document.
@@ -179,7 +179,7 @@ func TestListCommentsByAuthor_Pagination(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	bob := coretest.NewTester("bob")
 	ctx := context.Background()
-	
+
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial document.
@@ -265,4 +265,251 @@ func TestListCommentsByAuthor_InvalidAuthor(t *testing.T) {
 	})
 	require.Error(t, err, "Invalid author principal should return error")
 	require.Contains(t, err.Error(), "failed to parse author", "Error should mention author parsing")
+}
+
+func TestGetComment(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create the initial document.
+	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Test Document"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a comment.
+	comment, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Get the comment.
+	retrieved, err := alice.GetComment(ctx, &pb.GetCommentRequest{
+		Id: comment.Id,
+	})
+	require.NoError(t, err)
+	require.Equal(t, comment.Id, retrieved.Id)
+	require.Equal(t, comment.Content[0].Block.Text, retrieved.Content[0].Block.Text)
+
+	// Test with invalid comment ID.
+	_, err = alice.GetComment(ctx, &pb.GetCommentRequest{
+		Id: "invalid-id",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse comment ID")
+
+	// Test with non-existent comment ID.
+	fakeID := "hm://z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK/2024-01-01T00:00:00.000Z"
+	_, err = alice.GetComment(ctx, &pb.GetCommentRequest{
+		Id: fakeID,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "InvalidArgument")
+}
+
+func TestBatchGetComments(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create the initial document.
+	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Test Document"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create multiple comments.
+	comment1, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "First comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	comment2, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b2", Type: "paragraph", Text: "Second comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Batch get comments.
+	batch, err := alice.BatchGetComments(ctx, &pb.BatchGetCommentsRequest{
+		Ids: []string{comment1.Id, comment2.Id},
+	})
+	require.NoError(t, err)
+	require.Len(t, batch.Comments, 2)
+	require.Equal(t, comment1.Id, batch.Comments[0].Id)
+	require.Equal(t, comment2.Id, batch.Comments[1].Id)
+
+	// Test with invalid comment ID in batch.
+	_, err = alice.BatchGetComments(ctx, &pb.BatchGetCommentsRequest{
+		Ids: []string{comment1.Id, "invalid-id"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse comment ID")
+
+	// Test with empty batch.
+	emptyBatch, err := alice.BatchGetComments(ctx, &pb.BatchGetCommentsRequest{
+		Ids: []string{},
+	})
+	require.NoError(t, err)
+	require.Len(t, emptyBatch.Comments, 0)
+}
+
+func TestCreateComment_ErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create the initial document.
+	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Test Document"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Test missing signing key.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "signing_key")
+
+	// Test missing target version.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  "",
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "target_version")
+
+	// Test invalid target account.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  "invalid-account",
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse target account")
+
+	// Test invalid target version.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  "invalid-version",
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+
+	// Test invalid reply parent.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		ReplyParent:    "invalid-parent-id",
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse reply parent IRI")
+
+	// Test non-existent reply parent.
+	fakeParentID := "hm://z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK/2024-01-01T00:00:00.000Z"
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  doc.Version,
+		ReplyParent:    fakeParentID,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Test"}},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "reply parent")
+	require.Contains(t, err.Error(), "InvalidArgument")
+}
+
+func TestListComments_ErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Test invalid target account.
+	_, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: "invalid-account",
+		TargetPath:    "",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse target account")
+
+	// Test invalid target path.
+	_, err = alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "invalid\x00path",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse target path")
+
+	// Test empty results for valid but non-existent resource.
+	result, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "/non-existent-document",
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Comments, 0)
 }

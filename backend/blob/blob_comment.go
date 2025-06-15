@@ -46,13 +46,13 @@ func init() {
 // Comment is a blob that represents a comment to some document, or a reply to some other comment.
 type Comment struct {
 	BaseBlob
-	Capability  cid.Cid        `refmt:"capability,omitempty"`
-	Space_      core.Principal `refmt:"space,omitempty"`
-	Path        string         `refmt:"path,omitempty"`
-	Version     []cid.Cid      `refmt:"version,omitempty"`
-	ThreadRoot  cid.Cid        `refmt:"threadRoot,omitempty"`
-	ReplyParent cid.Cid        `refmt:"replyParent,omitempty"`
-	Body        []CommentBlock `refmt:"body"`
+	Capability   cid.Cid        `refmt:"capability,omitempty"`
+	Space_       core.Principal `refmt:"space,omitempty"`
+	Path         string         `refmt:"path,omitempty"`
+	Version      []cid.Cid      `refmt:"version,omitempty"`
+	ThreadRoot   cid.Cid        `refmt:"threadRoot,omitempty"`
+	ReplyParent_ cid.Cid        `refmt:"replyParent,omitempty"`
+	Body         []CommentBlock `refmt:"body"`
 }
 
 // NewComment creates a new Comment blob.
@@ -67,18 +67,21 @@ func NewComment(
 	body []CommentBlock,
 	ts time.Time,
 ) (eb Encoded[*Comment], err error) {
+	if threadRoot.Equals(replyParent) {
+		replyParent = cid.Undef
+	}
 	cu := &Comment{
 		BaseBlob: BaseBlob{
 			Type:   blobTypeComment,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
-		Capability:  cpb,
-		Path:        path,
-		Version:     version,
-		ThreadRoot:  threadRoot,
-		ReplyParent: replyParent,
-		Body:        body,
+		Capability:   cpb,
+		Path:         path,
+		Version:      version,
+		ThreadRoot:   threadRoot,
+		ReplyParent_: replyParent,
+		Body:         body,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -90,6 +93,17 @@ func NewComment(
 	}
 
 	return encodeBlob(cu)
+}
+
+// ReplyParent is a convenience method to get the ReplyParent field.
+// For initial replies we allow reply parent to be empty, because it's the same as the thread root,
+// and this method will fallback to the ThreadRoot field in that case.
+// Notice that if the comment is not a reply, thread root will be empty too.
+func (c *Comment) ReplyParent() cid.Cid {
+	if c.ReplyParent_.Defined() {
+		return c.ReplyParent_
+	}
+	return c.ThreadRoot
 }
 
 // GetSpace returns the space for the comment.
@@ -167,31 +181,45 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 
 	// TODO: ignore comments for removed target resources.
 
-	threadRoot := v.ThreadRoot
-	replyParent := v.ReplyParent
+	var (
+		isReply     = v.ThreadRoot.Defined()
+		threadRoot  = v.ThreadRoot
+		replyParent = v.ReplyParent()
+	)
 
 	if replyParent.Defined() && !threadRoot.Defined() {
 		return fmt.Errorf("comments with replyParent must have threadRoot")
 	}
 
-	if threadRoot.Defined() && !replyParent.Defined() {
-		replyParent = threadRoot
-	}
-
-	isReply := threadRoot.Defined() && replyParent.Defined()
-
 	if isReply {
-		_ = isReply
-		// TODO: validate reply comments!
-		// Something still happens during syncing that we don't have proper causal delivery. Need to fix that.
-		// Validation rules:
-		// - Reply Parent and Thread Root must have been indexed.
-		// - Reply Parent and this comment must have the same target Account + Path.
-		// - Reply Parent and this comment must have the same Thread Root.
-		// - This comment must have a timestamp greater than any other predecessor comment.
+		bp, err := ictx.GetBlobPresence(threadRoot)
+		if err != nil {
+			return err
+		}
+		if bp != BlobPresenceHasData {
+			return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
+				MissingBlobs: []cid.Cid{threadRoot},
+			})
+		}
+
+		if !threadRoot.Equals(replyParent) {
+			bp, err := ictx.GetBlobPresence(replyParent)
+			if err != nil {
+				return err
+			}
+			if bp != BlobPresenceHasData {
+				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
+					MissingBlobs: []cid.Cid{replyParent},
+				})
+			}
+		}
 	}
 
+	extraAttrs := make(map[string]any)
 	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+	sb.ExtraAttrs = extraAttrs
+
+	extraAttrs["tsid"] = eb.TSID()
 
 	targetURI, err := url.Parse(string(iri))
 	if err != nil {
@@ -333,6 +361,12 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 				return err
 			}
 		}
+	}
+
+	// If the comment we've just indexed was a reply parent of another comment we've seen before,
+	// we need to reindex those comments.
+	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log); err != nil {
+		return err
 	}
 
 	return nil

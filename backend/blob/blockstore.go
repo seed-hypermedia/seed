@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"fmt"
+	"iter"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 
@@ -152,6 +153,37 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 	}
 
 	return out, nil
+}
+
+// IterMany is the same as GetMany, but returns an iterator over the blocks.
+// The database transaction may be open for the duration of the iteration,
+// so callers should be careful not to hold the connection for too long,
+func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) (it iter.Seq[blocks.Block], check func() error) {
+	mCallsTotal.WithLabelValues("IterMany").Inc()
+
+	var outErr error
+	check = func() error { return outErr }
+
+	return func(yield func(blocks.Block) bool) {
+		conn, release, err := b.db.Conn(ctx)
+		if err != nil {
+			outErr = err
+			return
+		}
+		defer release()
+
+		for _, c := range cc {
+			blk, err := b.get(conn, c)
+			if err != nil {
+				outErr = err
+				return
+			}
+
+			if !yield(blk) {
+				return
+			}
+		}
+	}, check
 }
 
 func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid) (blocks.Block, error) {

@@ -470,6 +470,13 @@ export class Comment extends Message<Comment> {
    */
   capability = "";
 
+  /**
+   * Version of the comment blob.
+   *
+   * @generated from field: string version = 11;
+   */
+  version = "";
+
   constructor(data?: PartialMessage<Comment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -488,6 +495,7 @@ export class Comment extends Message<Comment> {
     { no: 8, name: "content", kind: "message", T: BlockNode, repeated: true },
     { no: 9, name: "create_time", kind: "message", T: Timestamp },
     { no: 10, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {

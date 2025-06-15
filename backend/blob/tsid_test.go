@@ -15,7 +15,8 @@ func TestTSID_RoundTrip(t *testing.T) {
 
 	id := NewTSIDWithHash(ts, hash)
 
-	extractedTS, extractedHash := id.Parse()
+	extractedTS, extractedHash, err := id.Parse()
+	require.NoError(t, err)
 	require.Equal(t, ts, extractedTS.UTC())
 	require.Equal(t, hash, extractedHash)
 }
@@ -37,7 +38,8 @@ func TestTSID_Bytes(t *testing.T) {
 
 	id := NewTSIDWithHash(ts, hash)
 
-	bytes := id.Bytes()
+	bytes, err := id.Bytes()
+	require.NoError(t, err)
 	require.Len(t, bytes, 10)
 
 	ms := decodeTime(bytes[:6])
@@ -86,7 +88,8 @@ func TestTSID_ZeroTimestamp(t *testing.T) {
 	extractedTS := id.Timestamp()
 	require.Equal(t, ts, extractedTS.UTC())
 
-	parsedTS, parsedHash := id.Parse()
+	parsedTS, parsedHash, err := id.Parse()
+	require.NoError(t, err)
 	require.Equal(t, ts, parsedTS.UTC())
 	require.Equal(t, hash, parsedHash)
 }
@@ -108,7 +111,8 @@ func TestTSID_DifferentHashes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			id := NewTSIDWithHash(ts, tc.hash)
 
-			extractedTS, extractedHash := id.Parse()
+			extractedTS, extractedHash, err := id.Parse()
+			require.NoError(t, err)
 			require.Equal(t, ts, extractedTS.UTC())
 			require.Equal(t, tc.hash, extractedHash)
 		})
@@ -124,7 +128,8 @@ func TestTSID_Encoding(t *testing.T) {
 	require.NotEmpty(t, string(id))
 	require.True(t, len(string(id)) > 0)
 
-	bytes := id.Bytes()
+	bytes, err := id.Bytes()
+	require.NoError(t, err)
 	require.Len(t, bytes, 10)
 }
 
@@ -141,8 +146,10 @@ func TestTSID_Consistency(t *testing.T) {
 
 	require.Equal(t, id1, id2)
 
-	ts1, hash1 := id1.Parse()
-	ts2, hash2 := id2.Parse()
+	ts1, hash1, err := id1.Parse()
+	require.NoError(t, err)
+	ts2, hash2, err := id2.Parse()
+	require.NoError(t, err)
 
 	require.Equal(t, ts1.UTC(), ts2.UTC())
 	require.Equal(t, hash1, hash2)
@@ -176,20 +183,15 @@ func TestTSID_TimeBoundaries(t *testing.T) {
 	require.Equal(t, minTime, idMin.Timestamp().UTC())
 	require.Equal(t, maxTime, idMax.Timestamp().UTC())
 
-	tsMin, hashMin := idMin.Parse()
-	tsMax, hashMax := idMax.Parse()
+	tsMin, hashMin, err := idMin.Parse()
+	require.NoError(t, err)
+	tsMax, hashMax, err := idMax.Parse()
+	require.NoError(t, err)
 
 	require.Equal(t, minTime, tsMin.UTC())
 	require.Equal(t, maxTime, tsMax.UTC())
 	require.Equal(t, hash, hashMin)
 	require.Equal(t, hash, hashMax)
-}
-
-func TestTSID_BytesPanicOnInvalidLength(t *testing.T) {
-	require.Panics(t, func() {
-		id := TSID("invalid")
-		id.Bytes()
-	})
 }
 
 func TestTSID_SequentialTimestamps(t *testing.T) {
@@ -209,7 +211,8 @@ func TestTSID_SequentialTimestamps(t *testing.T) {
 		extractedTime := id.Timestamp().UTC()
 		require.Equal(t, times[i], extractedTime)
 
-		parsedTime, parsedHash := id.Parse()
+		parsedTime, parsedHash, err := id.Parse()
+		require.NoError(t, err)
 		require.Equal(t, times[i], parsedTime.UTC())
 		require.Equal(t, hash, parsedHash)
 	}

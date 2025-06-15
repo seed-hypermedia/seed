@@ -138,4 +138,7 @@ message Comment {
 
   // Optional. ID of the capability this comment was created with, if any.
   string capability = 10;
+
+  // Version of the comment blob.
+  string version = 11;
 }

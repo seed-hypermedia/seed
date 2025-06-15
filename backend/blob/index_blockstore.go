@@ -99,3 +99,10 @@ func (idx *Index) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 func (idx *Index) HashOnRead(enabled bool) {
 	panic("BUG: DO NOT USE THIS!")
 }
+
+// Decompress decodes a compress blob content using the same codec as the underlying blockstore.
+//
+// TODO(burdiyan): this should probably not be exposed, but it is right now for convenience.
+func (idx *Index) Decompress(in, out []byte) ([]byte, error) {
+	return idx.bs.decoder.DecodeAll(in, out)
+}
