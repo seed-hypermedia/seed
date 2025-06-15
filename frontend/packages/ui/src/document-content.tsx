@@ -31,16 +31,19 @@ import {
   DocContentContextValue,
   EntityComponentProps,
 } from '@shm/shared/document-content-types'
+import {useTxString} from '@shm/shared/translation'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
 import {SizeTokens} from '@tamagui/core'
 import {Label} from '@tamagui/label'
 import {RadioGroup} from '@tamagui/radio-group'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+import {common} from 'lowlight'
 import {
   AlertCircle,
   Check,
@@ -50,26 +53,9 @@ import {
   Link,
   MessageSquare,
   MoreHorizontal,
-  MoveLeft,
   Undo2,
 } from 'lucide-react'
-import React from 'react'
-import {
-  extractIpfsUrlCid,
-  getDaemonFileUrl,
-  isIpfsUrl,
-  useFileUrl,
-  useImageUrl,
-} from './get-file-url'
-import {marginClasses} from './heading'
-import {SizableText, Text, TextProps} from './text'
-import {cn} from './utils'
-
-import {XStack, XStackProps, YStack} from '@tamagui/stacks'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
-import {common} from 'lowlight'
-import {
+import React, {
   ComponentProps,
   PropsWithChildren,
   createContext,
@@ -82,26 +68,25 @@ import {
   useRef,
   useState,
 } from 'react'
-// import {
-//   QuotedTweet,
-//   TweetBody,
-//   TweetHeader,
-//   TweetInReplyTo,
-//   TweetInfo,
-//   TweetMedia,
-//   enrichTweet,
-//   useTweet,
-// } from "react-tweet";
-import {useTxString} from '@shm/shared/translation'
+import {Button} from './components/button'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
-import {SeedHeading} from './heading'
+import {
+  extractIpfsUrlCid,
+  getDaemonFileUrl,
+  isIpfsUrl,
+  useFileUrl,
+  useImageUrl,
+} from './get-file-url'
+import {SeedHeading, marginClasses} from './heading'
 import {BlockQuote} from './icons'
 import {Spinner} from './spinner'
+import {SizableText, Text, TextProps} from './text'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 import useMedia from './use-media'
+import {cn} from './utils'
 
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
@@ -252,7 +237,7 @@ export function DocContent({
   maxBlockCount,
   handleBlockReplace,
   ...props
-}: XStackProps & {
+}: {
   document: HMDocument
   focusBlockId?: string | undefined
   maxBlockCount?: number
@@ -315,24 +300,30 @@ export function DocContent({
       >
         {onBlockCopy ? (
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
-            <Button
-              size="$2"
-              icon={Link}
-              onPress={() => {
-                onBlockCopy(
-                  state.context.blockId,
-                  typeof state.context.rangeStart == 'number' &&
-                    typeof state.context.rangeEnd == 'number'
-                    ? {
-                        start: state.context.rangeStart,
-                        end: state.context.rangeEnd,
-                      }
-                    : {
-                        expanded: true,
-                      },
-                )
-              }}
-            />
+            <span>
+              {/* this span is needed for the tooltip to work */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative"
+                onClick={() => {
+                  onBlockCopy(
+                    state.context.blockId,
+                    typeof state.context.rangeStart == 'number' &&
+                      typeof state.context.rangeEnd == 'number'
+                      ? {
+                          start: state.context.rangeStart,
+                          end: state.context.rangeEnd,
+                        }
+                      : {
+                          expanded: true,
+                        },
+                  )
+                }}
+              >
+                <Link size={2} />
+              </Button>
+            </span>
           </Tooltip>
         ) : null}
       </div>
@@ -682,31 +673,33 @@ export function BlockNodeContent({
                   )
             }
           >
-            <Button
-              size="$1"
-              x={-24}
-              y={contentH}
-              chromeless
-              width={layoutUnit}
-              height={layoutUnit * 0.75}
-              icon={_expanded ? ChevronDown : ChevronRight}
-              onPress={(e) => {
-                e.stopPropagation()
-                handleBlockNodeToggle()
-              }}
-              userSelect="none"
-              position="absolute"
-              zIndex="$zIndex.5"
-              left={0}
-              top={
-                ['Unordered', 'Ordered'].includes(childrenType) ? 12 : undefined
-              }
-              opacity={hover ? 1 : _expanded ? 0 : 1}
-              hoverStyle={{
-                opacity: 1,
-              }}
-              bg="$background"
-            />
+            <span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(
+                  'absolute left-[-24px] select-none z-50 opacity-0 hover:opacity-100 bg-background p-0',
+                  ['Unordered', 'Ordered'].includes(childrenType)
+                    ? 'top-[12px]'
+                    : 'top-4',
+                  hover
+                    ? 'opacity-100'
+                    : _expanded
+                    ? 'opacity-0'
+                    : 'opacity-100',
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleBlockNodeToggle()
+                }}
+              >
+                {_expanded ? (
+                  <ChevronDown size={12} className="size-3" />
+                ) : (
+                  <ChevronRight size={12} className="size-3" />
+                )}
+              </Button>
+            </span>
           </Tooltip>
         ) : null}
 
@@ -723,17 +716,25 @@ export function BlockNodeContent({
               'This block is collapsed. you can expand it and see its children',
             )}
           >
-            <Button
-              userSelect="none"
-              marginHorizontal={layoutUnit / 4}
-              size="$1"
-              alignSelf="center"
-              icon={MoreHorizontal}
-              onPress={(e) => {
-                e.stopPropagation()
-                handleBlockNodeToggle()
-              }}
-            />
+            <span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="select-none opacity-0 hover:opacity-100 rounded-sm"
+                style={{
+                  padding: layoutUnit / 4,
+                  marginHorozontal: layoutUnit / 4,
+                  opacity: hover ? 1 : 0,
+                }}
+                userSelect="none"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleBlockNodeToggle()
+                }}
+              >
+                <MoreHorizontal className="size-3" />
+              </Button>
+            </span>
           </Tooltip>
         ) : null}
         <div
@@ -757,54 +758,57 @@ export function BlockNodeContent({
               )}
               delay={800}
             >
-              <Button
-                userSelect="none"
-                size="$1"
-                background={isDark ? '$background' : '$backgroundStrong'}
-                padding={layoutUnit / 4}
-                borderRadius={layoutUnit / 4}
-                onPress={() => onBlockCitationClick?.(blockNode.block?.id)}
-                icon={
+              <span className="block">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="select-none rounded-sm"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                  }}
+                  onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+                >
                   <BlockQuote
-                    size={12}
                     color="currentColor"
-                    className="opacity-50"
+                    className="size-3 opacity-50"
                   />
-                }
-              >
-                <SizableText color="muted" size="xs">
-                  {citationsCount.citations
-                    ? String(citationsCount.citations)
-                    : ' '}
-                </SizableText>
-              </Button>
+                  <SizableText color="muted" size="xs">
+                    {citationsCount.citations
+                      ? String(citationsCount.citations)
+                      : ' '}
+                  </SizableText>
+                </Button>
+              </span>
             </Tooltip>
           ) : null}
 
           {onBlockReply ? (
             <Tooltip content="Reply to block" delay={800}>
-              <Button
-                userSelect="none"
-                size="$1"
-                // background={isDark ? '$background' : '$backgroundStrong'}
-                opacity={hover ? 1 : 0}
-                icon={
+              <span className="block">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="select-none opacity-0 hover:opacity-100 rounded-sm"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockReply(blockNode.block.id)
+                    } else {
+                      console.error('onBlockReply Error: no blockId available')
+                    }
+                  }}
+                >
                   <MessageSquare
-                    size={12}
                     color="currentColor"
-                    className="opacity-50"
+                    className=" size-3 opacity-50"
                   />
-                }
-                padding={layoutUnit / 4}
-                borderRadius={layoutUnit / 4}
-                onPress={() => {
-                  if (blockNode.block?.id) {
-                    onBlockReply(blockNode.block.id)
-                  } else {
-                    console.error('onBlockReply Error: no blockId available')
-                  }
-                }}
-              />
+                </Button>
+              </span>
             </Tooltip>
           ) : null}
           {onBlockCommentClick ? (
@@ -820,40 +824,41 @@ export function BlockNodeContent({
               }
               delay={800}
             >
-              <Button
-                userSelect="none"
-                size="$1"
-                background={isDark ? '$background' : '$backgroundStrong'}
-                opacity={citationsCount?.comments ? 1 : hover ? 1 : 0}
-                padding={layoutUnit / 4}
-                borderRadius={layoutUnit / 4}
-                onPress={() => {
-                  if (blockNode.block?.id) {
-                    onBlockCommentClick(
-                      blockNode.block.id,
-                      undefined,
-                      citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                    )
-                  } else {
-                    console.error(
-                      'onBlockCommentClick Error: no blockId available',
-                    )
-                  }
-                }}
-                icon={
+              <span className="block">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="select-none opacity-0 hover:opacity-100 rounded-sm"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockCommentClick(
+                        blockNode.block.id,
+                        undefined,
+                        citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                      )
+                    } else {
+                      console.error(
+                        'onBlockCommentClick Error: no blockId available',
+                      )
+                    }
+                  }}
+                >
                   <MessageSquare
-                    size={12}
                     color="currentColor"
-                    className="opacity-50"
+                    className="size-3 opacity-50"
                   />
-                }
-              >
-                <SizableText color="muted" size="xs">
-                  {citationsCount?.comments
-                    ? String(citationsCount.comments)
-                    : ' '}
-                </SizableText>
-              </Button>
+                  <SizableText color="muted" size="xs">
+                    {citationsCount?.comments
+                      ? String(citationsCount.comments)
+                      : ' '}
+                  </SizableText>
+                </Button>
+              </span>
             </Tooltip>
           ) : null}
           {onBlockCopy ? (
@@ -864,28 +869,30 @@ export function BlockNodeContent({
               )}
               delay={800}
             >
-              <Button
-                userSelect="none"
-                size="$1"
-                opacity={hover ? 1 : 0}
-                padding={layoutUnit / 4}
-                borderRadius={layoutUnit / 4}
-                background={isDark ? '$background' : '$backgroundStrong'}
-                icon={
-                  <Link size={12} color="currentColor" className="opacity-50" />
-                }
-                onPress={() => {
-                  if (blockNode.block?.id) {
-                    onBlockCopy(blockNode.block.id, {expanded: true})
-                  } else {
-                    console.error('onBlockCopy Error: no blockId available')
-                  }
-                }}
-              >
-                <SizableText color="muted" size="xs">
-                  {' '}
-                </SizableText>
-              </Button>
+              <span className="block">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="select-none opacity-0 hover:opacity-100 rounded-sm"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockCopy(blockNode.block.id, {expanded: true})
+                    } else {
+                      console.error('onBlockCopy Error: no blockId available')
+                    }
+                  }}
+                >
+                  <Link color="currentColor" className="size-3 opacity-50" />
+                  <SizableText color="muted" size="xs">
+                    {' '}
+                  </SizableText>
+                </Button>
+              </span>
             </Tooltip>
           ) : null}
         </div>
@@ -1443,10 +1450,9 @@ export function ErrorBlock({
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
       <div className="block-content block-unknown flex flex-col flex-1">
-        <ButtonFrame
-          theme="red"
-          gap="$2"
-          onPress={(e) => {
+        <div
+          className="flex flex-start gap-2 bg-red-100 border border-red-300 rounded-md p-2"
+          onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
           }}
@@ -1454,8 +1460,8 @@ export function ErrorBlock({
           <SizableText color="danger">
             {message ? message : 'Error'}
           </SizableText>
-          <AlertCircle color="danger" size={12} />
-        </ButtonFrame>
+          <AlertCircle color="danger" className="size-3" />
+        </div>
         {open ? (
           <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded-md border border-border">
             <code className="text-xs wrap-break-word font-mono">
@@ -1607,15 +1613,15 @@ export function ContentEmbed({
           <div className="flex justify-end">
             <Tooltip content="The latest reference was not found. Click to try again.">
               <Button
-                size="$2"
-                theme="red"
-                icon={Undo2}
-                onPress={(e) => {
+                size="sm"
+                variant="destructive"
+                onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
                   onShowReferenced(false)
                 }}
               >
+                <Undo2 className="size-3" />
                 Back to Reference
               </Button>
             </Tooltip>
@@ -1631,11 +1637,11 @@ export function ContentEmbed({
         <div className="flex gap-2 p-4">
           {props.version ? (
             <Button
-              size="$2"
-              onPress={() => {
+              variant="ghost"
+              size="sm"
+              onClick={() => {
                 onShowReferenced(true)
               }}
-              icon={MoveLeft}
             >
               Show Referenced Version
             </Button>
@@ -1758,7 +1764,7 @@ export function BlockContentFile({block}: BlockContentProps) {
         'block-content block-file border border-muted dark:border-muted rounded-md p-4 overflow-hidden',
       )}
     >
-      <div className="flex items-center gap-2 flex-1 w-full">
+      <div className="flex items-center gap-2 flex-1 w-full relative">
         <File size={18} className="flex-0" />
         <SizableText className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap select-text text-sm">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
@@ -1775,33 +1781,37 @@ export function BlockContentFile({block}: BlockContentProps) {
               getBlockAttribute(block.attributes, 'name') || 'File'
             }`}
           >
-            <Button
-              position="absolute"
-              right={0}
-              opacity={hover ? 1 : 0}
-              disabled={!hover}
-              size="$2"
-              {...(saveCidAsFile
-                ? {
-                    onPress: () => {
-                      saveCidAsFile(
-                        fileCid,
-                        getBlockAttribute(block.attributes, 'name') || 'File',
-                      )
-                    },
-                  }
-                : {
-                    tag: 'a',
-                    download:
-                      getBlockAttribute(block.attributes, 'name') || true,
-                    href: getDaemonFileUrl(fileCid),
-                    style: {
-                      textDecoration: 'none',
-                    },
-                  })}
-            >
-              Download
-            </Button>
+            <span className="block">
+              <Button
+                variant="brand"
+                className="absolute right-0 top-1/2 -translate-y-1/2"
+                size="sm"
+                style={{
+                  opacity: hover ? 1 : 0,
+                }}
+                disabled={!hover}
+                {...(saveCidAsFile
+                  ? {
+                      onClick: () => {
+                        saveCidAsFile(
+                          fileCid,
+                          getBlockAttribute(block.attributes, 'name') || 'File',
+                        )
+                      },
+                    }
+                  : {
+                      tag: 'a',
+                      download:
+                        getBlockAttribute(block.attributes, 'name') || true,
+                      href: getDaemonFileUrl(fileCid),
+                      style: {
+                        textDecoration: 'none',
+                      },
+                    })}
+              >
+                Download
+              </Button>
+            </span>
           </Tooltip>
         )}
       </div>
@@ -1822,59 +1832,32 @@ export function BlockContentButton({
   }
   if (block.type !== 'Button') return null
   return (
-    <XStack
-      width="100%"
-      justifyContent={
-        getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
-      }
-      userSelect="none"
-      className="block-content block-file"
+    <div
       data-content-type="file"
-      maxWidth="100%"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
+      className="block-content block-file flex flex-col w-full select-none max-w-full"
+      style={{
+        justifyContent:
+          getBlockAttribute(block.attributes, 'alignment') || 'flex-start',
+      }}
       {...props}
       {...hoverProps}
     >
-      <XStack
-        position="relative"
-        // @ts-ignore
-        contentEditable={false}
-        maxWidth="100%"
+      <Button
+        variant="brand"
+        size="lg"
+        {...linkProps}
+        className="border-none w-full justify-center select-none border-transparent max-w-full text-center"
       >
-        <Button
-          borderWidth={0}
-          bg="$brand5"
-          color="white"
-          width="100%"
-          justifyContent="center"
-          textAlign="center"
-          userSelect="none"
-          borderColor="$colorTransparent"
-          {...linkProps}
-          size="$5"
-          maxWidth="100%"
-          hoverStyle={{
-            bg: '$brand4',
-            borderWidth: 0,
-          }}
-          focusStyle={{
-            bg: '$brand3',
-            borderWidth: 0,
-          }}
+        <SizableText
+          size="lg"
+          className="truncate text-center font-bold text-white"
         >
-          <SizableText
-            size="$5"
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            fontWeight="bold"
-            color="white"
-          >
-            {getBlockAttribute(block.attributes, 'name')}
-          </SizableText>
-        </Button>
-      </XStack>
-    </XStack>
+          {getBlockAttribute(block.attributes, 'name')}
+        </SizableText>
+      </Button>
+    </div>
   )
 }
 
@@ -2044,20 +2027,20 @@ export function BlockContentWebEmbed({
   }, [url])
 
   return (
-    <YStack
+    <div
       {...props}
-      borderColor="$color6"
-      backgroundColor="$color4"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      width="100%"
-      marginHorizontal={(-1 * layoutUnit) / 2}
-      className={cn('x-post-container', blockStyles)}
+      className={cn(
+        'border border-border bg-background rounded-md p-4 overflow-hidden w-full overflow-hidden',
+        'x-post-container',
+        blockStyles,
+      )}
+      style={{
+        padding: layoutUnit / 2,
+        marginHorizontal: (-1 * layoutUnit) / 2,
+      }}
       data-content-type="web-embed"
       data-url={block.link}
-      onPress={(e) => {
+      onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
         if (block.link) {
@@ -2078,7 +2061,7 @@ export function BlockContentWebEmbed({
           width: '100%',
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -2125,41 +2108,27 @@ export function BlockContentCode({
       : []
 
   return (
-    <YStack
-      {...props}
-      borderColor="$color6"
-      backgroundColor="$color4"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      className={cn(blockStyles)}
-      padding={layoutUnit / 2}
-      overflow="hidden"
+    <pre
       data-content-type="code"
-      width="100%"
-      {...debugStyles(debug, 'blue')}
-      marginHorizontal={(-1 * layoutUnit) / 2}
+      className={cn(
+        blockStyles,
+        `language-${language} overflow-auto border border-border bg-background rounded-md w-full`,
+      )}
+      style={{
+        padding: layoutUnit / 2,
+        ...debugStyles(debug, 'blue'),
+        marginHorizontal: (-1 * layoutUnit) / 2,
+      }}
+      {...props}
     >
-      <XStack
-        tag="pre"
-        className={'language-' + language}
-        flex="unset"
-        overflow="auto"
-      >
-        <Text
-          tag="code"
-          whiteSpace="pre"
-          fontFamily="$mono"
-          lineHeight={textUnit * 1.5}
-          fontSize={textUnit * 0.85}
-        >
-          {nodes.length > 0
-            ? nodes.map((node, index) => (
-                <CodeHighlight key={index} node={node} />
-              ))
-            : block.text}
-        </Text>
-      </XStack>
-    </YStack>
+      <code className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
+        {nodes.length > 0
+          ? nodes.map((node, index) => (
+              <CodeHighlight key={index} node={node} />
+            ))
+          : block.text}
+      </code>
+    </pre>
   )
 }
 
@@ -2266,31 +2235,32 @@ export function BlockContentMath({
   }
 
   return (
-    <YStack
+    <div
       {...props}
-      className={cn('block-content block-katex', blockStyles)}
-      paddingVertical="$3"
-      gap="$2"
-      ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
-      width="100%"
-      borderColor="$color6"
-      backgroundColor="$color4"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
       data-content-type="math"
       data-content={block.text}
-      padding={layoutUnit / 2}
-      overflow={isContentSmallerThanContainer ? 'hidden' : 'scroll'}
-      marginHorizontal={(-1 * layoutUnit) / 2}
       ref={containerRef}
+      className={cn(
+        'block-content block-katex py-3 gap-2 w-full bg-background border border-border rounded-md',
+        blockStyles,
+        isContentSmallerThanContainer ? 'items-center' : 'items-start',
+        isContentSmallerThanContainer ? 'overflow-hidden' : 'overflow-scroll',
+      )}
+      style={{
+        padding: layoutUnit / 2,
+        marginHorizontal: (-1 * layoutUnit) / 2,
+      }}
     >
       <SizableText
         ref={mathRef}
-        ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
-        ac={isContentSmallerThanContainer ? 'center' : 'flex-start'}
+        className={cn(
+          isContentSmallerThanContainer
+            ? 'items-center justify-center'
+            : 'items-start justify-start',
+        )}
         dangerouslySetInnerHTML={{__html: tex}}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -2331,23 +2301,18 @@ export function InlineEmbedButton({
 }) {
   const buttonProps = useRouteLink({key: 'document', id: entityId})
   return (
-    <ButtonText
+    <a
       {...buttonProps}
-      onHoverIn={() => props.onHoverIn?.(entityId)}
-      onHoverOut={() => props.onHoverOut?.(entityId)}
-      textDecorationColor={'$brand5'}
-      // style={{textDecorationLine: "underline"}}
-      color="$brand5"
-      fontWeight="bold"
-      className="hm-link"
-      fontSize="inherit"
+      onMouseEnter={() => props.onHoverIn?.(entityId)}
+      onMouseLeave={() => props.onHoverOut?.(entityId)}
+      className="hm-link text-brand-5 font-bold"
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
       data-blockid={entityId.blockRef}
       data-docid={entityId.blockRef ? undefined : entityId.id}
     >
       {children}
-    </ButtonText>
+    </a>
   )
 }
 

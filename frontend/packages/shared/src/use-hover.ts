@@ -6,8 +6,8 @@ export function useHover() {
   return useMemo(
     () => ({
       hover,
-      onHoverIn: () => setHover(true),
-      onHoverOut: () => setHover(false),
+      onMouseEnter: () => setHover(true),
+      onMouseLeave: () => setHover(false),
     }),
     [hover],
   )
