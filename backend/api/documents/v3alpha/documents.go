@@ -671,7 +671,12 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 			return nil, err
 		}
 
-		latestCommentID = lc.String()
+		rid, err := lookup.RecordID(lc)
+		if err != nil {
+			return nil, err
+		}
+
+		latestCommentID = rid.String()
 		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
 	}
 
@@ -1115,7 +1120,13 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		if err != nil {
 			return nil, err
 		}
-		latestComment = lc.String()
+
+		rid, err := lookup.RecordID(lc)
+		if err != nil {
+			return nil, err
+		}
+
+		latestComment = rid.String()
 		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
 	}
 
