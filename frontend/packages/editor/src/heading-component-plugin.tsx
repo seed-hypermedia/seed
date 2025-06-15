@@ -1,6 +1,7 @@
 import {createTipTapBlock} from '@/blocknote'
 import {updateBlockCommand} from '@/blocknote/core/api/blockManipulation/commands/updateBlock'
 import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {headingVariants, marginClasses} from '@shm/ui/heading'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 
 export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
@@ -93,13 +94,19 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
-        class: `${styles.blockContent} block-heading`,
+        class: `${styles.blockContent} block-heading ${
+          marginClasses[(node.attrs.level - 1) as keyof typeof marginClasses]
+        }`,
         'data-content-type': this.name,
       }),
       [
         `h${node.attrs.level}`,
         // 'p',
-        {class: `${styles.inlineContent} heading-content`},
+        {
+          class: `${styles.inlineContent} heading-content ${headingVariants({
+            level: node.attrs.level as 1 | 2 | 3 | 4,
+          })}`,
+        },
         0,
       ],
     ]

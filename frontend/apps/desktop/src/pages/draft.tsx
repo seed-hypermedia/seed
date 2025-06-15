@@ -36,10 +36,7 @@ import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
 import {Container} from '@shm/ui/container'
-import {
-  useDocContentContext,
-  useHeadingTextStyles,
-} from '@shm/ui/document-content'
+import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -587,7 +584,7 @@ function DraftMetadataEditor({
     throw new Error('DraftHeader must have draft route')
   const {textUnit} = useDocContentContext()
   const [showIcon, setShowIcon] = useState(false)
-  let headingTextStyles = useHeadingTextStyles(1, textUnit)
+
   const isDark = useIsDark()
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
@@ -762,7 +759,6 @@ function DraftMetadataEditor({
               })
             }}
             placeholder="Document Title"
-            {...headingTextStyles}
             padding={0}
           />
           <Separator />

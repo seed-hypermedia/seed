@@ -40,9 +40,9 @@ import {
 } from '@shm/shared/utils/web-embed-scripts'
 import {Button, ButtonFrame, ButtonText} from '@tamagui/button'
 import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
-import {SizeTokens, useThemeName} from '@tamagui/core'
-import {ColorProp} from '@tamagui/helpers-tamagui'
+import {SizeTokens} from '@tamagui/core'
 import {Label} from '@tamagui/label'
+import {RadioGroup} from '@tamagui/radio-group'
 import {
   AlertCircle,
   Check,
@@ -53,10 +53,8 @@ import {
   MessageSquare,
   MoreHorizontal,
   MoveLeft,
-  Reply,
   Undo2,
-} from '@tamagui/lucide-icons'
-import {RadioGroup} from '@tamagui/radio-group'
+} from 'lucide-react'
 import React from 'react'
 import {
   extractIpfsUrlCid,
@@ -65,10 +63,11 @@ import {
   useFileUrl,
   useImageUrl,
 } from './get-file-url'
+import {marginClasses} from './heading'
 import {SizableText, Text, TextProps} from './text'
 import {cn} from './utils'
 
-import {XStack, XStackProps, YStack, YStackProps} from '@tamagui/stacks'
+import {XStack, XStackProps, YStack} from '@tamagui/stacks'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
@@ -221,7 +220,7 @@ export function useDocContentContext() {
   return context
 }
 
-function debugStyles(debug: boolean = false, color: ColorProp = '$color7') {
+function debugStyles(debug: boolean = false, color = 'red') {
   return debug
     ? {
         borderWidth: 1,
@@ -253,7 +252,6 @@ export function DocContent({
   document,
   focusBlockId,
   maxBlockCount,
-  marginVertical = '$5',
   handleBlockReplace,
   ...props
 }: XStackProps & {
@@ -301,10 +299,10 @@ export function DocContent({
 
   return (
     <div
+      className="relative my-10"
       ref={wrapper}
       style={{
         paddingHorizontal: layoutUnit / 3,
-        marginVertical: marginVertical,
       }}
       {...props}
     >
@@ -366,7 +364,7 @@ function _BlocksContent({
   if (!blocks) return null
 
   return (
-    <BlockNodeList childrenType="Group">
+    <BlockNodeList childrenType="Group" className="px-2 sm:px-2">
       {blocks?.length
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
@@ -396,37 +394,58 @@ export function BlockNodeList({
   childrenType = 'Group',
   listLevel,
   ...props
-}: YStackProps & {
+}: {
+  children: React.ReactNode
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
+  className?: string
 }) {
-  const tag = useMemo(() => {
-    if (childrenType == 'Ordered') return 'ol'
-    if (childrenType == 'Unordered') return 'ul'
-    if (childrenType == 'Blockquote') return 'blockquote'
-    return 'div'
+  const getListClasses = (
+    type: HMBlockChildrenType,
+    level?: string | number,
+  ): string => {
+    const classes: string[] = [
+      'blocknode-list',
+      'w-full',
+      'marker:text-muted-foreground marker:text-sm',
+    ]
+
+    if (type === 'Unordered') {
+      classes.push('list-disc', 'pl-6')
+      // if (level === 2) classes.push('list-[circle]')
+      // if (level === 3) classes.push('list-[square]')
+    } else if (type === 'Ordered') {
+      classes.push('list-decimal', 'pl-6')
+    } else if (type === 'Blockquote') {
+      classes.push(
+        'border-l-[3px]',
+        'border-gray-400',
+        'dark:border-gray-600',
+        'pl-4',
+        'my-4',
+      )
+    } else {
+      classes.push('pl-6')
+    }
+
+    return classes.join(' ')
+  }
+
+  const Tag = useMemo(() => {
+    if (childrenType === 'Ordered') return 'ol'
+    if (childrenType === 'Blockquote') return 'blockquote'
+    return 'ul'
   }, [childrenType])
 
   return (
-    <YStack
-      tag={tag}
-      className="blocknode-list"
+    <Tag
+      className={cn(getListClasses(childrenType, listLevel), props.className)}
       data-node-type="blockGroup"
       data-list-type={childrenType}
       data-list-level={listLevel}
-      width="100%"
-      {...props}
     >
-      {childrenType === 'Ordered' ? (
-        <ol style={{all: 'unset'}}>{children}</ol>
-      ) : childrenType === 'Unordered' ? (
-        <ul style={{all: 'unset'}}>{children}</ul>
-      ) : childrenType === 'Blockquote' ? (
-        <blockquote style={{all: 'unset'}}>{children}</blockquote>
-      ) : (
-        <div>{children}</div>
-      )}
-    </YStack>
+      {children}
+    </Tag>
   )
 }
 
@@ -623,11 +642,12 @@ export function BlockNodeContent({
   // }, [blockNode.block])
 
   const tx = useTxString()
-  const themeName = useThemeName()
-  const highlightColor =
-    themeName === 'dark'
-      ? CONTENT_HIGHLIGHT_COLOR_DARK
-      : CONTENT_HIGHLIGHT_COLOR_LIGHT
+
+  console.log('hover', hover)
+
+  const highlightColor = isDark
+    ? CONTENT_HIGHLIGHT_COLOR_DARK
+    : CONTENT_HIGHLIGHT_COLOR_LIGHT
 
   // // @ts-expect-error
   // if (isBlockNodeEmpty(blockNode)) {
@@ -635,38 +655,36 @@ export function BlockNodeContent({
   // }
 
   return (
-    <YStack
-      ref={elm}
-      className="blocknode-content"
+    <div
       id={comment ? undefined : blockNode.block?.id}
-      borderColor={isHighlight ? '$brandHighlight' : '$colorTransparent'}
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      bg={isHighlight ? highlightColor : '$backgroundTransparent'}
+      ref={elm}
       data-node-type="blockContainer"
       data-block-type={blockNode.block?.type}
-      // onHoverIn={() => (props.embedDepth ? undefined : hoverProps.onHoverIn())}
-      // onHoverOut={() =>
-      //   props.embedDepth ? undefined : hoverProps.onHoverOut()
-      // }
+      className={cn(
+        'blocknode-content border-px',
+        isHighlight
+          ? 'border-brand/50 bg-brand/10'
+          : 'border-transparent bg-transparent',
+      )}
+      style={{
+        borderRadius: layoutUnit / 4,
+      }}
     >
-      <XStack
-        borderRadius={layoutUnit / 4}
-        padding={layoutUnit / 3}
-        paddingVertical={isEmbed ? 0 : layoutUnit / 6}
-        {...headingStyles}
+      <div
+        style={{
+          borderRadius: layoutUnit / 4,
+          padding: layoutUnit / 3,
+          paddingVertical: isEmbed ? 0 : layoutUnit / 6,
+        }}
         {...debugStyles(debug, 'red')}
-        group="blocknode"
-        className={
-          blockNode.block!.type == 'Heading' ? 'blocknode-content-heading' : ''
-        }
-        bg={
-          hover
-            ? isDark
-              ? '$backgroundStrong'
-              : '$background'
-            : '$backgroundTransparent'
-        }
+        className={cn(
+          'relative hover:bg-background',
+
+          blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
+          headingStyles.className,
+        )}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
       >
         {!hideCollapseButtons && bnChildren ? (
           <Tooltip
@@ -702,24 +720,15 @@ export function BlockNodeContent({
               top={
                 ['Unordered', 'Ordered'].includes(childrenType) ? 12 : undefined
               }
-              opacity={_expanded ? 0 : 1}
+              opacity={hover ? 1 : _expanded ? 0 : 1}
               hoverStyle={{
                 opacity: 1,
               }}
               bg="$background"
-              $group-blocknode-hover={{
-                opacity: 1,
-              }}
             />
           </Tooltip>
         ) : null}
 
-        {/* <BlockNodeMarker
-          block={blockNode.block!}
-          childrenType={childrenType}
-          index={props.index}
-          start={props.start}
-        /> */}
         <BlockContent
           block={modifiedBlock}
           depth={depth}
@@ -746,28 +755,16 @@ export function BlockNodeContent({
             />
           </Tooltip>
         ) : null}
-        <YStack
-          position={'absolute'}
-          zIndex={hover ? '$zIndex.9' : '$zIndex.1'}
-          bg={
-            hover
-              ? isDark
-                ? '$background'
-                : '$backgroundStrong'
-              : '$backgroundTransparent'
-          }
-          right={0}
-          top={0}
-          $gtSm={{
-            right: -44,
-            // background: '$backgroundTransparent',
+        <div
+          className={cn(
+            'absolute z-10 top-0 right-0 sm:right-[-44px] pl-4 gap-2',
+            hover && 'z-[999]',
+          )}
+          style={{
+            borderRadius: layoutUnit / 4,
           }}
-          pl="$2"
-          borderRadius={layoutUnit / 4}
-          gap="$1"
-          onHoverIn={() => setHover(true)}
-          onHoverOut={() => setHover(false)}
-          // paddingBottom={hover ? 100 : 0}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
         >
           {citationsCount?.citations ? (
             <Tooltip
@@ -786,7 +783,13 @@ export function BlockNodeContent({
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
                 onPress={() => onBlockCitationClick?.(blockNode.block?.id)}
-                icon={<BlockQuote size={12} color="$color9" />}
+                icon={
+                  <BlockQuote
+                    size={12}
+                    color="currentColor"
+                    className="opacity-50"
+                  />
+                }
               >
                 <SizableText color="muted" size="xs">
                   {citationsCount.citations
@@ -802,14 +805,17 @@ export function BlockNodeContent({
               <Button
                 userSelect="none"
                 size="$1"
-                background={isDark ? '$background' : '$backgroundStrong'}
-                opacity={0}
-                $group-blocknode-hover={{
-                  opacity: 1,
-                }}
+                // background={isDark ? '$background' : '$backgroundStrong'}
+                opacity={hover ? 1 : 0}
+                icon={
+                  <MessageSquare
+                    size={12}
+                    color="currentColor"
+                    className="opacity-50"
+                  />
+                }
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                icon={Reply}
                 onPress={() => {
                   if (blockNode.block?.id) {
                     onBlockReply(blockNode.block.id)
@@ -837,10 +843,7 @@ export function BlockNodeContent({
                 userSelect="none"
                 size="$1"
                 background={isDark ? '$background' : '$backgroundStrong'}
-                opacity={citationsCount?.comments ? 1 : 0}
-                $group-blocknode-hover={{
-                  opacity: 1,
-                }}
+                opacity={citationsCount?.comments ? 1 : hover ? 1 : 0}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
                 onPress={() => {
@@ -856,7 +859,13 @@ export function BlockNodeContent({
                     )
                   }
                 }}
-                icon={<MessageSquare size={12} color="$color9" />}
+                icon={
+                  <MessageSquare
+                    size={12}
+                    color="currentColor"
+                    className="opacity-50"
+                  />
+                }
               >
                 <SizableText color="muted" size="xs">
                   {citationsCount?.comments
@@ -875,17 +884,15 @@ export function BlockNodeContent({
               delay={800}
             >
               <Button
-                background={isDark ? '$background' : '$backgroundStrong'}
                 userSelect="none"
                 size="$1"
-                opacity={0}
-                $group-blocknode-hover={{
-                  opacity: 1,
-                }}
+                opacity={hover ? 1 : 0}
                 padding={layoutUnit / 4}
                 borderRadius={layoutUnit / 4}
-                chromeless
-                icon={<Link size={12} color="$color9" />}
+                background={isDark ? '$background' : '$backgroundStrong'}
+                icon={
+                  <Link size={12} color="currentColor" className="opacity-50" />
+                }
                 onPress={() => {
                   if (blockNode.block?.id) {
                     onBlockCopy(blockNode.block.id, {expanded: true})
@@ -900,19 +907,17 @@ export function BlockNodeContent({
               </Button>
             </Tooltip>
           ) : null}
-        </YStack>
-      </XStack>
+        </div>
+      </div>
       {bnChildren && _expanded ? (
         <BlockNodeList
-          paddingLeft={layoutUnit}
           childrenType={blockNode.block?.attributes?.childrenType}
           listLevel={listLevel}
-          display="block"
         >
           {bnChildren}
         </BlockNodeList>
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -938,19 +943,6 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
 }
 
 export const blockStyles = 'w-full flex-1 self-center'
-
-function inlineContentSize(unit: number): TextProps {
-  return {
-    fontSize: unit,
-    lineHeight: 1.3,
-    $gtMd: {
-      fontSize: 1.1,
-    },
-    $gtLg: {
-      fontSize: 1.2,
-    },
-  }
-}
 
 function BlockContent(props: BlockContentProps) {
   const dataProps = {
@@ -1028,7 +1020,6 @@ function BlockContentParagraph({
         comment && 'is-comment',
         blockStyles,
       )}
-      {...inlineContentSize(textUnit)}
       asChild
     >
       <p>
@@ -1060,145 +1051,24 @@ export function BlockContentHeading({
   )
 }
 
-export function useHeadingTextStyles(
-  depth: number,
-  unit: number,
-  comment?: boolean,
-) {
-  return useMemo(() => {
-    if (comment) {
-      return {
-        fontSize: '$3',
-        lineHeight: '$3',
-        $gtMd: {
-          fontSize: '$3',
-          lineHeight: '$3',
-        },
-        $gtLg: {
-          fontSize: '$4',
-          lineHeight: '$4',
-        },
-      } satisfies TextProps
-    }
-    if (depth == 1) {
-      return {
-        fontSize: '$8',
-        lineHeight: '$8',
-        $gtMd: {
-          fontSize: '$9',
-          lineHeight: '$9',
-        },
-      } satisfies TextProps
-    }
-
-    if (depth == 2) {
-      return {
-        fontSize: '$7',
-        lineHeight: '$7',
-        $gtMd: {
-          fontSize: '$8',
-          lineHeight: '$8',
-        },
-        $gtLg: {
-          fontSize: '$9',
-          lineHeight: '$9',
-        },
-      } satisfies TextProps
-    }
-
-    if (depth == 3) {
-      return {
-        fontSize: '$6',
-        lineHeight: '$6',
-        $gtMd: {
-          fontSize: '$7',
-          lineHeight: '$7',
-        },
-        $gtLg: {
-          fontSize: '$8',
-          lineHeight: '$8',
-        },
-      } satisfies TextProps
-    }
-
-    if (depth == 4) {
-      return {
-        fontSize: '$5',
-        lineHeight: '$5',
-        $gtMd: {
-          fontSize: '$6',
-          lineHeight: '$6',
-        },
-        $gtLg: {
-          fontSize: '$7',
-          lineHeight: '$7',
-        },
-      } satisfies TextProps
-    }
-
-    return {
-      fontSize: '$5',
-      lineHeight: '$5',
-      $gtMd: {
-        fontSize: '$6',
-        lineHeight: '$6',
-      },
-      $gtLg: {
-        fontSize: '$7',
-        lineHeight: '$7',
-      },
-    } satisfies TextProps
-  }, [depth, unit])
-}
-
 export function useHeadingMarginStyles(
   depth: number,
   unit: number,
   isFirst?: boolean,
 ) {
-  function headingFontValues(value: number) {
-    return {
-      marginTop: value,
-    }
-  }
-
   return useMemo(() => {
     if (isFirst) {
       return {
-        marginTop: 0,
-      } satisfies TextProps
-    } else {
-      if (depth == 1) {
-        return {
-          ...headingFontValues(unit * 1.3),
-          $gtMd: headingFontValues(unit * 1.4),
-          $gtLg: headingFontValues(unit * 1.5),
-        } satisfies TextProps
-      }
-
-      if (depth == 2) {
-        return {
-          ...headingFontValues(unit * 1.2),
-          $gtMd: headingFontValues(unit * 1.25),
-          $gtLg: headingFontValues(unit * 1.3),
-        } satisfies TextProps
-      }
-
-      if (depth == 3) {
-        return {
-          ...headingFontValues(unit * 1),
-          $gtMd: headingFontValues(unit * 1.15),
-          $gtLg: headingFontValues(unit * 1.2),
-        } satisfies TextProps
-      }
-
-      return {
-        ...headingFontValues(unit),
-        $gtMd: headingFontValues(unit),
-        $gtLg: headingFontValues(unit),
+        className: 'mt-0',
       } satisfies TextProps
     }
-  }, [depth, unit])
+
+    return {
+      className:
+        marginClasses[depth as keyof typeof marginClasses] ||
+        marginClasses.default,
+    } satisfies TextProps
+  }, [depth, isFirst])
 }
 
 function BlockContentImage({
@@ -1370,8 +1240,6 @@ function InlineContentView({
 
   const InlineEmbed = entityComponents.Inline
   let contentOffset = rangeOffset || 0
-  const theme = useThemeName()
-
   const fSize = fontSize === null ? null : fontSize || textUnit
 
   const getLinkColor = (linkType: LinkType): string => {
@@ -1379,7 +1247,7 @@ function InlineContentView({
       return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
     if (linkType === 'hypermedia')
       return 'text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300'
-    return 'text-gray-800 dark:text-gray-100'
+    return ''
   }
 
   const buildStyleClasses = (styles: any): string => {
@@ -1711,19 +1579,7 @@ export function ContentEmbed({
   let content: null | JSX.Element = <BlockContentUnknown {...props} />
   if (isLoading) {
     content = null
-  }
-  //  else if (embedData.data.blockRange) {
-  //   content = (
-  //     <SizableText
-  //       {...inlineContentSize(textUnit * 0.8)}
-  //       fontFamily="$editorBody"
-  //       fontStyle="italic"
-  //     >
-  //       {embedData.data.blockRange}
-  //     </SizableText>
-  //   )
-  // }
-  else if (embedData.data.embedBlocks) {
+  } else if (embedData.data.embedBlocks) {
     content = (
       <>
         {/* ADD SIDENOTE HERE */}
@@ -1919,12 +1775,12 @@ export function BlockContentFile({block}: BlockContentProps) {
       data-size={getBlockAttribute(block.attributes, 'size')}
       {...hoverProps}
       className={cn(
-        'block-content block-file border border-border rounded-md p-4 overflow-hidden',
+        'block-content block-file border border-muted dark:border-muted rounded-md p-4 overflow-hidden',
       )}
     >
       <div className="flex items-center gap-2 flex-1 w-full">
         <File size={18} className="flex-0" />
-        <SizableText className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap select-text">
+        <SizableText className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap select-text text-sm">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (

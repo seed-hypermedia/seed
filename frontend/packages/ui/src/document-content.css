@@ -39,41 +39,46 @@ p.block-paragraph.is-comment *:not(code) {
   scroll-margin-top: 72px;
 }
 
-.blocknode-list[data-list-type='Unordered'] > ul > .blocknode-content {
+/* New Tailwind-based list styling */
+.blocknode-list[data-list-type='Unordered'] > .blocknode-content {
   display: list-item !important;
+  list-style-position: outside;
 }
 
-.blocknode-list[data-list-type='Ordered'] > ol > .blocknode-content {
+.blocknode-list[data-list-type='Ordered'] > .blocknode-content {
   display: list-item !important;
+  list-style-position: outside;
 }
 
-.blocknode-list[data-list-type='Unordered'] > ul {
+/* Legacy CSS for old _BlockNodeList (can be removed once migration is complete) */
+/* .blocknode-list[data-list-type='Unordered'] > ul > .blocknode-content {
+  display: list-item !important;
+} */
+
+/* .blocknode-list[data-list-type='Ordered'] > ol > .blocknode-content {
+  display: list-item !important;
+} */
+
+/* .blocknode-list[data-list-type='Unordered'] > ul {
   margin-left: 0.2em;
   list-style-type: disc !important;
   list-style-position: outside;
-}
+} */
 
-.blocknode-list[data-list-type='Ordered'] > ol {
+/* .blocknode-list[data-list-type='Ordered'] > ol {
   margin-left: 0.2em;
   list-style-type: decimal !important;
   list-style-position: outside;
-}
+} */
 
 .blocknode-list[data-list-type='Blockquote'] > blockquote {
   all: unset !important;
 }
 
-.blocknode-list[data-list-type='Blockquote'] {
-  border-left: 3px solid var(--color8);
-  padding-left: 15px;
-  margin: 1em 0;
-  /* font-style: italic; */
-}
-
-.blocknode-list[data-list-level='2'] > ul {
+/* .blocknode-list[data-list-level='2'] > ul {
   list-style-type: circle !important;
   list-style-position: outside;
-}
+} */
 
 .blocknode-list[data-list-level='3'] > ul {
   list-style-type: square !important;
@@ -112,4 +117,13 @@ p.block-paragraph.is-comment *:not(code) {
     rgba(255, 255, 255, 1) 5%,
     rgba(255, 255, 255, 0) 100%
   );
+}
+
+[data-list-type='Ordered']
+  > [data-node-type='blockContainer']
+  > [data-list-type='Group'],
+[data-list-type='Unordered']
+  > [data-node-type='blockContainer']
+  > [data-list-type='Group'] {
+  padding-left: 0;
 }

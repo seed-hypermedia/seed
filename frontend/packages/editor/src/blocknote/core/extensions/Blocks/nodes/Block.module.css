@@ -244,7 +244,7 @@ NESTED BLOCKS
 } */
 
 [data-node-type='blockGroup'] [data-content-type='heading'] {
-  --level: 32px;
+  --level: 30px;
 }
 
 [data-node-type='blockGroup']
@@ -257,14 +257,6 @@ NESTED BLOCKS
   [data-node-type='blockGroup']
   [data-node-type='blockGroup']
   [data-content-type='heading'] {
-  --level: 22px;
-}
-
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-content-type='heading'] {
   --level: 20px;
 }
 
@@ -272,9 +264,17 @@ NESTED BLOCKS
   [data-node-type='blockGroup']
   [data-node-type='blockGroup']
   [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
   [data-content-type='heading'] {
   --level: 18px;
+}
+
+[data-node-type='blockGroup']
+  [data-node-type='blockGroup']
+  [data-node-type='blockGroup']
+  [data-node-type='blockGroup']
+  [data-node-type='blockGroup']
+  [data-content-type='heading'] {
+  --level: 16px;
 }
 
 .blockOuter:not([data-prev-type])
@@ -298,9 +298,9 @@ NESTED BLOCKS
   outline-width: 0;
 }
 
-.blockContent {
+/* .blockContent {
   margin-top: 4px;
-}
+} */
 
 /* CODE BLOCK */
 .blockContent[data-content-type='code-block'] {

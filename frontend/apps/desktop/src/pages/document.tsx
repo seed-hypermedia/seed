@@ -38,7 +38,6 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
-  HMMetadata,
   HMQueryResult,
   pluralS,
   UnpackedHypermediaId,
@@ -65,20 +64,14 @@ import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquare, Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {
-  ButtonText,
-  SizableText,
-  XStack,
-  XStackProps,
-  YStack,
-  YStackProps,
-} from 'tamagui'
+import {ButtonText, XStack, XStackProps, YStack, YStackProps} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -322,22 +315,14 @@ function _MainDocumentPage({
             $gtSm={{marginRight: 40, marginLeft: 0}}
           >
             {isHomeDoc ? null : <DocPageHeader docId={id} />}
-            <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+            <div className="flex-1 pl-4 sm:pl-0 mt-4 mb-16">
               <DocPageContent
                 blockRef={id.blockRef}
                 blockRange={id.blockRange}
                 entity={entity.data}
                 isBlockFocused={isBlockFocused}
               />
-            </YStack>
-
-            <DocPageAppendix
-              centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
-              metadata={metadata}
-              isCommentingPanelOpen={isCommentingPanelOpen}
-              docId={id}
-              onAccessory={onAccessory}
-            />
+            </div>
           </DocContainer>
           {showSidebars ? <YStack {...sidebarProps} /> : null}
         </XStack>
@@ -360,7 +345,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <XStack position="absolute" top={0} right={8} padding="$4" gap="$1.5">
+    <div className="absolute top-0 right-2 p-4 gap-1 flex z-50">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -388,7 +373,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
         }}
         icon={HistoryIcon}
       />
-    </XStack>
+    </div>
   )
 }
 
@@ -406,7 +391,7 @@ function InteractionSummaryItem({
   return (
     <Tooltip content={`${count} ${pluralS(count, label)}`}>
       <Button onPress={onPress} size="$1" chromeless icon={Icon}>
-        <SizableText size="$1">{count}</SizableText>
+        <SizableText size="xs">{count}</SizableText>
       </Button>
     </Tooltip>
   )
@@ -630,44 +615,6 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
-function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
-  return (
-    <YStack paddingVertical="$8">
-      <YStack
-        alignSelf="center"
-        maxWidth={600}
-        gap="$5"
-        borderWidth={1}
-        borderColor="$color8"
-        borderRadius="$2"
-        padding="$5"
-      >
-        <SizableText size="$8" color="$red11">
-          Could not find this Version
-        </SizableText>
-        <SizableText>
-          We have discovered a different version of this document.
-        </SizableText>
-        <XStack>
-          <Button
-            icon={ArrowRight}
-            backgroundColor="$color4"
-            onPress={() => {
-              navigate({
-                key: 'document',
-                id: {...docId, latest: true, version: null},
-              })
-            }}
-          >
-            Go to Other Version
-          </Button>
-        </XStack>
-      </YStack>
-    </YStack>
-  )
-}
-
 function DocRedirected({
   docId,
   redirectTarget,
@@ -706,29 +653,24 @@ function DocMessageBox({
   spinner?: boolean
 }) {
   return (
-    <YStack paddingVertical="$8">
-      <YStack
-        alignSelf="center"
-        width={600}
-        gap="$5"
-        borderWidth={1}
-        borderColor="$color8"
-        borderRadius="$4"
-        padding="$5"
-        elevation="$4"
-      >
-        <SizableText size="$8" fontWeight="bold">
-          {title}
-        </SizableText>
-        {spinner ? (
-          <div className="flex items-center justify-center">
-            <Spinner />
-          </div>
-        ) : null}
-        <SizableText>{message}</SizableText>
-        {children}
-      </YStack>
-    </YStack>
+    <div className="h-screen w-screen flex flex-col">
+      <div className="flex-1 justify-center flex items-start py-12 px-4">
+        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+          <SizableText size="2xl" weight="bold">
+            {title}
+          </SizableText>
+          {spinner ? (
+            <div className="flex justify-center items-center">
+              <Spinner />
+            </div>
+          ) : null}
+          <SizableText asChild className="text-muted-foreground">
+            <p>{message}</p>
+          </SizableText>
+          {children}
+        </div>
+      </div>
+    </div>
   )
 }
 function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
@@ -903,32 +845,5 @@ function DocPageContent({
         }}
       />
     </AppDocContentProvider>
-  )
-}
-
-function DocPageAppendix({
-  docId,
-  centered = false,
-  metadata,
-  isCommentingPanelOpen,
-  onAccessory,
-}: {
-  docId: UnpackedHypermediaId
-  centered: boolean
-  metadata?: HMMetadata
-  isCommentingPanelOpen: boolean
-  onAccessory: (accessory: DocumentRoute['accessory']) => void
-}) {
-  return (
-    <Container centered={centered}>
-      {/* <Discussion docId={docId} /> */}
-      {/* {metadata && metadata.showActivity === false ? null : (
-        <DocumentActivity
-          docId={docId}
-          isCommentingPanelOpen={isCommentingPanelOpen}
-          onAccessory={onAccessory}
-        />
-      )} */}
-    </Container>
   )
 }
