@@ -143,7 +143,7 @@ function EmbedWrapper({
       ref={wrapperRef}
       // @ts-expect-error this is a tamagui error
       contentEditable={false}
-      userSelect="none"
+      // userSelect="none"
       className={cn('block-embed', blockStyles)}
       data-content-type="embed"
       data-url={id ? packHmId(id) : ''}
