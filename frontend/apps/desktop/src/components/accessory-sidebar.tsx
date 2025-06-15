@@ -5,11 +5,22 @@ import {
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
+import {Button} from '@shm/ui/components/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {PanelContainer} from '@shm/ui/container'
-import {CollaboratorsIcon} from '@shm/ui/icons'
+import {PanelContainer, panelContainerStyles} from '@shm/ui/container'
+import {BlockQuote, CollaboratorsIcon} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {FileClock, Folder, Pencil} from '@tamagui/lucide-icons'
+import {cn} from '@shm/ui/utils'
+import {
+  Clock,
+  FileClock,
+  Folder,
+  MessageSquare,
+  Pencil,
+  Sparkle,
+  Users,
+} from 'lucide-react'
 import {ComponentProps, useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -18,8 +29,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Button, SizableText, XGroup, XStack, YStack} from 'tamagui'
-import '../tailwind.css'
+import {XGroup, XStack, YStack} from 'tamagui'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
@@ -107,25 +117,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
       >
         <Panel id="main" minSize={50} className="overflow-hidden px-2">
           {children}
-
-          {/* <PanelContainer>
-            <div
-              ref={mainPanelRef}
-              style={{flex: 1, height: '100%', overflow: 'hidden'}}
-              onScroll={() => dispatchScroll(true)}
-            >
-              <View
-                style={{
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                  flex: 1,
-                  height: '100%',
-                }}
-              >
-                {children}
-              </View>
-            </div>
-          </PanelContainer> */}
         </Panel>
         {accessoryKey !== undefined ? (
           <PanelResizeHandle className="panel-resize-handle" />
@@ -140,25 +131,22 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           onResize={(size) => {
             dispatch({type: 'accessoryWidth', value: size})
           }}
+          className="px-2"
         >
-          <AccessoryWrapper
-            onAccessorySelect={onAccessorySelect}
-            padding={0}
-            title={accessoryTitle}
-            isNewDraft={isNewDraft}
+          <div
+            className={cn(
+              panelContainerStyles,
+              'bg-white dark:bg-black flex flex-col',
+            )}
           >
-            {!isNewDraft &&
-            accessoryKey != 'collaborators' &&
-            accessoryKey !== 'directory' &&
-            accessoryKey != 'options' ? (
-              <AccessoryTabs
-                options={accessoryOptions}
-                accessoryKey={accessoryKey}
-                onAccessorySelect={onAccessorySelect}
-              />
-            ) : null}
+            <AccessoryTabs
+              options={accessoryOptions}
+              accessoryKey={accessoryKey}
+              onAccessorySelect={onAccessorySelect}
+            />
+
             {accessory}
-          </AccessoryWrapper>
+          </div>
         </Panel>
       </PanelGroup>
     </XStack>
@@ -254,20 +242,16 @@ export function AccessoryTitle({
             <XGroup.Item>
               <Tooltip content="Draft Options">
                 <Button
-                  borderRadius="$2"
-                  bg={
-                    activeKey == 'options'
-                      ? '$brand11'
-                      : '$backgroundTransparent'
-                  }
-                  size="$2"
-                  icon={Pencil}
-                  onPress={
+                  size="icon"
+                  variant={activeKey == 'options' ? 'brand' : 'ghost'}
+                  onClick={
                     activeKey != 'options'
                       ? () => onAccessorySelect('options')
                       : undefined
                   }
-                />
+                >
+                  <Pencil size={16} className="size-4" />
+                </Button>
               </Tooltip>
             </XGroup.Item>
           )}
@@ -358,6 +342,16 @@ export function AccessorySection({
   )
 }
 
+const iconNames = {
+  activity: Sparkle,
+  collaborators: Users,
+  directory: Folder,
+  discussions: MessageSquare,
+  options: Pencil,
+  versions: Clock,
+  citations: BlockQuote,
+}
+
 function AccessoryTabs({
   options,
   accessoryKey,
@@ -367,44 +361,29 @@ function AccessoryTabs({
   options: DocAccessoryOption[]
   onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
 }) {
-  const _options = options.filter((o) => o.key != 'collaborators')
   return (
-    <XStack gap="$3" paddingVertical="$2" paddingHorizontal="$3">
-      {_options.map((option) => {
+    <div className="gap-1 p-2 px-3 flex items-center justify-center">
+      {options.map((option) => {
         const isActive = accessoryKey === option.key
+        const Icon = accessoryKey ? iconNames[option.key] : undefined
         return (
-          <Button
-            size="$1"
-            borderRadius={0}
-            bg="$backgroundTransparent"
-            hoverStyle={{
-              backgroundColor: '$backgroundTransparent',
-              borderColor: '$colorTransparent',
-            }}
-            focusStyle={{
-              backgroundColor: '$backgroundTransparent',
-              borderColor: '$colorTransparent',
-            }}
-            outlineColor="$colorTransparent"
-            borderColor="$colorTransparent"
-            onPress={() => {
-              if (isActive) return
-              // if (isActive) onAccessorySelect(undefined)
-              onAccessorySelect(option.key)
-            }}
-            padding={0}
-          >
-            <YStack gap="$1">
-              <SizableText size="$1">{option.label}</SizableText>
-              <XStack
-                w="100%"
-                h={2}
-                bg={isActive ? '$color' : '$backgroundTransparent'}
-              />
-            </YStack>
-          </Button>
+          <Tooltip content={option.label}>
+            <span>
+              <Button
+                size="sm"
+                variant={isActive ? 'brand-12' : 'ghost'}
+                onClick={() => {
+                  if (isActive) return
+                  // if (isActive) onAccessorySelect(undefined)
+                  onAccessorySelect(option.key)
+                }}
+              >
+                {Icon ? <Icon className="size-4" /> : null}
+              </Button>
+            </span>
+          </Tooltip>
         )
       })}
-    </XStack>
+    </div>
   )
 }

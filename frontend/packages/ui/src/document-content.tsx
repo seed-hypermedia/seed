@@ -92,7 +92,7 @@ export const docContentContext = createContext<DocContentContextValue | null>(
 export function DocContentProvider({
   children,
   debugTop = 0,
-  showDevMenu = true,
+  showDevMenu = false,
   comment = false,
   routeParams = {},
   layoutUnit = contentLayoutUnit,

@@ -49,11 +49,11 @@ export function useDocumentAccessory({
       />
     )
   } else if (accessoryKey === 'versions') {
-    accessory = <VersionsPanel docId={docId} />
+    accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'activity') {
     accessory = (
       <ActivityPanel
-        docId={docId}
+        docId={docId as UnpackedHypermediaId}
         onAccessory={(acc) => {
           replace({...route, accessory: acc})
         }}
