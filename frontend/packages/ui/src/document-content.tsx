@@ -663,7 +663,7 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content border-px',
         isHighlight
-          ? 'border-brand/50 bg-brand/10'
+          ? 'border-brand-12 bg-brand-10'
           : 'border-transparent bg-transparent',
       )}
       style={{
@@ -678,8 +678,8 @@ export function BlockNodeContent({
         }}
         {...debugStyles(debug, 'red')}
         className={cn(
-          'relative hover:bg-background',
-
+          'relative',
+          blockNode.block?.type == 'Embed' && 'hover:bg-brand-12',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
           headingStyles.className,
         )}
