@@ -143,7 +143,10 @@ export function ActivityList({
   const changeAuthorIds = Array.from(changeAuthorIdsSet)
   const changeAuthors: HMAccountsMetadata = Object.fromEntries(
     changeAuthorIds
-      .map((uid, index) => [uid, accounts?.find((a) => a.id === uid)?.metadata])
+      .map((uid, index) => [
+        uid,
+        accounts.data?.accounts?.find((a) => a.id === uid)?.metadata,
+      ])
       .filter(([k, v]) => !!v),
   )
   if (route.key !== 'document') return null
