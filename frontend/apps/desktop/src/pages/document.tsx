@@ -46,7 +46,8 @@ import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
-import {Container} from '@shm/ui/container'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
 import {useImageUrl} from '@shm/ui/get-file-url'
@@ -69,9 +70,10 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {cn} from '@shm/ui/utils'
 import {MessageSquare, Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {ButtonText, XStack, XStackProps, YStack, YStackProps} from 'tamagui'
+import {ButtonText, XStack, YStack} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -140,7 +142,7 @@ export default function DocumentPage() {
           })
         }}
       >
-        <XStack flex={1} height="100%">
+        <div className="flex flex-col flex-1 h-full">
           <AccessoryLayout
             mainPanelRef={mainPanelRef}
             accessory={accessory}
@@ -170,7 +172,7 @@ export default function DocumentPage() {
               )}
             />
           </AccessoryLayout>
-        </XStack>
+        </div>
         {templateDialogContent}
         {notifSettingsDialog.content}
       </DiscussionsProvider>
@@ -178,10 +180,7 @@ export default function DocumentPage() {
   )
 }
 
-function BaseDocContainer({
-  children,
-  ...props
-}: XStackProps & {children: ReactNode}) {
+function BaseDocContainer({children, ...props}: {children: ReactNode}) {
   return (
     <Container clearVerticalSpace padding={0} {...props}>
       {children}
@@ -189,14 +188,11 @@ function BaseDocContainer({
   )
 }
 
-function NewspaperDocContainer({
-  children,
-  ...props
-}: YStackProps & {children: ReactNode}) {
+function NewspaperDocContainer({children, ...props}: {children: ReactNode}) {
   return (
-    <YStack padding={0} {...props}>
+    <div className="p-0" {...props}>
       {children}
-    </YStack>
+    </div>
   )
 }
 
@@ -276,7 +272,13 @@ function _MainDocumentPage({
 
   return (
     // this data attribute is used by the hypermedia highlight component
-    <YStack data-docid={id.id}>
+    <div
+      data-docid={id.id}
+      className={cn(
+        panelContainerStyles,
+        'bg-white dark:bg-black flex flex-col',
+      )}
+    >
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
@@ -284,51 +286,47 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
-      {!docIsNewspaperLayout && <DocumentCover docId={id} />}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <ScrollArea className="h-full relative" ref={elementRef}>
+          {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-      <YStack
-        w="100%"
-        ref={elementRef}
-        f={1}
-        position="relative"
-        paddingTop="$4"
-      >
-        <XStack {...wrapperProps}>
-          {showSidebars ? (
-            <YStack
-              {...sidebarProps}
-              marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
-            >
+          <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
+            {showSidebars ? (
               <YStack
-                className="hide-scrollbar"
-                overflow="scroll"
-                height="100%"
-                // paddingVertical="$4"
+                {...sidebarProps}
+                marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
               >
-                <DocNavigation showCollapsed={showCollapsed} />
+                <YStack
+                  className="hide-scrollbar"
+                  overflow="scroll"
+                  height="100%"
+                  // paddingVertical="$4"
+                >
+                  <DocNavigation showCollapsed={showCollapsed} />
+                </YStack>
               </YStack>
-            </YStack>
-          ) : null}
+            ) : null}
 
-          <DocContainer
-            {...mainContentProps}
-            $gtSm={{marginRight: 40, marginLeft: 0}}
-          >
-            {isHomeDoc ? null : <DocPageHeader docId={id} />}
-            <div className="flex-1 pl-4 sm:pl-0 mt-4 mb-16">
-              <DocPageContent
-                blockRef={id.blockRef}
-                blockRange={id.blockRange}
-                entity={entity.data}
-                isBlockFocused={isBlockFocused}
-              />
-            </div>
-          </DocContainer>
-          {showSidebars ? <YStack {...sidebarProps} /> : null}
-        </XStack>
-        <DocInteractionsSummary docId={id} />
-      </YStack>
-    </YStack>
+            <DocContainer
+              {...mainContentProps}
+              $gtSm={{marginRight: 40, marginLeft: 0}}
+            >
+              {isHomeDoc ? null : <DocPageHeader docId={id} />}
+              <div className="flex-1 pl-4 sm:pl-0 mt-4 mb-16">
+                <DocPageContent
+                  blockRef={id.blockRef}
+                  blockRange={id.blockRange}
+                  entity={entity.data}
+                  isBlockFocused={isBlockFocused}
+                />
+              </div>
+            </DocContainer>
+            {showSidebars ? <YStack {...sidebarProps} /> : null}
+          </div>
+          <DocInteractionsSummary docId={id} />
+        </ScrollArea>
+      </div>
+    </div>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)

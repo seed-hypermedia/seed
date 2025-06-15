@@ -1,4 +1,3 @@
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {
   useNavigationDispatch,
   useNavigationState,
@@ -19,7 +18,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Button, SizableText, View, XGroup, XStack, YStack} from 'tamagui'
+import {Button, SizableText, XGroup, XStack, YStack} from 'tamagui'
 import '../tailwind.css'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
@@ -106,14 +105,10 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         autoSaveId="accessory"
         storage={widthStorage}
       >
-        <Panel
-          id="main"
-          minSize={50}
-          style={{
-            overflow: 'hidden',
-          }}
-        >
-          <PanelContainer>
+        <Panel id="main" minSize={50} className="overflow-hidden px-2">
+          {children}
+
+          {/* <PanelContainer>
             <div
               ref={mainPanelRef}
               style={{flex: 1, height: '100%', overflow: 'hidden'}}
@@ -130,7 +125,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
                 {children}
               </View>
             </div>
-          </PanelContainer>
+          </PanelContainer> */}
         </Panel>
         {accessoryKey !== undefined ? (
           <PanelResizeHandle className="panel-resize-handle" />

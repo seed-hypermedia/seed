@@ -1,7 +1,5 @@
-import {styled, View} from '@tamagui/core'
+import {styled} from '@tamagui/core'
 import {YStack} from '@tamagui/stacks'
-import {ViewProps} from 'tamagui'
-import {useIsDark} from './use-is-dark'
 import {cn} from './utils'
 
 const variants = {
@@ -31,20 +29,23 @@ export const defaultContainerStyle = {
   borderRadius: '$4',
 }
 
-export function PanelContainer({children, ...props}: ViewProps) {
-  const isDark = useIsDark()
-
+export function PanelContainer({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <View
-      h="100%"
-      bg={isDark ? '$background' : '$backgroundStrong'}
-      overflow="hidden"
-      w="100%"
-      $gtSm={defaultContainerStyle}
-      {...props}
-    >
-      {children}
-    </View>
+    <div className="w-full h-full px-2">
+      <div
+        className={cn(
+          'h-full bg-white dark:bg-black sm:border sm:border-border sm:rounded-md overflow-hidden',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    </div>
   )
 }
 

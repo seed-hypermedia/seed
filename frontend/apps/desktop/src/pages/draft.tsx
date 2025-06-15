@@ -35,7 +35,7 @@ import {useEntity} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId} from '@shm/shared/utils'
-import {Container} from '@shm/ui/container'
+import {Container, panelContainerStyles} from '@shm/ui/container'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Smile} from '@shm/ui/icons'
@@ -53,6 +53,8 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {Button, Input, XStack, YStack} from 'tamagui'
 
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {cn} from '@shm/ui/utils'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -169,10 +171,11 @@ export default function DraftPage() {
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <XStack flex={1} height="100%">
+      <div className="flex flex-1 h-full">
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
+          onScroll={() => dispatchScroll(true)}
           onAccessorySelect={(key) => {
             if (!key) return
             replace({...route, accessory: {key: key as any}}) // TODO: fix this type
@@ -180,19 +183,36 @@ export default function DraftPage() {
           accessoryOptions={accessoryOptions}
           isNewDraft={editId == undefined}
         >
-          <DraftRebaseBanner />
-          {locationId || editId ? (
-            <>
-              <DraftAppHeader
-                siteHomeEntity={homeEntity.data}
-                isEditingHomeDoc={
-                  homeEntity.data?.id.id == locationId?.id ||
-                  homeEntity.data?.id.id == editId?.id
-                }
-                docId={locationId || editId}
-                document={homeEntity.data?.document}
-                draftMetadata={state.context.metadata}
-              />
+          <div
+            className={cn(
+              panelContainerStyles,
+              'bg-white dark:bg-black flex flex-col',
+            )}
+          >
+            <DraftRebaseBanner />
+            {locationId || editId ? (
+              <>
+                <DraftAppHeader
+                  siteHomeEntity={homeEntity.data}
+                  isEditingHomeDoc={
+                    homeEntity.data?.id.id == locationId?.id ||
+                    homeEntity.data?.id.id == editId?.id
+                  }
+                  docId={locationId || editId}
+                  document={homeEntity.data?.document}
+                  draftMetadata={state.context.metadata}
+                />
+                <DocumentEditor
+                  editor={editor}
+                  state={state}
+                  actor={actor}
+                  data={data}
+                  send={send}
+                  handleFocusAtMousePos={handleFocusAtMousePos}
+                  isHomeDoc={isEditingHomeDoc}
+                />
+              </>
+            ) : (
               <DocumentEditor
                 editor={editor}
                 state={state}
@@ -202,20 +222,10 @@ export default function DraftPage() {
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
               />
-            </>
-          ) : (
-            <DocumentEditor
-              editor={editor}
-              state={state}
-              actor={actor}
-              data={data}
-              send={send}
-              handleFocusAtMousePos={handleFocusAtMousePos}
-              isHomeDoc={isEditingHomeDoc}
-            />
-          )}
+            )}
+          </div>
         </AccessoryLayout>
-      </XStack>
+      </div>
     </ErrorBoundary>
   )
 }
@@ -298,77 +308,80 @@ function DocumentEditor({
 
   if (state.matches('editing'))
     return (
-      <YStack
+      <div
         onDragStart={() => {
           setIsDragging(true)
         }}
         onDragEnd={() => {
           setIsDragging(false)
         }}
-        onDragOver={(event: DragEvent) => {
+        onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
           event.preventDefault()
           setIsDragging(true)
         }}
         onDrop={onDrop}
-        onPress={handleFocusAtMousePos}
+        onClick={handleFocusAtMousePos}
+        className="flex flex-col flex-1 overflow-hidden"
       >
-        <AppDocContentProvider
-          // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
-          importWebFile={importWebFile}
-        >
-          <DraftCover
-            draftActor={actor}
-            disabled={!state.matches('editing')}
-            show={showCover}
-            setShow={setShowCover}
-            showOutline={showOutline}
-          />
-          <YStack ref={elementRef} w="100%" f={1}>
-            <XStack {...wrapperProps}>
-              {showSidebars ? (
-                <YStack
-                  marginTop={showCover ? 152 : 220}
-                  onPress={(e) => e.stopPropagation()}
-                  {...sidebarProps}
-                >
-                  <DocNavigationDraftLoader
-                    showCollapsed={showCollapsed}
-                    id={id}
-                  />
-                </YStack>
-              ) : null}
-              <YStack {...mainContentProps}>
-                {!isHomeDoc ? (
-                  <DraftMetadataEditor
-                    draftActor={actor}
-                    onEnter={() => {
-                      editor._tiptapEditor.commands.focus()
-                      editor._tiptapEditor.commands.setTextSelection(0)
-                    }}
-                    // disabled={!state.matches('ready')}
-                    showCover={showCover}
-                    setShowCover={setShowCover}
-                  />
+        <ScrollArea onScroll={() => dispatchScroll(true)} className="h-full">
+          <AppDocContentProvider
+            // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
+            importWebFile={importWebFile}
+          >
+            <DraftCover
+              draftActor={actor}
+              disabled={!state.matches('editing')}
+              show={showCover}
+              setShow={setShowCover}
+              showOutline={showOutline}
+            />
+            <YStack ref={elementRef} w="100%" f={1}>
+              <XStack {...wrapperProps}>
+                {showSidebars ? (
+                  <YStack
+                    marginTop={showCover ? 152 : 220}
+                    onPress={(e) => e.stopPropagation()}
+                    {...sidebarProps}
+                  >
+                    <DocNavigationDraftLoader
+                      showCollapsed={showCollapsed}
+                      id={id}
+                    />
+                  </YStack>
                 ) : null}
-                <Container
-                  paddingLeft="$4"
-                  marginBottom={300}
-                  onPress={(e: GestureResponderEvent) => {
-                    // this prevents to fire handleFocusAtMousePos on click
-                    e.stopPropagation()
-                    // editor?._tiptapEditor.commands.focus()
-                  }}
-                >
-                  {editor ? (
-                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                <YStack {...mainContentProps}>
+                  {!isHomeDoc ? (
+                    <DraftMetadataEditor
+                      draftActor={actor}
+                      onEnter={() => {
+                        editor._tiptapEditor.commands.focus()
+                        editor._tiptapEditor.commands.setTextSelection(0)
+                      }}
+                      // disabled={!state.matches('ready')}
+                      showCover={showCover}
+                      setShowCover={setShowCover}
+                    />
                   ) : null}
-                </Container>
-              </YStack>
-              {showSidebars ? <YStack {...sidebarProps} /> : null}
-            </XStack>
-          </YStack>
-        </AppDocContentProvider>
-      </YStack>
+                  <Container
+                    paddingLeft="$4"
+                    marginBottom={300}
+                    onPress={(e: GestureResponderEvent) => {
+                      // this prevents to fire handleFocusAtMousePos on click
+                      e.stopPropagation()
+                      // editor?._tiptapEditor.commands.focus()
+                    }}
+                  >
+                    {editor ? (
+                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                    ) : null}
+                  </Container>
+                </YStack>
+                {showSidebars ? <YStack {...sidebarProps} /> : null}
+              </XStack>
+            </YStack>
+          </AppDocContentProvider>
+        </ScrollArea>
+      </div>
     )
 
   return null
@@ -538,9 +551,6 @@ function DraftAppHeader({
   // const draft = useDraft(docId)
   return (
     <SiteHeader
-      onScroll={() => {
-        dispatchScroll('scroll')
-      }}
       originHomeId={siteHomeEntity.id}
       items={navItems}
       document={
