@@ -11,7 +11,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {CheckboxField} from '@shm/ui/checkbox-field'
+import {CheckboxField} from '@shm/ui/components/checkbox'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast} from '@shm/ui/toast'
@@ -807,8 +807,11 @@ function ExistingStep({
 
           <CheckboxField
             id="save-existing-wordss"
-            value={shouldSaveWords}
-            onValue={setShouldSaveWords}
+            checked={shouldSaveWords}
+            onCheckedChange={(v) =>
+              setShouldSaveWords(v === 'indeterminate' ? false : v)
+            }
+            variant="brand"
           >
             Save secret words to this device
           </CheckboxField>
@@ -1144,9 +1147,11 @@ function RecoveryStep({
         </XStack>
 
         <CheckboxField
-          value={shouldSaveWords}
+          checked={shouldSaveWords}
           id="register-save-words"
-          onValue={setShouldSaveWords}
+          onCheckedChange={(v) =>
+            setShouldSaveWords(v === 'indeterminate' ? false : v)
+          }
         >
           Save words on this device
         </CheckboxField>

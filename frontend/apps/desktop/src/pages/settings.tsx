@@ -41,6 +41,8 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Checkbox} from '@shm/ui/components/checkbox'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
@@ -79,13 +81,11 @@ import QRCode from 'react-qr-code'
 import {
   AlertDialog,
   Button,
-  Checkbox,
   Form,
   Heading,
   Input,
   Label,
   Paragraph,
-  RadioGroup,
   SizableText,
   Tabs,
   TabsContentProps,
@@ -1202,18 +1202,16 @@ function PushOnCopySetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <XStack key={option.value} gap="$3" ai="center">
-                <RadioGroup.Item
-                  size="$2"
+              <div className="flex gap-2 items-center" key={option.value}>
+                <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
-                >
-                  <RadioGroup.Indicator />
-                </RadioGroup.Item>
+                />
+
                 <Label size="$2" htmlFor={`${id}-${option.value}`}>
                   {option.label}
                 </Label>
-              </XStack>
+              </div>
             )
           })}
         </RadioGroup>
@@ -1303,18 +1301,16 @@ function PushOnPublishSetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <XStack key={option.value} gap="$3" ai="center">
-                <RadioGroup.Item
-                  size="$2"
+              <div className="flex gap-2 items-center" key={option.value}>
+                <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
-                >
-                  <RadioGroup.Indicator />
-                </RadioGroup.Item>
+                />
+
                 <Label size="$2" htmlFor={`${id}-${option.value}`}>
                   {option.label}
                 </Label>
-              </XStack>
+              </div>
             )
           })}
         </RadioGroup>
@@ -1430,11 +1426,7 @@ function AppSettings() {
                   // TODO: use the actual type for autoUpdate
                   setAutoUpdate(val as 'true' | 'false')
                 }}
-              >
-                <Checkbox.Indicator>
-                  <Check />
-                </Checkbox.Indicator>
-              </Checkbox>
+              />
             </XStack>
             <Tooltip content="Check for app updates automatically on Launch">
               <Button

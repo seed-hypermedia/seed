@@ -1,5 +1,6 @@
 import React from 'react'
-import {Label, RadioGroup, XStack, YStack} from 'tamagui'
+import {Label, YStack} from 'tamagui'
+import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {SizableText} from './text'
 
 type RadioOption = {
@@ -33,18 +34,16 @@ export function RadioOptionSection<Options extends RadioOptions>({
       <RadioGroup value={value} onValueChange={onValue}>
         {options.map((option) => {
           return (
-            <XStack key={option.value} gap="$3" ai="center">
-              <RadioGroup.Item
-                size="$2"
+            <div className="flex gap-2 items-center" key={option.value}>
+              <RadioGroupItem
                 value={option.value}
                 id={`${id}-${option.value}`}
-              >
-                <RadioGroup.Indicator />
-              </RadioGroup.Item>
+              />
+
               <Label size="$2" htmlFor={`${id}-${option.value}`}>
                 {option.label}
               </Label>
-            </XStack>
+            </div>
           )
         })}
       </RadioGroup>

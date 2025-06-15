@@ -1,4 +1,4 @@
-import {Check} from '@tamagui/lucide-icons'
+import {CheckedState} from '@radix-ui/react-checkbox'
 import {useId} from 'react'
 import {
   Control,
@@ -7,7 +7,9 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
-import {Checkbox, Input, Label, Text, TextArea, XStack} from 'tamagui'
+import {Input, Text, TextArea} from 'tamagui'
+import {Checkbox, CheckboxProps} from './components/checkbox'
+import {Label} from './components/label'
 
 export function FormInput<Fields extends FieldValues>({
   control,
@@ -49,12 +51,14 @@ export function FormCheckbox<Fields extends FieldValues>({
 }) {
   const c = useController({control, name})
   return (
-    <FullCheckbox
-      value={c.field.value}
-      label={label}
-      onValue={c.field.onChange}
-      {...props}
-    />
+    <div className="flex gap-1">
+      <FullCheckbox
+        value={c.field.value as CheckedState}
+        label={label}
+        onValue={c.field.onChange}
+        {...props}
+      />
+    </div>
   )
 }
 
@@ -91,29 +95,26 @@ export function FullCheckbox({
   onValue,
   isLoading,
   label,
-  ...props
+  size = 'default',
 }: {
-  value: boolean
-  onValue: (value: boolean) => void
+  value: CheckedState
+  onValue: (value: CheckedState) => void
   isLoading?: boolean
   label: string
-} & React.ComponentProps<typeof XStack>) {
+} & CheckboxProps) {
   const id = useId()
   return (
-    <XStack gap="$2" {...props}>
+    <div className="flex gap-1">
       <Checkbox
+        className={isLoading ? 'opacity-50' : ''}
         checked={value}
         onCheckedChange={onValue}
-        opacity={isLoading ? 0.5 : 1}
         id={id}
-      >
-        <Checkbox.Indicator>
-          <Check color="$brand5" />
-        </Checkbox.Indicator>
-      </Checkbox>
-      <Label lineHeight={0} htmlFor={id}>
+        size={size}
+      />
+      <Label htmlFor={id} size={size}>
         {label}
       </Label>
-    </XStack>
+    </div>
   )
 }

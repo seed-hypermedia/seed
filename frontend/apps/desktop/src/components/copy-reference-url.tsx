@@ -6,7 +6,7 @@ import {
   packHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
-import {CheckboxField} from '@shm/ui/checkbox-field'
+import {CheckboxField} from '@shm/ui/components/checkbox'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {Spinner} from '@shm/ui/spinner'
@@ -171,9 +171,9 @@ export function PushToGatewayDialog({
       <DialogTitle>{title}</DialogTitle>
       <DialogDescription>{description}</DialogDescription>
       <CheckboxField
-        value={shouldDoAlways}
+        checked={shouldDoAlways}
         id="do-every-time"
-        onValue={(checked: boolean) => setShouldDoAlways(checked)}
+        onCheckedChange={(checked: boolean) => setShouldDoAlways(checked)}
       >
         Do this every time
       </CheckboxField>

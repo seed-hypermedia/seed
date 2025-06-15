@@ -25,6 +25,7 @@ import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {Checkbox} from '@shm/ui/components/checkbox'
 import {
   Container,
   defaultContainerStyle,
@@ -49,7 +50,6 @@ import {ComponentProps, createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {
   Button,
-  Checkbox,
   Popover,
   SizableText,
   View,
@@ -364,20 +364,10 @@ function SelectionCollapseButton({
       <Checkbox
         checked={isSelected}
         onCheckedChange={(isSelected: boolean) => onSelect(docId, !!isSelected)}
-        size="$3"
-        borderColor="$color8"
-        hoverStyle={{
-          borderColor: '$color9',
-        }}
-        onPress={(e: GestureResponderEvent) => {
+        onClick={(e) => {
           e.stopPropagation()
         }}
-        focusStyle={{borderColor: '$color10'}}
-      >
-        <Checkbox.Indicator borderColor="$color8">
-          <Check color="$brand5" />
-        </Checkbox.Indicator>
-      </Checkbox>
+      />
     )
   }
   if (isCollapsed === null) return <View width="$1" />

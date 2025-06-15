@@ -37,16 +37,12 @@ import {
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {Checkbox, CheckboxProps} from '@tamagui/checkbox'
-import {SizeTokens} from '@tamagui/core'
-import {Label} from '@tamagui/label'
-import {RadioGroup} from '@tamagui/radio-group'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
 import {
   AlertCircle,
-  Check,
   ChevronDown,
   ChevronRight,
   File,
@@ -69,6 +65,7 @@ import React, {
   useState,
 } from 'react'
 import {Button} from './components/button'
+import {CheckboxField} from './components/checkbox'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -95,7 +92,7 @@ export const docContentContext = createContext<DocContentContextValue | null>(
 export function DocContentProvider({
   children,
   debugTop = 0,
-  showDevMenu = false,
+  showDevMenu = true,
   comment = false,
   routeParams = {},
   layoutUnit = contentLayoutUnit,
@@ -142,21 +139,23 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border">
-          <CheckboxWithLabel
-            label="debug"
+        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border flex flex-col gap-1 bg-white dark:bg-black rounded-md">
+          <CheckboxField
             checked={debug}
             // @ts-ignore
             onCheckedChange={setDebug}
-            size="$1"
-          />
-          <CheckboxWithLabel
-            label="body sans-serif"
+            size="sm"
+          >
+            debug
+          </CheckboxField>
+          <CheckboxField
             checked={ffSerif}
             // @ts-ignore
             onCheckedChange={toggleSerif}
-            size="$1"
-          />
+            size="sm"
+          >
+            body sans-serif
+          </CheckboxField>
           <RadioGroup
             aria-labelledby="text unit"
             defaultValue="18"
@@ -2270,27 +2269,6 @@ function getSourceType(name?: string) {
   return `video/${nameArray[nameArray.length - 1]}`
 }
 
-function CheckboxWithLabel({
-  size,
-  label,
-  ...checkboxProps
-}: CheckboxProps & {size: SizeTokens; label: string}) {
-  const id = `checkbox-${size.toString().slice(1)}`
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox id={id} size={size} {...checkboxProps}>
-        <Checkbox.Indicator>
-          <Check />
-        </Checkbox.Indicator>
-      </Checkbox>
-
-      <Label size={size} htmlFor={id}>
-        {label}
-      </Label>
-    </div>
-  )
-}
-
 export function InlineEmbedButton({
   children,
   entityId,
@@ -2320,9 +2298,7 @@ function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
     <div className="flex items-center gap-2">
-      <RadioGroup.Item value={props.value} id={id} size="$1">
-        <RadioGroup.Indicator />
-      </RadioGroup.Item>
+      <RadioGroupItem value={props.value} id={id} size="$1" />
 
       <label className="text-xs" htmlFor={id}>
         {props.label}

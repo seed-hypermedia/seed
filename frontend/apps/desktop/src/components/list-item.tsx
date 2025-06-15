@@ -7,8 +7,9 @@ import {getMetadataName} from '@shm/shared/content'
 import {DocumentRoute} from '@shm/shared/routes'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
+import {Checkbox} from '@shm/ui/components/checkbox'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Check, Link} from '@shm/ui/icons'
+import {Link} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps, ReactElement, useMemo, useState} from 'react'
@@ -17,7 +18,6 @@ import {
   Button,
   ButtonProps,
   ButtonText,
-  Checkbox,
   SizableText,
   Text,
   XStack,
@@ -199,23 +199,11 @@ export function LibraryListItem({
           <XStack ai="center" gap="$3">
             {exportMode && (
               <Checkbox
-                size="$3"
-                borderColor="$color9"
-                focusStyle={{
-                  borderColor: '$color9',
-                }}
-                hoverStyle={{
-                  borderColor: '$color9',
-                }}
                 checked={selected}
                 onCheckedChange={() => {
                   toggleDocumentSelection(entry.id.id)
                 }}
-              >
-                <Checkbox.Indicator>
-                  <Check color="$brand5" />
-                </Checkbox.Indicator>
-              </Checkbox>
+              />
             )}
 
             {icon}

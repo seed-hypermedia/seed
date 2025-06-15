@@ -27,7 +27,7 @@ import {XStack, YStack} from '@tamagui/stacks'
 import {Heading} from '@tamagui/text'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
-import {CheckboxField} from './checkbox-field'
+import {CheckboxField} from './components/checkbox'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {Spinner} from './spinner'
@@ -236,9 +236,6 @@ function DonateForm({
       <Heading>Distribution Overview</Heading>
       <Label>Total Payment (SAT)</Label>
       <Input
-        // borderColor="$colorTransparent"
-        // id="amount"
-        // borderWidth={0}
         value={`${total}`}
         onChange={(e) => {
           const amountText = e.target.value
@@ -247,9 +244,11 @@ function DonateForm({
       />
       <CheckboxField
         id="split-evenly"
-        value={isEven}
-        onValue={(isEvenly) =>
-          setPaymentAllocation(applyIsEvenAllocation(isEvenly))
+        checked={isEven}
+        onCheckedChange={(v) =>
+          setPaymentAllocation(
+            applyIsEvenAllocation(v === 'indeterminate' ? false : v),
+          )
         }
       >
         Divide Evenly
@@ -270,13 +269,15 @@ function DonateForm({
               </XStack>
               {isAllowedRecipient ? (
                 <Input
-                  value={`${recieveAmount}`}
-                  onChange={(e) => {
-                    const amountText = e.target.value
+                  value={String(recieveAmount)}
+                  onChange={(e: any) => {
+                    const text =
+                      'nativeEvent' in e ? e.nativeEvent.text : e.target.value
                     setPaymentAllocation(
-                      applyRecipientAmount(author.id.uid, amountText),
+                      applyRecipientAmount(author.id.uid, text),
                     )
                   }}
+                  type="text"
                 />
               ) : (
                 <SizableText>Donations Disabled</SizableText>
