@@ -2,8 +2,6 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
-  CONTENT_HIGHLIGHT_COLOR_DARK,
-  CONTENT_HIGHLIGHT_COLOR_LIGHT,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
@@ -299,7 +297,7 @@ export function DocContent({
 
   return (
     <div
-      className="relative my-10"
+      className="relative my-6"
       ref={wrapper}
       style={{
         paddingHorizontal: layoutUnit / 3,
@@ -635,24 +633,7 @@ export function BlockNodeContent({
     }
   }, [elm.current, blockNode.block])
 
-  // const isMediablock = useMemo(() => {
-  //   return ['Image', 'Video', 'File', 'Embed', 'WebEmbed', 'Query'].includes(
-  //     blockNode.block!.type,
-  //   )
-  // }, [blockNode.block])
-
   const tx = useTxString()
-
-  console.log('hover', hover)
-
-  const highlightColor = isDark
-    ? CONTENT_HIGHLIGHT_COLOR_DARK
-    : CONTENT_HIGHLIGHT_COLOR_LIGHT
-
-  // // @ts-expect-error
-  // if (isBlockNodeEmpty(blockNode)) {
-  //   return null;
-  // }
 
   return (
     <div
@@ -663,7 +644,7 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content border-px',
         isHighlight
-          ? 'border-brand-12 bg-brand-10'
+          ? 'border border-brand-10 bg-brand-12'
           : 'border-transparent bg-transparent',
       )}
       style={{
@@ -1261,8 +1242,7 @@ function InlineContentView({
       )
     if (styles.underline) classes.push('underline')
     if (styles.strike) classes.push('line-through')
-    if (styles.range || isRange)
-      classes.push('bg-yellow-200/50 dark:bg-yellow-900/70')
+    if (styles.range || isRange) classes.push('bg-brand-11')
 
     return classes.join(' ')
   }
