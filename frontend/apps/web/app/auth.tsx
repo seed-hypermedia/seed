@@ -10,7 +10,7 @@ import {
 } from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
-import {useTx} from '@shm/shared/translation'
+import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
@@ -314,18 +314,30 @@ function CreateAccountDialog({
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
     createAccount({name: data.name, icon: data.icon}).then(() => onClose())
   }
+  const tx = useTxString()
   const siteName = hostnameStripProtocol(origin)
   return (
     <>
-      <DialogTitle>Create Account on {siteName}</DialogTitle>
+      <DialogTitle>
+        {tx(
+          'create_account_title',
+          ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
+          {siteName},
+        )}
+      </DialogTitle>
       <DialogDescription>
-        Your account key will be securely stored in this browser. The identity
-        will be accessible only on this domain, but you can link it to other
-        domains and devices.
+        {tx(
+          'create_account_description',
+          'Your account key will be securely stored in this browser. The identity will be accessible only on this domain, but you can link it to other domains and devices.',
+        )}
       </DialogDescription>
       <EditProfileForm
         onSubmit={onSubmit}
-        submitLabel={`Create ${siteName} Account`}
+        submitLabel={tx(
+          'create_account_submit',
+          ({siteName}: {siteName: string}) => `Create ${siteName} Account`,
+          {siteName},
+        )}
       />
     </>
   )
@@ -340,7 +352,7 @@ function EditProfileForm({
   defaultValues?: SiteMetaFields
   submitLabel?: string
 }) {
-  const tx = useTx()
+  const tx = useTxString()
   const {
     control,
     handleSubmit,
@@ -349,13 +361,13 @@ function EditProfileForm({
   } = useForm<SiteMetaFields>({
     resolver: zodResolver(siteMetaSchema),
     defaultValues: defaultValues || {
-      name: '',
+      name: createDefaultAccountName(),
       icon: null,
     },
   })
   useEffect(() => {
     setTimeout(() => {
-      setFocus('name')
+      setFocus('name', {shouldSelect: true})
     }, 300) // wait for animation
   }, [setFocus])
   return (
@@ -365,7 +377,7 @@ function EditProfileForm({
           <FormInput
             control={control}
             name="name"
-            placeholder={tx('Account Name')}
+            placeholder={tx('My New Public Name')}
           />
         </Field>
         <ImageField control={control} name="icon" label={tx('Site Icon')} />
@@ -413,6 +425,7 @@ function ImageField<Fields extends FieldValues>({
   label: string
 }) {
   const c = useController({control, name})
+  const tx = useTxString()
   const currentImgURL = c.field.value
     ? typeof c.field.value === 'string'
       ? getDaemonFileUrl(c.field.value)
@@ -465,7 +478,9 @@ function ImageField<Fields extends FieldValues>({
           pointerEvents="none"
         >
           <SizableText size="xs" className="text-center text-white">
-            Add {label}
+            {tx('add', ({what}: {what: string}) => `Add ${what}`, {
+              what: label,
+            })}
           </SizableText>
         </XStack>
       )}
@@ -512,7 +527,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )

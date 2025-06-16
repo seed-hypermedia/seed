@@ -76,6 +76,14 @@ const Translations = {
   collapse_block: 'Puedes colapsar este bloque y ocultar sus hijos',
   block_is_collapsed:
     'Este bloque está colapsado. Puedes expandirlo y ver sus hijos',
+  'My New Public Name': 'Mi nuevo nombre público',
+  create_account_description:
+    'Tu clave de cuenta será almacenada de forma segura en este navegador. La identidad será accesible solo en este dominio, pero puedes vincularla a otros dominios y dispositivos.',
+  add: (args: {what: string}) => `Añadir ${args.what}`,
+  create_account_title: (args: {siteName: string}) =>
+    `Crear cuenta en ${args.siteName}`,
+  create_account_submit: (args: {siteName: string}) =>
+    `Crear ${args.siteName} cuenta`,
 }
 
 const Spanish: LanguagePack = {

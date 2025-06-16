@@ -1,5 +1,5 @@
 import {createComment, postCBOR} from '@/api'
-import {LocalWebIdentity, useCreateAccount, useLocalKeyPair} from '@/auth'
+import {LocalWebIdentity, useCreateAccount} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor2} from '@shm/editor/comment-editor'
@@ -59,6 +59,7 @@ export type WebCommentingProps = {
   enableWebSigning: boolean
   commentingOriginUrl?: string
   autoFocus?: boolean
+  onAccountRequired?: () => void
 }
 
 /**
@@ -114,8 +115,9 @@ export function LocalWebCommenting({
   enableWebSigning,
   commentingOriginUrl,
   autoFocus,
+  onAccountRequired,
 }: WebCommentingProps) {
-  const userKeyPair = useLocalKeyPair()
+  // const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const postComment = useMutation({
@@ -154,8 +156,11 @@ export function LocalWebCommenting({
 
   if (!docVersion) return null
 
-  const {content: createAccountContent, createDefaultAccount} =
-    useCreateAccount()
+  const {
+    content: createAccountContent,
+    userKeyPair,
+    createAccount,
+  } = useCreateAccount()
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
 
@@ -186,6 +191,10 @@ export function LocalWebCommenting({
     }>,
     reset: () => void,
   ) => {
+    if (!userKeyPair) {
+      createAccount()
+      return
+    }
     if (!enableWebSigning) {
       toast.error('Cannot sign comments on this domain.')
       return
@@ -196,7 +205,7 @@ export function LocalWebCommenting({
       {
         docId,
         docVersion,
-        keyPair: userKeyPair || (await createDefaultAccount()),
+        keyPair: userKeyPair,
         replyCommentId,
         rootReplyCommentId,
         quotingBlockId,
@@ -418,7 +427,7 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
     useEmailNotifications()
   if (isEmailNotificationsLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     ) // todo: make it look better
