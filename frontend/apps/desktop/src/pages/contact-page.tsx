@@ -88,9 +88,9 @@ function Tab({
   return (
     <button
       className={cn(
-        'inline-block p-4 whitespace-nowrap border-b-3 flex-shrink-0',
+        'inline-block dark:text-white p-4 whitespace-nowrap border-b-3 flex-shrink-0',
         isActive
-          ? 'text-black font-bold border-brand-5 rounded-none'
+          ? 'text-black  font-bold border-brand-5 rounded-none'
           : 'text-gray-600 hover:text-gray-800 border-transparent rounded-none',
       )}
       onClick={onPress}
@@ -235,14 +235,16 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   return (
     <div className="h-full overflow-y-auto ">
       <div className="flex flex-row justify-center flex-1 min-h-full p-4">
-        <div className="flex flex-col items-center w-full max-w-lg gap-3 p-4 mx-auto bg-gray-100 rounded-lg py-7">
+        <div className="flex flex-col items-center w-full max-w-lg gap-3 p-4 mx-auto bg-gray-100 rounded-lg dark:bg-gray-900 py-7">
           <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
           <Tooltip content={primaryTooltip}>
             <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
           </Tooltip>
           {secondaryTitle && (
             <Tooltip content={secondaryTooltip}>
-              <h3 className="text-2xl text-gray-600">{secondaryTitle}</h3>
+              <h3 className="text-2xl text-gray-600 dark:text-gray-300">
+                {secondaryTitle}
+              </h3>
             </Tooltip>
           )}
           {contact.data ? (
@@ -360,13 +362,14 @@ function ContactEdgeNames({
   accounts: HMAccountsMetadata
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const navigate = useNavigate()
   const buttonLabel = isExpanded
     ? 'Collapse List of Edge Names'
     : 'Expand List of Edge Names'
   const buttonIcon = isExpanded ? ChevronDown : ChevronRight
 
   return (
-    <div className="self-stretch p-2 border-2 border-gray-200 rounded-sm">
+    <div className="self-stretch p-2 border-2 border-gray-200 rounded-sm dark:border-gray-700">
       {contact.subjectContacts?.length ? (
         <>
           <XStack jc="center">
@@ -390,11 +393,20 @@ function ContactEdgeNames({
                       <Tooltip
                         content={account.metadata?.name || 'Unknown Account'}
                       >
-                        <HMIcon
-                          id={account.id}
-                          metadata={account.metadata}
-                          size={24}
-                        />
+                        <button
+                          onClick={() => {
+                            navigate({
+                              key: 'contact',
+                              id: account.id,
+                            })
+                          }}
+                        >
+                          <HMIcon
+                            id={account.id}
+                            metadata={account.metadata}
+                            size={24}
+                          />
+                        </button>
                       </Tooltip>
                     ) : null}
                   </div>
@@ -404,7 +416,9 @@ function ContactEdgeNames({
           ) : null}
         </>
       ) : (
-        <span className="text-sm text-center text-gray-500">No Edge Names</span>
+        <span className="text-sm text-center text-gray-500 dark:text-gray-300">
+          No Edge Names
+        </span>
       )}
     </div>
   )
@@ -422,7 +436,7 @@ function AccountContacts({
   )
   const navigate = useNavigate()
   return (
-    <div className="self-stretch p-2 mt-4 bg-green-100 rounded-sm">
+    <div className="self-stretch p-2 mt-4 bg-green-100 rounded-sm dark:bg-green-900">
       <h3 className="p-3 font-bold break-words text-l">
         {contact.contacts?.length
           ? `${ownerLabel}'s Contacts`
@@ -438,7 +452,7 @@ function AccountContacts({
 
           return (
             <div
-              className="flex flex-row items-center gap-2 p-2 text-gray-700 hover:text-black"
+              className="flex flex-row items-center gap-2 p-2 text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
               onClick={() => {
                 navigate({
                   key: 'contact',
@@ -455,7 +469,9 @@ function AccountContacts({
               ) : null}
               <span className="font-bold">{subjectName}</span>
               {subjectName !== contactName ? (
-                <span className="text-gray-500">| {contactName}</span>
+                <span className="text-gray-500 dark:text-gray-300">
+                  | {contactName}
+                </span>
               ) : null}
             </div>
           )
