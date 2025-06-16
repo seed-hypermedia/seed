@@ -1219,7 +1219,7 @@ function InlineContentView({
     if (linkType === 'basic')
       return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
     if (linkType === 'hypermedia')
-      return 'text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300'
+      return 'text-brand-5 hover:text-brand-4 dark:text-brand-5 dark:hover:text-brand-6'
     return ''
   }
 
@@ -1299,6 +1299,7 @@ function InlineContentView({
               key={`${content.type}-${index}`}
               className={cn(
                 'whitespace-pre-wrap',
+                'break-all',
                 linkColorClass,
                 styleClasses,
                 fontWeight && `font-${fontWeight}`,
