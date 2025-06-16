@@ -435,12 +435,26 @@ export class Comment extends Message<Comment> {
   threadRoot = "";
 
   /**
+   * Optional. Version of the thread root comment (if this is a reply).
+   *
+   * @generated from field: string thread_root_version = 12;
+   */
+  threadRootVersion = "";
+
+  /**
    * Optional. The ID of the comment to which this comment is a direct reply.
    * For initial comments this field is empty.
    *
    * @generated from field: string reply_parent = 6;
    */
   replyParent = "";
+
+  /**
+   * Optional. Version of the parent comment (if this is a reply).
+   *
+   * @generated from field: string reply_parent_version = 13;
+   */
+  replyParentVersion = "";
 
   /**
    * Account ID of the author of the comment.
@@ -471,7 +485,7 @@ export class Comment extends Message<Comment> {
   capability = "";
 
   /**
-   * Version of the comment blob.
+   * Version of this comment.
    *
    * @generated from field: string version = 11;
    */
@@ -490,7 +504,9 @@ export class Comment extends Message<Comment> {
     { no: 3, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "thread_root", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "thread_root_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "reply_parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "reply_parent_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "content", kind: "message", T: BlockNode, repeated: true },
     { no: 9, name: "create_time", kind: "message", T: Timestamp },

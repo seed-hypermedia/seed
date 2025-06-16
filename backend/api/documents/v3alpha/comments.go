@@ -477,7 +477,9 @@ func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid
 		}
 
 		pb.ThreadRoot = ridRoot.String()
+		pb.ThreadRootVersion = cmt.ThreadRoot.String()
 		pb.ReplyParent = ridParent.String()
+		pb.ReplyParentVersion = cmt.ReplyParent().String()
 
 		if pb.ReplyParent == "" {
 			panic("BUG: reply parent must not be empty in relies")

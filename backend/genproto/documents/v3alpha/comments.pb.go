@@ -468,9 +468,13 @@ type Comment struct {
 	TargetVersion string `protobuf:"bytes,4,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// Optional. The ID of the top-level non-reply comment of the conversation thread.
 	ThreadRoot string `protobuf:"bytes,5,opt,name=thread_root,json=threadRoot,proto3" json:"thread_root,omitempty"`
+	// Optional. Version of the thread root comment (if this is a reply).
+	ThreadRootVersion string `protobuf:"bytes,12,opt,name=thread_root_version,json=threadRootVersion,proto3" json:"thread_root_version,omitempty"`
 	// Optional. The ID of the comment to which this comment is a direct reply.
 	// For initial comments this field is empty.
 	ReplyParent string `protobuf:"bytes,6,opt,name=reply_parent,json=replyParent,proto3" json:"reply_parent,omitempty"`
+	// Optional. Version of the parent comment (if this is a reply).
+	ReplyParentVersion string `protobuf:"bytes,13,opt,name=reply_parent_version,json=replyParentVersion,proto3" json:"reply_parent_version,omitempty"`
 	// Account ID of the author of the comment.
 	Author string `protobuf:"bytes,7,opt,name=author,proto3" json:"author,omitempty"`
 	// Content of the comment.
@@ -479,7 +483,7 @@ type Comment struct {
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Optional. ID of the capability this comment was created with, if any.
 	Capability string `protobuf:"bytes,10,opt,name=capability,proto3" json:"capability,omitempty"`
-	// Version of the comment blob.
+	// Version of this comment.
 	Version       string `protobuf:"bytes,11,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -550,9 +554,23 @@ func (x *Comment) GetThreadRoot() string {
 	return ""
 }
 
+func (x *Comment) GetThreadRootVersion() string {
+	if x != nil {
+		return x.ThreadRootVersion
+	}
+	return ""
+}
+
 func (x *Comment) GetReplyParent() string {
 	if x != nil {
 		return x.ReplyParent
+	}
+	return ""
+}
+
+func (x *Comment) GetReplyParentVersion() string {
+	if x != nil {
+		return x.ReplyParentVersion
 	}
 	return ""
 }
@@ -628,7 +646,7 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListCommentsResponse\x12?\n" +
 	"\bcomments\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.CommentR\bcomments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x9c\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xfe\x03\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0etarget_account\x18\x02 \x01(\tR\rtargetAccount\x12\x1f\n" +
@@ -636,8 +654,10 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"targetPath\x12%\n" +
 	"\x0etarget_version\x18\x04 \x01(\tR\rtargetVersion\x12\x1f\n" +
 	"\vthread_root\x18\x05 \x01(\tR\n" +
-	"threadRoot\x12!\n" +
-	"\freply_parent\x18\x06 \x01(\tR\vreplyParent\x12\x16\n" +
+	"threadRoot\x12.\n" +
+	"\x13thread_root_version\x18\f \x01(\tR\x11threadRootVersion\x12!\n" +
+	"\freply_parent\x18\x06 \x01(\tR\vreplyParent\x120\n" +
+	"\x14reply_parent_version\x18\r \x01(\tR\x12replyParentVersion\x12\x16\n" +
 	"\x06author\x18\a \x01(\tR\x06author\x12?\n" +
 	"\acontent\x18\b \x03(\v2%.com.seed.documents.v3alpha.BlockNodeR\acontent\x12;\n" +
 	"\vcreate_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\n" +

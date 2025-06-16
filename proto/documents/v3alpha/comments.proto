@@ -123,9 +123,15 @@ message Comment {
   // Optional. The ID of the top-level non-reply comment of the conversation thread.
   string thread_root = 5;
 
+  // Optional. Version of the thread root comment (if this is a reply).
+  string thread_root_version = 12;
+
   // Optional. The ID of the comment to which this comment is a direct reply.
   // For initial comments this field is empty.
   string reply_parent = 6;
+
+  // Optional. Version of the parent comment (if this is a reply).
+  string reply_parent_version = 13;
 
   // Account ID of the author of the comment.
   string author = 7;
@@ -139,6 +145,6 @@ message Comment {
   // Optional. ID of the capability this comment was created with, if any.
   string capability = 10;
 
-  // Version of the comment blob.
+  // Version of this comment.
   string version = 11;
 }
