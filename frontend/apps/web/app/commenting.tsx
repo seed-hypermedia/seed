@@ -16,21 +16,20 @@ import {
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
+import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
-import {SendHorizontal} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
+import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
-import {XStack, YStack} from 'tamagui'
-
-import {useTx} from '@shm/shared/translation'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -163,6 +162,7 @@ export function LocalWebCommenting({
   } = useCreateAccount()
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
+  const tx = useTxString()
 
   const {
     content: emailNotificationsPromptContent,
@@ -219,7 +219,7 @@ export function LocalWebCommenting({
   }
 
   return (
-    <XStack width="100%">
+    <div className="w-full">
       <DocContentProvider
         entityComponents={{
           Document: EmbedDocument,
@@ -244,13 +244,21 @@ export function LocalWebCommenting({
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {
             return (
-              <Button
-                className={`plausible-event-name=start-create-account`}
-                size="$3"
-                chromeless
-                onPress={() => handleSubmit(getContent, reset)}
-                icon={SendHorizontal}
-              />
+              <Tooltip
+                content={tx(
+                  'publish_comment_as',
+                  ({name}: {name: string | undefined}) =>
+                    name ? `Publish Comment as ${name}` : 'Publish Comment',
+                  {name: myAccount.data?.metadata?.name},
+                )}
+              >
+                <button
+                  className={`plausible-event-name=start-create-account m-2 p-2 rounded-sm text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center`}
+                  onClick={() => handleSubmit(getContent, reset)}
+                >
+                  <SendHorizontal size={20} />
+                </button>
+              </Tooltip>
             )
           }}
           account={myAccount.data}
@@ -259,7 +267,7 @@ export function LocalWebCommenting({
       </DocContentProvider>
       {createAccountContent}
       {emailNotificationsPromptContent}
-    </XStack>
+    </div>
   )
 }
 
@@ -433,24 +441,24 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
     ) // todo: make it look better
   if (mode === 'prompt') {
     return (
-      <YStack gap="$3">
+      <div className="flex flex-col gap-3">
         <DialogTitle>Email Notifications</DialogTitle>
         <SizableText>
           Do you want to receive an email when someone mentions your or replies
           to your comments?
         </SizableText>
-        <XStack gap="$3" jc="flex-end">
+        <div className="flex justify-end gap-3">
           <Button onPress={() => onClose()}>No Thanks</Button>
           <Button onPress={() => setMode('form')} theme="blue">
             Yes, Notify Me
           </Button>
-        </XStack>
-      </YStack>
+        </div>
+      </div>
     )
   }
   if (mode === 'form') {
     return (
-      <YStack gap="$3">
+      <div className="flex flex-col gap-3">
         <DialogTitle>Email Notifications</DialogTitle>
         <EmailNotificationsForm
           onClose={onClose}
@@ -459,12 +467,12 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
           }}
           defaultValues={emailNotifications?.account}
         />
-      </YStack>
+      </div>
     )
   }
   if (mode === 'success') {
     return (
-      <YStack gap="$3">
+      <div className="flex flex-col gap-3">
         <DialogTitle>Email Notifications</DialogTitle>
         <SizableText>
           Email notifications have been set for{' '}
@@ -478,7 +486,7 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
           Settings" in the footer.
         </SizableText>
         <Button onPress={() => onClose()}>Done</Button>
-      </YStack>
+      </div>
     )
   }
 }

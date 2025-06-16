@@ -84,6 +84,8 @@ const Translations = {
     `Crear cuenta en ${args.siteName}`,
   create_account_submit: (args: {siteName: string}) =>
     `Crear ${args.siteName} cuenta`,
+  publish_comment_as: (args: {name: string | undefined}) =>
+    args.name ? `Publicar comentario de ${args.name}` : 'Publicar comentario',
 }
 
 const Spanish: LanguagePack = {
