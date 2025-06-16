@@ -92,6 +92,13 @@ export function useDocumentAccessory({
       ) : null
   }
 
+  if (route.key == 'draft') {
+    accessoryOptions.push({
+      key: 'options',
+      label: 'Draft Options',
+    })
+  }
+
   if (docId) {
     accessoryOptions.push({
       key: 'activity',
@@ -114,6 +121,10 @@ export function useDocumentAccessory({
     accessoryOptions.push({
       key: 'citations',
       label: 'Citations',
+    })
+    accessoryOptions.push({
+      key: 'directory',
+      label: 'Directory',
     })
   }
 

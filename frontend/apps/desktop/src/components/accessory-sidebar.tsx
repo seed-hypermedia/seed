@@ -7,9 +7,9 @@ import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/components/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {PanelContainer, panelContainerStyles} from '@shm/ui/container'
+import {panelContainerStyles} from '@shm/ui/container'
 import {BlockQuote, CollaboratorsIcon} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
+import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
@@ -21,7 +21,7 @@ import {
   Sparkle,
   Users,
 } from 'lucide-react'
-import {ComponentProps, useEffect, useMemo, useRef} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -104,6 +104,12 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('Discussions')
   } else if (accessoryKey == 'options') {
     accessoryTitle = tx('Draft Options')
+  } else if (accessoryKey == 'versions') {
+    accessoryTitle = tx('Versions')
+  } else if (accessoryKey == 'citations') {
+    accessoryTitle = tx('Citations')
+  } else if (accessoryKey == 'activity') {
+    accessoryTitle = tx('All')
   }
 
   return (
@@ -144,40 +150,16 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               accessoryKey={accessoryKey}
               onAccessorySelect={onAccessorySelect}
             />
-
+            <div className="py-3 px-5 border-b border-border">
+              <Text weight="semibold" size="lg">
+                {accessoryTitle}
+              </Text>
+            </div>
             {accessory}
           </div>
         </Panel>
       </PanelGroup>
     </XStack>
-  )
-}
-
-export function AccessoryWrapper({
-  children,
-  title,
-  onAccessorySelect,
-  isNewDraft = false,
-  ...props
-}: {
-  children?: React.ReactNode
-  title?: string
-  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
-  isNewDraft?: boolean
-} & ComponentProps<typeof YStack>) {
-  return (
-    <PanelContainer {...props}>
-      {title ? (
-        <AccessoryTitle
-          title={title}
-          onAccessorySelect={onAccessorySelect}
-          isNewDraft={isNewDraft}
-        />
-      ) : null}
-      <YStack flex={1} gap="$3">
-        {children}
-      </YStack>
-    </PanelContainer>
   )
 }
 
@@ -190,9 +172,9 @@ export function AccessoryContent({
   children?: React.ReactNode
   footer?: React.ReactNode
   title?: string
-} & ComponentProps<typeof YStack>) {
+}) {
   return (
-    <YStack gap="$2" flex={1} {...props}>
+    <div className="flex flex-col flex-1" {...props}>
       <ScrollArea className="flex-1 h-full px-3">
         <YStack gap="$2">{children}</YStack>
       </ScrollArea>
@@ -201,7 +183,7 @@ export function AccessoryContent({
           {footer}
         </YStack>
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
