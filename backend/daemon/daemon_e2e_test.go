@@ -14,6 +14,8 @@ import (
 	"seed/backend/hmnet"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1161,4 +1163,157 @@ func TestDelegatedProfileUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, bobAccountUpdated.Profile)
 	require.Equal(t, alice.String(), bobAccountUpdated.AliasAccount)
+}
+
+func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	ctx := context.Background()
+
+	// Get Bob's account key
+	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
+
+	// Create Bob's home document
+	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Home"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Welcome to Bob's home page",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create subdocument 1
+	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "/projects",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Projects"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "p1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "p1",
+					Type: "paragraph",
+					Text: "My cool projects",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create subdocument 2
+	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "/notes/daily",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Daily Notes"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "n1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "n1",
+					Type: "paragraph",
+					Text: "Today I worked on the hypermedia project",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create subdocument 3
+	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "/about/me",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "About Me"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "a1",
+					Type: "paragraph",
+					Text: "I'm Bob, a software engineer passionate about decentralized systems",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Connect Alice and Bob
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	// Wait for connection to establish
+	time.Sleep(200 * time.Millisecond)
+
+	// Alice discovers Bob's home document recursively
+	var count int
+	for {
+		count++
+		res, err := alice.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   bobKey.String(),
+			Path:      "",
+			Recursive: true,
+		})
+		require.NoError(t, err)
+		if res.Version == bobHome.Version {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+		if count > 100 {
+			t.Fatalf("Failed to discover Bob's home document!")
+		}
+	}
+
+	// Give some time for recursive discovery to propagate
+	time.Sleep(500 * time.Millisecond)
+
+	want, err := bob.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{
+		Account:  bobKey.String(),
+		PageSize: 1000,
+	})
+	require.NoError(t, err)
+	slices.SortFunc(want.Documents, func(a, b *documents.DocumentInfo) int { return strings.Compare(a.Path, b.Path) })
+	require.Len(t, want.Documents, 4, "Bob should have 4 documents in total")
+
+	// List all documents on Alice and print them
+	docs, err := alice.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{
+		Account: bobKey.String(),
+	})
+	require.NoError(t, err)
+	slices.SortFunc(docs.Documents, func(a, b *documents.DocumentInfo) int { return strings.Compare(a.Path, b.Path) })
+
+	require.Equal(t, len(want.Documents), len(docs.Documents), "Alice should have discovered all of Bob's documents")
+	for i := range want.Documents {
+		testutil.StructsEqual(want.Documents[i], docs.Documents[i]).
+			IgnoreFields(documents.ActivitySummary{}, "IsUnread").
+			Compare(t, "Document %d must match", i)
+	}
 }
