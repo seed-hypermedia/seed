@@ -22,7 +22,7 @@ export function UIAvatar({
 }: UIAvatarProps & {borderRadius?: XStackProps['borderRadius']}) {
   let avatarColor = useMemo(() => {
     if (color) return color
-    return id ? getRandomColor(id) : 'transparent'
+    return id ? getRandomColor(id) : '$color1'
   }, [id, color])
 
   let text = label ? label[0] : id ? id[0] : '?'
@@ -50,7 +50,7 @@ export function UIAvatar({
             minWidth: '100%',
             minHeight: '100%',
             objectFit: 'cover',
-            backgroundColor: 'transparent',
+            backgroundColor: '$color1',
           }}
         />
       ) : (
