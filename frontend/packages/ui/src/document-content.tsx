@@ -732,7 +732,7 @@ export function BlockNodeContent({
         ) : null}
         <div
           className={cn(
-            'absolute z-10 top-0 right-0 sm:right-[-44px] pl-4 gap-2',
+            'absolute z-10 top-2 right-0 sm:right-[-44px] pl-4 gap-2 flex flex-col',
             hover && 'z-[999]',
           )}
           style={{
@@ -1818,7 +1818,7 @@ export function BlockContentButton({
   if (block.type !== 'Button') return null
   return (
     <div
-      data-content-type="file"
+      data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
       className="block-content block-file flex flex-col w-full select-none max-w-full"
@@ -1833,7 +1833,7 @@ export function BlockContentButton({
         variant="brand"
         size="lg"
         {...linkProps}
-        className="border-none w-full justify-center select-none border-transparent max-w-full text-center"
+        className="border-none justify-center select-none border-transparent max-w-full text-center"
       >
         <SizableText
           size="lg"

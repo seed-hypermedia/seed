@@ -5,13 +5,11 @@ import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelecti
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {updateSelection} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
-import {XStack, YStack} from '@tamagui/stacks'
+import {cn} from '@shm/ui/utils'
 import {useEffect, useState} from 'react'
-import {Label} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 
 export const ButtonBlock = createReactBlockSpec({
@@ -95,132 +93,33 @@ const Render = (
     setAlignment(block.props.alignment as ButtonAlignment)
   }, [block.props.alignment])
 
-  function ButtonLinkComponents() {
-    return (
-      <YStack gap="$0.25" paddingLeft="$1">
-        <Label opacity={0.6} fontSize={13} marginBottom="$-2">
-          Alignment
-        </Label>
-        <XStack gap="$3">
-          <Button
-            size="$2"
-            height="$3"
-            borderRadius="$3"
-            onPress={() => {
-              setForceEdit(true)
-              setAlignment('flex-start')
-              assign({props: {alignment: 'flex-start'}} as ButtonType)
-            }}
-            borderColor="$brand5"
-            backgroundColor={
-              alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
-            }
-          >
-            <AlignLeft size="$1.5" />
-          </Button>
-          <Button
-            size="$2"
-            height="$3"
-            borderRadius="$3"
-            onPress={() => {
-              setForceEdit(true)
-              setAlignment('center')
-              assign({props: {alignment: 'center'}} as ButtonType)
-            }}
-            borderColor="$brand5"
-            backgroundColor={
-              alignment === 'center' ? '$brand5' : '$colorTransparent'
-            }
-          >
-            <AlignCenter size="$1.5" />
-          </Button>
-          <Button
-            size="$2"
-            height="$3"
-            borderRadius="$3"
-            onPress={() => {
-              setForceEdit(true)
-              setAlignment('flex-end')
-              assign({props: {alignment: 'flex-end'}} as ButtonType)
-            }}
-            borderColor="$brand5"
-            backgroundColor={
-              alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
-            }
-          >
-            <AlignRight size="$1.5" />
-          </Button>
-        </XStack>
-      </YStack>
-    )
-  }
-
   return (
-    // <Popover
-    //   placement="top"
-    //   open={popoverState.open}
-    //   onOpenChange={(open) => {
-    //     popoverState.onOpenChange(open)
-    //     if (forceEdit) {
-    //       setForceEdit(false)
-    //     }
-    //   }}
-    // >
-    <YStack
-      justifyContent={alignment}
-      alignItems={alignment}
-      animateOnly={['left', 'right']}
-      animation="quick"
+    <div
+      className="flex flex-col w-full select-none max-w-full"
+      style={{
+        justifyContent: alignment || 'flex-start',
+      }}
+      contentEditable={false}
     >
-      <XStack
-        width="100%"
-        justifyContent={alignment}
-        userSelect="none"
-        key={alignment}
+      <Button
+        variant="brand"
+        size="lg"
+        className={cn(
+          'border-none w-auto justify-center select-none border-transparent max-w-full text-center',
+          alignment == 'center'
+            ? 'self-center'
+            : alignment == 'flex-end'
+            ? 'self-end'
+            : 'self-start',
+        )}
       >
-        <XStack
-          position="relative"
-          // width={sizing === 'fill-width' ? '92.5%' : ''}
-          // @ts-ignore
-          contentEditable={false}
+        <SizableText
+          size="lg"
+          className="truncate text-center font-bold text-white font-sans"
         >
-          {/* <Popover.Trigger> */}
-          <Button
-            backgroundColor="$brand5"
-            color="white"
-            width="100%"
-            justifyContent="center"
-            textAlign="center"
-            userSelect="none"
-            borderColor={selected ? '$color8' : '$colorTransparent'}
-            borderWidth={3}
-            size="$4"
-            maxWidth="100%"
-            hoverStyle={{
-              backgroundColor: '$brand4',
-              borderColor: '$colorTransparent',
-            }}
-            focusStyle={{
-              backgroundColor: '$brand3',
-              borderColor: '$colorTransparent',
-            }}
-          >
-            <SizableText
-              size="lg"
-              className="truncate"
-              weight="semibold"
-              style={{
-                fontStyle: block.props.name ? 'normal' : 'italic',
-                color: block.props.name ? 'white' : 'lightgrey',
-                opacity: block.props.name ? 1 : 0.6,
-              }}
-            >
-              {block.props.name || 'Button Text'}
-            </SizableText>
-          </Button>
-        </XStack>
-      </XStack>
-    </YStack>
-    // </Popover>
+          {block.props.name || 'Button Text'}
+        </SizableText>
+      </Button>
+    </div>
   )
 }
