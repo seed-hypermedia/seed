@@ -1,14 +1,15 @@
-import {XStack, XStackProps} from '@tamagui/stacks'
 import {useMemo} from 'react'
 import {SizableText} from './text'
+import {cn} from './utils'
 
-export type UIAvatarProps = XStackProps & {
+export type UIAvatarProps = {
   url?: string
   size?: number
   color?: string
   label?: string
   id?: string
   onPress?: () => void
+  className?: string
 }
 
 export function UIAvatar({
@@ -18,57 +19,51 @@ export function UIAvatar({
   size = 20,
   color,
   onPress,
-  borderRadius = size,
-}: UIAvatarProps & {borderRadius?: XStackProps['borderRadius']}) {
+  className,
+}: UIAvatarProps) {
   let avatarColor = useMemo(() => {
     if (color) return color
-    return id ? getRandomColor(id) : '$color1'
+    return id ? getRandomColor(id) : 'bg-gray-100'
   }, [id, color])
 
   let text = label ? label[0] : id ? id[0] : '?'
 
   return (
-    <XStack
-      className="avatar"
-      width={size}
-      height={size}
-      borderRadius={borderRadius}
-      overflow="hidden"
-      backgroundColor={url ? '$color1' : avatarColor}
-      alignItems="center"
-      justifyContent="center"
-      position="relative"
-      onPress={onPress}
-      hoverStyle={{
-        cursor: onPress ? 'default' : undefined,
+    <div
+      className={cn(
+        'relative flex items-center justify-center overflow-hidden',
+        onPress && 'cursor-pointer',
+        className,
+      )}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size,
+        backgroundColor: url ? 'var(--color1)' : avatarColor,
       }}
+      onClick={onPress}
     >
       {url ? (
         <img
           src={url}
-          style={{
-            minWidth: '100%',
-            minHeight: '100%',
-            objectFit: 'cover',
-            backgroundColor: '$color1',
-          }}
+          className="min-w-full min-h-full object-cover bg-[var(--color1)]"
+          alt={label || id || 'Avatar'}
         />
       ) : (
         <SizableText
           weight="semibold"
-          className="block text-center select-none"
+          className="block text-center select-none text-black"
           style={{
             fontSize: size * 0.55,
             width: size / 2,
             height: size / 2,
             lineHeight: `${size / 2}px`,
-            color: 'black',
           }}
         >
           {text.toUpperCase()}
         </SizableText>
       )}
-    </XStack>
+    </div>
   )
 }
 
