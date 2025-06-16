@@ -242,7 +242,7 @@ export function HeaderSearch({
               />
             </div>
             <div className="flex-1 min-h-0 max-w-2xl w-full">
-              <ScrollArea className="h-full p-2">
+              <ScrollArea>
                 <div className="flex flex-col">
                   {searchItems.map((item: SearchResult, index: number) => {
                     return (

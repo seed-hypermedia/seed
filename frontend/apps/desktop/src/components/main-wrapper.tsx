@@ -16,7 +16,6 @@ export function MainWrapper({
         {scrollable ? (
           <ScrollArea
             id="scroll-page-wrapper"
-            className="h-full"
             onScroll={() => {
               dispatchScroll('scroll')
             }}
@@ -42,7 +41,6 @@ export function MainWrapperStandalone({
       this! */}
       <ScrollArea
         id="scroll-page-wrapper"
-        className="h-full"
         onScroll={() => {
           dispatchScroll('scroll')
         }}

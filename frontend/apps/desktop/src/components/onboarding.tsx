@@ -1266,7 +1266,7 @@ export function OnboardingDebugBox() {
       width={300}
       maxHeight={300}
     >
-      <ScrollArea className="h-full">
+      <ScrollArea>
         <Text fontSize="$3" fontFamily="$mono">
           Debug: Onboarding State
         </Text>

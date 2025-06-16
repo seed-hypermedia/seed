@@ -346,7 +346,7 @@ export function MobileMenu({
             <Close size={24} />
           </Button>
         </div>
-        <ScrollArea className="p-4 flex-1 mobile-menu h-3/4">
+        <ScrollArea className="mobile-menu h-3/4">
           {open ? renderContent() : null}
           <div className="h-20"></div>
         </ScrollArea>

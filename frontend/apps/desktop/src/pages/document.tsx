@@ -287,7 +287,7 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <ScrollArea className="h-full relative" ref={elementRef}>
+        <ScrollArea ref={elementRef}>
           {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>

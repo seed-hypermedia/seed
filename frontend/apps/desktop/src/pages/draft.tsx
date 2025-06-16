@@ -321,7 +321,7 @@ function DocumentEditor({
         onClick={handleFocusAtMousePos}
         className="flex flex-col flex-1 overflow-hidden"
       >
-        <ScrollArea onScroll={() => dispatchScroll(true)} className="h-full">
+        <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
             // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
             importWebFile={importWebFile}

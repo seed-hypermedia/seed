@@ -38,8 +38,8 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="flex flex-col h-full gap-2 px-4 py-2">
+    <ScrollArea>
+      <div className="flex flex-col h-full gap-2 ">
         {directory.map((activityItem) => {
           if (activityItem.type === 'document') {
             return (

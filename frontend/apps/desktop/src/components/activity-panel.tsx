@@ -11,7 +11,7 @@ export function ActivityPanel({
   onAccessory: (accessory: DocumentAccessory) => void
 }) {
   return (
-    <ScrollArea className="flex-1 h-full">
+    <ScrollArea>
       <ActivityList
         docId={docId}
         onCommentFocus={(commentId, isReplying) => {

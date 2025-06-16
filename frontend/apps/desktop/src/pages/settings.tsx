@@ -428,7 +428,7 @@ function AccountKeys() {
     <XStack style={{flex: 1}} gap="$3" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
         <YStack f={1}>
-          <ScrollArea className="h-full">
+          <ScrollArea>
             {keys.data?.map((key) => (
               <KeyItem
                 item={key}
@@ -446,7 +446,7 @@ function AccountKeys() {
         borderRadius="$3"
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <ScrollArea className="h-full">
+        <ScrollArea>
           <YStack p="$4" gap="$4">
             <XStack marginBottom="$4" gap="$4">
               {selectedAccountId ? (
@@ -1561,7 +1561,7 @@ const TabsContent = (props: TabsContentProps) => {
       flex={1}
       {...props}
     >
-      <ScrollArea className="h-full">
+      <ScrollArea>
         <YStack gap="$4" padding="$4" paddingBottom="$5" f={1}>
           {props.children}
         </YStack>
