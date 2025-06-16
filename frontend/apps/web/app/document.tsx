@@ -21,7 +21,6 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Button} from '@shm/ui/components/button'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
@@ -33,10 +32,10 @@ import {
   useNodesOutline,
 } from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
+import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
-import {XStack, YStack} from '@tamagui/stacks'
 import {MessageSquare, X} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -60,7 +59,8 @@ import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
 
 import {supportedLanguages} from '@shm/shared/language-packs'
-import {useTx} from '@shm/shared/translation'
+import {useTx, useTxString} from '@shm/shared/translation'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {useMedia} from '@shm/ui/use-media'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
@@ -203,6 +203,7 @@ export function DocumentPage(
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
 
   let panel: any = null
+  let panelTitle: string = ''
   const {
     document,
     originHomeId,
@@ -256,6 +257,7 @@ export function DocumentPage(
 
   const location = useLocation()
   const replace = useNavigate()
+  const tx = useTxString()
 
   const {blockRef, blockRange} = useMemo(() => {
     const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
@@ -423,19 +425,16 @@ export function DocumentPage(
         ) : null}
       </div>
     ) : null
+
   if (activityEnabled && activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
-        activitySummary={activitySummary}
         handleStartDiscussion={() => {
           setEditorAutoFocus(true)
         }}
         blockId={activePanel.blockId}
         commentId={activePanel.commentId}
         rootReplyCommentId={activePanel.rootReplyCommentId}
-        handleClose={() => {
-          setActivePanel(null)
-        }}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
@@ -453,18 +452,13 @@ export function DocumentPage(
         enableWebSigning={enableWebSigning || false}
       />
     )
+
+    panelTitle = tx('Discussions')
   }
 
   if (activityEnabled && activePanel?.type == 'versions') {
-    panel = (
-      <WebVersionsPanel
-        activitySummary={activitySummary}
-        id={id}
-        handleClose={() => {
-          setActivePanel(null)
-        }}
-      />
-    )
+    panel = <WebVersionsPanel docId={id} />
+    panelTitle = tx('Versions')
   }
 
   if (activityEnabled && activePanel?.type == 'citations') {
@@ -484,6 +478,7 @@ export function DocumentPage(
         }
       />
     )
+    panelTitle = tx('Citations')
   }
 
   if (!id) return <NotFoundPage {...props} />
@@ -650,11 +645,33 @@ export function DocumentPage(
                     minSize={media.gtSm ? 20 : 100}
                     className="flex flex-col flex-1 h-full border-l border-sidebar-border"
                   >
-                    <ScrollArea className="flex-1 overflow-y-auto">
-                      {panel}
-                    </ScrollArea>
+                    <div className="flex items-center justify-center py-2 px-3 shrink-0">
+                      <div className="flex items-center justify-center flex-1">
+                        {activitySummary}
+                      </div>
+                      <Tooltip content={tx('Close')}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="flex-none"
+                          onClick={() => {
+                            setActivePanel(null)
+                          }}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    </div>
+                    <div className="p-3 items-center flex bg-white dark:bg-black border-b border-border">
+                      <Text weight="bold" size="md">
+                        {panelTitle}
+                      </Text>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <ScrollArea>{panel}</ScrollArea>
+                    </div>
 
-                    <div className="p-2 border-t border-sidebar-border">
+                    <div className="p-2 border-t border-sidebar-border shrink-0">
                       {commentEditor}
                     </div>
                   </Panel>
@@ -964,104 +981,42 @@ function WebCitationsPanel({
   }, [citations.data, blockId])
   const tx = useTx()
   return (
-    <YStack gap="$4">
-      <XStack
-        paddingHorizontal="$4"
-        paddingVertical="$3"
-        alignItems="center"
-        position="sticky"
-        top={0}
-        zIndex="$zIndex.8"
-        h={56}
-        borderBottomWidth={1}
-        borderBottomColor="$borderColor"
-        bg={'$backgroundStrong'}
-        justifyContent="space-between"
-      >
-        <p className="font-bold text-md">{tx('Citations')}</p>
-        {activitySummary}
-        <Button
-          variant="ghost"
-          className="flex items-center justify-center hidden sm:block"
-          onClick={handleClose}
-        >
-          <X />
-        </Button>
-      </XStack>
-      <YStack gap="$2" padding="$3">
-        {blockId ? (
-          <AccessoryBackButton
-            onPress={handleBack}
-            label={tx('All Citations')}
-          />
-        ) : null}
-        {displayCitations ? (
-          displayCitations.map((citation) => {
-            return <DocumentCitationEntry citation={citation} />
-          })
-        ) : (
-          <div className="flex items-center justify-center">
-            <Spinner />
-          </div>
-        )}
-      </YStack>
-    </YStack>
+    <div className="flex flex-col gap-2 p-3">
+      {blockId ? (
+        <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
+      ) : null}
+      {displayCitations ? (
+        displayCitations.map((citation) => {
+          return <DocumentCitationEntry citation={citation} />
+        })
+      ) : (
+        <div className="flex items-center justify-center">
+          <Spinner />
+        </div>
+      )}
+    </div>
   )
 }
 
-function WebVersionsPanel({
-  id,
-  handleClose,
-  activitySummary,
-}: {
-  id: UnpackedHypermediaId
-  handleClose: () => void
-  activitySummary?: React.ReactNode
-}) {
-  const changes = useDocumentChanges(id)
+function WebVersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
+  const changes = useDocumentChanges(docId)
   const changesList = changes.data?.changes || []
-  const tx = useTx()
   return (
-    <YStack gap="$4">
-      <XStack
-        paddingHorizontal="$4"
-        paddingVertical="$3"
-        alignItems="center"
-        position="sticky"
-        top={0}
-        zIndex="$zIndex.8"
-        h={56}
-        borderBottomWidth={1}
-        borderBottomColor="$borderColor"
-        bg={'$backgroundStrong'}
-        justifyContent="space-between"
-      >
-        <p className="font-bold text-md">{tx('Versions')}</p>
-        {activitySummary}
-        <Button
-          variant="ghost"
-          className="flex items-center justify-center hidden sm:block"
-          onClick={handleClose}
-        >
-          <X />
-        </Button>
-      </XStack>
-      <YStack gap="$2" padding="$3">
-        {changesList.map((change, idx) => {
-          const isCurrent = change.id === changes.data?.latestVersion
-          return (
-            <ChangeItem
-              key={change.id}
-              change={change}
-              isActive={id.version ? id.version === change.id : isCurrent}
-              docId={id}
-              isLast={idx === changesList.length - 1}
-              isCurrent={change.id === changes.data?.latestVersion}
-              author={change.author}
-            />
-          )
-        })}
-      </YStack>
-    </YStack>
+    <div className="flex flex-col gap-2 p-3">
+      {changesList.map((change, idx) => {
+        const isCurrent = change.id === changes.data?.latestVersion
+        return (
+          <ChangeItem
+            key={change.id}
+            change={change}
+            isActive={docId.version ? docId.version === change.id : isCurrent}
+            docId={docId}
+            isLast={idx === changesList.length - 1}
+            isCurrent={change.id === changes.data?.latestVersion}
+            author={change.author}
+          />
+        )
+      })}
+    </div>
   )
 }

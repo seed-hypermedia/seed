@@ -7,17 +7,18 @@ import {
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {AccessoryBackButton} from '@shm/ui/accessories'
+import {Button} from '@shm/ui/components/button'
 import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {MessageSquareOff, X} from '@tamagui/lucide-icons'
+import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
-import {Button, XStack, YStack} from 'tamagui'
+import {YStack} from 'tamagui'
 
 import {useTxString} from '@shm/shared/translation'
+import {cn} from '@shm/ui/utils'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
@@ -34,27 +35,15 @@ type DiscussionsPanelProps = {
   rootReplyCommentId?: string
   blockId?: string
   handleBack: () => void
-  handleClose: () => void
   handleStartDiscussion?: () => void
-  activitySummary?: React.ReactNode
 }
 
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {
-    homeId,
-    commentId,
-    blockId,
-    siteHost,
-    handleBack,
-    handleClose,
-    activitySummary = null,
-  } = props
+  const {homeId, commentId, blockId, siteHost, handleBack} = props
 
   const isDark = useIsDark()
-
-  const tx = useTxString()
 
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
@@ -78,16 +67,8 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     [homeId],
   )
 
-  let content = (
-    <AllDiscussions
-      {...props}
-      isDark={isDark}
-      renderCommentContent={renderCommentContent}
-    />
-  )
-
   if (blockId) {
-    content = (
+    return (
       <BlockDiscussions
         {...props}
         isDark={isDark}
@@ -97,7 +78,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   if (commentId) {
-    content = (
+    return (
       <CommentDiscussion
         {...props}
         isDark={isDark}
@@ -107,41 +88,11 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   return (
-    <YStack gap="$4">
-      <XStack
-        paddingVertical="$3"
-        alignItems="center"
-        position="sticky"
-        top={0}
-        zIndex="$zIndex.8"
-        h={56}
-        borderBottomWidth={1}
-        borderBottomColor="$borderColor"
-        bg={'$backgroundStrong'}
-        justifyContent="space-between"
-      >
-        <p className="font-bold text-md">{tx('Discussions')}</p>
-        {activitySummary}
-        <Button
-          alignSelf="center"
-          display="none"
-          size="$3"
-          $gtSm={{display: 'flex'}}
-          icon={X}
-          chromeless
-          onPress={handleClose}
-        />
-      </XStack>
-      <YStack gap="$2">
-        {commentId || blockId ? (
-          <AccessoryBackButton
-            onPress={handleBack}
-            label={tx('All Discussions')}
-          />
-        ) : null}
-      </YStack>
-      {content}
-    </YStack>
+    <AllDiscussions
+      {...props}
+      isDark={isDark}
+      renderCommentContent={renderCommentContent}
+    />
   )
 }
 
@@ -170,12 +121,12 @@ export function AllDiscussions({
       commentGroups?.length > 0 ? (
         commentGroups?.map((cg, idx) => {
           return (
-            <YStack
+            <div
               key={cg.id}
-              paddingHorizontal="$3"
-              marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
-              borderBottomWidth={1}
-              borderBottomColor="$borderColor"
+              className={cn(
+                'px-3 border-b border-border',
+                commentGroups.length - 1 > idx && 'mb-4',
+              )}
             >
               <CommentGroup
                 commentGroup={cg}
@@ -184,7 +135,7 @@ export function AllDiscussions({
                 enableReplies
                 rootReplyCommentId={null}
               />
-            </YStack>
+            </div>
           )
         })
       ) : (
@@ -306,7 +257,7 @@ function CommentDiscussion(
   }
 
   return (
-    <YStack gap="$4" paddingHorizontal="$2">
+    <div className="flex flex-col gap-2 p-3">
       {rootCommentId && thread ? (
         <YStack padding="$3" borderRadius="$3">
           <CommentGroup
@@ -324,8 +275,8 @@ function CommentDiscussion(
           />
         </YStack>
       ) : null}
-      <YStack>{panelContent}</YStack>
-    </YStack>
+      <div className="flex flex-col">{panelContent}</div>
+    </div>
   )
 }
 
@@ -346,12 +297,13 @@ export function EmptyDiscussions({
 }) {
   const tx = useTxString()
   return (
-    <YStack alignItems="center" gap="$4" paddingVertical="$4">
-      <MessageSquareOff size={48} color="$color8" />
-      <SizableText size="$3">{tx('No discussions')}</SizableText>
+    <div className="flex flex-col items-center gap-4 py-4">
+      <MessageSquareOff className="size-25" size={48} color="$color8" />
+      <SizableText size="md">{tx('No discussions')}</SizableText>
       <Button
-        size="$3"
-        onPress={() => {
+        size="default"
+        variant="brand"
+        onClick={() => {
           if (enableWebSigning) {
             onStartDiscussion?.()
           } else {
@@ -362,14 +314,10 @@ export function EmptyDiscussions({
             })
           }
         }}
-        bg="$brand5"
-        color="white"
-        hoverStyle={{bg: '$brand4'}}
-        focusStyle={{bg: '$brand4'}}
       >
         {tx('Start a Discussion')}
       </Button>
-    </YStack>
+    </div>
   )
 }
 
