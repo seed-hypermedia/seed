@@ -1832,16 +1832,18 @@ export function BlockContentButton({
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }
+
+  const alignment =
+    getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
   if (block.type !== 'Button') return null
   return (
     <div
       data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
-      className="block-content block-file flex flex-col w-full select-none max-w-full"
+      className="block-content block-button flex flex-col w-full select-none max-w-full"
       style={{
-        justifyContent:
-          getBlockAttribute(block.attributes, 'alignment') || 'flex-start',
+        justifyContent: alignment,
       }}
       {...props}
       {...hoverProps}
@@ -1850,7 +1852,14 @@ export function BlockContentButton({
         variant="brand"
         size="lg"
         {...linkProps}
-        className="border-none justify-center select-none border-transparent max-w-full text-center"
+        className={cn(
+          'border-none justify-center select-none border-transparent max-w-full text-center w-auto!',
+          alignment === 'center'
+            ? 'self-center'
+            : alignment === 'flex-end'
+            ? 'self-end'
+            : 'self-start',
+        )}
       >
         <SizableText
           size="lg"

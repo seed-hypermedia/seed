@@ -1280,6 +1280,8 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'start',
     'level',
     'url',
+    'name',
+    'alignment',
     'size',
     'href',
     'link',
