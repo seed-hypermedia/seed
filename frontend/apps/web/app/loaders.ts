@@ -202,7 +202,10 @@ export async function getBaseDocument(
     })
   const latestDocument =
     entityId.version || !entityId.latest
-      ? await getHMDocument({...entityId, latest: true, version: null})
+      ? await getHMDocument(
+          {...entityId, latest: true, version: null},
+          {discover: true},
+        )
       : null
   console.log('getHMDocument called for latest version:', entityId.id)
   const document = await getHMDocument(entityId)
@@ -220,7 +223,7 @@ export async function getBaseDocument(
             'getHMDocument called for support document:',
             ref.refId.id,
           )
-          const doc = await getHMDocument(ref.refId)
+          const doc = await getHMDocument(ref.refId, {discover: true})
           if (!doc) return null
           return {document: doc, id: ref.refId}
         } catch (e) {
@@ -234,7 +237,7 @@ export async function getBaseDocument(
   const queryBlocks = extractQueryBlocks(document.content)
   const homeId = hmId('d', uid)
   console.log('getHMDocument called for home document:', homeId.id)
-  const homeDocument = await getHMDocument(homeId)
+  const homeDocument = await getHMDocument(homeId, {discover: true})
   supportDocuments.push({
     id: homeId,
     document: homeDocument,
@@ -267,7 +270,7 @@ export async function getBaseDocument(
         const id = hmId('d', entityId.uid, {path: item.path})
         return {
           id,
-          document: await getHMDocument(id),
+          document: await getHMDocument(id, {discover: true}),
         }
       }),
     )
@@ -290,7 +293,7 @@ export async function getBaseDocument(
           .map(async (item) => {
             const id = hmId('d', item.account, {path: item.path})
             console.log('getHMDocument called for query result:', id.id)
-            const document = await getHMDocument(id)
+            const document = await getHMDocument(id, {discover: true})
             document.authors.forEach((author) => {
               if (!alreadySupportDocIds.has(hmId('d', author).id)) {
                 supportAuthorsUidsToFetch.add(author)
