@@ -152,7 +152,8 @@ setEntityQuery(async (hmId) => {
     version: (hmId.latest ? undefined : hmId.version) || undefined,
   })
 
-  const serverDocument = grpcDocument.toJson()
+  const serverDocument = grpcDocument.toJson({includeDefaultValues: true})
+  console.log('serverDocument', serverDocument)
 
   return serverDocument as HMDocument // zod validation is done by the entity model
 })
