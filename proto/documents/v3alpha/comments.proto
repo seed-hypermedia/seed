@@ -55,12 +55,15 @@ message CreateCommentRequest {
 // Request to get a comment.
 message GetCommentRequest {
   // Required. ID of the comment to retrieve.
+  // The ID must be a record ID (`{publicKey}/{tsid}`) of the comment.
+  // For convenience we also accept versions (CIDs).
   string id = 1;
 }
 
 // Request to get multiple comments.
 message BatchGetCommentsRequest {
   // Required. List of comment IDs to retrieve.
+  // See [GetCommentRequest] for the format of the IDs.
   repeated string ids = 1;
 }
 

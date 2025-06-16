@@ -129,6 +129,8 @@ func (x *CreateCommentRequest) GetCapability() string {
 type GetCommentRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. ID of the comment to retrieve.
+	// The ID must be a record ID (`{publicKey}/{tsid}`) of the comment.
+	// For convenience we also accept versions (CIDs).
 	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -175,6 +177,7 @@ func (x *GetCommentRequest) GetId() string {
 type BatchGetCommentsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. List of comment IDs to retrieve.
+	// See [GetCommentRequest] for the format of the IDs.
 	Ids           []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

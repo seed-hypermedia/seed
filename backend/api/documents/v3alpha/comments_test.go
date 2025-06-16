@@ -304,6 +304,16 @@ func TestGetComment(t *testing.T) {
 	require.Equal(t, comment.Id, retrieved.Id)
 	require.Equal(t, comment.Content[0].Block.Text, retrieved.Content[0].Block.Text)
 
+	// Getting comment with a CID should work too.
+	{
+		retrieved, err := alice.GetComment(ctx, &pb.GetCommentRequest{
+			Id: comment.Version,
+		})
+		require.NoError(t, err)
+		require.Equal(t, comment.Id, retrieved.Id)
+		require.Equal(t, comment.Content[0].Block.Text, retrieved.Content[0].Block.Text)
+	}
+
 	// Test with invalid comment ID.
 	_, err = alice.GetComment(ctx, &pb.GetCommentRequest{
 		Id: "invalid-id",
@@ -464,7 +474,7 @@ func TestCreateComment_ErrorHandling(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to parse reply parent IRI")
+	require.Contains(t, err.Error(), "failed to parse comment ID")
 
 	// Test non-existent reply parent.
 	fakeParentID := "hm://z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK/2024-01-01T00:00:00.000Z"

@@ -10,6 +10,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/ipfs"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cclock"
 	"seed/backend/util/dqb"
@@ -62,12 +63,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 	)
 	if in.ReplyParent != "" {
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			rpRecordID, err := blob.DecodeRecordID(in.ReplyParent)
-			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "failed to parse reply parent IRI %s: %v", in.ReplyParent, err)
-			}
-
-			rpComment, err := srv.getComment(conn, rpRecordID)
+			rpComment, err := srv.getComment(conn, in.ReplyParent)
 			if err != nil {
 				return fmt.Errorf("reply parent %s not found: %w", in.ReplyParent, err)
 			}
@@ -104,19 +100,14 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 
 // GetComment implements Comments API.
 func (srv *Server) GetComment(ctx context.Context, in *documents.GetCommentRequest) (*documents.Comment, error) {
-	rid, err := blob.DecodeRecordID(in.Id)
+	resp, err := srv.BatchGetComments(ctx, &documents.BatchGetCommentsRequest{
+		Ids: []string{in.Id},
+	})
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse comment ID %s: %v", in.Id, err)
+		return nil, err
 	}
 
-	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Comment, error) {
-		lookup := blob.NewLookupCache(conn)
-		icmt, err := srv.getComment(conn, rid)
-		if err != nil {
-			return nil, err
-		}
-		return commentToProto(lookup, icmt.CID, icmt.Comment, icmt.TSID)
-	})
+	return resp.Comments[0], nil
 }
 
 // BatchGetComments implements Comments API.
@@ -128,12 +119,7 @@ func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetC
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		lookup := blob.NewLookupCache(conn)
 		for i, id := range in.Ids {
-			recordID, err := blob.DecodeRecordID(id)
-			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "failed to parse comment ID %s: %v", id, err)
-			}
-
-			icmt, err := srv.getComment(conn, recordID)
+			icmt, err := srv.getComment(conn, id)
 			if err != nil {
 				return err
 			}
@@ -387,11 +373,31 @@ var qIterCommentsByAuthor = dqb.Str(`
 	LIMIT :limit
 `)
 
-func (srv *Server) getComment(conn *sqlite.Conn, rid blob.RecordID) (indexedComment, error) {
-	var icmt indexedComment
+func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (indexedComment, error) {
+	var (
+		query string
+		args  []any
+	)
+	{
+		rid, err := blob.DecodeRecordID(idRaw)
+		if err != nil {
+			// We allow to get comment by ID or CID.
+			c, cerr := cid.Decode(idRaw)
+			if cerr != nil {
+				return indexedComment{}, status.Errorf(codes.InvalidArgument, "failed to parse comment ID %s: %v: %v", idRaw, err, cerr)
+			}
+			query = qGetCommentByCID()
+			codec, hash := ipfs.DecodeCID(c)
+			args = []any{codec, hash}
+		} else {
+			query = qGetCommentByID()
+			args = []any{rid.Authority, rid.TSID.String()}
+		}
+	}
 
+	var icmt indexedComment
 	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-	rows, check := sqlitex.Query(conn, qGetComment(), rid.Authority, rid.TSID.String())
+	rows, check := sqlitex.Query(conn, query, args...)
 	var err error
 	for row := range rows {
 		seq := sqlite.NewIncrementor(0)
@@ -400,6 +406,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, rid blob.RecordID) (indexedComm
 			codec = row.ColumnInt64(seq())
 			hash  = row.ColumnBytesUnsafe(seq())
 			data  = row.ColumnBytesUnsafe(seq())
+			tsid  = row.ColumnText(seq())
 		)
 
 		buf, err = srv.idx.Decompress(data, buf)
@@ -411,7 +418,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, rid blob.RecordID) (indexedComm
 		cmt := &blob.Comment{}
 		err = cbornode.DecodeInto(buf, cmt)
 		if err != nil {
-			err = fmt.Errorf("getComment: failed to decode comment %s for authority %s: %w", chcid, rid.Authority, err)
+			err = fmt.Errorf("getComment: failed to decode comment %s: %w", chcid, err)
 			break
 		}
 
@@ -419,7 +426,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, rid blob.RecordID) (indexedComm
 			DBID:    sbID,
 			CID:     chcid,
 			Comment: cmt,
-			TSID:    rid.TSID,
+			TSID:    blob.TSID(tsid),
 		}
 		break
 	}
@@ -428,24 +435,37 @@ func (srv *Server) getComment(conn *sqlite.Conn, rid blob.RecordID) (indexedComm
 	}
 
 	if icmt.Comment == nil {
-		return indexedComment{}, status.Errorf(codes.NotFound, "comment %s not found", rid.String())
+		return indexedComment{}, status.Errorf(codes.NotFound, "comment %s not found", idRaw)
 	}
 
 	return icmt, nil
 }
 
-var qGetComment = dqb.Str(`
+var qGetCommentByID = dqb.Str(`
 	SELECT
 		sb.id,
 		b.codec,
 		b.multihash,
-		b.data
+		b.data,
+		sb.extra_attrs->>'tsid' AS tsid
 	FROM structural_blobs sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	LIMIT 1
+`)
+
+var qGetCommentByCID = dqb.Str(`
+	SELECT
+		sb.id,
+		codec,
+		multihash,
+		data,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM blobs
+	JOIN structural_blobs sb ON sb.id = blobs.id
+	WHERE (codec, multihash) = (:codec, :multihash)
 `)
 
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {

@@ -107,6 +107,8 @@ export class CreateCommentRequest extends Message<CreateCommentRequest> {
 export class GetCommentRequest extends Message<GetCommentRequest> {
   /**
    * Required. ID of the comment to retrieve.
+   * The ID must be a record ID (`{publicKey}/{tsid}`) of the comment.
+   * For convenience we also accept versions (CIDs).
    *
    * @generated from field: string id = 1;
    */
@@ -148,6 +150,7 @@ export class GetCommentRequest extends Message<GetCommentRequest> {
 export class BatchGetCommentsRequest extends Message<BatchGetCommentsRequest> {
   /**
    * Required. List of comment IDs to retrieve.
+   * See [GetCommentRequest] for the format of the IDs.
    *
    * @generated from field: repeated string ids = 1;
    */
