@@ -104,7 +104,7 @@ export function SiteHeader({
       ) : null}
       <header
         className={cn(
-          'w-full p-4 border-b border-muted flex bg-white dark:bg-black',
+          'w-full p-4 border-b border-muted flex bg-white dark:bg-background',
           {
             'flex-col': isCenterLayout,
             'flex-row items-center': !isCenterLayout,

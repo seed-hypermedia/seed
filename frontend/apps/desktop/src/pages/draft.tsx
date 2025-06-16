@@ -184,7 +184,7 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'bg-white dark:bg-black flex flex-col',
+              'bg-white dark:bg-background flex flex-col',
             )}
           >
             <DraftRebaseBanner />

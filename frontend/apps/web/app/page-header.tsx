@@ -46,7 +46,7 @@ export function PageHeader({
           paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
-        bg="$backgroundStrong"
+        className="bg-white dark:bg-background"
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >

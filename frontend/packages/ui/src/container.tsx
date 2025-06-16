@@ -30,7 +30,7 @@ export function PanelContainer({
     <div className="w-full h-full px-2">
       <div
         className={cn(
-          'h-full bg-white dark:bg-black sm:border sm:border-border sm:rounded-md overflow-hidden',
+          'h-full bg-white dark:bg-background sm:border sm:border-border sm:rounded-md overflow-hidden',
           className,
         )}
         {...props}
@@ -52,9 +52,9 @@ export const Container = styled(YStack, {
 })
 
 export const windowContainerStyles = cn(
-  'flex flex-col w-screen h-screen min-h-svh bg-background p-2',
+  'flex flex-col w-screen h-screen min-h-svh bg-background dark:bg-black p-2',
 )
 
 export const panelContainerStyles = cn(
-  'flex flex-col w-full h-full bg-background border border-border rounded-md overflow-hidden',
+  'flex flex-col w-full h-full bg-background dark:bg-black border border-border rounded-md overflow-hidden',
 )

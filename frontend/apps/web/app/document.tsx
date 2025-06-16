@@ -519,7 +519,7 @@ export function DocumentPage(
             <PanelGroup
               direction="horizontal"
               autoSaveId="web-document"
-              className="flex flex-1 overflow-hidden bg-white dark:bg-black"
+              className="flex flex-1 overflow-hidden bg-white dark:bg-background"
             >
               <Panel
                 ref={mainPanelRef}
@@ -529,7 +529,7 @@ export function DocumentPage(
               >
                 <div className="relative flex flex-col h-full" ref={elementRef}>
                   {media.gtSm ? (
-                    <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-black shadow-md rounded-md">
+                    <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-background shadow-md rounded-md">
                       {!activePanel &&
                       activityEnabled &&
                       interactionSummary.data ? (
@@ -662,7 +662,7 @@ export function DocumentPage(
                         </Button>
                       </Tooltip>
                     </div>
-                    <div className="p-3 items-center flex bg-white dark:bg-black border-b border-border">
+                    <div className="p-3 items-center flex bg-white dark:bg-background border-b border-border">
                       <Text weight="bold" size="md">
                         {panelTitle}
                       </Text>
@@ -741,7 +741,7 @@ function MobileInteractionCardCollapsed({
   const tx = useTx()
   return (
     <div
-      className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-black shadow-md rounded-md shadow-md border border-sidebar-border"
+      className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-background shadow-md rounded-md shadow-md border border-sidebar-border"
       onClick={onClick}
     >
       <Button
@@ -817,7 +817,7 @@ function DocumentDiscoveryPage({
   return (
     <div className="h-screen w-screen flex flex-col">
       <div className="flex-1 justify-center flex items-start py-12 px-4">
-        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
           <h2 className="text-2xl font-bold">Looking for a document...</h2>
 
           <p>

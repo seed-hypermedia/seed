@@ -276,7 +276,7 @@ function _MainDocumentPage({
       data-docid={id.id}
       className={cn(
         panelContainerStyles,
-        'bg-white dark:bg-black flex flex-col',
+        'bg-white dark:bg-background flex flex-col',
       )}
     >
       <AppDocSiteHeader
@@ -343,7 +343,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="absolute top-2 right-2 px-3 py-2 gap-1 flex z-50 bg-white dark:bg-black shadow-md rounded-md">
+    <div className="absolute top-2 right-2 px-3 py-2 gap-1 flex z-50 bg-white dark:bg-background shadow-md rounded-md">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -510,7 +510,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        bg="$backgroundStrong"
+        className="bg-white dark:bg-background"
         data-docid={docId.id}
         borderRadius="$2"
       >
@@ -654,7 +654,7 @@ function DocMessageBox({
   return (
     <div className="h-screen w-screen flex flex-col">
       <div className="flex-1 justify-center flex items-start py-12 px-4">
-        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
           <SizableText size="2xl" weight="bold">
             {title}
           </SizableText>

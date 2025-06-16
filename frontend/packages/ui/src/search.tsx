@@ -190,7 +190,7 @@ export function HeaderSearch({
           <TButton size="$2" chromeless icon={Search} />
         </Popover.Trigger>
         <Popover.Content asChild>
-          <div className="border border-borded rounded-md bg-white dark:bg-black shadow-md flex flex-col h-[calc(100vh-100px)] max-h-[600px]">
+          <div className="border border-borded rounded-md bg-white dark:bg-background shadow-md flex flex-col h-[calc(100vh-100px)] max-h-[600px]">
             <div className="flex items-center gap-2 p-2 self-stretch">
               <Search size="$1" margin="$2" />
               <Input

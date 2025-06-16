@@ -139,7 +139,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border flex flex-col gap-1 bg-white dark:bg-black rounded-md">
+        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border flex flex-col gap-1 bg-white dark:bg-background rounded-md">
           <CheckboxField
             checked={debug}
             // @ts-ignore

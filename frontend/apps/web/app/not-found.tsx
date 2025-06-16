@@ -6,7 +6,7 @@ export function NotFoundPage({id}: SiteDocumentPayload) {
   return (
     <div className="h-screen w-screen flex flex-col">
       <div className="flex-1 justify-center flex items-start py-12 px-4">
-        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-black shadow-lg">
+        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
             Document Not Found

@@ -59,7 +59,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         className="fixed top-0 left-0 right-0 bottom-0 z-50"
         onClick={onClose}
       />
-      <div className="no-window-drag absolute top-0 left-0 z-[999] w-full bg-white dark:bg-black min-h-8/10 border-border border rounded-md h-[260px] p-2 overflow-hidden mt-6 max-w-2xl">
+      <div className="no-window-drag absolute top-0 left-0 z-[999] w-full bg-white dark:bg-background min-h-8/10 border-border border rounded-md h-[260px] p-2 overflow-hidden mt-6 max-w-2xl">
         <SearchInput
           onClose={onClose}
           onSelect={({id, route}) => {
