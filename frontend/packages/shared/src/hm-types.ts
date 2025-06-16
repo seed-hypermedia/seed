@@ -596,10 +596,19 @@ export const HMCommentDraftSchema = z.object({
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
+export const HMNavigationItemSchema = z.object({
+  type: z.literal('Link'),
+  id: z.string(),
+  text: z.string(),
+  link: z.string(),
+})
+export type HMNavigationItem = z.infer<typeof HMNavigationItemSchema>
+
 export const HMDraftContentSchema = z.object({
   content: z.array(z.any()), // EditorBlock validation is handled elsewhere
   deps: z.array(z.string().min(1)).default([]),
   signingAccount: z.string().optional(),
+  navigation: z.array(HMNavigationItemSchema).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
@@ -1018,6 +1027,7 @@ export const HMDocumentSchema = z.object({
   createTime: z.union([HMTimestampSchema, z.string()]).default(''),
   updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
   metadata: HMDocumentMetadataSchema,
+  detachedHeads: z.record(z.string(), HMBlockNodeSchema).optional(),
   genesis: z.string(),
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")

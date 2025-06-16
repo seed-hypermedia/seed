@@ -7,6 +7,7 @@ import {
   HMListedDraft,
   HMListedDraftSchema,
   HMMetadata,
+  HMNavigationItemSchema,
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
@@ -284,6 +285,7 @@ export const draftsApi = t.router({
         content: z.any(),
         signingAccount: z.string().optional(),
         deps: z.array(z.string().min(1)).default([]),
+        navigation: z.array(HMNavigationItemSchema).optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -311,6 +313,7 @@ export const draftsApi = t.router({
         content: input.content,
         signingAccount: input.signingAccount,
         deps: input.deps,
+        navigation: input.navigation,
       }
 
       // Validate draft content

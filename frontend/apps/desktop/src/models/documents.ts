@@ -29,6 +29,7 @@ import {
   HMDraftContent,
   HMDraftMeta,
   HMEntityContent,
+  HMNavigationItem,
   HMQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -191,6 +192,8 @@ export function usePublishDraft(
           'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
         )
       }
+      console.log('~ draft', draft)
+      console.log('~ document', editEntity.data?.document)
 
       const blocksMap = editId
         ? createBlocksMap(editEntity.data?.document?.content || [], '')
@@ -200,12 +203,18 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
+      const navigationChanges = getNavigationChanges(
+        draft.navigation,
+        editEntity.data?.document,
+      )
+      console.log('~ navigationChanges', navigationChanges)
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
       } else {
         try {
           if (accountId && draft.id) {
             const allChanges = [
+              ...navigationChanges,
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
               ...deleteChanges,
@@ -320,6 +329,57 @@ export function useMarkAsRead() {
       }),
     )
   }
+}
+
+function getNavigationChanges(
+  navigation: HMNavigationItem[] | undefined,
+  document: HMDocument | null | undefined,
+) {
+  const ops: DocumentChange[] = []
+  const hasNavigationBlock = false // todo check document for this
+  if (!hasNavigationBlock) {
+    ops.push(
+      new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: {
+            id: 'navigation',
+            type: 'Group',
+          },
+        },
+      }),
+    )
+  }
+  let leftSibling: string | undefined = undefined
+  navigation?.forEach((item) => {
+    ops.push(
+      new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: {
+            id: item.id,
+            type: 'Link',
+            link: item.link,
+            text: item.text,
+          },
+        },
+      }),
+    )
+    ops.push(
+      new DocumentChange({
+        op: {
+          case: 'moveBlock',
+          value: {
+            blockId: item.id,
+            parent: 'navigation',
+            leftSibling,
+          },
+        },
+      }),
+    )
+    leftSibling = item.id
+  })
+  return ops
 }
 
 export type EditorDraftState = {
@@ -505,6 +565,7 @@ export function useDraftEditor() {
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
       signingAccount: HMDraft['signingAccount']
+      navigation?: HMNavigationItem[]
     }
   >(async ({input}) => {
     // Implementation will be provided in documents.ts
@@ -513,12 +574,14 @@ export function useDraftEditor() {
       const locationPath = route.locationPath || data?.locationPath
       const editUid = route.editUid || data?.editUid
       const editPath = route.editPath || data?.editPath
+      console.log('Saving draft with navigation:', input.navigation)
       const newDraft = await saveDraft.mutateAsync({
         id: route.id,
         metadata: input.metadata,
         signingAccount: input.signingAccount,
         content: editor.topLevelBlocks,
         deps: input.deps,
+        navigation: input.navigation,
         locationUid,
         locationPath,
         editUid,
@@ -562,6 +625,7 @@ export function useDraftEditor() {
                 metadata: event.payload.data.metadata,
                 signingAccount: event.payload.data.signingAccount,
                 deps: event.payload.data.deps,
+                navigation: event.payload.data.navigation,
               }
             } else if (event.payload.type == 'edit') {
               if (context.editUid && editEntity.data?.document?.content) {
@@ -583,6 +647,18 @@ export function useDraftEditor() {
                 deps: event.payload.data.document?.version
                   ? [event.payload.data.document?.version]
                   : undefined,
+              }
+            } else if (event.payload.type == 'location') {
+              if (locationEntity.data?.document?.content) {
+                content = hmBlocksToEditorContent(
+                  locationEntity.data.document.content || [],
+                  {
+                    childrenType: 'Group',
+                  },
+                )
+                editor.replaceBlocks(editor.topLevelBlocks, content as any)
+                const tiptap = editor?._tiptapEditor
+                setGroupTypes(tiptap, content as any)
               }
             }
           }
@@ -741,6 +817,25 @@ function useGetDoc() {
     return doc
   }
   return getDoc
+}
+
+export function useDocumentNavigation(
+  docId?: UnpackedHypermediaId | null,
+): HMNavigationItem[] {
+  const dir = useListDirectory(docId)
+  const doc = useEntity(docId)
+  // check if doc.data has detachedHeads.navigation,
+  // if (doc.data?.detachedHeads?.navigation) {
+  // }
+
+  return (
+    dir.data?.map((d) => ({
+      type: 'Link',
+      id: d.id,
+      link: d.id,
+      text: d.metadata?.name,
+    })) || []
+  )
 }
 
 export function usePublishToSite() {
@@ -910,6 +1005,9 @@ export function queryListDirectory(
         .map((d) => ({
           ...toPlainMessage(d),
           type: 'document',
+          id: hmId('d', d.account, {
+            path: entityQueryPathToHmIdPath(d.path),
+          }).id,
           metadata: HMDocumentMetadataSchema.parse(
             d.metadata?.toJson({emitDefaultValues: true}),
           ),
