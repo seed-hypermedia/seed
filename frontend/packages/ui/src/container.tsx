@@ -21,14 +21,6 @@ const variants = {
   },
 } as const
 
-export const defaultContainerStyle = {
-  w: 'calc(100% - 16px)',
-  marginHorizontal: 8,
-  borderColor: '$borderColor',
-  borderWidth: 1,
-  borderRadius: '$4',
-}
-
 export function PanelContainer({
   className,
   children,
@@ -49,30 +41,7 @@ export function PanelContainer({
   )
 }
 
-export const ContainerDefault = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingVertical: '$6',
-  width: '100%',
-  $gtSm: {
-    maxWidth: 700,
-    paddingRight: '$2',
-  },
-
-  $gtMd: {
-    maxWidth: 740,
-    paddingRight: '$2',
-  },
-
-  $gtLg: {
-    maxWidth: 800,
-    paddingRight: '$10',
-  },
-
-  variants,
-})
-
-export const ContainerLarge = styled(YStack, {
+export const Container = styled(YStack, {
   marginHorizontal: 'auto',
   paddingHorizontal: '$4',
   paddingTop: '$6',
@@ -81,28 +50,6 @@ export const ContainerLarge = styled(YStack, {
   flexShrink: 'unset',
   variants,
 })
-
-export const ContainerXL = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  width: '100%',
-  $gtSm: {
-    maxWidth: 980,
-  },
-
-  $gtMd: {
-    maxWidth: 1240,
-  },
-
-  $gtLg: {
-    maxWidth: 1440,
-  },
-
-  variants,
-})
-
-export const AppContainer = ContainerLarge
-export const Container = ContainerLarge
 
 export const windowContainerStyles = cn(
   'flex flex-col w-screen h-screen min-h-svh bg-background p-2',

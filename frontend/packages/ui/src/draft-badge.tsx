@@ -1,19 +1,21 @@
-import {XStack} from 'tamagui'
 import {SizableText} from './text'
+import {cn} from './utils'
 
-export function DraftBadge() {
+interface DraftBadgeProps {
+  className?: string
+}
+
+export function DraftBadge({className}: DraftBadgeProps) {
   return (
-    <XStack
-      alignSelf="center"
-      paddingVertical="0"
-      paddingHorizontal="$1.5"
-      borderColor="$yellow9"
-      borderRadius="$2"
-      borderWidth={1}
+    <div
+      className={cn(
+        'self-center py-0 px-1.5 border border-yellow-500 rounded-md',
+        className,
+      )}
     >
       <SizableText size="xs" color="warning">
         Draft
       </SizableText>
-    </XStack>
+    </div>
   )
 }

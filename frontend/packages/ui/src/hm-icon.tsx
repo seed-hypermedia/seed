@@ -1,12 +1,12 @@
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {Button} from '@tamagui/button'
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {YStack} from '@tamagui/stacks'
+import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
+import {Button} from './components/button'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 // TODO: support new drafts now
 export const HMIcon = memo(_HMIcon)
@@ -15,11 +15,13 @@ function _HMIcon({
   id,
   metadata,
   size = 32,
+  className,
   ...props
 }: Omit<UIAvatarProps, 'id'> & {
   id: UnpackedHypermediaId
   metadata?: HMMetadata | null
   size?: number
+  className?: string
 }) {
   const imageUrl = useImageUrl()
   if (!id) return null
@@ -27,16 +29,21 @@ function _HMIcon({
   return (
     <UIAvatar
       size={size}
-      // id={id.path?.at(-1) || id.uid.slice(2)}
       id={id.id}
       label={metadata?.name}
       url={metadata?.icon ? imageUrl(metadata.icon, 'S') : undefined}
-      borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
-      flexShrink={0}
-      flexGrow={0}
+      className={cn(
+        'flex-none',
+        id.path && id.path.length !== 0 ? 'rounded-md' : 'rounded-full',
+        className,
+      )}
       {...props}
     />
   )
+}
+
+function getMetadataName(metadata?: HMMetadata | null) {
+  return metadata?.name
 }
 
 export function LinkIcon({
@@ -66,16 +73,11 @@ export function LinkIcon({
       }
     >
       <Button
-        className="no-window-drag"
-        size="$1"
-        backgroundColor="transparent"
-        hoverStyle={{backgroundColor: 'transparent'}}
-        minWidth={20}
-        minHeight={20}
-        padding={0}
+        variant="ghost"
+        size="icon"
+        className="no-window-drag relative min-w-5 min-h-5 p-0"
+        style={{height: size}}
         {...linkProps}
-        position="relative"
-        height={size}
       >
         {content}
       </Button>
@@ -84,22 +86,13 @@ export function LinkIcon({
 }
 
 export function ErrorDot({error}: {error?: boolean}) {
-  return error ? (
-    <YStack
-      backgroundColor="$red11"
-      display="flex"
-      position="absolute"
-      top={-8}
-      left={-8}
-      padding={0}
-      paddingLeft={-4}
-      width={16}
-      height={16}
-      borderRadius={8}
-    >
-      <AlertCircle size={16} />
-    </YStack>
-  ) : null
+  if (!error) return null
+
+  return (
+    <div className="absolute -top-2 -left-2 flex items-center justify-center w-4 h-4 rounded-full bg-destructive">
+      <AlertCircle className="w-4 h-4 text-white" />
+    </div>
+  )
 }
 
 export function LoadedHMIcon({

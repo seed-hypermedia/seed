@@ -8,7 +8,7 @@ import {
 import {useTx, useTxUtils} from '@shm/shared/translation'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
-import {Button, styled, XStack} from 'tamagui'
+import {Button} from './components/button'
 import {HoverCard} from './hover-card'
 
 export function DocumentCitationEntry({
@@ -25,20 +25,20 @@ export function DocumentCitationEntry({
   const tx = useTx()
   const {formattedDateShort} = useTxUtils()
   return (
-    <XStack gap="$1" ai="center" flexWrap="wrap">
+    <div className="flex items-center gap-1 flex-wrap">
       <HMAuthor author={citation.author} />
-      <CitationDateText>
+      <SizableText className="text-muted-foreground mr-2">
         {formattedDateShort(citation.source.time)}
-      </CitationDateText>
-      <XStack gap="$2" ai="center">
+      </SizableText>
+      <div className="flex items-center gap-2">
         <SizableText>{tx('cited on')}</SizableText>
         <DocumentCitationToken
           docId={citation.source.id}
           metadata={citation.document.metadata}
           DocPreview={DocPreview}
         />
-      </XStack>
-    </XStack>
+      </div>
+    </div>
   )
 }
 
@@ -58,41 +58,30 @@ function DocumentCitationToken({
   if (DocPreview) {
     return (
       <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
-        <DocumentCitationButton {...linkProps}>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="text-sm bg-accent"
+          {...linkProps}
+        >
           {metadata?.name}
-        </DocumentCitationButton>
+        </Button>
       </HoverCard>
     )
   }
   return (
-    <DocumentCitationButton {...linkProps}>
+    <Button variant="brand" size="sm" className="text-sm" {...linkProps}>
       {metadata?.name}
-    </DocumentCitationButton>
+    </Button>
   )
 }
 
 function HMAuthor({author}: {author: HMMetadataPayload}) {
   const linkProps = useRouteLink({key: 'document', id: author.id})
   return (
-    <Button size="$2" chromeless {...linkProps}>
-      <XStack gap="$2" ai="center">
-        <HMIcon size={20} id={author.id} metadata={author.metadata} />
-        <SizableText weight="bold">{author.metadata?.name}</SizableText>
-      </XStack>
+    <Button variant="ghost" size="sm" {...linkProps}>
+      <HMIcon size={20} id={author.id} metadata={author.metadata} />
+      <SizableText weight="bold">{author.metadata?.name}</SizableText>
     </Button>
   )
 }
-
-const CitationDateText = styled(SizableText, {
-  color: '$color8',
-  marginRight: '$2',
-})
-
-const DocumentCitationButton = styled(Button, {
-  backgroundColor: '$color6',
-  size: '$1',
-  fontSize: '$4',
-  hoverStyle: {
-    backgroundColor: '$color2',
-  },
-})

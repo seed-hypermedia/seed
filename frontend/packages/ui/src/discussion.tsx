@@ -51,7 +51,7 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <YStack gap="$2">
+    <div className="flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (
         <View
           width={lineWidth}
@@ -83,7 +83,7 @@ export function CommentGroup({
           />
         )
       })}
-    </YStack>
+    </div>
   )
 }
 

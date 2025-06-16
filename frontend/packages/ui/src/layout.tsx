@@ -1,24 +1,24 @@
 import {HMMetadata} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {forwardRef, useMemo, useRef, useState} from 'react'
-import {YStack, YStackProps} from 'tamagui'
 import {ScrollArea} from './components/scroll-area'
 import {useMedia} from './use-media'
 
-export const MainWrapper = forwardRef<any, YStackProps & {noScroll?: boolean}>(
-  function MainWrapper({children, noScroll = false, ...props}, ref) {
-    return (
-      <YStack flex={1} className="content-wrapper" {...props} ref={ref}>
-        {noScroll ? (
-          children
-        ) : (
-          // TODO: we cannot remove this ID here because the SlashMenu is referencing this!
-          <ScrollArea id="scroll-page-wrapper">{children}</ScrollArea>
-        )}
-      </YStack>
-    )
-  },
-)
+export const MainWrapper = forwardRef<
+  any,
+  {noScroll?: boolean; children?: React.ReactNode}
+>(function MainWrapper({children, noScroll = false, ...props}, ref) {
+  return (
+    <div ref={ref} className="flex flex-1 flex-col content-wrapper" {...props}>
+      {noScroll ? (
+        children
+      ) : (
+        // TODO: we cannot remove this ID here because the SlashMenu is referencing this!
+        <ScrollArea id="scroll-page-wrapper">{children}</ScrollArea>
+      )}
+    </div>
+  )
+})
 
 export type LayoutMode = 'mobile' | 'tablet' | 'desktop'
 export type BreakpointConfig = {

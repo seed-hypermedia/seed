@@ -1,18 +1,20 @@
-// @ts-nocheck
-import {styled, XStack} from 'tamagui'
+import {cn} from './utils'
 
-export const FooterWrapper = styled(XStack, {
-  marginHorizontal: -1,
-  paddingVertical: 0,
-  width: '100%',
-  borderColor: 'transparent',
-  // borderTopColor: '$color5',
-  borderWidth: '1px',
-  alignItems: 'stretch',
-  borderStyle: 'solid',
-  flex: 0,
-  flexGrow: 0,
-  flexShrink: 0,
-  minHeight: 24,
-  userSelect: 'none',
-})
+interface FooterWrapperProps {
+  children?: React.ReactNode
+  className?: string
+}
+
+export function FooterWrapper({children, className}: FooterWrapperProps) {
+  return (
+    <div
+      className={cn(
+        '-mx-1 py-0 w-full border border-transparent',
+        'items-stretch flex-none min-h-6 select-none',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
