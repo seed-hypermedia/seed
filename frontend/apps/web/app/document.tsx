@@ -1057,6 +1057,7 @@ function WebVersionsPanel({
               docId={id}
               isLast={idx === changesList.length - 1}
               isCurrent={change.id === changes.data?.latestVersion}
+              author={change.author}
             />
           )
         })}
