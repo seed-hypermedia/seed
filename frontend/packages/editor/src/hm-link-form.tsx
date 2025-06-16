@@ -224,10 +224,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             <SwitchField
               label="Expand Block"
               id="expand"
-              defaultChecked={!collapsedBlocks.has(props.id)}
-              opacity={!collapsedBlocks.has(props.id) ? 1 : 0.4}
+              checked={collapsedBlocks.has(props.id)}
+              opacity={collapsedBlocks.has(props.id) ? 1 : 0.4}
               onCheckedChange={(checked) => {
-                setCollapsedBlocks(props.id, !checked)
+                setCollapsedBlocks(props.id, checked)
               }}
             />
           )}

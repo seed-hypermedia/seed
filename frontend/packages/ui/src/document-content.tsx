@@ -442,6 +442,7 @@ export function BlockNodeContent({
   isFirstChild = false,
   expanded = true,
   embedDepth = 1,
+  embedId,
   parentBlockId,
   handleBlockReplace,
   hideCollapseButtons = false,
@@ -453,6 +454,7 @@ export function BlockNodeContent({
   listLevel?: number
   childrenType?: HMBlockChildrenType
   embedDepth?: number
+  embedId?: string
   expanded?: boolean
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
@@ -468,6 +470,8 @@ export function BlockNodeContent({
     debug,
     comment,
     blockCitations,
+    collapsedBlocks,
+    setCollapsedBlocks,
   } = useDocContentContext()
   const [hover, setHover] = useState(false)
   const isDark = useIsDark()
@@ -591,6 +595,7 @@ export function BlockNodeContent({
 
   function handleBlockNodeToggle() {
     setExpanded(!_expanded)
+    if (embedId) setCollapsedBlocks(embedId, !_expanded)
   }
 
   useEffect(() => {
@@ -1485,7 +1490,7 @@ export function ContentEmbed({
   const [isExpanded, setExpanded] = useState(props.blockRange?.expanded ?? true)
 
   useEffect(() => {
-    setExpanded(context.collapsedBlocks.has(props.block.id) ? isExpanded : true)
+    setExpanded(context.collapsedBlocks.has(props.block.id) ?? isExpanded)
   }, [context.collapsedBlocks])
 
   const embedData = useMemo(() => {
@@ -1556,6 +1561,7 @@ export function ContentEmbed({
               isFirstChild
               depth={props.depth}
               expanded={isExpanded}
+              embedId={props.block.id}
               blockNode={{
                 block: {
                   type: 'Heading',
@@ -1580,7 +1586,8 @@ export function ContentEmbed({
                   !props.blockRef && document?.metadata?.name ? true : idx == 0
                 }
                 depth={1}
-                expanded={!!props.blockRange?.expanded || false}
+                expanded={isExpanded}
+                embedId={props.block.id}
                 blockNode={bn}
                 childrenType="Group"
                 index={idx}
