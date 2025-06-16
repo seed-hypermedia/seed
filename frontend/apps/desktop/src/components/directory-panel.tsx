@@ -1,7 +1,6 @@
 import {useAccountList} from '@/models/accounts'
 import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton} from '@/pages/document'
-import {useNavRoute} from '@/utils/navigation'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -14,14 +13,12 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
   const directory = childrenActivity.data
   const accounts = useAccountList()
-  const route = useNavRoute()
   const theme = useTheme()
 
-  if (route.key !== 'document') return null
   const isInitialLoad = childrenActivity.isInitialLoading
   if (isInitialLoad) {
     return (
-      <div className="flex justify-center items-center p-4">
+      <div className="flex items-center justify-center p-4">
         <Spinner />
       </div>
     )
@@ -42,7 +39,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <ScrollArea className="h-full">
-      <div className="flex flex-col gap-2 py-2 px-4 h-full">
+      <div className="flex flex-col h-full gap-2 px-4 py-2">
         {directory.map((activityItem) => {
           if (activityItem.type === 'document') {
             return (
@@ -56,7 +53,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
           }
           return null
         })}
-        <div className="mt-5 w-full">
+        <div className="w-full mt-5">
           <NewSubDocumentButton locationId={docId} importDropdown={false} />
         </div>
       </div>
