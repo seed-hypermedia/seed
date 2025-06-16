@@ -190,7 +190,7 @@ function ExpandChangeGroupButton({
     <Button
       variant="outline"
       onClick={onExpand}
-      className="h-auto items-start"
+      className="justify-start items-start relative h-auto items-start"
       key={item.id}
     >
       <div

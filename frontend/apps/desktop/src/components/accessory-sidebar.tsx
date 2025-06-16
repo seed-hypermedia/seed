@@ -1,20 +1,15 @@
-import {
-  useNavigationDispatch,
-  useNavigationState,
-  useNavRoute,
-} from '@/utils/navigation'
+import {useNavigationDispatch, useNavigationState} from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/components/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
-import {BlockQuote, CollaboratorsIcon} from '@shm/ui/icons'
-import {SizableText, Text} from '@shm/ui/text'
+import {BlockQuote} from '@shm/ui/icons'
+import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
   Clock,
-  FileClock,
   Folder,
   MessageSquare,
   Pencil,
@@ -29,7 +24,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {XGroup, XStack, YStack} from 'tamagui'
+import {XStack} from 'tamagui'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
@@ -174,153 +169,12 @@ export function AccessoryContent({
   title?: string
 }) {
   return (
-    <div className="flex flex-col flex-1" {...props}>
-      <ScrollArea className="flex-1 h-full px-3">
-        <YStack gap="$2">{children}</YStack>
+    <div className="flex flex-col flex-1 overflow-hidden" {...props}>
+      <ScrollArea className="flex-1 h-full p-3">
+        <div className="flex flex-col gap-2">{children}</div>
       </ScrollArea>
-      {footer ? (
-        <YStack borderTopWidth={1} borderColor="$color6">
-          {footer}
-        </YStack>
-      ) : null}
+      {footer ? <div className="border-t border-border">{footer}</div> : null}
     </div>
-  )
-}
-
-export function AccessoryTitle({
-  title,
-  onAccessorySelect,
-  isNewDraft = false,
-}: {
-  title: string
-  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
-  isNewDraft?: boolean
-}) {
-  const route = useNavRoute()
-  const docRoute = route.key == 'document' ? route : null
-  const draftRoute = route.key == 'draft' ? route : null
-  const activeKey = docRoute?.accessory?.key || draftRoute?.accessory?.key
-  if (!activeKey) return null
-
-  return (
-    <XStack minHeight={56} ai="center" padding="$2">
-      <SizableText
-        userSelect="none"
-        size="$3"
-        fontWeight="600"
-        paddingHorizontal="$1"
-        f={1}
-      >
-        {title}
-      </SizableText>
-      {!isNewDraft && onAccessorySelect && (
-        <XGroup
-          alignSelf="flex-start"
-          borderColor="$borderColor"
-          borderWidth={1}
-          borderRadius="$2"
-        >
-          {route.key == 'draft' && (
-            <XGroup.Item>
-              <Tooltip content="Draft Options">
-                <Button
-                  size="icon"
-                  variant={activeKey == 'options' ? 'brand' : 'ghost'}
-                  onClick={
-                    activeKey != 'options'
-                      ? () => onAccessorySelect('options')
-                      : undefined
-                  }
-                >
-                  <Pencil size={16} className="size-4" />
-                </Button>
-              </Tooltip>
-            </XGroup.Item>
-          )}
-
-          <XGroup.Item>
-            <Tooltip content="Activity">
-              <Button
-                borderRadius="$2"
-                bg={
-                  activeKey == 'activity' ||
-                  activeKey == 'discussions' ||
-                  activeKey == 'citations' ||
-                  activeKey == 'versions'
-                    ? '$brand11'
-                    : '$backgroundTransparent'
-                }
-                size="$2"
-                icon={FileClock}
-                onPress={
-                  activeKey == 'collaborators' ||
-                  activeKey == 'directory' ||
-                  activeKey == 'options'
-                    ? () => onAccessorySelect('discussions')
-                    : undefined
-                }
-              />
-            </Tooltip>
-          </XGroup.Item>
-
-          <XGroup.Item>
-            <Tooltip content="Collaborators">
-              <Button
-                borderRadius="$2"
-                bg={
-                  activeKey == 'collaborators'
-                    ? '$brand11'
-                    : '$backgroundTransparent'
-                }
-                size="$2"
-                icon={<CollaboratorsIcon size={16} />}
-                onPress={
-                  activeKey != 'collaborators'
-                    ? () => onAccessorySelect('collaborators')
-                    : undefined
-                }
-              />
-            </Tooltip>
-          </XGroup.Item>
-          <XGroup.Item>
-            <Tooltip content="Directory">
-              <Button
-                borderRadius="$2"
-                bg={
-                  activeKey == 'directory'
-                    ? '$brand11'
-                    : '$backgroundTransparent'
-                }
-                size="$2"
-                icon={Folder}
-                onPress={
-                  activeKey != 'directory'
-                    ? () => onAccessorySelect('directory')
-                    : undefined
-                }
-              />
-            </Tooltip>
-          </XGroup.Item>
-        </XGroup>
-      )}
-    </XStack>
-  )
-}
-
-export function AccessorySection({
-  children,
-  title,
-  onAccessorySelect,
-}: {
-  children: React.ReactNode
-  title: string
-  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
-}) {
-  return (
-    <YStack gap="$3">
-      <AccessoryTitle title={title} onAccessorySelect={onAccessorySelect} />
-      <YStack gap="$5">{children}</YStack>
-    </YStack>
   )
 }
 

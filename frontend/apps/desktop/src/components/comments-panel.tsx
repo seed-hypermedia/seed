@@ -8,14 +8,14 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
+import {Button} from '@shm/ui/components/button'
 import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {MessageSquareOff} from '@tamagui/lucide-icons'
-import {YStack} from '@tamagui/stacks'
+import {MessageSquareOff} from 'lucide-react'
 import {memo, useEffect, useMemo, useState} from 'react'
-import {Button, View} from 'tamagui'
+import {View} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -72,10 +72,12 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
       commentGroups.data?.length > 0 ? (
         commentGroups.data?.map((cg, idx) => {
           return (
-            <YStack
+            <div
+              className="flex flex-col px-2"
               key={cg.id}
-              paddingHorizontal="$1.5"
-              marginBottom={commentGroups.data?.length - 1 > idx ? '$4' : 0}
+              style={{
+                marginBottom: commentGroups.data?.length - 1 > idx ? '$4' : 0,
+              }}
             >
               <CommentGroup
                 rootReplyCommentId={null}
@@ -86,7 +88,7 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
                 enableReplies={true}
               />
               {commentGroups.data?.length - 1 > idx && <Separator />}
-            </YStack>
+            </div>
           )
         })
       ) : (
@@ -95,13 +97,9 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
   }
   return (
     <AccessoryContent
-      footer={
-        <View paddingVertical="$2">
-          <CommentBox docId={docId} backgroundColor="$colorTransparent" />
-        </View>
-      }
+      footer={<CommentBox docId={docId} backgroundColor="$colorTransparent" />}
     >
-      <YStack>{panelContent}</YStack>
+      {panelContent}
     </AccessoryContent>
   )
 }
@@ -263,7 +261,7 @@ function FocusedCommentReplies({
   if (replies.data.length == 0) return null
   if (!isOpen)
     return (
-      <Button onPress={() => setIsOpen(true)} size="$1">
+      <Button onClick={() => setIsOpen(true)} size="sm" variant="ghost">
         <SizableText size="xs">{`Show ${replies.data.length} ${pluralS(
           replies.data.length,
           'Reply',
@@ -272,7 +270,7 @@ function FocusedCommentReplies({
       </Button>
     )
   return (
-    <YStack>
+    <div>
       {replies.data.length > 0 ? (
         replies.data.map((r) => {
           return (
@@ -288,7 +286,7 @@ function FocusedCommentReplies({
       ) : (
         <EmptyDiscussions docId={docId} commentId={commentId} />
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -301,19 +299,16 @@ function EmptyDiscussions({
 }) {
   const tx = useTx()
   return (
-    <YStack alignItems="center" gap="$4" paddingVertical="$4">
-      <MessageSquareOff size={48} color="$color8" />
-      <SizableText size="md">No discussions</SizableText>
+    <div className="flex flex-col items-center gap-4 p-4">
+      <MessageSquareOff size={48} className="size-25 text-gray-200" />
+      <SizableText size="xl">No discussions</SizableText>
       <Button
-        size="$3"
-        onPress={() => triggerCommentDraftFocus(docId.id, commentId)}
-        bg="$brand5"
-        color="white"
-        hoverStyle={{bg: '$brand4'}}
-        focusStyle={{bg: '$brand4'}}
+        size="lg"
+        variant="brand"
+        onClick={() => triggerCommentDraftFocus(docId.id, commentId)}
       >
         {tx('Start a Discussion')}
       </Button>
-    </YStack>
+    </div>
   )
 }

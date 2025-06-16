@@ -109,7 +109,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   return (
     <YStack gap="$4">
       <XStack
-        paddingHorizontal="$4"
         paddingVertical="$3"
         alignItems="center"
         position="sticky"
@@ -133,7 +132,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
           onPress={handleClose}
         />
       </XStack>
-      <YStack gap="$2" paddingHorizontal="$2">
+      <YStack gap="$2">
         {commentId || blockId ? (
           <AccessoryBackButton
             onPress={handleBack}

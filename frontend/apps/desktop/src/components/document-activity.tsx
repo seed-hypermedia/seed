@@ -19,10 +19,11 @@ import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/components/button'
 import {CommentGroup} from '@shm/ui/discussion'
-import {ChevronUp, EmptyDiscussion} from '@shm/ui/icons'
+import {ChevronUp} from '@shm/ui/icons'
 import {ActivitySection} from '@shm/ui/page-components'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
+import {Sparkle} from 'lucide-react'
 import {useState} from 'react'
 import {useTheme, YStack} from 'tamagui'
 import {
@@ -164,7 +165,7 @@ export function ActivityList({
   if (activityWithGroups.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
-        <EmptyDiscussion color={theme.color6.val} />
+        <Sparkle className="size-25" color={theme.color6.val} />
         <SizableText color="muted" weight="medium" size="xl">
           There is no activity yet.
         </SizableText>
@@ -179,6 +180,7 @@ export function ActivityList({
       {visibleCount < activityWithGroups.length && prevActivity && (
         <Button
           variant="outline"
+          className="relative w-full"
           onClick={() => setVisibleCount((count) => count + 10)}
           size="sm"
         >
@@ -204,20 +206,6 @@ export function ActivityList({
                 highlightLastComment={
                   activityItem === activity[activity.length - 1]
                 }
-                // onReplyClick={
-                //   onCommentFocus
-                //     ? (replyCommentId) => {
-                //         onCommentFocus(replyCommentId, true)
-                //       }
-                //     : undefined
-                // }
-                // onReplyCountClick={
-                //   onCommentFocus
-                //     ? (replyCommentId) => {
-                //         onCommentFocus(replyCommentId, false)
-                //       }
-                //     : undefined
-                // }
               />
             </div>
           )
