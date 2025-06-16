@@ -169,7 +169,7 @@ function IdentitySelector() {
 
   if (!selectedIdentityValue) {
     return (
-      <div className="flex flex-row items-center justify-between w-full gap-4 p-4 bg-white rounded-sm shadow-sm">
+      <div className="flex flex-row items-center justify-between w-full gap-3 p-1 bg-white rounded-sm shadow-sm">
         <CreateAccountButton />
         <AppSettingsButton />
       </div>
@@ -178,16 +178,17 @@ function IdentitySelector() {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button className="flex flex-row items-center justify-between w-full gap-4 p-2 px-3 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
-          <div className="flex flex-row items-center gap-4">
+        <button className="flex flex-row items-center justify-between w-full p-1 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
+          <div className="flex flex-row items-center gap-2">
             {selectedAccount?.data ? (
               <HMIcon
                 key={selectedAccount.data?.id?.uid}
                 id={selectedAccount.data?.id}
                 metadata={selectedAccount.data?.document?.metadata}
+                size={28}
               />
             ) : null}
-            <div>
+            <div className="line-clamp-1">
               {selectedAccount?.data?.document?.metadata?.name ||
                 `?${selectedIdentityValue.slice(-8)}`}
             </div>
@@ -246,16 +247,15 @@ function AppSettingsButton() {
   const navigate = useNavigate()
   return (
     <Tooltip content="App Settings">
-      <Button
-        size="$3"
-        backgroundColor={'$colorTransparent'}
-        chromeless
-        onPress={(e) => {
+      <button
+        className="flex items-center justify-center w-8 h-8 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-800"
+        onClick={(e) => {
           e.preventDefault()
           navigate({key: 'settings'})
         }}
-        icon={Settings}
-      />
+      >
+        <Settings size={16} />
+      </button>
     </Tooltip>
   )
 }
