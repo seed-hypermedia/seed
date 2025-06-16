@@ -129,7 +129,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onMouseLeave={ctx.onMenuHoverLeave}
         >
           <div className="flex-1 pt-2 pb-8 overflow-y-auto ">{children}</div>
-          <div className="flex justify-between p-2 shrink-0">
+          <div className="flex justify-between shrink-0">
             <IdentitySelector />
           </div>
         </div>
@@ -188,7 +188,7 @@ function IdentitySelector() {
                 size={28}
               />
             ) : null}
-            <div className="line-clamp-1">
+            <div className="text-sm line-clamp-1">
               {selectedAccount?.data?.document?.metadata?.name ||
                 `?${selectedIdentityValue.slice(-8)}`}
             </div>

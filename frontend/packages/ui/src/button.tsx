@@ -1,5 +1,4 @@
 import {Button as TButton} from '@tamagui/button'
-import {ThemeableStack} from '@tamagui/stacks'
 import {styled} from '@tamagui/web'
 
 export const Button = styled(TButton, {
@@ -30,18 +29,6 @@ export const Button = styled(TButton, {
   },
 })
 
-export const AccountTypeButton = styled(ThemeableStack, {
-  tag: 'button',
-  role: 'button',
-  focusable: true,
-  p: '$4',
-  paddingBottom: '$2',
-  w: 150,
-  h: 150,
-  borderRadius: '$2',
-  gap: '$2',
-  bg: '$color4',
-  hoverStyle: {
-    bg: '$color6',
-  },
-})
+// export function Button({ icon, ...props }: { icon: React.ReactNode }) {
+
+// }
