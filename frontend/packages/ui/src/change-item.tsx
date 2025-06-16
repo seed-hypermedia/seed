@@ -46,7 +46,7 @@ export function ChangeItem({
       key={change.id}
       variant="ghost"
       className={cn(
-        'justify-start items-start relative h-auto p-3 rounded-md transition-colors gap-2 flex',
+        'justify-start items-start relative h-auto p-3 rounded-md transition-colors gap-2 flex w-full',
         isActive
           ? 'bg-brand-12 hover:bg-brand-11'
           : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -93,7 +93,7 @@ function AuthorName({author}: {author: HMMetadataPayload}) {
     <Button
       variant="ghost"
       size="sm"
-      className="w-auto h-auto p-0 text-sm font-bold truncate flex-shrink-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+      className="h-auto p-0 text-sm font-bold truncate flex-shrink-1 hover:bg-gray-200 dark:hover:bg-gray-700"
       {...linkProps}
     >
       {getMetadataName(author.metadata)}

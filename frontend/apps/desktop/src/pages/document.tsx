@@ -343,7 +343,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="absolute top-0 right-2 p-4 gap-1 flex z-50">
+    <div className="absolute top-2 right-2 px-3 py-2 gap-1 flex z-50 bg-white dark:bg-black shadow-md rounded-md">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
