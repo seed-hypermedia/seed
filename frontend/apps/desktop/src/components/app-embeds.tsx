@@ -141,6 +141,7 @@ function EmbedWrapper({
   return id ? (
     <YStack
       ref={wrapperRef}
+      userSelect="none"
       // @ts-expect-error this is a tamagui error
       contentEditable={false}
       // userSelect="none"
@@ -171,9 +172,13 @@ function EmbedWrapper({
       borderRadius={0}
       borderLeftWidth={hideBorder ? 0 : 3}
       borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
-      // borderLeftWidth={6}
-      // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={(e) => {
+        // Prevent navigation if there's text selected
+        // const selection = window.getSelection()
+        // if (selection && selection.toString().length > 0) {
+        //   return
+        // }
+
         if (route.key != 'document') {
           e.preventDefault()
           e.stopPropagation()
