@@ -15,7 +15,9 @@ export function Tooltip({
 }) {
   return (
     <TooltipPrimitive.Root data-slot="tooltip" {...props} delayDuration={delay}>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipTrigger asChild>
+        <span>{children}</span>
+      </TooltipTrigger>
       <TooltipContent side={side}>{content}</TooltipContent>
     </TooltipPrimitive.Root>
   )
