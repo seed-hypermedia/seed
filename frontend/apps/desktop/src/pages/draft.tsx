@@ -554,7 +554,7 @@ function DraftAppHeader({
   const effectiveDocNav =
     currentDocNav !== undefined ? currentDocNav : directoryNav || []
 
-  // Convert HMNavigationItem[] to DocNavigationDocument[] format for SiteHeader
+  // Convert HMNavigationItem[] to DocNavigationItem[] format for SiteHeader
   const convertedNavItems = useMemo(() => {
     return effectiveDocNav.map((navItem: HMNavigationItem) => ({
       id: undefined,
