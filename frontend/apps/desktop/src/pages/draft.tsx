@@ -3,7 +3,6 @@ import {CoverImage} from '@/components/cover-image'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {HyperMediaEditorView} from '@/components/editor'
-import {IconForm} from '@/components/icon-form'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
@@ -20,6 +19,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
+import '@shm/editor/editor.css'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -38,7 +38,6 @@ import {hmId} from '@shm/shared/utils'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Smile} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {Separator} from '@shm/ui/separator'
@@ -46,7 +45,6 @@ import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {Image} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -669,63 +667,6 @@ function DraftMetadataEditor({
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
-          <XStack gap="$2" ai="flex-end">
-            {showIcon ? (
-              <IconForm
-                borderRadius={
-                  route.editPath && route.editPath.length != 0
-                    ? 100 / 8
-                    : undefined
-                }
-                marginTop={showCover ? -80 : 0}
-                size={100}
-                id={editUid ?? 'document-avatar'}
-                label={name}
-                url={icon ? getDaemonFileUrl(icon) : ''}
-                onIconUpload={(icon) => {
-                  if (icon) {
-                    draftActor.send({
-                      type: 'change',
-                      metadata: {
-                        icon: `ipfs://${icon}`,
-                      },
-                    })
-                  }
-                }}
-                onRemoveIcon={() => {
-                  setShowIcon(false)
-                  draftActor.send({
-                    type: 'change',
-                    metadata: {
-                      icon: undefined,
-                    },
-                  })
-                }}
-              />
-            ) : null}
-            {!showIcon ? (
-              <Button
-                icon={Smile}
-                size="$1"
-                chromeless
-                hoverStyle={{bg: '$color5'}}
-                onPress={() => setShowIcon(true)}
-              >
-                Add Icon
-              </Button>
-            ) : null}
-            {!showCover ? (
-              <Button
-                hoverStyle={{bg: '$color5'}}
-                icon={Image}
-                size="$1"
-                chromeless
-                onPress={() => setShowCover?.(true)}
-              >
-                Add Cover
-              </Button>
-            ) : null}
-          </XStack>
           <Input
             disabled={disabled}
             // we use multiline so that we can avoid horizontal scrolling for long titles
