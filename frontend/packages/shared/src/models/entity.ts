@@ -50,7 +50,6 @@ export async function loadEntity(
     documentParseAdjustments(serverDocument)
     // console.log('serverDocument', serverDocument.toJson())
     const result = HMDocumentSchema.safeParse(serverDocument)
-
     if (result.success) {
       const document = result.data
       return {

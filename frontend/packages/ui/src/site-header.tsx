@@ -19,7 +19,7 @@ import {ArrowRight, Close, Menu, X} from './icons'
 import {LinkDropdown, LinkItemType} from './link-dropdown'
 
 import {
-  DocNavigationDocument,
+  DocNavigationItem,
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
@@ -35,31 +35,25 @@ export function SiteHeader({
   docId,
   items,
   isCenterLayout = false,
-  children,
   document,
   supportDocuments,
   onBlockFocus,
   onShowMobileMenu,
   supportQueries,
   origin,
-  onScroll,
-  noScroll = false,
   isLatest = true,
   editNavPane,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
-  items?: DocNavigationDocument[]
+  items?: DocNavigationItem[]
   isCenterLayout?: boolean
-  children?: React.ReactNode
   document?: HMDocument
   supportDocuments?: HMEntityContent[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
   supportQueries?: HMQueryResult[]
   origin?: string
-  onScroll?: () => void
-  noScroll?: boolean
   isLatest?: boolean
   editNavPane?: React.ReactNode
 }) {
@@ -287,15 +281,14 @@ function HeaderLinkItem({
   metadata,
   active,
   draftId,
-  isPublished,
+  webUrl,
 }: {
   id?: UnpackedHypermediaId
   draftId?: string | null
   metadata: HMMetadata
   active: boolean
-  isPublished?: boolean
+  webUrl?: string | undefined
 }) {
-  // TODO: change this to use the draft id
   const linkProps = useRouteLink(
     draftId
       ? {
@@ -308,7 +301,7 @@ function HeaderLinkItem({
           key: 'document',
           id,
         }
-      : null,
+      : webUrl || null,
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
@@ -419,17 +412,15 @@ export function SiteHeaderMenu({
   isCenterLayout = false,
   editNavPane,
 }: {
-  items?: DocNavigationDocument[]
+  items?: DocNavigationItem[]
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
-  const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
-  const [overflowItems, setOverflowItems] = useState<DocNavigationDocument[]>(
-    [],
-  )
+  const [visibleItems, setVisibleItems] = useState<DocNavigationItem[]>([])
+  const [overflowItems, setOverflowItems] = useState<DocNavigationItem[]>([])
   const [isMeasured, setIsMeasured] = useState(false)
 
   // Measure the actual width of each element and calculate visibility
@@ -446,11 +437,11 @@ export function SiteHeaderMenu({
     const availableWidth = containerWidth - reservedWidth
 
     let currentWidth = 0
-    const visible: DocNavigationDocument[] = []
-    const overflow: DocNavigationDocument[] = []
+    const visible: DocNavigationItem[] = []
+    const overflow: DocNavigationItem[] = []
 
     // Create array of items with their measured widths
-    const itemWidths: Array<{item: DocNavigationDocument; width: number}> = []
+    const itemWidths: Array<{item: DocNavigationItem; width: number}> = []
 
     for (const item of items) {
       const key = item.id?.id || item.draftId || '?'
@@ -586,7 +577,6 @@ export function SiteHeaderMenu({
                 id={item.id}
                 metadata={item.metadata}
                 draftId={item.draftId}
-                isPublished={item.isPublished}
                 active={
                   !!docId?.path &&
                   !!item.id?.path &&
@@ -608,6 +598,7 @@ export function SiteHeaderMenu({
             metadata={item.metadata}
             draftId={item.draftId}
             isPublished={item.isPublished}
+            webUrl={item.webUrl}
             active={
               !!docId?.path &&
               !!item.id?.path &&
