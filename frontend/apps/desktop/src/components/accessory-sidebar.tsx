@@ -24,7 +24,6 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {XStack} from 'tamagui'
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
@@ -108,7 +107,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   }
 
   return (
-    <XStack f={1} height="100%">
+    <div className="flex flex-1 h-full">
       <PanelGroup
         direction="horizontal"
         ref={panelsRef}
@@ -154,7 +153,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           </div>
         </Panel>
       </PanelGroup>
-    </XStack>
+    </div>
   )
 }
 

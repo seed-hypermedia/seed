@@ -510,7 +510,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        bg={isDark ? '$background' : '$backgroundStrong'}
+        bg="$backgroundStrong"
         data-docid={docId.id}
         borderRadius="$2"
       >

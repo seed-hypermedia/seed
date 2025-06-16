@@ -1,24 +1,18 @@
 import {useWindowUtils} from '@/app-context'
-import {Button} from '@shm/ui/button'
-import {Close} from '@shm/ui/icons'
-import {XStack, useTheme} from 'tamagui'
+import {Button} from '@shm/ui/components/button'
+import {X} from 'lucide-react'
 
 export function CloseButton() {
   const {close} = useWindowUtils()
   return (
-    <ButtonWrapper
-      aria-label="close"
-      tabIndex={-1}
-      onPress={() => close()}
-      color="$color"
-      icon={Close}
-    />
+    <ButtonWrapper aria-label="close" tabIndex={-1} onClick={close}>
+      <X className="size-3" />
+    </ButtonWrapper>
   )
 }
 
 export function MaximizeOrRestoreButton() {
   const {isMaximized, maximize, unmaximize} = useWindowUtils()
-  const theme = useTheme()
 
   if (isMaximized === undefined) return null
 
@@ -40,64 +34,47 @@ export function MaximizeOrRestoreButton() {
   const title = name[0].toUpperCase() + name.substring(1)
 
   return (
-    <ButtonWrapper
-      aria-label={name}
-      title={title}
-      tabIndex={-1}
-      onPress={cb}
-      color="red"
-      icon={
-        <svg
-          aria-hidden="true"
-          version="1.1"
-          viewBox="0 0 10 10"
-          width={10}
-          height={10}
-        >
-          <path fill={theme.color.variable} d={path} />
-        </svg>
-      }
-    />
+    <ButtonWrapper aria-label={name} title={title} tabIndex={-1} onClick={cb}>
+      <svg
+        aria-hidden="true"
+        version="1.1"
+        viewBox="0 0 10 10"
+        className="size-2"
+      >
+        <path fill="currentColor" d={path} />
+      </svg>
+    </ButtonWrapper>
   )
 }
 
 export function MinimizeButton() {
   const {minimize} = useWindowUtils()
-  const theme = useTheme()
 
   return (
-    <ButtonWrapper
-      aria-label="minize"
-      tabIndex={-1}
-      onPress={minimize}
-      icon={
-        <svg aria-hidden="true" viewBox="0 0 10 10" width={10} height={10}>
-          <path fill={theme.color.variable} d="M 0,5 10,5 10,6 0,6 Z" />
-        </svg>
-      }
-    />
+    <ButtonWrapper aria-label="minize" tabIndex={-1} onClick={minimize}>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 10 10"
+        width={10}
+        height={10}
+        className="size-3"
+      >
+        <path fill="currentColor" d="M 0,5 10,5 10,6 0,6 Z" />
+      </svg>
+    </ButtonWrapper>
   )
 }
 
 function ButtonWrapper(props: any) {
-  return (
-    <Button
-      size="$1"
-      chromeless
-      color="$color"
-      width={24}
-      height={24}
-      {...props}
-    />
-  )
+  return <Button size="iconSm" variant="ghost" {...props} />
 }
 
 export function WindowsLinuxWindowControls() {
   return (
-    <XStack className="no-window-drag" paddingRight="$3">
+    <div className="flex gap-1 pr-3 no-window-drag">
       <MinimizeButton />
       <MaximizeOrRestoreButton />
       <CloseButton />
-    </XStack>
+    </div>
   )
 }

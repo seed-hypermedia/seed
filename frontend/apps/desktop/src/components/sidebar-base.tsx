@@ -113,7 +113,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
             `w-full flex flex-col transition-all duration-200 ease-in-out h-full px-3`,
             isLocked
               ? 'relative'
-              : 'absolute z-50 shadow-lg border border-gray-300 dark:border-gray-600 rounded-tr-lg rounded-br-lg bg-white dark:bg-black',
+              : 'absolute z-50 shadow-lg border border-border rounded-tr-lg rounded-br-lg bg-background',
             isVisible ? 'opacity-100' : 'opacity-0',
           )}
           style={{

@@ -105,7 +105,7 @@ export const AppContainer = ContainerLarge
 export const Container = ContainerLarge
 
 export const windowContainerStyles = cn(
-  'flex flex-col w-screen h-screen min-h-svh bg-background dark:bg-black p-2',
+  'flex flex-col w-screen h-screen min-h-svh bg-background p-2',
 )
 
 export const panelContainerStyles = cn(

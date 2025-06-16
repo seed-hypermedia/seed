@@ -10,6 +10,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {NavRoute} from '@shm/shared/routes'
+import {Button} from '@shm/ui/components/button'
 import {windowContainerStyles} from '@shm/ui/container'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
@@ -25,7 +26,6 @@ import {
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {Button, XStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -75,10 +75,10 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <XStack className="window-drag" ai="center" jc="center" w="100%">
+        <div className=" flex  items-center justify-center w-full window-drag">
           <TitleText>Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
-        </XStack>
+        </div>
       </TitlebarWrapper>
     )
     return (
@@ -102,10 +102,10 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <XStack className="window-drag" ai="center" jc="center" w="100%">
+        <div className=" flex  items-center justify-center w-full window-drag">
           <TitleText>Review Deleted Content</TitleText>
           {platform !== 'darwin' && <WindowClose />}
-        </XStack>
+        </div>
       </TitlebarWrapper>
     )
   }
@@ -164,7 +164,8 @@ function ConfirmConnectionDialogContent({
         </div>
       ) : null}
       <Button
-        onPress={() => {
+        variant="brand"
+        onClick={() => {
           console.log('Will attempt connection:', input)
           connect.mutate(input)
         }}
