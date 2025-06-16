@@ -506,7 +506,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   if (entity.data?.document === undefined) return null
 
   return (
-    <YStack>
+    <div>
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
@@ -543,7 +543,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <XStack ai="center" gap={0} flexWrap="wrap" maxWidth="100%">
+                    <div className="flex gap-1 items-center flex-wrap max-w-full">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -569,15 +569,16 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                               index === authors.length - 2 ? (
                                 <SizableText
                                   key={`${a}-and`}
-                                  size="$1"
-                                  fontWeight={'bold'}
+                                  size="xs"
+                                  weight="bold"
                                 >
                                   {' & '}
                                 </SizableText>
                               ) : (
                                 <SizableText
                                   key={`${a}-comma`}
-                                  fontWeight={'bold'}
+                                  weight="bold"
+                                  size="xs"
                                 >
                                   {', '}
                                 </SizableText>
@@ -586,7 +587,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                           ]
                         })
                         .filter(Boolean)}
-                    </XStack>
+                    </div>
                     <Separator />
                   </>
                 ) : null}
@@ -609,7 +610,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
           <TSeparator />
         </YStack>
       </Container>
-    </YStack>
+    </div>
   )
 }
 

@@ -62,7 +62,7 @@ export function PageHeader({
           </SizableText>
           <div className="flex gap-4 items-center flex-1 flex-wrap">
             {authors?.length ? (
-              <div className="flex flex-col gap-0 items-center flex-wrap max-w-full">
+              <div className="flex gap-1 items-center flex-wrap max-w-full">
                 {authors.flatMap((a, index) => [
                   <ButtonText
                     hoverStyle={{
@@ -81,11 +81,11 @@ export function PageHeader({
                   </ButtonText>,
                   index !== authors.length - 1 ? (
                     index === authors.length - 2 ? (
-                      <SizableText key={`${a}-and`} size="sm" weight="bold">
+                      <SizableText key={`${a}-and`} size="xs" weight="bold">
                         {' & '}
                       </SizableText>
                     ) : (
-                      <SizableText size="sm" key={`${a}-comma`} weight="bold">
+                      <SizableText size="xs" key={`${a}-comma`} weight="bold">
                         {', '}
                       </SizableText>
                     )
