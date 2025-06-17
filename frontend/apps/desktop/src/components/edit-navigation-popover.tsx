@@ -1,20 +1,9 @@
+import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import {CSS} from '@dnd-kit/utilities'
+  draggable,
+  dropTargetForElements,
+  monitorForElements,
+} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {HMNavigationItem} from '@shm/shared/hm-types'
 import '@shm/shared/styles/document.css'
@@ -30,7 +19,7 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Pencil, Plus} from '@tamagui/lucide-icons'
 import {EllipsisVertical} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Button, Form, Text, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
@@ -65,94 +54,83 @@ function EditNavigation({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const cleanup = monitorForElements({
+      onDragStart: ({source}) => {
+        console.log('Drag started:', {source})
       },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
+      onDrop: ({source, location}) => {
+        console.log('Drop event:', {source, location})
+        if (!location.current.dropTargets.length) {
+          console.log('No drop targets found')
+          return
+        }
 
-  function handleDragStart(event: any) {
-    setActiveId(event.active.id)
-  }
+        const over = location.current.dropTargets[0]
+        console.log('Drop target:', over)
 
-  function handleDragEnd(event: any) {
-    const {active, over} = event
+        const sourceIndex = docNav.findIndex(
+          (item) => item.id === source.data.id,
+        )
+        const overIndex = docNav.findIndex((item) => item.id === over.data.id)
+        console.log('Indices:', {sourceIndex, overIndex})
 
-    if (active.id !== over?.id) {
-      const oldIndex = docNav.findIndex((item) => item.id === active.id)
-      const newIndex = docNav.findIndex((item) => item.id === over.id)
-      const newItems = arrayMove(docNav, oldIndex, newIndex)
-      onDocNav(newItems)
-    }
+        if (sourceIndex === -1 || overIndex === -1) {
+          console.log('Invalid indices')
+          return
+        }
 
-    setActiveId(null)
-  }
+        const newItems = [...docNav]
+        const [removed] = newItems.splice(sourceIndex, 1)
+        newItems.splice(overIndex, 0, removed)
+        onDocNav(newItems)
+      },
+    })
 
-  function handleDragCancel() {
-    setActiveId(null)
-  }
-
-  const activeItem = activeId
-    ? docNav.find((item) => item.id === activeId)
-    : null
+    return cleanup
+  }, [docNav, onDocNav])
 
   return (
-    <YStack gap="$2">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <SortableContext items={docNav} strategy={verticalListSortingStrategy}>
-          {docNav.map((item) => {
-            if (editingId === item.id) {
-              return (
-                <NavItemForm
-                  key={item.id}
-                  item={item}
-                  onSubmit={(updatedItem) => {
-                    const updatedDocNav = docNav.map((navItem) =>
-                      navItem.id === item.id
-                        ? {...navItem, ...updatedItem}
-                        : navItem,
-                    )
-                    onDocNav(updatedDocNav)
-                    setEditingId(null)
-                  }}
-                  onRemove={() => {
-                    const updatedDocNav = docNav.filter(
-                      (navItem) => navItem.id !== item.id,
-                    )
-                    onDocNav(updatedDocNav)
-                    setEditingId(null)
-                  }}
-                  submitLabel="Done"
-                  onCancel={() => setEditingId(null)}
-                />
-              )
-            }
-            return (
-              <SortableNavItem
-                key={item.id}
-                item={item}
-                onEdit={() => setEditingId(item.id)}
-              />
-            )
-          })}
-        </SortableContext>
-        <DragOverlay>
-          {activeItem ? <DragOverlayItem item={activeItem} /> : null}
-        </DragOverlay>
-      </DndContext>
+    <YStack gap="$2" ref={containerRef}>
+      {docNav.map((item) => {
+        if (editingId === item.id) {
+          return (
+            <NavItemForm
+              key={item.id}
+              item={item}
+              onSubmit={(updatedItem) => {
+                const updatedDocNav = docNav.map((navItem) =>
+                  navItem.id === item.id
+                    ? {...navItem, ...updatedItem}
+                    : navItem,
+                )
+                onDocNav(updatedDocNav)
+                setEditingId(null)
+              }}
+              onRemove={() => {
+                const updatedDocNav = docNav.filter(
+                  (navItem) => navItem.id !== item.id,
+                )
+                onDocNav(updatedDocNav)
+                setEditingId(null)
+              }}
+              submitLabel="Done"
+              onCancel={() => setEditingId(null)}
+            />
+          )
+        }
+        return (
+          <DraggableNavItem
+            key={item.id}
+            item={item}
+            onEdit={() => setEditingId(item.id)}
+          />
+        )
+      })}
       {showAdd ? (
         <NavItemForm
           onSubmit={(newItem) => {
@@ -184,43 +162,65 @@ function EditNavigation({
   )
 }
 
-function SortableNavItem({
+function DraggableNavItem({
   item,
   onEdit,
 }: {
   item: HMNavigationItem
   onEdit: () => void
 }) {
-  const {attributes, listeners, setNodeRef, transform, transition, isDragging} =
-    useSortable({id: item.id})
+  const elementRef = useRef<HTMLDivElement>(null)
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  useEffect(() => {
+    if (!elementRef.current) {
+      console.log('Element ref not ready')
+      return
+    }
+
+    console.log('Setting up drag and drop for item:', item.id)
+
+    const cleanup = combine(
+      draggable({
+        element: elementRef.current,
+        getInitialData: () => {
+          console.log('Getting initial data for:', item.id)
+          return {id: item.id}
+        },
+      }),
+      dropTargetForElements({
+        element: elementRef.current,
+        getData: () => {
+          console.log('Getting drop target data for:', item.id)
+          return {id: item.id}
+        },
+      }),
+    )
+
+    return () => {
+      console.log('Cleaning up drag and drop for item:', item.id)
+      cleanup()
+    }
+  }, [item.id])
 
   return (
     <XStack
-      ref={setNodeRef}
-      style={{
-        ...style,
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-      }}
+      ref={elementRef}
       jc="space-between"
       ai="center"
       p="$2"
       borderRadius="$2"
       hoverStyle={{bg: '$color5'}}
+      style={{
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        cursor: 'grab',
+      }}
     >
       <XStack ai="center" gap="$2" flex={1}>
         <div
-          {...attributes}
-          {...listeners}
           className="p-1 cursor-grab active:cursor-grabbing rounded-1 hover:bg-color6"
           onMouseDown={(e) => {
-            // Prevent text selection
+            console.log('Mouse down on handle')
             e.preventDefault()
           }}
         >
@@ -239,29 +239,6 @@ function SortableNavItem({
           onEdit()
         }}
       />
-    </XStack>
-  )
-}
-
-function DragOverlayItem({item}: {item: HMNavigationItem}) {
-  return (
-    <XStack
-      jc="space-between"
-      ai="center"
-      p="$2"
-      borderRadius="$2"
-      bg="$color5"
-      borderWidth={1}
-      borderColor="$color8"
-      opacity={0.9}
-    >
-      <XStack ai="center" gap="$2" flex={1}>
-        <EllipsisVertical size={16} />
-        <Text flex={1} userSelect="none">
-          {item.text}
-        </Text>
-      </XStack>
-      <Button size="$1" chromeless icon={Pencil} disabled />
     </XStack>
   )
 }
