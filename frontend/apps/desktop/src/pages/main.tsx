@@ -75,7 +75,7 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <div className=" flex  items-center justify-center w-full window-drag">
+        <div className="flex items-center justify-center w-full window-drag">
           <TitleText>Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
@@ -102,7 +102,7 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <div className=" flex  items-center justify-center w-full window-drag">
+        <div className="flex items-center justify-center w-full window-drag">
           <TitleText>Review Deleted Content</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
@@ -159,7 +159,7 @@ function ConfirmConnectionDialogContent({
     <>
       <DialogTitle>Confirm Connection</DialogTitle>
       {connect.isLoading ? (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       ) : null}
@@ -211,7 +211,7 @@ function PanelContent({children}: {children: ReactNode}) {
     <PanelGroup
       ref={ref}
       direction="horizontal"
-      className="flex flex-1 overflow-hidden"
+      className={cn('flex flex-1 overflow-hidden', isLocked ? '' : 'pl-1')}
       autoSaveId="main"
       storage={ctx.widthStorage}
     >

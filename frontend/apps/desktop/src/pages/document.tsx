@@ -312,7 +312,7 @@ function _MainDocumentPage({
               $gtSm={{marginRight: 40, marginLeft: 0}}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="flex-1 pl-4 sm:pl-0 mt-4 mb-16">
+              <div className="flex-1 pl-4 mt-4 mb-16 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
@@ -343,7 +343,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="absolute top-2 right-2 px-3 py-2 gap-1 flex z-50 bg-white dark:bg-background shadow-md rounded-md">
+    <div className="absolute z-50 flex gap-1 px-3 py-2 bg-white rounded-md shadow-md top-2 right-2 dark:bg-background">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -543,7 +543,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <div className="flex gap-1 items-center flex-wrap max-w-full">
+                    <div className="flex flex-wrap items-center max-w-full gap-1">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -652,14 +652,14 @@ function DocMessageBox({
   spinner?: boolean
 }) {
   return (
-    <div className="h-screen w-screen flex flex-col">
-      <div className="flex-1 justify-center flex items-start py-12 px-4">
-        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
+    <div className="flex flex-col w-screen h-screen">
+      <div className="flex items-start justify-center flex-1 px-4 py-12">
+        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 bg-white border rounded-lg shadow-lg border-border flex-0 dark:bg-background">
           <SizableText size="2xl" weight="bold">
             {title}
           </SizableText>
           {spinner ? (
-            <div className="flex justify-center items-center">
+            <div className="flex items-center justify-center">
               <Spinner />
             </div>
           ) : null}

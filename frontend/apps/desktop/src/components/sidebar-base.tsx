@@ -93,7 +93,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
       <Panel
         defaultSize={sidebarWidth}
         minSize={10}
-        maxSize={20}
+        maxSize={30}
         ref={ref}
         collapsible
         id="sidebar"
@@ -110,7 +110,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
       >
         <div
           className={cn(
-            `w-full flex flex-col transition-all duration-200 ease-in-out h-full px-3`,
+            `w-full flex flex-col transition-all duration-200 ease-in-out h-full pl-3 pr-1`,
             isLocked
               ? 'relative'
               : 'absolute z-50 shadow-lg border border-border rounded-tr-lg rounded-br-lg bg-background dark:bg-black',
@@ -128,8 +128,20 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           onMouseEnter={ctx.onMenuHover}
           onMouseLeave={ctx.onMenuHoverLeave}
         >
-          <div className="flex-1 pt-2 pb-8 overflow-y-auto ">{children}</div>
-          <div className="flex justify-between shrink-0">
+          <div
+            className={cn(
+              'flex-1 pb-8 overflow-y-auto',
+              isLocked ? '' : 'py-2 pr-1',
+            )}
+          >
+            {children}
+          </div>
+          <div
+            className={cn(
+              'flex justify-between shrink-0',
+              isLocked ? '' : 'pb-2 pr-1',
+            )}
+          >
             <IdentitySelector />
           </div>
         </div>

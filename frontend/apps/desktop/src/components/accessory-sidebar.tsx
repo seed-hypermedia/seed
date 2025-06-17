@@ -115,7 +115,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         autoSaveId="accessory"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50} className="overflow-hidden px-2">
+        <Panel id="main" minSize={50} className="pl-1 pr-2 overflow-hidden">
           {children}
         </Panel>
         {accessoryKey !== undefined ? (
@@ -144,7 +144,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               accessoryKey={accessoryKey}
               onAccessorySelect={onAccessorySelect}
             />
-            <div className="py-3 px-5 border-b border-border">
+            <div className="px-5 py-3 border-b border-border">
               <Text weight="semibold" size="lg">
                 {accessoryTitle}
               </Text>
@@ -195,7 +195,7 @@ function AccessoryTabs({
   onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
 }) {
   return (
-    <div className="gap-1 p-2 px-3 flex items-center justify-center">
+    <div className="flex items-center justify-center gap-1 p-2 px-3">
       {options.map((option) => {
         const isActive = accessoryKey === option.key
         const Icon = accessoryKey ? iconNames[option.key] : undefined
