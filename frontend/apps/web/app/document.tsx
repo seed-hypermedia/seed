@@ -698,6 +698,7 @@ export function DocumentPage(
                 modal
                 open={isSheetOpen}
                 dismissOnSnapToBottom
+                zIndex={99999}
               >
                 <Sheet.Overlay
                   height="100vh"

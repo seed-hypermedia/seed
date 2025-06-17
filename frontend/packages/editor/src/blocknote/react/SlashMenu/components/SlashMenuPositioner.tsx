@@ -63,8 +63,9 @@ export const SlashMenuPositioner = <
         width: boundingRect.width,
         height: boundingRect.height,
       }
-      if (boundingRect.bottom > window.innerHeight) {
-        newRect.top = window.innerHeight / 2.15
+      if (boundingRect.bottom > window.innerHeight * 0.75) {
+        newRect.top = boundingRect.top - 200
+        newRect.bottom = boundingRect.top + 50
       }
 
       return () => newRect as DOMRect
@@ -96,12 +97,17 @@ export const SlashMenuPositioner = <
   return (
     <Tippy
       appendTo={scroller.current ?? document.body}
-      content={slashMenuElement}
+      content={
+        <div className="max-h-[50vh] overflow-y-auto w-[90vw] sm:max-h-none sm:overflow-visible sm:w-auto">
+          {slashMenuElement}
+        </div>
+      }
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'auto'}
+      placement="auto"
+      zIndex={100000}
     />
   )
 }
