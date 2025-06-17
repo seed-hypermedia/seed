@@ -210,10 +210,7 @@ export function SearchInput({
         return (
           <>
             {isDisplayingRecents ? (
-              <RecentSearchResultItem
-                item={{...item, id: item.id}}
-                {...sharedProps}
-              />
+              <RecentSearchResultItem item={item} {...sharedProps} />
             ) : (
               <SearchResultItem item={item} {...sharedProps} />
             )}

@@ -338,7 +338,8 @@ export function SearchResultItem({
   return (
     <Button
       variant="ghost"
-      {...linkProps}
+      // {...linkProps}
+      onClick={item.onSelect}
       className={cn(
         '@container flex items-center justify-start h-auto py-2 hover:bg-brand-12 w-full rounded-none active:bg-brand-11',
         selected && 'bg-brand-12',
@@ -355,21 +356,21 @@ export function SearchResultItem({
         <UIAvatar label={item.title} size={20} id={item.key} />
       ) : null}
       <div className="flex flex-col @md:flex-row flex-1 gap-1 w-full">
-        <p className="line-clamp-1 flex-1 w-full justify-start text-left">
+        <SizableText className="text-left font-sans line-clamp-1 truncate w-full">
           {highlightSearchMatch(item.title, item.searchQuery, {
             weight: 'bold',
             size: 'sm',
           })}
-        </p>
+        </SizableText>
 
         {!!item.path && (unpackHmId(item.key)?.latest || item.versionTime) && (
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center overflow-hidden">
             {!!item.path
               ? [
                   <SizableText
                     size="xs"
                     weight="light"
-                    className="line-clamp-1 text-gray-400 flex-none"
+                    className="line-clamp-1 text-gray-400 flex-none font-sans"
                   >
                     {collapsedPath.join(' / ')}
                   </SizableText>,
@@ -522,10 +523,7 @@ export function SearchInput({
           }}
         />
       </div>
-
-      <div className="h-[200px] overflow-hidden overflow-y-scroll">
-        {children}
-      </div>
+      <ScrollArea className="h-[200px]">{children}</ScrollArea>
     </div>
   )
 }
