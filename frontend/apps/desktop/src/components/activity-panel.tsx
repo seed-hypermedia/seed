@@ -1,6 +1,6 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocumentAccessory} from '@shm/shared/routes'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {AccessoryContent} from './accessory-sidebar'
 import {ActivityList} from './document-activity'
 
 export function ActivityPanel({
@@ -11,7 +11,7 @@ export function ActivityPanel({
   onAccessory: (accessory: DocumentAccessory) => void
 }) {
   return (
-    <ScrollArea>
+    <AccessoryContent>
       <ActivityList
         docId={docId}
         onCommentFocus={(commentId, isReplying) => {
@@ -23,6 +23,6 @@ export function ActivityPanel({
           })
         }}
       />
-    </ScrollArea>
+    </AccessoryContent>
   )
 }

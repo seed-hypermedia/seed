@@ -1,11 +1,8 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/components/button'
 import {SizableText} from '@shm/ui/text'
-import {Tooltip} from '@shm/ui/tooltip'
-import {X} from '@tamagui/lucide-icons'
+import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
-import {GestureResponderEvent} from 'react-native'
-import {Stack, View, XStack} from 'tamagui'
 import appError from '../errors'
 
 export function ImageForm({
@@ -52,13 +49,8 @@ export function ImageForm({
     }
   }
 
-  const image = (
-    <View
-      backgroundColor="$color7"
-      borderRadius="$4"
-      flex={1}
-      overflow="hidden"
-    >
+  const image = url ? (
+    <div className="bg-muted rounded-md flex-1 overflow-hidden">
       <img
         src={url}
         key={url}
@@ -71,19 +63,17 @@ export function ImageForm({
           objectFit: 'cover',
         }}
       />
-    </View>
-  )
+    </div>
+  ) : null
   if (!onImageUpload) return image
   return (
-    <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="stretch">
-      <Stack
-        position="relative"
+    <div className="group relative flex items-end group-icon w-auto self-stretch rounded-md overflow-hidden">
+      <div
+        className="relative overflow-hidden self-stretch w-full"
+        style={{
+          minHeight: height || 60,
+        }}
         {...props}
-        group="icon"
-        overflow="hidden"
-        minHeight={height || 60}
-        alignSelf="stretch"
-        flex={1}
       >
         <input
           type="file"
@@ -93,72 +83,48 @@ export function ImageForm({
             display: 'flex',
             position: 'absolute',
             left: 0,
+            backgroundColor: 'blue',
             right: 0,
             top: 0,
             bottom: 0,
-            zIndex: 100,
+            zIndex: 20,
           }}
         />
         {emptyLabel && !url ? (
-          <XStack
-            bg="rgba(233,233,233,0.3)"
-            position="absolute"
-            gap="$2"
-            zi="$zIndex.5"
-            w="100%"
-            $group-icon-hover={{opacity: 0}}
-            h="100%"
-            opacity={1}
-            ai="center"
-            jc="center"
-            pointerEvents="none"
-          >
+          <div className="bg-muted absolute gap-2 z-50 h-full items-center justify-center pointer-events-none opacity-100">
             <SizableText size="xs" className="text-center">
               {emptyLabel}
             </SizableText>
-          </XStack>
+          </div>
         ) : null}
-        <XStack
-          bg="rgba(198, 198, 198, 0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 1}}
-          h="100%"
-          opacity={0}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
-          borderRadius="$4"
-        >
-          <SizableText size="xs" className="text-center">
-            {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
-          </SizableText>
-        </XStack>
-        {image}
-      </Stack>
+
+        {image || (
+          <div className="bg-muted border border-border absolute gap-0 z-50 h-full flex flex-col items-center justify-center pointer-events-none opacity-100 rounded-md w-full">
+            <SizableText size="xs" weight="bold" className="text-center">
+              {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
+            </SizableText>
+            <SizableText
+              size="xs"
+              className="text-center text-muted-foreground"
+            >
+              1920px x 1080px
+            </SizableText>
+          </div>
+        )}
+      </div>
       {onRemove && url ? (
-        <Tooltip content="Remove Image">
-          <Button
-            position="absolute"
-            right={0}
-            top={0}
-            opacity={0}
-            theme="red"
-            $group-icon-hover={{opacity: 1, pointerEvents: 'all'}}
-            icon={X}
-            size="$1"
-            fontWeight="600"
-            zi="$zIndex.5"
-            onPress={(e: GestureResponderEvent) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onRemove()
-            }}
-          />
-        </Tooltip>
+        <Button
+          size="icon"
+          className="absolute z-50 right-0 top-0 opacity-0 group-hover:opacity-100 grouo-hover:pointer-events-all"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onRemove()
+          }}
+        >
+          <X className="size-3" />
+        </Button>
       ) : null}
-    </XStack>
+    </div>
   )
 }

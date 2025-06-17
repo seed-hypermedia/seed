@@ -168,7 +168,7 @@ export function AccessoryContent({
   title?: string
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-hidden" {...props}>
+    <div className="flex flex-col flex-1 p-3 overflow-hidden" {...props}>
       <ScrollArea>{children}</ScrollArea>
       {footer ? <div className="border-t border-border">{footer}</div> : null}
     </div>

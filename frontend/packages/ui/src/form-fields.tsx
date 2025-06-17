@@ -1,8 +1,7 @@
+import {Label} from '@shm/ui/components/label'
 import {IconProps} from '@tamagui/helpers-icon'
-import {Label} from '@tamagui/label'
-import {YStack} from '@tamagui/stacks'
 import {NamedExoticComponent, PropsWithChildren} from 'react'
-import {Input, InputProps, Switch, SwitchProps, XStack} from 'tamagui'
+import {Input, InputProps, Switch, SwitchProps} from 'tamagui'
 import {
   SelectDropdown,
   SelectDropdownProps,
@@ -15,12 +14,12 @@ export function Field({
   children,
 }: PropsWithChildren<{label: string; id: string}>) {
   return (
-    <YStack gap="$1" f={1}>
-      <Label htmlFor={id} size="$1" color="$color9">
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id} size="sm" className="text-muted-foreground">
         {label}
       </Label>
       {children}
-    </YStack>
+    </div>
   )
 }
 
@@ -35,16 +34,8 @@ export function TextField({
   id: string
 }) {
   let content = (
-    <XStack
-      ai="center"
-      gap="$2"
-      borderWidth={1}
-      borderColor="$color8"
-      borderRadius="$2"
-      paddingHorizontal="$2"
-      animation="fast"
-    >
-      {Icon && <Icon size={14} />}
+    <div className="flex items-center gap-2 border border-border rounded-sm px-2">
+      {Icon && <Icon className="size-3" size={14} />}
       <Input
         borderWidth={0}
         // @ts-ignore
@@ -55,17 +46,17 @@ export function TextField({
         size="$2"
         {...props}
       />
-    </XStack>
+    </div>
   )
 
   if (label) {
     return (
-      <YStack gap="$1">
-        <Label htmlFor={id} size="$1" color="$color9">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={id} size="sm" className="text-muted-foreground">
           {label}
         </Label>
         {content}
-      </YStack>
+      </div>
     )
   } else {
     return content
@@ -86,14 +77,7 @@ export function SelectField({
   id: string
 }) {
   let content = (
-    <XStack
-      ai="center"
-      gap="$2"
-      borderWidth={1}
-      borderColor="$color5"
-      borderRadius="$2"
-      animation="fast"
-    >
+    <div className="flex items-center gap-2 border border-border rounded-sm px-2">
       <SelectDropdown
         width="100%"
         options={options}
@@ -101,17 +85,17 @@ export function SelectField({
         onValue={onValue}
         {...props}
       />
-    </XStack>
+    </div>
   )
 
   if (label) {
     return (
-      <XStack justifyContent="space-between" ai="center" gap="$2" w="100%">
-        <Label htmlFor={id} size="$1" color="$color9">
+      <div className="flex justify-between items-center gap-2 w-full">
+        <Label htmlFor={id} size="sm" className="text-muted-foreground">
           {label}
         </Label>
-        <YStack width="50%">{content}</YStack>
-      </XStack>
+        <div className="w-1/2">{content}</div>
+      </div>
     )
   } else {
     return content
@@ -124,8 +108,8 @@ export function SwitchField({
   ...props
 }: SwitchProps & {label: string; id: string}) {
   return (
-    <XStack w="100%" ai="center" jc="space-between">
-      <Label f={1} htmlFor={id} size="$1" color="$color9">
+    <div className="flex w-full items-center justify-between">
+      <Label htmlFor={id} size="sm" className="text-muted-foreground flex-1">
         {label}
       </Label>
 
@@ -137,6 +121,6 @@ export function SwitchField({
           borderWidth={2}
         />
       </Switch>
-    </XStack>
+    </div>
   )
 }

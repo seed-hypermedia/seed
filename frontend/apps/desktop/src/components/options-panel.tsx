@@ -4,13 +4,14 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {Label} from '@shm/ui/components/label'
 import {SimpleDatePicker} from '@shm/ui/datepicker'
 import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {ButtonText, Input, Label, YStack} from 'tamagui'
+import {ButtonText, Input} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
@@ -29,7 +30,7 @@ export function OptionsPanel({
 }) {
   return (
     <AccessoryContent>
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         {isHomeDoc ? (
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
@@ -80,7 +81,7 @@ export function OptionsPanel({
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
           </>
         )}
-      </YStack>
+      </div>
     </AccessoryContent>
   )
 }
@@ -93,8 +94,8 @@ function NameInput({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Name
       </Label>
       <Input
@@ -102,7 +103,7 @@ function NameInput({
         value={metadata.name}
         onChangeText={(name) => onMetadata({name})}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -116,8 +117,8 @@ function DocumentIconForm({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Icon
       </Label>
       <IconForm
@@ -138,7 +139,7 @@ function DocumentIconForm({
           })
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -152,12 +153,12 @@ function CoverImage({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Cover Image
       </Label>
       <ImageForm
-        maxHeight={100}
+        height={100}
         id={`cover-${draftId}`}
         label={metadata.cover}
         url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
@@ -174,7 +175,7 @@ function CoverImage({
           })
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -186,8 +187,8 @@ function ContentWidth({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Content Width
       </Label>
       <SelectDropdown
@@ -204,7 +205,7 @@ function ContentWidth({
           onMetadata({contentWidth})
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -216,8 +217,8 @@ function HeaderLayout({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Header Layout
       </Label>
       <SelectDropdown
@@ -231,7 +232,7 @@ function HeaderLayout({
         value={metadata.theme?.headerLayout || ''}
         onValue={(headerLayout) => onMetadata({theme: {headerLayout}})}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -245,12 +246,12 @@ function HeaderLogo({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Header Logo
       </Label>
       <ImageForm
-        size={100}
+        height={100}
         id={`logo-${draftId.id}`}
         label={metadata.seedExperimentalLogo}
         url={
@@ -271,7 +272,7 @@ function HeaderLogo({
           })
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -291,8 +292,8 @@ function OriginalPublishDate({
     )
   }
   return (
-    <YStack>
-      <Label color="$color9" size="$1">
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
         Publication Display Date
       </Label>
       <SimpleDatePicker
@@ -309,7 +310,7 @@ function OriginalPublishDate({
           onMetadata({displayPublishTime: ''})
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -323,7 +324,7 @@ function OutlineVisibility({
   const checked =
     typeof metadata.showOutline == 'undefined' || metadata.showOutline
   return (
-    <YStack>
+    <div className="flex flex-col gap-1">
       <SwitchField
         label="Show Outline"
         id="outline"
@@ -333,7 +334,7 @@ function OutlineVisibility({
           onMetadata({showOutline: value})
         }}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -345,7 +346,7 @@ function ActivityVisibility({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   return (
-    <YStack>
+    <div className="flex flex-col gap-1">
       <SwitchField
         label="Enable Web Activity Panel"
         id="activity"
@@ -355,7 +356,7 @@ function ActivityVisibility({
           onMetadata({showActivity: value})
         }}
       />
-    </YStack>
+    </div>
   )
 }
 

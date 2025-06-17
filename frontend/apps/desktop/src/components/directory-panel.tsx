@@ -3,11 +3,11 @@ import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton} from '@/pages/document'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {SubDocumentItem} from '@shm/ui/activity'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Folder} from 'lucide-react'
 import {useTheme, XStack, YStack} from 'tamagui'
+import {AccessoryContent} from './accessory-sidebar'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
@@ -38,7 +38,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   }
 
   return (
-    <ScrollArea>
+    <AccessoryContent>
       <div className="flex flex-col h-full gap-2 ">
         {directory.map((activityItem) => {
           if (activityItem.type === 'document') {
@@ -57,6 +57,6 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
           <NewSubDocumentButton locationId={docId} importDropdown={false} />
         </div>
       </div>
-    </ScrollArea>
+    </AccessoryContent>
   )
 }
