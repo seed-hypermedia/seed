@@ -25,19 +25,18 @@ export function DocumentCitationEntry({
   const tx = useTx()
   const {formattedDateShort} = useTxUtils()
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className="flex items-center gap-1 flex-wrap py-1 ">
       <HMAuthor author={citation.author} />
-      <SizableText className="text-muted-foreground mr-2">
+      <SizableText size="sm" className="text-muted-foreground px-2 py-1">
         {formattedDateShort(citation.source.time)}
       </SizableText>
-      <div className="flex items-center gap-2">
-        <SizableText>{tx('cited on')}</SizableText>
-        <DocumentCitationToken
-          docId={citation.source.id}
-          metadata={citation.document.metadata}
-          DocPreview={DocPreview}
-        />
-      </div>
+
+      <SizableText size="sm">{`${tx('cited on')} `}</SizableText>
+      <DocumentCitationToken
+        docId={citation.source.id}
+        metadata={citation.document.metadata}
+        DocPreview={DocPreview}
+      />
     </div>
   )
 }
@@ -55,24 +54,22 @@ function DocumentCitationToken({
   }>
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
+  const className =
+    'text-sm bg-accent px-2 py-1 rounded whitespace-wrap break-all hover:bg-gray-200 active:bg-gray-300 dark:bg-gray-800 hover:dark:bg-gray-700'
   if (DocPreview) {
     return (
       <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="text-sm bg-accent"
-          {...linkProps}
-        >
-          {metadata?.name}
-        </Button>
+        <a {...linkProps} className={className}>
+          {metadata?.name} {metadata?.name} {metadata?.name} {metadata?.name}{' '}
+          {metadata?.name} {metadata?.name}
+        </a>
       </HoverCard>
     )
   }
   return (
-    <Button variant="brand" size="sm" className="text-sm" {...linkProps}>
+    <a {...linkProps} className={className}>
       {metadata?.name}
-    </Button>
+    </a>
   )
 }
 

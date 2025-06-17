@@ -25,7 +25,7 @@ export function HoverCard({
         className="no-window-drag"
         height="100%"
         alignSelf="stretch"
-        flex={1}
+        asChild
       >
         {children}
       </Popover.Trigger>
