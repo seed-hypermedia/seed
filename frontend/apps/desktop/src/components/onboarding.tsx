@@ -606,17 +606,18 @@ function ProfileStep({
             <YStack
               gap="$2"
               flex={0}
-              minWidth={72}
-              minHeight={72}
+              minWidth={100}
+              minHeight={100}
               w="100%"
-              maxWidth={72}
+              maxWidth={100}
             >
               <Text fontSize="$2" color="$gray11">
                 Site Icon
               </Text>
               <ImageForm
-                height={72}
+                height={100}
                 emptyLabel="SITE ICON"
+                suggestedSize="512px x 512px"
                 url={formData.icon?.base64}
                 uploadOnChange={false}
                 onImageUpload={(file) => {
@@ -633,7 +634,8 @@ function ProfileStep({
                 Site Logo
               </Text>
               <ImageForm
-                height={72}
+                height={100}
+                suggestedSize="1920px x 1080px"
                 emptyLabel="SITE LOGO"
                 url={formData.seedExperimentalLogo?.base64}
                 uploadOnChange={false}

@@ -12,14 +12,17 @@ export function ImageForm({
   onImageUpload,
   onRemove,
   emptyLabel,
+  suggestedSize = '1920px x 1080px',
   uploadOnChange = true,
   height,
   ...props
 }: {
   label?: string
   emptyLabel?: string
+  suggestedSize?: string
   id?: string
   url?: string
+
   uploadOnChange?: boolean
   height?: number
   onImageUpload?: (avatar: string | File) => Awaited<void>
@@ -92,7 +95,10 @@ export function ImageForm({
         />
         {emptyLabel && !url ? (
           <div className="bg-muted absolute gap-2 z-50 h-full items-center justify-center pointer-events-none opacity-100">
-            <SizableText size="xs" className="text-center">
+            <SizableText
+              size="xs"
+              className="text-center text-muted-foreground"
+            >
               {emptyLabel}
             </SizableText>
           </div>
@@ -100,14 +106,18 @@ export function ImageForm({
 
         {image || (
           <div className="bg-muted border border-border absolute gap-0 z-50 h-full flex flex-col items-center justify-center pointer-events-none opacity-100 rounded-md w-full">
-            <SizableText size="xs" weight="bold" className="text-center">
+            <SizableText
+              size="xs"
+              weight="bold"
+              className="text-center text-muted-foreground"
+            >
               {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
             </SizableText>
             <SizableText
               size="xs"
               className="text-center text-muted-foreground"
             >
-              1920px x 1080px
+              {suggestedSize}
             </SizableText>
           </div>
         )}
