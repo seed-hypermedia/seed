@@ -31,7 +31,7 @@ export function UIAvatar({
   return (
     <div
       className={cn(
-        'relative flex items-center justify-center overflow-hidden',
+        'z-1 relative flex items-center justify-center overflow-hidden',
         onPress && 'cursor-pointer',
         className,
       )}

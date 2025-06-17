@@ -29,9 +29,7 @@ import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
 
 const Stack = View
-const lineColor = '$color7'
-const lineWidth = 1
-const avatarSize = 16
+const avatarSize = 18
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
 export function CommentGroup({
@@ -49,15 +47,15 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <div className="flex flex-col gap-2">
+    <div className="relative flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (
-        <View
-          width={lineWidth}
-          height={`calc(100% - ${avatarSize / 2}px)`}
-          position="absolute"
-          top={avatarSize / 2}
-          left={avatarSize - 2}
-          bg={lineColor}
+        <div
+          className="absolute w-px bg-border"
+          style={{
+            height: `calc(100% - ${avatarSize / 2}px)`,
+            top: avatarSize / 2,
+            left: avatarSize - 2,
+          }}
         />
       )}
       {commentGroup.comments.map((comment) => {
@@ -131,8 +129,8 @@ export function Comment({
       {isLast ? (
         <View
           width={10}
-          h={`calc(100% - ${avatarSize + 10}px)`}
-          zi="$zIndex.2"
+          h={`calc(100% - ${avatarSize + 12}px)`}
+          zi="$zIndex.1"
           position="absolute"
           left={10}
           bottom={0}
@@ -145,14 +143,14 @@ export function Comment({
           }
         />
       ) : null}
-      <Stack position="relative" minWidth={16}>
+      <Stack position="relative" minWidth={20} className="mt-0.5">
         <Stack
           position="absolute"
           top={0}
           zi="$zIndex.2"
           left={0}
-          w={16}
-          h={16}
+          w={20}
+          h={20}
           bg="transparent"
           outlineColor={
             highlight
@@ -170,9 +168,9 @@ export function Comment({
           {...authorLink}
         />
         {authorHmId && (
-          <View w={16} h={16}>
-            <HMIcon id={authorHmId} metadata={authorMetadata} size={16} />
-          </View>
+          <div className="size-5">
+            <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
+          </div>
         )}
       </Stack>
       <YStack f={1} gap="$1">
@@ -291,37 +289,6 @@ export function Comment({
           </XStack>
         )}
       </YStack>
-      {/* {onCopyReference && (
-          <Tooltip content="Copy link to comment">
-            <Button
-              position="absolute"
-              right="$1"
-              top="$2"
-              size="$2"
-              chromeless
-              onPress={() => {
-                if (!onCopyReference) {
-                  toast.error('No onCopyReference function provided')
-                  return
-                }
-                onCopyReference(
-                  hmId('c', comment.id, {
-                    targetDocUid: docId.uid,
-                    targetDocPath: docId.path,
-                  }),
-                )
-              }}
-              opacity={0}
-              hoverStyle={{
-                backgroundColor: '$color5',
-              }}
-              $group-item-hover={{
-                opacity: 1,
-              }}
-              icon={Link}
-            ></Button>
-          </Tooltip>
-        )} */}
     </XStack>
   )
 }
