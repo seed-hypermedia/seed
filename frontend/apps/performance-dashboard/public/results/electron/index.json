@@ -1,6 +1,16 @@
 {
   "reports": [
     {
+      "id": "2025-06-17T12-36-39-418Z",
+      "date": "2025-06-17T12:36:39.418Z",
+      "file": "perf-metrics-2025-06-17T12-36-39.418Z.json",
+      "summary": {
+        "totalScenarios": 3,
+        "passedBudgets": 0,
+        "failedBudgets": 0
+      }
+    },
+    {
       "id": "2025-05-25T22-00-15-780Z",
       "date": "2025-05-25T22:00:15.780Z",
       "file": "perf-metrics-2025-05-25T22-00-15.780Z.json",
@@ -21,5 +31,5 @@
       }
     }
   ],
-  "lastUpdated": "2025-05-25T22:00:35.806Z"
+  "lastUpdated": "2025-06-17T13:20:15.422Z"
 }
