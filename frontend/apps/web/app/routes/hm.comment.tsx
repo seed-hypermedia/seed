@@ -61,8 +61,6 @@ type CommentPagePayload = {
     | {
         comment: HMComment
         author: HMMetadataPayload
-        replyCommentId: string
-        rootReplyCommentId: string
       }
     | undefined
 } & ReturnType<typeof getOriginRequestData>
@@ -89,8 +87,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
   const config = await getConfig(parsedRequest.hostname)
   const targetStr = parsedRequest.searchParams.get('target')
-  const replyCommentId = parsedRequest.searchParams.get('reply')
-  const rootReplyCommentId = parsedRequest.searchParams.get('rootReply')
+  const replyCommentId = parsedRequest.searchParams.get('replyId')
   const targetVersion = parsedRequest.searchParams.get('targetVersion')
   const targetIdBare = targetStr ? unpackHmId(`hm://${targetStr}`) : undefined
   const targetId = targetIdBare
@@ -132,8 +129,6 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
       ? {
           comment: replyComment,
           author: await getMetadata(hmId('d', replyComment.author)),
-          replyCommentId: replyComment.id,
-          rootReplyCommentId: rootReplyCommentId ?? '',
         }
       : undefined,
     originHomeId: config?.registeredAccountUid
@@ -160,8 +155,9 @@ export default function CreateComment() {
   const [params] = useSearchParams()
   const originUrl = params.get('originUrl') || undefined
   const originUrlUrl = originUrl ? new URL(originUrl) : undefined
-  const replyCommentId = params.get('reply')
-  const rootReplyCommentId = params.get('rootReply')
+  const replyCommentId = params.get('replyId')
+  const replyCommentVersion = params.get('replyVersion')
+  const rootReplyCommentVersion = params.get('rootReplyVersion')
   const quotingBlockId = params.get('quoteBlock')
 
   const [retry, setRetry] = useState<(() => void) | null>(null)
@@ -290,7 +286,6 @@ export default function CreateComment() {
               <Comment
                 isLast={!publishedComment}
                 comment={replyComment.comment}
-                rootReplyCommentId={rootReplyCommentId}
                 renderCommentContent={renderCommentContent}
                 authorMetadata={replyComment.author.metadata}
               />
@@ -309,7 +304,6 @@ export default function CreateComment() {
                   siteHost={siteHost}
                   comment={publishedComment.raw}
                   targetId={targetId}
-                  rootReplyCommentId={rootReplyCommentId}
                   enableWebSigning={enableWebSigning}
                   originHomeId={originHomeId}
                   isFirst={!replyComment}
@@ -323,7 +317,8 @@ export default function CreateComment() {
               <WebCommenting
                 docId={targetId}
                 replyCommentId={replyCommentId || undefined}
-                rootReplyCommentId={rootReplyCommentId || undefined}
+                replyCommentVersion={replyCommentVersion || undefined}
+                rootReplyCommentVersion={rootReplyCommentVersion || undefined}
                 enableWebSigning={enableWebSigning}
                 quotingBlockId={quotingBlockId || undefined}
                 commentingOriginUrl={originUrl}
@@ -433,7 +428,6 @@ function PublishedComment({
   commentId,
   comment,
   targetId,
-  rootReplyCommentId,
   enableWebSigning,
   originHomeId,
   siteHost,
@@ -443,7 +437,6 @@ function PublishedComment({
   commentId: string
   comment: CommentPayload
   targetId: UnpackedHypermediaId
-  rootReplyCommentId: string | null
   enableWebSigning: boolean
   originHomeId: UnpackedHypermediaId
   siteHost: string
@@ -481,7 +474,6 @@ function PublishedComment({
         () => signedCommentToHMComment(commentId, rawComment.c),
         [commentId, rawComment],
       )}
-      rootReplyCommentId={rootReplyCommentId}
       renderCommentContent={renderCommentContent}
       isLast={isLast}
       authorMetadata={author.data?.document?.metadata ?? undefined}

@@ -5,6 +5,7 @@ import {ActionFunction, json} from '@remix-run/node'
 import {
   entityQueryPathToHmIdPath,
   HMBlockNodeSchema,
+  HMComment,
   hmId,
   HMPublishableBlock,
   HMTimestampSchema,
@@ -45,6 +46,7 @@ export type CommentResponsePayload = {
   dependencies: UnpackedHypermediaId[]
   commentId: string
   targetId: UnpackedHypermediaId
+  comment: HMComment
   message: string
 }
 
@@ -84,10 +86,14 @@ export const action: ActionFunction = async ({request}) => {
     hmId('d', signerUid, {}),
     ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
   ]
+  const commentResult = await queryClient.comments.getComment({
+    id: resultCommentId,
+  })
   return json({
     message: 'Success',
     dependencies,
     commentId: resultCommentId,
+    comment: commentResult.toJson(),
     targetId,
   } satisfies CommentResponsePayload)
 }

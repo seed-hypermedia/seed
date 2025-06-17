@@ -46,8 +46,9 @@ injectModels()
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
-  replyCommentId?: string
-  rootReplyCommentId?: string
+  replyCommentVersion?: string | null
+  replyCommentId?: string | null
+  rootReplyCommentVersion?: string | null
   quotingBlockId?: string
   onDiscardDraft?: () => void
   onSuccess?: (successData: {
@@ -72,12 +73,7 @@ export default function WebCommenting(props: WebCommentingProps) {
   return <LocalWebCommenting {...props} />
 }
 
-export function ExternalWebCommenting(props: {
-  docId: UnpackedHypermediaId
-  replyCommentId?: string
-  rootReplyCommentId?: string
-  quotingBlockId?: string
-}) {
+export function ExternalWebCommenting(props: WebCommentingProps) {
   const tx = useTx()
   return (
     <Button
@@ -88,7 +84,8 @@ export function ExternalWebCommenting(props: {
       onPress={() => {
         redirectToWebIdentityCommenting(props.docId, {
           replyCommentId: props.replyCommentId,
-          rootReplyCommentId: props.rootReplyCommentId,
+          replyCommentVersion: props.replyCommentVersion,
+          rootReplyCommentVersion: props.rootReplyCommentVersion,
           quotingBlockId: props.quotingBlockId,
         })
       }}
@@ -106,8 +103,8 @@ export function ExternalWebCommenting(props: {
 
 export function LocalWebCommenting({
   docId,
-  replyCommentId,
-  rootReplyCommentId,
+  replyCommentVersion,
+  rootReplyCommentVersion,
   quotingBlockId,
   onDiscardDraft,
   onSuccess,
@@ -206,8 +203,8 @@ export function LocalWebCommenting({
         docId,
         docVersion,
         keyPair: userKeyPair,
-        replyCommentId,
-        rootReplyCommentId,
+        replyCommentVersion,
+        rootReplyCommentVersion,
         quotingBlockId,
       },
       commentingOriginUrl,
@@ -327,8 +324,8 @@ async function prepareComment(
     docId: UnpackedHypermediaId
     docVersion: string
     keyPair: LocalWebIdentity
-    replyCommentId: string | null | undefined
-    rootReplyCommentId: string | null | undefined
+    replyCommentVersion: string | null | undefined
+    rootReplyCommentVersion: string | null | undefined
     quotingBlockId?: string
   },
   commentingOriginUrl: string | undefined,

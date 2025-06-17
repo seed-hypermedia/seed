@@ -6,11 +6,13 @@ export function redirectToWebIdentityCommenting(
   targetDocId: UnpackedHypermediaId,
   {
     replyCommentId,
-    rootReplyCommentId,
     quotingBlockId,
+    replyCommentVersion,
+    rootReplyCommentVersion,
   }: {
     replyCommentId?: string | null
-    rootReplyCommentId?: string | null
+    replyCommentVersion?: string | null
+    rootReplyCommentVersion?: string | null
     quotingBlockId?: string | null
   } = {},
 ) {
@@ -20,8 +22,12 @@ export function redirectToWebIdentityCommenting(
     `${targetDocId.uid}${hmIdPathToEntityQueryPath(targetDocId.path)}`,
   )
   url.searchParams.set('targetVersion', targetDocId.version || '')
-  url.searchParams.set('reply', replyCommentId || '')
-  url.searchParams.set('rootReply', rootReplyCommentId || '')
+  url.searchParams.set('replyId', replyCommentId || '')
+  url.searchParams.set('replyVersion', replyCommentVersion || '')
+  url.searchParams.set(
+    'rootReplyVersion',
+    rootReplyCommentVersion || replyCommentVersion || '',
+  )
   url.searchParams.set('quoteBlock', quotingBlockId || '')
   url.searchParams.set('originUrl', window.location.toString())
   window.open(url.toString(), '_blank')

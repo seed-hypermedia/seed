@@ -1,19 +1,12 @@
 import {createContext, useContext, useMemo} from 'react'
+import {HMComment} from './hm-types'
 
 const defaultDiscussionsContext = {
-  onReplyClick: (replyCommentId: string, rootReplyCommentId: string) => {
-    console.log(
-      'onReplyClick not implemented',
-      replyCommentId,
-      rootReplyCommentId,
-    )
+  onReplyClick: (replyComment: HMComment) => {
+    console.log('onReplyClick not implemented', replyComment)
   },
-  onReplyCountClick: (replyCommentId: string, rootReplyCommentId: string) => {
-    console.log(
-      'onReplyCountClick not implemented',
-      replyCommentId,
-      rootReplyCommentId,
-    )
+  onReplyCountClick: (replyComment: HMComment) => {
+    console.log('onReplyCountClick not implemented', replyComment)
   },
 }
 
@@ -27,11 +20,8 @@ export function DiscussionsProvider({
   onReplyCountClick = defaultDiscussionsContext.onReplyCountClick,
 }: {
   children: React.ReactNode
-  onReplyClick?: (replyCommentId: string, rootReplyCommentId: string) => void
-  onReplyCountClick?: (
-    replyCommentId: string,
-    rootReplyCommentId: string,
-  ) => void
+  onReplyClick?: (replyComment: HMComment) => void
+  onReplyCountClick?: (replyComment: HMComment) => void
 }) {
   return (
     <DiscussionsContext.Provider

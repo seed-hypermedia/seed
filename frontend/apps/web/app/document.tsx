@@ -6,6 +6,7 @@ import {
   deduplicateCitations,
   ExpandedBlockRange,
   getDocumentTitle,
+  HMComment,
   HMDocument,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
@@ -184,8 +185,7 @@ type WebAccessory =
   | {
       type: 'discussions'
       blockId?: string
-      commentId?: string
-      rootReplyCommentId?: string
+      comment?: HMComment
     }
   | {
       type: 'versions'
@@ -226,7 +226,7 @@ export function DocumentPage(
   }, [id, document?.metadata?.name])
 
   useEffect(() => {
-    if (comment) setActivePanel({type: 'discussions', commentId: comment.id})
+    if (comment) setActivePanel({type: 'discussions', comment: comment})
   }, [comment])
 
   useEffect(() => {
@@ -271,7 +271,7 @@ export function DocumentPage(
   }, [location.hash])
 
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    return {type: 'discussions', commentId: comment ? comment.id : undefined}
+    return {type: 'discussions', comment: comment}
   })
 
   const onActivateBlock = useCallback((blockId: string) => {
@@ -338,32 +338,28 @@ export function DocumentPage(
     [media.gtSm],
   )
 
-  const onReplyCountClick = useCallback(
-    (commentId: string, rootReplyCommentId: string) => {
-      setActivePanel({
-        type: 'discussions',
-        commentId: commentId,
-        rootReplyCommentId,
-      })
-    },
-    [],
-  )
+  const onReplyCountClick = useCallback((comment: HMComment) => {
+    setActivePanel({
+      type: 'discussions',
+      comment: comment,
+    })
+  }, [])
 
   const onReplyClick = useCallback(
-    (commentId: string, rootReplyCommentId: string) => {
+    (comment: HMComment) => {
       if (enableWebSigning) {
         setActivePanel({
           type: 'discussions',
-          commentId,
-          rootReplyCommentId,
+          comment: comment,
         })
         if (!media.gtSm) {
           setIsSheetOpen(true)
         }
       } else {
         redirectToWebIdentityCommenting(id, {
-          replyCommentId: commentId,
-          rootReplyCommentId,
+          replyCommentId: comment.id,
+          replyCommentVersion: comment.version,
+          rootReplyCommentVersion: comment.threadRootVersion,
         })
       }
     },
@@ -411,14 +407,18 @@ export function DocumentPage(
           <WebCommenting
             autoFocus={editorAutoFocus}
             docId={id}
-            replyCommentId={activePanel.commentId}
-            rootReplyCommentId={activePanel.rootReplyCommentId}
+            replyCommentId={activePanel.comment?.id}
+            replyCommentVersion={activePanel.comment?.version}
+            rootReplyCommentVersion={
+              activePanel.comment?.threadRootVersion ||
+              activePanel.comment?.version
+            }
             quotingBlockId={activePanel.blockId}
             enableWebSigning={enableWebSigning || false}
-            onSuccess={(data) => {
+            onSuccess={({response}) => {
               setActivePanel({
                 ...activePanel,
-                commentId: data.id,
+                comment: response.comment,
               })
             }}
           />
@@ -433,14 +433,12 @@ export function DocumentPage(
           setEditorAutoFocus(true)
         }}
         blockId={activePanel.blockId}
-        commentId={activePanel.commentId}
-        rootReplyCommentId={activePanel.rootReplyCommentId}
+        comment={activePanel.comment}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
-            commentId: undefined,
+            comment: undefined,
             blockId: undefined,
-            rootReplyCommentId: undefined,
           })
         }
         setBlockId={onBlockCommentClick}
@@ -645,7 +643,7 @@ export function DocumentPage(
                     minSize={media.gtSm ? 20 : 100}
                     className="flex flex-col flex-1 h-full border-l border-sidebar-border"
                   >
-                    <div className="flex items-center justify-center py-2 px-3 shrink-0">
+                    <div className="flex items-center justify-center px-3 py-2 shrink-0">
                       <div className="flex items-center justify-center flex-1">
                         {activitySummary}
                       </div>
@@ -662,7 +660,7 @@ export function DocumentPage(
                         </Button>
                       </Tooltip>
                     </div>
-                    <div className="p-3 items-center flex bg-white dark:bg-background border-b border-border">
+                    <div className="flex items-center p-3 bg-white border-b dark:bg-background border-border">
                       <Text weight="bold" size="md">
                         {panelTitle}
                       </Text>
@@ -816,9 +814,9 @@ function DocumentDiscoveryPage({
     })
   }, [id])
   return (
-    <div className="h-screen w-screen flex flex-col">
-      <div className="flex-1 justify-center flex items-start py-12 px-4">
-        <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
+    <div className="flex flex-col w-screen h-screen">
+      <div className="flex items-start justify-center flex-1 px-4 py-12">
+        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 bg-white border rounded-lg shadow-lg border-border flex-0 dark:bg-background">
           <h2 className="text-2xl font-bold">Looking for a document...</h2>
 
           <p>

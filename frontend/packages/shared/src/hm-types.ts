@@ -608,12 +608,14 @@ export type HMDraft = HMDraftContent & HMListedDraft
 
 export const HMCommentSchema = z.object({
   id: z.string(),
+  version: z.string(),
   author: z.string(),
   targetAccount: z.string(),
   targetPath: z.string().optional(),
   targetVersion: z.string(),
   replyParent: z.string().optional(),
   threadRoot: z.string().optional(),
+  threadRootVersion: z.string().optional(),
   capability: z.string().optional(),
   content: z.array(HMBlockNodeSchema),
   createTime: HMTimestampSchema,

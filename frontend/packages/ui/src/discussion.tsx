@@ -9,7 +9,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useTx, useTxUtils} from '@shm/shared/translation'
+import {useTx, useTxString, useTxUtils} from '@shm/shared/translation'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
 import {
@@ -38,13 +38,11 @@ export function CommentGroup({
   commentGroup,
   authors,
   renderCommentContent,
-  rootReplyCommentId,
   enableReplies = true,
   highlightLastComment = false,
 }: {
   commentGroup: HMCommentGroup
   authors?: HMAccountsMetadata | undefined
-  rootReplyCommentId: string | null
   renderCommentContent: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   highlightLastComment?: boolean
@@ -69,9 +67,6 @@ export function CommentGroup({
             isLast={isLastCommentInGroup}
             key={comment.id}
             comment={comment}
-            rootReplyCommentId={
-              rootReplyCommentId || commentGroup.comments[0].id || null
-            }
             authorMetadata={authors?.[comment.author]?.metadata}
             authorId={authors?.[comment.author]?.id.uid}
             renderCommentContent={renderCommentContent}
@@ -91,7 +86,6 @@ export function Comment({
   comment,
   replyCount,
   isLast = false,
-  rootReplyCommentId,
   authorMetadata,
   authorId,
   renderCommentContent,
@@ -102,7 +96,6 @@ export function Comment({
   comment: HMComment
   replyCount?: number
   isLast?: boolean
-  rootReplyCommentId: string | null
   authorMetadata?: HMMetadata | null
   authorId?: string | null
   renderCommentContent: (comment: HMComment) => ReactNode
@@ -176,14 +169,9 @@ export function Comment({
           }}
           {...authorLink}
         />
-        {authorId && (
+        {authorHmId && (
           <View w={16} h={16}>
-            <HMIcon
-              zi="$zIndex.2"
-              id={authorId}
-              metadata={authorMetadata}
-              size={16}
-            />
+            <HMIcon id={authorHmId} metadata={authorMetadata} size={16} />
           </View>
         )}
       </Stack>
@@ -250,10 +238,7 @@ export function Comment({
                   // } else {
                   //   setShowReplies(!showReplies)
                   // }
-                  discussionsContext.onReplyCountClick(
-                    comment.id,
-                    rootReplyCommentId || comment.id,
-                  )
+                  discussionsContext.onReplyCountClick(comment)
                 }}
               >
                 <SizableText
@@ -276,10 +261,7 @@ export function Comment({
                 icon={<ReplyArrow color={theme.brand5.val} size={16} />}
                 onPress={() => {
                   if (discussionsContext.onReplyClick) {
-                    discussionsContext.onReplyClick(
-                      comment.id,
-                      rootReplyCommentId || comment.id,
-                    )
+                    discussionsContext.onReplyClick(comment)
                   }
                 }}
                 color="$brand5"
@@ -373,7 +355,7 @@ export function QuotedDocBlock({
     }
   }, [contentRef.current, blockId])
 
-  const tx = useTx()
+  const tx = useTxString()
 
   return (
     <YStack bg="$brand12" borderRadius="$2">

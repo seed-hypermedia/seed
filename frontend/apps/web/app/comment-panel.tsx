@@ -31,8 +31,7 @@ type DiscussionsPanelProps = {
   siteHost?: string
   setBlockId: (blockId: string | null) => void
   enableWebSigning: boolean
-  commentId?: string
-  rootReplyCommentId?: string
+  comment?: HMComment
   blockId?: string
   handleBack: () => void
   handleStartDiscussion?: () => void
@@ -41,7 +40,7 @@ type DiscussionsPanelProps = {
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {homeId, commentId, blockId, siteHost, handleBack} = props
+  const {homeId, comment, blockId, siteHost, handleBack} = props
 
   const isDark = useIsDark()
 
@@ -77,7 +76,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     )
   }
 
-  if (commentId) {
+  if (comment) {
     return (
       <CommentDiscussion
         {...props}
@@ -98,9 +97,8 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
 export function AllDiscussions({
   docId,
-  commentId,
+  comment,
   enableWebSigning,
-  rootReplyCommentId,
   handleStartDiscussion,
   renderCommentContent,
 }: DiscussionsPanelProps & {
@@ -133,7 +131,6 @@ export function AllDiscussions({
                 authors={allDiscussions?.data?.authors}
                 renderCommentContent={renderCommentContent}
                 enableReplies
-                rootReplyCommentId={null}
               />
             </div>
           )
@@ -143,8 +140,7 @@ export function AllDiscussions({
           onStartDiscussion={handleStartDiscussion}
           enableWebSigning={enableWebSigning}
           docId={docId}
-          commentId={commentId}
-          rootReplyCommentId={rootReplyCommentId}
+          replyComment={comment}
         />
       )
   }
@@ -218,14 +214,15 @@ function CommentDiscussion(
     renderCommentContent: (comment: HMComment) => React.ReactNode
   },
 ) {
-  const {commentId, docId, renderCommentContent} = props
+  const {comment, docId, renderCommentContent} = props
 
-  const discussion = useDiscussion(docId, commentId)
+  const discussion = useDiscussion(docId, comment?.id)
 
   if (!discussion.data) return null
   const {thread, authors, commentGroups} = discussion.data
 
   const rootCommentId = thread?.at(0)?.id
+  const rootCommentVersion = thread?.at(0)?.version
 
   let panelContent = null
   if (discussion.isInitialLoading) {
@@ -248,7 +245,6 @@ function CommentDiscussion(
                   authors={authors}
                   renderCommentContent={renderCommentContent}
                   enableReplies
-                  rootReplyCommentId={null}
                 />
               </YStack>
             )
@@ -269,7 +265,6 @@ function CommentDiscussion(
             }}
             authors={authors}
             renderCommentContent={renderCommentContent}
-            rootReplyCommentId={null}
             highlightLastComment
             enableReplies
           />
@@ -282,15 +277,13 @@ function CommentDiscussion(
 
 export function EmptyDiscussions({
   docId,
-  commentId,
-  rootReplyCommentId,
+  replyComment,
   enableWebSigning,
   onStartDiscussion,
   quotingBlockId,
 }: {
   docId: UnpackedHypermediaId
-  commentId?: string
-  rootReplyCommentId?: string
+  replyComment?: HMComment
   enableWebSigning: boolean
   onStartDiscussion?: () => void
   quotingBlockId?: string
@@ -308,8 +301,9 @@ export function EmptyDiscussions({
             onStartDiscussion?.()
           } else {
             redirectToWebIdentityCommenting(docId, {
-              replyCommentId: commentId,
-              rootReplyCommentId,
+              replyCommentId: replyComment?.id,
+              replyCommentVersion: replyComment?.version,
+              rootReplyCommentVersion: replyComment?.threadRootVersion,
               quotingBlockId,
             })
           }
@@ -372,7 +366,8 @@ export function CommentCitationEntry({
       key={comment.id}
       authorId={comment.author}
       comment={focusedComment}
-      rootReplyCommentId={comment.threadRoot ?? null}
+      rootCommentId={comment.threadRoot ?? null}
+      rootCommentVersion={comment.threadRootVersion ?? null}
       authorMetadata={accounts[comment.author]?.metadata}
       renderCommentContent={renderCommentContent}
       // replyCount={replies?.length}
