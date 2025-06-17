@@ -1299,7 +1299,6 @@ function InlineContentView({
               key={`${content.type}-${index}`}
               className={cn(
                 'whitespace-pre-wrap',
-                'break-all',
                 linkColorClass,
                 styleClasses,
                 fontWeight && `font-${fontWeight}`,
