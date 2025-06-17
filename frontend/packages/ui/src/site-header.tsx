@@ -419,6 +419,7 @@ export function SiteHeaderMenu({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
+  const editNavPaneRef = useRef<HTMLDivElement>(null)
   const [visibleItems, setVisibleItems] = useState<DocNavigationItem[]>([])
   const [overflowItems, setOverflowItems] = useState<DocNavigationItem[]>([])
   const [isMeasured, setIsMeasured] = useState(false)
@@ -432,8 +433,12 @@ export function SiteHeaderMenu({
     const container = containerRef.current
     const containerWidth = container.getBoundingClientRect().width
 
-    // Reserve space for dropdown button plus a small buffer for visual comfort
-    const reservedWidth = 200 // px
+    // Get editNavPane width if it exists
+    const editNavPaneWidth =
+      editNavPaneRef.current?.getBoundingClientRect().width || 0
+
+    // Reserve space for dropdown button plus editNavPane plus a small buffer
+    const reservedWidth = 200 + editNavPaneWidth // px
     const availableWidth = containerWidth - reservedWidth
 
     let currentWidth = 0
@@ -478,7 +483,7 @@ export function SiteHeaderMenu({
     setVisibleItems(visible)
     setOverflowItems(overflow)
     setIsMeasured(true)
-  }, [items])
+  }, [items, editNavPane])
 
   // Measure on mount and when items change
   useEffect(() => {
@@ -546,8 +551,6 @@ export function SiteHeaderMenu({
       .filter((item) => !!item)
   }, [overflowItems, docId])
 
-  if (!items?.length) return null
-
   return (
     <div
       ref={containerRef}
@@ -557,7 +560,7 @@ export function SiteHeaderMenu({
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
-      {editNavPane}
+      {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
       <div className="absolute flex items-center gap-5 opacity-0 pointer-events-none">
         {items.map((item) => {
