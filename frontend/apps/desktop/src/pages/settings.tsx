@@ -44,6 +44,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {Field} from '@shm/ui/form-fields'
@@ -60,6 +61,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {cn} from '@shm/ui/utils'
 import {
   AtSign,
   Check,
@@ -103,84 +105,91 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
   const isDark = useIsDark()
   return (
-    <Tabs
-      flex={1}
-      onValueChange={(v) => setActiveTab(v)}
-      defaultValue="accounts"
-      flexDirection="column"
-      borderWidth="$0.25"
-      overflow="hidden"
-      bg={isDark ? '$backgroundStrong' : '$background'}
-      borderColor="$backgroundStrong"
+    <div
+      className={cn(
+        windowContainerStyles,
+        ' min-h-0 w-full h-full max-h-full overflow-hidden pt-0',
+      )}
     >
-      <Tabs.List
-        aria-label="Manage your account"
-        alignItems="center"
-        justifyContent="center"
-        flexShrink={0}
-        flex="none"
-        style={{
-          flexShrink: 0,
-        }}
-      >
-        <Tab
-          value="accounts"
-          active={activeTab === 'accounts'}
-          icon={AtSign}
-          label="Accounts"
-        />
-        <Tab
-          value="general"
-          active={activeTab === 'general'}
-          icon={Cog}
-          label="General"
-        />
-        <Tab
-          value="gateway"
-          active={activeTab === 'gateway'}
-          icon={RadioTower}
-          label="Gateway"
-        />
-        <Tab
-          value="app-info"
-          active={activeTab === 'app-info'}
-          icon={Info}
-          label="App Info"
-        />
-        {/* <Tab
+      <div className={cn(panelContainerStyles)}>
+        <Tabs
+          flex={1}
+          height="50%"
+          onValueChange={(v) => setActiveTab(v)}
+          defaultValue="accounts"
+          flexDirection="column"
+          overflow="hidden"
+        >
+          <Tabs.List
+            aria-label="Manage your account"
+            alignItems="center"
+            justifyContent="center"
+            flexShrink={0}
+            flex="none"
+            style={{
+              flexShrink: 0,
+            }}
+          >
+            <Tab
+              value="accounts"
+              active={activeTab === 'accounts'}
+              icon={AtSign}
+              label="Accounts"
+            />
+            <Tab
+              value="general"
+              active={activeTab === 'general'}
+              icon={Cog}
+              label="General"
+            />
+            <Tab
+              value="gateway"
+              active={activeTab === 'gateway'}
+              icon={RadioTower}
+              label="Gateway"
+            />
+            <Tab
+              value="app-info"
+              active={activeTab === 'app-info'}
+              icon={Info}
+              label="App Info"
+            />
+            {/* <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
         /> */}
-        <Tab
-          value="developer"
-          active={activeTab === 'developer'}
-          icon={Code2}
-          label="Developers"
-        />
-      </Tabs.List>
-      <Separator />
-      <TabsContent value="accounts">
-        <AccountKeys />
-      </TabsContent>
-      <TabsContent value="general">
-        <GeneralSettings />
-      </TabsContent>
-      <TabsContent value="gateway">
-        <GatewaySettings />
-      </TabsContent>
-      <TabsContent value="app-info">
-        <AppSettings />
-        {/* <DevicesInfo /> */}
-      </TabsContent>
-      {/* <TabsContent value="experiments">
+            <Tab
+              value="developer"
+              active={activeTab === 'developer'}
+              icon={Code2}
+              label="Developers"
+            />
+          </Tabs.List>
+          <Separator />
+          <TabsContent value="accounts">
+            <AccountKeys />
+          </TabsContent>
+          <TabsContent value="general">
+            <GeneralSettings />
+          </TabsContent>
+          <TabsContent value="gateway">
+            <GatewaySettings />
+          </TabsContent>
+          <TabsContent value="app-info">
+            <AppSettings />
+            {/* <DevicesInfo /> */}
+          </TabsContent>
+          {/* <TabsContent value="experiments">
         <ExperimentsSettings />
       </TabsContent> */}
-      <TabsContent value="developer">
-        <DeveloperSettings />
-      </TabsContent>
-    </Tabs>
+          <TabsContent value="developer">
+            <DeveloperSettings />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
   )
 }
 
@@ -425,7 +434,7 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1}} gap="$3" overflow="hidden">
+    <XStack style={{flex: 1}} gap="$3" overflow="hidden" bg="red">
       <YStack f={1} maxWidth="25%" gap="$2">
         <YStack f={1}>
           <ScrollArea>

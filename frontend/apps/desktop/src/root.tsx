@@ -17,7 +17,6 @@ import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import {YStack} from 'tamagui'
 import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {
@@ -41,6 +40,8 @@ import {
   onQueryInvalidation,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey, queryKeys} from '@shm/shared/models/query-keys'
+import {windowContainerStyles} from '@shm/ui/container'
+import {cn} from '@shm/ui/utils'
 import * as entities from './models/entities'
 import * as recents from './models/recents'
 import * as search from './models/search'
@@ -477,7 +478,12 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
   }, [])
 
   return (
-    <YStack fullscreen ai="center" jc="center" gap="$4" className="window-drag">
+    <div
+      className={cn(
+        windowContainerStyles,
+        'window-drag items-center justify-center gap-4 p-8',
+      )}
+    >
       <Spinner />
       <SizableText
         size="md"
@@ -488,7 +494,7 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
       >
         {message}
       </SizableText>
-    </YStack>
+    </div>
   )
 }
 

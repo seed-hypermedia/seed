@@ -56,5 +56,5 @@ export const windowContainerStyles = cn(
 )
 
 export const panelContainerStyles = cn(
-  'flex flex-col w-full h-full bg-background dark:bg-black border border-border rounded-md overflow-hidden',
+  'flex flex-col w-full h-full bg-background dark:bg-black border border-border rounded-md overflow-hidden bg-white dark:bg-background',
 )

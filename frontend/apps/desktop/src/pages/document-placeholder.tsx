@@ -1,31 +1,24 @@
 import {Placeholder} from '@/components/placeholder-box'
-import {YStack} from 'tamagui'
 
 export function DocumentPlaceholder() {
   return (
-    <YStack
-      marginTop="$7"
-      width="100%"
-      maxWidth={600}
-      gap="$6"
-      marginHorizontal="auto"
-    >
+    <div className="mt-7 w-full max-w-[600px] flex flex-col gap-6 mx-auto">
       <BlockPlaceholder />
       <BlockPlaceholder />
       <BlockPlaceholder />
       <BlockPlaceholder />
       <BlockPlaceholder />
-    </YStack>
+    </div>
   )
 }
 
 function BlockPlaceholder() {
   return (
-    <YStack width={600} gap="$2">
+    <div className="w-full max-w-[600px] flex flex-col gap-2">
       <Placeholder width="100%" />
       <Placeholder width="92%" />
       <Placeholder width="84%" />
       <Placeholder width="90%" />
-    </YStack>
+    </div>
   )
 }

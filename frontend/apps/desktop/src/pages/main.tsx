@@ -73,7 +73,7 @@ export default function Main({className}: {className?: string}) {
       <TitlebarWrapper
         height={26}
         minHeight={26}
-        bg={isDark ? '$background' : '$backgroundStrong'}
+        className="bg-background dark:bg-black"
       >
         <div className="flex items-center justify-center w-full window-drag">
           <TitleText>Settings</TitleText>

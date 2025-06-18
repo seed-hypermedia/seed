@@ -42,7 +42,7 @@ When migrating Tamagui components to Tailwind CSS, follow these patterns:
    - Remove Tamagui imports (XStack, YStack, etc.)
    - Add `HTMLAttributes` from 'react' for div prop types
    - Replace Tamagui component types with standard HTML element types
-   - Import UI components from `@shm/ui/components/*` when needed
+   - Import UI components from `@shm/ui/*` when needed
 
 6. **Event Handling**:
    - `onPress` → `onClick` for div elements
@@ -55,6 +55,6 @@ When migrating Tamagui components to Tailwind CSS, follow these patterns:
 
 8. **Dark Mode**:
    - Use `dark:` prefixes for dark mode variants
-   - Common patterns: `bg-white dark:bg-black`, `text-black dark:text-white`
+   - Common patterns: `bg-white dark:bg-background`, `text-black dark:text-white`
 
 Apply these conversions while maintaining the exact same functionality and visual appearance. Preserve all event handlers, IDs, and dynamic behavior.

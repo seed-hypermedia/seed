@@ -88,7 +88,6 @@ export {
   // AsteriskSquare as SquareAsterisk,
   SquareAsterisk as SquareAsterisk,
   Star,
-  StarFull,
   Square as Statement,
   Strikethrough,
   Bold as Strong,
@@ -111,7 +110,9 @@ export {
   Video as VideoIcon,
   X,
   XCircle,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
+
+export {StarFull} from '@tamagui/lucide-icons'
 
 const DefaultIconColor = '#2C2C2C'
 

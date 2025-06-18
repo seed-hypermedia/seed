@@ -1,7 +1,8 @@
 // @ts-nocheck
 import {SizableText} from '@shm/ui/text'
 import * as React from 'react'
-import {XStack, YStack} from 'tamagui'
+import {HTMLAttributes} from 'react'
+import {cn} from './utils'
 
 export function PanelCard({
   title,
@@ -12,6 +13,7 @@ export function PanelCard({
   avatar,
   active = false,
   shorter = false,
+  ...props
 }: {
   title?: string
   content?: string
@@ -21,46 +23,38 @@ export function PanelCard({
   avatar?: React.ReactNode | null
   active?: boolean
   shorter?: boolean
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <YStack
-      overflow="hidden"
-      borderRadius="$2"
-      backgroundColor={active ? '$backgroundHover' : '$backgroundTransparent'}
-      hoverStyle={{
-        backgroundColor: '$backgroundHover',
-      }}
-      margin="$4"
-      padding="$4"
-      paddingVertical={shorter ? '$1' : '$4'}
-      gap="$2"
-      onPress={onPress}
+    <div
+      className={cn(
+        'overflow-hidden rounded-lg m-4 p-4 gap-2 flex flex-col cursor-pointer transition-colors duration-200 hover:bg-muted',
+        active ? 'bg-muted' : 'bg-transparent',
+        shorter ? 'py-1' : 'py-4',
+      )}
+      onClick={onPress}
+      {...props}
     >
-      {/* <YStack
-        position="absolute"
-        width={2}
-        height={isFirst || isLast ? '50%' : '100%'}
-        top={isFirst ? '50%' : 0}
-        left={(avatarSize - 2) / 2}
-        backgroundColor="$color5"
+      {/* <div
+        className="absolute w-0.5 bg-gray-300 dark:bg-gray-700"
+        style={{
+          height: isFirst || isLast ? '50%' : '100%',
+          top: isFirst ? '50%' : 0,
+          left: (avatarSize - 2) / 2
+        }}
       /> */}
-      <XStack
-        gap="$2"
-        ai="center"
-        // borderColor="$color5" borderWidth={1}
-      >
+      <div className="flex gap-2 items-center">
         {avatar}
         {author && (
           <SizableText size="sm">{author.profile?.alias || '...'}</SizableText>
         )}
-        <XStack flex={1} />
+        <div className="flex flex-1" />
         {date && (
           <SizableText size="sm" color="muted" className="px-1">
             {date}
           </SizableText>
         )}
-      </XStack>
-      <YStack gap="$2" flex={1}>
+      </div>
+      <div className="flex flex-col gap-2 flex-1">
         {title && (
           <SizableText
             weight="semibold"
@@ -79,7 +73,7 @@ export function PanelCard({
             {content}
           </SizableText>
         )}
-      </YStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

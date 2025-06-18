@@ -1,17 +1,18 @@
-import {SizableText} from '@shm/ui/text'
+import {Button} from '@shm/ui/button'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {FallbackProps} from 'react-error-boundary'
-import {Button, Heading, XStack, YStack} from 'tamagui'
 import {ErrorBar} from './error-bar'
 
 export function AppErrorPage({error, resetErrorBoundary}: FallbackProps) {
   return (
-    <YStack flex={1}>
+    <div className={windowContainerStyles}>
       <ErrorBar />
       <AppErrorContent
         message={error.message}
         resetErrorBoundary={resetErrorBoundary}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -32,27 +33,31 @@ export function AppErrorContent({
   resetErrorBoundary?: () => void
 }) {
   return (
-    <XStack jc="center" ai="center" f={1} backgroundColor={'$color2'}>
-      <YStack
-        theme="red"
-        backgroundColor="$color1"
-        maxWidth={500}
-        padding="$4"
-        f={1}
-        borderRadius="$4"
-      >
-        <Heading color="$red10">Something went wrong</Heading>
-        <YStack padding="$4" backgroundColor={'$gray2'} borderRadius="$2">
-          <SizableText asChild family="mono">
-            <pre>{message}</pre>
-          </SizableText>
-        </YStack>
-        {resetErrorBoundary && (
-          <XStack jc="center">
-            <Button onPress={resetErrorBoundary}>Try again</Button>
-          </XStack>
-        )}
-      </YStack>
-    </XStack>
+    <div className={panelContainerStyles}>
+      <div className="flex items-start justify-center flex-1 px-4 py-12">
+        <div
+          role="alertdialog"
+          className="flex flex-col flex-1 w-full max-w-2xl flex-none shadow-lg m-8"
+        >
+          <div className="bg-red-500 rounded-t px-4 py-2">
+            <h2 className="text-xl text-white font-bold">
+              Something went wrong
+            </h2>
+          </div>
+          <div className="border border-t-0 border-red-400 rounded-b bg-red-100 px-4 py-3  max-h-50 overflow-y-auto gap-4">
+            <ScrollArea>
+              <pre className="text-red-700 text-sm whitespace-pre-wrap break-all p-4">
+                {message}
+              </pre>
+            </ScrollArea>
+            {resetErrorBoundary && (
+              <Button variant="destructive" onClick={resetErrorBoundary}>
+                Try again
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -1,16 +1,9 @@
-import {ComponentProps} from 'react'
-import {YStack} from 'tamagui'
+import {HTMLAttributes} from 'react'
 
-export function Section({children, ...props}: ComponentProps<typeof YStack>) {
+export function Section({children, ...props}: HTMLAttributes<HTMLDivElement>) {
   return (
-    <YStack
-      borderBottomWidth={1}
-      borderBottomColor="black"
-      borderColor="$gray6"
-      paddingVertical="$4"
-      {...props}
-    >
+    <div className="border-b border-border py-4" {...props}>
       {children}
-    </YStack>
+    </div>
   )
 }

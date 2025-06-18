@@ -1,6 +1,5 @@
 import {SizableText} from '@shm/ui/text'
-import {ReactNode} from 'react'
-import {XStack} from 'tamagui'
+import {HTMLAttributes, ReactNode} from 'react'
 
 export function AppBanner({
   children,
@@ -8,36 +7,14 @@ export function AppBanner({
 }: {
   children: ReactNode
   onPress?: () => void
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <XStack
-      backgroundColor="$yellow1"
-      width="100%"
-      position="absolute"
-      top={0}
-      left={0}
-      enterStyle={{
-        opacity: 0,
-        transform: [{translateY: -32}],
-      }}
-      exitStyle={{
-        opacity: 0,
-        transform: [{translateY: -32}],
-      }}
-      transform={[{translateY: 0}]}
-      opacity={1}
-      padding="$1"
-      borderColor="$borderColor"
-      hoverStyle={{
-        borderColor: '$borderColorHover',
-      }}
-      borderBottomWidth={1}
-      paddingHorizontal="$3"
-      userSelect="none"
+    <div
+      className="bg-yellow-50 dark:bg-yellow-900/20 w-full absolute top-0 left-0 p-1 border-b border-border px-3 select-none animate-in slide-in-from-top-8 fade-in duration-200 ease-in-out"
       {...props}
     >
       {children}
-    </XStack>
+    </div>
   )
 }
 

@@ -1,5 +1,4 @@
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {XStack} from 'tamagui'
+import {AlertCircle} from '@shm/ui/icons'
 import {NavigationButtons, NavMenuButton} from './titlebar-common'
 import {WindowsLinuxTitleBar} from './windows-linux-titlebar'
 
@@ -7,15 +6,15 @@ export default function ErrorBarWindowsLinux() {
   return (
     <WindowsLinuxTitleBar
       left={
-        <XStack paddingHorizontal={0} paddingVertical="$2" gap="$2">
+        <div className="flex px-0 py-2 gap-2">
           <NavMenuButton />
           <NavigationButtons />
-        </XStack>
+        </div>
       }
       title={
-        <XStack f={1} jc="center" alignItems="center">
-          <AlertCircle size="$1" color="$red10" />
-        </XStack>
+        <div className="flex flex-1 justify-center items-center">
+          <AlertCircle size={16} className=" size-4 text-red-500" />
+        </div>
       }
     />
   )
