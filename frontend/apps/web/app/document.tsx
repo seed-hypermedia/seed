@@ -600,12 +600,6 @@ export function DocumentPage(
                             blockRef: blockRef,
                             blockRange: blockRange,
                           }}
-                          // onHoverIn={(id) => {
-                          //   console.log('=== BLOCK HOVER EFFECT: hover in', id)
-                          // }}
-                          // onHoverOut={(id) => {
-                          //   console.log('=== BLOCK HOVER EFFECT: hover out', id)
-                          // }}
                         >
                           <DocContent
                             document={document}

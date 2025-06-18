@@ -92,7 +92,6 @@ export function AppDocContentProvider({
           blockRange: route.id?.blockRange || undefined,
         }}
         onHoverIn={(id) => {
-          console.log('=== BLOCK HOVER EFFECT: hover in', id)
           // @ts-ignore - ipc access
           window.ipc?.broadcast({
             key: 'hypermediaHoverIn',
@@ -100,7 +99,6 @@ export function AppDocContentProvider({
           })
         }}
         onHoverOut={(id) => {
-          console.log('=== BLOCK HOVER EFFECT: hover out', id)
           // @ts-ignore - ipc access
           window.ipc?.broadcast({
             key: 'hypermediaHoverOut',

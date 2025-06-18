@@ -197,15 +197,13 @@ function CommentReplyAccessory({
   return (
     <AccessoryContent
       footer={
-        isReplying ? (
-          <View padding="$3">
-            <CommentBox
-              docId={docId}
-              autoFocus={isReplying}
-              replyCommentId={commentId}
-            />
-          </View>
-        ) : null
+        <View padding="$3">
+          <CommentBox
+            docId={docId}
+            autoFocus={isReplying}
+            replyCommentId={commentId}
+          />
+        </View>
       }
     >
       <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
@@ -224,7 +222,6 @@ function CommentReplyAccessory({
                 .filter(([id, v]) => !!v),
             )}
             renderCommentContent={renderCommentContent}
-            rootReplyCommentId={null}
             highlightLastComment
           />
         ) : (
@@ -278,7 +275,6 @@ function FocusedCommentReplies({
               key={r.id}
               commentGroup={r}
               renderCommentContent={renderCommentContent}
-              rootReplyCommentId={null}
               authors={commentAuthors}
             />
           )

@@ -144,15 +144,20 @@ function _CommentBox({
         }}
         onSuccess={({id}) => {
           if (route.key === 'document' && !!id) {
+            const accessory = route.accessory
+            const discussionsAccessory =
+              accessory?.key === 'discussions' ? accessory : null
             replace({
               ...route,
               id: {
                 ...route.id,
               },
-              accessory: {
-                ...route.accessory,
-                openComment: id,
-              },
+              accessory: discussionsAccessory
+                ? {
+                    ...discussionsAccessory,
+                    openComment: id,
+                  }
+                : undefined,
             })
           }
         }}
@@ -187,7 +192,7 @@ function _CommentBox({
           setIsStartingComment(true)
         }}
       >
-        Start a new Discussion
+        {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
       </Button>
     )
   }

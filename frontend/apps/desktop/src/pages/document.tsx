@@ -121,23 +121,23 @@ export default function DocumentPage() {
   return (
     <>
       <DiscussionsProvider
-        onReplyClick={(commentId, rootReplyCommentId) => {
+        onReplyClick={(replyComment) => {
           replace({
             ...route,
             accessory: {
               key: 'discussions',
-              openComment: commentId,
+              openComment: replyComment.id,
               isReplying: true,
             },
           })
-          triggerCommentDraftFocus(docId.id, commentId)
+          triggerCommentDraftFocus(docId.id, replyComment.id)
         }}
-        onReplyCountClick={(commentId, rootReplyCommentId) => {
+        onReplyCountClick={(replyComment) => {
           replace({
             ...route,
             accessory: {
               key: 'discussions',
-              openComment: commentId,
+              openComment: replyComment.id,
             },
           })
         }}
