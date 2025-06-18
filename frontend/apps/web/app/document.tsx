@@ -250,8 +250,8 @@ export function DocumentPage(
 
   const isHomeDoc = !id?.path?.length
   const isShowOutline =
-    (typeof document.metadata.showOutline == 'undefined' ||
-      document.metadata.showOutline) &&
+    (typeof document.metadata?.showOutline == 'undefined' ||
+      document.metadata?.showOutline) &&
     !isHomeDoc
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
 
@@ -406,7 +406,7 @@ export function DocumentPage(
 
   const commentEditor =
     activePanel?.type == 'discussions' ? (
-      <div className="w-full px-4 py-2">
+      <div className="px-4 py-2 w-full">
         {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             autoFocus={editorAutoFocus}
@@ -521,7 +521,7 @@ export function DocumentPage(
             <PanelGroup
               direction="horizontal"
               autoSaveId="web-document"
-              className="flex flex-1 overflow-hidden bg-white dark:bg-background"
+              className="flex overflow-hidden flex-1 bg-white dark:bg-background"
             >
               <Panel
                 ref={mainPanelRef}
@@ -529,7 +529,7 @@ export function DocumentPage(
                 id="main-panel"
                 className="h-full"
               >
-                <div className="relative flex flex-col h-full" ref={elementRef}>
+                <div className="flex relative flex-col h-full" ref={elementRef}>
                   {media.gtSm ? (
                     <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-background shadow-md rounded-md">
                       {!activePanel &&
@@ -539,7 +539,7 @@ export function DocumentPage(
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="flex flex-col flex-1 min-h-full overflow-y-auto">
+                  <div className="flex overflow-y-auto flex-col flex-1 min-h-full">
                     <DocumentCover cover={document.metadata.cover} id={id} />
 
                     <div
@@ -557,7 +557,7 @@ export function DocumentPage(
                             marginTop: document.metadata?.cover ? 152 : 220,
                           }}
                         >
-                          <div className="h-full pb-6 overflow-scroll hide-scrollbar">
+                          <div className="overflow-scroll pb-6 h-full hide-scrollbar">
                             <WebDocumentOutline
                               showCollapsed={showCollapsed}
                               supportDocuments={props.supportDocuments}
@@ -647,8 +647,8 @@ export function DocumentPage(
                     minSize={media.gtSm ? 20 : 100}
                     className="flex flex-col flex-1 h-full border-l border-sidebar-border"
                   >
-                    <div className="flex items-center justify-center px-3 py-2 shrink-0">
-                      <div className="flex items-center justify-center flex-1">
+                    <div className="flex justify-center items-center px-3 py-2 shrink-0">
+                      <div className="flex flex-1 justify-center items-center">
                         {activitySummary}
                       </div>
                       <Tooltip content={tx('Close')}>
@@ -669,7 +669,7 @@ export function DocumentPage(
                         {panelTitle}
                       </Text>
                     </div>
-                    <div className="flex-1 overflow-hidden">
+                    <div className="overflow-hidden flex-1">
                       <ScrollArea>{panel}</ScrollArea>
                     </div>
 
@@ -749,7 +749,7 @@ function MobileInteractionCardCollapsed({
     >
       <Button
         variant="ghost"
-        className="flex items-center justify-start flex-1 min-w-0"
+        className="flex flex-1 justify-start items-center min-w-0"
       >
         <div className="shrink-0">
           <MessageSquare />
@@ -776,7 +776,7 @@ function DocumentCover({
   return (
     <div
       className={cn(
-        'h-[25vh] w-full relative flex-shrink-0',
+        'relative flex-shrink-0 w-full h-[25vh]',
         cover ? 'bg-transparent' : 'bg-(--brand11)',
       )}
     >
@@ -819,8 +819,8 @@ function DocumentDiscoveryPage({
   }, [id])
   return (
     <div className="flex flex-col w-screen h-screen">
-      <div className="flex items-start justify-center flex-1 px-4 py-12">
-        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 bg-white border rounded-lg shadow-lg border-border flex-0 dark:bg-background">
+      <div className="flex flex-1 justify-center items-start px-4 py-12">
+        <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border flex-0 dark:bg-background">
           <h2 className="text-2xl font-bold">Looking for a document...</h2>
 
           <p>
@@ -993,7 +993,7 @@ function WebCitationsPanel({
           return <DocumentCitationEntry citation={citation} />
         })
       ) : (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       )}
