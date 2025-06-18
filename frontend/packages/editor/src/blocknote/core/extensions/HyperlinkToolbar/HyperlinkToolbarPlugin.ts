@@ -487,43 +487,56 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     if (this.hoveredId) {
       const {state} = this.editor._tiptapEditor
-      const {node: hoveredNode, posBeforeNode} = getNodeById(
-        this.hoveredId,
-        state.doc,
-      )
-      const contentNode = hoveredNode.firstChild
-      if (contentNode) {
-        if (
-          contentNode.type.name === 'embed' ||
-          contentNode.type.name === 'button'
-        ) {
-          this.hoveredNode = contentNode
-          this.hoveredNodeRange = {
-            from: posBeforeNode + 1,
-            to: posBeforeNode + 1 + contentNode.nodeSize,
+      try {
+        const {node: hoveredNode, posBeforeNode} = getNodeById(
+          this.hoveredId,
+          state.doc,
+        )
+        const contentNode = hoveredNode.firstChild
+        if (contentNode) {
+          if (
+            contentNode.type.name === 'embed' ||
+            contentNode.type.name === 'button'
+          ) {
+            this.hoveredNode = contentNode
+            this.hoveredNodeRange = {
+              from: posBeforeNode + 1,
+              to: posBeforeNode + 1 + contentNode.nodeSize,
+            }
+          } else {
+            contentNode.descendants((child, childPos) => {
+              const linkMark = child.marks?.find(
+                (mark) => mark.type.name === 'link',
+              )
+              if (linkMark) {
+                this.hoveredNode = linkMark
+                this.hoveredNodeRange = {
+                  from: posBeforeNode + 2 + childPos,
+                  to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
+                }
+                return false
+              }
+              if (child.type.name === 'inline-embed') {
+                this.hoveredNode = child
+                this.hoveredNodeRange = {
+                  from: posBeforeNode + 2 + childPos,
+                  to: posBeforeNode + 2 + childPos + child.nodeSize,
+                }
+                return false
+              }
+            })
           }
-        } else {
-          contentNode.descendants((child, childPos) => {
-            const linkMark = child.marks?.find(
-              (mark) => mark.type.name === 'link',
-            )
-            if (linkMark) {
-              this.hoveredNode = linkMark
-              this.hoveredNodeRange = {
-                from: posBeforeNode + 2 + childPos,
-                to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
-              }
-              return false
-            }
-            if (child.type.name === 'inline-embed') {
-              this.hoveredNode = child
-              this.hoveredNodeRange = {
-                from: posBeforeNode + 2 + childPos,
-                to: posBeforeNode + 2 + childPos + child.nodeSize,
-              }
-              return false
-            }
-          })
+        }
+      } catch (e) {
+        let missingId
+        state.doc.descendants((node, pos) => {
+          if (node.attrs.id && node.attrs.id === this.hoveredId) {
+            missingId = this.hoveredId
+          }
+        })
+
+        if (!missingId) {
+          this.resetHyperlink()
         }
       }
     }
