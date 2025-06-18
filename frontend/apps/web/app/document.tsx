@@ -261,7 +261,11 @@ export function DocumentPage(
 
   const {blockRef, blockRange} = useMemo(() => {
     const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
-    const blockRef = match ? match[1].substring(1) : undefined
+    let blockRef = match ? match[1].substring(1) : undefined
+    if (blockRef?.endsWith('+')) {
+      // TODO: Do something for expanded ref?
+      blockRef = blockRef.slice(0, -1)
+    }
     const blockRange =
       match && match[2] && match[3]
         ? {start: parseInt(match[2]), end: parseInt(match[3])}
