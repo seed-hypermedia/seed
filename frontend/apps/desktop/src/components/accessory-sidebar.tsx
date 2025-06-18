@@ -10,7 +10,7 @@ import {
 } from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
 import {BlockQuote} from '@shm/ui/icons'

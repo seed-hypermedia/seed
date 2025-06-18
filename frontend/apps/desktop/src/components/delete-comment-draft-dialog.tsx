@@ -23,18 +23,17 @@ function DeleteCommentDraftDialog({
       <XStack space="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
           <Button
-            onPress={() => {
+            onClick={() => {
               onClose()
             }}
-            chromeless
           >
             Cancel
           </Button>
         </AlertDialog.Cancel>
         <AlertDialog.Action asChild>
           <Button
-            theme="red"
-            onPress={() => {
+            variant="destructive"
+            onClick={() => {
               input.onConfirm()
               onClose()
             }}

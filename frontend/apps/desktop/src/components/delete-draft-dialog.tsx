@@ -27,7 +27,7 @@ function DeleteDraftDialog({
       <XStack gap="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
           <Button
-            onPress={() => {
+            onClick={() => {
               onClose()
             }}
             chromeless
@@ -37,8 +37,8 @@ function DeleteDraftDialog({
         </AlertDialog.Cancel>
         <AlertDialog.Action asChild>
           <Button
-            theme="red"
-            onPress={() => {
+            variant="destructive"
+            onClick={() => {
               deleteDraft.mutate(input.draftId)
               onClose()
             }}

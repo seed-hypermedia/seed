@@ -59,7 +59,7 @@ export function BranchDialog({
 
             {location && selectedAccount ? (
               <Button
-                onPress={() => {
+                onClick={() => {
                   if (!isAvailable.current) {
                     toast.error(
                       'This location is unavailable. Create a new path name.',

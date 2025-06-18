@@ -117,15 +117,15 @@ export function DeleteEntityDialog({
       </YStack>
       <XStack gap="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
-          <Button onPress={onClose} chromeless>
+          <Button onClick={onClose} chromeless>
             Cancel
           </Button>
         </AlertDialog.Cancel>
         {deleteEntity.isLoading ? <Spinner /> : null}
         <AlertDialog.Action asChild>
           <Button
-            theme="red"
-            onPress={() => {
+            variant="destructive"
+            onClick={() => {
               if (!cap || !roleCanWrite(cap?.role))
                 throw new Error('Not allowed to delete')
               deleteEntity.mutate({
