@@ -13,12 +13,14 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useContacts} from './contacts'
 
-export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
-  const entity = useEntity({...id, version: null})
+export function useDocumentPublishedChanges(
+  id: UnpackedHypermediaId | null | undefined,
+) {
+  const entity = useEntity(id ? {...id, version: null} : null)
   const version = entity.data?.document?.version
-  const path = hmIdPathToEntityQueryPath(id.path)
+  const path = id ? hmIdPathToEntityQueryPath(id.path) : undefined
   return useQuery({
-    queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version],
+    queryKey: [queryKeys.ENTITY_CHANGES, id?.uid, path, version],
     queryFn: async () => {
       if (!version) return []
       const result = await grpcClient.documents.listDocumentChanges({
@@ -33,10 +35,13 @@ export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
 
       return changes
     },
+    enabled: !!id,
   })
 }
 
-export function useDocumentChanges(id: UnpackedHypermediaId) {
+export function useDocumentChanges(
+  id: UnpackedHypermediaId | null | undefined,
+) {
   const publishedChanges = useDocumentPublishedChanges(id)
   const changeAuthorIds: Set<string> = new Set()
   publishedChanges.data?.forEach((change) => {
@@ -69,10 +74,10 @@ export function useDocumentChanges(id: UnpackedHypermediaId) {
 }
 
 export function useVersionChanges(
-  id: UnpackedHypermediaId,
+  id: UnpackedHypermediaId | null | undefined,
 ): null | Set<string> {
   const entity = useEntity(id)
-  const version = id.version || entity.data?.document?.version
+  const version = id?.version || entity.data?.document?.version
   const versionChanges = version?.split('.')
   if (!versionChanges) return null
   return new Set(versionChanges)

@@ -176,6 +176,21 @@ export function useNavRoute() {
   return navRoute
 }
 
+export function useRouteDocId(): UnpackedHypermediaId | null {
+  const route = useNavRoute()
+  if (route.key === 'document') {
+    return route.id
+  }
+  if (route.key === 'draft') {
+    if (route.editUid) {
+      return hmId('d', route.editUid, {
+        path: route.editPath,
+      })
+    }
+  }
+  return null
+}
+
 export function useNavigationState() {
   const nav = useContext(NavContext)
   if (!nav)

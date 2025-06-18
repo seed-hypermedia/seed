@@ -1,4 +1,13 @@
-import {useNavigationDispatch, useNavigationState} from '@/utils/navigation'
+import {useAllDocumentCapabilities} from '@/models/access-control'
+import {useEntityCitations} from '@/models/citations'
+import {useAllDocumentComments} from '@/models/comments'
+import {useChildrenActivity} from '@/models/library'
+import {useDocumentChanges} from '@/models/versions'
+import {
+  useNavigationDispatch,
+  useNavigationState,
+  useRouteDocId,
+} from '@/utils/navigation'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/components/button'
@@ -42,6 +51,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   mainPanelRef?: React.RefObject<HTMLDivElement>
   isNewDraft?: boolean
 }) {
+  const docId = useRouteDocId()
   const panelsRef = useRef<ImperativePanelGroupHandle>(null)
   const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
   const state = useNavigationState()
@@ -106,6 +116,18 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('All')
   }
 
+  const allDocumentCapabilities = useAllDocumentCapabilities(docId)
+  const collaboratorCount =
+    allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
+    undefined
+  const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
+  const comments = useAllDocumentComments(docId)
+  const commentCount = comments.data?.length || undefined
+  const citations = useEntityCitations(docId)
+  const citationCount =
+    citations.data?.filter((c) => c.source.type === 'd').length || undefined
+  const childrenActivity = useChildrenActivity(docId)
+  const directoryCount = childrenActivity.data?.length || undefined
   return (
     <div className="flex flex-1 h-full">
       <PanelGroup
@@ -143,6 +165,13 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               options={accessoryOptions}
               accessoryKey={accessoryKey}
               onAccessorySelect={onAccessorySelect}
+              tabNumbers={{
+                collaborators: collaboratorCount,
+                versions: activeChangeCount,
+                discussions: commentCount,
+                citations: citationCount,
+                directory: directoryCount,
+              }}
             />
             <div className="px-5 py-3 border-b border-border">
               <Text weight="semibold" size="lg">
@@ -183,16 +212,20 @@ const iconNames = {
   options: Pencil,
   versions: Clock,
   citations: BlockQuote,
-}
+  'suggested-changes': Sparkle,
+  contacts: Sparkle,
+} as const
 
 function AccessoryTabs({
   options,
   accessoryKey,
   onAccessorySelect,
+  tabNumbers,
 }: {
   accessoryKey: DocAccessoryOption['key'] | undefined
   options: DocAccessoryOption[]
   onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
+  tabNumbers?: Partial<Record<DocAccessoryOption['key'], number>>
 }) {
   return (
     <div className="flex items-center justify-center gap-1 p-2 px-3">
@@ -212,6 +245,9 @@ function AccessoryTabs({
                 }}
               >
                 {Icon ? <Icon className="size-4" /> : null}
+                {tabNumbers?.[option.key]
+                  ? String(tabNumbers[option.key])
+                  : null}
               </Button>
             </span>
           </Tooltip>

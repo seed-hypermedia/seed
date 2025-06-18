@@ -192,11 +192,15 @@ function useAllDocuments(enabled: boolean) {
   return allDocuments
 }
 
-export function useSiteLibrary(siteUid: string, enabled: boolean) {
+export function useSiteLibrary(
+  siteUid: string | null | undefined,
+  enabled: boolean,
+) {
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
     enabled,
     queryFn: async () => {
+      if (!siteUid) return {documents: []}
       const res = await grpcClient.documents.listDocuments({
         account: siteUid,
         pageSize: BIG_INT,
@@ -215,6 +219,7 @@ export function useSiteLibrary(siteUid: string, enabled: boolean) {
         }),
       }
     },
+    enabled: !!siteUid,
   })
   const commentIds = siteDocuments.data?.documents
     .map((doc) => doc.activitySummary?.latestCommentId)
@@ -239,8 +244,10 @@ export function useSiteLibrary(siteUid: string, enabled: boolean) {
   }
 }
 
-export function useChildrenActivity(docId: UnpackedHypermediaId) {
-  const siteLibrary = useSiteLibrary(docId.uid, true)
+export function useChildrenActivity(
+  docId: UnpackedHypermediaId | null | undefined,
+) {
+  const siteLibrary = useSiteLibrary(docId?.uid, true)
   const path = docId.path
   const pathPrefix = docId.path?.join('/') || ''
   return {
