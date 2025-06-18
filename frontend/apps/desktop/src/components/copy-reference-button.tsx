@@ -11,8 +11,8 @@ import {
   ExpandedBlockRange,
   hmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/button'
 import {ExternalLink} from '@shm/ui/icons'
+import {Button} from '@shm/ui/legacy/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Link} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useState} from 'react'

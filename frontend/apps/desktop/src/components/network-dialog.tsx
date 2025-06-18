@@ -8,7 +8,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Route} from '@tamagui/lucide-icons'
+import {Route} from 'lucide-react'
 import React from 'react'
 import {ColorValue} from 'react-native'
 import {
@@ -21,7 +21,7 @@ import {
   XStackProps,
   YStack,
 } from 'tamagui'
-import {HMPeerInfo, useIsGatewayConnected, usePeers} from '../models/networking'
+import {HMPeerInfo, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 
@@ -41,7 +41,8 @@ export function NetworkDialog() {
     <>
       <Dialog.Title>Network Connections</Dialog.Title>
       <XStack jc="flex-end">
-        <Button onPress={() => connectDialog.open(true)} icon={Route} size="$2">
+        <Button onClick={() => connectDialog.open(true)} size="sm">
+          <Route className="size-3" />
           Add Connection
         </Button>
       </XStack>
@@ -283,43 +284,9 @@ function IndicationTag({
   if (status === 1) statusDot = <IndicationStatus color="$orange9" />
   if (status === 2) statusDot = <IndicationStatus color="$green9" />
   return (
-    <Button disabled size="$2">
+    <Button disabled size="sm">
       {statusDot}
       {label}
     </Button>
-  )
-}
-
-function GatewayIndicationTag() {
-  const gatewayStatus = useIsGatewayConnected()
-  let label = 'Gateway'
-  if (gatewayStatus === 0) label = 'Gateway Internal Error'
-  if (gatewayStatus === 1) label = 'Gateway Unreachable'
-  if (gatewayStatus === 2) label = 'Gateway Online'
-  return <IndicationTag label={label} status={gatewayStatus} />
-}
-
-function NumberBlurb({
-  value,
-  label,
-  backgroundColor,
-}: {
-  value: number
-  label: string
-  backgroundColor?: ColorValue
-}) {
-  return (
-    <YStack
-      space="$4"
-      padding="$2"
-      borderRadius="$4"
-      ai="center"
-      backgroundColor={backgroundColor || '$color4'}
-    >
-      <SizableText size="$2">{label}</SizableText>
-      <SizableText size="$7" fontWeight="bold">
-        {value}
-      </SizableText>
-    </YStack>
   )
 }

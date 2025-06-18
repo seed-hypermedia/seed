@@ -6,7 +6,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useTx, useTxUtils} from '@shm/shared/translation'
-import {Button} from './components/button'
+import {Button} from './button'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
 import {cn} from './utils'

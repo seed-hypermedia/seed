@@ -1,6 +1,5 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useTxString} from '@shm/shared/translation'
-import {Button} from '@shm/ui/button'
 import {FormCheckbox, FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {Spinner} from '@shm/ui/spinner'
@@ -8,6 +7,7 @@ import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
 import {Form, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
+import {Button} from './legacy/button'
 import {SizableText} from './text'
 
 const emailNotificationsSchema = z.object({
@@ -99,7 +99,9 @@ export function UIEmailNotificationsForm({
           {tx('Cancel')}
         </Button>
         <Form.Trigger asChild>
-          <Button theme="blue">{tx('Save Notification Settings')}</Button>
+          <Button bg="$brand5" color="white">
+            {tx('Save Notification Settings')}
+          </Button>
         </Form.Trigger>
       </XStack>
     </Form>

@@ -17,7 +17,6 @@ import {
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
   ErrorBlock,
@@ -26,6 +25,7 @@ import {
 } from '@shm/ui/document-content'
 import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Button} from '@shm/ui/legacy/button'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'

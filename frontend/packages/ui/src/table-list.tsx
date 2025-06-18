@@ -5,7 +5,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import {Button} from './components/button'
+import {Button} from './button'
 import {Copy, ExternalLink} from './icons'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'

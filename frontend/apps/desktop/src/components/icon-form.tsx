@@ -1,6 +1,6 @@
 import {fileUpload} from '@/utils/file-upload'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {X} from '@tamagui/lucide-icons'

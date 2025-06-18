@@ -5,7 +5,7 @@ import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelecti
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {updateSelection} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'

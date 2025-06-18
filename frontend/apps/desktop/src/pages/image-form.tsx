@@ -1,5 +1,5 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'

@@ -8,7 +8,7 @@ import {
 import {useTx, useTxUtils} from '@shm/shared/translation'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
-import {Button} from './components/button'
+import {Button} from './button'
 import {HoverCard} from './hover-card'
 
 export function DocumentCitationEntry({
@@ -60,8 +60,7 @@ function DocumentCitationToken({
     return (
       <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
         <a {...linkProps} className={className}>
-          {metadata?.name} {metadata?.name} {metadata?.name} {metadata?.name}{' '}
-          {metadata?.name} {metadata?.name}
+          {metadata?.name}
         </a>
       </HoverCard>
     )

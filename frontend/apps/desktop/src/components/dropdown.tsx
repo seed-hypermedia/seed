@@ -1,14 +1,8 @@
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import {Button} from '@shm/ui/button'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {MenuItem} from '@shm/ui/menu-item'
 import {forwardRef} from 'react'
-import {
-  ButtonProps,
-  ListItemProps,
-  SizableText,
-  SizableTextProps,
-  YStack,
-} from 'tamagui'
+import {ListItemProps, SizableText, SizableTextProps, YStack} from 'tamagui'
 import {DialogOverlay} from './dialog'
 
 const Content = ({
@@ -58,13 +52,15 @@ const SubContent = forwardRef<
 
 var RightSlot = SizableText
 
-export const ElementDropdown = forwardRef<any, ButtonProps>((props, ref) => {
-  return (
-    <DropdownMenuPrimitive.Trigger asChild ref={ref}>
-      <Button size="$2" {...props} />
-    </DropdownMenuPrimitive.Trigger>
-  )
-})
+export const ElementDropdown = forwardRef<any, ButtonProps>(
+  ({onPress, ...props}, ref) => {
+    return (
+      <DropdownMenuPrimitive.Trigger asChild ref={ref}>
+        <Button size="sm" onClick={onPress} {...props} />
+      </DropdownMenuPrimitive.Trigger>
+    )
+  },
+)
 
 export const SubTrigger = forwardRef<any, SizableTextProps>((props, ref) => {
   return (

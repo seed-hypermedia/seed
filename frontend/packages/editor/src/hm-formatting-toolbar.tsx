@@ -13,7 +13,6 @@ import {
 } from '@/blocknote/react'
 import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
 import {EditorToggledStyle} from '@shm/shared/hm-types'
-import {Button} from '@shm/ui/button'
 import {
   Code,
   Emphasis,
@@ -25,6 +24,7 @@ import {
   Underline,
   UnorderedList,
 } from '@shm/ui/icons'
+import {Button} from '@shm/ui/legacy/button'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useState} from 'react'

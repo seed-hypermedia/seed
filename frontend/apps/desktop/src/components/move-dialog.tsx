@@ -62,7 +62,7 @@ export function MoveDialog({
 
             {location ? (
               <Button
-                onPress={() => {
+                onClick={() => {
                   if (!isAvailable.current) {
                     toast.error(
                       'This location is unavailable. Create a new path name.',

@@ -14,7 +14,7 @@ import {
 } from 'react'
 import {Input, InputProps, Button as TButton} from 'tamagui'
 import {UIAvatar} from './avatar'
-import {Button} from './components/button'
+import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'

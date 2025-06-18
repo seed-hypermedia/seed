@@ -7,7 +7,7 @@ import {
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
@@ -294,7 +294,6 @@ export function EmptyDiscussions({
       <MessageSquareOff className="size-25" size={48} color="$color8" />
       <SizableText size="md">{tx('No discussions')}</SizableText>
       <Button
-        size="default"
         variant="brand"
         onClick={() => {
           if (enableWebSigning) {

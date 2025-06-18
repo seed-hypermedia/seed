@@ -274,11 +274,11 @@ export function SystemMenu() {
         <Popover key={item.id} placement="bottom-start">
           <Popover.Trigger asChild>
             <Button
-              size="$1"
-              backgroundColor="transparent"
-              borderRadius={0}
-              paddingHorizontal="$2"
-              fontWeight={item.id == 'seed' ? 'bold' : undefined}
+              size="sm"
+              className="rounded-none px-2"
+              style={{
+                fontWeight: item.id == 'seed' ? 'bold' : undefined,
+              }}
             >
               {item.title}
             </Button>

@@ -1,6 +1,6 @@
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {Copy, ExternalLink} from '@tamagui/lucide-icons'
-import {Button} from './components/button'
+import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {Text} from './text'
 import {toast} from './toast'

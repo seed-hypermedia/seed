@@ -1,9 +1,10 @@
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useHover} from '@shm/shared/use-hover'
-import {Button} from '@shm/ui/button'
+import {Button} from '@shm/ui/legacy/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Star, StarFull} from '@tamagui/lucide-icons'
 import {ComponentProps} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {useFavorite} from '../models/favorites'
 
 function RemoveFavoriteButton({
@@ -17,9 +18,9 @@ function RemoveFavoriteButton({
       <Button
         {...hoverProps}
         size="$2"
-        icon={hover ? Star : StarFull}
+        icon={StarFull}
         onPress={onPress}
-        color={hover ? undefined : '$yellow10'}
+        color={hover ? '$yellow8' : '$yellow10'}
         className="no-window-drag"
         chromeless
         backgroundColor="$colorTransparent"
@@ -39,7 +40,7 @@ export function FavoriteButton({
   if (favorite.isFavorited) {
     return (
       <RemoveFavoriteButton
-        onPress={(e: MouseEvent) => {
+        onPress={(e: GestureResponderEvent) => {
           e.stopPropagation()
           favorite.removeFavorite()
         }}
@@ -59,7 +60,7 @@ export function FavoriteButton({
         }}
         opacity={hideUntilItemHover ? 0 : 1}
         $group-item-hover={{opacity: 1}}
-        onPress={(e: MouseEvent) => {
+        onPress={(e: GestureResponderEvent) => {
           e.stopPropagation()
           favorite.addFavorite()
         }}

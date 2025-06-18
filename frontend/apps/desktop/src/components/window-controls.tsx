@@ -1,5 +1,5 @@
 import {useWindowUtils} from '@/app-context'
-import {Button} from '@shm/ui/components/button'
+import {Button} from '@shm/ui/button'
 import {X} from 'lucide-react'
 
 export function CloseButton() {

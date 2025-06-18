@@ -4,7 +4,7 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
-import {Button} from './components/button'
+import {Button} from './button'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 

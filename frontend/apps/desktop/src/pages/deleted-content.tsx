@@ -5,8 +5,8 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/button'
 import {ShieldX} from '@shm/ui/icons'
+import {Button} from '@shm/ui/legacy/button'
 import {List} from '@shm/ui/list'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'

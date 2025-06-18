@@ -23,11 +23,11 @@ import {
   hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {Button} from '@shm/ui/button'
 import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Button} from '@shm/ui/legacy/button'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'

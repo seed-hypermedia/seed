@@ -12,7 +12,7 @@ import {
 import {useTxString, useTxUtils} from '@shm/shared/translation'
 import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {Button} from './components/button'
+import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'

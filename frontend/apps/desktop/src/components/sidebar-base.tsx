@@ -2,13 +2,13 @@ import {useMyAccounts} from '@/models/daemon'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
-import {Button} from '@shm/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Button} from '@shm/ui/legacy/button'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'

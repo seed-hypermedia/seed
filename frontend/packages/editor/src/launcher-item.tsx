@@ -5,6 +5,7 @@ import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {highlightSearchMatch, useCollapsedPath} from '@shm/ui/search'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {useLayoutEffect, useRef} from 'react'
 import {XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
@@ -45,13 +46,10 @@ export function LauncherItem({
     <YStack paddingVertical="$1" ref={elm}>
       <Button
         key={item.key}
-        onPress={() => {
+        onClick={() => {
           item.onSelect()
         }}
-        backgroundColor={selected ? '$brand4' : undefined}
-        hoverStyle={{
-          backgroundColor: selected ? '$brand4' : undefined,
-        }}
+        className={cn(selected && 'bg-brand-4 hover:bg-brand-4')}
         onFocus={onFocus}
         onMouseEnter={onMouseEnter}
       >

@@ -1,7 +1,7 @@
 import {createHMUrl, UnpackedHypermediaId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
-import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
+import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
 import {ButtonText} from '@tamagui/button'
 import {View} from '@tamagui/core'

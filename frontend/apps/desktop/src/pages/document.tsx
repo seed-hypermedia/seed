@@ -45,7 +45,6 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -61,6 +60,7 @@ import {
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
+import {Button} from '@shm/ui/legacy/button'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -272,13 +272,7 @@ function _MainDocumentPage({
 
   return (
     // this data attribute is used by the hypermedia highlight component
-    <div
-      data-docid={id.id}
-      className={cn(
-        panelContainerStyles,
-        'bg-white dark:bg-background flex flex-col',
-      )}
-    >
+    <div data-docid={id.id} className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
@@ -652,17 +646,18 @@ function DocMessageBox({
   spinner?: boolean
 }) {
   return (
-    <div className="flex flex-col w-screen h-screen">
-      <div className="flex items-start justify-center flex-1 px-4 py-12">
-        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 bg-white border rounded-lg shadow-lg border-border flex-0 dark:bg-background">
+    <div className={cn(panelContainerStyles)}>
+      <div className="mx-auto py-10 px-8">
+        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 border rounded-lg shadow-lg border-border flex-none bg-background dark:bg-black">
+          {spinner ? (
+            <div className="flex items-center justify-start">
+              <Spinner className="size-6 fill-blue-500" />
+            </div>
+          ) : null}
           <SizableText size="2xl" weight="bold">
             {title}
           </SizableText>
-          {spinner ? (
-            <div className="flex items-center justify-center">
-              <Spinner />
-            </div>
-          ) : null}
+
           <SizableText asChild className="text-muted-foreground">
             <p>{message}</p>
           </SizableText>
@@ -672,7 +667,7 @@ function DocMessageBox({
     </div>
   )
 }
-function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
+function DocDiscovery() {
   return (
     <DocMessageBox
       title="Looking for this document..."

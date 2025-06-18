@@ -64,7 +64,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import {Button} from './components/button'
+import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'

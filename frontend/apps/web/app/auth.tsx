@@ -11,10 +11,10 @@ import {
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
-import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {
