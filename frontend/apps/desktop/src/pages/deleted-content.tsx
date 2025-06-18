@@ -31,7 +31,7 @@ export default function DeletedContent() {
             group="item"
           >
             <Tooltip content={`Reason: ${item.deletedReason}`}>
-              <SizableText weight="bold" color="danger">
+              <SizableText weight="bold" color="destructive">
                 {item.metadata}
               </SizableText>
             </Tooltip>

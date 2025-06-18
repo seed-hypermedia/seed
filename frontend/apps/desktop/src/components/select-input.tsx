@@ -19,7 +19,7 @@ export function SelectInput<Fields extends FieldValues>({
 }) {
   const c = useController({control, name})
   if (options.length === 0 && noOptionsMessage) {
-    return <SizableText color="danger">{noOptionsMessage}</SizableText>
+    return <SizableText color="destructive">{noOptionsMessage}</SizableText>
   }
   return (
     <Select

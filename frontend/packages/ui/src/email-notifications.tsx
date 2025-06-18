@@ -65,7 +65,7 @@ export function UIEmailNotificationsForm({
         name="email"
         label={tx('Notification Email')}
         errors={errors}
-        paddingHorizontal={0}
+        className="mx-0"
       >
         <FormInput
           name="email"

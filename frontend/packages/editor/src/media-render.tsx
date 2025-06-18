@@ -569,7 +569,7 @@ function MediaForm({
               )}
             </XStack>
             {fileName.color && fileName.color === 'red' && (
-              <SizableText size="sm" color="danger" className="pt-2">
+              <SizableText size="sm" color="destructive" className="pt-2">
                 {fileName.name}
               </SizableText>
             )}

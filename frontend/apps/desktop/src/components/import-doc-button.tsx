@@ -387,7 +387,7 @@ function WebImportInProgress({
     return (
       <YStack gap="$4">
         <DialogTitle>Error importing from {hostname}</DialogTitle>
-        <SizableText color="danger">Error: {status.error}</SizableText>
+        <SizableText color="destructive">Error: {status.error}</SizableText>
       </YStack>
     )
   }

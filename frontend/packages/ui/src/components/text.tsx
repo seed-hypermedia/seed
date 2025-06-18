@@ -52,7 +52,8 @@ const textVariants = cva(
       color: {
         default: 'text-foreground',
         brand: 'text-brand',
-        danger: 'text-destructive',
+        'brand-12': 'text-brand-12',
+        destructive: 'text-destructive',
         warning: 'text-yellow-600 dark:text-yellow-400',
         success: 'text-green-600 dark:text-green-400',
         muted: 'text-muted-foreground',

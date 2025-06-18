@@ -434,7 +434,7 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1}} gap="$3" overflow="hidden" bg="red">
+    <XStack style={{flex: 1}} gap="$3" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
         <YStack f={1}>
           <ScrollArea>

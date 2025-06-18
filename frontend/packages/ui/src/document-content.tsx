@@ -1442,7 +1442,7 @@ export function ErrorBlock({
             toggleOpen((v) => !v)
           }}
         >
-          <SizableText color="danger">
+          <SizableText color="destructive">
             {message ? message : 'Error'}
           </SizableText>
           <AlertCircle color="danger" className="size-3" />
@@ -1711,7 +1711,7 @@ export function BlockNotFoundError({
     <div className="bg-red-100/50 dark:bg-red-900/50 flex flex-col flex-1 p-2">
       <div className="flex gap-2 p-4 items-center">
         <AlertCircle className="text-red-500 flex-0" size={12} />
-        <SizableText className="flex-1" color="danger">
+        <SizableText className="flex-1" color="destructive">
           {message ? message : 'Error'}
         </SizableText>
       </div>

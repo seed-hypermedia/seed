@@ -1,7 +1,8 @@
 import {SizableText} from '@shm/ui/text'
-import {ComponentProps, PropsWithChildren} from 'react'
+import {PropsWithChildren} from 'react'
 import {FieldErrors, FieldValues} from 'react-hook-form'
-import {Fieldset, Label, XStack} from 'tamagui'
+import {Label} from './components/label'
+import {cn} from './utils'
 
 export function FormErrors<Fields extends FieldValues>({
   errors,
@@ -9,7 +10,7 @@ export function FormErrors<Fields extends FieldValues>({
   errors: FieldErrors<Fields>
 }) {
   if (errors.root) {
-    return <SizableText color="danger">{errors.root.message}</SizableText>
+    return <SizableText color="destructive">{errors.root.message}</SizableText>
   }
   return null
 }
@@ -19,30 +20,38 @@ export function FormField<Fields extends FieldValues>({
   label,
   errors,
   children,
-  ...props
+  width,
+  className,
 }: PropsWithChildren<
-  {
+  React.HTMLAttributes<HTMLFieldSetElement> & {
     name: keyof Fields
     errors: FieldErrors<Fields>
     label?: string
-  } & ComponentProps<typeof Fieldset>
+    width?: number | string
+  }
 >) {
   return (
-    <Fieldset borderColor="transparent" {...props}>
-      <XStack ai="center" justifyContent="space-between">
+    <fieldset
+      className={cn(
+        'w-full',
+        width && `w-[${typeof width == 'number' ? `${width}px` : width}]`,
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between">
         {label ? (
           <Label
             htmlFor={String(name)}
-            lineHeight="$4"
-            marginBottom="$2"
-            color={errors[name]?.message ? '$red10' : undefined}
+            className={cn('mb-2', errors[name]?.message && 'text-red-500')}
           >
             {label}
           </Label>
         ) : null}
-        <SizableText color="danger">{errors[name]?.message}</SizableText>
-      </XStack>
+        {errors[name]?.message ? (
+          <SizableText color="destructive">{errors[name]?.message}</SizableText>
+        ) : null}
+      </div>
       {children}
-    </Fieldset>
+    </fieldset>
   )
 }

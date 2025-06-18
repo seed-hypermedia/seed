@@ -20,7 +20,7 @@ import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {CommentGroup} from '@shm/ui/discussion'
 import {ChevronUp} from '@shm/ui/icons'
-import {ActivitySection} from '@shm/ui/page-components'
+
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {Sparkle} from 'lucide-react'
@@ -235,5 +235,18 @@ export function ActivityList({
         }
       })}
     </>
+  )
+}
+
+function ActivitySection({children}: {children: React.ReactNode}) {
+  return (
+    <div className="py-6 mb-[100px] gap-4 flex flex-col">
+      <div className="border-b-2 border-brand pb-2 px-2 flex">
+        <SizableText size="md" weight="semibold">
+          Activity
+        </SizableText>
+      </div>
+      {children}
+    </div>
   )
 }

@@ -10,10 +10,10 @@ export const XPostNotFound = (error: any) => {
 
   return (
     <div className="flex flex-col items-center justify-center w-full h-full">
-      <SizableText size="xl" color="danger">
+      <SizableText size="xl" color="destructive">
         Error fetching the X Post
       </SizableText>
-      <SizableText size="lg" color="danger">
+      <SizableText size="lg" color="destructive">
         {errorToString}
       </SizableText>
     </div>

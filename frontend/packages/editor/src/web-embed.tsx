@@ -216,7 +216,7 @@ const display = ({
       )}
       {error && (
         <YStack padding="$7" alignItems="center" alignContent="center">
-          <SizableText color="danger" className="p-1">
+          <SizableText color="destructive" className="p-1">
             Error loading embed, please check the link!
           </SizableText>
         </YStack>
