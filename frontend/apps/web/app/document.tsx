@@ -278,6 +278,11 @@ export function DocumentPage(
     return {type: 'discussions', comment: comment}
   })
 
+  useEffect(() => {
+    console.log('activePanel', activePanel)
+    console.log('isSheetOpen', isSheetOpen)
+  }, [activePanel, isSheetOpen])
+
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
       replace: true,
@@ -378,6 +383,7 @@ export function DocumentPage(
       comments={interactionSummary.data?.comments}
       changes={interactionSummary.data?.changes}
       onCitationsOpen={() => {
+        console.log('onCitationsOpen')
         setActivePanel({
           type: 'citations',
           blockId: undefined,
@@ -387,6 +393,7 @@ export function DocumentPage(
         }
       }}
       onCommentsOpen={() => {
+        console.log('onCommentsOpen')
         setActivePanel({
           type: 'discussions',
           blockId: undefined,
@@ -396,6 +403,7 @@ export function DocumentPage(
         }
       }}
       onVersionOpen={() => {
+        console.log('onVersionOpen')
         setActivePanel({type: 'versions'})
         if (!media.gtSm) {
           setIsSheetOpen(true)
@@ -679,9 +687,9 @@ export function DocumentPage(
             <>
               <MobileInteractionCardCollapsed
                 onClick={() => {
-                  if (!panel) {
-                    setActivePanel({type: 'discussions', blockId: undefined})
-                  }
+                  // if (!panel) {
+                  setActivePanel({type: 'discussions', blockId: undefined})
+                  // }
                   setIsSheetOpen(true)
                 }}
                 interactionSummary={
@@ -690,7 +698,12 @@ export function DocumentPage(
               />
               <Sheet
                 snapPoints={[92]}
-                onOpenChange={setIsSheetOpen}
+                onOpenChange={(val: boolean) => {
+                  setIsSheetOpen(val)
+                  if (!val) {
+                    setActivePanel(null)
+                  }
+                }}
                 modal
                 open={isSheetOpen}
                 dismissOnSnapToBottom
@@ -712,6 +725,12 @@ export function DocumentPage(
                   borderWidth={1}
                   borderRadius="$4"
                 >
+                  <div className="p-2 pb-0 flex items-center justify-center">
+                    {activitySummary}
+                  </div>
+                  <div className="px-5 py-3 border-b border-border">
+                    <Text weight="semibold">{panelTitle}</Text>
+                  </div>
                   <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
                     {panel}
                   </Sheet.ScrollView>
@@ -737,13 +756,11 @@ function MobileInteractionCardCollapsed({
 }) {
   const tx = useTx()
   return (
-    <div
-      className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-background shadow-md rounded-md shadow-md border border-sidebar-border"
-      onClick={onClick}
-    >
+    <div className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-background shadow-md rounded-md shadow-md border border-sidebar-border">
       <Button
         variant="ghost"
         className="flex flex-1 justify-start items-center min-w-0"
+        onClick={onClick}
       >
         <div className="shrink-0">
           <MessageSquare />
