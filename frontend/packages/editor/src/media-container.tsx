@@ -251,8 +251,9 @@ export const MediaContainer = ({
                       url: '',
                       name: '',
                       size: '0',
+                      displaySrc: '',
                       width:
-                        mediaType === 'image'
+                        mediaType === 'image' || mediaType === 'video'
                           ? editor.domElement.firstElementChild!.clientWidth
                           : undefined,
                     },
