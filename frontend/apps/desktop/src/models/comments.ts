@@ -110,7 +110,7 @@ export function useComments(commentIds: string[] = []) {
 }
 
 export function useAllDocumentComments(
-  docId: UnpackedHypermediaId | undefined,
+  docId: UnpackedHypermediaId | null | undefined,
 ) {
   return useQuery({
     queryFn: async () => {
