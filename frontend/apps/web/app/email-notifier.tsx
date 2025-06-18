@@ -1,5 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {createNotificationsEmail} from '@shm/emails/notifier'
+import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   Comment,
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -20,7 +20,6 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {Notification} from './emails'
 import {getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
@@ -233,6 +232,7 @@ async function handleEventsForEmailNotifications(
       }
       if (account.notifyAllMentions) {
         if (newComment.mentions.has(accountId)) {
+          const resolvedNames = await resolveAnnotationNames(newComment.comment)
           await appendNotification(account.email, accountId, {
             type: 'mention',
             comment: newComment.comment,
@@ -241,6 +241,7 @@ async function handleEventsForEmailNotifications(
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
             url: targetDocUrl,
+            resolvedNames,
           })
         }
       }
@@ -350,4 +351,27 @@ async function resolveAccount(accountId: string) {
     metadata: HMDocumentMetadataSchema.parse(account.metadata),
   }
   return result
+}
+
+async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
+  const resolvedNames: Record<string, string> = {}
+
+  for (const block of comment.content) {
+    const node = HMBlockNodeSchema.parse(block)
+    for (const annotation of node.block?.annotations || []) {
+      if (annotation.type === 'Embed' && annotation.link) {
+        const unpacked = unpackHmId(annotation.link)
+        if (unpacked) {
+          try {
+            const meta = await getMetadata(unpacked)
+            resolvedNames[annotation.link] = meta.metadata?.name || '@unknown'
+          } catch {
+            resolvedNames[annotation.link] = '@unknown'
+          }
+        }
+      }
+    }
+  }
+
+  return resolvedNames
 }
