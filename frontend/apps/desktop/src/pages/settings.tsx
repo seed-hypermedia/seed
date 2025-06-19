@@ -723,6 +723,12 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           {emailNotifs.data.account.notifyAllReplies && (
             <CheckmarkRow checked label="Notify when someone replies to me" />
           )}
+          {emailNotifs.data.account.notifyOwnedDocChange && (
+            <CheckmarkRow
+              checked
+              label="Notify when someone changes a document I own"
+            />
+          )}
           {hasNoNotifs ? (
             <XStack gap="$3" ai="center">
               <X color="$color9" size={24} />
