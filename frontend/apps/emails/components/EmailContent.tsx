@@ -186,7 +186,12 @@ function renderBlock(
 
   if (type === 'Paragraph') {
     return (
-      <MjmlText align="left" paddingBottom="8px" fontSize="14px">
+      <MjmlText
+        align="left"
+        lineHeight="1.6"
+        paddingBottom="12px"
+        fontSize="14px"
+      >
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
     )
@@ -196,9 +201,10 @@ function renderBlock(
     return (
       <MjmlText
         align="left"
-        paddingBottom="8px"
-        fontSize="24px"
+        fontSize="18px"
         fontWeight="bold"
+        lineHeight="1.4"
+        paddingBottom="12px"
       >
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
