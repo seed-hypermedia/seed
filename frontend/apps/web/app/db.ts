@@ -8,6 +8,7 @@ export type BaseAccount = {
   createdAt: string
   notifyAllMentions: boolean
   notifyAllReplies: boolean
+  notifyOwnedDocChange: boolean
 }
 
 type BaseEmail = {
@@ -28,6 +29,7 @@ type DBAccount = {
   createdAt: string
   notifyAllMentions: number
   notifyAllReplies: number
+  notifyOwnedDocChange: number
 }
 
 type DBEmail = {
@@ -46,7 +48,7 @@ export async function initDatabase(): Promise<void> {
   )
   console.log('init db', dbFilePath)
   db = new Database(dbFilePath)
-  const version: number = db.pragma('user_version', {simple: true}) as number
+  let version: number = db.pragma('user_version', {simple: true}) as number
   console.log('init db', version)
   if (version === 0) {
     // Initial migration.
@@ -72,17 +74,19 @@ export async function initDatabase(): Promise<void> {
       PRAGMA user_version = 1;
       COMMIT;
     `)
+
+    version = 1
   }
 
-  // Example second migration (commented out)
-  // if (version === 1) {
-  //   db.exec(`
-  //     BEGIN;
-  //     ALTER TABLE users ADD COLUMN email TEXT;
-  //     PRAGMA user_version = 2;
-  //     COMMIT;
-  //   `);
-  // }
+  if (version === 1) {
+    db.exec(`
+      BEGIN;
+      ALTER TABLE accounts ADD COLUMN notifyOwnedDocChange BOOLEAN NOT NULL DEFAULT FALSE;
+      PRAGMA user_version = 2;
+      COMMIT;
+    `)
+    version = 2
+  }
 }
 
 export function cleanup(): void {
@@ -96,11 +100,13 @@ export function createAccount({
   email,
   notifyAllMentions = false,
   notifyAllReplies = false,
+  notifyOwnedDocChange = false,
 }: {
   id: string
   email?: string
   notifyAllMentions?: boolean
   notifyAllReplies?: boolean
+  notifyOwnedDocChange?: boolean
 }): void {
   if (email) {
     const emailStmt = db.prepare(
@@ -109,9 +115,15 @@ export function createAccount({
     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
   }
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, email, notifyAllMentions, notifyAllReplies) VALUES (?, ?, ?, ?)',
+    'INSERT INTO accounts (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange) VALUES (?, ?, ?, ?, ?)',
   )
-  stmt.run(id, email, notifyAllMentions ? 1 : 0, notifyAllReplies ? 1 : 0)
+  stmt.run(
+    id,
+    email,
+    notifyAllMentions ? 1 : 0,
+    notifyAllReplies ? 1 : 0,
+    notifyOwnedDocChange ? 1 : 0,
+  )
 }
 
 export function getAccount(id: string): Account | null {
@@ -127,6 +139,7 @@ export function getAccount(id: string): Account | null {
     ...result,
     notifyAllMentions: Boolean(result.notifyAllMentions),
     notifyAllReplies: Boolean(result.notifyAllReplies),
+    notifyOwnedDocChange: Boolean(result.notifyOwnedDocChange),
   }
 }
 
@@ -150,15 +163,22 @@ export function updateAccount(
   {
     notifyAllMentions,
     notifyAllReplies,
+    notifyOwnedDocChange,
   }: {
     notifyAllMentions?: boolean
     notifyAllReplies?: boolean
+    notifyOwnedDocChange?: boolean
   },
 ): void {
   const stmt = db.prepare(`
-    UPDATE accounts SET notifyAllMentions = ?, notifyAllReplies = ? WHERE id = ?
+    UPDATE accounts SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ? WHERE id = ?
   `)
-  stmt.run(notifyAllMentions ? 1 : 0, notifyAllReplies ? 1 : 0, id)
+  stmt.run(
+    notifyAllMentions ? 1 : 0,
+    notifyAllReplies ? 1 : 0,
+    notifyOwnedDocChange ? 1 : 0,
+    id,
+  )
 }
 
 export function getEmail(email: string): BaseEmail | null {
@@ -200,6 +220,7 @@ export function getEmailWithToken(emailAdminToken: string): Email | null {
       ...account,
       notifyAllMentions: Boolean(account.notifyAllMentions),
       notifyAllReplies: Boolean(account.notifyAllReplies),
+      notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
     })),
   }
 }
@@ -236,6 +257,7 @@ export function getAllEmails(): Email[] {
         ...account,
         notifyAllMentions: Boolean(account.notifyAllMentions),
         notifyAllReplies: Boolean(account.notifyAllReplies),
+        notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
       })),
     }
   })
@@ -246,11 +268,13 @@ export function setAccount({
   email,
   notifyAllMentions,
   notifyAllReplies,
+  notifyOwnedDocChange,
 }: {
   id: string
   email?: string
   notifyAllMentions?: boolean
   notifyAllReplies?: boolean
+  notifyOwnedDocChange?: boolean
 }): void {
   const existingAccount = getAccount(id)
 
@@ -260,6 +284,7 @@ export function setAccount({
       email,
       notifyAllMentions,
       notifyAllReplies,
+      notifyOwnedDocChange,
     })
     return
   }
@@ -277,7 +302,8 @@ export function setAccount({
     UPDATE accounts 
     SET email = ?,
         notifyAllMentions = ?,
-        notifyAllReplies = ?
+        notifyAllReplies = ?,
+        notifyOwnedDocChange = ?
     WHERE id = ?
   `)
 
@@ -290,6 +316,7 @@ export function setAccount({
     email ?? existingAccount.email,
     getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
     getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
+    getBooleanValue(notifyOwnedDocChange, existingAccount.notifyOwnedDocChange),
     id,
   )
 }

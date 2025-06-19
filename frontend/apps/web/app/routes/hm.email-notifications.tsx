@@ -186,6 +186,12 @@ function EmailNotificationAccount({
         field="notifyAllReplies"
         account={account}
       />
+      <AccountValueCheckbox
+        token={token}
+        label="Notify on owned document changes"
+        field="notifyOwnedDocChange"
+        account={account}
+      />
     </YStack>
   )
 }
@@ -198,7 +204,7 @@ function AccountValueCheckbox({
 }: {
   token: string
   label: string
-  field: 'notifyAllMentions' | 'notifyAllReplies'
+  field: 'notifyAllMentions' | 'notifyAllReplies' | 'notifyOwnedDocChange'
   account: Email['accounts'][number]
 }) {
   const {mutate: setAccount, isLoading} = useSetAccountOptions(token)
