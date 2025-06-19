@@ -1,47 +1,38 @@
 import {NavRoute, useRouteLink} from '@shm/shared'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {Button} from '@tamagui/button'
-import {YGroup} from '@tamagui/group'
 import {MoreHorizontal} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
-import {GestureReponderEvent} from '@tamagui/web'
-import {ComponentProps, FC} from 'react'
+import {ComponentProps} from 'react'
 import {PopoverProps} from 'tamagui'
 import {MenuItem} from './menu-item'
-import {Separator} from './separator'
-import {Popover} from './TamaguiPopover'
-import {usePopoverState} from './use-popover-state'
-
-export type LinkItemType = {
-  key: string
-  label: string
-  subLabel?: string
-  icon: FC
-  route: NavRoute
-  color?: string
-}
+import {DocNavigationItem} from './navigation'
 
 export function LinkDropdown({
   items,
-  hiddenUntilItemHover,
   button,
-  placement = 'bottom-end',
 }: {
-  items: (LinkItemType | null)[]
-  hiddenUntilItemHover?: boolean
+  items: (DocNavigationItem | null)[]
   hover?: boolean
   button?: JSX.Element
   placement?: PopoverProps['placement']
 }) {
-  const popoverState = usePopoverState()
+  // const popoverState = usePopoverState()
   return (
     <XStack
-      opacity={!popoverState.open && hiddenUntilItemHover ? 0 : 1}
-      $group-item-hover={{
-        opacity: 1,
-      }}
+    // opacity={!popoverState.open && hiddenUntilItemHover ? 0 : 1}
+    // $group-item-hover={{
+    //   opacity: 1,
+    // }}
     >
-      <Popover {...popoverState} placement={placement}>
-        <Popover.Trigger asChild>
+      <Popover
+      //{...popoverState}
+      >
+        <PopoverTrigger>
           {button || (
             <Button
               size="$1"
@@ -50,56 +41,34 @@ export function LinkDropdown({
                 bg: '$color6',
               }}
               circular
-              data-trigger
-              onPress={(e: GestureReponderEvent) => {
-                // because we are nested in the outer button, we need to stop propagation or else onPress is triggered by parent button
-                e.stopPropagation()
-              }}
               icon={MoreHorizontal}
             />
           )}
-        </Popover.Trigger>
-        <Popover.Content
-          padding={0}
-          elevation="$2"
-          animation={[
-            'fast',
-            {
-              opacity: {
-                overshootClamping: true,
-              },
-            },
-          ]}
-          enterStyle={{y: -10, opacity: 0}}
-          exitStyle={{y: -10, opacity: 0}}
-          elevate={true}
-        >
-          <YGroup>
-            {items.flatMap((item, index) =>
-              item
-                ? [
-                    index > 0 ? (
-                      <Separator
-                        key={`${item.key}-separator`}
-                        borderColor="$color7"
-                      />
-                    ) : null,
-                    <YGroup.Item key={item.key}>
-                      {/* <RouteLinkButton */}
+        </PopoverTrigger>
+        <PopoverContent className="p-0 overflow-y-scroll max-h-[300px]">
+          {/* <span>hello {items.length}</span> */}
+          {items.map(
+            (item, index) =>
+              item && (
+                <div key={item.key}>
+                  {/* <RouteLinkButton */}
 
-                      <RouteLinkButton
-                        route={item.route}
-                        subTitle={item.subLabel}
-                        title={item.label}
-                        icon={item.icon}
-                        color={item.color}
-                      />
-                    </YGroup.Item>,
-                  ]
-                : [],
-            )}
-          </YGroup>
-        </Popover.Content>
+                  <RouteLinkButton
+                    route={
+                      item.draftId
+                        ? {key: 'draft', id: item.draftId}
+                        : item.id
+                        ? {key: 'document', id: item.id}
+                        : item.webUrl || ''
+                    }
+                    title={item.metadata.name}
+                    // icon={item.icon}
+                    // color={item.color}
+                  />
+                </div>
+              ),
+          )}
+        </PopoverContent>
       </Popover>
     </XStack>
   )
@@ -108,7 +77,7 @@ export function LinkDropdown({
 function RouteLinkButton({
   route,
   ...menuItemProps
-}: {route: NavRoute} & ComponentProps<typeof MenuItem>) {
+}: {route: NavRoute | string} & ComponentProps<typeof MenuItem>) {
   const linkProps = useRouteLink(route)
   return <MenuItem {...menuItemProps} {...linkProps} />
 }

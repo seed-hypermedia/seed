@@ -14,10 +14,10 @@ import {
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
-  useAccountDraftList,
   useCreateDraft,
   useDocumentRead,
   useListDirectory,
+  useSiteNavigationItems,
 } from '@/models/documents'
 import {
   createNotifierRequester,
@@ -41,7 +41,6 @@ import {
   HMQueryResult,
   pluralS,
   UnpackedHypermediaId,
-  unpackHmId,
 } from '@shm/shared'
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
@@ -62,7 +61,6 @@ import {
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Button} from '@shm/ui/legacy/button'
-import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -406,8 +404,6 @@ function _AppDocSiteHeader({
   supportDocuments?: HMEntityContent[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const homeDir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(docId.uid)
   const docDir = useListDirectory(docId, {mode: 'Children'})
   const replace = useNavigate('replace')
   const route = useNavRoute()
@@ -416,39 +412,11 @@ function _AppDocSiteHeader({
     if (docDir.data) {
       q.push({in: docId, results: docDir.data})
     }
-    if (homeDir.data && siteHomeEntity?.id) {
-      q.push({in: siteHomeEntity.id, results: homeDir.data})
-    }
     return q
-  }, [docId, docDir.data, homeDir.data, siteHomeEntity?.id])
+  }, [docId, docDir.data])
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
-  const navItemBlocks =
-    siteHomeEntity.document?.detachedBlocks?.navigation?.children
-  const navItems = navItemBlocks
-    ? navItemBlocks
-        .map((itemBlock) => {
-          if (itemBlock.block.type !== 'Link') return null
-          const id = unpackHmId(itemBlock.block.link)
-          return {
-            key: itemBlock.block.id,
-            id: id || undefined,
-            webUrl: id ? undefined : itemBlock.block.link,
-            isPublished: true,
-            metadata: {
-              name: itemBlock.block.text || '?',
-            },
-            sortTime: new Date(),
-          } satisfies DocNavigationItem
-        })
-        .filter((b) => !!b)
-    : getSiteNavDirectory({
-        id: siteHomeEntity.id,
-        supportQueries,
-        drafts: drafts.data,
-      })
-  console.log('~ navItems', navItems)
-  console.log('~ navItemBlocks', navItemBlocks)
+  const navItems = useSiteNavigationItems(siteHomeEntity)
   return (
     <SiteHeader
       originHomeId={hmId('d', siteHomeEntity.id.uid)}

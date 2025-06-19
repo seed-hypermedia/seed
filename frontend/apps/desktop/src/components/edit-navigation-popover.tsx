@@ -1,3 +1,4 @@
+import {QuerySearch} from '@/editor/query-block'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {
   draggable,
@@ -5,7 +6,9 @@ import {
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {zodResolver} from '@hookform/resolvers/zod'
+import {packHmId, unpackHmId} from '@shm/shared'
 import {HMNavigationItem} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {
   Popover,
@@ -20,7 +23,13 @@ import {Pencil, Plus} from '@tamagui/lucide-icons'
 import {EllipsisVertical} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
-import {useForm} from 'react-hook-form'
+import {
+  Control,
+  FieldValues,
+  Path,
+  useController,
+  useForm,
+} from 'react-hook-form'
 import {Button, Form, Text, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 
@@ -37,7 +46,7 @@ export function EditNavPopover({
       <PopoverTrigger className="no-window-drag">
         <Button onPress={() => {}} size="$2" icon={Pencil} opacity={1} />
       </PopoverTrigger>
-      <PopoverContent className="bg-white dark:bg-black">
+      <PopoverContent className="bg-white dark:bg-black max-h-[80vh] overflow-y-auto">
         {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}
         <EditNavigation docNav={docNav} onDocNav={editDocNav} />
       </PopoverContent>
@@ -103,10 +112,11 @@ function EditNavigation({
               key={item.id}
               item={item}
               onSubmit={(updatedItem) => {
-                const updatedDocNav = docNav.map((navItem) =>
-                  navItem.id === item.id
-                    ? {...navItem, ...updatedItem}
-                    : navItem,
+                const updatedDocNav: HMNavigationItem[] = docNav.map(
+                  (navItem) =>
+                    navItem.id === item.id
+                      ? {id: item.id, type: 'Link', ...updatedItem}
+                      : navItem,
                 )
                 onDocNav(updatedDocNav)
                 setEditingId(null)
@@ -136,7 +146,7 @@ function EditNavigation({
           onSubmit={(newItem) => {
             const newNavItem = {
               ...newItem,
-              id: nanoid(),
+              id: nanoid(10),
               type: 'Link' as const,
             }
             const newDocNav = [...docNav, newNavItem]
@@ -265,6 +275,8 @@ function NavItemForm({
     control,
     handleSubmit,
     setFocus,
+    watch,
+    setValue,
     formState: {errors},
   } = useForm<z.infer<typeof NavItemFormSchema>>({
     resolver: zodResolver(NavItemFormSchema),
@@ -273,6 +285,13 @@ function NavItemForm({
       link: item?.link || '',
     },
   })
+
+  watch((data, {name}) => {
+    if (name === 'link' && data.link?.startsWith('hm://')) {
+      setValue('text', '')
+    }
+  })
+
   return (
     <Form
       onSubmit={handleSubmit((result) => {
@@ -284,15 +303,16 @@ function NavItemForm({
       borderColor="$color8"
       borderRadius="$3"
     >
-      <FormField name="text" label="Label" errors={errors}>
-        <FormInput control={control} name="text" placeholder="Nav Item Label" />
-      </FormField>
       <FormField name="link" label="Link" errors={errors}>
         <FormInput
           control={control}
           name="link"
           placeholder="https://example.com"
         />
+        {/* <HMDocURLInput control={control} name="link" /> */}
+      </FormField>
+      <FormField name="text" label="Menu Item Label" errors={errors}>
+        <FormInput control={control} name="text" placeholder="My Link..." />
       </FormField>
       <XStack gap="$2" jc="space-between">
         {onRemove && (
@@ -312,5 +332,34 @@ function NavItemForm({
         </XStack>
       </XStack>
     </Form>
+  )
+}
+
+function HMDocURLInput<Fields extends FieldValues>({
+  control,
+  name,
+}: {
+  control: Control<Fields>
+  name: Path<Fields>
+}) {
+  const c = useController({control, name})
+  const id = unpackHmId(c.field.value)
+  const entity = useEntity(id)
+  return (
+    <QuerySearch
+      selectedDocName={
+        c.field.value
+          ? id
+            ? entity.data?.document?.metadata.name || `?${id?.uid.slice(-8)}`
+            : c.field.value
+          : null
+      }
+      allowWebURL
+      onSelect={(data) => {
+        console.log('SELECT', data)
+        if (data.id) c.field.onChange(packHmId(data.id))
+        else if (data.webUrl) c.field.onChange(data.webUrl)
+      }}
+    />
   )
 }

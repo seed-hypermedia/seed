@@ -30,7 +30,7 @@ import {
   HMDraftMeta,
   HMEntityContent,
   HMNavigationItem,
-  HMQuery,
+  HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
@@ -48,6 +48,7 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
+import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -60,7 +61,6 @@ import {
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
-import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo} from 'react'
 import {assign, fromPromise} from 'xstate'
@@ -68,12 +68,14 @@ import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
+import {isBlocksEqual} from './blocks'
 import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {getParentPaths} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
+import {getNavigationChanges} from './navigation'
 import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
@@ -205,7 +207,7 @@ export function usePublishDraft(
 
       const navigationChanges = getNavigationChanges(
         draft.navigation,
-        editEntity.data?.document,
+        editEntity.data?.document?.detachedBlocks?.navigation,
       )
       console.log('~ navigationChanges', navigationChanges)
       if (accts.data?.length == 0) {
@@ -329,92 +331,6 @@ export function useMarkAsRead() {
       }),
     )
   }
-}
-
-function getNavigationChanges(
-  navigation: HMNavigationItem[] | undefined,
-  document: HMDocument | null | undefined,
-) {
-  const ops: DocumentChange[] = []
-  const oldNavigationBlockNodes = document?.detachedBlocks?.navigation?.children
-  if (!oldNavigationBlockNodes) {
-    ops.push(
-      new DocumentChange({
-        op: {
-          case: 'replaceBlock',
-          value: {
-            id: 'navigation',
-            type: 'Group',
-          },
-        },
-      }),
-    )
-  }
-  const newBlocks = Object.fromEntries(
-    navigation?.map((item) => [item.id, item]) || [],
-  )
-  let newBlockWalkLeftSibling: string | undefined = undefined
-  const newBlockLeftSiblings = Object.fromEntries(
-    navigation?.map((item) => {
-      const leftSibling = newBlockWalkLeftSibling
-      newBlockWalkLeftSibling = item.id
-      return [item.id, leftSibling]
-    }) || [],
-  )
-  const changedBlockIds = new Set<string>()
-  const blockIdsToRemove = new Set<string>()
-  const blocksToMove = new Set<string>()
-  let oldBlockWalkLeftSibling: string | undefined = undefined
-  oldNavigationBlockNodes?.forEach((bn) => {
-    blockIdsToRemove.add(bn.block.id)
-    const newBlock = newBlocks[bn.block.id]
-    if (!newBlock || !isBlocksEqual(bn.block, newBlock)) {
-      changedBlockIds.add(bn.block.id)
-    }
-    if (newBlockLeftSiblings[bn.block.id] !== oldBlockWalkLeftSibling) {
-      blocksToMove.add(bn.block.id)
-    }
-    oldBlockWalkLeftSibling = bn.block.id
-  })
-  navigation?.forEach((item) => {
-    blockIdsToRemove.delete(item.id)
-    if (changedBlockIds.has(item.id))
-      ops.push(
-        new DocumentChange({
-          op: {
-            case: 'replaceBlock',
-            value: {
-              id: item.id,
-              type: 'Link',
-              link: item.link,
-              text: item.text,
-            },
-          },
-        }),
-      )
-    if (blocksToMove.has(item.id))
-      ops.push(
-        new DocumentChange({
-          op: {
-            case: 'moveBlock',
-            value: {
-              blockId: item.id,
-              parent: 'navigation',
-              leftSibling: newBlockLeftSiblings[item.id],
-            },
-          },
-        }),
-      )
-  })
-  blockIdsToRemove.forEach((id) => {
-    ops.push(
-      new DocumentChange({
-        op: {case: 'deleteBlock', value: id},
-      }),
-    )
-  })
-  console.log('~ final navigation ops', ops)
-  return ops
 }
 
 export type EditorDraftState = {
@@ -852,25 +768,6 @@ function useGetDoc() {
     return doc
   }
   return getDoc
-}
-
-export function useDocumentNavigation(
-  docId?: UnpackedHypermediaId | null,
-): HMNavigationItem[] {
-  const dir = useListDirectory(docId)
-  const doc = useEntity(docId)
-  // check if doc.data has detachedHeads.navigation,
-  // if (doc.data?.detachedHeads?.navigation) {
-  // }
-
-  return (
-    dir.data?.map((d) => ({
-      type: 'Link',
-      id: d.id,
-      link: d.id,
-      text: d.metadata?.name,
-    })) || []
-  )
 }
 
 export function usePublishToSite() {
@@ -1331,133 +1228,6 @@ export function extractDeletes(
   )
 }
 
-export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
-  if (!b1 || !b2) {
-    console.log('Blocks not equal: One or both blocks are null/undefined', {
-      b1,
-      b2,
-    })
-    return false
-  }
-  if (b1 === b2) return true
-
-  // Helper function to compare annotations, treating undefined and empty arrays as equal
-  const areAnnotationsEqual = (a1?: any[], a2?: any[]) => {
-    if (!a1 && !a2) return true
-    if (!a1 && a2?.length === 0) return true
-    if (!a2 && a1?.length === 0) return true
-    return _.isEqual(a1, a2)
-  }
-
-  // Helper function to compare text, treating undefined and empty string as equal
-  const isTextEqual = (t1?: string, t2?: string) => {
-    if (!t1 && !t2) return true
-    if (!t1 && t2 === '') return true
-    if (!t2 && t1 === '') return true
-    return t1 === t2
-  }
-
-  const checks = {
-    id: b1.id === b2.id,
-    text: isTextEqual(b1.text, b2.text),
-    link: b1.link === b2.link,
-    type: b1.type === b2.type,
-    annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
-    attributes: isBlockAttributesEqual(b1, b2),
-  }
-
-  const result = Object.values(checks).every(Boolean)
-
-  if (!result) {
-    console.log('Blocks not equal. Differences found:', {
-      blockId: b1.id,
-      differences: Object.entries(checks)
-        .filter(([_, isEqual]) => !isEqual)
-        .map(([prop]) => ({
-          property: prop,
-          b1Value:
-            prop === 'annotations'
-              ? b1.annotations
-              : prop === 'attributes'
-              ? b1.attributes
-              : b1[prop],
-          b2Value:
-            prop === 'annotations'
-              ? b2.annotations
-              : prop === 'attributes'
-              ? b2.attributes
-              : b2[prop],
-        })),
-    })
-  }
-
-  return result
-}
-
-function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  const a1 = b1.attributes
-  const a2 = b2.attributes
-
-  if (!a1 && !a2) return true
-  if (!a1 || !a2) {
-    console.log('Block attributes not equal: One side is missing attributes', {
-      blockId: b1.id,
-      a1,
-      a2,
-    })
-    return false
-  }
-
-  const attributesToCompare = [
-    'childrenType',
-    'start',
-    'level',
-    'url',
-    'name',
-    'alignment',
-    'size',
-    'href',
-    'link',
-    'language',
-    'view',
-    'width',
-    'banner',
-    'query',
-    'columnCount',
-  ]
-
-  const result = attributesToCompare.every((attr) => {
-    if (attr === 'query') {
-      return isQueryEqual(a1.query, a2.query)
-    }
-    return (
-      (a1[attr] === undefined && a2[attr] === undefined) ||
-      a1[attr] === a2[attr]
-    )
-  })
-
-  if (!result) {
-    console.log('Block attributes not equal. Differences found:', {
-      blockId: b1.id,
-      differences: attributesToCompare
-        .filter(
-          (attr) =>
-            !(
-              (a1[attr] === undefined && a2[attr] === undefined) ||
-              a1[attr] === a2[attr]
-            ),
-        )
-        .map((attr) => ({
-          attribute: attr,
-          a1Value: a1[attr],
-          a2Value: a2[attr],
-        })),
-    })
-  }
-
-  return result
-}
-
 function observeBlocks(
   editor: BlockNoteEditor,
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
@@ -1680,37 +1450,43 @@ export function getDraftEditId(
   }
 }
 
-function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
-  if (!q1 && !q2) return true
-  if (!q1 || !q2) return false
+export function useSiteNavigationItems(
+  siteHomeEntity: HMEntityContent | undefined | null,
+): DocNavigationItem[] | null {
+  const homeDir = useListDirectory(siteHomeEntity?.id)
+  const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
+  const supportQueries = useMemo(() => {
+    const q: HMQueryResult[] = []
+    if (homeDir.data && siteHomeEntity?.id) {
+      q.push({in: siteHomeEntity.id, results: homeDir.data})
+    }
+    return q
+  }, [homeDir.data, siteHomeEntity?.id])
 
-  // Compare limit
-  if (q1.limit !== q2.limit) return false
+  if (!siteHomeEntity) return null
 
-  // Compare sorting arrays
-  if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
-
-  // Compare includes arrays
-  if (q1.includes.length !== q2.includes.length) return false
-
-  // Deep compare each include item
-  for (let i = 0; i < q1.includes.length; i++) {
-    const include1 = q1.includes[i]
-    const include2 = q2.includes[i]
-
-    if (include1.mode !== include2.mode) return false
-    if (include1.path !== include2.path) return false
-    if (include1.space !== include2.space) return false
-  }
-
-  if (q1.sort?.length !== q2.sort?.length) return false
-
-  for (let i = 0; i < q1.sort!.length; i++) {
-    const sort1 = q1.sort![i]
-    const sort2 = q2.sort![i]
-
-    if (sort1.reverse !== sort2.reverse) return false
-    if (sort1.term !== sort2.term) return false
-  }
-  return true
+  const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
+  const navItems: DocNavigationItem[] = navNode
+    ? navNode.children
+        ?.map((itemBlock) => {
+          if (itemBlock.block.type !== 'Link') return null
+          const id = unpackHmId(itemBlock.block.link)
+          return {
+            key: itemBlock.block.id,
+            id: id || undefined,
+            webUrl: id ? undefined : itemBlock.block.link,
+            isPublished: true,
+            metadata: {
+              name: itemBlock.block.text || '?',
+            },
+            sortTime: new Date(),
+          } satisfies DocNavigationItem
+        })
+        .filter((b) => !!b) || []
+    : getSiteNavDirectory({
+        id: siteHomeEntity.id,
+        supportQueries,
+        drafts: drafts.data,
+      })
+  return navItems
 }

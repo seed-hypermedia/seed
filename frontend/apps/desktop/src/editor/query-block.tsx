@@ -490,7 +490,7 @@ function QuerySettings({
               elevation="$3"
             >
               <QuerySearch
-                queryDocName={queryDocName}
+                selectedDocName={queryDocName}
                 onSelect={({id, route}) => {
                   if (id) {
                     const newVal: HMQueryBlockIncludes = [
@@ -754,12 +754,22 @@ function QuerySettings({
   )
 }
 
-function QuerySearch({
-  queryDocName = '',
+export function QuerySearch({
+  selectedDocName = '',
   onSelect,
+  allowWebURL,
 }: {
-  queryDocName: string
-  onSelect: ({id, route}: {id?: UnpackedHypermediaId; route?: NavRoute}) => void
+  selectedDocName?: string | null | undefined
+  onSelect: ({
+    id,
+    route,
+    webUrl,
+  }: {
+    id?: UnpackedHypermediaId
+    route?: NavRoute
+    webUrl?: string
+  }) => void
+  allowWebURL?: boolean
 }) {
   const [showSearch, setShowSearch] = useState(false)
 
@@ -776,15 +786,14 @@ function QuerySearch({
       >
         <Search flexShrink={0} size={16} />
         <SizableText
-          // color="$color9"
           f={1}
           maxWidth="100%"
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
-          color={queryDocName ? '$color' : '$color9'}
+          color={selectedDocName ? '$color' : '$color9'}
         >
-          {queryDocName || 'Search Hypermedia Document'}
+          {selectedDocName || 'Search Hypermedia Document'}
         </SizableText>
       </ButtonFrame>
       {showSearch ? (
@@ -818,9 +827,12 @@ function QuerySearch({
           >
             <SearchInput
               onClose={() => setShowSearch(false)}
+              allowWebURL={allowWebURL}
               onSelect={(data) => {
                 console.log('SELECT', data)
-                setShowSearch(false)
+                if (data.id) {
+                  setShowSearch(false)
+                }
                 onSelect(data)
               }}
             />

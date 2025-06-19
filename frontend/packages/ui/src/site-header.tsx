@@ -5,7 +5,6 @@ import {
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
-  NavRoute,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -16,7 +15,7 @@ import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'
-import {LinkDropdown, LinkItemType} from './link-dropdown'
+import {LinkDropdown} from './link-dropdown'
 
 import {
   DocNavigationItem,
@@ -126,14 +125,12 @@ export function SiteHeader({
             flex: !isCenterLayout,
           })}
         >
-          {items?.length ? (
-            <SiteHeaderMenu
-              items={items}
-              docId={docId}
-              isCenterLayout={isCenterLayout}
-              editNavPane={editNavPane}
-            />
-          ) : null}
+          <SiteHeaderMenu
+            items={items}
+            docId={docId}
+            isCenterLayout={isCenterLayout}
+            editNavPane={editNavPane}
+          />
         </div>
 
         {isCenterLayout ? null : headerSearch}
@@ -422,7 +419,6 @@ export function SiteHeaderMenu({
   const editNavPaneRef = useRef<HTMLDivElement>(null)
   const [visibleItems, setVisibleItems] = useState<DocNavigationItem[]>([])
   const [overflowItems, setOverflowItems] = useState<DocNavigationItem[]>([])
-  const [isMeasured, setIsMeasured] = useState(false)
 
   // Measure the actual width of each element and calculate visibility
   const updateVisibility = useCallback(() => {
@@ -433,12 +429,18 @@ export function SiteHeaderMenu({
     const container = containerRef.current
     const containerWidth = container.getBoundingClientRect().width
 
+    console.log('containerWidth', containerWidth)
+
     // Get editNavPane width if it exists
     const editNavPaneWidth =
       editNavPaneRef.current?.getBoundingClientRect().width || 0
 
     // Reserve space for dropdown button plus editNavPane plus a small buffer
-    const reservedWidth = 200 + editNavPaneWidth // px
+    const reservedWidth =
+      editNavPaneWidth +
+      8 + // padding-2 size
+      18 + // width of expand button
+      20 // gap to expand button
     const availableWidth = containerWidth - reservedWidth
 
     let currentWidth = 0
@@ -453,7 +455,7 @@ export function SiteHeaderMenu({
       const element = itemRefs.current.get(key)
 
       if (element) {
-        const width = element.getBoundingClientRect().width
+        const width = element.getBoundingClientRect().width + 20 // add 20 because of the gap-5
         itemWidths.push({item, width})
       } else {
         // If we can't measure, use an estimate
@@ -482,14 +484,10 @@ export function SiteHeaderMenu({
 
     setVisibleItems(visible)
     setOverflowItems(overflow)
-    setIsMeasured(true)
   }, [items, editNavPane])
 
   // Measure on mount and when items change
   useEffect(() => {
-    // Reset measurement state when items change
-    setIsMeasured(false)
-
     // Initial update
     updateVisibility()
 
@@ -519,37 +517,37 @@ export function SiteHeaderMenu({
   }, [updateVisibility])
 
   // Build menu items for dropdown
-  const linkDropdownItems: LinkItemType[] = useMemo(() => {
-    return overflowItems
-      .map((item) => {
-        const isActive =
-          !!docId?.path &&
-          !!item.id?.path &&
-          item.id.path?.[0] === docId.path[0]
+  // const linkDropdownItems: DocNavigationItem[] = useMemo(() => {
+  //   return overflowItems
+  //     .map((item) => {
+  //       const isActive =
+  //         !!docId?.path &&
+  //         !!item.id?.path &&
+  //         item.id.path?.[0] === docId.path[0]
 
-        const route: NavRoute | null = item.draftId
-          ? ({
-              key: 'draft',
-              id: item.draftId,
-            } as const)
-          : item.id
-          ? ({key: 'document', id: item.id} as const)
-          : null
-        if (!route) return null
-        return {
-          key: item.id?.id || item.draftId || '?',
-          label: getMetadataName(item.metadata) || 'Untitled',
-          icon: () => null,
-          route,
-          color: isActive
-            ? '$color'
-            : item.isPublished === false
-            ? '$color9'
-            : '$color10',
-        }
-      })
-      .filter((item) => !!item)
-  }, [overflowItems, docId])
+  //       const route: NavRoute | null | undefined = item.draftId
+  //         ? ({
+  //             key: 'draft',
+  //             id: item.draftId,
+  //           } as const)
+  //         : item.id
+  //         ? ({key: 'document', id: item.id} as const)
+  //         : item.webUrl
+  //       if (!route) return null
+  //       return {
+  //         key: item.id?.id || item.draftId || '?',
+  //         label: getMetadataName(item.metadata) || 'Untitled',
+  //         icon: () => null,
+  //         route,
+  //         color: isActive
+  //           ? '$color'
+  //           : item.isPublished === false
+  //           ? '$color9'
+  //           : '$color10',
+  //       }
+  //     })
+  //     .filter((item) => !!item)
+  // }, [overflowItems, docId])
 
   return (
     <div
@@ -562,17 +560,16 @@ export function SiteHeaderMenu({
     >
       {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
-      <div className="absolute flex items-center gap-5 opacity-0 pointer-events-none">
-        {items.map((item) => {
-          const key = item.id?.id || item.draftId || '?'
+      <div className="absolute flex p-0 bg-red-500 items-center gap-5 opacity-0 pointer-events-none md:flex md:p-2">
+        {items?.map((item) => {
           return (
             <div
-              key={`measure-${key}`}
+              key={`measure-${item.key}`}
               ref={(el) => {
                 if (el) {
-                  itemRefs.current.set(key, el)
+                  itemRefs.current.set(item.key, el)
                 } else {
-                  itemRefs.current.delete(key)
+                  itemRefs.current.delete(item.key)
                 }
               }}
             >
@@ -593,14 +590,12 @@ export function SiteHeaderMenu({
 
       {/* Visible items */}
       {visibleItems.map((item) => {
-        const key = item.id?.id || item.draftId || '?'
         return (
           <HeaderLinkItem
-            key={key}
+            key={item.key}
             id={item.id}
             metadata={item.metadata}
             draftId={item.draftId}
-            isPublished={item.isPublished}
             webUrl={item.webUrl}
             active={
               !!docId?.path &&
@@ -613,7 +608,7 @@ export function SiteHeaderMenu({
 
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
-          <LinkDropdown items={linkDropdownItems} />
+          <LinkDropdown items={overflowItems} />
         </Tooltip>
       )}
     </div>

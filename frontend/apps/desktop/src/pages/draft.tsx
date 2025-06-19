@@ -7,10 +7,9 @@ import {HyperMediaEditorView} from '@/components/editor'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {
-  useAccountDraftList,
-  useDocumentNavigation,
   useDraftEditor,
   useListDirectory,
+  useSiteNavigationItems,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useOpenUrl} from '@/open-url'
@@ -36,13 +35,13 @@ import {
 import {useEntity} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
-import {hmId} from '@shm/shared/utils'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
-import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {DocNavigationItem} from '@shm/ui/navigation'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -190,7 +189,7 @@ export default function DraftPage() {
             )}
           >
             <DraftRebaseBanner />
-            {locationId || editId ? (
+            {locationId || (editId && homeEntity.data) ? (
               <>
                 <DraftAppHeader
                   siteHomeEntity={homeEntity.data}
@@ -546,41 +545,39 @@ function DraftAppHeader({
   actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(docId?.uid)
-  const currentDocNav = useSelector(actor, (s: any) => s.context.navigation)
-
-  // Use directory results as fallback when docNav is undefined (missing from draft)
-  const directoryNav = useDocumentNavigation(siteHomeEntity?.id)
-  const effectiveDocNav =
-    currentDocNav !== undefined ? currentDocNav : directoryNav || []
-
-  // Convert HMNavigationItem[] to DocNavigationItem[] format for SiteHeader
-  const convertedNavItems = useMemo(() => {
-    return effectiveDocNav.map((navItem: HMNavigationItem) => ({
-      id: undefined,
-      draftId: undefined,
-      metadata: {name: navItem.text || 'Untitled Document'},
-      sortTime: new Date(),
-      isPublished: true,
-    }))
-  }, [effectiveDocNav])
-
-  console.log(
-    'currentDocNav',
-    currentDocNav,
-    'directoryNav',
-    directoryNav,
-    'effectiveDocNav',
-    effectiveDocNav,
+  const currentDocNav: HMNavigationItem[] | undefined = useSelector(
+    actor,
+    (s: any) => s.context.navigation,
   )
+  const navItems = useSiteNavigationItems(siteHomeEntity)?.filter(
+    (item) => !item.draftId,
+  )
+
   if (!siteHomeEntity) return null
-  const navItems = getSiteNavDirectory({
-    id: siteHomeEntity.id,
-    supportQueries: dir.data
-      ? [{in: siteHomeEntity.id, results: dir.data}]
-      : [],
-    drafts: drafts.data,
-  })
+
+  console.log('~ draft.tsx currentDocNav', currentDocNav)
+  console.log('~ draft.tsx siteHomeEntity', siteHomeEntity)
+  console.log('~ draft.tsx navItems', navItems)
+
+  const displayNavItems =
+    currentDocNav !== undefined && isEditingHomeDoc
+      ? currentDocNav.map((navItem: HMNavigationItem): DocNavigationItem => {
+          const id = unpackHmId(navItem.link)
+          return {
+            key: navItem.id,
+            id: id || undefined,
+            webUrl: id ? undefined : navItem.link,
+            draftId: undefined,
+            metadata: {name: navItem.text || 'Untitled Document'},
+            sortTime: new Date(),
+            isPublished: true,
+          }
+        })
+      : navItems
+
+  console.log('~ displayNavItems', displayNavItems)
+
+  if (!siteHomeEntity) return null
 
   const siteHomeMetadata = isEditingHomeDoc
     ? draftMetadata
@@ -589,7 +586,7 @@ function DraftAppHeader({
   return (
     <SiteHeader
       originHomeId={siteHomeEntity.id}
-      items={isEditingHomeDoc ? convertedNavItems : navItems}
+      items={displayNavItems}
       document={
         isEditingHomeDoc
           ? {...document, metadata: draftMetadata}
@@ -604,7 +601,19 @@ function DraftAppHeader({
       children={children}
       editNavPane={
         isEditingHomeDoc ? (
-          <EditNavPopover docNav={effectiveDocNav} editDocNav={onDocNav} />
+          <EditNavPopover
+            docNav={
+              displayNavItems?.map(
+                (item): HMNavigationItem => ({
+                  id: item.key,
+                  type: 'Link',
+                  text: item.metadata.name || '',
+                  link: item.id ? packHmId(item.id) : item.webUrl || '',
+                }),
+              ) || []
+            }
+            editDocNav={onDocNav}
+          />
         ) : null
       }
       supportQueries={[
