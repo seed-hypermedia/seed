@@ -43,11 +43,12 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
 
   /**
    * Optional. If we want certain types of events.
-   * Some of the currently supported event types are:
-   *   - KeyDelegation
-   *   - Change
+   * Currently supported event types are:
+   *   - Capability
+   *   - Ref
    *   - Comment
    *   - DagPB 
+   *   - Profile
    * Multiple types are filtered following OR logic.
    *
    * @generated from field: repeated string filter_event_type = 5;

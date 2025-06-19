@@ -35,11 +35,12 @@ type ListEventsRequest struct {
 	// accounts are filtered following OR logic.
 	FilterUsers []string `protobuf:"bytes,4,rep,name=filter_users,json=filterUsers,proto3" json:"filter_users,omitempty"`
 	// Optional. If we want certain types of events.
-	// Some of the currently supported event types are:
-	//   - KeyDelegation
-	//   - Change
+	// Currently supported event types are:
+	//   - Capability
+	//   - Ref
 	//   - Comment
 	//   - DagPB
+	//   - Profile
 	//
 	// Multiple types are filtered following OR logic.
 	FilterEventType []string `protobuf:"bytes,5,rep,name=filter_event_type,json=filterEventType,proto3" json:"filter_event_type,omitempty"`

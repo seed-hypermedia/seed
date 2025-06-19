@@ -94,8 +94,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += "lower(" + storage.StructuralBlobsType.String() + ") in ("
 		for i, eventType := range req.FilterEventType {
 			// Hardcode this to prevent injection attacks
-			if strings.ToLower(eventType) != "keydelegation" && strings.ToLower(eventType) != "change" && strings.ToLower(eventType) != "comment" && strings.ToLower(eventType) != "dagpb" {
-				return nil, fmt.Errorf("Invalid event type filter [%s]: Only KeyDelegation | Change | Comment | DagPB aresupported at the moment", eventType)
+			if strings.ToLower(eventType) != "capability" && strings.ToLower(eventType) != "ref" && strings.ToLower(eventType) != "comment" && strings.ToLower(eventType) != "dagpb" && strings.ToLower(eventType) != "profile" && strings.ToLower(eventType) != "contact" {
+				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile are supported at the moment", eventType)
 			}
 			if i > 0 {
 				filtersStr += ", "
@@ -136,14 +136,14 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		linksStr += "))) AND "
 	}
 	var (
-		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec
+		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid"
 		tableStr             = "FROM " + storage.T_StructuralBlobs
 		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
 		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " IS NOT 'Ref') AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
+		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " NOT IN ('Contact', 'Change')) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30
@@ -172,10 +172,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		observeTime := stmt.ColumnInt64(5)
 		mhash := stmt.ColumnBytes(6)
 		codec := stmt.ColumnInt64(7)
+		tsid := stmt.ColumnText(8)
 		accountID := core.Principal(author).String()
 		id := cid.NewCidV1(uint64(codec), mhash)
 		if eventType == "Comment" {
-			resource = "hm://c/" + id.String()
+			resource = "hm://" + accountID + "/" + tsid
 		}
 		event := activity.Event{
 			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
