@@ -194,6 +194,7 @@ WITH fts_top100 AS (
     fts.version,
     fts.blob_id,
     structural_blobs.genesis_blob,
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
     fts.rank
   FROM fts
     JOIN structural_blobs
@@ -205,8 +206,10 @@ WITH fts_top100 AS (
     LEFT JOIN resources
       ON resources.id = structural_blobs.resource
   WHERE fts.raw_content MATCH :ftsStr
-    AND fts.type IN (:entityTitle, :entityDoc, :entityComment)
-  ORDER BY fts.type DESC, fts.rank DESC
+    AND fts.type IN (:entityTitle, :entityContact, :entityDoc, :entityComment)
+  ORDER BY
+  (fts.type = 'contact' || fts.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
+  fts.rank ASC
 )
 
 SELECT
@@ -215,8 +218,9 @@ SELECT
   f.block_id,
   f.version,
   f.blob_id,
+  f.tsid,
   resources.iri,
-  public_keys.principal      AS author,
+  public_keys.principal AS author,
   blobs.codec,
   blobs.multihash,
   document_generations.metadata,
@@ -242,6 +246,9 @@ FROM fts_top100 AS f
            AND structural_blobs.type = 'Ref')
       OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Comment')
+	  OR (f.blob_id       = structural_blobs.id
+           AND structural_blobs.type = 'Contact'
+           AND structural_blobs.author = :loggedAccountID)
      )
 
   JOIN blobs INDEXED BY blobs_metadata
@@ -264,12 +271,13 @@ GROUP BY
   f.block_id,
   f.version,
   f.blob_id,
+  f.tsid,
   resources.iri,
   author
 
 ORDER BY
-  f.type DESC,
-  f.rank DESC
+  (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
+  f.rank ASC
 LIMIT :limit
 `)
 
@@ -283,6 +291,8 @@ var qGetParentsMetadata = dqb.Str(`
 	select dg.metadata, r.iri from document_generations dg 
 	INNER JOIN resources r ON r.id = dg.resource 
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
+var qGetAccountID = dqb.Str(`
+SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)
 
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
@@ -292,6 +302,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var iris []string
 	var owners []string
 	var blockIDs []string
+	var tsids []string
 	var docIDs []string
 	var blobCIDs []string
 	var blobIDs []int64
@@ -322,11 +333,29 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	var bodyMatches []fuzzy.Match
 	const entityTypeTitle = "title"
-	var entityTypeDoc, entityTypeComment interface{}
+	var entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 
 	if in.IncludeBody {
 		entityTypeDoc = "document"
-		// entityTypeComment = "comment" TODO: comment out this when we have comment links
+		entityTypeComment = "comment" // TODO: comment out this when we have comment links
+	}
+	var loggedAccountID int64 = 0
+	if in.LoggedAccountUid != "" {
+
+		ppal, err := core.DecodePrincipal(in.LoggedAccountUid)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad provided logged account UID %s: %v", in.LoggedAccountUid, err)
+		}
+		ppalHex := hex.EncodeToString(ppal)
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qGetAccountID(), func(stmt *sqlite.Stmt) error {
+				loggedAccountID = stmt.ColumnInt64(0)
+				return nil
+			}, strings.ToUpper(ppalHex))
+		}); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Problem getting logged account ID %s: %v", in.LoggedAccountUid, err)
+		}
+		entityTypeContact = "contact"
 	}
 	var resultsLmit int = 50
 
@@ -375,17 +404,19 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			// build substring on rune boundaries
 			matchStr := string(fullRunes[contextStart:contextEndRune])
 			contents = append(contents, matchStr)
-			if err := json.Unmarshal(stmt.ColumnBytes(9), &icon); err != nil {
+			if err := json.Unmarshal(stmt.ColumnBytes(10), &icon); err != nil {
 				return nil
 			}
 			icons = append(icons, icon.Icon.Value)
-			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(7)), stmt.ColumnBytesUnsafe(8)).String()
+			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(8)), stmt.ColumnBytesUnsafe(9)).String()
 			blobCIDs = append(blobCIDs, blobCID)
 			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
 			cType := stmt.ColumnText(1)
-			iri := stmt.ColumnText(5)
+			tsid := stmt.ColumnText(5)
+			tsids = append(tsids, tsid)
+			iri := stmt.ColumnText(6)
 			docIDs = append(docIDs, iri)
-			if err := json.Unmarshal(stmt.ColumnBytes(10), &heads); err != nil {
+			if err := json.Unmarshal(stmt.ColumnBytes(11), &heads); err != nil {
 				return err
 			}
 
@@ -401,17 +432,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			version := stmt.ColumnText(3)
 			latestVersions = append(latestVersions, latestVersion)
 			versions = append(versions, version)
-			ts := hlc.Timestamp(stmt.ColumnInt64(11) * 1000).Time()
+			ts := hlc.Timestamp(stmt.ColumnInt64(12) * 1000).Time()
 			versionTimes = append(versionTimes, timestamppb.New(ts))
-			if cType == "comment" {
-				iris = append(iris, "hm://c/"+blobCID)
+
+			contentType = append(contentType, cType)
+			blockIDs = append(blockIDs, stmt.ColumnText(2))
+			ownerID := core.Principal(stmt.ColumnBytes(7)).String()
+			owners = append(owners, ownerID)
+			if cType == "comment" || cType == "contact" {
+				iris = append(iris, "hm://"+ownerID+"/"+tsid)
 			} else {
 				iris = append(iris, iri)
 			}
-			contentType = append(contentType, cType)
-			blockIDs = append(blockIDs, stmt.ColumnText(2))
-			ownerID := core.Principal(stmt.ColumnBytes(6)).String()
-			owners = append(owners, ownerID)
 			offsets := []int{firstRuneOffset}
 			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
 				offsets = append(offsets, i)
@@ -423,10 +455,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				MatchedIndexes: offsets,
 			})
 			return nil
-		}, ftsStr, entityTypeTitle, entityTypeDoc, entityTypeComment, iriGlob, resultsLmit)
+		}, ftsStr, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, loggedAccountID, iriGlob, resultsLmit)
 	}); err != nil {
 		return nil, err
 	}
+	//fmt.Println("Found", len(bodyMatches), "matches for query:", in.Query)
 	//after := time.Now()
 	//elapsed := after.Sub(before)
 	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
@@ -538,14 +571,27 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]
+
+		// 1) contacts first
+		isContactA := a.Type == "contact"
+		isContactB := b.Type == "contact"
+		if isContactA != isContactB {
+			return isContactA
+		}
+
+		// 2) then titles
 		isTitleA := a.Type == "title"
 		isTitleB := b.Type == "title"
 		if isTitleA != isTitleB {
 			return isTitleA
 		}
+
+		// 3) then by DocId (lexicographically)
 		if a.DocId != b.DocId {
 			return a.DocId < b.DocId
 		}
+
+		// 4) finally by VersionTime descending
 		return a.VersionTime.AsTime().After(b.VersionTime.AsTime())
 	})
 
@@ -782,6 +828,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				anchor        = stmt.ColumnText(7)
 				targetVersion = stmt.ColumnText(8)
 				fragment      = stmt.ColumnText(9)
+				tsid          = stmt.ColumnText(12)
 			)
 
 			lastCursor.BlobID = stmt.ColumnInt64(10)
@@ -793,7 +840,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 
 			if blobType == "Comment" {
 				sourceDoc = source
-				source = "hm://c/" + sourceBlob
+				source = "hm://" + author + "/" + tsid
 
 			}
 
@@ -844,7 +891,8 @@ SELECT
 	public_keys.principal AS author,
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
-	resource_links.extra_attrs->>'f' AS target_fragment
+	resource_links.extra_attrs->>'f' AS target_fragment,
+	structural_blobs.extra_attrs->>'tsid' AS tsid
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -865,7 +913,8 @@ SELECT
 	resource_links.extra_attrs->>'v' AS target_version,
 	resource_links.extra_attrs->>'f' AS target_fragment,
     blobs.id AS blob_id,
-    resource_links.id AS link_id
+    resource_links.id AS link_id,
+	structural_blobs.extra_attrs->>'tsid' AS tsid
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -888,7 +937,8 @@ SELECT
 	changes.target_version,
 	changes.target_fragment,
     blobs.id AS blob_id,
-    changes.link_id
+    changes.link_id,
+	structural_blobs.extra_attrs->>'tsid' AS tsid
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author

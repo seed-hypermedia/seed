@@ -217,6 +217,11 @@ message SearchEntitiesRequest {
   // Optional. The account uid to filter the search by.
   // If not set, the search will be performed across all accounts.
   string account_uid = 4;
+
+  // Optional. The account uid the user is logged in with.
+  // This is used to filter out contacts that the user doesn't have access to.
+  // If not set, we won't provide any contact entities in the response. 
+  string logged_account_uid = 5;
 }
 
 // A list of entities matching the request.

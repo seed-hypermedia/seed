@@ -671,6 +671,15 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   accountUid = "";
 
+  /**
+   * Optional. The account uid the user is logged in with.
+   * This is used to filter out contacts that the user doesn't have access to.
+   * If not set, we won't provide any contact entities in the response. 
+   *
+   * @generated from field: string logged_account_uid = 5;
+   */
+  loggedAccountUid = "";
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -683,6 +692,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "logged_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

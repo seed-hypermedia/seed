@@ -736,9 +736,13 @@ type SearchEntitiesRequest struct {
 	ContextSize int32 `protobuf:"varint,3,opt,name=context_size,json=contextSize,proto3" json:"context_size,omitempty"`
 	// Optional. The account uid to filter the search by.
 	// If not set, the search will be performed across all accounts.
-	AccountUid    string `protobuf:"bytes,4,opt,name=account_uid,json=accountUid,proto3" json:"account_uid,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccountUid string `protobuf:"bytes,4,opt,name=account_uid,json=accountUid,proto3" json:"account_uid,omitempty"`
+	// Optional. The account uid the user is logged in with.
+	// This is used to filter out contacts that the user doesn't have access to.
+	// If not set, we won't provide any contact entities in the response.
+	LoggedAccountUid string `protobuf:"bytes,5,opt,name=logged_account_uid,json=loggedAccountUid,proto3" json:"logged_account_uid,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SearchEntitiesRequest) Reset() {
@@ -795,6 +799,13 @@ func (x *SearchEntitiesRequest) GetContextSize() int32 {
 func (x *SearchEntitiesRequest) GetAccountUid() string {
 	if x != nil {
 		return x.AccountUid
+	}
+	return ""
+}
+
+func (x *SearchEntitiesRequest) GetLoggedAccountUid() string {
+	if x != nil {
+		return x.LoggedAccountUid
 	}
 	return ""
 }
@@ -1440,13 +1451,14 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\x94\x01\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xc2\x01\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
 	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
 	"\fcontext_size\x18\x03 \x01(\x05R\vcontextSize\x12\x1f\n" +
 	"\vaccount_uid\x18\x04 \x01(\tR\n" +
-	"accountUid\"\x7f\n" +
+	"accountUid\x12,\n" +
+	"\x12logged_account_uid\x18\x05 \x01(\tR\x10loggedAccountUid\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +

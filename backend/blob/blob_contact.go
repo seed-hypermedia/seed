@@ -82,7 +82,7 @@ func init() {
 	)
 }
 
-func indexContact(ictx *indexingCtx, _ int64, eb Encoded[*Contact]) error {
+func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 	c, v := eb.CID, eb.Decoded
 
 	// Validate contact: either both name and subject are present, or both are empty (tombstone)
@@ -123,6 +123,9 @@ func indexContact(ictx *indexingCtx, _ int64, eb Encoded[*Contact]) error {
 		}
 		extraAttrs["subject"] = subjectID
 		extraAttrs["name"] = v.Name
+		if err := dbFTSInsertOrReplace(ictx.conn, v.Name, "contact", id, "", sb.CID.String()); err != nil {
+			return fmt.Errorf("failed to insert record in fts table: %w", err)
+		}
 	} else {
 		// For tombstones, mark as deleted
 		extraAttrs["deleted"] = true

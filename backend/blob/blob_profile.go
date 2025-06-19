@@ -131,7 +131,7 @@ func init() {
 	)
 }
 
-func indexProfile(ictx *indexingCtx, _ int64, eb Encoded[*Profile]) error {
+func indexProfile(ictx *indexingCtx, id int64, eb Encoded[*Profile]) error {
 	c, v := eb.CID, eb.Decoded
 
 	iri, err := NewIRI(v.Signer, "")
@@ -157,7 +157,8 @@ func indexProfile(ictx *indexingCtx, _ int64, eb Encoded[*Profile]) error {
 
 	// TODO(burdiyan): improve these validations to make them more declarative and easier to understand.
 	// Possibly we should validate during unmarshaling with some custom unmarshaler.
-
+	const ftsType = "profile"
+	var ftsContent string
 	if v.Alias == nil {
 		if v.Account != nil {
 			v.Account, err = core.DecodePrincipal([]byte(v.Account))
@@ -216,6 +217,7 @@ func indexProfile(ictx *indexingCtx, _ int64, eb Encoded[*Profile]) error {
 
 			meta["description"] = v.Description
 		}
+		ftsContent = v.Name
 	} else {
 		v.Alias, err = core.DecodePrincipal([]byte(v.Alias))
 		if err != nil {
@@ -260,6 +262,14 @@ func indexProfile(ictx *indexingCtx, _ int64, eb Encoded[*Profile]) error {
 	if err := sqlitex.Exec(ictx.conn, "INSERT OR IGNORE INTO SPACES (id) VALUES (?)", nil, owner.String()); err != nil {
 		return fmt.Errorf("failed to insert space: %w", err)
 	}
+	if err := ictx.SaveBlob(sb); err != nil {
+		return fmt.Errorf("failed to save structural blob: %w", err)
+	}
 
-	return ictx.SaveBlob(sb)
+	if ftsContent != "" {
+		if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, "", sb.CID.String()); err != nil {
+			return fmt.Errorf("failed to insert record in fts table: %w", err)
+		}
+	}
+	return nil
 }
