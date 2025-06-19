@@ -13,6 +13,7 @@ type SetEmailNotificationsInput = {
   email: string
   notifyAllMentions: boolean
   notifyAllReplies: boolean
+  notifyOwnedDocChange: boolean
 }
 
 export function createNotifierRequester(gatewayUrl: string | undefined) {

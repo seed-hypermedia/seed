@@ -86,6 +86,7 @@ async function handleEventsForEmailNotifications(
     {
       notifyAllMentions: boolean
       notifyAllReplies: boolean
+      notifyOwnedDocChange: boolean
       email: string
     }
   > = {}
@@ -139,6 +140,7 @@ async function handleEventsForEmailNotifications(
       accountNotificationOptions[account.id] = {
         notifyAllMentions: account.notifyAllMentions,
         notifyAllReplies: account.notifyAllReplies,
+        notifyOwnedDocChange: account.notifyOwnedDocChange,
         email: email.email,
       }
     }
@@ -152,9 +154,13 @@ async function handleEventsForEmailNotifications(
     mentions: Set<string>
   }[] = []
   for (const event of events) {
+    console.log(event)
     if (event.data.case === 'newBlob') {
       try {
         const blob = event.data.value
+        // if (blob.blobType === 'Change') {
+        //   const change = ''
+        // }
         if (blob.blobType !== 'Comment') continue
         const comment = await queryClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)

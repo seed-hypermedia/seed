@@ -44,6 +44,7 @@ export function useSetAccountOptions(token: string | null) {
       accountId: string
       notifyAllMentions?: boolean
       notifyAllReplies?: boolean
+      notifyOwnedDocChange?: boolean
     }) => {
       await post(`/hm/api/email-notif-token?token=${token}`, {
         action: 'set-account-options',
