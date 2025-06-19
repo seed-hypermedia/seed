@@ -1759,6 +1759,47 @@ export class ListDocumentChangesResponse extends Message<ListDocumentChangesResp
 }
 
 /**
+ * Request to get a specific document change.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetDocumentChangeRequest
+ */
+export class GetDocumentChangeRequest extends Message<GetDocumentChangeRequest> {
+  /**
+   * Required. ID of the change to retrieve.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetDocumentChangeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetDocumentChangeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDocumentChangeRequest | PlainMessage<GetDocumentChangeRequest> | undefined, b: GetDocumentChangeRequest | PlainMessage<GetDocumentChangeRequest> | undefined): boolean {
+    return proto3.util.equals(GetDocumentChangeRequest, a, b);
+  }
+}
+
+/**
  * Request to update document's read status.
  *
  * @generated from message com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest

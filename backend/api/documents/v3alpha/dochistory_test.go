@@ -59,6 +59,16 @@ func TestListDocumentChanges(t *testing.T) {
 	require.Len(t, fullList.Changes, 2, "full list must have 2 changes")
 	require.Equal(t, "", fullList.NextPageToken, "full list must not have a next page token")
 
+	{
+		for _, l := range fullList.Changes {
+			change, err := alice.GetDocumentChange(ctx, &pb.GetDocumentChangeRequest{
+				Id: l.Id,
+			})
+			require.NoError(t, err)
+			testutil.StructsEqual(l, change).Compare(t, "must get the same change info by ID as in the list")
+		}
+	}
+
 	p1, err := alice.ListDocumentChanges(ctx, &pb.ListDocumentChangesRequest{
 		Account:  d1.Account,
 		Path:     d1.Path,

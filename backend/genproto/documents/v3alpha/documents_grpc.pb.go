@@ -37,6 +37,7 @@ const (
 	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
 	Documents_ListRootDocuments_FullMethodName        = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
 	Documents_ListDocumentChanges_FullMethodName      = "/com.seed.documents.v3alpha.Documents/ListDocumentChanges"
+	Documents_GetDocumentChange_FullMethodName        = "/com.seed.documents.v3alpha.Documents/GetDocumentChange"
 	Documents_UpdateDocumentReadStatus_FullMethodName = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
 	Documents_CreateRef_FullMethodName                = "/com.seed.documents.v3alpha.Documents/CreateRef"
 	Documents_GetRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/GetRef"
@@ -87,6 +88,8 @@ type DocumentsClient interface {
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error)
+	// Gets a single document change by ID.
+	GetDocumentChange(ctx context.Context, in *GetDocumentChangeRequest, opts ...grpc.CallOption) (*DocumentChangeInfo, error)
 	// Updates the read status of a document.
 	UpdateDocumentReadStatus(ctx context.Context, in *UpdateDocumentReadStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Creates a Ref blob for the specified account + path.
@@ -274,6 +277,16 @@ func (c *documentsClient) ListDocumentChanges(ctx context.Context, in *ListDocum
 	return out, nil
 }
 
+func (c *documentsClient) GetDocumentChange(ctx context.Context, in *GetDocumentChangeRequest, opts ...grpc.CallOption) (*DocumentChangeInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DocumentChangeInfo)
+	err := c.cc.Invoke(ctx, Documents_GetDocumentChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) UpdateDocumentReadStatus(ctx context.Context, in *UpdateDocumentReadStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -349,6 +362,8 @@ type DocumentsServer interface {
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error)
+	// Gets a single document change by ID.
+	GetDocumentChange(context.Context, *GetDocumentChangeRequest) (*DocumentChangeInfo, error)
 	// Updates the read status of a document.
 	UpdateDocumentReadStatus(context.Context, *UpdateDocumentReadStatusRequest) (*emptypb.Empty, error)
 	// Creates a Ref blob for the specified account + path.
@@ -414,6 +429,9 @@ func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRoot
 }
 func (UnimplementedDocumentsServer) ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentChanges not implemented")
+}
+func (UnimplementedDocumentsServer) GetDocumentChange(context.Context, *GetDocumentChangeRequest) (*DocumentChangeInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentChange not implemented")
 }
 func (UnimplementedDocumentsServer) UpdateDocumentReadStatus(context.Context, *UpdateDocumentReadStatusRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDocumentReadStatus not implemented")
@@ -750,6 +768,24 @@ func _Documents_ListDocumentChanges_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_GetDocumentChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDocumentChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).GetDocumentChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_GetDocumentChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).GetDocumentChange(ctx, req.(*GetDocumentChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_UpdateDocumentReadStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateDocumentReadStatusRequest)
 	if err := dec(in); err != nil {
@@ -878,6 +914,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocumentChanges",
 			Handler:    _Documents_ListDocumentChanges_Handler,
+		},
+		{
+			MethodName: "GetDocumentChange",
+			Handler:    _Documents_GetDocumentChange_Handler,
 		},
 		{
 			MethodName: "UpdateDocumentReadStatus",

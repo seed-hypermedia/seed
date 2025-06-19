@@ -69,6 +69,9 @@ service Documents {
   // Lists all changes of a document.
   rpc ListDocumentChanges(ListDocumentChangesRequest) returns (ListDocumentChangesResponse);
 
+  // Gets a single document change by ID.
+  rpc GetDocumentChange(GetDocumentChangeRequest) returns (DocumentChangeInfo);
+
   // Updates the read status of a document.
   rpc UpdateDocumentReadStatus(UpdateDocumentReadStatusRequest) returns (google.protobuf.Empty);
 
@@ -487,6 +490,12 @@ message ListDocumentChangesResponse {
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
+}
+
+// Request to get a specific document change.
+message GetDocumentChangeRequest {
+  // Required. ID of the change to retrieve.
+  string id = 1;
 }
 
 // Request to update document's read status.

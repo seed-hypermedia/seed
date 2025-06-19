@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, GetAccountRequest, GetContactRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -204,6 +204,17 @@ export const Documents = {
       name: "ListDocumentChanges",
       I: ListDocumentChangesRequest,
       O: ListDocumentChangesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets a single document change by ID.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.GetDocumentChange
+     */
+    getDocumentChange: {
+      name: "GetDocumentChange",
+      I: GetDocumentChangeRequest,
+      O: DocumentChangeInfo,
       kind: MethodKind.Unary,
     },
     /**

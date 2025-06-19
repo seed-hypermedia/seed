@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"seed/backend/api/documents/v3alpha/docmodel"
+	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/apiutil"
@@ -12,6 +13,7 @@ import (
 	"slices"
 
 	"github.com/ipfs/go-cid"
+	cbornode "github.com/ipfs/go-ipld-cbor"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -113,4 +115,29 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 	}
 
 	return out, err
+}
+
+// GetDocumentChange implements Documents API v3.
+func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocumentChangeRequest) (*documents.DocumentChangeInfo, error) {
+	c, err := cid.Decode(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode change ID '%s': %v", in.Id, err)
+	}
+
+	blk, err := srv.idx.Get(ctx, c)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "change '%s' not found: %v", in.Id, err)
+	}
+
+	change := &blob.Change{}
+	if err := cbornode.DecodeInto(blk.RawData(), change); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to decode change '%s': %v", in.Id, err)
+	}
+
+	return &documents.DocumentChangeInfo{
+		Id:         blk.Cid().String(),
+		Author:     change.Signer.String(),
+		Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
+		CreateTime: timestamppb.New(change.Ts),
+	}, nil
 }
