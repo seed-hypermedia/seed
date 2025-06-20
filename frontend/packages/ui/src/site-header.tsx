@@ -577,11 +577,7 @@ export function SiteHeaderMenu({
                 id={item.id}
                 metadata={item.metadata}
                 draftId={item.draftId}
-                active={
-                  !!docId?.path &&
-                  !!item.id?.path &&
-                  item.id.path?.[0] === docId.path[0]
-                }
+                active={true}
               />
             </div>
           )
@@ -598,9 +594,12 @@ export function SiteHeaderMenu({
             draftId={item.draftId}
             webUrl={item.webUrl}
             active={
+              !!item.id &&
+              !!docId &&
+              item.id.uid === docId.uid &&
               !!docId?.path &&
               !!item.id?.path &&
-              item.id.path?.[0] === docId.path[0]
+              docId.path.join('/').startsWith(item.id.path.join('/'))
             }
           />
         )

@@ -98,7 +98,6 @@ export type DocNavigationItem = {
   key: string
   metadata: HMMetadata
   isPublished?: boolean
-  sortTime: Date
   id?: UnpackedHypermediaId
   webUrl?: string
   draftId?: string | null | undefined
