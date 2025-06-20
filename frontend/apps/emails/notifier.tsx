@@ -38,6 +38,7 @@ export async function createNotificationsEmail(
   const grouped: GroupedNotifications = {
     reply: {},
     mention: {},
+    change: {},
   }
 
   for (const notif of notifications) {
@@ -81,22 +82,32 @@ ${docNotifs
   .map((notifications) => {
     const docName =
       notifications[0].notif.targetMeta?.name || 'Untitled Document'
-    return `${docName}
 
-${notifications
-  .map((notification) => {
-    const comment = notification.notif.comment
-    return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`
-  })
-  .join('\n')}
-  
-${notifications[0].notif.url}
+    const lines = notifications
+      .map((notification) => {
+        const {notif} = notification
 
-`
+        if (notif.type === 'reply' || notif.type === 'mention') {
+          return `New ${notif.type} from ${notif.comment.author} on ${notif.url}`
+        }
+
+        if (notif.type === 'change') {
+          return `New document change from ${
+            notif.authorMeta?.name || notif.authorAccountId
+          } on ${notif.url}`
+        }
+
+        return ''
+      })
+      .join('\n')
+
+    return `${docName}\n\n${lines}\n\n${notifications[0].notif.url}`
   })
   .join('\n')}
 
 Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
+
+  console.log(JSON.stringify(notifications[0], null, 2))
 
   const {html: emailHtml} = renderReactToMjml(
     <Mjml>
@@ -115,7 +126,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
           name={notifications[0].accountMeta.name}
         />
 
-        {(['reply', 'mention'] as const).map((type) => {
+        {(['reply', 'mention', 'change'] as const).map((type) => {
           const docs = grouped[type]
           const docEntries = Object.entries(docs)
 
@@ -126,7 +137,9 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
               ? `You have ${docEntries.flatMap(([, n]) => n).length} new repl${
                   docEntries.flatMap(([, n]) => n).length === 1 ? 'y' : 'ies'
                 }!`
-              : 'You have been mentioned!'
+              : type === 'mention'
+              ? 'You have been mentioned!'
+              : 'New document changes!'
 
           return (
             <>
@@ -168,21 +181,27 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                       </MjmlColumn>
                     </MjmlSection>
 
-                    {docNotifs.map((notif) => (
-                      <>
-                        <EmailContent
-                          key={notif.notif.comment.id}
-                          notification={notif.notif}
-                        />
-                        <MjmlSection padding="0px">
-                          <MjmlColumn>
-                            <MjmlText lineHeight="1" fontSize="1px">
-                              &nbsp;
-                            </MjmlText>
-                          </MjmlColumn>
-                        </MjmlSection>
-                      </>
-                    ))}
+                    {docNotifs.map(({notif}) => {
+                      return (
+                        <>
+                          <EmailContent
+                            key={
+                              'comment' in notif
+                                ? notif.comment.id
+                                : Math.random()
+                            }
+                            notification={notif}
+                          />
+                          <MjmlSection padding="0px">
+                            <MjmlColumn>
+                              <MjmlText lineHeight="1" fontSize="1px">
+                                &nbsp;
+                              </MjmlText>
+                            </MjmlColumn>
+                          </MjmlSection>
+                        </>
+                      )
+                    })}
 
                     <MjmlSection>
                       <MjmlColumn>
@@ -194,7 +213,11 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                             '#008060'
                           }
                         >
-                          {type === 'reply' ? 'Reply' : 'Open Mention'}
+                          {type === 'reply'
+                            ? 'Reply'
+                            : type === 'mention'
+                            ? 'Open Mention'
+                            : 'View Change'}
                         </MjmlButton>
                       </MjmlColumn>
                     </MjmlSection>
@@ -241,6 +264,7 @@ export type Notification =
       targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
       url: string
+      resolvedNames?: Record<string, string>
     }
   | {
       type: 'reply'
@@ -249,6 +273,14 @@ export type Notification =
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
+      url: string
+    }
+  | {
+      type: 'change'
+      authorAccountId: string
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
       url: string
     }
 
@@ -270,6 +302,11 @@ function getNotificationSummary(
   if (notification.type === 'reply') {
     return `You have a new reply from ${
       notification.commentAuthorMeta?.name || notification.comment.author
+    }.`
+  }
+  if (notification.type === 'change') {
+    return `${notification.authorMeta?.name || 'Someone'} made a change to ${
+      notification.targetMeta?.name || 'your document'
     }.`
   }
   return ''

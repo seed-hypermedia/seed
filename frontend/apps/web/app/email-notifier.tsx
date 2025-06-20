@@ -1,5 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {createNotificationsEmail} from '@shm/emails/notifier'
+import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   Comment,
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -20,8 +20,7 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {Notification} from './emails'
-import {getAccount, getMetadata} from './loaders'
+import {getAccount, getMetadata, loadDocument} from './loaders'
 import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
@@ -30,7 +29,7 @@ export async function initEmailNotifier() {
 
   await handleEmailNotifications()
 
-  const handleEmailNotificationsIntervalSeconds = 30
+  const handleEmailNotificationsIntervalSeconds = 10
 
   setInterval(() => {
     handleEmailNotifications()
@@ -156,11 +155,48 @@ async function handleEventsForEmailNotifications(
   for (const event of events) {
     console.log(event)
     if (event.data.case === 'newBlob') {
+      const blob = event.data.value
       try {
-        const blob = event.data.value
-        // if (blob.blobType === 'Change') {
-        //   const change = ''
-        // }
+        if (blob.blobType === 'Ref') {
+          try {
+            const unpacked = unpackHmId(blob.resource)
+            if (!unpacked?.uid) continue
+
+            const changedDoc = await loadDocument(unpacked)
+            const targetMeta = changedDoc?.metadata ?? {}
+            const docUrl = `${SITE_BASE_URL}/hm/${unpacked.uid}/${(
+              unpacked.path || []
+            ).join('/')}`
+
+            for (const accountId in accountNotificationOptions) {
+              const {notifyOwnedDocChange, email} =
+                accountNotificationOptions[accountId]
+
+              if (!notifyOwnedDocChange) continue
+
+              // Skip if the user made their own change
+              // if (blob.author === accountId) continue
+
+              const isOwner = changedDoc?.authors?.[accountId]
+              console.log('IS OWNER???', isOwner)
+              if (isOwner) continue
+
+              const authorMeta = (await getMetadata(hmId('d', blob.author)))
+                .metadata
+
+              await appendNotification(email, accountId, {
+                type: 'change',
+                authorAccountId: blob.author,
+                authorMeta,
+                targetMeta,
+                targetId: unpacked,
+                url: docUrl,
+              })
+            }
+          } catch (e) {
+            console.error('Error processing Ref event', e)
+          }
+        }
         if (blob.blobType !== 'Comment') continue
         const comment = await queryClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)
