@@ -3,7 +3,13 @@ import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import {createHMUrl, idToUrl, StateStream, unpackHmId} from './utils'
+import {
+  createHMUrl,
+  idToUrl,
+  StateStream,
+  unpackHmId,
+  writeableStateStream,
+} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -11,6 +17,7 @@ type UniversalAppContextValue = {
   ipfsFileUrl?: string
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
+  openRouteNewWindow?: null | ((route: NavRoute) => void)
   originHomeId?: UnpackedHypermediaId | undefined
   origin?: string
   openUrl: (url: string) => void
@@ -38,6 +45,7 @@ export function UniversalAppProvider(props: {
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
+  openRouteNewWindow?: null | ((route: NavRoute) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   hmUrlHref?: boolean
   languagePack?: LanguagePack
@@ -53,6 +61,7 @@ export function UniversalAppProvider(props: {
         getOptimizedImageUrl: props.getOptimizedImageUrl,
         openUrl: props.openUrl,
         openRoute: props.openRoute,
+        openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
         hmUrlHref: props.hmUrlHref,
         languagePack: props.languagePack,
@@ -102,6 +111,25 @@ export function useRouteLinkHref(href: string) {
   return useRouteLink(hmId ? {key: 'document', id: hmId} : href)
 }
 
+const [setIsMetaKeyPressed, isMetaKeyPressed] =
+  writeableStateStream<boolean>(false)
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.metaKey) {
+      setIsMetaKeyPressed(true)
+    }
+  })
+  window.addEventListener('keyup', (e) => {
+    if (e.metaKey) {
+      setIsMetaKeyPressed(false)
+    }
+  })
+  window.addEventListener('blur', () => {
+    setIsMetaKeyPressed(false)
+  })
+}
+
 export function useRouteLink(
   route: NavRoute | string | null,
   opts?: {
@@ -139,8 +167,21 @@ export function useRouteLink(
 
   const clickHandler = context.openRoute
     ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
-        e.preventDefault()
         e.stopPropagation()
+        if (isMetaKeyPressed.get()) {
+          if (context.openRouteNewWindow) {
+            e.preventDefault()
+            if (typeof route === 'string') {
+              context.openUrl(
+                route.startsWith('http') ? route : `https://${route}`,
+              )
+            } else {
+              context.openRouteNewWindow(route)
+            }
+          }
+          return // default behavior will not be stopped on web
+        }
+        e.preventDefault()
         opts?.onPress?.()
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)

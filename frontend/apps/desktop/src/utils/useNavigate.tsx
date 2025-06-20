@@ -1,13 +1,14 @@
 import {NavRoute} from '@shm/shared/routes'
 import {startTransition, useCallback} from 'react'
-import {useIPC} from '../app-context'
-import {NavMode, useNavigationDispatch} from './navigation'
-import {encodeRouteToPath} from './route-encoding'
+import {
+  NavMode,
+  openRouteInNewWindow,
+  useNavigationDispatch,
+} from './navigation'
 import {getRouteWindowType, getWindowType} from './window-types'
 
 export function useNavigate(requestedMode: NavMode = 'push') {
   const dispatch = useNavigationDispatch()
-  const {invoke} = useIPC()
   return useCallback(
     (route: NavRoute) => {
       const routeWindowType = getRouteWindowType(route)
@@ -15,8 +16,7 @@ export function useNavigate(requestedMode: NavMode = 'push') {
         routeWindowType.key === getWindowType() ? requestedMode : 'spawn'
       startTransition(() => {
         if (mode === 'spawn') {
-          const path = encodeRouteToPath(route)
-          invoke('plugin:window|open', {path})
+          openRouteInNewWindow(route)
         } else if (mode === 'push') {
           dispatch({type: 'push', route})
         } else if (mode === 'replace') {
@@ -26,7 +26,7 @@ export function useNavigate(requestedMode: NavMode = 'push') {
         }
       })
     },
-    [dispatch, invoke, requestedMode],
+    [dispatch, requestedMode],
   )
 }
 

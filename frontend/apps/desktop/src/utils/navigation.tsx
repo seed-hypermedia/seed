@@ -1,3 +1,4 @@
+import {ipc} from '@/ipc'
 import {hmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
@@ -5,6 +6,7 @@ import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
+import {encodeRouteToPath} from './route-encoding'
 
 global.Buffer = global.Buffer || Buffer
 
@@ -189,6 +191,11 @@ export function useRouteDocId(): UnpackedHypermediaId | null {
     }
   }
   return null
+}
+
+export function openRouteInNewWindow(route: NavRoute) {
+  const path = encodeRouteToPath(route)
+  ipc.invoke('plugin:window|open', {path})
 }
 
 export function useNavigationState() {

@@ -21,6 +21,7 @@ import {
   NavContextProvider,
   NavState,
   navStateReducer,
+  openRouteInNewWindow,
   setAppNavDispatch,
   useNavRoute,
 } from './navigation'
@@ -102,6 +103,9 @@ export function NavigationContainer({
         } else {
           navigation.dispatch({type: 'push', route})
         }
+      }}
+      openRouteNewWindow={(route: NavRoute) => {
+        openRouteInNewWindow(route)
       }}
       openUrl={(url: string) => {
         externalOpen(url)
