@@ -125,7 +125,7 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   version = "";
 
   /**
-   * Optional. If true, we sync the document and the child 
+   * Optional. If true, we sync the document and the child
    * documents as well.
    *
    * @generated from field: bool recursive = 4;
@@ -495,7 +495,7 @@ export class Entity extends Message<Entity> {
    * Title/Body in the case of groups and documents.
    * Body in the case of comments. We don't fill up the whole
    * block, just the part that contains the search term, with
-   * the surrounding context. The context size is defined by 
+   * the surrounding context. The context size is defined by
    * the context_size parameter.
    *
    * @generated from field: string content = 5;
@@ -656,7 +656,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
 
   /**
    * Optional. The size of the text accompanying the search match.
-   * Half of the size is before the match, and half after. 
+   * Half of the size is before the match, and half after.
    * Default is 48 runes.
    *
    * @generated from field: int32 context_size = 3;
@@ -674,7 +674,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   /**
    * Optional. The account uid the user is logged in with.
    * This is used to filter out contacts that the user doesn't have access to.
-   * If not set, we won't provide any contact entities in the response. 
+   * If not set, we won't provide any contact entities in the response.
    *
    * @generated from field: string logged_account_uid = 5;
    */
@@ -1120,7 +1120,7 @@ export class Mention extends Message<Mention> {
   isExactVersion = false;
 
   /**
-   * Optional. Specifies the document where the mention was found. Relevant for comments. 
+   * Optional. Specifies the document where the mention was found. Relevant for comments.
    *
    * @generated from field: string source_document = 6;
    */

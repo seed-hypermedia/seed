@@ -13,10 +13,11 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeDagPB Type = "DagPB"
+// TypeDagPB is the type for DAG-PB blobs.
+const TypeDagPB Type = "DagPB"
 
 func init() {
-	registerIndexer(blobTypeDagPB,
+	registerIndexer(TypeDagPB,
 		func(c cid.Cid, data []byte) (eb Encoded[datamodel.Node], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagPb {
@@ -42,7 +43,7 @@ func init() {
 func indexDagPB(ictx *indexingCtx, _ int64, eb Encoded[datamodel.Node]) error {
 	c, v := eb.CID, eb.Decoded
 
-	sb := newSimpleStructuralBlob(c, blobTypeDagPB)
+	sb := newSimpleStructuralBlob(c, TypeDagPB)
 
 	if err := traversal.WalkLocal(v, func(_ traversal.Progress, n ipld.Node) error {
 		pblink, ok := n.(dagpb.PBLink)

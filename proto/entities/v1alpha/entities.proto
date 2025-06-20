@@ -65,10 +65,9 @@ message DiscoverEntityRequest {
   // Optional. Version of the entity to discover.
   string version = 3;
 
-  // Optional. If true, we sync the document and the child 
+  // Optional. If true, we sync the document and the child
   // documents as well.
   bool recursive = 4;
-
 }
 
 // Response to discover an entity.
@@ -167,7 +166,7 @@ message Entity {
   // Title/Body in the case of groups and documents.
   // Body in the case of comments. We don't fill up the whole
   // block, just the part that contains the search term, with
-  // the surrounding context. The context size is defined by 
+  // the surrounding context. The context size is defined by
   // the context_size parameter.
   string content = 5;
 
@@ -210,7 +209,7 @@ message SearchEntitiesRequest {
   bool include_body = 2;
 
   // Optional. The size of the text accompanying the search match.
-  // Half of the size is before the match, and half after. 
+  // Half of the size is before the match, and half after.
   // Default is 48 runes.
   int32 context_size = 3;
 
@@ -220,7 +219,7 @@ message SearchEntitiesRequest {
 
   // Optional. The account uid the user is logged in with.
   // This is used to filter out contacts that the user doesn't have access to.
-  // If not set, we won't provide any contact entities in the response. 
+  // If not set, we won't provide any contact entities in the response.
   string logged_account_uid = 5;
 }
 
@@ -334,7 +333,7 @@ message Mention {
   // or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
   bool is_exact_version = 5;
 
-  // Optional. Specifies the document where the mention was found. Relevant for comments. 
+  // Optional. Specifies the document where the mention was found. Relevant for comments.
   string source_document = 6;
 
   // Optional. The version of the target Entity the link points to,

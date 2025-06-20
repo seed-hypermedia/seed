@@ -8,6 +8,13 @@ import "google/protobuf/struct.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
+/*
+  WARNING: This API is a big mess right now, and a bit of a kitchen sink.
+  So are most of our other APIs right now. We are in the process of
+  cleaning things up and refactoring them for coherence and usability,
+  but it's going to take some time.
+*/
+
 // TODO(burdiyan): rename account to space/site everywhere in this API.
 
 // Documents service provides access to documents.

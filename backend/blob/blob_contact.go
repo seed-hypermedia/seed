@@ -12,7 +12,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeContact Type = "Contact"
+// TypeContact is the type of the Contact blob.
+const TypeContact Type = "Contact"
 
 const contactNameMaxLength = 256
 
@@ -37,7 +38,7 @@ type Contact struct {
 func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
 	cu := &Contact{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeContact,
+			Type:   TypeContact,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -56,8 +57,8 @@ func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, 
 func init() {
 	cbornode.RegisterCborType(Contact{})
 
-	matcher := makeCBORTypeMatch(blobTypeContact)
-	registerIndexer(blobTypeContact,
+	matcher := makeCBORTypeMatch(TypeContact)
+	registerIndexer(TypeContact,
 		func(c cid.Cid, data []byte) (eb Encoded[*Contact], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {

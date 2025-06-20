@@ -63,6 +63,9 @@ CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob)
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, author);
 
+-- Index for tsid.
+CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid') WHERE extra_attrs->>'tsid' IS NOT NULL;
+
 -- Index for querying capabilities by delegate.
 CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';
 

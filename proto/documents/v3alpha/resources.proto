@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package com.seed.documents.v3alpha;
+
+import "documents/v3alpha/documents.proto";
+import "documents/v3alpha/comments.proto";
+
+option go_package = "seed/backend/genproto/documents/v3alpha;documents";
+
+// Service for querying Hypermedia resources.
+//
+// Note: This API had to be separate to avoid circular dependencies between documents and comments.
+service Resources {
+  // Gets a single resource with a URL (technically IRI).
+  rpc GetResource(GetResourceRequest) returns (Resource);
+}
+
+// Request to get a single resource by its IRI.
+message GetResourceRequest {
+  // Required. IRI of the resource to retrieve.
+  string iri = 1;
+}
+
+// An identifiable entity, accessible with a unique identifier.
+message Resource {
+  // Various kinds of resources.
+  oneof kind {
+    Document document = 1;
+
+    Comment comment = 2;
+
+    Contact contact = 3;
+  }
+}

@@ -18,7 +18,8 @@ const (
 	maxProfileDescriptionLen = 512
 )
 
-const blobTypeProfile Type = "Profile"
+// TypeProfile is the type of the Profile blob.
+const TypeProfile Type = "Profile"
 
 func init() {
 	cbornode.RegisterCborType(Profile{})
@@ -61,7 +62,7 @@ type Profile struct {
 func NewProfileAlias(kp *core.KeyPair, alias core.Principal, ts time.Time) (eb Encoded[*Profile], err error) {
 	p := &Profile{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeProfile,
+			Type:   TypeProfile,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -87,7 +88,7 @@ func NewProfile(kp *core.KeyPair, name string, icon URI, description string, acc
 
 	p := &Profile{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeProfile,
+			Type:   TypeProfile,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -105,8 +106,8 @@ func NewProfile(kp *core.KeyPair, name string, icon URI, description string, acc
 }
 
 func init() {
-	matcher := makeCBORTypeMatch(blobTypeProfile)
-	registerIndexer(blobTypeProfile,
+	matcher := makeCBORTypeMatch(TypeProfile)
+	registerIndexer(TypeProfile,
 		func(c cid.Cid, data []byte) (eb Encoded[*Profile], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {

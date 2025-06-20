@@ -66,6 +66,7 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	documents.RegisterDocumentsServer(rpc, srv)
 	documents.RegisterAccessControlServer(rpc, srv)
 	documents.RegisterCommentsServer(rpc, srv)
+	documents.RegisterResourcesServer(rpc, srv)
 }
 
 // GetDocument implements Documents API v3.

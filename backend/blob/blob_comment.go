@@ -18,7 +18,8 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
-const blobTypeComment Type = "Comment"
+// TypeComment is the type of a Comment blob.
+const TypeComment Type = "Comment"
 
 func init() {
 	cbornode.RegisterCborType(Comment{})
@@ -72,7 +73,7 @@ func NewComment(
 	}
 	cu := &Comment{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeComment,
+			Type:   TypeComment,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -123,9 +124,9 @@ type CommentBlock struct {
 }
 
 func init() {
-	matcher := makeCBORTypeMatch(blobTypeComment)
+	matcher := makeCBORTypeMatch(TypeComment)
 
-	registerIndexer(blobTypeComment,
+	registerIndexer(TypeComment,
 		func(c cid.Cid, data []byte) (eb Encoded[*Comment], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {

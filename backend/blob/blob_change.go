@@ -21,7 +21,8 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
-const blobTypeChange Type = "Change"
+// TypeChange is the type for Change blobs.
+const TypeChange Type = "Change"
 
 // Change is an atomic change to a document.
 // The linked DAG of Changes represents the state of a document over time.
@@ -56,7 +57,7 @@ func NewChange(kp *core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, bod
 
 	cc := &Change{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeChange,
+			Type:   TypeChange,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -327,8 +328,8 @@ func NewOpDeleteBlocks(blocks []string) OpMap {
 }
 
 func init() {
-	matcher := makeCBORTypeMatch(blobTypeChange)
-	registerIndexer(blobTypeChange,
+	matcher := makeCBORTypeMatch(TypeChange)
+	registerIndexer(TypeChange,
 		func(c cid.Cid, data []byte) (eb Encoded[*Change], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
@@ -374,7 +375,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		if len(v.Deps) == 0 {
 			resourceTime = v.Ts
 		}
-		sb = newStructuralBlob(c, blobTypeChange, author, v.Ts, "", v.Genesis, author, resourceTime)
+		sb = newStructuralBlob(c, TypeChange, author, v.Ts, "", v.Genesis, author, resourceTime)
 	}
 
 	if v.Genesis.Defined() {

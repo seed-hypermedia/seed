@@ -62,7 +62,7 @@ func (srv *Server) CreateContact(ctx context.Context, in *documents.CreateContac
 		return nil, status.Errorf(codes.Internal, "failed to store contact: %v", err)
 	}
 
-	return contactToProto(encoded), nil
+	return contactToProto(encoded.TSID(), encoded.Decoded), nil
 }
 
 // ListContacts implements Documents API v3.
@@ -340,7 +340,7 @@ func (srv *Server) UpdateContact(ctx context.Context, in *documents.UpdateContac
 		return nil, status.Errorf(codes.Internal, "failed to store contact update: %v", err)
 	}
 
-	return contactToProto(encoded), nil
+	return contactToProto(encoded.TSID(), encoded.Decoded), nil
 }
 
 // DeleteContact implements Documents API v3.
@@ -381,20 +381,14 @@ func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContac
 	return &emptypb.Empty{}, nil
 }
 
-func contactToProto(eb blob.Encoded[*blob.Contact]) *documents.Contact {
-	v := eb.Decoded
-	var tsid blob.TSID
-	var createTime time.Time
-
-	if string(v.ID) != "" {
-		// This is an update/delete - use the original contact's TSID
+func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
+	// TODO(burdiyan): this is an ugly hack to avoid rewriting a lot of code.
+	// When the contact blob has an ID we use it, instead of the TSID derived from the blob data.
+	if v.ID != "" {
 		tsid = v.ID
-		createTime = v.ID.Timestamp()
-	} else {
-		// This is the original contact - use current blob's TSID
-		tsid = eb.TSID()
-		createTime = v.Ts
 	}
+
+	createTime := tsid.Timestamp()
 
 	return &documents.Contact{
 		Id:         tsid.String(),

@@ -24,7 +24,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeRef Type = "Ref"
+// TypeRef is the type of the Ref blob.
+const TypeRef Type = "Ref"
 
 func init() {
 	cbornode.RegisterCborType(Ref{})
@@ -50,7 +51,7 @@ type Ref struct {
 func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeRef,
+			Type:   TypeRef,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -80,7 +81,7 @@ func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space c
 
 	ru := &Ref{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeRef,
+			Type:   TypeRef,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
@@ -131,9 +132,9 @@ type RedirectTarget struct {
 }
 
 func init() {
-	matcher := makeCBORTypeMatch(blobTypeRef)
+	matcher := makeCBORTypeMatch(TypeRef)
 
-	registerIndexer(blobTypeRef,
+	registerIndexer(TypeRef,
 		func(c cid.Cid, data []byte) (eb Encoded[*Ref], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
@@ -181,9 +182,9 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 
 	var sb structuralBlob
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
+		sb = newStructuralBlob(c, TypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
 	} else {
-		sb = newStructuralBlob(c, blobTypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
+		sb = newStructuralBlob(c, TypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
 	}
 
 	if v.GenesisBlob.Defined() {

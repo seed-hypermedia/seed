@@ -18,7 +18,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-const blobTypeCapability Type = "Capability"
+// TypeCapability is the type of the Capability blob.
+const TypeCapability Type = "Capability"
 
 const labelLimitBytes = 512
 
@@ -49,7 +50,7 @@ type Capability struct {
 func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role Role, label string, ts time.Time) (eb Encoded[*Capability], err error) {
 	cu := &Capability{
 		BaseBlob: BaseBlob{
-			Type:   blobTypeCapability,
+			Type:   TypeCapability,
 			Signer: issuer.Principal(),
 			Ts:     ts,
 		},
@@ -96,8 +97,8 @@ func ValidateCapabilityLabel(label string) error {
 func init() {
 	cbornode.RegisterCborType(Capability{})
 
-	matcher := makeCBORTypeMatch(blobTypeCapability)
-	registerIndexer(blobTypeCapability,
+	matcher := makeCBORTypeMatch(TypeCapability)
+	registerIndexer(TypeCapability,
 		func(c cid.Cid, data []byte) (eb Encoded[*Capability], err error) {
 			codec, _ := ipfs.DecodeCID(c)
 			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
@@ -130,7 +131,7 @@ func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error 
 		return err
 	}
 
-	sb := newStructuralBlob(c, blobTypeCapability, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+	sb := newStructuralBlob(c, TypeCapability, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 
 	if _, err := ictx.ensurePubKey(v.Signer); err != nil {
 		return err
