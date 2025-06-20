@@ -178,7 +178,6 @@ export function SiteHeader({
                   id={docId}
                   supportQueries={supportQueries}
                   onPress={() => {
-                    console.log('~ onPress')
                     setIsMobileMenuOpen(false)
                   }}
                 />
@@ -429,8 +428,6 @@ export function SiteHeaderMenu({
 
     const container = containerRef.current
     const containerWidth = container.getBoundingClientRect().width
-
-    console.log('containerWidth', containerWidth)
 
     // Get editNavPane width if it exists
     const editNavPaneWidth =

@@ -238,7 +238,6 @@ declare global {
 function MainApp({}: {}) {
   // Make window visible immediately - this should be the very first thing
   useEffect(() => {
-    console.log('Making window visible immediately')
     // @ts-expect-error
     window.windowIsReady()
   }, [])

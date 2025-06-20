@@ -220,7 +220,6 @@ function _MainDocumentPage({
       }
     },
   )
-  console.log('~ loaded document', entity.data?.document)
 
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version

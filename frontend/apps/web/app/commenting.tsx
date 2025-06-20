@@ -66,7 +66,6 @@ export type WebCommentingProps = {
  * This is the main commenting component. It is used to create a new comment.
  */
 export default function WebCommenting(props: WebCommentingProps) {
-  console.log('WebCommenting', props)
   if (!props.enableWebSigning) {
     return <ExternalWebCommenting {...props} />
   }

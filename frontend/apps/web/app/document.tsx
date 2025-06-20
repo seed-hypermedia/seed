@@ -277,11 +277,6 @@ export function DocumentPage(
     return {type: 'discussions', comment: comment}
   })
 
-  useEffect(() => {
-    console.log('activePanel', activePanel)
-    console.log('isSheetOpen', isSheetOpen)
-  }, [activePanel, isSheetOpen])
-
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
       replace: true,
@@ -382,7 +377,6 @@ export function DocumentPage(
       comments={interactionSummary.data?.comments}
       changes={interactionSummary.data?.changes}
       onCitationsOpen={() => {
-        console.log('onCitationsOpen')
         setActivePanel({
           type: 'citations',
           blockId: undefined,
@@ -392,7 +386,6 @@ export function DocumentPage(
         }
       }}
       onCommentsOpen={() => {
-        console.log('onCommentsOpen')
         setActivePanel({
           type: 'discussions',
           blockId: undefined,
@@ -402,7 +395,6 @@ export function DocumentPage(
         }
       }}
       onVersionOpen={() => {
-        console.log('onVersionOpen')
         setActivePanel({type: 'versions'})
         if (!media.gtSm) {
           setIsSheetOpen(true)
@@ -905,7 +897,6 @@ function _DocInteractionsSummary({
           active={activePanel?.type === 'citations'}
           count={citations || 0}
           onClick={() => {
-            console.log('~ onCitationsOpen')
             onCitationsOpen()
           }}
           // @ts-ignore
