@@ -47,7 +47,7 @@ export function SiteHeader({
   docId: UnpackedHypermediaId | null
   items?: DocNavigationItem[]
   isCenterLayout?: boolean
-  document?: HMDocument
+  document?: HMDocument | undefined
   supportDocuments?: HMEntityContent[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
@@ -299,10 +299,11 @@ function HeaderLinkItem({
           id,
         }
       : webUrl || null,
+    {handler: 'onClick'},
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
-      <span
+      <a
         className={cn(
           'truncate select-none font-bold px-1 cursor-pointer transition-colors',
           active ? 'text-foreground' : 'text-muted-foreground',
@@ -311,7 +312,7 @@ function HeaderLinkItem({
         {...linkProps}
       >
         {getMetadataName(metadata)}
-      </span>
+      </a>
       {draftId ? <DraftBadge /> : null}
     </div>
   )

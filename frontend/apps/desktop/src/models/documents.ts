@@ -97,7 +97,6 @@ export function useDraftList() {
 }
 
 export function useAccountDraftList(accountUid?: string) {
-  if (!accountUid) return {data: []}
   return trpc.drafts.listAccount.useQuery(accountUid, {
     enabled: !!accountUid,
   })
@@ -955,7 +954,9 @@ export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
 ): UseQueryResult<Array<HMDocumentInfo>> {
-  const fullSpace = useQuery(queryListDirectory(id))
+  const fullSpace: UseQueryResult<Array<HMDocumentInfo>> = useQuery(
+    queryListDirectory(id),
+  )
   const result: UseQueryResult<Array<HMDocumentInfo>> = {
     ...fullSpace,
     data: useMemo(() => {

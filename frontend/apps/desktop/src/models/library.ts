@@ -248,8 +248,8 @@ export function useChildrenActivity(
   docId: UnpackedHypermediaId | null | undefined,
 ) {
   const siteLibrary = useSiteLibrary(docId?.uid, true)
-  const path = docId.path
-  const pathPrefix = docId.path?.join('/') || ''
+  const path = docId?.path
+  const pathPrefix = docId?.path?.join('/') || ''
   return {
     ...siteLibrary,
     data: siteLibrary.data?.filter((item) => {

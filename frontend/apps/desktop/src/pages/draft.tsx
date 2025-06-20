@@ -91,7 +91,7 @@ export default function DraftPage() {
   }, [route, data])
 
   const isEditingHomeDoc = useMemo(() => {
-    if (editId && editId.path?.length === 0) return true
+    if (editId && (editId.path?.length ?? 0) === 0) return true
     return false
   }, [locationId, editId])
 
@@ -168,6 +168,7 @@ export default function DraftPage() {
     }
   }
 
+  const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <div className="flex flex-1 h-full">
@@ -189,16 +190,13 @@ export default function DraftPage() {
             )}
           >
             <DraftRebaseBanner />
-            {locationId || (editId && homeEntity.data) ? (
+            {headerDocId ? (
               <>
                 <DraftAppHeader
                   siteHomeEntity={homeEntity.data}
-                  isEditingHomeDoc={
-                    homeEntity.data?.id.id == locationId?.id ||
-                    homeEntity.data?.id.id == editId?.id
-                  }
-                  docId={locationId || editId}
-                  document={homeEntity.data?.document}
+                  isEditingHomeDoc={isEditingHomeDoc}
+                  docId={headerDocId}
+                  document={homeEntity.data?.document || undefined}
                   draftMetadata={state.context.metadata}
                   onDocNav={(navigation) => {
                     send({
@@ -528,7 +526,6 @@ function DocumentEditor({
 function DraftAppHeader({
   siteHomeEntity,
   docId,
-  children,
   document,
   draftMetadata,
   isEditingHomeDoc = false,
@@ -537,7 +534,6 @@ function DraftAppHeader({
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
-  children?: React.ReactNode
   document?: HMDocument
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
@@ -569,26 +565,23 @@ function DraftAppHeader({
             webUrl: id ? undefined : navItem.link,
             draftId: undefined,
             metadata: {name: navItem.text || 'Untitled Document'},
-            sortTime: new Date(),
             isPublished: true,
           }
         })
       : navItems
-
-  console.log('~ displayNavItems', displayNavItems)
 
   if (!siteHomeEntity) return null
 
   const siteHomeMetadata = isEditingHomeDoc
     ? draftMetadata
     : siteHomeEntity.document?.metadata
-  // const draft = useDraft(docId)
+
   return (
     <SiteHeader
       originHomeId={siteHomeEntity.id}
       items={displayNavItems}
       document={
-        isEditingHomeDoc
+        isEditingHomeDoc && document
           ? {...document, metadata: draftMetadata}
           : document || undefined
       }
@@ -597,8 +590,6 @@ function DraftAppHeader({
         siteHomeMetadata?.theme?.headerLayout === 'Center' ||
         siteHomeMetadata?.layout === 'Seed/Experimental/Newspaper'
       }
-      // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
-      children={children}
       editNavPane={
         isEditingHomeDoc ? (
           <EditNavPopover
