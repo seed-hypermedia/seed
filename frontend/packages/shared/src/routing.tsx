@@ -107,6 +107,7 @@ export function useRouteLink(
   opts?: {
     replace?: boolean
     onPress?: () => void
+    handler?: 'onClick' | 'onPress'
   },
 ) {
   const context = useContext(UniversalAppContext)
@@ -136,49 +137,39 @@ export function useRouteLink(
 
   const href = typeof route === 'string' ? route : getDocHref(docId)
 
-  return {
-    onPress: context.openRoute
-      ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
-          e.preventDefault()
-          e.stopPropagation()
-          opts?.onPress?.()
-          if (typeof route === 'string') {
-            context.openUrl(
-              route.startsWith('http') ? route : `https://${route}`,
-            )
-          } else if (context.openRoute) {
-            context.openRoute(route, opts?.replace)
-          } else {
-            console.error(
-              'No openRoute function in UniversalAppContext. Cannot open route',
-              route,
-            )
-          }
+  const clickHandler = context.openRoute
+    ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
+        e.preventDefault()
+        e.stopPropagation()
+        opts?.onPress?.()
+        if (typeof route === 'string') {
+          context.openUrl(route.startsWith('http') ? route : `https://${route}`)
+        } else if (context.openRoute) {
+          context.openRoute(route, opts?.replace)
+        } else {
+          console.error(
+            'No openRoute function in UniversalAppContext. Cannot open route',
+            route,
+          )
         }
-      : undefined,
-    onClick: context.openRoute
-      ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
-          e.preventDefault()
-          e.stopPropagation()
-          opts?.onPress?.()
-          if (typeof route === 'string') {
-            context.openUrl(
-              route.startsWith('http') ? route : `https://${route}`,
-            )
-          } else if (context.openRoute) {
-            context.openRoute(route, opts?.replace)
-          } else {
-            console.error(
-              'No openRoute function in UniversalAppContext. Cannot open route',
-              route,
-            )
-          }
-        }
-      : undefined,
+      }
+    : undefined
+
+  const props = {
     href: href || '/',
     style: {
       textDecoration: 'none',
     },
     tag: 'a',
+  }
+  if (opts?.handler === 'onClick') {
+    return {
+      ...props,
+      onClick: clickHandler,
+    }
+  }
+  return {
+    ...props,
+    onPress: clickHandler,
   }
 }

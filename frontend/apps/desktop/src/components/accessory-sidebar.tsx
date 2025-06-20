@@ -233,7 +233,7 @@ function AccessoryTabs({
         const isActive = accessoryKey === option.key
         const Icon = accessoryKey ? iconNames[option.key] : undefined
         return (
-          <Tooltip content={option.label}>
+          <Tooltip content={option.label} key={option.key}>
             <span>
               <Button
                 size="sm"

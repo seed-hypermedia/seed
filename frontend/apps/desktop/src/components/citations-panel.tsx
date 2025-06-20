@@ -10,6 +10,7 @@ import {
 } from '@shm/shared'
 import {
   HMAccountsMetadata,
+  HMBlock,
   HMCitation,
   HMComment,
   HMMetadata,
@@ -47,8 +48,8 @@ export function CitationsPanel({
         item.targetFragment?.blockId === accessory.openBlockId,
     )
     ?.filter((item) => {
-      if (!citationSet.has(item?.source)) {
-        citationSet.add(item?.source)
+      if (!citationSet.has(item?.source.id.id)) {
+        citationSet.add(item?.source.id.id)
         return true
       }
       return false
@@ -81,7 +82,7 @@ export function CitationsPanel({
         {distinctCitations?.map((citation, index) => {
           return (
             <DocumentCitationEntry
-              key={`${citation.source}${citation.targetFragment}`}
+              key={`${citation.source.id.id}-${citation.source.id.version}-${citation.targetFragment}`}
               citation={{
                 ...citation,
                 document: documents.at(index)?.data?.document || null,
@@ -148,7 +149,10 @@ export function CommentCitationEntry({
       comment.data.content[0].block.type === 'Embed'
     ) {
       const firstBlockNode = comment.data.content[0]
-      const singleEmbedId = unpackHmId(firstBlockNode.block.link)
+      const blockWithLink = getBlockWithLink(firstBlockNode.block)
+      const singleEmbedId = blockWithLink
+        ? unpackHmId(blockWithLink.link)
+        : null
       if (
         firstBlockNode.children?.length &&
         singleEmbedId?.type === citationTarget.type &&
@@ -178,10 +182,17 @@ export function CommentCitationEntry({
       isLast={false}
       key={comment.data.id}
       comment={focusedComment}
-      rootReplyCommentId={comment.data.threadRoot ?? null}
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
       replyCount={replies?.length}
     />
   )
+}
+
+function getBlockWithLink(block: HMBlock) {
+  if (block.type === 'Link') return block
+  if (block.type === 'Embed') return block
+  if (block.type === 'Button') return block
+
+  return null
 }

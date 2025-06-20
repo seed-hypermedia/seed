@@ -544,6 +544,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                           if (!contact) return null
                           return [
                             <ButtonText
+                              key={contact.id.uid}
                               borderColor="$colorTransparent"
                               outlineColor="$colorTransparent"
                               hoverStyle={{

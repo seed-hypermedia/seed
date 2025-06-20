@@ -3,7 +3,10 @@ export function hmIdPathToEntityQueryPath(path: string[] | null) {
   return filteredPath?.length ? `/${filteredPath.join('/')}` : ''
 }
 
-export function entityQueryPathToHmIdPath(path: string): string[] {
+export function entityQueryPathToHmIdPath(
+  path: string | null | undefined,
+): string[] {
+  if (!path) return []
   if (path === '/') return []
   return path.split('/').filter(Boolean)
 }

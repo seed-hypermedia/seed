@@ -190,7 +190,7 @@ function IdentitySelector() {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button className="flex flex-row items-center justify-between w-full p-1 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
+        <div className="flex flex-row items-center justify-between w-full p-1 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
           <div className="flex flex-row items-center gap-2">
             {selectedAccount?.data ? (
               <HMIcon
@@ -206,7 +206,7 @@ function IdentitySelector() {
             </div>
           </div>
           <AppSettingsButton />
-        </button>
+        </div>
       </PopoverTrigger>
       <PopoverContent className="flex flex-col items-stretch gap-1 max-h-[80vh] overflow-y-auto">
         {accountOptions.map((option) => (

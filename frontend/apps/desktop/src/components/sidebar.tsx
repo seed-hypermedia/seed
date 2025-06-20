@@ -106,7 +106,7 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <YStack marginTop="$4" group="section">
+    <YStack marginTop="$4">
       <XStack paddingHorizontal="$2" ai="center" jc="space-between">
         <XStack
           gap="$1"
@@ -185,13 +185,9 @@ function AccountsSection() {
       accessory={
         hasAccounts ? (
           <Tooltip content="Add Account">
-            <Button
-              bg="$colorTransparent"
-              chromeless
-              size="$1"
-              icon={Plus}
-              onPress={() => dispatchOnboardingDialog(true)}
-            />
+            <Button onClick={() => dispatchOnboardingDialog(true)} size="xs">
+              <Plus />
+            </Button>
           </Tooltip>
         ) : undefined
       }

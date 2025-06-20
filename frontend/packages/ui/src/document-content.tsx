@@ -290,9 +290,8 @@ export function DocContent({
     >
       <div
         ref={bubble}
-        userSelect="none"
         className={cn(
-          'z-50 absolute top-0 left-0 hidden',
+          'z-50 absolute top-0 left-0 hidden select-none',
           media.gtSm && !state.matches('disable') ? 'block' : 'hidden',
         )}
         style={{...coords}}

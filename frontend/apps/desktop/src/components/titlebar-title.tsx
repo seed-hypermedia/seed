@@ -507,7 +507,7 @@ function BreadcrumbEllipsis({
 
 function BreadcrumbSeparator() {
   return (
-    <TitleText size="$4" color="$color10" flexShrink={0}>
+    <TitleText size="$4" color="$color10">
       {' / '}
     </TitleText>
   )
@@ -582,9 +582,7 @@ function BreadcrumbItem({
 
   let content = isActive ? (
     <XStack ai="center" gap="$1">
-      <TitleText ref={observerRef} fontWeight="bold">
-        {details.name}
-      </TitleText>
+      <TitleText fontWeight="bold">{details.name}</TitleText>
       {draft ? <DraftBadge /> : null}
     </XStack>
   ) : (
@@ -719,6 +717,7 @@ function URLCardSection({
           {path &&
             path.map((p, index) => (
               <Text
+                key={`${p}-${index}`}
                 color={index === path.length - 1 ? '$brand5' : '$color8'}
                 $group-item-hover={{color: '$blue9'}}
               >

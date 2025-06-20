@@ -1,8 +1,9 @@
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area'
 import * as React from 'react'
+import {forwardRef} from 'react'
 import {cn} from '../utils'
 
-function ScrollArea({
+function _ScrollArea({
   className,
   children,
   onScroll,
@@ -29,6 +30,8 @@ function ScrollArea({
     </ScrollAreaPrimitive.Root>
   )
 }
+
+const ScrollArea = forwardRef(_ScrollArea)
 
 function ScrollBar({
   className,

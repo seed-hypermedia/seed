@@ -11,10 +11,15 @@ export function SiteLogo({
   metadata?: HMMetadata | null
 }) {
   const imageUrl = useImageUrl()
-  const homeLinkProps = useRouteLink({
-    key: 'document',
-    id,
-  })
+  const homeLinkProps = useRouteLink(
+    {
+      key: 'document',
+      id,
+    },
+    {
+      handler: 'onClick',
+    },
+  )
   if (metadata?.seedExperimentalLogo) {
     return (
       <div

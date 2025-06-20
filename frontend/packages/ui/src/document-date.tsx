@@ -34,7 +34,7 @@ export function DocumentDate({
     ? formattedDateDayOnly(new Date(metadata.displayPublishTime))
     : formattedDateMedium(updateTime)
   const content: React.ReactNode[] = [
-    <SizableText size="sm" color="muted">
+    <SizableText size="sm" color="muted" key="last-update">
       {tx('Last Update')}: {formattedDateLong(updateTime)}
     </SizableText>,
     // // Disabled because this is always 1969 because the backend looks at the deterministic genesis blob instead of the actual creation time
@@ -44,7 +44,11 @@ export function DocumentDate({
   ]
   if (metadata?.displayPublishTime) {
     content.unshift(
-      <SizableText className="text-brand/50" size="sm">
+      <SizableText
+        className="text-brand/50"
+        size="sm"
+        key="original-publish-date"
+      >
         {tx('Original Publish date')}: {displayText}
       </SizableText>,
     )
