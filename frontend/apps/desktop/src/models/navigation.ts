@@ -7,87 +7,98 @@ export function getNavigationChanges(
   oldNavigationBlockNode: HMBlockNode | null | undefined,
 ) {
   const ops: DocumentChange[] = []
-  if (!oldNavigationBlockNode && navigation) {
-    ops.push(
-      new DocumentChange({
-        op: {
-          case: 'replaceBlock',
-          value: {
-            id: 'navigation',
-            type: 'Group',
-          },
-        },
-      }),
-    )
-  }
-  console.log(
-    '~~ will get navigation changes',
-    navigation,
-    oldNavigationBlockNode,
-  )
-  const newBlocks = Object.fromEntries(
-    navigation?.map((item) => [item.id, item]) || [],
-  )
-  let newBlockWalkLeftSibling: string | undefined = undefined
-  const newBlockLeftSiblings = Object.fromEntries(
-    navigation?.map((item) => {
-      const leftSibling = newBlockWalkLeftSibling
-      newBlockWalkLeftSibling = item.id
-      return [item.id, leftSibling]
-    }) || [],
-  )
-  const changedBlockIds = new Set<string>()
-  const blockIdsToRemove = new Set<string>()
-  const blocksToMove = new Set<string>()
-  let oldBlockWalkLeftSibling: string | undefined = undefined
-  oldNavigationBlockNode?.children?.forEach((bn) => {
-    blockIdsToRemove.add(bn.block.id)
-    const newBlock = newBlocks[bn.block.id]
-    if (!newBlock || !isBlocksEqual(bn.block, newBlock)) {
-      changedBlockIds.add(bn.block.id)
-    }
-    if (newBlockLeftSiblings[bn.block.id] !== oldBlockWalkLeftSibling) {
-      blocksToMove.add(bn.block.id)
-    }
-    oldBlockWalkLeftSibling = bn.block.id
-  })
-  navigation?.forEach((item) => {
-    blockIdsToRemove.delete(item.id)
-    if (changedBlockIds.has(item.id))
+
+  // Case 1: No old navigation block exists
+  if (!oldNavigationBlockNode) {
+    if (navigation !== undefined) {
+      // Create navigation group
       ops.push(
         new DocumentChange({
           op: {
             case: 'replaceBlock',
-            value: {
-              id: item.id,
-              type: 'Link',
-              link: item.link,
-              text: item.text,
-            },
+            value: {id: 'navigation', type: 'Group'},
           },
         }),
       )
-    if (blocksToMove.has(item.id))
+
+      // Create and position navigation items
+      let leftSibling = ''
+      navigation.forEach((item) => {
+        ops.push(
+          new DocumentChange({
+            op: {
+              case: 'replaceBlock',
+              value: {
+                id: item.id,
+                type: 'Link',
+                link: item.link,
+                text: item.text,
+              },
+            },
+          }),
+        )
+        ops.push(
+          new DocumentChange({
+            op: {
+              case: 'moveBlock',
+              value: {blockId: item.id, parent: 'navigation', leftSibling},
+            },
+          }),
+        )
+        leftSibling = item.id
+      })
+    }
+    return ops
+  }
+
+  // Case 2: Update existing navigation
+  const oldChildren = oldNavigationBlockNode.children || []
+  const newItems = navigation || []
+
+  // Delete items that no longer exist
+  const newItemIds = new Set(newItems.map((item) => item.id))
+  oldChildren.forEach((child) => {
+    if (!newItemIds.has(child.block.id)) {
       ops.push(
         new DocumentChange({
-          op: {
-            case: 'moveBlock',
-            value: {
-              blockId: item.id,
-              parent: 'navigation',
-              leftSibling: newBlockLeftSiblings[item.id],
-            },
-          },
+          op: {case: 'deleteBlock', value: child.block.id},
         }),
       )
+    }
   })
-  blockIdsToRemove.forEach((id) => {
+
+  // Create/update items in new order
+  let leftSibling = ''
+  newItems.forEach((item) => {
+    const oldBlock = oldChildren.find((child) => child.block.id === item.id)
+      ?.block
+    const newBlock = {
+      id: item.id,
+      type: 'Link' as const,
+      link: item.link,
+      text: item.text,
+    }
+
+    // Create or update block if needed
+    if (!oldBlock || !isBlocksEqual(oldBlock, newBlock)) {
+      ops.push(
+        new DocumentChange({
+          op: {case: 'replaceBlock', value: newBlock},
+        }),
+      )
+    }
+
+    // Move to correct position
     ops.push(
       new DocumentChange({
-        op: {case: 'deleteBlock', value: id},
+        op: {
+          case: 'moveBlock',
+          value: {blockId: item.id, parent: 'navigation', leftSibling},
+        },
       }),
     )
+    leftSibling = item.id
   })
-  console.log('~~ final navigation ops', ops)
+
   return ops
 }
