@@ -14,20 +14,28 @@ import {extractIpfsUrlCid, getDaemonFileUrl} from './EmailHeader'
 
 export function EmailContent({notification}: {notification: Notification}) {
   const authorName =
-    notification.commentAuthorMeta?.name || notification.comment.author
+    notification.type === 'change'
+      ? notification.authorMeta?.name
+      : notification.commentAuthorMeta?.name || notification.comment.author
 
-  const authorAvatar = notification.commentAuthorMeta?.icon
-    ? getDaemonFileUrl(notification.commentAuthorMeta?.icon)
-    : ''
+  const authorAvatar =
+    notification.type === 'change'
+      ? notification.authorMeta?.icon
+        ? getDaemonFileUrl(notification.authorMeta.icon)
+        : ''
+      : notification.commentAuthorMeta?.icon
+      ? getDaemonFileUrl(notification.commentAuthorMeta.icon)
+      : ''
 
   const fallbackLetter = authorName[0].toUpperCase()
 
-  const createdAt = notification.comment.createTime?.seconds
-    ? format(
-        new Date(Number(notification.comment.createTime.seconds) * 1000),
-        'MMM d',
-      )
-    : ''
+  const createdAt =
+    notification.type !== 'change' && notification.comment.createTime?.seconds
+      ? format(
+          new Date(Number(notification.comment.createTime.seconds) * 1000),
+          'MMM d',
+        )
+      : ''
 
   return (
     <>
@@ -83,17 +91,24 @@ export function EmailContent({notification}: {notification: Notification}) {
             paddingBottom="4px"
             paddingRight="10px"
           >
-            {authorName}{' '}
-            <span
-              style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}
-            >
-              {createdAt}
-            </span>
+            {authorName}
+            {createdAt && (
+              <span
+                style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}
+              >
+                {' '}
+                {createdAt}
+              </span>
+            )}
           </MjmlText>
         </MjmlColumn>
         {notification.type === 'mention' ? (
           renderMention({
             blocks: notification.comment.content,
+            targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
+          })
+        ) : notification.type === 'change' ? (
+          renderChange({
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
           })
         ) : (
@@ -141,6 +156,32 @@ export function renderMention({
                 backgroundColor: '#eee',
                 borderRadius: '4px',
                 padding: '2px 6px',
+                display: 'inline-block',
+              }}
+            >
+              {targetDocName}
+            </span>
+          </MjmlText>
+        </MjmlColumn>
+      </MjmlSection>
+    </>
+  )
+}
+
+function renderChange({targetDocName}: {targetDocName: string}) {
+  return (
+    <>
+      <MjmlSection padding="0" textAlign="left">
+        <MjmlColumn>
+          <MjmlText fontSize="16px" padding="12px 25px">
+            has made a new change to document:
+          </MjmlText>
+          <MjmlText fontSize="14px">
+            <span
+              style={{
+                backgroundColor: '#eee',
+                borderRadius: '4px',
+                padding: '4px 8px',
                 display: 'inline-block',
               }}
             >
