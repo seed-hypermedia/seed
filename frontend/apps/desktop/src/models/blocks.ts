@@ -1,4 +1,5 @@
 import {HMBlock, HMQuery} from '@shm/shared'
+import _ from 'lodash'
 
 export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   if (!b1 || !b2) {

@@ -1,4 +1,4 @@
-import {QuerySearch} from '@/editor/query-block'
+import {useListDirectory} from '@/models/documents'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {
   draggable,
@@ -6,9 +6,9 @@ import {
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {packHmId, unpackHmId} from '@shm/shared'
-import {HMNavigationItem} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {hmId, unpackHmId, useSearch} from '@shm/shared'
+import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {loadEntity, useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {
   Popover,
@@ -19,8 +19,9 @@ import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {Check} from '@shm/ui/icons'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
 import {Pencil, Plus} from '@tamagui/lucide-icons'
-import {EllipsisVertical} from 'lucide-react'
+import {EllipsisVertical, Globe, Search} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
 import {
@@ -36,9 +37,11 @@ import {z} from 'zod'
 export function EditNavPopover({
   docNav,
   editDocNav,
+  homeId,
 }: {
   docNav: HMNavigationItem[]
   editDocNav: (navigation: HMNavigationItem[]) => void
+  homeId?: UnpackedHypermediaId
 }) {
   const popover = usePopoverState()
   return (
@@ -48,7 +51,7 @@ export function EditNavPopover({
       </PopoverTrigger>
       <PopoverContent className="bg-white dark:bg-black max-h-[80vh] overflow-y-auto">
         {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}
-        <EditNavigation docNav={docNav} onDocNav={editDocNav} />
+        <EditNavigation docNav={docNav} onDocNav={editDocNav} homeId={homeId} />
       </PopoverContent>
     </Popover>
   )
@@ -57,9 +60,11 @@ export function EditNavPopover({
 function EditNavigation({
   docNav,
   onDocNav,
+  homeId,
 }: {
   docNav: HMNavigationItem[]
   onDocNav: (navigation: HMNavigationItem[]) => void
+  homeId?: UnpackedHypermediaId
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -111,11 +116,20 @@ function EditNavigation({
             <NavItemForm
               key={item.id}
               item={item}
+              homeId={homeId}
+              filterPresets={(item) => {
+                return !docNav.find((i) => i.link === item.link)
+              }}
               onSubmit={(updatedItem) => {
                 const updatedDocNav: HMNavigationItem[] = docNav.map(
                   (navItem) =>
                     navItem.id === item.id
-                      ? {id: item.id, type: 'Link', ...updatedItem}
+                      ? {
+                          id: item.id,
+                          type: 'Link',
+                          text: updatedItem.label,
+                          link: updatedItem.link,
+                        }
                       : navItem,
                 )
                 onDocNav(updatedDocNav)
@@ -144,8 +158,9 @@ function EditNavigation({
       {showAdd ? (
         <NavItemForm
           onSubmit={(newItem) => {
-            const newNavItem = {
-              ...newItem,
+            const newNavItem: HMNavigationItem = {
+              link: newItem.link,
+              text: newItem.label,
               id: nanoid(10),
               type: 'Link' as const,
             }
@@ -153,20 +168,27 @@ function EditNavigation({
             onDocNav(newDocNav)
             setShowAdd(false)
           }}
+          homeId={homeId}
+          filterPresets={(item) => {
+            return !docNav.find((i) => i.link === item.link)
+          }}
           submitLabel="Add"
           onCancel={() => {
             setShowAdd(false)
           }}
         />
       ) : (
-        <Button
-          onPress={() => {
-            setShowAdd(true)
-          }}
-          icon={Plus}
-        >
-          Add
-        </Button>
+        <XStack>
+          <Button
+            size="$3"
+            onPress={() => {
+              setShowAdd(true)
+            }}
+            icon={Plus}
+          >
+            Add Navigation Item
+          </Button>
+        </XStack>
       )}
     </YStack>
   )
@@ -254,7 +276,7 @@ function DraggableNavItem({
 }
 
 const NavItemFormSchema = z.object({
-  text: z.string(),
+  label: z.string(),
   link: z.string(),
 })
 
@@ -264,12 +286,16 @@ function NavItemForm({
   onCancel,
   onRemove,
   submitLabel,
+  homeId,
+  filterPresets,
 }: {
   item?: HMNavigationItem
   onSubmit: (result: z.infer<typeof NavItemFormSchema>) => void
   onCancel: () => void
   onRemove?: () => void
   submitLabel: string
+  homeId?: UnpackedHypermediaId
+  filterPresets: (item: {link: string}) => boolean
 }) {
   const {
     control,
@@ -281,14 +307,22 @@ function NavItemForm({
   } = useForm<z.infer<typeof NavItemFormSchema>>({
     resolver: zodResolver(NavItemFormSchema),
     defaultValues: {
-      text: item?.text || '',
+      label: item?.text || '',
       link: item?.link || '',
     },
   })
 
   watch((data, {name}) => {
     if (name === 'link' && data.link?.startsWith('hm://')) {
-      setValue('text', '')
+      setValue('label', '')
+      const id = unpackHmId(data.link)
+      if (id?.type === 'd') {
+        loadEntity(id).then((entity) => {
+          if (entity?.document?.metadata.name) {
+            setValue('label', entity.document.metadata.name)
+          }
+        })
+      }
     }
   })
 
@@ -304,15 +338,15 @@ function NavItemForm({
       borderRadius="$3"
     >
       <FormField name="link" label="Link" errors={errors}>
-        <FormInput
+        <HMDocURLInput
           control={control}
+          homeId={homeId}
           name="link"
-          placeholder="https://example.com"
+          filterPresets={filterPresets}
         />
-        {/* <HMDocURLInput control={control} name="link" /> */}
       </FormField>
-      <FormField name="text" label="Menu Item Label" errors={errors}>
-        <FormInput control={control} name="text" placeholder="My Link..." />
+      <FormField name="label" label="Menu Item Label" errors={errors}>
+        <FormInput control={control} name="label" placeholder="My Link..." />
       </FormField>
       <XStack gap="$2" jc="space-between">
         {onRemove && (
@@ -338,28 +372,119 @@ function NavItemForm({
 function HMDocURLInput<Fields extends FieldValues>({
   control,
   name,
+  homeId,
+  filterPresets,
 }: {
   control: Control<Fields>
   name: Path<Fields>
+  homeId?: UnpackedHypermediaId
+  filterPresets: (item: {link: string}) => boolean
 }) {
   const c = useController({control, name})
   const id = unpackHmId(c.field.value)
   const entity = useEntity(id)
+  let label = c.field.value || 'URL or Search Documents'
+  let fontClass = 'text-muted-foreground'
+  if (
+    c.field.value === entity.data?.id.id &&
+    entity.data?.document?.metadata.name
+  ) {
+    fontClass = 'text-brand-5'
+    label = entity.data.document.metadata.name
+  } else if (c.field.value) {
+    label = c.field.value
+  }
+  const {onChange, ...inputProps} = c.field
+  const popoverState = usePopoverState()
   return (
-    <QuerySearch
-      selectedDocName={
-        c.field.value
-          ? id
-            ? entity.data?.document?.metadata.name || `?${id?.uid.slice(-8)}`
-            : c.field.value
-          : null
-      }
-      allowWebURL
-      onSelect={(data) => {
-        console.log('SELECT', data)
-        if (data.id) c.field.onChange(packHmId(data.id))
-        else if (data.webUrl) c.field.onChange(data.webUrl)
-      }}
-    />
+    <>
+      <Popover {...popoverState}>
+        <PopoverTrigger asChild>
+          <div
+            className={cn(
+              'border-1 border-color8 rounded-sm p-1 px-3 text-md bg-secondary w-full align-center line-clamp-1 text-clip overflow-hidden',
+              fontClass,
+            )}
+          >
+            <span>{label}</span>
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
+          <SearchUI
+            onValue={onChange}
+            homeId={homeId}
+            onClose={() => popoverState.onOpenChange(false)}
+            filterPresets={filterPresets}
+          />
+        </PopoverContent>
+      </Popover>
+    </>
+  )
+}
+
+function SearchUI({
+  onValue,
+  onClose,
+  homeId,
+  filterPresets,
+}: {
+  onValue: (value: string) => void
+  onClose: () => void
+  homeId?: UnpackedHypermediaId
+  filterPresets: (item: {link: string}) => boolean
+}) {
+  const [query, setQuery] = useState('')
+  const isWebUrl = query.match(/^https?:\/\//)
+  const search = useSearch(query, {enabled: !!query})
+  const dirList = useListDirectory(homeId, {mode: 'Children'})
+  const isSearching = !!query.length
+  const Icon = isWebUrl ? Globe : Search
+  const results: {
+    link: string
+    label: string
+  }[] = isSearching
+    ? search.data?.entities.map((e) => ({
+        link: e.id.id,
+        label: e.title,
+      })) || []
+    : dirList.data
+        ?.map((d) => ({
+          link: hmId('d', d.account, {path: d.path}).id,
+          label: d.metadata.name || '?',
+        }))
+        .filter(filterPresets) || []
+
+  return (
+    <div className="max-h-[50vh] overflow-y-auto">
+      <div className="p-1 relative border-b-1 border-color8">
+        <input
+          autoFocus
+          className="p-2 w-full rounded-sm pl-10"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && query.match(/^https?:\/\//)) {
+              onValue(query)
+              onClose()
+            }
+          }}
+        ></input>
+        <Icon className="absolute left-3 top-1/2 -translate-y-1/2" size={20} />
+      </div>
+      {results.map((e) => {
+        return (
+          <div
+            key={e.link}
+            onClick={() => {
+              onValue(e.link)
+              onClose()
+            }}
+            className="px-3 py-2 hover:bg-secondary"
+          >
+            {e.label}
+          </div>
+        )
+      })}
+    </div>
   )
 }

@@ -449,7 +449,7 @@ export function SiteHeaderMenu({
     const itemWidths: Array<{item: DocNavigationItem; width: number}> = []
 
     for (const item of items) {
-      const key = item.id?.id || item.draftId || '?'
+      const key = item.key
       const element = itemRefs.current.get(key)
 
       if (element) {

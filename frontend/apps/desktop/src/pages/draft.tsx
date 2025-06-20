@@ -551,10 +551,6 @@ function DraftAppHeader({
 
   if (!siteHomeEntity) return null
 
-  console.log('~ draft.tsx currentDocNav', currentDocNav)
-  console.log('~ draft.tsx siteHomeEntity', siteHomeEntity)
-  console.log('~ draft.tsx navItems', navItems)
-
   const displayNavItems =
     currentDocNav !== undefined && isEditingHomeDoc
       ? currentDocNav.map((navItem: HMNavigationItem): DocNavigationItem => {
@@ -604,6 +600,7 @@ function DraftAppHeader({
               ) || []
             }
             editDocNav={onDocNav}
+            homeId={siteHomeEntity.id}
           />
         ) : null
       }
