@@ -1,5 +1,5 @@
-import {Link, Outlet} from "react-router-dom";
-import HMLogo from "../assets/HMLogo.svg";
+import {Link, Outlet} from 'react-router-dom'
+import HMLogo from '../assets/HMLogo.svg'
 
 export default function Layout() {
   return (
@@ -19,6 +19,12 @@ export default function Layout() {
           >
             All Sites
           </Link>
+          <Link
+            to="/feed"
+            className="hover:text-black transition whitespace-nowrap"
+          >
+            Feed
+          </Link>
         </nav>
       </header>
 
@@ -29,5 +35,5 @@ export default function Layout() {
         </div>
       </main>
     </div>
-  );
+  )
 }
