@@ -82,6 +82,31 @@ export function useInfiniteFeed(pageSize: number = 10) {
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  })
+}
+
+export function useLatestEvent() {
+  return useQuery({
+    queryKey: ['latest-event'],
+    queryFn: async () => {
+      const result = await getAPI<any>('feed?pageSize=1')
+      if (result.events && result.events.length > 0) {
+        const event = result.events[0]
+        return {
+          ...event,
+          account: `hm://${event.account}`,
+          newBlob: {
+            ...event.newBlob,
+            cid: `ipfs://${event.newBlob.cid}`,
+            author: `hm://${event.newBlob.author}`,
+          },
+        }
+      }
+      return null
+    },
+    refetchInterval: 10000, // Check every 10 seconds
+    refetchIntervalInBackground: true,
   })
 }
 
