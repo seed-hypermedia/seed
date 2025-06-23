@@ -21,6 +21,7 @@ import {
   BlockNodeList,
   blockStyles,
   ContentEmbed,
+  DocumentCardGrid,
   ErrorBlock,
   getBlockNodeById,
   InlineEmbedButton,
@@ -32,7 +33,7 @@ import {
 } from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowUpRightSquare} from '@shm/ui/icons'
-import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
+import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -44,7 +45,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Button, XStack, YStack, YStackProps} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 import {LibraryListItem} from './list-item'
@@ -324,7 +325,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       viewType={view}
     >
-      <NewspaperCard
+      <DocumentCard
         entity={{
           id,
           document: doc.data.document,
@@ -494,9 +495,11 @@ export function QueryBlockDesktop({
   ])
 
   function getEntity(path: string[]) {
-    return documents?.find(
-      (document) => document.data?.id?.path?.join('/') === path?.join('/'),
-    )?.data
+    return (
+      documents?.find(
+        (document) => document.data?.id?.path?.join('/') === path?.join('/'),
+      )?.data || null
+    )
   }
 
   const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
@@ -548,83 +551,35 @@ function QueryStyleCard({
   getEntity: any
   accountsMetadata: HMAccountsMetadata
 }) {
-  const {onHoverIn, onHoverOut} = useDocContentContext()
-  const columnProps = useMemo(() => {
-    switch (block.attributes.columnCount) {
-      case 2:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '50%'},
-        } as YStackProps
-      case 3:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '33.333%'},
-        } as YStackProps
-      default:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '100%'},
-          $gtMd: {flexBasis: '100%'},
-        } as YStackProps
-    }
+  const columnClasses = useMemo(() => {
+    return cn(
+      'basis-full',
+      block.attributes.columnCount == 2 && 'sm:basis-1/2',
+      block.attributes.columnCount == 3 && 'sm:basis-1/2 md:basis-1/3',
+    )
   }, [block.attributes.columnCount])
 
-  const firstItem = block.attributes.banner ? items[0] : null
-  const restItems = block.attributes.banner ? items.slice(1) : items
+  const docs = useMemo(() => {
+    return items.map((item) => {
+      const id = hmId('d', item.account, {
+        path: item.path,
+        latest: true,
+      })
+      return {id, item}
+    })
+  }, [items])
+
+  const firstItem = block.attributes.banner ? docs[0] : null
+  const restItems = block.attributes.banner ? docs.slice(1) : docs
 
   return (
-    <YStack width="100%">
-      {firstItem ? (
-        <BannerNewspaperCard
-          onHoverIn={onHoverIn}
-          onHoverOut={onHoverOut}
-          item={firstItem}
-          entity={getEntity(firstItem.path)}
-          key={firstItem.path.join('/')}
-          accountsMetadata={accountsMetadata}
-        />
-      ) : null}
-      {restItems?.length ? (
-        <XStack
-          f={1}
-          flexWrap="wrap"
-          marginHorizontal="$-3"
-          justifyContent="center"
-        >
-          {restItems.map((item) => {
-            const id = hmId('d', item.account, {
-              path: item.path,
-              latest: true,
-            })
-            return (
-              <YStack
-                {...columnProps}
-                p="$3"
-                key={item.account + '/' + item.path.join('/')}
-              >
-                <NewspaperCard
-                  onHoverIn={onHoverIn}
-                  onHoverOut={onHoverOut}
-                  docId={id}
-                  entity={getEntity(item.path)}
-                  key={item.path.join('/')}
-                  accountsMetadata={accountsMetadata}
-                  flexBasis="100%"
-                  $gtSm={{flexBasis: '100%'}}
-                  $gtMd={{flexBasis: '100%'}}
-                />
-              </YStack>
-            )
-          })}
-        </XStack>
-      ) : null}
-      {items.length == 0 ? (
-        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
-      ) : null}
-    </YStack>
+    <DocumentCardGrid
+      firstItem={firstItem}
+      items={restItems}
+      getEntity={getEntity}
+      accountsMetadata={accountsMetadata}
+      columnClasses={columnClasses}
+    />
   )
 }
 

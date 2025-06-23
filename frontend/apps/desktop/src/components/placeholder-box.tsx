@@ -1,3 +1,4 @@
+import {Skeleton} from '@shm/ui/components/skeleton'
 import {HTMLAttributes} from 'react'
 
 export const Placeholder = ({
@@ -9,8 +10,7 @@ export const Placeholder = ({
   height?: string | number
 } & HTMLAttributes<HTMLDivElement>) => {
   return (
-    <div
-      className="bg-background dark:bg-gray-700 rounded-sm"
+    <Skeleton
       style={{
         width: typeof width === 'number' ? `${width}px` : width,
         height: typeof height === 'number' ? `${height}px` : height,
