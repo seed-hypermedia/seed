@@ -59,35 +59,34 @@ function EditNavigation({
   onDocNav: (navigation: HMNavigationItem[]) => void
   homeId?: UnpackedHypermediaId
 }) {
-  // const [editingId, setEditingId] = useState<string | null>(null)
-  // const [showAdd, setShowAdd] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isDraggingOverId, setIsDraggingOverId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
 
     const cleanup = monitorForElements({
-      onDragStart: ({source}) => {
-        console.log('Drag started:', {source})
+      onDrag: ({location}) => {
+        const over = location.current.dropTargets[0]
+        if (over) {
+          setIsDraggingOverId(over.data.id as string)
+        } else {
+          setIsDraggingOverId(null)
+        }
       },
       onDrop: ({source, location}) => {
-        console.log('Drop event:', {source, location})
+        setIsDraggingOverId(null)
         if (!location.current.dropTargets.length) {
-          console.log('No drop targets found')
           return
         }
 
         const over = location.current.dropTargets[0]
-        console.log('Drop target:', over)
-
         const sourceIndex = docNav.findIndex(
           (item) => item.id === source.data.id,
         )
         const overIndex = docNav.findIndex((item) => item.id === over.data.id)
-        console.log('Indices:', {sourceIndex, overIndex})
 
         if (sourceIndex === -1 || overIndex === -1) {
-          console.log('Invalid indices')
           return
         }
 
@@ -104,42 +103,6 @@ function EditNavigation({
   return (
     <YStack gap="$2" ref={containerRef}>
       {docNav.map((item) => {
-        // if (editingId === item.id) {
-        //   return (
-        //     <NavItemForm
-        //       key={item.id}
-        //       item={item}
-        //       homeId={homeId}
-        //       filterPresets={(item) => {
-        //         return !docNav.find((i) => i.link === item.link)
-        //       }}
-        //       onSubmit={(updatedItem) => {
-        //         const updatedDocNav: HMNavigationItem[] = docNav.map(
-        //           (navItem) =>
-        //             navItem.id === item.id
-        //               ? {
-        //                   id: item.id,
-        //                   type: 'Link',
-        //                   text: updatedItem.label,
-        //                   link: updatedItem.link,
-        //                 }
-        //               : navItem,
-        //         )
-        //         onDocNav(updatedDocNav)
-        //         setEditingId(null)
-        //       }}
-        //       onRemove={() => {
-        //         const updatedDocNav = docNav.filter(
-        //           (navItem) => navItem.id !== item.id,
-        //         )
-        //         onDocNav(updatedDocNav)
-        //         setEditingId(null)
-        //       }}
-        //       submitLabel="Done"
-        //       onCancel={() => setEditingId(null)}
-        //     />
-        //   )
-        // }
         return (
           <DraggableNavItem
             key={item.id}
@@ -155,6 +118,7 @@ function EditNavigation({
               onDocNav(docNav.filter((i) => i.id !== item.id))
             }}
             initialOpen={item.text === '' && item.link === ''}
+            isDraggingOver={isDraggingOverId === item.id}
           />
         )
       })}
@@ -189,6 +153,7 @@ function DraggableNavItem({
   onRemove,
   initialOpen,
   homeId,
+  isDraggingOver,
 }: {
   item: HMNavigationItem
   filterPresets: (item: {link: string}) => boolean
@@ -196,37 +161,32 @@ function DraggableNavItem({
   onRemove: () => void
   initialOpen: boolean
   homeId?: UnpackedHypermediaId
+  isDraggingOver: boolean
 }) {
-  console.log('~ initialOpen', initialOpen, item)
   const elementRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!elementRef.current) {
-      console.log('Element ref not ready')
+      console.error('Element ref not ready')
       return
     }
-
-    console.log('Setting up drag and drop for item:', item.id)
 
     const cleanup = combine(
       draggable({
         element: elementRef.current,
         getInitialData: () => {
-          console.log('Getting initial data for:', item.id)
           return {id: item.id}
         },
       }),
       dropTargetForElements({
         element: elementRef.current,
         getData: () => {
-          console.log('Getting drop target data for:', item.id)
           return {id: item.id}
         },
       }),
     )
 
     return () => {
-      console.log('Cleaning up drag and drop for item:', item.id)
       cleanup()
     }
   }, [item.id])
@@ -241,6 +201,7 @@ function DraggableNavItem({
       p="$2"
       borderRadius="$2"
       hoverStyle={{bg: '$color5'}}
+      bg={isDraggingOver ? '$color6' : undefined}
       style={{
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -314,7 +275,6 @@ function NavItemForm({
           link={item.link}
           onUpdate={(link, title) => onUpdate({...item, link, text: title})}
           homeId={homeId}
-          name="link"
           filterPresets={filterPresets}
         />
       </FormField>
