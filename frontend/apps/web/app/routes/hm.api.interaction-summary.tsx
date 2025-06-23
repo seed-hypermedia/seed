@@ -72,9 +72,8 @@ export const loader = async ({
   let citationCount = dedupedDocCitations.length
   let commentCount = 0
   const blocks: Record<string, {citations: number; comments: number}> = {}
-  mentions.mentions.forEach((mention) => {
-    const sourceId = unpackHmId(mention.source)
-    if (!sourceId) return false
+  dedupedDocCitations.forEach((mention) => {
+    if (!mention.source.id) return false
     const targetFragment = mention.targetFragment
     const targetBlockId =
       targetFragment.at(-1) === '+'
@@ -86,11 +85,11 @@ export const loader = async ({
           comments: 0,
         })
       : null
-    if (sourceId.type === 'c') {
+    if (mention.source.id.type === 'c') {
       if (blockCounts) blockCounts.comments += 1
       commentCount += 1
     }
-    if (sourceId.type === 'd' && blockCounts) {
+    if (mention.source.id.type === 'd' && blockCounts) {
       blockCounts.citations += 1
     }
   })
