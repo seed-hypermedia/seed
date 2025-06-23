@@ -10,6 +10,7 @@ import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
+import {Input} from '@shm/ui/components/input'
 import {
   Popover,
   PopoverContent,
@@ -25,7 +26,7 @@ import {Pencil, Plus} from '@tamagui/lucide-icons'
 import {EllipsisVertical, Globe, Search, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
-import {Button, Input, XStack, YStack} from 'tamagui'
+import {Button, XStack, YStack} from 'tamagui'
 
 export function EditNavPopover({
   docNav,
@@ -282,7 +283,7 @@ function NavItemForm({
         <Input
           value={item?.text}
           id="label"
-          onChangeText={(text) => onUpdate({...item, text})}
+          onChange={(e) => onUpdate({...item, text: e.target.value})}
           placeholder="My Link..."
         />
       </FormField>
@@ -391,9 +392,9 @@ function SearchUI({
         .filter(filterPresets) || []
 
   return (
-    <div className="max-h-[50vh] overflow-y-auto">
+    <div className="max-h-[50vh] z-[9999] overflow-y-auto">
       <div className="relative p-1 border-b-1 border-color8">
-        <input
+        <Input
           autoFocus
           className="p-2 pl-10 w-full rounded-sm"
           value={query}
@@ -416,7 +417,7 @@ function SearchUI({
                 })
             }
           }}
-        ></input>
+        />
         <Icon className="absolute left-3 top-1/2 -translate-y-1/2" size={20} />
       </div>
       {isLoading && (

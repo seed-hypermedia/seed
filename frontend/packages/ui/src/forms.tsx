@@ -31,7 +31,7 @@ export function FormField<Fields extends FieldValues>({
   }
 >) {
   return (
-    <fieldset
+    <div
       className={cn(
         'w-full',
         width && `w-[${typeof width == 'number' ? `${width}px` : width}]`,
@@ -57,6 +57,6 @@ export function FormField<Fields extends FieldValues>({
         ) : null}
       </div>
       {children}
-    </fieldset>
+    </div>
   )
 }
