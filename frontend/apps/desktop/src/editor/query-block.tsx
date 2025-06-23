@@ -27,7 +27,6 @@ import {Button} from '@shm/ui/legacy/button'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {cn} from '@shm/ui/utils'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
@@ -240,18 +239,6 @@ function CardView({
     return Boolean(block.props.banner == 'true')
   }, [block.props.banner])
 
-  const columnClasses = useMemo(() => {
-    return cn(
-      'basis-full',
-      block.props.columnCount &&
-        block.props.columnCount == '2' &&
-        'sm:basis-1/2',
-      block.props.columnCount &&
-        block.props.columnCount == '3' &&
-        'sm:basis-1/2 md:basis-1/3',
-    )
-  }, [block.props.columnCount])
-
   const docs = useMemo(() => {
     return items.map((item) => {
       if (item.data) {
@@ -284,7 +271,7 @@ function CardView({
       getEntity={getEntity}
       items={restItems}
       accountsMetadata={{}}
-      columnClasses={columnClasses}
+      columnCount={parseInt(block.props.columnCount || '1', 10) as number}
     />
   )
 }

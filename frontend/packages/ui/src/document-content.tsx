@@ -2341,14 +2341,21 @@ export function DocumentCardGrid({
   items,
   getEntity,
   accountsMetadata,
-  columnClasses,
+  columnCount = 1,
 }: {
   firstItem: {id: UnpackedHypermediaId; item: HMDocumentInfo} | null
   items: Array<{id: UnpackedHypermediaId; item: HMDocumentInfo}>
   getEntity: any
   accountsMetadata: HMAccountsMetadata
-  columnClasses: string
+  columnCount?: number
 }) {
+  const columnClasses = useMemo(() => {
+    return cn(
+      'basis-full',
+      columnCount == 2 && 'sm:basis-1/2',
+      columnCount == 3 && 'sm:basis-1/2 md:basis-1/3',
+    )
+  }, [columnCount])
   return (
     <div className="w-full flex flex-col">
       {firstItem ? (

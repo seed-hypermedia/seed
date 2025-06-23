@@ -551,14 +551,6 @@ function QueryStyleCard({
   getEntity: any
   accountsMetadata: HMAccountsMetadata
 }) {
-  const columnClasses = useMemo(() => {
-    return cn(
-      'basis-full',
-      block.attributes.columnCount == 2 && 'sm:basis-1/2',
-      block.attributes.columnCount == 3 && 'sm:basis-1/2 md:basis-1/3',
-    )
-  }, [block.attributes.columnCount])
-
   const docs = useMemo(() => {
     return items.map((item) => {
       const id = hmId('d', item.account, {
@@ -578,7 +570,7 @@ function QueryStyleCard({
       items={restItems}
       getEntity={getEntity}
       accountsMetadata={accountsMetadata}
-      columnClasses={columnClasses}
+      columnCount={block.attributes.columnCount}
     />
   )
 }

@@ -29,7 +29,6 @@ import {Button} from '@shm/ui/legacy/button'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
 import {Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useMemo, useState} from 'react'
@@ -278,14 +277,6 @@ function QueryStyleCard({
   const ctx = useDocContentContext()
   const {supportDocuments} = ctx || {}
 
-  const columnClasses = useMemo(() => {
-    return cn(
-      'basis-full',
-      block.attributes.columnCount == 2 && 'sm:basis-1/2',
-      block.attributes.columnCount == 3 && 'sm:basis-1/2 md:basis-1/3',
-    )
-  }, [block.attributes.columnCount])
-
   function getEntity(path: string[]) {
     return supportDocuments?.find(
       (entity) => entity?.id?.path?.join('/') === path?.join('/'),
@@ -322,7 +313,7 @@ function QueryStyleCard({
       items={restItems}
       getEntity={getEntity}
       accountsMetadata={accountsMetadata}
-      columnClasses={columnClasses}
+      columnCount={block.attributes.columnCount}
     />
   )
 }
