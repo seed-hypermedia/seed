@@ -186,7 +186,7 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'bg-white dark:bg-background flex flex-col',
+              'flex flex-col bg-white dark:bg-background',
             )}
           >
             <DraftRebaseBanner />
@@ -325,7 +325,7 @@ function DocumentEditor({
         }}
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex flex-col flex-1 overflow-hidden"
+        className="flex overflow-hidden flex-col flex-1"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
@@ -560,7 +560,7 @@ function DraftAppHeader({
             id: id || undefined,
             webUrl: id ? undefined : navItem.link,
             draftId: undefined,
-            metadata: {name: navItem.text || 'Untitled Document'},
+            metadata: {name: navItem.text},
             isPublished: true,
           }
         })

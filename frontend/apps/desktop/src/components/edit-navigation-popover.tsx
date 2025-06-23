@@ -5,34 +5,25 @@ import {
   dropTargetForElements,
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import {zodResolver} from '@hookform/resolvers/zod'
 import {hmId, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {loadEntity, useEntity} from '@shm/shared/models/entity'
+import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
-import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
-import {Check} from '@shm/ui/icons'
+import {Separator} from '@shm/ui/separator'
+import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {Pencil, Plus} from '@tamagui/lucide-icons'
-import {EllipsisVertical, Globe, Search} from 'lucide-react'
+import {EllipsisVertical, Globe, Search, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
-import {
-  Control,
-  FieldValues,
-  Path,
-  useController,
-  useForm,
-} from 'react-hook-form'
-import {Button, Form, Text, XStack, YStack} from 'tamagui'
-import {z} from 'zod'
+import {Button, Input, XStack, YStack} from 'tamagui'
 
 export function EditNavPopover({
   docNav,
@@ -66,8 +57,8 @@ function EditNavigation({
   onDocNav: (navigation: HMNavigationItem[]) => void
   homeId?: UnpackedHypermediaId
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [showAdd, setShowAdd] = useState(false)
+  // const [editingId, setEditingId] = useState<string | null>(null)
+  // const [showAdd, setShowAdd] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -111,96 +102,100 @@ function EditNavigation({
   return (
     <YStack gap="$2" ref={containerRef}>
       {docNav.map((item) => {
-        if (editingId === item.id) {
-          return (
-            <NavItemForm
-              key={item.id}
-              item={item}
-              homeId={homeId}
-              filterPresets={(item) => {
-                return !docNav.find((i) => i.link === item.link)
-              }}
-              onSubmit={(updatedItem) => {
-                const updatedDocNav: HMNavigationItem[] = docNav.map(
-                  (navItem) =>
-                    navItem.id === item.id
-                      ? {
-                          id: item.id,
-                          type: 'Link',
-                          text: updatedItem.label,
-                          link: updatedItem.link,
-                        }
-                      : navItem,
-                )
-                onDocNav(updatedDocNav)
-                setEditingId(null)
-              }}
-              onRemove={() => {
-                const updatedDocNav = docNav.filter(
-                  (navItem) => navItem.id !== item.id,
-                )
-                onDocNav(updatedDocNav)
-                setEditingId(null)
-              }}
-              submitLabel="Done"
-              onCancel={() => setEditingId(null)}
-            />
-          )
-        }
+        // if (editingId === item.id) {
+        //   return (
+        //     <NavItemForm
+        //       key={item.id}
+        //       item={item}
+        //       homeId={homeId}
+        //       filterPresets={(item) => {
+        //         return !docNav.find((i) => i.link === item.link)
+        //       }}
+        //       onSubmit={(updatedItem) => {
+        //         const updatedDocNav: HMNavigationItem[] = docNav.map(
+        //           (navItem) =>
+        //             navItem.id === item.id
+        //               ? {
+        //                   id: item.id,
+        //                   type: 'Link',
+        //                   text: updatedItem.label,
+        //                   link: updatedItem.link,
+        //                 }
+        //               : navItem,
+        //         )
+        //         onDocNav(updatedDocNav)
+        //         setEditingId(null)
+        //       }}
+        //       onRemove={() => {
+        //         const updatedDocNav = docNav.filter(
+        //           (navItem) => navItem.id !== item.id,
+        //         )
+        //         onDocNav(updatedDocNav)
+        //         setEditingId(null)
+        //       }}
+        //       submitLabel="Done"
+        //       onCancel={() => setEditingId(null)}
+        //     />
+        //   )
+        // }
         return (
           <DraggableNavItem
             key={item.id}
             item={item}
-            onEdit={() => setEditingId(item.id)}
+            homeId={homeId}
+            filterPresets={(item) => {
+              return !docNav.find((i) => i.link === item.link)
+            }}
+            onUpdate={(result) => {
+              onDocNav(docNav.map((i) => (i.id === item.id ? result : i)))
+            }}
+            onRemove={() => {
+              onDocNav(docNav.filter((i) => i.id !== item.id))
+            }}
+            initialOpen={item.text === '' && item.link === ''}
           />
         )
       })}
-      {showAdd ? (
-        <NavItemForm
-          onSubmit={(newItem) => {
-            const newNavItem: HMNavigationItem = {
-              link: newItem.link,
-              text: newItem.label,
-              id: nanoid(10),
-              type: 'Link' as const,
-            }
-            const newDocNav = [...docNav, newNavItem]
-            onDocNav(newDocNav)
-            setShowAdd(false)
+
+      <XStack>
+        <Button
+          size="$3"
+          onPress={() => {
+            onDocNav([
+              ...docNav,
+              {
+                id: nanoid(),
+                type: 'Link',
+                text: '',
+                link: '',
+              },
+            ])
           }}
-          homeId={homeId}
-          filterPresets={(item) => {
-            return !docNav.find((i) => i.link === item.link)
-          }}
-          submitLabel="Add"
-          onCancel={() => {
-            setShowAdd(false)
-          }}
-        />
-      ) : (
-        <XStack>
-          <Button
-            size="$3"
-            onPress={() => {
-              setShowAdd(true)
-            }}
-            icon={Plus}
-          >
-            Add Navigation Item
-          </Button>
-        </XStack>
-      )}
+          icon={Plus}
+        >
+          Add Navigation Item
+        </Button>
+      </XStack>
     </YStack>
   )
 }
 
 function DraggableNavItem({
   item,
-  onEdit,
+  filterPresets,
+  onUpdate,
+  onRemove,
+  initialOpen,
+  homeId,
 }: {
   item: HMNavigationItem
-  onEdit: () => void
+  filterPresets: (item: {link: string}) => boolean
+  onUpdate: (item: HMNavigationItem) => void
+  onRemove: () => void
+  initialOpen: boolean
+  homeId?: UnpackedHypermediaId
 }) {
+  console.log('~ initialOpen', initialOpen, item)
   const elementRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -234,6 +229,8 @@ function DraggableNavItem({
     }
   }, [item.id])
 
+  const popoverState = usePopoverState(initialOpen)
+
   return (
     <XStack
       ref={elementRef}
@@ -248,153 +245,129 @@ function DraggableNavItem({
         cursor: 'grab',
       }}
     >
-      <XStack ai="center" gap="$2" flex={1}>
-        <div
-          className="p-1 cursor-grab active:cursor-grabbing rounded-1 hover:bg-color6"
-          onMouseDown={(e) => {
-            console.log('Mouse down on handle')
-            e.preventDefault()
-          }}
-        >
+      <XStack
+        ai="center"
+        gap="$2"
+        flex={1}
+        onPress={() => {
+          popoverState.onOpenChange(!popoverState.open)
+        }}
+      >
+        <div className="p-1 cursor-grab active:cursor-grabbing rounded-1 hover:bg-color6">
           <EllipsisVertical size={16} />
         </div>
-        <Text flex={1} userSelect="none">
-          {item.text}
-        </Text>
+        <span
+          className={cn(
+            'select-none',
+            item.text === '' ? 'text-muted-foreground' : '',
+          )}
+        >
+          {item.text || 'Untitled Document'}
+        </span>
       </XStack>
-      <Button
-        size="$1"
-        chromeless
-        icon={Pencil}
-        onPress={(e: any) => {
-          e.stopPropagation()
-          onEdit()
-        }}
-      />
+      <Popover {...popoverState}>
+        <PopoverTrigger asChild>
+          <Button
+            size="$1"
+            chromeless
+            icon={Pencil}
+            onPress={(e: any) => {
+              e.stopPropagation()
+            }}
+          />
+        </PopoverTrigger>
+        <PopoverContent>
+          <NavItemForm
+            item={item}
+            homeId={homeId}
+            onUpdate={(result) => {
+              onUpdate(result)
+            }}
+            onRemove={onRemove}
+            filterPresets={filterPresets}
+          />
+        </PopoverContent>
+      </Popover>
     </XStack>
   )
 }
 
-const NavItemFormSchema = z.object({
-  label: z.string(),
-  link: z.string(),
-})
-
 function NavItemForm({
   item,
-  onSubmit,
-  onCancel,
+  onUpdate,
   onRemove,
-  submitLabel,
   homeId,
   filterPresets,
 }: {
-  item?: HMNavigationItem
-  onSubmit: (result: z.infer<typeof NavItemFormSchema>) => void
-  onCancel: () => void
+  item: HMNavigationItem
+  onUpdate: (result: HMNavigationItem) => void
   onRemove?: () => void
-  submitLabel: string
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
 }) {
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    watch,
-    setValue,
-    formState: {errors},
-  } = useForm<z.infer<typeof NavItemFormSchema>>({
-    resolver: zodResolver(NavItemFormSchema),
-    defaultValues: {
-      label: item?.text || '',
-      link: item?.link || '',
-    },
-  })
-
-  watch((data, {name}) => {
-    if (name === 'link' && data.link?.startsWith('hm://')) {
-      setValue('label', '')
-      const id = unpackHmId(data.link)
-      if (id?.type === 'd') {
-        loadEntity(id).then((entity) => {
-          if (entity?.document?.metadata.name) {
-            setValue('label', entity.document.metadata.name)
-          }
-        })
-      }
-    }
-  })
-
   return (
-    <Form
-      onSubmit={handleSubmit((result) => {
-        onSubmit(result)
-      })}
-      gap="$4"
-      padding="$4"
-      borderWidth={1}
-      borderColor="$color8"
-      borderRadius="$3"
-    >
-      <FormField name="link" label="Link" errors={errors}>
+    <div className="flex flex-col gap-2">
+      <FormField name="link" label="Link">
         <HMDocURLInput
-          control={control}
+          link={item.link}
+          onUpdate={(link, title) => onUpdate({...item, link, text: title})}
           homeId={homeId}
           name="link"
           filterPresets={filterPresets}
         />
       </FormField>
-      <FormField name="label" label="Menu Item Label" errors={errors}>
-        <FormInput control={control} name="label" placeholder="My Link..." />
+      <FormField name="label" label="Menu Item Label">
+        <Input
+          value={item?.text}
+          id="label"
+          onChangeText={(text) => onUpdate({...item, text})}
+          placeholder="My Link..."
+        />
       </FormField>
-      <XStack gap="$2" jc="space-between">
-        {onRemove && (
-          <Button size="$2" theme="red" onPress={onRemove}>
-            Remove
-          </Button>
-        )}
-        <XStack gap="$2" flex={1} jc="flex-end">
-          <Button size="$2" onPress={onCancel}>
-            Cancel
-          </Button>
-          <Form.Trigger asChild>
-            <Button size="$2" theme="green" icon={Check}>
-              {submitLabel}
-            </Button>
-          </Form.Trigger>
+
+      <YStack gap="$2">
+        <Separator />
+
+        <XStack justifyContent="flex-end">
+          {onRemove && (
+            <Tooltip content="Remove Navigation Item">
+              <Button
+                size="$3"
+                icon={<Trash size={16} />}
+                chromeless
+                onPress={() => {
+                  onRemove()
+                }}
+              />
+            </Tooltip>
+          )}
         </XStack>
-      </XStack>
-    </Form>
+      </YStack>
+    </div>
   )
 }
 
-function HMDocURLInput<Fields extends FieldValues>({
-  control,
-  name,
+function HMDocURLInput({
+  link,
+  onUpdate,
   homeId,
   filterPresets,
 }: {
-  control: Control<Fields>
-  name: Path<Fields>
+  link: string
+  onUpdate: (link: string, title: string) => void
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
 }) {
-  const c = useController({control, name})
-  const id = unpackHmId(c.field.value)
+  const id = unpackHmId(link)
   const entity = useEntity(id)
-  let label = c.field.value || 'URL or Search Documents'
+  let label = link || 'URL or Search Documents'
   let fontClass = 'text-muted-foreground'
-  if (
-    c.field.value === entity.data?.id.id &&
-    entity.data?.document?.metadata.name
-  ) {
+  if (link === entity.data?.id.id && entity.data?.document?.metadata.name) {
     fontClass = 'text-brand-5'
     label = entity.data.document.metadata.name
-  } else if (c.field.value) {
-    label = c.field.value
+  } else if (link) {
+    label = link
   }
-  const {onChange, ...inputProps} = c.field
   const popoverState = usePopoverState()
   return (
     <>
@@ -402,7 +375,7 @@ function HMDocURLInput<Fields extends FieldValues>({
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'border-1 border-color8 rounded-sm p-1 px-3 text-md bg-secondary w-full align-center line-clamp-1 text-clip overflow-hidden',
+              'overflow-hidden p-1 px-3 w-full rounded-sm border-1 border-color8 text-md bg-secondary align-center line-clamp-1 text-clip',
               fontClass,
             )}
           >
@@ -411,7 +384,7 @@ function HMDocURLInput<Fields extends FieldValues>({
         </PopoverTrigger>
         <PopoverContent className="p-0">
           <SearchUI
-            onValue={onChange}
+            onValue={onUpdate}
             homeId={homeId}
             onClose={() => popoverState.onOpenChange(false)}
             filterPresets={filterPresets}
@@ -428,7 +401,7 @@ function SearchUI({
   homeId,
   filterPresets,
 }: {
-  onValue: (value: string) => void
+  onValue: (link: string, title: string) => void
   onClose: () => void
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
@@ -456,15 +429,15 @@ function SearchUI({
 
   return (
     <div className="max-h-[50vh] overflow-y-auto">
-      <div className="p-1 relative border-b-1 border-color8">
+      <div className="relative p-1 border-b-1 border-color8">
         <input
           autoFocus
-          className="p-2 w-full rounded-sm pl-10"
+          className="p-2 pl-10 w-full rounded-sm"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && query.match(/^https?:\/\//)) {
-              onValue(query)
+              onValue(query, '')
               onClose()
             }
           }}
@@ -476,7 +449,7 @@ function SearchUI({
           <div
             key={e.link}
             onClick={() => {
-              onValue(e.link)
+              onValue(e.link, e.label)
               onClose()
             }}
             className="px-3 py-2 hover:bg-secondary"
