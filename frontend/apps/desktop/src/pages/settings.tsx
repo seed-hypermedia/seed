@@ -44,7 +44,6 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {Tabs, TabsContentProps, TabsProps} from '@shm/ui/components/tabs'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
@@ -90,6 +89,9 @@ import {
   Label,
   Paragraph,
   SizableText,
+  Tabs,
+  TabsContentProps,
+  TabsProps,
   Text,
   TextArea,
   View,
