@@ -1,216 +1,127 @@
 import {
+  formattedDateDayOnly,
   HMAccountsMetadata,
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMDocumentInfo,
   HMEntityContent,
-  hmId,
-  OptimizedImageSize,
   plainTextOfContent,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {useTxUtils} from '@shm/shared/translation'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {View} from '@tamagui/core'
-import {XStack, YStack, YStackProps} from '@tamagui/stacks'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {HTMLAttributes, useMemo} from 'react'
+import {useDocContentContext} from './document-content'
 import {FacePile} from './face-pile'
 import {SizableText} from './text'
-import {useIsDark} from './use-is-dark'
+import {cn} from './utils'
 
-// Custom hook for resize observer
-function useResizeObserver<T extends HTMLElement>() {
-  const [width, setWidth] = useState(0)
-  const elementRef = useRef<T>(null)
-
-  const callback = useCallback((entries: ResizeObserverEntry[]) => {
-    const [entry] = entries
-    if (entry) {
-      setWidth(entry.contentRect.width)
-    }
-  }, [])
-
-  useEffect(() => {
-    const element = elementRef.current
-    if (!element) return
-
-    const observer = new ResizeObserver(callback)
-    observer.observe(element)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [callback])
-
-  return {ref: elementRef, width}
-}
-
-export function BannerNewspaperCard({
-  item,
-  entity,
-  accountsMetadata,
-  onHoverIn,
-  onHoverOut,
-}: {
-  item: HMDocumentInfo
-  entity: HMEntityContent | null | undefined
-  accountsMetadata: HMAccountsMetadata
-  onHoverIn?: (id: UnpackedHypermediaId) => void
-  onHoverOut?: (id: UnpackedHypermediaId) => void
-}) {
-  const id = hmId('d', item.account, {path: item.path})
-  // const navigate = useNavigate()
-  const linkProps = useRouteLink({key: 'document', id})
-
-  if (!entity?.document) return null
-  const coverImage = getDocumentCardImage(entity?.document)
-  return (
-    <View
-      {...baseCardStyles}
-      flexDirection="column"
-      marginTop="$4"
-      minHeight={200}
-      onHoverIn={onHoverIn ? () => onHoverIn?.(id) : undefined}
-      onHoverOut={onHoverOut ? () => onHoverOut?.(id) : undefined}
-      $gtMd={{flexDirection: 'row', maxHeight: 240}}
-      $gtLg={{maxHeight: 280}}
-      {...linkProps}
-      // this data attribute is used by the hypermedia highlight component
-      data-docid={id.id}
-    >
-      {coverImage && (
-        <View
-          height={200}
-          $gtSm={{height: 250}}
-          width="100%"
-          $gtMd={{width: '50%', height: 'auto', minHeight: 250}}
-          $gtLg={{minHeight: 280}}
-        >
-          <NewspaperCardImage coverImage={coverImage} height="100%" />
-        </View>
-      )}
-      <YStack
-        flex={1}
-        width="100%"
-        $gtMd={{width: '50%', height: 'auto'}}
-        jc="space-between"
-      >
-        <NewspaperCardContent banner entity={entity} />
-        <NewspaperCardFooter
-          entity={entity}
-          accountsMetadata={accountsMetadata}
-        />
-      </YStack>
-    </View>
-  )
-}
-
-export function NewspaperCard({
+export function DocumentCard({
   docId,
   entity,
   accountsMetadata,
   isWeb = false,
   navigate = true,
-  onHoverIn,
-  onHoverOut,
+  onMouseEnter,
+  onMouseLeave,
+  banner = false,
   ...props
-}: Omit<YStackProps, 'id'> & {
+}: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
   entity: HMEntityContent | null | undefined
   accountsMetadata: HMAccountsMetadata
   isWeb?: boolean
   navigate?: boolean
-  onHoverIn?: any
-  onHoverOut?: any
+  onMouseEnter?: (id: UnpackedHypermediaId) => void
+  onMouseLeave?: (id: UnpackedHypermediaId) => void
+  banner?: boolean
 }) {
+  const {onHoverIn, onHoverOut} = useDocContentContext()
   if (!entity?.document) return null
+
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
-  const {ref, width} = useResizeObserver<HTMLDivElement>()
-  const isCardBig = useMemo(() => {
-    return width > 600
-  }, [width])
+
+  const imageUrl = useImageUrl()
+
+  let textContent = useMemo(() => {
+    return plainTextOfContent(entity?.document?.content)
+  }, [entity?.document])
 
   const coverImage = getDocumentCardImage(entity?.document)
-  const cardProps = !isWeb
-    ? {
-        flexGrow: 0,
-        flexShrink: 0,
-        flexBasis: '100%' as any,
-        $gtSm: {flexBasis: '47.9%' as any},
-        $gtMd: {flexBasis: '31.1%' as any},
-      }
-    : {}
+
+  if (banner) {
+    console.log('linkProps', docId, linkProps)
+  }
 
   return (
-    <YStack
-      ref={ref}
-      {...cardProps}
-      {...baseCardStyles}
-      flexDirection={isCardBig ? 'row' : 'column'}
+    <div
+      data-docid={docId?.id}
+      className={cn(
+        'bg-white dark:bg-background rounded-lg shadow-md overflow-hidden flex-1 @container hover:bg-brand-12 transition-colors duration-300 min-h-[200px]',
+        banner && 'md:min-h-[240px] lg:min-h-[280px] rounded-xl',
+      )}
       onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
       onMouseLeave={docId ? () => onHoverOut?.(docId) : undefined}
-      data-docid={docId.id}
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      {coverImage && (
-        <View
-          height={isCardBig ? 'auto' : 300}
-          width={isCardBig ? '50%' : '100%'}
-          maxHeight={isCardBig ? undefined : 200}
-        >
-          <NewspaperCardImage
-            coverImage={coverImage}
-            imageOptimizedSize="L"
-            height="100%"
-          />
-        </View>
-      )}
-      <YStack
-        flex={1}
-        width={isCardBig ? '50%' : '100%'}
-        height={isCardBig ? 'auto' : undefined}
-        jc="space-between"
-      >
-        <NewspaperCardContent entity={entity} />
-        {!isWeb && (
-          <NewspaperCardFooter
-            entity={entity}
-            accountsMetadata={accountsMetadata}
-          />
+      <div className="flex flex-col @md:flex-row flex-1 h-full cursor-pointer max-w-full">
+        {coverImage && (
+          <div
+            className={cn(
+              'shrink-0 h-40 w-full @md:w-1/2 @md:min-h-full relative',
+              banner && '@md:h-[280px] ',
+            )}
+          >
+            <img
+              className="h-full w-full object-cover absolute top-0 left-0"
+              src={imageUrl(coverImage, 'L')}
+              alt=""
+            />
+          </div>
         )}
-      </YStack>
-    </YStack>
-  )
-}
-
-function NewspaperCardImage({
-  coverImage,
-  height = 120,
-  imageOptimizedSize = 'L',
-}: {
-  coverImage: string | null
-  height?: number | string
-  imageOptimizedSize?: OptimizedImageSize
-}) {
-  const imageUrl = useImageUrl()
-  if (!coverImage) return null
-  return (
-    <View
-      height={height}
-      // minHeight={120}
-      // maxHeight={200}
-      backgroundColor="$brand11"
-    >
-      {coverImage ? (
-        <img
-          src={imageUrl(coverImage, imageOptimizedSize)}
-          style={{minWidth: '100%', minHeight: '100%', objectFit: 'cover'}}
-        />
-      ) : null}
-    </View>
+        <div className={cn('flex-1 flex flex-col justify-between')}>
+          <div className="p-4">
+            <p
+              className={cn(
+                'block font-bold font-sans text-black leading-tight!',
+                banner ? 'text-2xl' : 'text-lg',
+              )}
+            >
+              {entity?.document?.metadata?.name}
+            </p>
+            <p
+              className={cn(
+                'mt-2 text-muted-foreground font-sans line-clamp-3',
+                !banner && 'text-sm',
+              )}
+            >
+              {textContent}
+            </p>
+          </div>
+          <div className="pl-4 pr-2 py-1 flex items-center justify-between">
+            {(entity?.document?.metadata?.displayPublishTime ||
+              entity?.document?.updateTime) && (
+              <SizableText
+                color="muted"
+                size="xs"
+                className="font-sans opacity-75 hover:cursor-default"
+              >
+                {entity?.document?.metadata?.displayPublishTime
+                  ? formattedDateDayOnly(
+                      new Date(entity.document.metadata.displayPublishTime),
+                    )
+                  : formattedDateDayOnly(entity.document.updateTime)}
+              </SizableText>
+            )}
+            <FacePile
+              accounts={entity?.document?.authors || []}
+              accountsMetadata={accountsMetadata}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -246,86 +157,4 @@ function findFirstBlock(
     index++
   }
   return found
-}
-
-function NewspaperCardContent({
-  entity,
-  banner = false,
-}: {
-  entity: HMEntityContent | null | undefined
-  banner?: boolean
-}) {
-  let textContent = useMemo(() => {
-    return plainTextOfContent(entity?.document?.content)
-  }, [entity?.document])
-  return (
-    <YStack
-      padding={banner ? '$5' : '$3'}
-      gap="$3"
-      f={1}
-      data-docid={entity?.id.id}
-    >
-      <YStack overflow="hidden" maxHeight={banner ? undefined : 28 * 3}>
-        <SizableText size={banner ? '2xl' : 'xl'} weight="bold">
-          {entity?.document?.metadata?.name}
-        </SizableText>
-      </YStack>
-      <YStack overflow="hidden" maxHeight={(banner ? 28 : 24) * 3}>
-        <SizableText color="muted" family="default" size={banner ? 'lg' : 'md'}>
-          {textContent}
-        </SizableText>
-      </YStack>
-    </YStack>
-  )
-}
-
-function NewspaperCardFooter({
-  entity,
-  accountsMetadata,
-}: {
-  entity: HMEntityContent | null | undefined
-  accountsMetadata: HMAccountsMetadata
-}) {
-  const isDark = useIsDark()
-  const {formattedDateDayOnly} = useTxUtils()
-  return (
-    <XStack
-      jc="space-between"
-      alignSelf="stretch"
-      backgroundColor={isDark ? '$background' : '$backgroundStrong'}
-      data-docid={entity?.id.id}
-      paddingHorizontal="$4"
-      paddingVertical="$2"
-      alignItems="center"
-    >
-      {(entity?.document?.metadata?.displayPublishTime ||
-        entity?.document?.updateTime) && (
-        <SizableText size="xs">
-          {entity?.document?.metadata?.displayPublishTime
-            ? formattedDateDayOnly(
-                new Date(entity.document.metadata.displayPublishTime),
-              )
-            : formattedDateDayOnly(entity.document.updateTime)}
-        </SizableText>
-      )}
-      <XStack>
-        <FacePile
-          accounts={entity?.document?.authors || []}
-          accountsMetadata={accountsMetadata}
-        />
-      </XStack>
-    </XStack>
-  )
-}
-const baseCardStyles: Parameters<typeof XStack>[0] = {
-  borderRadius: '$4',
-  backgroundColor: '$backgroundStrong',
-  shadowColor: '$shadowColor',
-  shadowOffset: {width: 0, height: 2},
-  shadowRadius: 8,
-  overflow: 'hidden',
-  hoverStyle: {
-    backgroundColor: '$brand12',
-  },
-  transition: 'background-color 0.3s ease-in-out',
 }

@@ -1,5 +1,5 @@
 import React from 'react'
-import {Label, YStack} from 'tamagui'
+import {Label} from './components/label'
 import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {SizableText} from './text'
 
@@ -22,14 +22,7 @@ export function RadioOptionSection<Options extends RadioOptions>({
 }) {
   const id = React.useId()
   return (
-    <YStack
-      backgroundColor={'$color1'}
-      borderWidth={1}
-      borderColor="$borderColor"
-      borderRadius="$3"
-      padding="$4"
-      gap="$3"
-    >
+    <div className="bg-background border border-border rounded-lg p-4 flex flex-col gap-3">
       <SizableText weight="bold">{title}</SizableText>
       <RadioGroup value={value} onValueChange={onValue}>
         {options.map((option) => {
@@ -40,13 +33,13 @@ export function RadioOptionSection<Options extends RadioOptions>({
                 id={`${id}-${option.value}`}
               />
 
-              <Label size="$2" htmlFor={`${id}-${option.value}`}>
+              <Label size="sm" htmlFor={`${id}-${option.value}`}>
                 {option.label}
               </Label>
             </div>
           )
         })}
       </RadioGroup>
-    </YStack>
+    </div>
   )
 }

@@ -19,8 +19,7 @@ export default function Footer({children}: {children?: ReactNode}) {
       <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
         <SizableText
           size="xs"
-          color="muted"
-          className="select-none cursor-default"
+          className="select-none cursor-default text-muted-foreground opacity-50"
           style={{fontSize: 10}}
         >
           {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}

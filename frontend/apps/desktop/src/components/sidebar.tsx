@@ -86,7 +86,7 @@ function CreateDocumentButton() {
   if (!myAccountIds.data?.length) return null
   return (
     <Button
-      variant="brand"
+      variant="default"
       onClick={() => createDraft()}
       className="w-full mb-5"
     >

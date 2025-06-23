@@ -123,7 +123,7 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
         nodeToInsert,
       )
       nodes.push(container)
-    } else if (node.firstChild!.type.name === 'blockGroup') {
+    } else if (node.firstChild?.type.name === 'blockGroup') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
         const container = editor.schema.nodes['blockContainer'].create(

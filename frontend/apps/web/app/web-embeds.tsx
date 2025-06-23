@@ -19,17 +19,18 @@ import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {
   ContentEmbed,
+  DocumentCardGrid,
   ErrorBlock,
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
-import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Button} from '@shm/ui/legacy/button'
-import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
+import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {StackProps, Text} from '@tamagui/core'
+import {cn} from '@shm/ui/utils'
+import {Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useMemo, useState} from 'react'
 
@@ -149,13 +150,13 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const id = narrowHmId(props)
   return (
     <EmbedWrapper id={id} parentBlockId={props.parentBlockId} hideBorder>
-      <NewspaperCard
+      <DocumentCard
         isWeb
         entity={{
           id,
           document: doc.data.document,
         }}
-        docId={props.id}
+        docId={id}
         accountsMetadata={Object.fromEntries(
           authors
             .map((d) => d.data)
@@ -275,38 +276,21 @@ function QueryStyleCard({
   items: Array<HMDocumentInfo>
 }) {
   const ctx = useDocContentContext()
-  const {supportDocuments, supportQueries} = ctx || {}
+  const {supportDocuments} = ctx || {}
+
+  const columnClasses = useMemo(() => {
+    return cn(
+      'basis-full',
+      block.attributes.columnCount == 2 && 'sm:basis-1/2',
+      block.attributes.columnCount == 3 && 'sm:basis-1/2 md:basis-1/3',
+    )
+  }, [block.attributes.columnCount])
 
   function getEntity(path: string[]) {
     return supportDocuments?.find(
       (entity) => entity?.id?.path?.join('/') === path?.join('/'),
     )
   }
-  const columnProps = useMemo(() => {
-    switch (block.attributes.columnCount) {
-      case 2:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '50%'},
-        } as StackProps
-      case 3:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '33.333%'},
-        } as StackProps
-      default:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '100%'},
-          $gtMd: {flexBasis: '100%'},
-        } as StackProps
-    }
-  }, [block.attributes.columnCount])
-
-  const firstItem = block.attributes.banner ? items[0] : null
-  const restItems = block.attributes.banner ? items.slice(1) : items
 
   const accountsMetadata =
     ctx.supportDocuments?.reduce((acc, d) => {
@@ -319,52 +303,27 @@ function QueryStyleCard({
       return acc
     }, {} as HMAccountsMetadata) || {}
 
+  const docs = useMemo(() => {
+    return items.map((item) => {
+      const id = hmId('d', item.account, {
+        path: item.path,
+        latest: true,
+      })
+      return {id, item}
+    })
+  }, [items])
+
+  const firstItem = block.attributes.banner ? docs[0] : null
+  const restItems = block.attributes.banner ? docs.slice(1) : docs
+
   return (
-    <YStack width="100%">
-      {firstItem ? (
-        <BannerNewspaperCard
-          item={firstItem}
-          entity={getEntity(firstItem.path)}
-          key={firstItem.path.join('/')}
-          accountsMetadata={accountsMetadata}
-        />
-      ) : null}
-      {restItems?.length ? (
-        <XStack
-          f={1}
-          flexWrap="wrap"
-          marginHorizontal="$-3"
-          justifyContent="center"
-        >
-          {restItems.map((item) => {
-            const id = hmId('d', item.account, {
-              path: item.path,
-              latest: true,
-            })
-            return (
-              <YStack
-                {...columnProps}
-                p="$3"
-                key={item.account + '/' + item.path.join('/')}
-              >
-                <NewspaperCard
-                  docId={id}
-                  entity={getEntity(item.path)}
-                  key={item.path.join('/')}
-                  accountsMetadata={accountsMetadata}
-                  flexBasis="100%"
-                  $gtSm={{flexBasis: '100%'}}
-                  $gtMd={{flexBasis: '100%'}}
-                />
-              </YStack>
-            )
-          })}
-        </XStack>
-      ) : null}
-      {items.length == 0 ? (
-        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
-      ) : null}
-    </YStack>
+    <DocumentCardGrid
+      firstItem={firstItem}
+      items={restItems}
+      getEntity={getEntity}
+      accountsMetadata={accountsMetadata}
+      columnClasses={columnClasses}
+    />
   )
 }
 

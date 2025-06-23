@@ -90,7 +90,7 @@ function Tab({
       className={cn(
         'inline-block dark:text-white p-4 whitespace-nowrap border-b-3 flex-shrink-0',
         isActive
-          ? 'text-black  font-bold border-brand-5 rounded-none'
+          ? 'text-black  font-bold border-primary rounded-none'
           : 'text-gray-600 hover:text-gray-800 border-transparent rounded-none',
       )}
       onClick={onPress}

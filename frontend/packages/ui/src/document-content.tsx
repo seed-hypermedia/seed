@@ -1,11 +1,12 @@
-// @ts-nocheck - Tamagui component typing issues with children props
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
+  HMAccountsMetadata,
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
+  HMDocumentInfo,
   HMEmbedView,
   HMInlineContent,
   UnpackedHypermediaId,
@@ -78,6 +79,7 @@ import {
 } from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
 import {BlockQuote} from './icons'
+import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText, Text, TextProps} from './text'
 import {Tooltip} from './tooltip'
@@ -2330,4 +2332,57 @@ export function getBlockNode(
     }
   }
   return null
+}
+
+export function DocumentCardGrid({
+  firstItem,
+  items,
+  getEntity,
+  accountsMetadata,
+  columnClasses,
+}: {
+  firstItem: {id: UnpackedHypermediaId; item: HMDocumentInfo} | null
+  items: Array<{id: UnpackedHypermediaId; item: HMDocumentInfo}>
+  getEntity: any
+  accountsMetadata: HMAccountsMetadata
+  columnClasses: string
+}) {
+  console.log('ITEMS', items)
+
+  return (
+    <div className="w-full flex flex-col">
+      {firstItem ? (
+        <DocumentCard
+          banner
+          entity={getEntity(firstItem.item.path)}
+          docId={firstItem.id}
+          key={firstItem.item.path.join('/')}
+          accountsMetadata={accountsMetadata}
+        />
+      ) : null}
+      {items?.length ? (
+        <div className="flex flex-wrap -mx-3 mt-2 justify-center">
+          {items.map((item) => {
+            if (!item) return null
+            return (
+              <div
+                className={cn(columnClasses, 'p-3 flex')}
+                key={item.item.account + '/' + item.item.path.join('/')}
+              >
+                <DocumentCard
+                  docId={item.id}
+                  entity={getEntity(item.item.path)}
+                  key={item.item.path.join('/')}
+                  accountsMetadata={accountsMetadata}
+                />
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+      {items.length == 0 ? (
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
+      ) : null}
+    </div>
+  )
 }

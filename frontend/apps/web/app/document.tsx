@@ -779,7 +779,7 @@ function DocumentCover({
     <div
       className={cn(
         'relative flex-shrink-0 w-full h-[25vh]',
-        cover ? 'bg-transparent' : 'bg-(--brand11)',
+        cover ? 'bg-transparent' : 'bg-secondary',
       )}
     >
       <img

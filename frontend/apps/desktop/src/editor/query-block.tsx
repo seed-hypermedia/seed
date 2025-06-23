@@ -20,26 +20,19 @@ import {
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {DocumentCardGrid} from '@shm/ui/document-content'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {Button} from '@shm/ui/legacy/button'
-import {NewspaperCard} from '@shm/ui/newspaper'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {
-  ButtonFrame,
-  Input,
-  SizableText,
-  View,
-  XStack,
-  YStack,
-  YStackProps,
-} from 'tamagui'
+import {ButtonFrame, Input, SizableText, View, XStack, YStack} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
@@ -247,72 +240,52 @@ function CardView({
     return Boolean(block.props.banner == 'true')
   }, [block.props.banner])
 
-  const firstItem = banner ? items[0] : null
-  const restItems = banner ? items.slice(1) : items
-  const columnProps = useMemo(() => {
-    switch (block.props.columnCount) {
-      case '2':
+  const columnClasses = useMemo(() => {
+    return cn(
+      'basis-full',
+      block.props.columnCount &&
+        block.props.columnCount == '2' &&
+        'sm:basis-1/2',
+      block.props.columnCount &&
+        block.props.columnCount == '3' &&
+        'sm:basis-1/2 md:basis-1/3',
+    )
+  }, [block.props.columnCount])
+
+  const docs = useMemo(() => {
+    return items.map((item) => {
+      if (item.data) {
         return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '50%'},
-        } as YStackProps
-      case '3':
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '33.333%'},
-        } as YStackProps
-      default:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '100%'},
-          $gtMd: {flexBasis: '100%'},
-        } as YStackProps
-    }
-  }, [block.props])
+          id: item.data.id,
+          item: {
+            type: 'document',
+            path: item.data.id.path,
+            metadata: item.data.document?.metadata,
+          },
+        }
+      }
+      return null
+    })
+  }, [items])
+
+  function getEntity(path: string[]) {
+    return (
+      items.find((item) => item.data?.id?.path?.join('/') == path.join('/'))
+        ?.data || null
+    )
+  }
+
+  const firstItem = banner ? docs[0] : null
+  const restItems = banner ? docs.slice(1) : docs
 
   return (
-    <>
-      {firstItem && firstItem.data ? (
-        <NewspaperCard
-          docId={firstItem.data.id}
-          entity={firstItem.data}
-          key={firstItem.data?.id.id}
-          accountsMetadata={{}}
-          flexBasis="100%"
-          $gtSm={{flexBasis: '100%'}}
-          $gtMd={{flexBasis: '100%'}}
-        />
-      ) : null}
-      {restItems?.length ? (
-        <XStack
-          f={1}
-          flexWrap="wrap"
-          marginHorizontal="$-3"
-          justifyContent="center"
-        >
-          {restItems
-            .filter((item) => !!item.data)
-            .map((item) => (
-              <XStack {...columnProps} p="$3" key={item.data?.id.id}>
-                <NewspaperCard
-                  docId={item.data?.id}
-                  entity={item.data}
-                  key={item.data?.id.id}
-                  accountsMetadata={{}}
-                  flexBasis="100%"
-                  $gtSm={{flexBasis: '100%'}}
-                  $gtMd={{flexBasis: '100%'}}
-                />
-              </XStack>
-            ))}
-        </XStack>
-      ) : null}
-      {!items.length ? (
-        <EmptyQueryBlock queryIncludes={block.props.queryIncludes} />
-      ) : null}
-    </>
+    <DocumentCardGrid
+      firstItem={firstItem}
+      getEntity={getEntity}
+      items={restItems}
+      accountsMetadata={{}}
+      columnClasses={columnClasses}
+    />
   )
 }
 

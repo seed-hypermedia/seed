@@ -257,15 +257,6 @@ export default function CreateComment() {
                     ),
                   })}
             </SizableText>
-            {/* <NewspaperCard
-              overflow="hidden"
-              docId={targetId}
-              entity={{
-                id: targetId,
-                document: targetDocument,
-              }}
-              accountsMetadata={targetAuthors}
-            /> */}
           </View>
           {quotingBlockId ? (
             <View marginHorizontal="$4">

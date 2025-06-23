@@ -326,7 +326,7 @@ function HMDocURLInput({
   let label = link || 'URL or Search Documents'
   let fontClass = 'text-muted-foreground'
   if (link === entity.data?.id.id && entity.data?.document?.metadata.name) {
-    fontClass = 'text-brand-5'
+    fontClass = 'text-primary'
     label = entity.data.document.metadata.name
   } else if (link) {
     label = link

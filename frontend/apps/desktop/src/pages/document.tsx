@@ -5,7 +5,6 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {NewspaperLayout} from '@/components/newspaper-layout'
 import {useTemplateDialog} from '@/components/site-template'
 import {
   roleCanWrite,
@@ -233,17 +232,11 @@ function _MainDocumentPage({
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
-  const docIsNewspaperLayout =
-    metadata?.layout === 'Seed/Experimental/Newspaper'
   const isHomeDoc = !id.path?.length
   const isShowOutline =
     (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
     !isHomeDoc
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
-
-  const DocContainer = docIsNewspaperLayout
-    ? NewspaperDocContainer
-    : BaseDocContainer
 
   const {
     showSidebars,
@@ -281,7 +274,7 @@ function _MainDocumentPage({
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         <ScrollArea ref={elementRef}>
-          {!docIsNewspaperLayout && <DocumentCover docId={id} />}
+          <DocumentCover docId={id} />
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
@@ -300,7 +293,7 @@ function _MainDocumentPage({
               </YStack>
             ) : null}
 
-            <DocContainer
+            <BaseDocContainer
               {...mainContentProps}
               $gtSm={{marginRight: 40, marginLeft: 0}}
             >
@@ -313,7 +306,7 @@ function _MainDocumentPage({
                   isBlockFocused={isBlockFocused}
                 />
               </div>
-            </DocContainer>
+            </BaseDocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
           </div>
           <DocInteractionsSummary docId={id} />
@@ -737,11 +730,7 @@ function DocPageContent({
   const route = useNavRoute()
   const citations = useEntityCitations(entity.id)
   const docRoute = route.key === 'document' ? route : null
-  if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
-    return (
-      <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
-    )
-  }
+
   return (
     <AppDocContentProvider
       routeParams={{

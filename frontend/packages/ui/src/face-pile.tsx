@@ -1,8 +1,9 @@
 import {HMAccountsMetadata} from '@shm/shared'
-import {Text} from '@tamagui/core'
 import {XStack} from '@tamagui/stacks'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
+import {Text} from './text'
+import {cn} from './utils'
 
 export function FacePile({
   accounts,
@@ -16,25 +17,17 @@ export function FacePile({
     [accounts],
   )
   return (
-    <>
+    <div className="flex items-center">
       {showAccountIds.map((author, idx) => {
         const authorInfo = accountsMetadata[author]
         if (!authorInfo) return null
         return (
-          <XStack
-            zIndex={idx + 1}
+          <div
             key={showAccountIds[idx]}
-            borderColor="$background"
-            backgroundColor="$background"
-            // $group-item-hover={{
-            //   borderColor: itemHoverBgColor,
-            //   backgroundColor: itemHoverBgColor,
-            // }}
-            borderWidth={2}
-            borderRadius={100}
-            overflow="hidden"
-            marginLeft={-8}
-            animation="fast"
+            className={cn(
+              `z-${idx + 1}`,
+              'border-2 border-white dark: border-background bg-white dark:bg-background rounded-full overflow-hidden -ml-2',
+            )}
           >
             <HMIcon
               key={authorInfo.id.uid}
@@ -42,33 +35,27 @@ export function FacePile({
               metadata={authorInfo.metadata}
               size={20}
             />
-          </XStack>
+          </div>
         )
       })}
       {accounts.length > 2 ? (
         <XStack
-          zIndex="$zIndex.1"
-          borderColor="$background"
-          backgroundColor="$background"
-          borderWidth={2}
-          borderRadius={100}
-          marginLeft={-8}
-          animation="fast"
-          width={24}
-          height={24}
-          ai="center"
-          jc="center"
+          className={cn(
+            'size-6 border-2 border-white dark: border-background bg-white dark:bg-background rounded-full overflow-hidden -ml-2 flex items-center justify-center z-5',
+          )}
         >
           <Text
-            fontSize={10}
-            fontFamily="$body"
-            fontWeight="bold"
-            color="$color10"
+            size="xs"
+            className="text-gray-400 leading-5 size-6 text-center"
+            style={{
+              fontSize: '10px',
+            }}
+            weight="medium"
           >
             +{accounts.length - 3}
           </Text>
         </XStack>
       ) : null}
-    </>
+    </div>
   )
 }

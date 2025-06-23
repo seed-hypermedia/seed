@@ -2,20 +2,21 @@ import {useMyAccounts} from '@/models/daemon'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
+import {Button} from '@shm/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
+
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button} from '@shm/ui/legacy/button'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
-import {Settings} from '@tamagui/lucide-icons'
-import {Plus} from 'lucide-react'
+import {Plus, Settings} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
@@ -138,8 +139,8 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           </div>
           <div
             className={cn(
-              'flex justify-between shrink-0',
-              isLocked ? '' : 'pb-2 pr-1',
+              'flex items-end w-full',
+              // isLocked ? '' : 'pb-2 pr-1',
             )}
           >
             <IdentitySelector />
@@ -188,68 +189,73 @@ function IdentitySelector() {
     )
   }
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div className="flex flex-row items-center justify-between w-full p-1 transition bg-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 border-1 dark:bg-neutral-900">
-          <div className="flex flex-row items-center gap-2">
+    <div className="flex items-center w-full mb-2">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger className="flex gap-2 py-1 px-2 pl-1 -ml-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 active:bg-gray-300 min-w-0">
+          <>
+            {/* <Button className="pl-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 bg-blue-500 min-w-0"> */}
             {selectedAccount?.data ? (
               <HMIcon
                 key={selectedAccount.data?.id?.uid}
                 id={selectedAccount.data?.id}
                 metadata={selectedAccount.data?.document?.metadata}
-                size={28}
+                size={24}
               />
             ) : null}
-            <div className="text-sm line-clamp-1">
+
+            <p className="text-sm truncate select-none">
               {selectedAccount?.data?.document?.metadata?.name ||
                 `?${selectedIdentityValue.slice(-8)}`}
-            </div>
-          </div>
-          <AppSettingsButton />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="flex flex-col items-stretch gap-1 max-h-[80vh] overflow-y-auto">
-        {accountOptions.map((option) => (
-          <div
-            key={option.id.uid}
-            className={cn(
-              'flex flex-row items-center gap-4 p-2 rounded-sm hover:bg-gray-100 dark:hover:bg-neutral-900',
-              selectedAccount?.data?.id?.uid === option.id.uid
-                ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900'
-                : '',
-            )}
-            onClick={() => {
-              setSelectedIdentity?.(option.id.uid || null)
-              setIsOpen(false)
-            }}
-          >
-            {option.id ? (
-              <HMIcon id={option?.id} metadata={option?.metadata} />
-            ) : null}
-            {option.metadata?.name}
-          </div>
-        ))}
-        <CreateAccountButton className="mt-3" />
-      </PopoverContent>
-    </Popover>
+            </p>
+
+            {/* </Button> */}
+          </>
+        </PopoverTrigger>
+        <PopoverContent
+          side="right"
+          className="flex flex-col items-stretch max-h-[500px] h-full gap-2 p-2"
+          align="end"
+        >
+          <ScrollArea className="flex-1 h-full overflow-y-auto">
+            {accountOptions.map((option) => (
+              <div
+                key={option.id.uid}
+                className={cn(
+                  'flex flex-row items-center gap-4 p-2 rounded-sm hover:bg-accent dark:hover:bg-accent',
+                  selectedAccount?.data?.id?.uid === option.id.uid
+                    ? 'bg-brand-12 hover:bg-brand-11 dark:bg-brand-1 dark:hover:bg-brand-11'
+                    : '',
+                )}
+                onClick={() => {
+                  setSelectedIdentity?.(option.id.uid || null)
+                  setIsOpen(false)
+                }}
+              >
+                {option.id ? (
+                  <HMIcon id={option?.id} metadata={option?.metadata} />
+                ) : null}
+                {option.metadata?.name}
+              </div>
+            ))}
+          </ScrollArea>
+          <CreateAccountButton />
+        </PopoverContent>
+      </Popover>
+      <AppSettingsButton />
+    </div>
   )
 }
 
 function CreateAccountButton({className}: {className?: string}) {
   return (
     <Button
-      className={cn('flex-1', className)}
-      backgroundColor="$brand5"
-      hoverStyle={{backgroundColor: '$brand4'}}
-      pressStyle={{backgroundColor: '$brand3'}}
-      borderWidth={0}
-      color="white"
-      size="$2"
-      icon={Plus}
-      onPress={() => {
+      variant="brand"
+      className={cn('flex-1 border-none', className)}
+      onClick={() => {
         dispatchOnboardingDialog(true)
       }}
     >
+      <Plus className="size-3" />
       Create Account
     </Button>
   )
@@ -259,15 +265,16 @@ function AppSettingsButton() {
   const navigate = useNavigate()
   return (
     <Tooltip content="App Settings">
-      <button
-        className="flex items-center justify-center w-8 h-8 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-800"
+      <Button
+        size="icon"
+        className="flex items-center justify-center w-8 h-8 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-800 shrink-none"
         onClick={(e) => {
           e.preventDefault()
           navigate({key: 'settings'})
         }}
       >
-        <Settings size={16} />
-      </button>
+        <Settings className="size-3" />
+      </Button>
     </Tooltip>
   )
 }
