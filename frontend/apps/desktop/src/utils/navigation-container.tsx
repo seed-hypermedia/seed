@@ -1,5 +1,6 @@
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {dialogBoxShadow} from '@/components/dialog'
+import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
@@ -21,10 +22,10 @@ import {
   NavContextProvider,
   NavState,
   navStateReducer,
-  openRouteInNewWindow,
   setAppNavDispatch,
   useNavRoute,
 } from './navigation'
+import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
 
 export function NavigationContainer({
@@ -105,7 +106,8 @@ export function NavigationContainer({
         }
       }}
       openRouteNewWindow={(route: NavRoute) => {
-        openRouteInNewWindow(route)
+        const path = encodeRouteToPath(route)
+        ipc.invoke('plugin:window|open', {path})
       }}
       openUrl={(url: string) => {
         externalOpen(url)
