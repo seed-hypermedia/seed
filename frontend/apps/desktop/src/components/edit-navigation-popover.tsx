@@ -8,6 +8,7 @@ import {
 import {hmId, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
 import {
   Popover,
@@ -16,6 +17,7 @@ import {
 } from '@shm/ui/components/popover'
 import {FormField} from '@shm/ui/forms'
 import {Separator} from '@shm/ui/separator'
+import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
@@ -407,6 +409,7 @@ function SearchUI({
   filterPresets: (item: {link: string}) => boolean
 }) {
   const [query, setQuery] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const isWebUrl = query.match(/^https?:\/\//)
   const search = useSearch(query, {enabled: !!query})
   const dirList = useListDirectory(homeId, {mode: 'Children'})
@@ -438,12 +441,29 @@ function SearchUI({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && query.match(/^https?:\/\//)) {
               onValue(query, '')
-              onClose()
+              setIsLoading(true)
+              resolveHypermediaUrl(query)
+                .then((resolved) => {
+                  if (resolved) {
+                    onValue(resolved.id, resolved.title || '')
+                  }
+                  setIsLoading(false)
+                  onClose()
+                })
+                .catch((e) => {
+                  console.error(e)
+                  onClose()
+                })
             }
           }}
         ></input>
         <Icon className="absolute left-3 top-1/2 -translate-y-1/2" size={20} />
       </div>
+      {isLoading && (
+        <div className="flex justify-center p-2">
+          <Spinner />
+        </div>
+      )}
       {results.map((e) => {
         return (
           <div
