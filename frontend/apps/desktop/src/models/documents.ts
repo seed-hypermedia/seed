@@ -598,18 +598,6 @@ export function useDraftEditor() {
                   ? [event.payload.data.document?.version]
                   : undefined,
               }
-            } else if (event.payload.type == 'location') {
-              if (locationEntity.data?.document?.content) {
-                content = hmBlocksToEditorContent(
-                  locationEntity.data.document.content || [],
-                  {
-                    childrenType: 'Group',
-                  },
-                )
-                editor.replaceBlocks(editor.topLevelBlocks, content as any)
-                const tiptap = editor?._tiptapEditor
-                setGroupTypes(tiptap, content as any)
-              }
             }
           }
 
