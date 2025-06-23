@@ -3,7 +3,7 @@ import {useNavigate} from '@remix-run/react'
 import {
   createWebHMUrl,
   formattedDate,
-  getDocumentTitle,
+  getMetadataName,
   HMAccountsMetadata,
   HMBlockQuery,
   HMDocumentInfo,
@@ -114,6 +114,12 @@ function DocInlineEmbed(props: EntityComponentProps) {
   if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useEntity(props)
   const document = doc.data?.document
+  const ctx = useDocContentContext()
+  const {supportDocuments, supportQueries} = ctx || {}
+  const entity = pubId ? supportDocuments?.find((d) => d.id.id === pubId) : null
+  const renderDocument = document || entity?.document
+  // basiclly we are willing to get the document from either ajax request or supportDocuments
+  // supportDocuments is there for initial load, while the ajax will have up-to-date info
   return (
     <InlineEmbedButton
       entityId={narrowHmId(props)}
@@ -123,7 +129,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
       onHoverIn={props.onHoverIn}
       onHoverOut={props.onHoverOut}
     >
-      {`@${getDocumentTitle(document) || '...'}`}
+      {`@${getMetadataName(renderDocument?.metadata) || '...'}`}
     </InlineEmbedButton>
   )
 }
@@ -410,7 +416,7 @@ function QueryListStyle({
             <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
               <SizableText
                 weight="bold"
-                className="text-ellipsis whitespace-nowrap overflow-hidden"
+                className="overflow-hidden whitespace-nowrap text-ellipsis"
               >
                 {item.metadata.name}
               </SizableText>

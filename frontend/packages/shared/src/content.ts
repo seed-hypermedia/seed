@@ -190,6 +190,15 @@ export function extractRefs(
           refId,
         })
     }
+    block.block.annotations?.forEach((annotation) => {
+      if (annotation.type === 'Embed') {
+        refs.push({
+          blockId: block.block.id,
+          link: annotation.link,
+          refId: unpackHmId(annotation.link),
+        })
+      }
+    })
     if (block.children) {
       block.children.forEach(extractRefsFromBlock)
     }

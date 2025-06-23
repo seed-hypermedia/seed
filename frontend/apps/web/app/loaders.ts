@@ -220,7 +220,7 @@ export async function getBaseDocument(
             'getHMDocument called for support document:',
             ref.refId.id,
           )
-          const doc = await getHMDocument(ref.refId)
+          const doc = await resolveHMDocument(ref.refId)
           if (!doc) return null
           return {document: doc, id: ref.refId}
         } catch (e) {
@@ -261,49 +261,26 @@ export async function getBaseDocument(
     }
   })
   const supportAuthorsUidsToFetch = new Set<string>()
-  if (document.metadata.layout === 'Seed/Experimental/Newspaper') {
-    supportDocuments = await Promise.all(
-      directoryResults.map(async (item) => {
-        const id = hmId('d', entityId.uid, {path: item.path})
-        return {
-          id,
-          document: await getHMDocument(id),
-        }
-      }),
-    )
-    const itemsAuthors = (
-      directoryResults.flatMap((entity) => entity.authors || []) || []
-    ).map((authorId) => {
-      return hmId('d', authorId)
-    })
-    authors = [
-      ...authors,
-      ...(await Promise.all(
-        itemsAuthors.map((authorId) => getMetadata(authorId)),
-      )),
-    ]
-  } else {
-    supportDocuments.push(
-      ...(await Promise.all(
-        queryBlockQueries
-          .flatMap((item) => item.results)
-          .map(async (item) => {
-            const id = hmId('d', item.account, {path: item.path})
-            console.log('getHMDocument called for query result:', id.id)
-            const document = await getHMDocument(id)
-            document.authors.forEach((author) => {
-              if (!alreadySupportDocIds.has(hmId('d', author).id)) {
-                supportAuthorsUidsToFetch.add(author)
-              }
-            })
-            return {
-              id,
-              document,
+
+  supportDocuments.push(
+    ...(await Promise.all(
+      queryBlockQueries
+        .flatMap((item) => item.results)
+        .map(async (item) => {
+          const id = hmId('d', item.account, {path: item.path})
+          const document = await getHMDocument(id)
+          document.authors.forEach((author) => {
+            if (!alreadySupportDocIds.has(hmId('d', author).id)) {
+              supportAuthorsUidsToFetch.add(author)
             }
-          }),
-      )),
-    )
-  }
+          })
+          return {
+            id,
+            document,
+          }
+        }),
+    )),
+  )
 
   // now we need to get the author content for queried docs
   supportDocuments.push(
