@@ -19,7 +19,6 @@ function _ScrollArea({
         data-slot="scroll-area-viewport"
         className="relative focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1 flex-1 h-full"
         onScroll={(e: any) => {
-          console.log('onScroll', e)
           onScroll?.(e)
         }}
       >

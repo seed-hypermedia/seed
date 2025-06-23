@@ -5,7 +5,6 @@ import {
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
-  NavRoute,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -16,9 +15,10 @@ import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, Close, Menu, X} from './icons'
-import {LinkDropdown, LinkItemType} from './link-dropdown'
+import {LinkDropdown} from './link-dropdown'
+
 import {
-  DocNavigationDocument,
+  DocNavigationItem,
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
@@ -34,31 +34,27 @@ export function SiteHeader({
   docId,
   items,
   isCenterLayout = false,
-  children,
   document,
   supportDocuments,
   onBlockFocus,
   onShowMobileMenu,
   supportQueries,
   origin,
-  onScroll,
-  noScroll = false,
   isLatest = true,
+  editNavPane,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
-  items?: DocNavigationDocument[]
+  items?: DocNavigationItem[]
   isCenterLayout?: boolean
-  children?: React.ReactNode
-  document?: HMDocument
+  document?: HMDocument | undefined
   supportDocuments?: HMEntityContent[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
   supportQueries?: HMQueryResult[]
   origin?: string
-  onScroll?: () => void
-  noScroll?: boolean
   isLatest?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
@@ -93,7 +89,6 @@ export function SiteHeader({
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
-
   return (
     <>
       {docId && document ? (
@@ -119,7 +114,7 @@ export function SiteHeader({
             'flex-start': !isCenterLayout,
           })}
         >
-          <div className="flex flex-1 justify-center">
+          <div className="flex justify-center flex-1">
             <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
           </div>
           {isCenterLayout ? headerSearch : null}
@@ -130,13 +125,12 @@ export function SiteHeader({
             flex: !isCenterLayout,
           })}
         >
-          {items?.length ? (
-            <SiteHeaderMenu
-              items={items}
-              docId={docId}
-              isCenterLayout={isCenterLayout}
-            />
-          ) : null}
+          <SiteHeaderMenu
+            items={items}
+            docId={docId}
+            isCenterLayout={isCenterLayout}
+            editNavPane={editNavPane}
+          />
         </div>
 
         {isCenterLayout ? null : headerSearch}
@@ -184,7 +178,6 @@ export function SiteHeader({
                   id={docId}
                   supportQueries={supportQueries}
                   onPress={() => {
-                    console.log('~ onPress')
                     setIsMobileMenuOpen(false)
                   }}
                 />
@@ -284,15 +277,14 @@ function HeaderLinkItem({
   metadata,
   active,
   draftId,
-  isPublished,
+  webUrl,
 }: {
   id?: UnpackedHypermediaId
   draftId?: string | null
   metadata: HMMetadata
   active: boolean
-  isPublished?: boolean
+  webUrl?: string | undefined
 }) {
-  // TODO: change this to use the draft id
   const linkProps = useRouteLink(
     draftId
       ? {
@@ -305,11 +297,12 @@ function HeaderLinkItem({
           key: 'document',
           id,
         }
-      : null,
+      : webUrl || null,
+    {handler: 'onClick'},
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
-      <span
+      <a
         className={cn(
           'truncate select-none font-bold px-1 cursor-pointer transition-colors',
           active ? 'text-foreground' : 'text-muted-foreground',
@@ -318,7 +311,7 @@ function HeaderLinkItem({
         {...linkProps}
       >
         {getMetadataName(metadata)}
-      </span>
+      </a>
       {draftId ? <DraftBadge /> : null}
     </div>
   )
@@ -340,8 +333,8 @@ export function MobileMenu({
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="h-screen sticky top-0 flex flex-col">
-        <div className="p-4 flex items-center justify-end flex-0">
+      <div className="sticky top-0 flex flex-col h-screen">
+        <div className="flex items-center justify-end p-4 flex-0">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Close size={24} />
           </Button>
@@ -388,7 +381,7 @@ function GotoLatestBanner({
         'absolute top-12 px-4 left-0 right-0 z-[999] w-full flex justify-center pointer-events-none',
       )}
     >
-      <div className="flex items-center bg-background gap-4 max-w-xl p-2 rounded-sm shadow-lg border border-border shadow-lg pointer-events-auto">
+      <div className="flex items-center max-w-xl gap-4 p-2 border rounded-sm shadow-lg pointer-events-auto bg-background border-border">
         <Button
           variant="ghost"
           size="icon"
@@ -414,18 +407,18 @@ export function SiteHeaderMenu({
   items,
   docId,
   isCenterLayout = false,
+  editNavPane,
 }: {
-  items?: DocNavigationDocument[]
+  items?: DocNavigationItem[]
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
+  editNavPane?: React.ReactNode
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, any>>(new Map())
-  const [visibleItems, setVisibleItems] = useState<DocNavigationDocument[]>([])
-  const [overflowItems, setOverflowItems] = useState<DocNavigationDocument[]>(
-    [],
-  )
-  const [isMeasured, setIsMeasured] = useState(false)
+  const editNavPaneRef = useRef<HTMLDivElement>(null)
+  const [visibleItems, setVisibleItems] = useState<DocNavigationItem[]>([])
+  const [overflowItems, setOverflowItems] = useState<DocNavigationItem[]>([])
 
   // Measure the actual width of each element and calculate visibility
   const updateVisibility = useCallback(() => {
@@ -436,23 +429,31 @@ export function SiteHeaderMenu({
     const container = containerRef.current
     const containerWidth = container.getBoundingClientRect().width
 
-    // Reserve space for dropdown button plus a small buffer for visual comfort
-    const reservedWidth = 200 // px
+    // Get editNavPane width if it exists
+    const editNavPaneWidth =
+      editNavPaneRef.current?.getBoundingClientRect().width || 0
+
+    // Reserve space for dropdown button plus editNavPane plus a small buffer
+    const reservedWidth =
+      editNavPaneWidth +
+      8 + // padding-2 size
+      18 + // width of expand button
+      20 // gap to expand button
     const availableWidth = containerWidth - reservedWidth
 
     let currentWidth = 0
-    const visible: DocNavigationDocument[] = []
-    const overflow: DocNavigationDocument[] = []
+    const visible: DocNavigationItem[] = []
+    const overflow: DocNavigationItem[] = []
 
     // Create array of items with their measured widths
-    const itemWidths: Array<{item: DocNavigationDocument; width: number}> = []
+    const itemWidths: Array<{item: DocNavigationItem; width: number}> = []
 
     for (const item of items) {
-      const key = item.id?.id || item.draftId || '?'
+      const key = item.key
       const element = itemRefs.current.get(key)
 
       if (element) {
-        const width = element.getBoundingClientRect().width
+        const width = element.getBoundingClientRect().width + 20 // add 20 because of the gap-5
         itemWidths.push({item, width})
       } else {
         // If we can't measure, use an estimate
@@ -481,14 +482,10 @@ export function SiteHeaderMenu({
 
     setVisibleItems(visible)
     setOverflowItems(overflow)
-    setIsMeasured(true)
-  }, [items])
+  }, [items, editNavPane])
 
   // Measure on mount and when items change
   useEffect(() => {
-    // Reset measurement state when items change
-    setIsMeasured(false)
-
     // Initial update
     updateVisibility()
 
@@ -518,39 +515,37 @@ export function SiteHeaderMenu({
   }, [updateVisibility])
 
   // Build menu items for dropdown
-  const linkDropdownItems: LinkItemType[] = useMemo(() => {
-    return overflowItems
-      .map((item) => {
-        const isActive =
-          !!docId?.path &&
-          !!item.id?.path &&
-          item.id.path?.[0] === docId.path[0]
+  // const linkDropdownItems: DocNavigationItem[] = useMemo(() => {
+  //   return overflowItems
+  //     .map((item) => {
+  //       const isActive =
+  //         !!docId?.path &&
+  //         !!item.id?.path &&
+  //         item.id.path?.[0] === docId.path[0]
 
-        const route: NavRoute | null = item.draftId
-          ? ({
-              key: 'draft',
-              id: item.draftId,
-            } as const)
-          : item.id
-          ? ({key: 'document', id: item.id} as const)
-          : null
-        if (!route) return null
-        return {
-          key: item.id?.id || item.draftId || '?',
-          label: getMetadataName(item.metadata) || 'Untitled',
-          icon: () => null,
-          route,
-          color: isActive
-            ? '$color'
-            : item.isPublished === false
-            ? '$color9'
-            : '$color10',
-        }
-      })
-      .filter((item) => !!item)
-  }, [overflowItems, docId])
-
-  if (!items?.length) return null
+  //       const route: NavRoute | null | undefined = item.draftId
+  //         ? ({
+  //             key: 'draft',
+  //             id: item.draftId,
+  //           } as const)
+  //         : item.id
+  //         ? ({key: 'document', id: item.id} as const)
+  //         : item.webUrl
+  //       if (!route) return null
+  //       return {
+  //         key: item.id?.id || item.draftId || '?',
+  //         label: getMetadataName(item.metadata) || 'Untitled',
+  //         icon: () => null,
+  //         route,
+  //         color: isActive
+  //           ? '$color'
+  //           : item.isPublished === false
+  //           ? '$color9'
+  //           : '$color10',
+  //       }
+  //     })
+  //     .filter((item) => !!item)
+  // }, [overflowItems, docId])
 
   return (
     <div
@@ -561,18 +556,18 @@ export function SiteHeaderMenu({
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
+      {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
-      <div className="absolute pointer-events-none opacity-0 flex items-center gap-5">
-        {items.map((item) => {
-          const key = item.id?.id || item.draftId || '?'
+      <div className="absolute flex p-0 bg-red-500 items-center gap-5 opacity-0 pointer-events-none md:flex md:p-2">
+        {items?.map((item) => {
           return (
             <div
-              key={`measure-${key}`}
+              key={`measure-${item.key}`}
               ref={(el) => {
                 if (el) {
-                  itemRefs.current.set(key, el)
+                  itemRefs.current.set(item.key, el)
                 } else {
-                  itemRefs.current.delete(key)
+                  itemRefs.current.delete(item.key)
                 }
               }}
             >
@@ -580,12 +575,7 @@ export function SiteHeaderMenu({
                 id={item.id}
                 metadata={item.metadata}
                 draftId={item.draftId}
-                isPublished={item.isPublished}
-                active={
-                  !!docId?.path &&
-                  !!item.id?.path &&
-                  item.id.path?.[0] === docId.path[0]
-                }
+                active={true}
               />
             </div>
           )
@@ -594,18 +584,20 @@ export function SiteHeaderMenu({
 
       {/* Visible items */}
       {visibleItems.map((item) => {
-        const key = item.id?.id || item.draftId || '?'
         return (
           <HeaderLinkItem
-            key={key}
+            key={item.key}
             id={item.id}
             metadata={item.metadata}
             draftId={item.draftId}
-            isPublished={item.isPublished}
+            webUrl={item.webUrl}
             active={
+              !!item.id &&
+              !!docId &&
+              item.id.uid === docId.uid &&
               !!docId?.path &&
               !!item.id?.path &&
-              item.id.path?.[0] === docId.path[0]
+              docId.path.join('/').startsWith(item.id.path.join('/'))
             }
           />
         )
@@ -613,7 +605,7 @@ export function SiteHeaderMenu({
 
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
-          <LinkDropdown items={linkDropdownItems} />
+          <LinkDropdown items={overflowItems} />
         </Tooltip>
       )}
     </div>
@@ -623,7 +615,7 @@ export function SiteHeaderMenu({
 function HypermediaHostBanner({origin}: {origin?: string}) {
   return (
     <div className="w-full bg-(--brand5) p-1">
-      <p className="text-sm flex gap-1 flex-wrap text-white items-center justify-center">
+      <p className="flex flex-wrap items-center justify-center gap-1 text-sm text-white">
         <span>Hosted on</span>
         <a href="/" className="underline">
           {hostnameStripProtocol(origin)}

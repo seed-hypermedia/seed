@@ -29,7 +29,8 @@ import {
   HMDraftContent,
   HMDraftMeta,
   HMEntityContent,
-  HMQuery,
+  HMNavigationItem,
+  HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
@@ -47,6 +48,7 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
+import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -59,7 +61,6 @@ import {
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
-import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo} from 'react'
 import {assign, fromPromise} from 'xstate'
@@ -67,12 +68,14 @@ import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
+import {isBlocksEqual} from './blocks'
 import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {getParentPaths} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
+import {getNavigationChanges} from './navigation'
 import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
@@ -94,7 +97,6 @@ export function useDraftList() {
 }
 
 export function useAccountDraftList(accountUid?: string) {
-  if (!accountUid) return {data: []}
   return trpc.drafts.listAccount.useQuery(accountUid, {
     enabled: !!accountUid,
   })
@@ -191,6 +193,8 @@ export function usePublishDraft(
           'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
         )
       }
+      console.log('~ draft', draft)
+      console.log('~ document', editEntity.data?.document)
 
       const blocksMap = editId
         ? createBlocksMap(editEntity.data?.document?.content || [], '')
@@ -200,12 +204,18 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
+      const navigationChanges = getNavigationChanges(
+        draft.navigation,
+        editEntity.data?.document?.detachedBlocks?.navigation,
+      )
+      console.log('~ navigationChanges', navigationChanges)
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
       } else {
         try {
           if (accountId && draft.id) {
             const allChanges = [
+              ...navigationChanges,
               ...getDocAttributeChanges(draft.metadata),
               ...changes.changes,
               ...deleteChanges,
@@ -505,6 +515,7 @@ export function useDraftEditor() {
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
       signingAccount: HMDraft['signingAccount']
+      navigation?: HMNavigationItem[]
     }
   >(async ({input}) => {
     // Implementation will be provided in documents.ts
@@ -513,12 +524,14 @@ export function useDraftEditor() {
       const locationPath = route.locationPath || data?.locationPath
       const editUid = route.editUid || data?.editUid
       const editPath = route.editPath || data?.editPath
+      console.log('Saving draft with navigation:', input.navigation)
       const newDraft = await saveDraft.mutateAsync({
         id: route.id,
         metadata: input.metadata,
         signingAccount: input.signingAccount,
         content: editor.topLevelBlocks,
         deps: input.deps,
+        navigation: input.navigation,
         locationUid,
         locationPath,
         editUid,
@@ -562,6 +575,7 @@ export function useDraftEditor() {
                 metadata: event.payload.data.metadata,
                 signingAccount: event.payload.data.signingAccount,
                 deps: event.payload.data.deps,
+                navigation: event.payload.data.navigation,
               }
             } else if (event.payload.type == 'edit') {
               if (context.editUid && editEntity.data?.document?.content) {
@@ -910,6 +924,9 @@ export function queryListDirectory(
         .map((d) => ({
           ...toPlainMessage(d),
           type: 'document',
+          id: hmId('d', d.account, {
+            path: entityQueryPathToHmIdPath(d.path),
+          }).id,
           metadata: HMDocumentMetadataSchema.parse(
             d.metadata?.toJson({emitDefaultValues: true}),
           ),
@@ -925,7 +942,9 @@ export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
 ): UseQueryResult<Array<HMDocumentInfo>> {
-  const fullSpace = useQuery(queryListDirectory(id))
+  const fullSpace: UseQueryResult<Array<HMDocumentInfo>> = useQuery(
+    queryListDirectory(id),
+  )
   const result: UseQueryResult<Array<HMDocumentInfo>> = {
     ...fullSpace,
     data: useMemo(() => {
@@ -1198,133 +1217,6 @@ export function extractDeletes(
   )
 }
 
-export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
-  if (!b1 || !b2) {
-    console.log('Blocks not equal: One or both blocks are null/undefined', {
-      b1,
-      b2,
-    })
-    return false
-  }
-  if (b1 === b2) return true
-
-  // Helper function to compare annotations, treating undefined and empty arrays as equal
-  const areAnnotationsEqual = (a1?: any[], a2?: any[]) => {
-    if (!a1 && !a2) return true
-    if (!a1 && a2?.length === 0) return true
-    if (!a2 && a1?.length === 0) return true
-    return _.isEqual(a1, a2)
-  }
-
-  // Helper function to compare text, treating undefined and empty string as equal
-  const isTextEqual = (t1?: string, t2?: string) => {
-    if (!t1 && !t2) return true
-    if (!t1 && t2 === '') return true
-    if (!t2 && t1 === '') return true
-    return t1 === t2
-  }
-
-  const checks = {
-    id: b1.id === b2.id,
-    text: isTextEqual(b1.text, b2.text),
-    link: b1.link === b2.link,
-    type: b1.type === b2.type,
-    annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
-    attributes: isBlockAttributesEqual(b1, b2),
-  }
-
-  const result = Object.values(checks).every(Boolean)
-
-  if (!result) {
-    console.log('Blocks not equal. Differences found:', {
-      blockId: b1.id,
-      differences: Object.entries(checks)
-        .filter(([_, isEqual]) => !isEqual)
-        .map(([prop]) => ({
-          property: prop,
-          b1Value:
-            prop === 'annotations'
-              ? b1.annotations
-              : prop === 'attributes'
-              ? b1.attributes
-              : b1[prop],
-          b2Value:
-            prop === 'annotations'
-              ? b2.annotations
-              : prop === 'attributes'
-              ? b2.attributes
-              : b2[prop],
-        })),
-    })
-  }
-
-  return result
-}
-
-function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  const a1 = b1.attributes
-  const a2 = b2.attributes
-
-  if (!a1 && !a2) return true
-  if (!a1 || !a2) {
-    console.log('Block attributes not equal: One side is missing attributes', {
-      blockId: b1.id,
-      a1,
-      a2,
-    })
-    return false
-  }
-
-  const attributesToCompare = [
-    'childrenType',
-    'start',
-    'level',
-    'url',
-    'name',
-    'alignment',
-    'size',
-    'href',
-    'link',
-    'language',
-    'view',
-    'width',
-    'banner',
-    'query',
-    'columnCount',
-  ]
-
-  const result = attributesToCompare.every((attr) => {
-    if (attr === 'query') {
-      return isQueryEqual(a1.query, a2.query)
-    }
-    return (
-      (a1[attr] === undefined && a2[attr] === undefined) ||
-      a1[attr] === a2[attr]
-    )
-  })
-
-  if (!result) {
-    console.log('Block attributes not equal. Differences found:', {
-      blockId: b1.id,
-      differences: attributesToCompare
-        .filter(
-          (attr) =>
-            !(
-              (a1[attr] === undefined && a2[attr] === undefined) ||
-              a1[attr] === a2[attr]
-            ),
-        )
-        .map((attr) => ({
-          attribute: attr,
-          a1Value: a1[attr],
-          a2Value: a2[attr],
-        })),
-    })
-  }
-
-  return result
-}
-
 function observeBlocks(
   editor: BlockNoteEditor,
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
@@ -1547,37 +1439,43 @@ export function getDraftEditId(
   }
 }
 
-function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
-  if (!q1 && !q2) return true
-  if (!q1 || !q2) return false
+export function useSiteNavigationItems(
+  siteHomeEntity: HMEntityContent | undefined | null,
+): DocNavigationItem[] | null {
+  const homeDir = useListDirectory(siteHomeEntity?.id)
+  const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
+  const supportQueries = useMemo(() => {
+    const q: HMQueryResult[] = []
+    if (homeDir.data && siteHomeEntity?.id) {
+      q.push({in: siteHomeEntity.id, results: homeDir.data})
+    }
+    return q
+  }, [homeDir.data, siteHomeEntity?.id])
 
-  // Compare limit
-  if (q1.limit !== q2.limit) return false
+  if (!siteHomeEntity) return null
 
-  // Compare sorting arrays
-  if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
-
-  // Compare includes arrays
-  if (q1.includes.length !== q2.includes.length) return false
-
-  // Deep compare each include item
-  for (let i = 0; i < q1.includes.length; i++) {
-    const include1 = q1.includes[i]
-    const include2 = q2.includes[i]
-
-    if (include1.mode !== include2.mode) return false
-    if (include1.path !== include2.path) return false
-    if (include1.space !== include2.space) return false
-  }
-
-  if (q1.sort?.length !== q2.sort?.length) return false
-
-  for (let i = 0; i < q1.sort!.length; i++) {
-    const sort1 = q1.sort![i]
-    const sort2 = q2.sort![i]
-
-    if (sort1.reverse !== sort2.reverse) return false
-    if (sort1.term !== sort2.term) return false
-  }
-  return true
+  const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
+  const navItems: DocNavigationItem[] = navNode
+    ? navNode.children
+        ?.map((itemBlock) => {
+          if (itemBlock.block.type !== 'Link') return null
+          const id = unpackHmId(itemBlock.block.link)
+          return {
+            key: itemBlock.block.id,
+            id: id || undefined,
+            webUrl: id ? undefined : itemBlock.block.link,
+            isPublished: true,
+            metadata: {
+              name: itemBlock.block.text || '?',
+            },
+            sortTime: new Date(),
+          } satisfies DocNavigationItem
+        })
+        .filter((b) => !!b) || []
+    : getSiteNavDirectory({
+        id: siteHomeEntity.id,
+        supportQueries,
+        drafts: drafts.data,
+      })
+  return navItems
 }

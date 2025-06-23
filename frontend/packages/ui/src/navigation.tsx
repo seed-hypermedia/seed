@@ -94,11 +94,12 @@ export function DocumentSmallListItem({
   )
 }
 
-export type DocNavigationDocument = {
+export type DocNavigationItem = {
+  key: string
   metadata: HMMetadata
-  isPublished: boolean
-  sortTime: Date
+  isPublished?: boolean
   id?: UnpackedHypermediaId
+  webUrl?: string
   draftId?: string | null | undefined
 }
 
@@ -110,7 +111,7 @@ export function getSiteNavDirectory({
   id: UnpackedHypermediaId
   supportQueries?: HMQueryResult[]
   drafts?: HMListedDraft[]
-}): DocNavigationDocument[] {
+}): DocNavigationItem[] {
   const directory = supportQueries?.find(
     (query) =>
       query.in.uid === id.uid &&
@@ -123,20 +124,21 @@ export function getSiteNavDirectory({
       .filter((id) => !!id)
       .map((id) => id.id) || [],
   )
-  const unpublishedDraftItems: DocNavigationDocument[] =
+  const unpublishedDraftItems: DocNavigationItem[] =
     drafts
       ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
       .map(
         (draft) =>
           ({
+            key: draft.id,
             id: undefined,
             draftId: draft.id,
             metadata: draft.metadata,
             sortTime: new Date(draft.lastUpdateTime),
             isPublished: false,
-          }) satisfies DocNavigationDocument,
+          }) satisfies DocNavigationItem,
       ) || []
-  const publishedItems: DocNavigationDocument[] =
+  const publishedItems: DocNavigationItem[] =
     directory?.results
       ?.filter((doc) => {
         return (
@@ -149,6 +151,7 @@ export function getSiteNavDirectory({
         const sortTime = normalizeDate(item.createTime)
         if (!sortTime) return null
         return {
+          key: id.id,
           id,
           metadata: item.metadata,
           sortTime,
@@ -166,7 +169,7 @@ export function getSiteNavDirectory({
   publishedItems
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse()
-  const directoryItems: DocNavigationDocument[] = [
+  const directoryItems: DocNavigationItem[] = [
     ...publishedItems,
     ...unpublishedDraftItems,
   ]

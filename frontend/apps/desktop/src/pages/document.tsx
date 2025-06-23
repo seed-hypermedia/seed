@@ -14,10 +14,10 @@ import {
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
-  useAccountDraftList,
   useCreateDraft,
   useDocumentRead,
   useListDirectory,
+  useSiteNavigationItems,
 } from '@/models/documents'
 import {
   createNotifierRequester,
@@ -61,7 +61,6 @@ import {
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Button} from '@shm/ui/legacy/button'
-import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -404,8 +403,6 @@ function _AppDocSiteHeader({
   supportDocuments?: HMEntityContent[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const homeDir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(docId.uid)
   const docDir = useListDirectory(docId, {mode: 'Children'})
   const replace = useNavigate('replace')
   const route = useNavRoute()
@@ -414,18 +411,11 @@ function _AppDocSiteHeader({
     if (docDir.data) {
       q.push({in: docId, results: docDir.data})
     }
-    if (homeDir.data && siteHomeEntity?.id) {
-      q.push({in: siteHomeEntity.id, results: homeDir.data})
-    }
     return q
-  }, [docId, docDir.data, homeDir.data, siteHomeEntity?.id])
+  }, [docId, docDir.data])
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
-  const navItems = getSiteNavDirectory({
-    id: siteHomeEntity.id,
-    supportQueries,
-    drafts: drafts.data,
-  })
+  const navItems = useSiteNavigationItems(siteHomeEntity)
   return (
     <SiteHeader
       originHomeId={hmId('d', siteHomeEntity.id.uid)}

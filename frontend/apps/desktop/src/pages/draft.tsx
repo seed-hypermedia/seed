@@ -2,14 +2,14 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
+import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useDraft} from '@/models/accounts'
 import {
-  useAccountDraftList,
   useDraftEditor,
   useListDirectory,
+  useSiteNavigationItems,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useOpenUrl} from '@/open-url'
@@ -17,7 +17,7 @@ import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
 import {
@@ -29,30 +29,31 @@ import {
   HMDocument,
   HMEntityContent,
   HMMetadata,
+  HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
-import {hmId} from '@shm/shared/utils'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
-import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {DocNavigationItem} from '@shm/ui/navigation'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
+import {cn} from '@shm/ui/utils'
 import {useSelector} from '@xstate/react'
+import {Selection} from 'prosemirror-state'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {Button, Input, XStack, YStack} from 'tamagui'
-
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {cn} from '@shm/ui/utils'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -90,7 +91,7 @@ export default function DraftPage() {
   }, [route, data])
 
   const isEditingHomeDoc = useMemo(() => {
-    if (editId && editId.path?.length === 0) return true
+    if (editId && (editId.path?.length ?? 0) === 0) return true
     return false
   }, [locationId, editId])
 
@@ -167,6 +168,7 @@ export default function DraftPage() {
     }
   }
 
+  const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <div className="flex flex-1 h-full">
@@ -184,21 +186,25 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'bg-white dark:bg-background flex flex-col',
+              'flex flex-col bg-white dark:bg-background',
             )}
           >
             <DraftRebaseBanner />
-            {locationId || editId ? (
+            {headerDocId ? (
               <>
                 <DraftAppHeader
                   siteHomeEntity={homeEntity.data}
-                  isEditingHomeDoc={
-                    homeEntity.data?.id.id == locationId?.id ||
-                    homeEntity.data?.id.id == editId?.id
-                  }
-                  docId={locationId || editId}
-                  document={homeEntity.data?.document}
+                  isEditingHomeDoc={isEditingHomeDoc}
+                  docId={headerDocId}
+                  document={homeEntity.data?.document || undefined}
                   draftMetadata={state.context.metadata}
+                  onDocNav={(navigation) => {
+                    send({
+                      type: 'change.navigation',
+                      navigation,
+                    })
+                  }}
+                  actor={actor}
                 />
                 <DocumentEditor
                   editor={editor}
@@ -319,7 +325,7 @@ function DocumentEditor({
         }}
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex flex-col flex-1 overflow-hidden"
+        className="flex overflow-hidden flex-col flex-1"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
@@ -520,39 +526,58 @@ function DocumentEditor({
 function DraftAppHeader({
   siteHomeEntity,
   docId,
-  children,
   document,
   draftMetadata,
   isEditingHomeDoc = false,
+  onDocNav,
+  actor,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
-  children?: React.ReactNode
   document?: HMDocument
   draftMetadata: HMMetadata
   isEditingHomeDoc: boolean
+  onDocNav: (navigation: HMNavigationItem[]) => void
+  actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(docId?.uid)
+  const currentDocNav: HMNavigationItem[] | undefined = useSelector(
+    actor,
+    (s: any) => s.context.navigation,
+  )
+  const navItems = useSiteNavigationItems(siteHomeEntity)?.filter(
+    (item) => !item.draftId,
+  )
+
   if (!siteHomeEntity) return null
-  const navItems = getSiteNavDirectory({
-    id: siteHomeEntity.id,
-    supportQueries: dir.data
-      ? [{in: siteHomeEntity.id, results: dir.data}]
-      : [],
-    drafts: drafts.data,
-  })
+
+  const displayNavItems =
+    currentDocNav !== undefined && isEditingHomeDoc
+      ? currentDocNav.map((navItem: HMNavigationItem): DocNavigationItem => {
+          const id = unpackHmId(navItem.link)
+          return {
+            key: navItem.id,
+            id: id || undefined,
+            webUrl: id ? undefined : navItem.link,
+            draftId: undefined,
+            metadata: {name: navItem.text},
+            isPublished: true,
+          }
+        })
+      : navItems
+
+  if (!siteHomeEntity) return null
 
   const siteHomeMetadata = isEditingHomeDoc
     ? draftMetadata
     : siteHomeEntity.document?.metadata
-  // const draft = useDraft(docId)
+
   return (
     <SiteHeader
       originHomeId={siteHomeEntity.id}
-      items={navItems}
+      items={displayNavItems}
       document={
-        isEditingHomeDoc
+        isEditingHomeDoc && document
           ? {...document, metadata: draftMetadata}
           : document || undefined
       }
@@ -561,8 +586,24 @@ function DraftAppHeader({
         siteHomeMetadata?.theme?.headerLayout === 'Center' ||
         siteHomeMetadata?.layout === 'Seed/Experimental/Newspaper'
       }
-      // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
-      children={children}
+      editNavPane={
+        isEditingHomeDoc ? (
+          <EditNavPopover
+            docNav={
+              displayNavItems?.map(
+                (item): HMNavigationItem => ({
+                  id: item.key,
+                  type: 'Link',
+                  text: item.metadata.name || '',
+                  link: item.id ? packHmId(item.id) : item.webUrl || '',
+                }),
+              ) || []
+            }
+            editDocNav={onDocNav}
+            homeId={siteHomeEntity.id}
+          />
+        ) : null
+      }
       supportQueries={[
         {
           in: siteHomeEntity.id,

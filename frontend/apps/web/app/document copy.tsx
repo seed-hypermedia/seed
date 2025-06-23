@@ -6,7 +6,6 @@ import {
   deduplicateCitations,
   ExpandedBlockRange,
   getDocumentTitle,
-  HMComment,
   HMDocument,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
@@ -22,10 +21,10 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
-import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
+import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
-import {BlockQuote, HistoryIcon} from '@shm/ui/icons'
+import {BlockQuote, HistoryIcon, IconComponent} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocNavigationWrapper,
@@ -33,11 +32,11 @@ import {
   useNodesOutline,
 } from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
-import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {cn} from '@shm/ui/utils'
-import {MessageSquare, X} from 'lucide-react'
+import {MessageSquare, X} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
@@ -45,7 +44,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Sheet} from 'tamagui'
+import {ScrollView, Separator, Sheet, useMedia} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {WebDiscussionsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
@@ -57,11 +56,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-
-import {supportedLanguages} from '@shm/shared/language-packs'
-import {useTx, useTxString} from '@shm/shared/translation'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {useMedia} from '@shm/ui/use-media'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -184,7 +178,8 @@ type WebAccessory =
   | {
       type: 'discussions'
       blockId?: string
-      comment?: HMComment
+      commentId?: string
+      rootReplyCommentId?: string
     }
   | {
       type: 'versions'
@@ -192,9 +187,7 @@ type WebAccessory =
 
 const DEFAULT_MAIN_PANEL_SIZE = 65
 
-export function DocumentPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
-) {
+export function DocumentPage(props: SiteDocumentPayload) {
   const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
@@ -202,7 +195,6 @@ export function DocumentPage(
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
 
   let panel: any = null
-  let panelTitle: string = ''
   const {
     document,
     originHomeId,
@@ -216,7 +208,6 @@ export function DocumentPage(
     origin,
     comment,
     isLatest,
-    prefersLanguages,
   } = props
 
   useEffect(() => {
@@ -225,7 +216,7 @@ export function DocumentPage(
   }, [id, document?.metadata?.name])
 
   useEffect(() => {
-    if (comment) setActivePanel({type: 'discussions', comment: comment})
+    if (comment) setActivePanel({type: 'discussions', commentId: comment.id})
   }, [comment])
 
   useEffect(() => {
@@ -249,22 +240,17 @@ export function DocumentPage(
 
   const isHomeDoc = !id?.path?.length
   const isShowOutline =
-    (typeof document.metadata?.showOutline == 'undefined' ||
-      document.metadata?.showOutline) &&
+    (typeof document.metadata.showOutline == 'undefined' ||
+      document.metadata.showOutline) &&
     !isHomeDoc
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
 
   const location = useLocation()
   const replace = useNavigate()
-  const tx = useTxString()
 
   const {blockRef, blockRange} = useMemo(() => {
     const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
-    let blockRef = match ? match[1].substring(1) : undefined
-    if (blockRef?.endsWith('+')) {
-      // TODO: Do something for expanded ref?
-      blockRef = blockRef.slice(0, -1)
-    }
+    const blockRef = match ? match[1].substring(1) : undefined
     const blockRange =
       match && match[2] && match[3]
         ? {start: parseInt(match[2]), end: parseInt(match[3])}
@@ -274,7 +260,7 @@ export function DocumentPage(
   }, [location.hash])
 
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    return {type: 'discussions', comment: comment}
+    return {type: 'discussions', commentId: comment ? comment.id : undefined}
   })
 
   const onActivateBlock = useCallback((blockId: string) => {
@@ -341,94 +327,65 @@ export function DocumentPage(
     [media.gtSm],
   )
 
-  const onReplyCountClick = useCallback((comment: HMComment) => {
-    setActivePanel({
-      type: 'discussions',
-      comment: comment,
-    })
-  }, [])
+  const onReplyCountClick = useCallback(
+    (commentId: string, rootReplyCommentId: string) => {
+      setActivePanel({
+        type: 'discussions',
+        commentId: commentId,
+        rootReplyCommentId,
+      })
+    },
+    [],
+  )
 
   const onReplyClick = useCallback(
-    (comment: HMComment) => {
+    (commentId: string, rootReplyCommentId: string) => {
       if (enableWebSigning) {
         setActivePanel({
           type: 'discussions',
-          comment: comment,
+          commentId,
+          rootReplyCommentId,
         })
         if (!media.gtSm) {
           setIsSheetOpen(true)
         }
       } else {
         redirectToWebIdentityCommenting(id, {
-          replyCommentId: comment.id,
-          replyCommentVersion: comment.version,
-          rootReplyCommentVersion: comment.threadRootVersion,
+          replyCommentId: commentId,
+          rootReplyCommentId,
         })
       }
     },
     [enableWebSigning],
   )
 
-  const activitySummary = (
-    <DocInteractionsSummary
-      activePanel={activePanel}
-      docId={id}
-      citations={interactionSummary.data?.citations}
-      comments={interactionSummary.data?.comments}
-      changes={interactionSummary.data?.changes}
-      onCitationsOpen={() => {
-        setActivePanel({
-          type: 'citations',
-          blockId: undefined,
-        })
-        if (!media.gtSm) {
-          setIsSheetOpen(true)
-        }
-      }}
-      onCommentsOpen={() => {
-        setActivePanel({
-          type: 'discussions',
-          blockId: undefined,
-        })
-        if (!media.gtSm) {
-          setIsSheetOpen(true)
-        }
-      }}
-      onVersionOpen={() => {
-        setActivePanel({type: 'versions'})
-        if (!media.gtSm) {
-          setIsSheetOpen(true)
-        }
-      }}
-    />
-  )
-
   const commentEditor =
     activePanel?.type == 'discussions' ? (
-      <div className="px-4 py-2 w-full">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$2"
+        w="100%"
+        borderTopWidth={1}
+        borderTopColor="$borderColor"
+      >
         {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             autoFocus={editorAutoFocus}
             docId={id}
-            replyCommentId={activePanel.comment?.id}
-            replyCommentVersion={activePanel.comment?.version}
-            rootReplyCommentVersion={
-              activePanel.comment?.threadRootVersion ||
-              activePanel.comment?.version
-            }
+            replyCommentId={activePanel.commentId}
+            rootReplyCommentId={activePanel.rootReplyCommentId}
             quotingBlockId={activePanel.blockId}
             enableWebSigning={enableWebSigning || false}
-            onSuccess={({response}) => {
+            onSuccess={(data) => {
               setActivePanel({
                 ...activePanel,
-                comment: response.comment,
+                commentId: data.id,
               })
             }}
           />
         ) : null}
-      </div>
+      </XStack>
     ) : null
-
   if (activityEnabled && activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
@@ -436,12 +393,17 @@ export function DocumentPage(
           setEditorAutoFocus(true)
         }}
         blockId={activePanel.blockId}
-        comment={activePanel.comment}
+        commentId={activePanel.commentId}
+        rootReplyCommentId={activePanel.rootReplyCommentId}
+        handleClose={() => {
+          setActivePanel(null)
+        }}
         handleBack={() =>
           setActivePanel({
             ...activePanel,
-            comment: undefined,
+            commentId: undefined,
             blockId: undefined,
+            rootReplyCommentId: undefined,
           })
         }
         setBlockId={onBlockCommentClick}
@@ -453,19 +415,22 @@ export function DocumentPage(
         enableWebSigning={enableWebSigning || false}
       />
     )
-
-    panelTitle = tx('Discussions')
   }
 
   if (activityEnabled && activePanel?.type == 'versions') {
-    panel = <WebVersionsPanel docId={id} />
-    panelTitle = tx('Versions')
+    panel = (
+      <WebVersionsPanel
+        id={id}
+        handleClose={() => {
+          setActivePanel(null)
+        }}
+      />
+    )
   }
 
   if (activityEnabled && activePanel?.type == 'citations') {
     panel = (
       <WebCitationsPanel
-        activitySummary={activitySummary}
         id={id}
         blockId={activePanel.blockId}
         handleClose={() => {
@@ -479,7 +444,6 @@ export function DocumentPage(
         }
       />
     )
-    panelTitle = tx('Citations')
   }
 
   if (!id) return <NotFoundPage {...props} />
@@ -498,65 +462,92 @@ export function DocumentPage(
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
-      prefersLanguages={supportedLanguages(prefersLanguages)}
     >
       <DiscussionsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <div className={windowContainerStyles}>
-          <div className={panelContainerStyles}>
-            <WebSiteHeader
-              noScroll={!!panel}
-              homeMetadata={homeMetadata}
-              originHomeId={originHomeId}
-              docId={id}
-              document={document}
-              supportDocuments={supportDocuments}
-              supportQueries={supportQueries}
-              origin={origin}
-              isLatest={isLatest}
-            />
-            <PanelGroup
-              direction="horizontal"
-              autoSaveId="web-document"
-              className="flex overflow-hidden flex-1 bg-white dark:bg-background"
+        <WebSiteHeader
+          noScroll={!!panel}
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
+          origin={origin}
+          isLatest={isLatest}
+        >
+          <PanelGroup
+            direction="horizontal"
+            autoSaveId="web-conditional"
+            style={{minHeight: '100%'}}
+          >
+            <Panel
+              ref={mainPanelRef}
+              collapsible
+              id="main-panel"
+              // style={{overflowY: panel ? 'scroll' : undefined}}
+              style={{overflowY: 'scroll'}}
             >
-              <Panel
-                ref={mainPanelRef}
-                collapsible
-                id="main-panel"
-                className="h-full"
+              <XStack
+                w="100%"
+                minHeight="100%"
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                marginBottom={56}
+                $gtSm={{
+                  marginBottom: 0,
+                }}
               >
-                <div className="flex relative flex-col h-full" ref={elementRef}>
-                  {media.gtSm ? (
-                    <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-background shadow-md rounded-md">
-                      {!activePanel &&
-                      activityEnabled &&
-                      interactionSummary.data ? (
-                        <>{activitySummary}</>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="flex overflow-y-auto flex-col flex-1 min-h-full">
-                    <DocumentCover cover={document.metadata.cover} id={id} />
-
-                    <div
-                      className={cn('flex flex-1', wrapperProps.className)}
-                      style={wrapperProps.style}
-                    >
+                <YStack f={1}>
+                  <DocumentCover cover={document.metadata.cover} id={id} />
+                  <YStack w="100%" ref={elementRef} f={1} position="relative">
+                    {!media.gtSm ? null : (
+                      <XStack
+                        position="absolute"
+                        top={0}
+                        right={8}
+                        zIndex="$zIndex.7"
+                        padding="$4"
+                      >
+                        {activityEnabled && interactionSummary.data ? (
+                          <DocInteractionsSummary
+                            docId={id}
+                            citations={interactionSummary.data?.citations}
+                            comments={interactionSummary.data?.comments}
+                            changes={interactionSummary.data?.changes}
+                            onCitationsOpen={() => {
+                              setActivePanel({type: 'citations'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                            onCommentsOpen={() => {
+                              setActivePanel({type: 'discussions'})
+                              if (!media.gtSm) {
+                                setIsSheetOpen(true)
+                              }
+                            }}
+                            onVersionOpen={() => {
+                              setActivePanel({type: 'versions'})
+                            }}
+                          />
+                        ) : null}
+                      </XStack>
+                    )}
+                    <XStack {...wrapperProps}>
                       {showSidebars ? (
-                        <div
-                          className={cn(
-                            sidebarProps.className,
-                            'hide-scrollbar overflow-y-scroll pb-6',
-                          )}
-                          style={{
-                            ...sidebarProps.style,
-                            marginTop: document.metadata?.cover ? 152 : 220,
-                          }}
+                        <YStack
+                          marginTop={document.metadata?.cover ? 152 : 220}
+                          {...sidebarProps}
                         >
-                          <div className="overflow-scroll pb-6 h-full hide-scrollbar">
+                          <YStack
+                            className="hide-scrollbar"
+                            overflow="scroll"
+                            height="100%"
+                            // paddingTop={32}
+                            paddingBottom={32}
+                          >
                             <WebDocumentOutline
                               showCollapsed={showCollapsed}
                               supportDocuments={props.supportDocuments}
@@ -564,10 +555,20 @@ export function DocumentPage(
                               id={id}
                               document={document}
                             />
-                          </div>
-                        </div>
+                            {/* <DocNavigationWrapper showCollapsed={showCollapsed}>
+                              <DocumentOutline
+                                onActivateBlock={onActivateBlock}
+                                document={document}
+                                id={id}
+                                // onCloseNav={() => {}}
+                                supportDocuments={props.supportDocuments}
+                                activeBlockId={id.blockRef}
+                              />
+                            </DocNavigationWrapper> */}
+                          </YStack>
+                        </YStack>
                       ) : null}
-                      <div {...mainContentProps}>
+                      <YStack {...mainContentProps}>
                         {isHomeDoc ? null : (
                           <PageHeader
                             originHomeId={originHomeId}
@@ -599,6 +600,12 @@ export function DocumentPage(
                             blockRef: blockRef,
                             blockRange: blockRange,
                           }}
+                          // onHoverIn={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover in', id)
+                          // }}
+                          // onHoverOut={(id) => {
+                          //   console.log('=== BLOCK HOVER EFFECT: hover out', id)
+                          // }}
                         >
                           <DocContent
                             document={document}
@@ -616,152 +623,168 @@ export function DocumentPage(
                             }}
                           />
                         </WebDocContentProvider>
-                      </div>
-                      {showSidebars ? (
-                        <div
-                          className={cn(sidebarProps.className)}
-                          style={sidebarProps.style}
-                        />
-                      ) : null}
-                    </div>
+                      </YStack>
+                      {showSidebars ? <YStack {...sidebarProps} /> : null}
+                    </XStack>
+                  </YStack>
+                  <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                </YStack>
+              </XStack>
+            </Panel>
+            {!media.gtSm ? null : panel ? (
+              <>
+                <PanelResizeHandle className="panel-resize-handle" />
 
-                    <PageFooter enableWebSigning={enableWebSigning} id={id} />
-                  </div>
-                </div>
-              </Panel>
-              {!media.gtSm ? null : panel ? (
-                <>
-                  <PanelResizeHandle className="panel-resize-handle" />
-                  <Panel
-                    defaultSize={
-                      media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
-                    }
-                    maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
-                    minSize={media.gtSm ? 20 : 100}
-                    className="flex flex-col flex-1 h-full border-l border-sidebar-border"
-                  >
-                    <div className="flex justify-center items-center px-3 py-2 shrink-0">
-                      <div className="flex flex-1 justify-center items-center">
-                        {activitySummary}
-                      </div>
-                      <Tooltip content={tx('Close')}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="flex-none"
-                          onClick={() => {
-                            setActivePanel(null)
-                          }}
-                        >
-                          <X className="size-4" />
-                        </Button>
-                      </Tooltip>
-                    </div>
-                    <div className="flex items-center p-3 bg-white border-b dark:bg-background border-border">
-                      <Text weight="bold" size="md">
-                        {panelTitle}
-                      </Text>
-                    </div>
-                    <div className="overflow-hidden flex-1">
-                      <ScrollArea>{panel}</ScrollArea>
-                    </div>
-
-                    <div className="p-2 border-t border-sidebar-border shrink-0">
-                      {commentEditor}
-                    </div>
-                  </Panel>
-                </>
-              ) : null}
-            </PanelGroup>
-          </div>
-          {media.gtSm || !activityEnabled ? null : (
-            <>
-              <MobileInteractionCardCollapsed
-                onClick={() => {
-                  // if (!panel) {
-                  setActivePanel({type: 'discussions', blockId: undefined})
-                  // }
-                  setIsSheetOpen(true)
-                }}
-                interactionSummary={
-                  interactionSummary.data ? <>{activitySummary}</> : null
-                }
-              />
-              <Sheet
-                snapPoints={[92]}
-                onOpenChange={(val: boolean) => {
-                  setIsSheetOpen(val)
-                  if (!val) {
-                    setActivePanel(null)
-                  }
-                }}
-                modal
-                open={isSheetOpen}
-                dismissOnSnapToBottom
-                zIndex={99999}
-              >
-                <Sheet.Overlay
-                  height="100vh"
-                  bg={'#00000088'}
-                  width="100vw"
-                  animation="fast"
-                  opacity={0.8}
-                  enterStyle={{opacity: 0}}
-                  exitStyle={{opacity: 0}}
-                />
-                <Sheet.Handle />
-                <Sheet.Frame
-                  bg={isDark ? '$background' : '$backgroundStrong'}
-                  borderColor="$borderColor"
-                  borderWidth={1}
-                  borderRadius="$4"
+                <Panel
+                  defaultSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  minSize={media.gtSm ? 20 : 100}
                 >
-                  <div className="p-2 pb-0 flex items-center justify-center">
-                    {activitySummary}
-                  </div>
-                  <div className="px-5 py-3 border-b border-border">
-                    <Text weight="semibold">{panelTitle}</Text>
-                  </div>
-                  <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
-                    {panel}
-                  </Sheet.ScrollView>
-                  <div className="p-2 border-t border-sidebar-border">
+                  <YStack
+                    bg={isDark ? '$background' : '$backgroundStrong'}
+                    borderLeftWidth={1}
+                    borderLeftColor="$borderColor"
+                    minHeight="100%"
+                    height="100%"
+                    top={0}
+                    right={0}
+                    gap="$4"
+                  >
+                    <ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                      {panel}
+                    </ScrollView>
                     {commentEditor}
-                  </div>
-                </Sheet.Frame>
-              </Sheet>
-            </>
-          )}
-        </div>
+                  </YStack>
+                </Panel>
+              </>
+            ) : null}
+          </PanelGroup>
+        </WebSiteHeader>
+        {media.gtSm || !activityEnabled ? null : (
+          <>
+            <XStack
+              // @ts-expect-error tamagui mistake
+              position="fixed"
+              bottom={0}
+              left={0}
+              right={0}
+              zIndex="$zIndex.9"
+              bg={isDark ? '$background' : '$backgroundStrong'}
+              p="$4"
+              boxShadow="0px 0px 20px 0px rgba(0, 0, 0, 0.2)"
+              height={56}
+              jc="space-between"
+              borderRadius="$4"
+              borderBottomLeftRadius={0}
+              borderBottomRightRadius={0}
+              overflow="hidden"
+              onPress={() => {
+                if (!panel) {
+                  setActivePanel({type: 'discussions', blockId: undefined})
+                }
+                setIsSheetOpen(true)
+              }}
+              ai="center"
+            >
+              <Button size="$3" chromeless icon={MessageSquare} color="$color9">
+                Start a Discussion...
+              </Button>
+              {interactionSummary.data ? (
+                <DocInteractionsSummary
+                  docId={id}
+                  citations={interactionSummary.data?.citations}
+                  comments={interactionSummary.data?.comments}
+                  changes={interactionSummary.data?.changes}
+                  onCitationsOpen={() => {
+                    setActivePanel({type: 'citations', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                  onCommentsOpen={() => {
+                    setActivePanel({type: 'discussions', blockId: undefined})
+                    if (!media.gtSm) {
+                      setIsSheetOpen(true)
+                    }
+                  }}
+                  onVersionOpen={() => {
+                    setActivePanel({type: 'versions'})
+                  }}
+                />
+              ) : null}
+            </XStack>
+
+            <Sheet
+              snapPoints={[92]}
+              onOpenChange={setIsSheetOpen}
+              modal
+              open={isSheetOpen}
+              dismissOnSnapToBottom
+            >
+              <Sheet.Overlay
+                height="100vh"
+                bg={'#00000088'}
+                width="100vw"
+                animation="fast"
+                opacity={0.8}
+                enterStyle={{opacity: 0}}
+                exitStyle={{opacity: 0}}
+              />
+              <Sheet.Handle />
+              <Sheet.Frame
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                borderColor="$borderColor"
+                borderWidth={1}
+                borderRadius="$4"
+              >
+                <XStack jc="flex-end" padding="$4">
+                  {interactionSummary.data ? (
+                    <DocInteractionsSummary
+                      docId={id}
+                      citations={interactionSummary.data?.citations}
+                      comments={interactionSummary.data?.comments}
+                      changes={interactionSummary.data?.changes}
+                      onCitationsOpen={() => {
+                        setActivePanel({type: 'citations', blockId: undefined})
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onCommentsOpen={() => {
+                        setActivePanel({
+                          type: 'discussions',
+                          blockId: undefined,
+                        })
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                      onVersionOpen={() => {
+                        setActivePanel({type: 'versions'})
+                        if (!media.gtSm) {
+                          setIsSheetOpen(true)
+                        }
+                      }}
+                    />
+                  ) : null}
+                </XStack>
+                <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                  {/* <YStack f={1}>
+                    {new Array(2000).fill(0).map((_, i) => (
+                      <SizableText key={i} h={20} w="100%">
+                        {i}
+                      </SizableText>
+                    ))}
+                  </YStack> */}
+                  {panel}
+                </Sheet.ScrollView>
+                <XStack paddingVertical="$2">{commentEditor}</XStack>
+              </Sheet.Frame>
+            </Sheet>
+          </>
+        )}
       </DiscussionsProvider>
     </WebSiteProvider>
-  )
-}
-
-function MobileInteractionCardCollapsed({
-  onClick,
-  interactionSummary,
-}: {
-  onClick: () => void
-  interactionSummary: React.ReactNode
-}) {
-  const tx = useTx()
-  return (
-    <div className="flex fixed bottom-0 left-0 right-0 z-[999] p-2 bg-white dark:bg-background shadow-md rounded-md shadow-md border border-sidebar-border">
-      <Button
-        variant="ghost"
-        className="flex flex-1 justify-start items-center min-w-0"
-        onClick={onClick}
-      >
-        <div className="shrink-0">
-          <MessageSquare />
-        </div>
-        <span className="flex-1 ml-2 text-left truncate">
-          {tx('Start a Discussion')}
-        </span>
-      </Button>
-      {interactionSummary}
-    </div>
   )
 }
 
@@ -776,11 +799,11 @@ function DocumentCover({
   if (!cover) return null
 
   return (
-    <div
-      className={cn(
-        'relative flex-shrink-0 w-full h-[25vh]',
-        cover ? 'bg-transparent' : 'bg-(--brand11)',
-      )}
+    <XStack
+      backgroundColor={cover ? '$backgroundTransparent' : 'brand11'}
+      height="25vh"
+      width="100%"
+      position="relative"
     >
       <img
         src={imageUrl(cover, 'XL')}
@@ -793,7 +816,7 @@ function DocumentCover({
           objectFit: 'cover',
         }}
       />
-    </div>
+    </XStack>
   )
 }
 
@@ -820,24 +843,48 @@ function DocumentDiscoveryPage({
     })
   }, [id])
   return (
-    <div className="flex flex-col w-screen h-screen">
-      <div className="flex flex-1 justify-center items-start px-4 py-12">
-        <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border flex-0 dark:bg-background">
-          <h2 className="text-2xl font-bold">Looking for a document...</h2>
-
-          <p>
-            Hang tight! We're currently searching the network to locate your
-            document. This may take a moment as we retrieve the most up-to-date
-            version.
-          </p>
-          <p>
-            If the document is available, it will appear shortly. Thank you for
-            your patience!
-          </p>
-        </div>
-      </div>
+    <YStack>
+      <PageHeader
+        originHomeId={originHomeId}
+        docMetadata={null}
+        docId={id}
+        authors={[]}
+        updateTime={null}
+        breadcrumbs={[]}
+      />
+      <YStack>
+        <Container>
+          <YStack
+            alignSelf="center"
+            width={600}
+            gap="$5"
+            borderWidth={1}
+            borderColor="$color8"
+            borderRadius="$4"
+            padding="$5"
+            elevation="$4"
+          >
+            <XStack alignItems="center" gap="$3">
+              <SizableText size="$8" fontWeight="bold">
+                Looking for a document...
+              </SizableText>
+            </XStack>
+            <YStack gap="$3">
+              <SizableText>
+                Hang tight! We're currently searching the network to locate your
+                document. This may take a moment as we retrieve the most
+                up-to-date version.
+              </SizableText>
+              <SizableText>
+                If the document is available, it will appear shortly. Thank you
+                for your patience!
+              </SizableText>
+            </YStack>
+          </YStack>
+        </Container>
+      </YStack>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
-    </div>
+    </YStack>
   )
 }
 
@@ -878,7 +925,6 @@ function _DocInteractionsSummary({
   onCitationsOpen,
   onCommentsOpen,
   onVersionOpen,
-  activePanel,
 }: {
   docId: UnpackedHypermediaId
   citations?: number
@@ -887,84 +933,68 @@ function _DocInteractionsSummary({
   onCitationsOpen?: () => void
   onCommentsOpen?: () => void
   onVersionOpen?: () => void
-  activePanel: WebAccessory | null
 }) {
   return (
-    <div className="flex">
+    <XStack gap="$1.5">
       {onCitationsOpen && (
         <InteractionSummaryItem
           label="citation"
-          active={activePanel?.type === 'citations'}
           count={citations || 0}
-          onClick={() => {
+          onPress={() => {
+            console.log('~ onCitationsOpen')
             onCitationsOpen()
           }}
-          // @ts-ignore
-          icon={<BlockQuote className="size-3" />}
+          icon={BlockQuote}
         />
       )}
-
+      <Separator />
       {onCommentsOpen && (
         <InteractionSummaryItem
           label="comment"
-          active={activePanel?.type === 'discussions'}
           count={comments || 0}
-          onClick={onCommentsOpen}
-          // @ts-ignore
-          icon={<MessageSquare className="size-3" />}
+          onPress={onCommentsOpen}
+          icon={MessageSquare}
         />
       )}
-
+      <Separator />
       {onVersionOpen && changes && (
         <InteractionSummaryItem
           label="version"
-          active={activePanel?.type === 'versions'}
           count={changes || 0}
-          onClick={onVersionOpen}
-          // @ts-ignore
-          icon={<HistoryIcon className="size-5" />}
+          onPress={onVersionOpen}
+          icon={HistoryIcon}
         />
       )}
-    </div>
+    </XStack>
   )
 }
 
 function InteractionSummaryItem({
   label,
   count,
-  onClick,
-  icon,
-  active,
+  onPress,
+  icon: Icon,
 }: {
   label: string
   count: number
-  onClick: () => void
-  icon: React.ReactNode
-  active: boolean
+  onPress: () => void
+  icon: IconComponent
 }) {
   return (
     <Tooltip content={`${count} ${pluralS(count, label)}`}>
-      <Button
-        onClick={onClick}
-        variant="ghost"
-        className={cn(' p-0', active && 'bg-accent')}
-        size="sm"
-      >
-        {icon}
-        <span className="text-xs">{count}</span>
+      <Button onPress={onPress} size="$1" chromeless icon={Icon}>
+        <SizableText size="$1">{count}</SizableText>
       </Button>
     </Tooltip>
   )
 }
 
 function WebCitationsPanel({
-  activitySummary,
   id,
   blockId,
   handleBack,
   handleClose,
 }: {
-  activitySummary: React.ReactNode
   id: UnpackedHypermediaId
   blockId?: string
   handleBack: () => void
@@ -983,44 +1013,102 @@ function WebCitationsPanel({
     const dedupedCitations = deduplicateCitations(filteredCitations)
     return dedupedCitations
   }, [citations.data, blockId])
-  const tx = useTx()
+  const isDark = useIsDark()
   return (
-    <div className="flex flex-col gap-2 p-3">
-      {blockId ? (
-        <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
-      ) : null}
-      {displayCitations ? (
-        displayCitations.map((citation) => {
-          return <DocumentCitationEntry citation={citation} />
-        })
-      ) : (
-        <div className="flex justify-center items-center">
+    <YStack gap="$4">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$3"
+        alignItems="center"
+        position="sticky"
+        top={0}
+        zIndex="$zIndex.8"
+        h={56}
+        borderBottomWidth={1}
+        borderBottomColor="$borderColor"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+        justifyContent="space-between"
+      >
+        <SizableText size="$3" fontWeight="bold">
+          Citations
+        </SizableText>
+        <Button
+          alignSelf="center"
+          display="none"
+          $gtSm={{display: 'flex'}}
+          icon={X}
+          chromeless
+          onPress={handleClose}
+        />
+      </XStack>
+      <YStack gap="$2" padding="$3">
+        {blockId ? (
+          <AccessoryBackButton onPress={handleBack} label="All Citations" />
+        ) : null}
+        {displayCitations ? (
+          displayCitations.map((citation) => {
+            return <DocumentCitationEntry citation={citation} />
+          })
+        ) : (
           <Spinner />
-        </div>
-      )}
-    </div>
+        )}
+      </YStack>
+    </YStack>
   )
 }
 
-function WebVersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  const changes = useDocumentChanges(docId)
+function WebVersionsPanel({
+  id,
+  handleClose,
+}: {
+  id: UnpackedHypermediaId
+  handleClose: () => void
+}) {
+  const changes = useDocumentChanges(id)
+  const isDark = useIsDark()
   const changesList = changes.data?.changes || []
   return (
-    <div className="flex flex-col gap-2 p-3">
-      {changesList.map((change, idx) => {
-        const isCurrent = change.id === changes.data?.latestVersion
-        return (
-          <ChangeItem
-            key={change.id}
-            change={change}
-            isActive={docId.version ? docId.version === change.id : isCurrent}
-            docId={docId}
-            isLast={idx === changesList.length - 1}
-            isCurrent={change.id === changes.data?.latestVersion}
-            author={change.author}
-          />
-        )
-      })}
-    </div>
+    <YStack gap="$4">
+      <XStack
+        paddingHorizontal="$4"
+        paddingVertical="$3"
+        alignItems="center"
+        position="sticky"
+        top={0}
+        zIndex="$zIndex.8"
+        h={56}
+        borderBottomWidth={1}
+        borderBottomColor="$borderColor"
+        bg={isDark ? '$background' : '$backgroundStrong'}
+        justifyContent="space-between"
+      >
+        <SizableText size="$3" fontWeight="bold">
+          Versions
+        </SizableText>
+        <Button
+          alignSelf="center"
+          display="none"
+          $gtSm={{display: 'flex'}}
+          icon={X}
+          chromeless
+          onPress={handleClose}
+        />
+      </XStack>
+      <YStack gap="$2" padding="$3">
+        {changesList.map((change, idx) => {
+          const isCurrent = change.id === changes.data?.latestVersion
+          return (
+            <ChangeItem
+              key={change.id}
+              change={change}
+              isActive={id.version ? id.version === change.id : isCurrent}
+              docId={id}
+              isLast={idx === changesList.length - 1}
+              isCurrent={change.id === changes.data?.latestVersion}
+            />
+          )
+        })}
+      </YStack>
+    </YStack>
   )
 }

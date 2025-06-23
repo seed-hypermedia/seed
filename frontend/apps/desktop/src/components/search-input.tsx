@@ -35,9 +35,19 @@ import {XStack} from 'tamagui'
 export function SearchInput({
   onClose,
   onSelect,
+  allowWebURL,
 }: {
   onClose?: () => void
-  onSelect: ({id, route}: {id?: UnpackedHypermediaId; route?: NavRoute}) => void
+  allowWebURL?: boolean
+  onSelect: ({
+    id,
+    route,
+    webUrl,
+  }: {
+    id?: UnpackedHypermediaId
+    route?: NavRoute
+    webUrl?: string
+  }) => void
 }) {
   const [search, setSearch] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(0)
@@ -74,16 +84,24 @@ export function SearchInput({
             search.startsWith('https://') ||
             search.includes('.')
           ) {
+            if (allowWebURL) {
+              // First call with webUrl
+              onSelect({webUrl: search})
+            }
+
             setActionPromise(
               handleUrl(search)
                 .then((navRoute) => {
                   if (navRoute) {
                     onClose?.()
-                    onSelect({route: navRoute})
+                    // Then call with both webUrl and route
+                    onSelect({route: navRoute, webUrl: search})
                   }
                 })
                 .catch((error) => {
-                  appError(`Launcher Error: ${error}`, {error})
+                  if (!allowWebURL) {
+                    appError(`Launcher Error: ${error}`, {error})
+                  }
                 })
                 .finally(() => {
                   setActionPromise(null)
