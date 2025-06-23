@@ -1828,7 +1828,9 @@ export function BlockContentButton({
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover()
   const buttonLink = block.type === 'Button' ? block.link : null
-  const linkProps = useRouteLinkHref(buttonLink || '')
+  const linkProps = useRouteLinkHref(buttonLink || '', {
+    handler: 'onClick',
+  })
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }
@@ -2347,8 +2349,6 @@ export function DocumentCardGrid({
   accountsMetadata: HMAccountsMetadata
   columnClasses: string
 }) {
-  console.log('ITEMS', items)
-
   return (
     <div className="w-full flex flex-col">
       {firstItem ? (

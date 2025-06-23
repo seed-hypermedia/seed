@@ -106,9 +106,9 @@ export function useOpenUrl() {
   return context.openUrl
 }
 
-export function useRouteLinkHref(href: string) {
+export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
   const hmId = unpackHmId(href)
-  return useRouteLink(hmId ? {key: 'document', id: hmId} : href)
+  return useRouteLink(hmId ? {key: 'document', id: hmId} : href, opts)
 }
 
 const [setIsMetaKeyPressed, isMetaKeyPressed] =
@@ -130,13 +130,15 @@ if (typeof window !== 'undefined') {
   })
 }
 
+type UseRouteLinkOpts = {
+  replace?: boolean
+  onPress?: () => void
+  handler?: 'onClick' | 'onPress'
+}
+
 export function useRouteLink(
   route: NavRoute | string | null,
-  opts?: {
-    replace?: boolean
-    onPress?: () => void
-    handler?: 'onClick' | 'onPress'
-  },
+  opts?: UseRouteLinkOpts,
 ) {
   const context = useContext(UniversalAppContext)
 
