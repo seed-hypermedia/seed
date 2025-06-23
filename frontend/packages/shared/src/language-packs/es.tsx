@@ -60,7 +60,7 @@ const Translations = {
   Cancel: 'Cancelar',
   'You will not receive any notifications.':
     'No recibirás ninguna notificación.',
-  'Start a Discussion': 'Iniciar un Debate',
+  'Start a Discussion': 'Comenta',
   'No discussions': 'No hay debates',
   version_from: (args: {date: string}) => `Versión del ${args.date}`,
   'Go to Latest': 'Ir a Última',
