@@ -171,7 +171,7 @@ export default function DraftPage() {
   const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <div className="flex flex-1 h-full">
+      <div className="flex h-full flex-1">
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
@@ -186,7 +186,7 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'flex flex-col bg-white dark:bg-background',
+              'dark:bg-background flex flex-col bg-white',
             )}
           >
             <DraftRebaseBanner />
@@ -325,7 +325,7 @@ function DocumentEditor({
         }}
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex overflow-hidden flex-col flex-1"
+        className="flex flex-1 flex-col overflow-hidden"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider

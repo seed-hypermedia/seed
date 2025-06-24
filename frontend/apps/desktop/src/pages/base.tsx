@@ -13,7 +13,7 @@ export function NotFoundPage() {
 
 export function BaseLoading() {
   return (
-    <div className="flex justify-center items-center p-6">
+    <div className="flex items-center justify-center p-6">
       <Spinner />
     </div>
   )

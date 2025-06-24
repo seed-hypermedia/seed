@@ -48,7 +48,7 @@ export function AccessURLRow({
           </Stack>
           <SizableText
             size="sm"
-            className="opacity-80 text-left truncate whitespace-nowrap overflow-hidden"
+            className="truncate overflow-hidden text-left whitespace-nowrap opacity-80"
           >
             {title || url}
           </SizableText>

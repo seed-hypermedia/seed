@@ -101,7 +101,7 @@ function CopiedToast({
   let message: ReactNode = ''
   if (published === null) {
     indicator = (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )

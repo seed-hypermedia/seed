@@ -9,7 +9,7 @@ export const MainWrapper = forwardRef<
   {noScroll?: boolean; children?: React.ReactNode}
 >(function MainWrapper({children, noScroll = false, ...props}, ref) {
   return (
-    <div ref={ref} className="flex flex-1 flex-col content-wrapper" {...props}>
+    <div ref={ref} className="content-wrapper flex flex-1 flex-col" {...props}>
       {noScroll ? (
         children
       ) : (

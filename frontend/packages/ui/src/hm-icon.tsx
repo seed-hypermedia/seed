@@ -75,7 +75,7 @@ export function LinkIcon({
       <Button
         variant="ghost"
         size="icon"
-        className="no-window-drag relative min-w-5 min-h-5 p-0"
+        className="no-window-drag relative min-h-5 min-w-5 p-0"
         style={{height: size}}
         {...linkProps}
       >
@@ -89,8 +89,8 @@ export function ErrorDot({error}: {error?: boolean}) {
   if (!error) return null
 
   return (
-    <div className="absolute -top-2 -left-2 flex items-center justify-center w-4 h-4 rounded-full bg-destructive">
-      <AlertCircle className="w-4 h-4 text-white" />
+    <div className="bg-destructive absolute -top-2 -left-2 flex h-4 w-4 items-center justify-center rounded-full">
+      <AlertCircle className="h-4 w-4 text-white" />
     </div>
   )
 }

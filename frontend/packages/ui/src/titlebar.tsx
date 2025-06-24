@@ -42,7 +42,7 @@ export const TitleText = (props) => (
   <SizableText
     name="TitlebarH1"
     size="sm"
-    className="max-w-full m-0 overflow-hidden font-bold rounded-sm cursor-default whitespace-nowrap text-ellipsis text-foreground"
+    className="text-foreground m-0 max-w-full cursor-default overflow-hidden rounded-sm font-bold text-ellipsis whitespace-nowrap"
     {...props}
   />
 )

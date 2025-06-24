@@ -46,7 +46,7 @@ export function ChangeItem({
       key={change.id}
       variant="ghost"
       className={cn(
-        'justify-start items-start relative h-auto p-3 rounded-md transition-colors gap-2 flex w-full',
+        'relative flex h-auto w-full items-start justify-start gap-2 rounded-md p-3 transition-colors',
         isActive
           ? 'bg-brand-12 hover:bg-brand-11'
           : 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -55,12 +55,12 @@ export function ChangeItem({
     >
       <div
         className={cn(
-          'absolute w-px h-full bg-gray-300 dark:bg-gray-600 top-3.5 left-[21px] z-10',
+          'absolute top-3.5 left-[21px] z-10 h-full w-px bg-gray-300 dark:bg-gray-600',
           isLast ? 'opacity-0' : 'opacity-100',
         )}
       />
 
-      <div className="flex-shrink-0 size-5 z-20 flex items-center justify-center bg-gray-800 rounded-full p-0.5">
+      <div className="z-20 flex size-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 p-0.5">
         <Version size={16} color="white" />
       </div>
       <div
@@ -69,17 +69,17 @@ export function ChangeItem({
       >
         <HMIcon size={iconSize} id={author.id} metadata={author.metadata} />
       </div>
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <div
-          className="flex items-center flex-1 gap-2 overflow-hidden"
+          className="flex flex-1 items-center gap-2 overflow-hidden"
           style={{height: iconSize}}
         >
           <AuthorName author={author} />
-          <span className="flex-shrink-0 text-sm font-light text-muted-foreground">
+          <span className="text-muted-foreground flex-shrink-0 text-sm font-light">
             {isCurrent ? tx('current version') : tx('version')}
           </span>
         </div>
-        <span className="text-xs text-left truncate text-muted-foreground flex-shrink-1">
+        <span className="text-muted-foreground flex-shrink-1 truncate text-left text-xs">
           {change.createTime ? formattedDateMedium(change.createTime) : ''}
         </span>
       </div>
@@ -93,7 +93,7 @@ function AuthorName({author}: {author: HMMetadataPayload}) {
     <Button
       variant="ghost"
       size="sm"
-      className="h-auto p-0 text-sm font-bold truncate flex-shrink-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+      className="h-auto flex-shrink-1 truncate p-0 text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
       {...linkProps}
     >
       {getMetadataName(author.metadata)}

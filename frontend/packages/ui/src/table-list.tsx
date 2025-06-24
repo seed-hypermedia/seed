@@ -40,7 +40,7 @@ export function TableList({
   return (
     <div
       className={cn(
-        'select-none cursor-default border rounded-lg overflow-hidden',
+        'cursor-default overflow-hidden rounded-lg border select-none',
         isDark ? 'border-gray-700 bg-black' : 'border-gray-200 bg-gray-50',
         'sm:mx-0',
         className,
@@ -60,7 +60,7 @@ function TableHeader({
   return (
     <div
       className={cn(
-        'flex items-center py-2 px-4 bg-gray-200 dark:bg-gray-800 gap-3',
+        'flex items-center gap-3 bg-gray-200 px-4 py-2 dark:bg-gray-800',
         className,
       )}
       {...props}
@@ -79,15 +79,15 @@ function TableItem({
   return (
     <div
       className={cn(
-        'flex items-start w-full p-4',
+        'flex w-full items-start p-4',
         isDark ? 'bg-black' : 'bg-gray-50',
         'hover:bg-gray-100 dark:hover:bg-gray-900',
-        'border-b border-gray-200 dark:border-gray-700 last:border-b-0',
+        'border-b border-gray-200 last:border-b-0 dark:border-gray-700',
         className,
       )}
       {...props}
     >
-      <div className="flex items-start w-full">{children}</div>
+      <div className="flex w-full items-start">{children}</div>
     </div>
   )
 }
@@ -102,7 +102,7 @@ export function InfoListHeader({
   return (
     <TableList.Header>
       <SizableText weight="bold">{title}</SizableText>
-      <div className="flex-1 flex items-center justify-end">{right}</div>
+      <div className="flex flex-1 items-center justify-end">{right}</div>
     </TableList.Header>
   )
 }
@@ -125,16 +125,16 @@ export function InfoListItem({
     <TableList.Item {...hoverProps}>
       <SizableText
         size="xs"
-        className="flex-none min-w-[140px] w-[140px] text-muted-foreground"
+        className="text-muted-foreground w-[140px] min-w-[140px] flex-none"
       >
         {label}:
       </SizableText>
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-hidden">
         {values.map((value, index) => (
           <SizableText
             key={index}
             size="xs"
-            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap select-text font-mono"
+            className="block w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap select-text"
           >
             {value}
           </SizableText>
@@ -146,7 +146,7 @@ export function InfoListItem({
             variant="ghost"
             size="sm"
             className={cn(
-              'ml-2 transition-opacity flex-none',
+              'ml-2 flex-none transition-opacity',
               hover ? 'opacity-100' : 'opacity-0',
             )}
             onClick={onCopy}
@@ -161,7 +161,7 @@ export function InfoListItem({
             variant="ghost"
             size="sm"
             className={cn(
-              'ml-2 transition-opacity flex-none',
+              'ml-2 flex-none transition-opacity',
               hover ? 'opacity-100' : 'opacity-0',
             )}
             onClick={onOpen}

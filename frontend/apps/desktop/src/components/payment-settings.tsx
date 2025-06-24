@@ -226,7 +226,7 @@ export function WalletPage({
             </SizableText>
           </YStack>
         ) : (
-          <div className="flex items-center justify-center m-4">
+          <div className="m-4 flex items-center justify-center">
             <Spinner />
           </div>
         )}

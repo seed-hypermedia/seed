@@ -76,7 +76,7 @@ export function CheckboxField({
 } & HTMLAttributes<HTMLDivElement> &
   CheckboxProps) {
   return (
-    <div className={cn('flex gap-3 items-center', className)}>
+    <div className={cn('flex items-center gap-3', className)}>
       <Checkbox
         checked={checked}
         onCheckedChange={onCheckedChange}

@@ -38,7 +38,7 @@ export function FormField<Fields extends FieldValues>({
         className,
       )}
     >
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         {label ? (
           <Label
             htmlFor={String(name)}

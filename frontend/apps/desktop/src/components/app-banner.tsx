@@ -10,7 +10,7 @@ export function AppBanner({
 } & HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className="bg-yellow-50 dark:bg-yellow-900/20 w-full absolute top-0 left-0 p-1 border-b border-border px-3 select-none animate-in slide-in-from-top-8 fade-in duration-200 ease-in-out"
+      className="border-border animate-in slide-in-from-top-8 fade-in absolute top-0 left-0 w-full border-b bg-yellow-50 p-1 px-3 duration-200 ease-in-out select-none dark:bg-yellow-900/20"
       {...props}
     >
       {children}

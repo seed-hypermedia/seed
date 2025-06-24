@@ -6,9 +6,9 @@ import {PageFooter} from './page-footer'
 export function NotFoundPage({id}: SiteDocumentPayload) {
   const tx = useTx()
   return (
-    <div className="flex flex-col w-screen h-screen">
-      <div className="flex flex-1 justify-center items-start px-4 py-12">
-        <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border flex-0 dark:bg-background">
+    <div className="flex h-screen w-screen flex-col">
+      <div className="flex flex-1 items-start justify-center px-4 py-12">
+        <div className="border-border dark:bg-background flex w-full max-w-lg flex-0 flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
             {tx('Document Not Found')}

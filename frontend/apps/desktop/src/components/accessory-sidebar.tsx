@@ -129,7 +129,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const childrenActivity = useChildrenActivity(docId)
   const directoryCount = childrenActivity.data?.length || undefined
   return (
-    <div className="flex flex-1 h-full">
+    <div className="flex h-full flex-1">
       <PanelGroup
         direction="horizontal"
         ref={panelsRef}
@@ -137,7 +137,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         autoSaveId="accessory"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50} className="pl-1 pr-2 overflow-hidden">
+        <Panel id="main" minSize={50} className="overflow-hidden pr-2 pl-1">
           {children}
         </Panel>
         {accessoryKey !== undefined ? (
@@ -158,7 +158,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           <div
             className={cn(
               panelContainerStyles,
-              'bg-white dark:bg-background flex flex-col',
+              'dark:bg-background flex flex-col bg-white',
             )}
           >
             <AccessoryTabs
@@ -173,7 +173,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
                 directory: directoryCount,
               }}
             />
-            <div className="px-5 py-3 border-b border-border">
+            <div className="border-border border-b px-5 py-3">
               <Text weight="semibold" size="lg">
                 {accessoryTitle}
               </Text>
@@ -197,12 +197,12 @@ export function AccessoryContent({
   title?: string
 }) {
   return (
-    <div className="flex flex-col flex-1 p-3 overflow-hidden" {...props}>
+    <div className="flex flex-1 flex-col overflow-hidden p-3" {...props}>
       <ScrollArea>
         <div className="flex flex-col gap-2">{children}</div>
       </ScrollArea>
       {footer ? (
-        <div className="bg-background dark:bg-black rounded-md py-2">
+        <div className="bg-background rounded-md py-2 dark:bg-black">
           {footer}
         </div>
       ) : null}

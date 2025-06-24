@@ -88,7 +88,7 @@ function CreateDocumentButton() {
     <Button
       variant="default"
       onClick={() => createDraft()}
-      className="w-full mb-5"
+      className="mb-5 w-full"
     >
       <FilePlus2 color="currentColor" size={16} /> <span>Create Document</span>
     </Button>
@@ -121,7 +121,7 @@ function SidebarSection({
             weight="bold"
             size="xs"
             color="muted"
-            className="capitalize select-none group-hover/header:text-foreground"
+            className="group-hover/header:text-foreground capitalize select-none"
           >
             {title}
           </SizableText>

@@ -9,7 +9,7 @@ import {Tooltip} from './tooltip'
 export function CopyUrlField({url, label}: {url: string; label: string}) {
   const {openUrl} = useUniversalAppContext()
   return (
-    <div className="flex items-center border border-gray-200 rounded-md p-2">
+    <div className="flex items-center rounded-md border border-gray-200 p-2">
       <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
         <Text color="muted">{url}</Text>
       </div>

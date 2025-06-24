@@ -142,7 +142,7 @@ export default function DocumentPage() {
           })
         }}
       >
-        <div className="flex flex-col flex-1 h-full">
+        <div className="flex h-full flex-1 flex-col">
           <AccessoryLayout
             mainPanelRef={mainPanelRef}
             accessory={accessory}
@@ -274,7 +274,7 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
-      <div className="flex overflow-hidden flex-col flex-1">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <ScrollArea ref={elementRef}>
           <DocumentCover docId={id} />
 
@@ -300,7 +300,7 @@ function _MainDocumentPage({
               $gtSm={{marginRight: 40, marginLeft: 0}}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="flex-1 pl-4 mt-4 mb-16 sm:pl-0">
+              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
@@ -333,7 +333,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="flex absolute top-2 right-2 z-50 gap-1 px-3 py-2 bg-white rounded-md shadow-md dark:bg-background">
+    <div className="dark:bg-background absolute top-2 right-2 z-50 flex gap-1 rounded-md bg-white px-3 py-2 shadow-md">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -492,7 +492,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        className="bg-white dark:bg-background"
+        className="dark:bg-background bg-white"
         data-docid={docId.id}
         borderRadius="$2"
       >
@@ -525,7 +525,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <div className="flex flex-wrap gap-1 items-center max-w-full">
+                    <div className="flex max-w-full flex-wrap items-center gap-1">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -636,10 +636,10 @@ function DocMessageBox({
 }) {
   return (
     <div className={cn(panelContainerStyles)}>
-      <div className="px-8 py-10 mx-auto">
-        <div className="flex flex-col flex-1 flex-none gap-4 p-6 w-full max-w-lg rounded-lg border shadow-lg border-border bg-background dark:bg-black">
+      <div className="mx-auto px-8 py-10">
+        <div className="border-border bg-background flex w-full max-w-lg flex-1 flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
           {spinner ? (
-            <div className="flex justify-start items-center">
+            <div className="flex items-center justify-start">
               <Spinner className="size-6 fill-blue-500" />
             </div>
           ) : null}

@@ -75,7 +75,7 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         className="bg-background dark:bg-black"
       >
-        <div className="flex items-center justify-center w-full window-drag">
+        <div className="window-drag flex w-full items-center justify-center">
           <TitleText>Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
@@ -102,7 +102,7 @@ export default function Main({className}: {className?: string}) {
         minHeight={26}
         bg={isDark ? '$background' : '$backgroundStrong'}
       >
-        <div className="flex items-center justify-center w-full window-drag">
+        <div className="window-drag flex w-full items-center justify-center">
           <TitleText>Review Deleted Content</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
@@ -273,7 +273,7 @@ function getPageComponent(navRoute: NavRoute) {
 
 function WindowClose() {
   return (
-    <div className="size-[26px] items-center justify-center no-window-drag absolute right-0 top-0">
+    <div className="no-window-drag absolute top-0 right-0 size-[26px] items-center justify-center">
       <CloseButton />
     </div>
   )

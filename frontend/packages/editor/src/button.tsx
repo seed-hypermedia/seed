@@ -95,7 +95,7 @@ const Render = (
 
   return (
     <div
-      className="flex flex-col w-full select-none max-w-full"
+      className="flex w-full max-w-full flex-col select-none"
       style={{
         justifyContent: alignment || 'flex-start',
       }}
@@ -105,7 +105,7 @@ const Render = (
         variant="brand"
         size="lg"
         className={cn(
-          'border-none w-auto justify-center select-none border-transparent max-w-full text-center',
+          'w-auto max-w-full justify-center border-none border-transparent text-center select-none',
           alignment == 'center'
             ? 'self-center'
             : alignment == 'flex-end'
@@ -115,7 +115,7 @@ const Render = (
       >
         <SizableText
           size="lg"
-          className="truncate text-center font-bold text-white font-sans"
+          className="truncate text-center font-sans font-bold text-white"
         >
           {block.props.name || 'Button Text'}
         </SizableText>

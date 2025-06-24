@@ -26,7 +26,7 @@ export function DocumentCitationEntry({
   const tx = useTx()
   const {formattedDateShort} = useTxUtils()
   return (
-    <div className="flex items-center gap-1 flex-wrap py-1 ">
+    <div className="flex flex-wrap items-center gap-1 py-1">
       <HMAuthor author={citation.author} />
       <SizableText size="sm" className="text-muted-foreground px-2 py-1">
         {formattedDateShort(citation.source.time)}

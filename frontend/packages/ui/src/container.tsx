@@ -27,10 +27,10 @@ export function PanelContainer({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="w-full h-full px-2">
+    <div className="h-full w-full px-2">
       <div
         className={cn(
-          'h-full bg-white dark:bg-background sm:border sm:border-border sm:rounded-md overflow-hidden',
+          'dark:bg-background sm:border-border h-full overflow-hidden bg-white sm:rounded-md sm:border',
           className,
         )}
         {...props}

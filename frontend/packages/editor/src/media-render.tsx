@@ -596,7 +596,7 @@ function MediaForm({
               {!drag && (
                 <>
                   <Upload size={18} />
-                  <SizableText className="p-2 overflow-hidden whitespace-nowrap truncate">
+                  <SizableText className="truncate overflow-hidden p-2 whitespace-nowrap">
                     Upload File
                   </SizableText>
                 </>

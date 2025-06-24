@@ -58,34 +58,34 @@ export function DocumentCard({
     <div
       data-docid={docId?.id}
       className={cn(
-        'bg-white dark:bg-background rounded-lg shadow-md overflow-hidden flex-1 @container hover:bg-brand-12 transition-colors duration-300 min-h-[200px]',
-        banner && 'md:min-h-[240px] lg:min-h-[280px] rounded-xl',
+        'dark:bg-background hover:bg-brand-12 @container min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300',
+        banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
       )}
       onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
       onMouseLeave={docId ? () => onHoverOut?.(docId) : undefined}
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      <div className="flex flex-col @md:flex-row flex-1 h-full cursor-pointer max-w-full">
+      <div className="flex h-full max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
         {coverImage && (
           <div
             className={cn(
-              'shrink-0 h-40 w-full @md:w-1/2 @md:min-h-full relative',
-              banner && '@md:h-[280px] ',
+              'relative h-40 w-full shrink-0 @md:min-h-full @md:w-1/2',
+              banner && '@md:h-[280px]',
             )}
           >
             <img
-              className="h-full w-full object-cover absolute top-0 left-0"
+              className="absolute top-0 left-0 h-full w-full object-cover"
               src={imageUrl(coverImage, 'L')}
               alt=""
             />
           </div>
         )}
-        <div className={cn('flex-1 flex flex-col justify-between')}>
+        <div className={cn('flex flex-1 flex-col justify-between')}>
           <div className="p-4">
             <p
               className={cn(
-                'block font-bold font-sans text-black leading-tight!',
+                'block font-sans leading-tight! font-bold text-black',
                 banner ? 'text-2xl' : 'text-lg',
               )}
             >
@@ -93,14 +93,14 @@ export function DocumentCard({
             </p>
             <p
               className={cn(
-                'mt-2 text-muted-foreground font-sans line-clamp-3',
+                'text-muted-foreground mt-2 line-clamp-3 font-sans',
                 !banner && 'text-sm',
               )}
             >
               {textContent}
             </p>
           </div>
-          <div className="pl-4 pr-2 py-1 flex items-center justify-between">
+          <div className="flex items-center justify-between py-1 pr-2 pl-4">
             {(entity?.document?.metadata?.displayPublishTime ||
               entity?.document?.updateTime) && (
               <SizableText

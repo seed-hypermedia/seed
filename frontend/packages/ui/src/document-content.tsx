@@ -140,7 +140,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="z-[9999] p-2 fixed bottom-16 right-16 bg-background-hover border border-border flex flex-col gap-1 bg-white dark:bg-background rounded-md">
+        <div className="bg-background-hover border-border dark:bg-background fixed right-16 bottom-16 z-[9999] flex flex-col gap-1 rounded-md border bg-white p-2">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -292,7 +292,7 @@ export function DocContent({
       <div
         ref={bubble}
         className={cn(
-          'z-50 absolute top-0 left-0 hidden select-none',
+          'absolute top-0 left-0 z-50 hidden select-none',
           media.gtSm && !state.matches('disable') ? 'block' : 'hidden',
         )}
         style={{...coords}}
@@ -636,8 +636,8 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content border-px',
         isHighlight
-          ? 'border border-brand-10 bg-brand-12'
-          : 'bg-transparent border-transparent',
+          ? 'border-brand-10 bg-brand-12 border'
+          : 'border-transparent bg-transparent',
       )}
       style={{
         borderRadius: layoutUnit / 4,
@@ -678,7 +678,7 @@ export function BlockNodeContent({
               size="icon"
               variant="ghost"
               className={cn(
-                'absolute left-[-24px] select-none z-50 opacity-0 hover:opacity-100 bg-background p-0',
+                'bg-background absolute left-[-24px] z-50 p-0 opacity-0 select-none hover:opacity-100',
                 ['Unordered', 'Ordered'].includes(childrenType)
                   ? 'top-[12px]'
                   : 'top-4',
@@ -706,7 +706,7 @@ export function BlockNodeContent({
         />
         <div
           className={cn(
-            'absolute z-10 top-2 right-0 sm:right-[-44px] pl-4 gap-2 flex flex-col',
+            'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
             hover && 'z-[999]',
           )}
           style={{
@@ -737,7 +737,7 @@ export function BlockNodeContent({
               >
                 <BlockQuote
                   color="currentColor"
-                  className="opacity-50 size-3"
+                  className="size-3 opacity-50"
                 />
                 <SizableText color="muted" size="xs">
                   {citationsCount.citations
@@ -769,7 +769,7 @@ export function BlockNodeContent({
               >
                 <MessageSquare
                   color="currentColor"
-                  className="opacity-50  size-3"
+                  className="size-3 opacity-50"
                 />
               </Button>
             </Tooltip>
@@ -812,7 +812,7 @@ export function BlockNodeContent({
               >
                 <MessageSquare
                   color="currentColor"
-                  className="opacity-50 size-3"
+                  className="size-3 opacity-50"
                 />
                 <SizableText color="muted" size="xs">
                   {citationsCount?.comments
@@ -847,7 +847,7 @@ export function BlockNodeContent({
                   }
                 }}
               >
-                <Link color="currentColor" className="opacity-50 size-3" />
+                <Link color="currentColor" className="size-3 opacity-50" />
                 <SizableText color="muted" size="xs">
                   {' '}
                 </SizableText>
@@ -1032,7 +1032,7 @@ function BlockContentImage({
     <div
       {...props}
       className={cn(
-        'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-image',
+        'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
         blockStyles,
       )}
       data-content-type="image"
@@ -1086,7 +1086,7 @@ function BlockContentVideo({
     <div
       {...props}
       className={cn(
-        'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-video',
+        'block-content block-video flex w-full max-w-full flex-col items-center gap-2 py-3',
         blockStyles,
       )}
       data-content-type="video"
@@ -1098,7 +1098,7 @@ function BlockContentVideo({
     >
       {link ? (
         <div
-          className={cn('relative w-full max-w-full aspect-video')}
+          className={cn('relative aspect-video w-full max-w-full')}
           style={{
             width: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
@@ -1107,7 +1107,7 @@ function BlockContentVideo({
         >
           {isIpfs ? (
             <video
-              className={cn('absolute top-0 left-0 w-full h-full')}
+              className={cn('absolute top-0 left-0 h-full w-full')}
               // @ts-expect-error this is a bug in tamagui
               contentEditable={false}
               playsInline
@@ -1123,7 +1123,7 @@ function BlockContentVideo({
             </video>
           ) : (
             <iframe
-              className={cn('absolute top-0 left-0 w-full h-full')}
+              className={cn('absolute top-0 left-0 h-full w-full')}
               src={getVideoIframeSrc(block.link)}
               frameBorder="0"
               allowFullScreen
@@ -1298,7 +1298,7 @@ function InlineContentView({
               {...linkProps}
               onClick={onPress}
               className={cn(
-                'transition-colors cursor-pointer',
+                'cursor-pointer transition-colors',
                 isHmScheme ? 'hm-link' : 'link',
               )}
               target={isHmScheme ? undefined : '_blank'}
@@ -1410,9 +1410,9 @@ export function ErrorBlock({
     <Tooltip
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
-      <div className="flex flex-col flex-1 block-content block-unknown">
+      <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex gap-2 p-2 bg-red-100 rounded-md border border-red-300 flex-start"
+          className="flex-start flex gap-2 rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1424,7 +1424,7 @@ export function ErrorBlock({
           <AlertCircle color="danger" className="size-3" />
         </div>
         {open ? (
-          <pre className="p-2 bg-gray-100 rounded-md border dark:bg-gray-800 border-border">
+          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
             <code className="font-mono text-xs wrap-break-word">
               {JSON.stringify(debugData, null, 4)}
             </code>
@@ -1650,7 +1650,7 @@ export function ContentEmbed({
 
 function ErrorBlockMessage({message}: {message: string}) {
   return (
-    <div className="flex items-center p-4 rounded-md bg-muted">
+    <div className="bg-muted flex items-center rounded-md p-4">
       <SizableText size="md">{message}</SizableText>
     </div>
   )
@@ -1684,9 +1684,9 @@ export function BlockNotFoundError({
   message: string
 }>) {
   return (
-    <div className="flex flex-col flex-1 p-2 bg-red-100/50 dark:bg-red-900/50">
-      <div className="flex gap-2 items-center p-4">
-        <AlertCircle className="text-red-500 flex-0" size={12} />
+    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
+      <div className="flex items-center gap-2 p-4">
+        <AlertCircle className="flex-0 text-red-500" size={12} />
         <SizableText className="flex-1" color="destructive">
           {message ? message : 'Error'}
         </SizableText>
@@ -1740,12 +1740,12 @@ export function BlockContentFile({block}: BlockContentProps) {
       data-size={getBlockAttribute(block.attributes, 'size')}
       {...hoverProps}
       className={cn(
-        'overflow-hidden p-4 rounded-md border block-content block-file border-muted dark:border-muted',
+        'block-content block-file border-muted dark:border-muted overflow-hidden rounded-md border p-4',
       )}
     >
-      <div className="flex relative flex-1 gap-2 items-center w-full">
+      <div className="relative flex w-full flex-1 items-center gap-2">
         <File size={18} className="flex-0" />
-        <SizableText className="overflow-hidden flex-1 text-sm whitespace-nowrap select-text text-ellipsis">
+        <SizableText className="flex-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
@@ -1762,7 +1762,7 @@ export function BlockContentFile({block}: BlockContentProps) {
           >
             <Button
               variant="brand"
-              className="absolute right-0 top-1/2 -translate-y-1/2"
+              className="absolute top-1/2 right-0 -translate-y-1/2"
               size="sm"
               style={{
                 opacity: hover ? 1 : 0,
@@ -1818,7 +1818,7 @@ export function BlockContentButton({
       data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
-      className="flex flex-col w-full max-w-full select-none block-content block-button"
+      className="block-content block-button flex w-full max-w-full flex-col select-none"
       style={{
         justifyContent: alignment,
       }}
@@ -1830,7 +1830,7 @@ export function BlockContentButton({
         size="lg"
         {...linkProps}
         className={cn(
-          'border-none justify-center select-none border-transparent max-w-full text-center w-auto!',
+          'w-auto! max-w-full justify-center border-none border-transparent text-center select-none',
           alignment === 'center'
             ? 'self-center'
             : alignment === 'flex-end'
@@ -1840,7 +1840,7 @@ export function BlockContentButton({
       >
         <SizableText
           size="lg"
-          className="font-bold text-center text-white truncate"
+          className="truncate text-center font-bold text-white"
         >
           {getBlockAttribute(block.attributes, 'name')}
         </SizableText>
@@ -2018,7 +2018,7 @@ export function BlockContentWebEmbed({
     <div
       {...props}
       className={cn(
-        'overflow-hidden p-4 w-full rounded-md border border-border bg-background',
+        'border-border bg-background w-full overflow-hidden rounded-md border p-4',
         'x-post-container',
         blockStyles,
       )}
@@ -2037,7 +2037,7 @@ export function BlockContentWebEmbed({
       }}
     >
       {loading && (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}
@@ -2100,7 +2100,7 @@ export function BlockContentCode({
       data-content-type="code"
       className={cn(
         blockStyles,
-        `overflow-auto w-full rounded-md border language-${language} border-border bg-background`,
+        `w-full overflow-auto rounded-md border language-${language} border-border bg-background`,
       )}
       style={{
         padding: layoutUnit / 2,
@@ -2229,7 +2229,7 @@ export function BlockContentMath({
       data-content={block.text}
       ref={containerRef}
       className={cn(
-        'gap-2 py-3 w-full rounded-md border block-content block-katex bg-background border-border',
+        'block-content block-katex bg-background border-border w-full gap-2 rounded-md border py-3',
         blockStyles,
         isContentSmallerThanContainer ? 'items-center' : 'items-start',
         isContentSmallerThanContainer ? 'overflow-hidden' : 'overflow-scroll',
@@ -2243,8 +2243,8 @@ export function BlockContentMath({
         ref={mathRef}
         className={cn(
           isContentSmallerThanContainer
-            ? 'justify-center items-center'
-            : 'justify-start items-start',
+            ? 'items-center justify-center'
+            : 'items-start justify-start',
         )}
         dangerouslySetInnerHTML={{__html: tex}}
       />
@@ -2277,7 +2277,7 @@ export function InlineEmbedButton({
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}
       onMouseLeave={() => props.onHoverOut?.(entityId)}
-      className="font-bold hm-link text-primary"
+      className="hm-link text-primary font-bold"
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
       data-blockid={entityId.blockRef}
@@ -2292,7 +2292,7 @@ export function InlineEmbedButton({
 function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex items-center gap-2">
       <RadioGroupItem value={props.value} id={id} size="$1" />
 
       <label className="text-xs" htmlFor={id}>
@@ -2338,7 +2338,7 @@ export function DocumentCardGrid({
     )
   }, [columnCount])
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       {firstItem ? (
         <DocumentCard
           banner
@@ -2349,7 +2349,7 @@ export function DocumentCardGrid({
         />
       ) : null}
       {items?.length ? (
-        <div className="flex flex-wrap justify-center -mx-3 mt-2">
+        <div className="-mx-3 mt-2 flex flex-wrap justify-center">
           {items.map((item) => {
             if (!item) return null
             return (

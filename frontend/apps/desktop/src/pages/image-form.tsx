@@ -53,7 +53,7 @@ export function ImageForm({
   }
 
   const image = url ? (
-    <div className="bg-muted rounded-md flex-1 overflow-hidden">
+    <div className="bg-muted flex-1 overflow-hidden rounded-md">
       <img
         src={url}
         key={url}
@@ -70,9 +70,9 @@ export function ImageForm({
   ) : null
   if (!onImageUpload) return image
   return (
-    <div className="group relative flex items-end group-icon w-auto self-stretch rounded-md overflow-hidden">
+    <div className="group group-icon relative flex w-auto items-end self-stretch overflow-hidden rounded-md">
       <div
-        className="relative overflow-hidden self-stretch w-full"
+        className="relative w-full self-stretch overflow-hidden"
         style={{
           minHeight: height || 60,
         }}
@@ -94,10 +94,10 @@ export function ImageForm({
           }}
         />
         {emptyLabel && !url ? (
-          <div className="bg-muted absolute gap-2 z-50 h-full items-center justify-center pointer-events-none opacity-100">
+          <div className="bg-muted pointer-events-none absolute z-50 h-full items-center justify-center gap-2 opacity-100">
             <SizableText
               size="xs"
-              className="text-center text-muted-foreground"
+              className="text-muted-foreground text-center"
             >
               {emptyLabel}
             </SizableText>
@@ -105,17 +105,17 @@ export function ImageForm({
         ) : null}
 
         {image || (
-          <div className="bg-muted border border-border absolute gap-0 z-50 h-full flex flex-col items-center justify-center pointer-events-none opacity-100 rounded-md w-full">
+          <div className="bg-muted border-border pointer-events-none absolute z-50 flex h-full w-full flex-col items-center justify-center gap-0 rounded-md border opacity-100">
             <SizableText
               size="xs"
               weight="bold"
-              className="text-center text-muted-foreground"
+              className="text-muted-foreground text-center"
             >
               {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
             </SizableText>
             <SizableText
               size="xs"
-              className="text-center text-muted-foreground"
+              className="text-muted-foreground text-center"
             >
               {suggestedSize}
             </SizableText>
@@ -125,7 +125,7 @@ export function ImageForm({
       {onRemove && url ? (
         <Button
           size="icon"
-          className="absolute z-50 right-0 top-0 opacity-0 group-hover:opacity-100 grouo-hover:pointer-events-all"
+          className="grouo-hover:pointer-events-all absolute top-0 right-0 z-50 opacity-0 group-hover:opacity-100"
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()

@@ -47,7 +47,7 @@ export function OptionsPanel({
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
             <SizableText
-              className="select-none px-1 mt-4 flex-1"
+              className="mt-4 flex-1 px-1 select-none"
               size="md"
               weight="semibold"
             >

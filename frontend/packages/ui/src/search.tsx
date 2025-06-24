@@ -80,7 +80,7 @@ export function MobileSearch({
 
   return (
     <div
-      className="p-2 w-full"
+      className="w-full p-2"
       gap="$2"
       padding="$2"
       position="relative"
@@ -113,7 +113,7 @@ export function MobileSearch({
               </Fragment>
             )
           })}
-          <Separator className="bg-gray-400 my-10" />
+          <Separator className="my-10 bg-gray-400" />
         </div>
       ) : null}
     </div>
@@ -178,7 +178,7 @@ export function HeaderSearch({
   }, [focusedIndex, searchItems])
 
   return (
-    <div className="hidden sm:flex flex-col">
+    <div className="hidden flex-col sm:flex">
       <Popover
         {...popoverState}
         onOpenChange={(open) => {
@@ -190,8 +190,8 @@ export function HeaderSearch({
           <TButton size="$2" chromeless icon={<Search className="size-4" />} />
         </Popover.Trigger>
         <Popover.Content asChild>
-          <div className="border border-borded rounded-md bg-white dark:bg-background shadow-md flex flex-col h-[calc(100vh-100px)] max-h-[600px]">
-            <div className="flex items-center gap-2 p-2 self-stretch">
+          <div className="border-borded dark:bg-background flex h-[calc(100vh-100px)] max-h-[600px] flex-col rounded-md border bg-white shadow-md">
+            <div className="flex items-center gap-2 self-stretch p-2">
               <Search className="size-4" />
               <Input
                 value={searchValue}
@@ -241,7 +241,7 @@ export function HeaderSearch({
                 }}
               />
             </div>
-            <div className="flex-1 min-h-0 max-w-2xl w-full">
+            <div className="min-h-0 w-full max-w-2xl flex-1">
               <ScrollArea>
                 <div className="flex flex-col">
                   {searchItems.map((item: SearchResult, index: number) => {
@@ -340,7 +340,7 @@ export function SearchResultItem({
       variant="ghost"
       {...linkProps}
       className={cn(
-        '@container flex items-center justify-start h-auto py-2 hover:bg-brand-12 w-full rounded-none active:bg-brand-11',
+        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-center justify-start rounded-none py-2',
         selected && 'bg-brand-12',
       )}
     >
@@ -354,8 +354,8 @@ export function SearchResultItem({
       ) : item.path?.length === 1 ? (
         <UIAvatar label={item.title} size={20} id={item.key} />
       ) : null}
-      <div className="flex flex-col @md:flex-row flex-1 gap-1 w-full">
-        <SizableText className="text-left font-sans line-clamp-1 truncate w-full">
+      <div className="flex w-full flex-1 flex-col gap-1 @md:flex-row">
+        <SizableText className="line-clamp-1 w-full truncate text-left font-sans">
           {highlightSearchMatch(item.title, item.searchQuery, {
             weight: 'bold',
             size: 'sm',
@@ -363,13 +363,13 @@ export function SearchResultItem({
         </SizableText>
 
         {!!item.path && (unpackHmId(item.key)?.latest || item.versionTime) && (
-          <div className="flex gap-2 items-center overflow-hidden">
+          <div className="flex items-center gap-2 overflow-hidden">
             {!!item.path
               ? [
                   <SizableText
                     size="xs"
                     weight="light"
-                    className="line-clamp-1 text-gray-400 flex-none font-sans"
+                    className="line-clamp-1 flex-none font-sans text-gray-400"
                   >
                     {collapsedPath.join(' / ')}
                   </SizableText>,
@@ -379,7 +379,7 @@ export function SearchResultItem({
 
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
-                className="line-clamp-1 text-gray-400 flex-none"
+                className="line-clamp-1 flex-none text-gray-400"
                 size="xs"
                 weight="light"
                 color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
@@ -479,8 +479,8 @@ export function SearchInput({
   focusedIndex: number
 }>) {
   return (
-    <div className="flex flex-col gap-2 w-full">
-      <div className="flex items-center gap-2 border border-border rounded-md px-2">
+    <div className="flex w-full flex-col gap-2">
+      <div className="border-border flex items-center gap-2 rounded-md border px-2">
         <div className="flex-none">
           <Search className="size-4" />
         </div>

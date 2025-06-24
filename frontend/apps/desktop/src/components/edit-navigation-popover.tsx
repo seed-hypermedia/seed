@@ -43,7 +43,7 @@ export function EditNavPopover({
       <PopoverTrigger className="no-window-drag">
         <Button onPress={() => {}} size="$2" icon={Pencil} opacity={1} />
       </PopoverTrigger>
-      <PopoverContent className="bg-white dark:bg-black max-h-[80vh] overflow-y-auto">
+      <PopoverContent className="max-h-[80vh] overflow-y-auto bg-white dark:bg-black">
         {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}
         <EditNavigation docNav={docNav} onDocNav={editDocNav} homeId={homeId} />
       </PopoverContent>
@@ -217,7 +217,7 @@ function DraggableNavItem({
           popoverState.onOpenChange(!popoverState.open)
         }}
       >
-        <div className="p-1 cursor-grab active:cursor-grabbing rounded-1 hover:bg-color6">
+        <div className="rounded-1 hover:bg-color6 cursor-grab p-1 active:cursor-grabbing">
           <EllipsisVertical size={16} />
         </div>
         <span
@@ -338,7 +338,7 @@ function HMDocURLInput({
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'overflow-hidden p-1 px-3 w-full rounded-sm border-1 border-color8 text-md bg-secondary align-center line-clamp-1 text-clip',
+              'border-color8 text-md bg-secondary align-center line-clamp-1 w-full overflow-hidden rounded-sm border-1 p-1 px-3 text-clip',
               fontClass,
             )}
           >
@@ -392,11 +392,11 @@ function SearchUI({
         .filter(filterPresets) || []
 
   return (
-    <div className="max-h-[50vh] z-50 overflow-y-auto">
-      <div className="relative p-1 border-b-1 border-color8">
+    <div className="z-50 max-h-[50vh] overflow-y-auto">
+      <div className="border-color8 relative border-b-1 p-1">
         <Input
           autoFocus
-          className="p-2 pl-10 w-full rounded-sm"
+          className="w-full rounded-sm p-2 pl-10"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -418,7 +418,7 @@ function SearchUI({
             }
           }}
         />
-        <Icon className="absolute left-3 top-1/2 -translate-y-1/2" size={20} />
+        <Icon className="absolute top-1/2 left-3 -translate-y-1/2" size={20} />
       </div>
       {isLoading && (
         <div className="flex justify-center p-2">
@@ -433,7 +433,7 @@ function SearchUI({
               onValue(e.link, e.label)
               onClose()
             }}
-            className="px-3 py-2 hover:bg-secondary"
+            className="hover:bg-secondary px-3 py-2"
           >
             {e.label}
           </div>

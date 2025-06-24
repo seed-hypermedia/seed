@@ -240,8 +240,8 @@ export function ActivityList({
 
 function ActivitySection({children}: {children: React.ReactNode}) {
   return (
-    <div className="py-6 mb-[100px] gap-4 flex flex-col">
-      <div className="border-b-2 border-brand pb-2 px-2 flex">
+    <div className="mb-[100px] flex flex-col gap-4 py-6">
+      <div className="border-brand flex border-b-2 px-2 pb-2">
         <SizableText size="md" weight="semibold">
           Activity
         </SizableText>

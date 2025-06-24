@@ -28,7 +28,7 @@ export function SiteLogo({
       >
         <a
           {...homeLinkProps}
-          className="flex items-center justify-center h-full"
+          className="flex h-full items-center justify-center"
         >
           <img
             src={imageUrl(metadata.seedExperimentalLogo, 'M')}
@@ -47,7 +47,7 @@ export function SiteLogo({
       <HMIcon size={24} id={id} metadata={metadata} />
       <p
         className={cn(
-          'select-none font-bold text-foreground text-center sm:text-left',
+          'text-foreground text-center font-bold select-none sm:text-left',
         )}
       >
         {metadata?.name}

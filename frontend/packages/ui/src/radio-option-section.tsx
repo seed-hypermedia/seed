@@ -22,12 +22,12 @@ export function RadioOptionSection<Options extends RadioOptions>({
 }) {
   const id = React.useId()
   return (
-    <div className="bg-background border border-border rounded-lg p-4 flex flex-col gap-3">
+    <div className="bg-background border-border flex flex-col gap-3 rounded-lg border p-4">
       <SizableText weight="bold">{title}</SizableText>
       <RadioGroup value={value} onValueChange={onValue}>
         {options.map((option) => {
           return (
-            <div className="flex gap-2 items-center" key={option.value}>
+            <div className="flex items-center gap-2" key={option.value}>
               <RadioGroupItem
                 value={option.value}
                 id={`${id}-${option.value}`}

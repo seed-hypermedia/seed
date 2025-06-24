@@ -45,7 +45,7 @@ export function CommentGroup({
     <div className="relative flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (
         <div
-          className="absolute w-px bg-border"
+          className="bg-border absolute w-px"
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,

@@ -184,7 +184,7 @@ export function HypermediaLinkPreview(
             <SizableText
               size="lg"
               color="brand"
-              className="flex-1 overflow-hidden whitespace-nowrap truncate"
+              className="flex-1 truncate overflow-hidden whitespace-nowrap"
             >
               {!!unpackedRef
                 ? entity.data?.document?.metadata.name ?? props.url

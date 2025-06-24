@@ -45,7 +45,7 @@ export function LinkDropdown({
             />
           )}
         </PopoverTrigger>
-        <PopoverContent className="p-0 overflow-y-scroll max-h-[300px]">
+        <PopoverContent className="max-h-[300px] overflow-y-scroll p-0">
           {/* <span>hello {items.length}</span> */}
           {items.map(
             (item, index) =>

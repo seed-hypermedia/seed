@@ -594,7 +594,7 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
     >
       <SizableText
         size="sm"
-        className="p-0 font-normal flex-1 text-left"
+        className="flex-1 p-0 text-left font-normal"
         color="default"
       >
         {props.title}

@@ -34,7 +34,7 @@ export function TextField({
   id: string
 }) {
   let content = (
-    <div className="flex items-center gap-2 border border-border rounded-sm px-2">
+    <div className="border-border flex items-center gap-2 rounded-sm border px-2">
       {Icon && <Icon className="size-3" size={14} />}
       <Input
         borderWidth={0}
@@ -77,7 +77,7 @@ export function SelectField({
   id: string
 }) {
   let content = (
-    <div className="flex items-center gap-2 border border-border rounded-sm px-2">
+    <div className="border-border flex items-center gap-2 rounded-sm border px-2">
       <SelectDropdown
         width="100%"
         options={options}
@@ -90,7 +90,7 @@ export function SelectField({
 
   if (label) {
     return (
-      <div className="flex justify-between items-center gap-2 w-full">
+      <div className="flex w-full items-center justify-between gap-2">
         <Label htmlFor={id} size="sm" className="text-muted-foreground">
           {label}
         </Label>

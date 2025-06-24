@@ -92,7 +92,7 @@ const display = ({
       >
         <SizableText
           size="md"
-          className="overflow-hidden truncate whitespace-nowrap flex-1"
+          className="flex-1 truncate overflow-hidden whitespace-nowrap"
         >
           {block.props.name}
         </SizableText>

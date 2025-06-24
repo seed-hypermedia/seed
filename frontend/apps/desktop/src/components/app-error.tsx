@@ -34,19 +34,19 @@ export function AppErrorContent({
 }) {
   return (
     <div className={panelContainerStyles}>
-      <div className="flex items-start justify-center flex-1 px-4 py-12">
+      <div className="flex flex-1 items-start justify-center px-4 py-12">
         <div
           role="alertdialog"
-          className="flex flex-col flex-1 w-full max-w-2xl flex-none shadow-lg m-8"
+          className="m-8 flex w-full max-w-2xl flex-1 flex-none flex-col shadow-lg"
         >
-          <div className="bg-red-500 rounded-t px-4 py-2">
-            <h2 className="text-xl text-white font-bold">
+          <div className="rounded-t bg-red-500 px-4 py-2">
+            <h2 className="text-xl font-bold text-white">
               Something went wrong
             </h2>
           </div>
-          <div className="border border-t-0 border-red-400 rounded-b bg-red-100 px-4 py-3  max-h-50 overflow-y-auto gap-4">
+          <div className="max-h-50 gap-4 overflow-y-auto rounded-b border border-t-0 border-red-400 bg-red-100 px-4 py-3">
             <ScrollArea>
-              <pre className="text-red-700 text-sm whitespace-pre-wrap break-all p-4">
+              <pre className="p-4 text-sm break-all whitespace-pre-wrap text-red-700">
                 {message}
               </pre>
             </ScrollArea>

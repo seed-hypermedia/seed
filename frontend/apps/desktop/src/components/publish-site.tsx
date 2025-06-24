@@ -703,7 +703,7 @@ function SeedHostIntro({
   infoIsLoading: boolean
 }) {
   let content = infoIsLoading ? (
-    <div className="flex justify-center items-center">
+    <div className="flex items-center justify-center">
       <Spinner />
     </div>
   ) : null
@@ -786,7 +786,7 @@ function SeedHostLogin({
                 We sent a verification link to {email}. Click on it, and you
                 will be logged in here.
               </SizableText>
-              <div className="flex justify-center items-center">
+              <div className="flex items-center justify-center">
                 <Spinner />
               </div>
             </>
@@ -1246,7 +1246,7 @@ function SeedHostRegisterCustomDomain({
         }
       >
         {pendingStatus}
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       </SeedHostContainer>
@@ -1543,7 +1543,7 @@ function PublishWithUrl({
           <GreenButton icon={UploadCloud}>Publish Site</GreenButton>
         </Form.Trigger>
         {register.isLoading ? (
-          <div className="flex justify-center items-center">
+          <div className="flex items-center justify-center">
             <Spinner />
           </div>
         ) : null}

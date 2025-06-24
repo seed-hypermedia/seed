@@ -71,7 +71,7 @@ function ButtonWrapper(props: any) {
 
 export function WindowsLinuxWindowControls() {
   return (
-    <div className="flex gap-1 pr-3 no-window-drag">
+    <div className="no-window-drag flex gap-1 pr-3">
       <MinimizeButton />
       <MaximizeOrRestoreButton />
       <CloseButton />

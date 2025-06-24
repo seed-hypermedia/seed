@@ -31,7 +31,7 @@ export function UIAvatar({
   return (
     <div
       className={cn(
-        'z-1 relative flex items-center justify-center overflow-hidden',
+        'relative z-1 flex items-center justify-center overflow-hidden',
         onPress && 'cursor-pointer',
         className,
       )}
@@ -46,13 +46,13 @@ export function UIAvatar({
       {url ? (
         <img
           src={url}
-          className="min-w-full min-h-full object-cover bg-[var(--color1)]"
+          className="min-h-full min-w-full bg-[var(--color1)] object-cover"
           alt={label || id || 'Avatar'}
         />
       ) : (
         <SizableText
           weight="semibold"
-          className="block text-center select-none text-black"
+          className="block text-center text-black select-none"
           style={{
             fontSize: size * 0.55,
             width: size / 2,

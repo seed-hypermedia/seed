@@ -154,15 +154,11 @@ export function SmallListItem({
           <SizableText
             size="sm"
             weight={bold ? 'bold' : 'normal'}
-            className={`
-              ${isDraft ? 'flex-none' : 'flex-1'} 
-              ${
-                multiline
-                  ? 'line-clamp-2'
-                  : 'truncate whitespace-nowrap overflow-hidden'
-              } 
-              w-full select-none mobile-menu-item-label
-            `.trim()}
+            className={` ${isDraft ? 'flex-none' : 'flex-1'} ${
+              multiline
+                ? 'line-clamp-2'
+                : 'truncate overflow-hidden whitespace-nowrap'
+            } mobile-menu-item-label w-full select-none`.trim()}
             style={{
               color: typeof color === 'string' ? color : theme.gray12.val,
             }}

@@ -488,7 +488,7 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
         size="md"
         color="muted"
         weight="normal"
-        className="text-center min-h-4"
+        className="min-h-4 text-center"
         style={{opacity: message ? 1 : 0}}
       >
         {message}

@@ -19,7 +19,7 @@ export default function Footer({children}: {children?: ReactNode}) {
       <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
         <SizableText
           size="xs"
-          className="select-none cursor-default text-muted-foreground opacity-50"
+          className="text-muted-foreground cursor-default opacity-50 select-none"
           style={{fontSize: 10}}
         >
           {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
@@ -28,7 +28,7 @@ export default function Footer({children}: {children?: ReactNode}) {
           <SizableText
             size="xs"
             color="muted"
-            className="select-none cursor-default"
+            className="cursor-default select-none"
             style={{fontSize: 10}}
           >
             {getUpdateStatusLabel(updateStatus)}

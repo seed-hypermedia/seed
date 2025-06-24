@@ -44,20 +44,20 @@ export function SubDocumentItem({
   return (
     <Button
       variant={isRead ? 'ghost' : 'outline'}
-      className="items-start h-auto justify-start"
+      className="h-auto items-start justify-start"
       {...linkProps}
     >
       {!hideIcon && (
         <div
-          className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center bg-gray-800 rounded-full p-0.5`}
+          className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
         >
           <Version size={16} color="white" />
         </div>
       )}
-      <div className="flex-1 flex flex-col justify-start">
+      <div className="flex flex-1 flex-col justify-start">
         <SizableText
           weight={isRead ? 'normal' : 'bold'}
-          className="flex-1 truncate whitespace-nowrap overflow-hidden text-left"
+          className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"
         >
           {getMetadataName(metadata)}
         </SizableText>
@@ -130,7 +130,7 @@ export function ActivityTime({
       : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText size="xs" color="muted" className="shrink-0 line-clamp-1">
+      <SizableText size="xs" color="muted" className="line-clamp-1 shrink-0">
         ({formattedDate(displayTime)})
       </SizableText>
     )
@@ -190,11 +190,11 @@ function ExpandChangeGroupButton({
     <Button
       variant="outline"
       onClick={onExpand}
-      className="justify-start items-start relative h-auto items-start w-full"
+      className="relative h-auto w-full items-start justify-start"
       key={item.id}
     >
       <div
-        className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center bg-gray-800 rounded-full p-0.5`}
+        className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
       >
         <Version size={16} color="white" />
       </div>
@@ -205,8 +205,8 @@ function ExpandChangeGroupButton({
         id={author.id}
         metadata={author.metadata}
       />
-      <div className="flex-1 flex flex-col justify-start">
-        <p className="h-[${iconSize}px] overflow-hidden w-full flex items-center justify-start gap-2">
+      <div className="flex flex-1 flex-col justify-start">
+        <p className="h-[${iconSize}px] flex w-full items-center justify-start gap-2 overflow-hidden">
           <SizableText
             size="sm"
             className="shrink truncate overflow-hidden whitespace-nowrap"
@@ -217,7 +217,7 @@ function ExpandChangeGroupButton({
           <SizableText
             size="sm"
             weight="bold"
-            className="shrink-0 flex-1 text-left"
+            className="flex-1 shrink-0 text-left"
           >
             {item.changes.length} versions
           </SizableText>
@@ -225,12 +225,12 @@ function ExpandChangeGroupButton({
         <SizableText
           size="xs"
           color="muted"
-          className="shrink truncate overflow-hidden whitespace-nowrap text-left"
+          className="shrink truncate overflow-hidden text-left whitespace-nowrap"
         >
           {formattedDateMedium(item.changes.at(-1)?.createTime)}
         </SizableText>
       </div>
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <ChevronDown size={16} color="gray" />
       </div>
     </Button>

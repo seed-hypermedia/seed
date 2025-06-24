@@ -98,7 +98,7 @@ export const SlashMenuPositioner = <
     <Tippy
       appendTo={scroller.current ?? document.body}
       content={
-        <div className="max-h-[50vh] overflow-y-auto w-[90vw] sm:max-h-none sm:overflow-visible sm:w-auto">
+        <div className="max-h-[50vh] w-[90vw] overflow-y-auto sm:max-h-none sm:w-auto sm:overflow-visible">
           {slashMenuElement}
         </div>
       }

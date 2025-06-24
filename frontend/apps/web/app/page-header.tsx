@@ -46,7 +46,7 @@ export function PageHeader({
           paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
-        className="bg-white dark:bg-background"
+        className="dark:bg-background bg-white"
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
@@ -60,9 +60,9 @@ export function PageHeader({
           <SizableText size="4xl" weight="bold">
             {docMetadata?.name}
           </SizableText>
-          <div className="flex gap-4 items-center flex-1 flex-wrap">
+          <div className="flex flex-1 flex-wrap items-center gap-4">
             {authors?.length ? (
-              <div className="flex gap-1 items-center flex-wrap max-w-full">
+              <div className="flex max-w-full flex-wrap items-center gap-1">
                 {authors.flatMap((a, index) => [
                   <ButtonText
                     hoverStyle={{
@@ -94,7 +94,7 @@ export function PageHeader({
               </div>
             ) : null}
             {authors?.length ? (
-              <Separator vertical className="self-stretch h-" />
+              <Separator vertical className="h- self-stretch" />
             ) : null}
             {updateTime ? (
               <DocumentDate
@@ -145,7 +145,7 @@ function Breadcrumbs({
             color="muted"
             asChild
             size="xs"
-            className="overflow-hidden truncate whitespace-nowrap max-w-[15ch] no-underline hover:underline"
+            className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
           >
             <a
               key={first.id.id}
@@ -166,7 +166,7 @@ function Breadcrumbs({
             asChild
             size="xs"
             key={crumb.id.id}
-            className="no-underline overflow-hidden hover:underline truncate whitespace-nowrap max-w-[15ch]"
+            className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
           >
             <a
               href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}

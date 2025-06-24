@@ -582,7 +582,7 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <div className="flex gap-2 items-center">
+    <div className="flex items-center gap-2">
       <TitleText fontWeight="bold">{details.name}</TitleText>
       {draft ? <DraftBadge /> : null}
     </div>
@@ -648,7 +648,7 @@ function PathItemCard({
     drafts: drafts.data,
   })
   return (
-    <div className="flex flex-col p-2 rounded-md max-h-[500px] max-w-lg gap-2 overflow-hidden justify-start shadow-md border border-border">
+    <div className="border-border flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden rounded-md border p-2 shadow-md">
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       {directoryItems?.length || canEditDoc ? <Separator /> : null}
       {directoryItems?.length ? (
@@ -699,16 +699,16 @@ function URLCardSection({
   if (!docId) return null
   return (
     <div>
-      <div className="flex items-stretch border rounded-md">
+      <div className="flex items-stretch rounded-md border">
         <TWButton
           size="xs"
-          className="flex-1 text-left justify-start hover:cursor-pointer overflow-hidden border-none"
+          className="flex-1 justify-start overflow-hidden border-none text-left hover:cursor-pointer"
           onClick={() => {
             const url = siteBaseUrlWithProtocol + '/' + path.join('/')
             externalOpen(url)
           }}
         >
-          <span className="text-xs truncate">
+          <span className="truncate text-xs">
             {siteBaseUrl}
 
             {path &&

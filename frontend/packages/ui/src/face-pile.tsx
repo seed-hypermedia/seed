@@ -26,7 +26,7 @@ export function FacePile({
             key={showAccountIds[idx]}
             className={cn(
               `z-${idx + 1}`,
-              'border-2 border-white dark: border-background bg-white dark:bg-background rounded-full overflow-hidden -ml-2',
+              'dark: border-background dark:bg-background -ml-2 overflow-hidden rounded-full border-2 border-white bg-white',
             )}
           >
             <HMIcon
@@ -41,12 +41,12 @@ export function FacePile({
       {accounts.length > 2 ? (
         <XStack
           className={cn(
-            'size-6 border-2 border-white dark: border-background bg-white dark:bg-background rounded-full overflow-hidden -ml-2 flex items-center justify-center z-5',
+            'dark: border-background dark:bg-background z-5 -ml-2 flex size-6 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white',
           )}
         >
           <Text
             size="xs"
-            className="text-gray-400 leading-5 size-6 text-center"
+            className="size-6 text-center leading-5 text-gray-400"
             style={{
               fontSize: '10px',
             }}

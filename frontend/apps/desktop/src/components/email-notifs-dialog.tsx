@@ -21,7 +21,7 @@ export function NotifSettingsDialog({
   const tx = useTx()
   if (isEmailNotificationsLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     ) // todo: make it look better

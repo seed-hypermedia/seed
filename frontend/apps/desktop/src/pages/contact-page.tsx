@@ -67,7 +67,7 @@ export function ContactListPage({
         <Panel defaultSize={30} minSize={20} maxSize={40}>
           <ContactPageSidebar contactId={contactId} />
         </Panel>
-        <PanelResizeHandle className="visible panel-resize-handle" />
+        <PanelResizeHandle className="panel-resize-handle visible" />
         <Panel>
           {contactId ? <ContactPageMain contactId={contactId} /> : null}
         </Panel>
@@ -88,10 +88,10 @@ function Tab({
   return (
     <button
       className={cn(
-        'inline-block dark:text-white p-4 whitespace-nowrap border-b-3 flex-shrink-0',
+        'inline-block flex-shrink-0 border-b-3 p-4 whitespace-nowrap dark:text-white',
         isActive
-          ? 'text-black  font-bold border-primary rounded-none'
-          : 'text-gray-600 hover:text-gray-800 border-transparent rounded-none',
+          ? 'border-primary rounded-none font-bold text-black'
+          : 'rounded-none border-transparent text-gray-600 hover:text-gray-800',
       )}
       onClick={onPress}
       role="tab"
@@ -119,8 +119,8 @@ function ContactPageSidebar({
           )
         })
   return (
-    <div className="flex flex-col items-stretch h-full">
-      <div className="flex flex-shrink-0 px-2 mt-4">
+    <div className="flex h-full flex-col items-stretch">
+      <div className="mt-4 flex flex-shrink-0 px-2">
         <Tab
           label="All Contacts"
           isActive={tab === 'all'}
@@ -132,7 +132,7 @@ function ContactPageSidebar({
           onPress={() => setTab('saved')}
         />
       </div>
-      <div className="flex flex-col items-stretch flex-1 overflow-y-auto">
+      <div className="flex flex-1 flex-col items-stretch overflow-y-auto">
         {displayContacts?.map((account) => {
           if (account.aliasAccount) return null
           return (
@@ -192,7 +192,7 @@ function ContactListItem({
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
           <XStack ai="center" gap="$2">
-            <span className="overflow-hidden truncate whitespace-nowrap">
+            <span className="truncate overflow-hidden whitespace-nowrap">
               {savedContact
                 ? savedContact.name
                 : getMetadataName(account.metadata)}
@@ -233,9 +233,9 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
     }
   }
   return (
-    <div className="h-full overflow-y-auto ">
-      <div className="flex flex-row justify-center flex-1 min-h-full p-4">
-        <div className="flex flex-col items-center w-full max-w-lg gap-3 p-4 mx-auto bg-gray-100 rounded-lg dark:bg-gray-900 py-7">
+    <div className="h-full overflow-y-auto">
+      <div className="flex min-h-full flex-1 flex-row justify-center p-4">
+        <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-3 rounded-lg bg-gray-100 p-4 py-7 dark:bg-gray-900">
           <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
           <Tooltip content={primaryTooltip}>
             <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
@@ -369,7 +369,7 @@ function ContactEdgeNames({
   const buttonIcon = isExpanded ? ChevronDown : ChevronRight
 
   return (
-    <div className="self-stretch p-2 border-2 border-gray-200 rounded-sm dark:border-gray-700">
+    <div className="self-stretch rounded-sm border-2 border-gray-200 p-2 dark:border-gray-700">
       {contact.subjectContacts?.length ? (
         <>
           <XStack jc="center">
@@ -416,7 +416,7 @@ function ContactEdgeNames({
           ) : null}
         </>
       ) : (
-        <span className="text-sm text-center text-gray-500 dark:text-gray-300">
+        <span className="text-center text-sm text-gray-500 dark:text-gray-300">
           No Edge Names
         </span>
       )}
@@ -436,8 +436,8 @@ function AccountContacts({
   )
   const navigate = useNavigate()
   return (
-    <div className="self-stretch p-2 mt-4 bg-green-100 rounded-sm dark:bg-green-900">
-      <h3 className="p-3 font-bold break-words text-l">
+    <div className="mt-4 self-stretch rounded-sm bg-green-100 p-2 dark:bg-green-900">
+      <h3 className="text-l p-3 font-bold break-words">
         {contact.contacts?.length
           ? `${ownerLabel}'s Contacts`
           : `${ownerLabel} has no Contacts`}

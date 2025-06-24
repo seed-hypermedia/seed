@@ -116,11 +116,11 @@ function DocumentPreview({
   if (!doc.data) return null
 
   return (
-    <div className="flex flex-col w-full max-w-xl gap-3 overflow-y-auto rounded-lg max-h-96">
+    <div className="flex max-h-96 w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-lg">
       <SizableText size="2xl" weight="bold" className="px-2">
         {metadata?.name || 'Untitled'}
       </SizableText>
-      <div className="flex-shrink-0 w-full h-px bg-gray-200 dark:bg-gray-800" />
+      <div className="h-px w-full flex-shrink-0 bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
         <BlocksContent
           blocks={doc.data.document?.content}

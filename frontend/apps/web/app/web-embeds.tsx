@@ -141,7 +141,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   )
   if (doc.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -366,7 +366,7 @@ function QueryListStyle({
             <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
               <SizableText
                 weight="bold"
-                className="overflow-hidden whitespace-nowrap text-ellipsis"
+                className="overflow-hidden text-ellipsis whitespace-nowrap"
               >
                 {item.metadata.name}
               </SizableText>

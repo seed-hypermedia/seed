@@ -108,7 +108,7 @@ export default function Settings() {
     <div
       className={cn(
         windowContainerStyles,
-        ' min-h-0 w-full h-full max-h-full overflow-hidden pt-0',
+        'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
       )}
     >
       <div className={cn(panelContainerStyles)}>
@@ -1211,7 +1211,7 @@ function PushOnCopySetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex gap-2 items-center" key={option.value}>
+              <div className="flex items-center gap-2" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
@@ -1310,7 +1310,7 @@ function PushOnPublishSetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex gap-2 items-center" key={option.value}>
+              <div className="flex items-center gap-2" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}

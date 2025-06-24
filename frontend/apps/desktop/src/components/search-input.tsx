@@ -242,7 +242,7 @@ export function SearchInput({
 
   if (actionPromise) {
     content = (
-      <div className="flex justify-center items-center my-4">
+      <div className="my-4 flex items-center justify-center">
         <Spinner />
       </div>
     )

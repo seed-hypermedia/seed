@@ -57,7 +57,7 @@ export function useExportDocuments() {
               <SizableText
                 color="brand"
                 asChild
-                className="underline cursor-pointer"
+                className="cursor-pointer underline"
               >
                 <a
                   onClick={() => {

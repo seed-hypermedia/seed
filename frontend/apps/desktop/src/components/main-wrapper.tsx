@@ -9,10 +9,10 @@ export function MainWrapper({
   ...props
 }: HTMLAttributes<HTMLDivElement> & {scrollable?: boolean}) {
   return (
-    <div {...props} className={`flex flex-1 h-full w-full ${className || ''}`}>
+    <div {...props} className={`flex h-full w-full flex-1 ${className || ''}`}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <div className="flex-1 h-full">
+      <div className="h-full flex-1">
         {scrollable ? (
           <ScrollArea
             id="scroll-page-wrapper"

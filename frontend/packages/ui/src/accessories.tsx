@@ -15,7 +15,7 @@ export function AccessoryBackButton({
     <Button
       variant="ghost"
       size="sm"
-      className={`justify-start px-2 py-0 text-muted-foreground rounded-lg ${
+      className={`text-muted-foreground justify-start rounded-lg px-2 py-0 ${
         className || ''
       }`}
       onClick={onPress}

@@ -17,7 +17,7 @@ export const Container = ({
   return (
     <div
       className={cn(
-        'mx-auto px-4 pt-6 w-full max-w-[80ch] flex-shrink-0 flex flex-col',
+        'mx-auto flex w-full max-w-[80ch] flex-shrink-0 flex-col px-4 pt-6',
         hide && 'pointer-events-none opacity-0',
         clearVerticalSpace && 'py-0',
         className,

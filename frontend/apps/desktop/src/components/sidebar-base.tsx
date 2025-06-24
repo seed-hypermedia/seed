@@ -83,7 +83,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
     <>
       {isFocused && !isLocked && !isWindowTooNarrowForHoverSidebar ? (
         <div
-          className="absolute left-[-20px] rounded-lg bg-gray-100 dark:bg-gray-900 top-0 z-[900] opacity-0 hover:opacity-10 bottom-0"
+          className="absolute top-0 bottom-0 left-[-20px] z-[900] rounded-lg bg-gray-100 opacity-0 hover:opacity-10 dark:bg-gray-900"
           style={{width: HoverRegionWidth + 20}}
           onMouseEnter={ctx.onMenuHoverDelayed}
           onMouseLeave={ctx.onMenuHoverLeave}
@@ -111,10 +111,10 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
       >
         <div
           className={cn(
-            `w-full flex flex-col transition-all duration-200 ease-in-out h-full pl-3 pr-1`,
+            `flex h-full w-full flex-col pr-1 pl-3 transition-all duration-200 ease-in-out`,
             isLocked
               ? 'relative'
-              : 'absolute z-50 shadow-lg border border-border rounded-tr-lg rounded-br-lg bg-background dark:bg-black',
+              : 'border-border bg-background absolute z-50 rounded-tr-lg rounded-br-lg border shadow-lg dark:bg-black',
             isVisible ? 'opacity-100' : 'opacity-0',
           )}
           style={{
@@ -131,7 +131,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         >
           <div
             className={cn(
-              'flex-1 pb-8 overflow-y-auto',
+              'flex-1 overflow-y-auto pb-8',
               isLocked ? '' : 'py-2 pr-1',
             )}
           >
@@ -139,7 +139,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           </div>
           <div
             className={cn(
-              'flex items-end w-full',
+              'flex w-full items-end',
               // isLocked ? '' : 'pb-2 pr-1',
             )}
           >
@@ -182,16 +182,16 @@ function IdentitySelector() {
 
   if (!selectedIdentityValue) {
     return (
-      <div className="flex flex-row items-center justify-between w-full gap-3 p-1 bg-white rounded-sm shadow-sm">
+      <div className="flex w-full flex-row items-center justify-between gap-3 rounded-sm bg-white p-1 shadow-sm">
         <CreateAccountButton />
         <AppSettingsButton />
       </div>
     )
   }
   return (
-    <div className="flex items-center w-full mb-2 hover:bg-white dark:hover:bg-background transition-all duration-200 ease-in-out border border-transparent hover:border-border rounded-md">
+    <div className="dark:hover:bg-background hover:border-border mb-2 flex w-full items-center rounded-md border border-transparent transition-all duration-200 ease-in-out hover:bg-white">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="flex gap-2 py-1 px-1 rounded-md w-full items-center justify-start pr-3 bg-transparent min-w-0">
+        <PopoverTrigger className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3">
           <>
             {/* <Button className="pl-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 bg-blue-500 min-w-0"> */}
             {selectedAccount?.data ? (
@@ -203,7 +203,7 @@ function IdentitySelector() {
               />
             ) : null}
 
-            <p className="text-sm truncate select-none">
+            <p className="truncate text-sm select-none">
               {selectedAccount?.data?.document?.metadata?.name ||
                 `?${selectedIdentityValue.slice(-8)}`}
             </p>
@@ -213,15 +213,15 @@ function IdentitySelector() {
         </PopoverTrigger>
         <PopoverContent
           side="right"
-          className="flex flex-col items-stretch max-h-[500px] h-full gap-2 p-2"
+          className="flex h-full max-h-[500px] flex-col items-stretch gap-2 p-2"
           align="end"
         >
-          <ScrollArea className="flex-1 h-full overflow-y-auto">
+          <ScrollArea className="h-full flex-1 overflow-y-auto">
             {accountOptions.map((option) => (
               <div
                 key={option.id.uid}
                 className={cn(
-                  'flex flex-row items-center gap-4 p-2 rounded-sm hover:bg-accent dark:hover:bg-accent',
+                  'hover:bg-accent dark:hover:bg-accent flex flex-row items-center gap-4 rounded-sm p-2',
                   selectedAccount?.data?.id?.uid === option.id.uid
                     ? 'bg-brand-12 hover:bg-brand-11 dark:bg-brand-1 dark:hover:bg-brand-11'
                     : '',
@@ -267,7 +267,7 @@ function AppSettingsButton() {
     <Tooltip content="App Settings">
       <Button
         size="icon"
-        className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted active:bg-muted shrink-none"
+        className="hover:bg-muted active:bg-muted shrink-none flex h-8 w-8 items-center justify-center rounded-md"
         onClick={(e) => {
           e.preventDefault()
           navigate({key: 'settings'})

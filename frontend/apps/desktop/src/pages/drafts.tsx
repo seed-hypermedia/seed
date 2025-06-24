@@ -156,7 +156,7 @@ export function DraftItem({
           <SizableText
             size="lg"
             weight="bold"
-            className="text-left flex-1 truncate whitespace-nowrap overflow-hidden"
+            className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"
           >
             {getMetadataName(metadata)}
           </SizableText>

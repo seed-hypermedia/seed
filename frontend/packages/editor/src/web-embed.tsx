@@ -210,7 +210,7 @@ const display = ({
         style={{border: 'none', overflow: 'hidden'}}
       ></iframe> */}
       {loading && (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}

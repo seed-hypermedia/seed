@@ -37,7 +37,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         <Links />
         <Styles />
       </head>
-      <body className="min-h-screen font-sans antialiased bg-muted">
+      <body className="bg-muted min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
         <ScrollRestoration />
         <Scripts />
@@ -79,9 +79,9 @@ export function ErrorBoundary({}: {}) {
         <title>Oops! Something went wrong</title>
       </head>
       <body>
-        <div className="h-screen w-screen flex flex-col">
-          <div className="flex-1 justify-center flex items-start py-12 px-4">
-            <div className="flex flex-col gap-4 flex-1 w-full max-w-lg p-6 rounded-lg border border-border flex-0 bg-white dark:bg-background shadow-lg">
+        <div className="flex h-screen w-screen flex-col">
+          <div className="flex flex-1 items-start justify-center px-4 py-12">
+            <div className="border-border dark:bg-background flex w-full max-w-lg flex-0 flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
               <SizableText size="5xl">🤕</SizableText>
               <SizableText size="2xl" weight="bold">
                 Uh oh, it's not you, it's us...

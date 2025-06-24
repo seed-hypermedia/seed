@@ -9,7 +9,7 @@ export function EmptyList({
   action: () => void
 }) {
   return (
-    <div className="flex flex-col gap-5 p-4 w-full max-w-2xl">
+    <div className="flex w-full max-w-2xl flex-col gap-5 p-4">
       <Text size="md">{description}</Text>
       <Button onClick={() => action()}>Create a new Document</Button>
     </div>

@@ -276,7 +276,7 @@ function IndicationTag({
   status: null | 0 | 1 | 2
 }) {
   let statusDot = (
-    <div className="flex justify-center items-center">
+    <div className="flex items-center justify-center">
       <Spinner />
     </div>
   )

@@ -99,7 +99,7 @@ export function SiteHeader({
       ) : null}
       <header
         className={cn(
-          'w-full p-4 border-b border-muted flex bg-white dark:bg-background',
+          'border-muted dark:bg-background flex w-full border-b bg-white p-4',
           {
             'flex-col': isCenterLayout,
             'flex-row items-center': !isCenterLayout,
@@ -109,19 +109,19 @@ export function SiteHeader({
         data-docid={headerHomeId.id}
       >
         <div
-          className={cn(' flex items-center self-stretch shrink-0', {
+          className={cn('flex shrink-0 items-center self-stretch', {
             'justify-center': isCenterLayout,
             'flex-start': !isCenterLayout,
           })}
         >
-          <div className="flex justify-center flex-1">
+          <div className="flex flex-1 justify-center">
             <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
           </div>
           {isCenterLayout ? headerSearch : null}
         </div>
 
         <div
-          className={cn('px-2 flex-1 overflow-hidden', {
+          className={cn('flex-1 overflow-hidden px-2', {
             flex: !isCenterLayout,
           })}
         >
@@ -304,7 +304,7 @@ function HeaderLinkItem({
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
       <a
         className={cn(
-          'truncate select-none font-bold px-1 cursor-pointer transition-colors',
+          'cursor-pointer truncate px-1 font-bold transition-colors select-none',
           active ? 'text-foreground' : 'text-muted-foreground',
           'hover:text-foreground',
         )}
@@ -329,12 +329,12 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'md:hidden bg-background fixed inset-0 z-[800] transition-transform duration-200 h-screen',
+        'bg-background fixed inset-0 z-[800] h-screen transition-transform duration-200 md:hidden',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="sticky top-0 flex flex-col h-screen">
-        <div className="flex items-center justify-end p-4 flex-0">
+      <div className="sticky top-0 flex h-screen flex-col">
+        <div className="flex flex-0 items-center justify-end p-4">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Close size={24} />
           </Button>
@@ -378,10 +378,10 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        'absolute top-12 px-4 left-0 right-0 z-[999] w-full flex justify-center pointer-events-none',
+        'pointer-events-none absolute top-12 right-0 left-0 z-[999] flex w-full justify-center px-4',
       )}
     >
-      <div className="flex items-center max-w-xl gap-4 p-2 border rounded-sm shadow-lg pointer-events-auto bg-background border-border">
+      <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
         <Button
           variant="ghost"
           size="icon"
@@ -389,7 +389,7 @@ function GotoLatestBanner({
         >
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {tx('version_from', ({date}) => `Version from ${date}`, {
             date: formattedDateLong(document.updateTime),
           })}
@@ -551,14 +551,14 @@ export function SiteHeaderMenu({
     <div
       ref={containerRef}
       className={cn(
-        'hidden flex-1 items-center gap-5 w-full p-0 overflow-hidden',
+        'hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
         'md:flex md:p-2',
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
       {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
-      <div className="absolute flex p-0 bg-red-500 items-center gap-5 opacity-0 pointer-events-none md:flex md:p-2">
+      <div className="pointer-events-none absolute flex items-center gap-5 bg-red-500 p-0 opacity-0 md:flex md:p-2">
         {items?.map((item) => {
           return (
             <div

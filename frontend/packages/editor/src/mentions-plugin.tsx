@@ -83,7 +83,7 @@ export function createInlineEmbedNode(bnEditor: any) {
 function InlineEmbedNodeComponent(props: any) {
   return (
     <NodeViewWrapper
-      className={`inline-embed-token${props.selected ? ' selected' : ''}`}
+      className={`inline-embed-token${props.selected ? 'selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
     >
       <MentionToken value={props.node.attrs.link} selected={props.selected} />
@@ -125,7 +125,7 @@ export function MentionText(props: any) {
     <SizableText
       weight="bold"
       color="brand"
-      className="mention-text inline-block pb-0.5 px-0.5 hover:border-b hover:border-brand"
+      className="mention-text hover:border-brand inline-block px-0.5 pb-0.5 hover:border-b"
       style={{
         fontSize: 'inherit',
         fontFamily: 'inherit',

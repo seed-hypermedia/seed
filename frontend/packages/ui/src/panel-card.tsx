@@ -27,7 +27,7 @@ export function PanelCard({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg m-4 p-4 gap-2 flex flex-col cursor-pointer transition-colors duration-200 hover:bg-muted',
+        'hover:bg-muted m-4 flex cursor-pointer flex-col gap-2 overflow-hidden rounded-lg p-4 transition-colors duration-200',
         active ? 'bg-muted' : 'bg-transparent',
         shorter ? 'py-1' : 'py-4',
       )}
@@ -42,7 +42,7 @@ export function PanelCard({
           left: (avatarSize - 2) / 2
         }}
       /> */}
-      <div className="flex gap-2 items-center">
+      <div className="flex items-center gap-2">
         {avatar}
         {author && (
           <SizableText size="sm">{author.profile?.alias || '...'}</SizableText>
@@ -54,11 +54,11 @@ export function PanelCard({
           </SizableText>
         )}
       </div>
-      <div className="flex flex-col gap-2 flex-1">
+      <div className="flex flex-1 flex-col gap-2">
         {title && (
           <SizableText
             weight="semibold"
-            className="truncate whitespace-nowrap overflow-hidden"
+            className="truncate overflow-hidden whitespace-nowrap"
           >
             {title}
           </SizableText>

@@ -122,7 +122,7 @@ export function AllDiscussions({
             <div
               key={cg.id}
               className={cn(
-                'px-3 border-b border-border',
+                'border-border border-b px-3',
                 commentGroups.length - 1 > idx && 'mb-4',
               )}
             >

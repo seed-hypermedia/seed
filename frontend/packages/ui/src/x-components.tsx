@@ -9,7 +9,7 @@ export const XPostNotFound = (error: any) => {
     : ''
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full">
+    <div className="flex h-full w-full flex-col items-center justify-center">
       <SizableText size="xl" color="destructive">
         Error fetching the X Post
       </SizableText>
@@ -22,16 +22,16 @@ export const XPostNotFound = (error: any) => {
 
 export const XPostSkeleton = () => {
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full gap-2">
-      <div className="w-20 h-20 bg-gray-500 rounded-full" />
-      <div className="h-15 bg-gray-500 rounded-lg" style={{width: '98%'}} />
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+      <div className="h-20 w-20 rounded-full bg-gray-500" />
+      <div className="h-15 rounded-lg bg-gray-500" style={{width: '98%'}} />
       <Separator className="my-2" />
       <div
-        className="h-15 ml-2 bg-gray-500 rounded-lg"
+        className="ml-2 h-15 rounded-lg bg-gray-500"
         style={{width: '98%'}}
       />
       <Separator className="my-2" />
-      <div className="h-15 bg-gray-500 rounded-lg" style={{width: '98%'}} />
+      <div className="h-15 rounded-lg bg-gray-500" style={{width: '98%'}} />
     </div>
   )
 }

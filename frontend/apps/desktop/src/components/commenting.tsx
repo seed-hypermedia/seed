@@ -314,7 +314,7 @@ function _CommentDraftEditor({
         flexDirection={isHorizontal ? 'row' : 'column'}
         ai={isHorizontal ? 'center' : undefined}
       >
-        <div className="flex items-center flex-1">
+        <div className="flex flex-1 items-center">
           <AutosaveIndicator isSaved={isSaved} />
         </div>
         <div className="flex gap-2">

@@ -226,7 +226,7 @@ function DonateForm({
     return (
       <YStack ai="center" gap="$4">
         <Heading>Creating Invoice</Heading>
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       </YStack>

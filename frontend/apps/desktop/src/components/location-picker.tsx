@@ -119,7 +119,7 @@ export function LocationPicker({
               />
             </XStack>
           </XStack>
-          <ScrollArea className="h-40 border border-border rounded-md">
+          <ScrollArea className="border-border h-40 rounded-md border">
             <YStack>
               {directory?.map((d, index) => {
                 return (
