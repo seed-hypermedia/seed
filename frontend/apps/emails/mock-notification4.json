@@ -227,7 +227,8 @@
           "targetDocUid": null,
           "targetDocPath": null
         },
-        "url": "http://localhost:3000/hm/z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ/testing-section-reordering"
+        "url": "http://localhost:3000/hm/z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ/testing-section-reordering",
+        "isNewDocument": false
       }
     }
   ]
