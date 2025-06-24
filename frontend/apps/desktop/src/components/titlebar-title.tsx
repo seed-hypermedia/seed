@@ -23,6 +23,8 @@ import {
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
+import {Button as TWButton} from '@shm/ui/button'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {HoverCard} from '@shm/ui/hover-card'
 import {
@@ -36,6 +38,7 @@ import {
   X,
 } from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
@@ -45,7 +48,6 @@ import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {
   Button,
-  ButtonText,
   FontSizeTokens,
   Popover,
   Text,
@@ -380,7 +382,6 @@ function BreadcrumbTitle({
                 docId={entityId}
                 isBlockFocused={false} // TODO: learn why isBlockFocused is needed
                 latest={isLatest}
-                size="$2"
               />
               {onPublishSite ? (
                 <DocOptionsButton onPublishSite={onPublishSite} />
@@ -647,35 +648,36 @@ function PathItemCard({
     drafts: drafts.data,
   })
   return (
-    <YStack
-      maxWidth={600}
-      maxHeight="calc(100vh - 100px)"
-      overflow="scroll"
-      padding="$2"
-    >
+    <div className="flex flex-col p-2 rounded-md max-h-[500px] max-w-lg gap-2 overflow-hidden justify-start shadow-md border border-border">
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
-      <YStack paddingVertical="$2" gap="$3">
-        <YStack gap="$1">
-          {directoryItems?.map((item) => {
-            return (
-              <DocumentSmallListItem
-                key={item.id?.path?.join('/') || item.id?.id || item.draftId}
-                metadata={item.metadata}
-                id={item.id}
-                onPress={() => {}}
-                draftId={item.draftId}
-                isPublished={item.isPublished}
-              />
-            )
-          })}
-        </YStack>
-      </YStack>
-      {canEditDoc ? (
-        <XStack gap="$2" ai="center" paddingHorizontal="$2">
-          <NewSubDocumentButton locationId={docId} importDropdown={false} />
-        </XStack>
+      {directoryItems?.length || canEditDoc ? <Separator /> : null}
+      {directoryItems?.length ? (
+        <>
+          <ScrollArea className="flex-1 overflow-y-auto py-0">
+            {/* <YStack gap="$1"> */}
+            {directoryItems?.map((item) => {
+              return (
+                <DocumentSmallListItem
+                  key={item.id?.path?.join('/') || item.id?.id || item.draftId}
+                  metadata={item.metadata}
+                  id={item.id}
+                  onPress={() => {}}
+                  draftId={item.draftId}
+                  isPublished={item.isPublished}
+                />
+              )
+            })}
+            {/* </YStack> */}
+          </ScrollArea>
+        </>
       ) : null}
-    </YStack>
+
+      {canEditDoc ? (
+        <div className="flex justify-start">
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -694,46 +696,36 @@ function URLCardSection({
   const siteBaseUrl = hostnameStripProtocol(siteBaseUrlWithProtocol)
   const {externalOpen} = useAppContext()
   const path = docId?.path || []
-  const isHome = !path.length
   if (!docId) return null
   return (
-    <YStack padding="$2" borderBottomWidth={1} borderColor="$borderColor">
-      <XStack ai="center" gap="$2">
-        <ButtonText
-          cursor="pointer"
-          onPress={() => {
+    <div>
+      <div className="flex items-stretch border rounded-md">
+        <TWButton
+          size="xs"
+          className="flex-1 text-left justify-start hover:cursor-pointer overflow-hidden border-none"
+          onClick={() => {
             const url = siteBaseUrlWithProtocol + '/' + path.join('/')
             externalOpen(url)
           }}
-          group="item"
         >
-          <Text
-            color={isHome ? '$brand5' : '$color8'}
-            $group-item-hover={{color: '$blue9'}}
-            numberOfLines={1}
-          >
+          <span className="text-xs truncate">
             {siteBaseUrl}
-          </Text>
-          {path &&
-            path.map((p, index) => (
-              <Text
-                key={`${p}-${index}`}
-                color={index === path.length - 1 ? '$brand5' : '$color8'}
-                $group-item-hover={{color: '$blue9'}}
-              >
-                {`/${p}`}
-              </Text>
-            ))}
-        </ButtonText>
+
+            {path &&
+              path.map((p, index) => (
+                <span key={`${p}-${index}`}>{`/${p}`}</span>
+              ))}
+          </span>
+        </TWButton>
+
         <CopyReferenceButton
           docId={docId}
           isBlockFocused={false}
-          latest={true}
-          size="$2"
+          latest
           copyIcon={Copy}
         />
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 

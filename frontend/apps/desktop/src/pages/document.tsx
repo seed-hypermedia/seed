@@ -44,6 +44,7 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
+import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -449,9 +450,10 @@ export function NewSubDocumentButton({
   return (
     <>
       <Tooltip content="Create a new document">
-        <Button icon={Plus} color="$brand5" onPress={createDraft} size="$2">
+        <TWButton variant="outline" onClick={createDraft} size="xs">
+          <Plus className="size-4" />
           Create
-        </Button>
+        </TWButton>
       </Tooltip>
       {importDropdown && (
         <ImportDropdownButton

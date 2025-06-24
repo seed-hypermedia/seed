@@ -11,12 +11,11 @@ import {
   ExpandedBlockRange,
   hmId,
 } from '@shm/shared/utils/entity-id-url'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Link} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useState} from 'react'
-import {ButtonProps} from 'tamagui'
 
 export function useDocumentUrl({
   docId,
@@ -92,6 +91,7 @@ export function CopyReferenceButton({
   openIcon = ExternalLink,
   iconPosition = 'before',
   showIconOnHover = false,
+
   ...props
 }: PropsWithChildren<
   ButtonProps & {
@@ -112,12 +112,13 @@ export function CopyReferenceButton({
   const CurrentIcon = shouldOpen ? openIcon : copyIcon
   const icon = (
     <CurrentIcon
-      size={14}
-      color="$color12"
-      opacity={shouldOpen ? 1 : showIconOnHover ? 0 : 1}
-      // $group-item-hover={{opacity: 1, color: '$'}}
+      className="size-3"
+      style={{
+        opacity: shouldOpen ? 1 : showIconOnHover ? 0 : 1,
+      }}
     />
   )
+
   return (
     <>
       <Tooltip
@@ -128,19 +129,14 @@ export function CopyReferenceButton({
         }
       >
         <Button
-          flexShrink={0}
-          flexGrow={0}
-          onHoverOut={() => {
+          size="icon"
+          variant="ghost"
+          onMouseLeave={() => {
             setShouldOpen(false)
           }}
           aria-label={`${shouldOpen ? 'Open' : 'Copy'} ${reference.label} Link`}
-          chromeless
-          size="$2"
-          group="item"
           className="no-window-drag"
-          bg="$colorTransparent"
-          borderColor="$colorTransparent"
-          onPress={(e) => {
+          onClick={(e) => {
             e.stopPropagation()
             e.preventDefault()
             if (shouldOpen) {
@@ -155,11 +151,6 @@ export function CopyReferenceButton({
               reference.onCopy()
             }
           }}
-          hoverStyle={{
-            backgroundColor: '$color3',
-            borderColor: '$colorTransparent',
-            ...props.hoverStyle,
-          }}
           {...props}
         >
           {iconPosition == 'before' ? icon : null}
@@ -167,6 +158,7 @@ export function CopyReferenceButton({
           {iconPosition == 'after' ? icon : null}
         </Button>
       </Tooltip>
+
       {reference.content}
     </>
   )

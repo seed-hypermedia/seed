@@ -392,7 +392,7 @@ function SearchUI({
         .filter(filterPresets) || []
 
   return (
-    <div className="max-h-[50vh] z-[9999] overflow-y-auto">
+    <div className="max-h-[50vh] z-50 overflow-y-auto">
       <div className="relative p-1 border-b-1 border-color8">
         <Input
           autoFocus
