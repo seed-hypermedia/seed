@@ -187,12 +187,12 @@ export function HeaderSearch({
         placement="bottom-end"
       >
         <Popover.Trigger asChild>
-          <TButton size="$2" chromeless icon={Search} />
+          <TButton size="$2" chromeless icon={<Search className="size-4" />} />
         </Popover.Trigger>
         <Popover.Content asChild>
           <div className="border border-borded rounded-md bg-white dark:bg-background shadow-md flex flex-col h-[calc(100vh-100px)] max-h-[600px]">
             <div className="flex items-center gap-2 p-2 self-stretch">
-              <Search size="$1" margin="$2" />
+              <Search className="size-4" />
               <Input
                 value={searchValue}
                 size="$3"
@@ -333,13 +333,12 @@ export function SearchResultItem({
           id: unpackedId,
         }
       : null,
-    {...originHomeId, onPress: onSelect},
+    {...originHomeId, onPress: onSelect, handler: 'onClick'},
   )
   return (
     <Button
       variant="ghost"
-      // {...linkProps}
-      onClick={item.onSelect}
+      {...linkProps}
       className={cn(
         '@container flex items-center justify-start h-auto py-2 hover:bg-brand-12 w-full rounded-none active:bg-brand-11',
         selected && 'bg-brand-12',
@@ -483,7 +482,7 @@ export function SearchInput({
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center gap-2 border border-border rounded-md px-2">
         <div className="flex-none">
-          <Search size={16} />
+          <Search className="size-4" />
         </div>
 
         <Input
