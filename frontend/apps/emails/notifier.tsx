@@ -282,6 +282,7 @@ export type Notification =
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      isNewDocument: boolean
     }
 
 export type FullNotification = {

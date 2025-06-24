@@ -1,4 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   Comment,
@@ -153,7 +154,6 @@ async function handleEventsForEmailNotifications(
     mentions: Set<string>
   }[] = []
   for (const event of events) {
-    console.log(event)
     if (event.data.case === 'newBlob') {
       const blob = event.data.value
       try {
@@ -161,6 +161,23 @@ async function handleEventsForEmailNotifications(
           try {
             const unpacked = unpackHmId(blob.resource)
             if (!unpacked?.uid) continue
+
+            const refData = await loadRefFromIpfs(blob.cid)
+            // console.log('REF DATA ~~~~~\n', refData)
+
+            const changeCid = refData.heads?.[0]?.toString()
+
+            const changeData = await queryClient.documents.getDocumentChange({
+              id: changeCid,
+            })
+
+            // console.log(
+            //   'CHANGE REQUEST~~~~~\n',
+            //   JSON.stringify(changeData, null, 2),
+            // )
+
+            const isNewDocument =
+              Array.isArray(changeData.deps) && changeData.deps.length === 0
 
             const changedDoc = await loadDocument(unpacked)
             const targetMeta = changedDoc?.metadata ?? {}
@@ -175,11 +192,11 @@ async function handleEventsForEmailNotifications(
               if (!notifyOwnedDocChange) continue
 
               // Skip if the user made their own change
-              // if (blob.author === accountId) continue
+              if (blob.author === accountId) continue
 
+              // Skip if the user is not an owner of a document
               const isOwner = changedDoc?.authors?.[accountId]
-              console.log('IS OWNER???', isOwner)
-              if (isOwner) continue
+              if (!isOwner) continue
 
               const authorMeta = (await getMetadata(hmId('d', blob.author)))
                 .metadata
@@ -191,6 +208,7 @@ async function handleEventsForEmailNotifications(
                 targetMeta,
                 targetId: unpacked,
                 url: docUrl,
+                isNewDocument: isNewDocument,
               })
             }
           } catch (e) {
@@ -429,4 +447,10 @@ async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
   }
 
   return resolvedNames
+}
+
+async function loadRefFromIpfs(cid: string): Promise<any> {
+  const url = `http://localhost:58001/ipfs/${cid}` // adjust if needed
+  const buffer = await fetch(url).then((res) => res.arrayBuffer())
+  return cborDecode(new Uint8Array(buffer))
 }

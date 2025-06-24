@@ -110,6 +110,7 @@ export function EmailContent({notification}: {notification: Notification}) {
         ) : notification.type === 'change' ? (
           renderChange({
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
+            isNewDocument: notification.isNewDocument,
           })
         ) : (
           <MjmlColumn width="100%" verticalAlign="middle">
@@ -168,13 +169,21 @@ export function renderMention({
   )
 }
 
-function renderChange({targetDocName}: {targetDocName: string}) {
+function renderChange({
+  targetDocName,
+  isNewDocument,
+}: {
+  targetDocName: string
+  isNewDocument: boolean
+}) {
   return (
     <>
       <MjmlSection padding="0" textAlign="left">
         <MjmlColumn>
           <MjmlText fontSize="16px" padding="12px 25px">
-            has made a new change to document:
+            {isNewDocument
+              ? 'has created a new document:'
+              : 'has made a new change to document:'}
           </MjmlText>
           <MjmlText fontSize="14px">
             <span
