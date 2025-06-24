@@ -27,8 +27,16 @@ export function WebSiteHeader(
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
-
-  const navigationBlockNode = props.document?.detachedBlocks?.navigation
+  const homeDocument =
+    props.document?.path === ''
+      ? props.document
+      : props.supportDocuments?.find(
+          (doc) =>
+            props.docId?.uid &&
+            doc.id.uid === props.docId?.uid &&
+            !doc.id.path?.length,
+        )?.document
+  const navigationBlockNode = homeDocument?.detachedBlocks?.navigation
   const items: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
         ?.map((child) => {
