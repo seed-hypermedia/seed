@@ -1,3 +1,5 @@
+import {getRequestPrefersLanguages} from './request-language'
+
 export function parseRequest(request: Request) {
   const url = new URL(request.url)
   const forwardedHost = request.headers.get('x-forwarded-host')
@@ -10,10 +12,7 @@ export function parseRequest(request: Request) {
   if (pathParts.at(-1) === '') {
     pathParts = pathParts.slice(0, -1)
   }
-  const acceptLangHeader = request.headers.get('Accept-Language')
-  const acceptLangsFirstTerm = acceptLangHeader?.split(';')[0]
-  const prefersLanguages = acceptLangsFirstTerm?.split(',') || []
-
+  const prefersLanguages = getRequestPrefersLanguages(request.headers)
   return {
     hostname,
     origin: `${protocol}//${hostname}${url.port ? `:${url.port}` : ''}`,

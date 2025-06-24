@@ -6,6 +6,7 @@ import {
   formattedDateLong,
   formattedDateMedium,
   formattedDateShort,
+  pluralS,
 } from '../utils'
 
 // // Use require to avoid ESM import issues
@@ -13,6 +14,13 @@ import {
 // const es = esLocale.es
 
 const Translations = {
+  Close: 'Cerrar',
+  version_count: (args: {count: number}) =>
+    `${args.count} ${pluralS(args.count, 'versión', 'versiones')}`,
+  comment_count: (args: {count: number}) =>
+    `${args.count} ${pluralS(args.count, 'comentario', 'comentarios')}`,
+  citation_count: (args: {count: number}) =>
+    `${args.count} ${pluralS(args.count, 'cita', 'citas')}`,
   Activity: 'Actividad',
   Discussions: 'Discusiones',
   'Start a Comment': 'Inicia un debate',
@@ -86,6 +94,17 @@ const Translations = {
     `Crear ${args.siteName} cuenta`,
   publish_comment_as: (args: {name: string | undefined}) =>
     args.name ? `Publicar comentario de ${args.name}` : 'Publicar comentario',
+  looking_for_document: 'Buscando un documento...',
+  hang_tight_searching:
+    'Espera un momento, estamos buscando el documento en la red.',
+  doc_will_appear:
+    'Si el documento está disponible, aparecerá pronto. Gracias por tu paciencia!',
+  'Document Not Found': 'Documento no encontrado',
+  oops_document_not_found: `Oops! El documento que buscas no parece existir. Puede que haya sido movido, eliminado o el enlace sea incorrecto.`,
+  please_double_check_url: `Por favor, verifica la URL o regresa al panel de control para encontrar lo que buscas. Si necesitas ayuda, no dudes en contactar a soporte.`,
+
+  // I can't figure out how to get the error page translated...
+  // "Uh oh, it's not you, it's us...": 'Uh oh, no es tu culpa, es nuestra...',
 }
 
 const Spanish: LanguagePack = {

@@ -47,8 +47,8 @@ import {
 } from 'react-resizable-panels'
 import {Sheet} from 'tamagui'
 import {WebCommenting} from './client-lazy'
-import {WebDiscussionsPanel} from './comment-panel'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
+import {WebDiscussionsPanel} from './discussions-panel'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
@@ -195,6 +195,22 @@ const DEFAULT_MAIN_PANEL_SIZE = 65
 export function DocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
+  const {siteHost, origin, prefersLanguages} = props
+  return (
+    <WebSiteProvider
+      origin={origin}
+      originHomeId={props.originHomeId}
+      siteHost={siteHost}
+      prefersLanguages={supportedLanguages(prefersLanguages)}
+    >
+      <InnerDocumentPage {...props} />
+    </WebSiteProvider>
+  )
+}
+
+function InnerDocumentPage(
+  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+) {
   const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
@@ -216,7 +232,6 @@ export function DocumentPage(
     origin,
     comment,
     isLatest,
-    prefersLanguages,
   } = props
 
   useEffect(() => {
@@ -456,7 +471,6 @@ export function DocumentPage(
 
     panelTitle = tx('Discussions')
   }
-
   if (activityEnabled && activePanel?.type == 'versions') {
     panel = <WebVersionsPanel docId={id} />
     panelTitle = tx('Versions')
@@ -494,247 +508,237 @@ export function DocumentPage(
     )
 
   return (
-    <WebSiteProvider
-      origin={origin}
-      originHomeId={props.originHomeId}
-      siteHost={siteHost}
-      prefersLanguages={supportedLanguages(prefersLanguages)}
+    <DiscussionsProvider
+      onReplyClick={onReplyClick}
+      onReplyCountClick={onReplyCountClick}
     >
-      <DiscussionsProvider
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
-      >
-        <div className={windowContainerStyles}>
-          <div className={panelContainerStyles}>
-            <WebSiteHeader
-              noScroll={!!panel}
-              homeMetadata={homeMetadata}
-              originHomeId={originHomeId}
-              docId={id}
-              document={document}
-              supportDocuments={supportDocuments}
-              supportQueries={supportQueries}
-              origin={origin}
-              isLatest={isLatest}
-            />
-            <PanelGroup
-              direction="horizontal"
-              autoSaveId="web-document"
-              className="flex overflow-hidden flex-1 bg-white dark:bg-background"
+      <div className={windowContainerStyles}>
+        <div className={panelContainerStyles}>
+          <WebSiteHeader
+            noScroll={!!panel}
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            docId={id}
+            document={document}
+            supportDocuments={supportDocuments}
+            supportQueries={supportQueries}
+            origin={origin}
+            isLatest={isLatest}
+          />
+          <PanelGroup
+            direction="horizontal"
+            autoSaveId="web-document"
+            className="flex overflow-hidden flex-1 bg-white dark:bg-background"
+          >
+            <Panel
+              ref={mainPanelRef}
+              collapsible
+              id="main-panel"
+              className="h-full"
             >
-              <Panel
-                ref={mainPanelRef}
-                collapsible
-                id="main-panel"
-                className="h-full"
-              >
-                <div className="flex relative flex-col h-full" ref={elementRef}>
-                  {media.gtSm ? (
-                    <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-background shadow-md rounded-md">
-                      {!activePanel &&
-                      activityEnabled &&
-                      interactionSummary.data ? (
-                        <>{activitySummary}</>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="flex overflow-y-auto flex-col flex-1 min-h-full">
-                    <DocumentCover cover={document.metadata.cover} id={id} />
-
-                    <div
-                      className={cn('flex flex-1', wrapperProps.className)}
-                      style={wrapperProps.style}
-                    >
-                      {showSidebars ? (
-                        <div
-                          className={cn(
-                            sidebarProps.className,
-                            'hide-scrollbar overflow-y-scroll pb-6',
-                          )}
-                          style={{
-                            ...sidebarProps.style,
-                            marginTop: document.metadata?.cover ? 152 : 220,
-                          }}
-                        >
-                          <div className="overflow-scroll pb-6 h-full hide-scrollbar">
-                            <WebDocumentOutline
-                              showCollapsed={showCollapsed}
-                              supportDocuments={props.supportDocuments}
-                              onActivateBlock={onActivateBlock}
-                              id={id}
-                              document={document}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                      <div {...mainContentProps}>
-                        {isHomeDoc ? null : (
-                          <PageHeader
-                            originHomeId={originHomeId}
-                            breadcrumbs={props.breadcrumbs}
-                            docMetadata={document.metadata}
-                            docId={id}
-                            authors={document.authors.map(
-                              (author) => accountsMetadata[author],
-                            )}
-                            updateTime={document.updateTime}
-                          />
-                        )}
-                        <WebDocContentProvider
-                          onBlockCitationClick={
-                            activityEnabled ? onBlockCitationClick : undefined
-                          }
-                          onBlockCommentClick={
-                            activityEnabled ? onBlockCommentClick : undefined
-                          }
-                          originHomeId={originHomeId}
-                          id={{...id, version: document.version}}
-                          siteHost={siteHost}
-                          supportDocuments={supportDocuments}
-                          supportQueries={supportQueries}
-                          blockCitations={interactionSummary.data?.blocks}
-                          routeParams={{
-                            uid: id.uid,
-                            version: id.version || undefined,
-                            blockRef: blockRef,
-                            blockRange: blockRange,
-                          }}
-                        >
-                          <DocContent
-                            document={document}
-                            handleBlockReplace={() => {
-                              // Replace the URL to not include fragment.
-                              replace(
-                                window.location.pathname +
-                                  window.location.search,
-                                {
-                                  replace: true,
-                                  preventScrollReset: true,
-                                },
-                              )
-                              return true
-                            }}
-                          />
-                        </WebDocContentProvider>
-                      </div>
-                      {showSidebars ? (
-                        <div
-                          className={cn(sidebarProps.className)}
-                          style={sidebarProps.style}
-                        />
-                      ) : null}
-                    </div>
-
-                    <PageFooter enableWebSigning={enableWebSigning} id={id} />
+              <div className="flex relative flex-col h-full" ref={elementRef}>
+                {media.gtSm ? (
+                  <div className="absolute top-2 right-2 z-[999] bg-white dark:bg-background shadow-md rounded-md">
+                    {!activePanel &&
+                    activityEnabled &&
+                    interactionSummary.data ? (
+                      <>{activitySummary}</>
+                    ) : null}
                   </div>
-                </div>
-              </Panel>
-              {!media.gtSm ? null : panel ? (
-                <>
-                  <PanelResizeHandle className="panel-resize-handle" />
-                  <Panel
-                    defaultSize={
-                      media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
-                    }
-                    maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
-                    minSize={media.gtSm ? 20 : 100}
-                    className="flex flex-col flex-1 h-full border-l border-sidebar-border"
+                ) : null}
+                <div className="flex overflow-y-auto flex-col flex-1 min-h-full">
+                  <DocumentCover cover={document.metadata.cover} id={id} />
+
+                  <div
+                    className={cn('flex flex-1', wrapperProps.className)}
+                    style={wrapperProps.style}
                   >
-                    <div className="flex justify-center items-center px-3 py-2 shrink-0">
-                      <div className="flex flex-1 justify-center items-center">
-                        {activitySummary}
+                    {showSidebars ? (
+                      <div
+                        className={cn(
+                          sidebarProps.className,
+                          'hide-scrollbar overflow-y-scroll pb-6',
+                        )}
+                        style={{
+                          ...sidebarProps.style,
+                          marginTop: document.metadata?.cover ? 152 : 220,
+                        }}
+                      >
+                        <div className="overflow-scroll pb-6 h-full hide-scrollbar">
+                          <WebDocumentOutline
+                            showCollapsed={showCollapsed}
+                            supportDocuments={props.supportDocuments}
+                            onActivateBlock={onActivateBlock}
+                            id={id}
+                            document={document}
+                          />
+                        </div>
                       </div>
-                      <Tooltip content={tx('Close')}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="flex-none"
-                          onClick={() => {
-                            setActivePanel(null)
+                    ) : null}
+                    <div {...mainContentProps}>
+                      {isHomeDoc ? null : (
+                        <PageHeader
+                          originHomeId={originHomeId}
+                          breadcrumbs={props.breadcrumbs}
+                          docMetadata={document.metadata}
+                          docId={id}
+                          authors={document.authors.map(
+                            (author) => accountsMetadata[author],
+                          )}
+                          updateTime={document.updateTime}
+                        />
+                      )}
+                      <WebDocContentProvider
+                        onBlockCitationClick={
+                          activityEnabled ? onBlockCitationClick : undefined
+                        }
+                        onBlockCommentClick={
+                          activityEnabled ? onBlockCommentClick : undefined
+                        }
+                        originHomeId={originHomeId}
+                        id={{...id, version: document.version}}
+                        siteHost={siteHost}
+                        supportDocuments={supportDocuments}
+                        supportQueries={supportQueries}
+                        blockCitations={interactionSummary.data?.blocks}
+                        routeParams={{
+                          uid: id.uid,
+                          version: id.version || undefined,
+                          blockRef: blockRef,
+                          blockRange: blockRange,
+                        }}
+                      >
+                        <DocContent
+                          document={document}
+                          handleBlockReplace={() => {
+                            // Replace the URL to not include fragment.
+                            replace(
+                              window.location.pathname + window.location.search,
+                              {
+                                replace: true,
+                                preventScrollReset: true,
+                              },
+                            )
+                            return true
                           }}
-                        >
-                          <X className="size-4" />
-                        </Button>
-                      </Tooltip>
+                        />
+                      </WebDocContentProvider>
                     </div>
-                    <div className="flex items-center p-3 bg-white border-b dark:bg-background border-border">
-                      <Text weight="bold" size="md">
-                        {panelTitle}
-                      </Text>
-                    </div>
-                    <div className="overflow-hidden flex-1">
-                      <ScrollArea>{panel}</ScrollArea>
-                    </div>
+                    {showSidebars ? (
+                      <div
+                        className={cn(sidebarProps.className)}
+                        style={sidebarProps.style}
+                      />
+                    ) : null}
+                  </div>
 
-                    <div className="p-2 border-t border-sidebar-border shrink-0">
-                      {commentEditor}
-                    </div>
-                  </Panel>
-                </>
-              ) : null}
-            </PanelGroup>
-          </div>
-          {media.gtSm || !activityEnabled ? null : (
-            <>
-              <MobileInteractionCardCollapsed
-                onClick={() => {
-                  // if (!panel) {
-                  setActivePanel({type: 'discussions', blockId: undefined})
-                  // }
-                  setIsSheetOpen(true)
-                }}
-                interactionSummary={
-                  interactionSummary.data ? <>{activitySummary}</> : null
-                }
-              />
-              <Sheet
-                snapPoints={[92]}
-                onOpenChange={(val: boolean) => {
-                  setIsSheetOpen(val)
-                  if (!val) {
-                    setActivePanel(null)
-                  }
-                }}
-                modal
-                open={isSheetOpen}
-                dismissOnSnapToBottom
-                zIndex={99999}
-              >
-                <Sheet.Overlay
-                  height="100vh"
-                  bg={'#00000088'}
-                  width="100vw"
-                  animation="fast"
-                  opacity={0.8}
-                  enterStyle={{opacity: 0}}
-                  exitStyle={{opacity: 0}}
-                />
-                <Sheet.Handle />
-                <Sheet.Frame
-                  bg={isDark ? '$background' : '$backgroundStrong'}
-                  borderColor="$borderColor"
-                  borderWidth={1}
-                  borderRadius="$4"
+                  <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                </div>
+              </div>
+            </Panel>
+            {!media.gtSm ? null : panel ? (
+              <>
+                <PanelResizeHandle className="panel-resize-handle" />
+                <Panel
+                  defaultSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                  minSize={media.gtSm ? 20 : 100}
+                  className="flex flex-col flex-1 h-full border-l border-sidebar-border"
                 >
-                  <div className="p-2 pb-0 flex items-center justify-center">
-                    {activitySummary}
+                  <div className="flex justify-center items-center px-3 py-2 shrink-0">
+                    <div className="flex flex-1 justify-center items-center">
+                      {activitySummary}
+                    </div>
+                    <Tooltip content={tx('Close')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="flex-none"
+                        onClick={() => {
+                          setActivePanel(null)
+                        }}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </Tooltip>
                   </div>
-                  <div className="px-5 py-3 border-b border-border">
-                    <Text weight="semibold">{panelTitle}</Text>
+                  <div className="flex items-center p-3 bg-white border-b dark:bg-background border-border">
+                    <Text weight="bold" size="md">
+                      {panelTitle}
+                    </Text>
                   </div>
-                  <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
-                    {panel}
-                  </Sheet.ScrollView>
-                  <div className="p-2 border-t border-sidebar-border">
+                  <div className="overflow-hidden flex-1">
+                    <ScrollArea>{panel}</ScrollArea>
+                  </div>
+
+                  <div className="p-2 border-t border-sidebar-border shrink-0">
                     {commentEditor}
                   </div>
-                </Sheet.Frame>
-              </Sheet>
-            </>
-          )}
+                </Panel>
+              </>
+            ) : null}
+          </PanelGroup>
         </div>
-      </DiscussionsProvider>
-    </WebSiteProvider>
+        {media.gtSm || !activityEnabled ? null : (
+          <>
+            <MobileInteractionCardCollapsed
+              onClick={() => {
+                // if (!panel) {
+                setActivePanel({type: 'discussions', blockId: undefined})
+                // }
+                setIsSheetOpen(true)
+              }}
+              interactionSummary={
+                interactionSummary.data ? <>{activitySummary}</> : null
+              }
+            />
+            <Sheet
+              snapPoints={[92]}
+              onOpenChange={(val: boolean) => {
+                setIsSheetOpen(val)
+                if (!val) {
+                  setActivePanel(null)
+                }
+              }}
+              modal
+              open={isSheetOpen}
+              dismissOnSnapToBottom
+              zIndex={99999}
+            >
+              <Sheet.Overlay
+                height="100vh"
+                bg={'#00000088'}
+                width="100vw"
+                animation="fast"
+                opacity={0.8}
+                enterStyle={{opacity: 0}}
+                exitStyle={{opacity: 0}}
+              />
+              <Sheet.Handle />
+              <Sheet.Frame
+                bg={isDark ? '$background' : '$backgroundStrong'}
+                borderColor="$borderColor"
+                borderWidth={1}
+                borderRadius="$4"
+              >
+                <div className="flex justify-center items-center p-2 pb-0">
+                  {activitySummary}
+                </div>
+                <div className="px-5 py-3 border-b border-border">
+                  <Text weight="semibold">{panelTitle}</Text>
+                </div>
+                <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
+                  {panel}
+                </Sheet.ScrollView>
+                <div className="p-2 border-t border-sidebar-border">
+                  {commentEditor}
+                </div>
+              </Sheet.Frame>
+            </Sheet>
+          </>
+        )}
+      </div>
+    </DiscussionsProvider>
   )
 }
 
@@ -819,20 +823,29 @@ function DocumentDiscoveryPage({
       window.location.reload()
     })
   }, [id])
+  const tx = useTx()
   return (
     <div className="flex flex-col w-screen h-screen">
       <div className="flex flex-1 justify-center items-start px-4 py-12">
         <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border flex-0 dark:bg-background">
-          <h2 className="text-2xl font-bold">Looking for a document...</h2>
+          <h2 className="text-2xl font-bold">
+            {tx('looking_for_document', 'Looking for a document...')}
+          </h2>
 
           <p>
-            Hang tight! We're currently searching the network to locate your
+            {tx(
+              'hang_tight_searching',
+              `Hang tight! We're currently searching the network to locate your
             document. This may take a moment as we retrieve the most up-to-date
-            version.
+            version.`,
+            )}
           </p>
           <p>
-            If the document is available, it will appear shortly. Thank you for
-            your patience!
+            {tx(
+              'doc_will_appear',
+              `If the document is available, it will appear shortly. Thank you for
+            your patience!`,
+            )}
           </p>
         </div>
       </div>
@@ -889,11 +902,18 @@ function _DocInteractionsSummary({
   onVersionOpen?: () => void
   activePanel: WebAccessory | null
 }) {
+  const tx = useTxString()
   return (
     <div className="flex">
       {onCitationsOpen && (
         <InteractionSummaryItem
-          label="citation"
+          label={tx(
+            'citation_count',
+            ({count}) => `${count} ${pluralS(count, 'citation')}`,
+            {
+              count: citations || 0,
+            },
+          )}
           active={activePanel?.type === 'citations'}
           count={citations || 0}
           onClick={() => {
@@ -906,7 +926,13 @@ function _DocInteractionsSummary({
 
       {onCommentsOpen && (
         <InteractionSummaryItem
-          label="comment"
+          label={tx(
+            'comment_count',
+            ({count}) => `${count} ${pluralS(count, 'comment')}`,
+            {
+              count: comments || 0,
+            },
+          )}
           active={activePanel?.type === 'discussions'}
           count={comments || 0}
           onClick={onCommentsOpen}
@@ -917,7 +943,13 @@ function _DocInteractionsSummary({
 
       {onVersionOpen && changes && (
         <InteractionSummaryItem
-          label="version"
+          label={tx(
+            'version_count',
+            ({count}) => `${count} ${pluralS(count, 'version')}`,
+            {
+              count: changes || 0,
+            },
+          )}
           active={activePanel?.type === 'versions'}
           count={changes || 0}
           onClick={onVersionOpen}
@@ -943,7 +975,7 @@ function InteractionSummaryItem({
   active: boolean
 }) {
   return (
-    <Tooltip content={`${count} ${pluralS(count, label)}`}>
+    <Tooltip content={label}>
       <Button
         onClick={onClick}
         variant="ghost"
