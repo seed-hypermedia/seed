@@ -11,6 +11,7 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useEntityCitations, useSortedCitations} from '@/models/citations'
+import {useAllDocumentComments} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
@@ -273,7 +274,7 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex overflow-hidden flex-col flex-1">
         <ScrollArea ref={elementRef}>
           <DocumentCover docId={id} />
 
@@ -322,15 +323,17 @@ const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
 
 function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
-  const {docCitations, commentCitations} = useSortedCitations(docId)
+  const {docCitations} = useSortedCitations(docId)
   const changes = useDocumentChanges(docId)
+  const comments = useAllDocumentComments(docId)
+
   const route = useNavRoute()
   const docRoute = route.key === 'document' ? route : null
   const replace = useNavigate('replace')
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="absolute z-50 flex gap-1 px-3 py-2 bg-white rounded-md shadow-md top-2 right-2 dark:bg-background">
+    <div className="flex absolute top-2 right-2 z-50 gap-1 px-3 py-2 bg-white rounded-md shadow-md dark:bg-background">
       <InteractionSummaryItem
         label="citation"
         count={docCitations.length || 0}
@@ -343,7 +346,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
       <Separator />
       <InteractionSummaryItem
         label="comment"
-        count={commentCitations.length || 0}
+        count={comments.data?.length || 0}
         onPress={() => {
           replace({...docRoute, accessory: {key: 'discussions'}})
         }}
@@ -522,7 +525,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <div className="flex flex-wrap items-center max-w-full gap-1">
+                    <div className="flex flex-wrap gap-1 items-center max-w-full">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -633,10 +636,10 @@ function DocMessageBox({
 }) {
   return (
     <div className={cn(panelContainerStyles)}>
-      <div className="mx-auto py-10 px-8">
-        <div className="flex flex-col flex-1 w-full max-w-lg gap-4 p-6 border rounded-lg shadow-lg border-border flex-none bg-background dark:bg-black">
+      <div className="px-8 py-10 mx-auto">
+        <div className="flex flex-col flex-1 flex-none gap-4 p-6 w-full max-w-lg rounded-lg border shadow-lg border-border bg-background dark:bg-black">
           {spinner ? (
-            <div className="flex items-center justify-start">
+            <div className="flex justify-start items-center">
               <Spinner className="size-6 fill-blue-500" />
             </div>
           ) : null}
