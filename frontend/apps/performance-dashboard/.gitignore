@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 electron-perf-data
 web-perf-data
+
+public/results
