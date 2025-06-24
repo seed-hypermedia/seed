@@ -107,7 +107,8 @@ ${docNotifs
 
 Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
-  console.log(JSON.stringify(notifications[0], null, 2))
+  // console.log(JSON.stringify(notifications[0], null, 2))
+  console.log(notifications[0])
 
   const {html: emailHtml} = renderReactToMjml(
     <Mjml>

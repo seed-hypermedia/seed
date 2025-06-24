@@ -3,6 +3,7 @@ import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   Comment,
+  DAEMON_HTTP_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   entityQueryPathToHmIdPath,
   Event,
@@ -15,6 +16,7 @@ import {
   SITE_BASE_URL,
   unpackHmId,
 } from '@shm/shared'
+// import {CID} from 'multiformats/cid'
 import {queryClient} from './client'
 import {
   getAllEmails,
@@ -166,6 +168,8 @@ async function handleEventsForEmailNotifications(
             // console.log('REF DATA ~~~~~\n', refData)
 
             const changeCid = refData.heads?.[0]?.toString()
+
+            // console.log(CID.parse(refData.heads?.[0]))
 
             const changeData = await queryClient.documents.getDocumentChange({
               id: changeCid,
@@ -450,7 +454,7 @@ async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
 }
 
 async function loadRefFromIpfs(cid: string): Promise<any> {
-  const url = `http://localhost:58001/ipfs/${cid}` // adjust if needed
+  const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
   const buffer = await fetch(url).then((res) => res.arrayBuffer())
   return cborDecode(new Uint8Array(buffer))
 }

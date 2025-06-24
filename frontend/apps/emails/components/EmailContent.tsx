@@ -106,6 +106,7 @@ export function EmailContent({notification}: {notification: Notification}) {
           renderMention({
             blocks: notification.comment.content,
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
+            resolvedNames: notification.resolvedNames,
           })
         ) : notification.type === 'change' ? (
           renderChange({
@@ -125,9 +126,11 @@ export function EmailContent({notification}: {notification: Notification}) {
 export function renderMention({
   blocks,
   targetDocName,
+  resolvedNames,
 }: {
   blocks: HMBlockNode[]
   targetDocName: string
+  resolvedNames?: Record<string, string>
 }) {
   return (
     <>
@@ -143,7 +146,7 @@ export function renderMention({
       {/* Comment block with green border on the left */}
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(blocks, '')}
+          {renderBlocks(blocks, '', resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
 
@@ -203,21 +206,33 @@ function renderChange({
   )
 }
 
-function renderBlocks(blocks: HMBlockNode[], notifUrl: string) {
+function renderBlocks(
+  blocks: HMBlockNode[],
+  notifUrl: string,
+  resolvedNames?: Record<string, string>,
+) {
   return blocks.map((blockNode, index) => (
     <React.Fragment key={index}>
-      {renderBlock(blockNode, notifUrl)}
+      {renderBlock(blockNode, notifUrl, resolvedNames)}
       {blockNode.children?.length
-        ? renderBlocks(blockNode.children, notifUrl)
+        ? renderBlocks(blockNode.children, notifUrl, resolvedNames)
         : null}
     </React.Fragment>
   ))
 }
 
-function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
+function renderBlock(
+  blockNode: HMBlockNode,
+  notifUrl: string,
+  resolvedNames?: Record<string, string>,
+) {
   const {type, text, annotations, link, attributes} = blockNode.block
 
-  const innerHtml = renderInlineTextWithAnnotations(text, annotations)
+  const innerHtml = renderInlineTextWithAnnotations(
+    text,
+    annotations,
+    resolvedNames,
+  )
 
   if (type === 'Paragraph') {
     return (
@@ -354,7 +369,11 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string) {
   return null
 }
 
-function renderInlineTextWithAnnotations(text: string, annotations: any[]) {
+function renderInlineTextWithAnnotations(
+  text: string,
+  annotations: any[],
+  resolvedNames?: Record<string, string>,
+) {
   if (!annotations.length) return text
 
   let result = []
@@ -380,7 +399,8 @@ function renderInlineTextWithAnnotations(text: string, annotations: any[]) {
     } else if (annotation.type === 'Link') {
       annotatedText = `<a href="${annotation.link}" style="color: #346DB7;">${annotatedText}</a>`
     } else if (annotation.type === 'Embed') {
-      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${annotation.link}</a>`
+      const resolved = resolvedNames?.[annotation.link] || annotation.link
+      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${resolved}</a>`
     }
 
     result.push(annotatedText)
