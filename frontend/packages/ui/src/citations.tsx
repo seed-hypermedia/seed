@@ -10,6 +10,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
 import {Button} from './button'
 import {HoverCard} from './hover-card'
+import {cn} from './utils'
 
 export function DocumentCitationEntry({
   citation,
@@ -55,11 +56,14 @@ function DocumentCitationToken({
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
   const className =
-    'text-sm bg-accent px-2 py-1 rounded whitespace-wrap break-all hover:bg-gray-200 active:bg-gray-300 dark:bg-gray-800 hover:dark:bg-gray-700'
+    'text-sm bg-secondary border border-brand-11 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all hover:bg-brand-11 active:bg-brand-10'
   if (DocPreview) {
     return (
       <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
-        <a {...linkProps} className={className}>
+        <a
+          {...linkProps}
+          className={cn(className, 'text-secondary-foreground')}
+        >
           {metadata?.name}
         </a>
       </HoverCard>

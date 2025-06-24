@@ -40,6 +40,8 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
   if (docIsInMyAccount) {
     return null
   }
+
+  console.log('subscription.subscription', subscription.subscription)
   return (
     <>
       <Popover {...popoverState} placement="bottom-end">
@@ -104,7 +106,12 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           enterStyle={{y: -10, opacity: 0}}
           exitStyle={{y: -10, opacity: 0}}
         >
-          <YStack maxWidth={300} overflow="hidden" borderRadius="$4">
+          <YStack
+            maxWidth={300}
+            overflow="hidden"
+            borderRadius="$4"
+            className="shadow-md"
+          >
             {subscription.parentSubscription ? (
               <ParentSubscription sub={subscription.parentSubscription} />
             ) : (

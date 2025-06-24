@@ -433,6 +433,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
       depth={props.depth}
       onHoverIn={props.onHoverIn}
       onHoverOut={props.onHoverOut}
+      style={props.style}
     >
       {getContactMetadata(props.uid, document?.metadata, contacts.data).name ||
         '?'}

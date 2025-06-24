@@ -13,6 +13,7 @@ export function Tooltip({
   content: string
   side?: React.ComponentProps<typeof TooltipContent>['side']
 }) {
+  if (!content) return children
   return (
     <TooltipPrimitive.Root data-slot="tooltip" {...props} delayDuration={delay}>
       <TooltipTrigger asChild>

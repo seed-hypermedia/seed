@@ -24,7 +24,6 @@ import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
-import {YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {renderCommentContent} from './commenting'
 
@@ -72,7 +71,7 @@ export function CitationsPanel({
   const accounts = useContactsMetadata(Array.from(accountsToLoad))
   return (
     <AccessoryContent>
-      <YStack gap="$3">
+      <div>
         {accessory.openBlockId ? (
           <AccessoryBackButton
             label="All Citations"
@@ -94,7 +93,7 @@ export function CitationsPanel({
             />
           )
         })}
-      </YStack>
+      </div>
     </AccessoryContent>
   )
 }

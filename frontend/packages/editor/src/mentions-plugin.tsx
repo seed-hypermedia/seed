@@ -127,7 +127,7 @@ export function MentionText(props: any) {
       color="brand"
       className="mention-text inline-block pb-0.5 px-0.5 hover:border-b hover:border-brand"
       style={{
-        fontSize: '1em',
+        fontSize: 'inherit',
         fontFamily: 'inherit',
       }}
     >

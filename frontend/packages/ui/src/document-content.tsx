@@ -49,7 +49,6 @@ import {
   File,
   Link,
   MessageSquare,
-  MoreHorizontal,
   Undo2,
 } from 'lucide-react'
 import React, {
@@ -705,32 +704,6 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
-        {!hideCollapseButtons && bnChildren && !_expanded ? (
-          <Tooltip
-            content={tx(
-              'block_is_collapsed',
-              'This block is collapsed. you can expand it and see its children',
-            )}
-          >
-            <Button
-              size="icon"
-              variant="ghost"
-              className="select-none opacity-0 hover:opacity-100 rounded-sm"
-              style={{
-                padding: layoutUnit / 4,
-                marginHorozontal: layoutUnit / 4,
-                opacity: hover ? 1 : 0,
-              }}
-              userSelect="none"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleBlockNodeToggle()
-              }}
-            >
-              <MoreHorizontal className="size-3" />
-            </Button>
-          </Tooltip>
-        ) : null}
         <div
           className={cn(
             'absolute z-10 top-2 right-0 sm:right-[-44px] pl-4 gap-2 flex flex-col',
@@ -1220,7 +1193,7 @@ function InlineContentView({
     if (linkType === 'basic')
       return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
     if (linkType === 'hypermedia')
-      return 'text-brand-5 hover:text-brand-4 dark:text-brand-5 dark:hover:text-brand-6'
+      return 'text-primary hover:text-brand-4 dark:text-primary dark:hover:text-brand-6'
     return ''
   }
 
@@ -1246,8 +1219,8 @@ function InlineContentView({
   ): React.CSSProperties => {
     const decorations: string[] = []
 
-    if (linkType || styles.underline) decorations.push('underline')
-    if (styles.strike) decorations.push('line-through')
+    if (linkType || styles?.underline) decorations.push('underline')
+    if (styles?.strike) decorations.push('line-through')
 
     return decorations.length > 0
       ? {
@@ -1263,12 +1236,26 @@ function InlineContentView({
         const inlineContentOffset = contentOffset
         contentOffset += getInlineContentOffset(content)
 
+        const textDecorationStyle = buildTextDecorationStyle(
+          content.styles,
+          linkType,
+        )
+        // Make code text smaller
+        const actualFontSize =
+          fSize === null ? null : content.styles?.code ? fSize * 0.85 : fSize
+
+        const dynamicStyles: React.CSSProperties = {
+          lineHeight: 1.5,
+          ...textDecorationStyle,
+        }
+
+        if (actualFontSize !== null) {
+          dynamicStyles.fontSize = actualFontSize
+        }
+
         if (content.type === 'text') {
           const styleClasses = buildStyleClasses(content.styles)
-          const textDecorationStyle = buildTextDecorationStyle(
-            content.styles,
-            linkType,
-          )
+
           const linkColorClass = getLinkColor(linkType)
 
           // Handle line breaks - only split if it's the last item and has multiple lines
@@ -1280,19 +1267,6 @@ function InlineContentView({
                 {i < arr.length - 1 && <br />}
               </React.Fragment>
             ))
-          }
-
-          // Make code text smaller
-          const actualFontSize =
-            fSize === null ? null : content.styles.code ? fSize * 0.85 : fSize
-
-          const dynamicStyles: React.CSSProperties = {
-            lineHeight: 1.5,
-            ...textDecorationStyle,
-          }
-
-          if (actualFontSize !== null) {
-            dynamicStyles.fontSize = actualFontSize
           }
 
           return (
@@ -1351,6 +1325,7 @@ function InlineContentView({
               key={content.link}
               comment={comment}
               {...unpackedRef}
+              style={dynamicStyles}
             />
           )
         }
@@ -2286,10 +2261,12 @@ function getSourceType(name?: string) {
 export function InlineEmbedButton({
   children,
   entityId,
+  style,
   ...props
 }: BlockContentProps & {
   children: string
   entityId: UnpackedHypermediaId
+  style?: React.CSSProperties
 }) {
   const buttonProps = useRouteLink({key: 'document', id: entityId})
   return (
@@ -2297,11 +2274,12 @@ export function InlineEmbedButton({
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}
       onMouseLeave={() => props.onHoverOut?.(entityId)}
-      className="hm-link text-brand-5 font-bold"
+      className="hm-link text-primary font-bold"
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
       data-blockid={entityId.blockRef}
       data-docid={entityId.blockRef ? undefined : entityId.id}
+      style={style}
     >
       {children}
     </a>

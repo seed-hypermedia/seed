@@ -15,7 +15,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {MessageSquareOff} from 'lucide-react'
 import {memo, useEffect, useMemo, useState} from 'react'
-import {View} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -160,11 +159,7 @@ function CommentBlockAccessory({
   }
   return (
     <AccessoryContent
-      footer={
-        <View padding="$3">
-          <CommentBox docId={docId} quotingBlockId={blockId} />
-        </View>
-      }
+      footer={<CommentBox docId={docId} quotingBlockId={blockId} />}
     >
       <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
       <AppDocContentProvider docId={docId}>
@@ -197,13 +192,11 @@ function CommentReplyAccessory({
   return (
     <AccessoryContent
       footer={
-        <View padding="$3">
-          <CommentBox
-            docId={docId}
-            autoFocus={isReplying}
-            replyCommentId={commentId}
-          />
-        </View>
+        <CommentBox
+          docId={docId}
+          autoFocus={isReplying}
+          replyCommentId={commentId}
+        />
       }
     >
       <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />

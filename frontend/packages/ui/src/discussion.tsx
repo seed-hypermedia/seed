@@ -9,17 +9,12 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useTx, useTxString, useTxUtils} from '@shm/shared/translation'
+import {useTx, useTxUtils} from '@shm/shared/translation'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronsDown,
-  ChevronsUp,
-} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {ReactNode, useEffect, useMemo, useRef, useState} from 'react'
+import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
@@ -293,8 +288,6 @@ export function Comment({
   )
 }
 
-const BLOCK_DEFAULT_HEIGHT = 180
-
 export function QuotedDocBlock({
   docId,
   blockId,
@@ -304,25 +297,10 @@ export function QuotedDocBlock({
   blockId: string
   doc: HMDocument
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [canExpand, setCanExpand] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
   const blockContent = useMemo(() => {
     if (!doc.content) return null
     return getBlockNodeById(doc.content, blockId)
   }, [doc.content, blockId])
-
-  useEffect(() => {
-    setExpanded(false)
-    setCanExpand(true)
-    if (contentRef.current) {
-      const height = contentRef.current?.getBoundingClientRect?.().height
-
-      setCanExpand(height > BLOCK_DEFAULT_HEIGHT)
-    }
-  }, [contentRef.current, blockId])
-
-  const tx = useTxString()
 
   return (
     <YStack bg="$brand12" borderRadius="$2">
@@ -332,14 +310,11 @@ export function QuotedDocBlock({
         gap="$1"
         position="relative"
         animation="fast"
-        className={canExpand && !expanded ? `bottom-gradient` : undefined}
-        maxHeight={canExpand ? (expanded ? 'none' : 220) : 'none'}
-        overflow="hidden"
       >
         <XStack flexShrink={0} paddingVertical="$1.5">
           <BlockQuote size={23} />
         </XStack>
-        <YStack f={1} ref={contentRef}>
+        <YStack f={1}>
           {blockContent && (
             <BlocksContent
               blocks={[blockContent]}
@@ -349,18 +324,6 @@ export function QuotedDocBlock({
           )}
         </YStack>
       </XStack>
-      {canExpand && (
-        <Tooltip content={expanded ? tx('Collapse') : tx('Expand')}>
-          <Button
-            flexShrink={0}
-            size="$2"
-            onPress={() => setExpanded(!expanded)}
-            chromeless
-            hoverStyle={{bg: '$brand11'}}
-            icon={expanded ? ChevronsUp : ChevronsDown}
-          />
-        </Tooltip>
-      )}
     </YStack>
   )
 }

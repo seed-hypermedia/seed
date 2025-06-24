@@ -508,7 +508,7 @@ function BreadcrumbEllipsis({
 
 function BreadcrumbSeparator() {
   return (
-    <TitleText size="$4" color="$color10">
+    <TitleText size="$4" color="$color10" className="font-thin">
       {' / '}
     </TitleText>
   )
@@ -582,10 +582,10 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <XStack ai="center" gap="$1">
+    <div className="flex gap-2 items-center">
       <TitleText fontWeight="bold">{details.name}</TitleText>
       {draft ? <DraftBadge /> : null}
-    </XStack>
+    </div>
   ) : (
     <TitleTextButton
       ref={observerRef}

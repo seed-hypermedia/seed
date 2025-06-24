@@ -189,9 +189,9 @@ function IdentitySelector() {
     )
   }
   return (
-    <div className="flex items-center w-full mb-2">
+    <div className="flex items-center w-full mb-2 hover:bg-white dark:hover:bg-background transition-all duration-200 ease-in-out border border-transparent hover:border-border rounded-md">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="flex gap-2 py-1 px-2 pl-1 -ml-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 active:bg-gray-300 min-w-0">
+        <PopoverTrigger className="flex gap-2 py-1 px-1 rounded-md w-full items-center justify-start pr-3 bg-transparent min-w-0">
           <>
             {/* <Button className="pl-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 bg-blue-500 min-w-0"> */}
             {selectedAccount?.data ? (
@@ -267,7 +267,7 @@ function AppSettingsButton() {
     <Tooltip content="App Settings">
       <Button
         size="icon"
-        className="flex items-center justify-center w-8 h-8 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-800 shrink-none"
+        className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-muted active:bg-muted shrink-none"
         onClick={(e) => {
           e.preventDefault()
           navigate({key: 'settings'})

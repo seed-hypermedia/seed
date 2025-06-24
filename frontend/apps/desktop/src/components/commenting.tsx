@@ -23,7 +23,6 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
@@ -166,7 +165,7 @@ function _CommentBox({
   } else {
     content = (
       <Button
-        paddingVertical={19}
+        paddingVertical={16}
         paddingHorizontal={18}
         f={1}
         textAlign="left"
@@ -176,7 +175,6 @@ function _CommentBox({
         chromeless
         color="$color8"
         fontSize={17}
-        bg={backgroundColor}
         hoverStyle={{bg: backgroundColor}}
         focusStyle={{bg: backgroundColor, borderWidth: 0}}
         borderWidth={0}
@@ -192,7 +190,9 @@ function _CommentBox({
           setIsStartingComment(true)
         }}
       >
-        {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
+        <span className="text-sm font-thin italic">
+          {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
+        </span>
       </Button>
     )
   }
@@ -203,7 +203,7 @@ function _CommentBox({
       // borderColor="$color8"
       minHeight={105}
       onPress={onPress}
-      bg={backgroundColor}
+      // bg={backgroundColor}
     >
       {content}
     </YStack>
@@ -245,7 +245,7 @@ function _CommentDraftEditor({
   const sizeObserverdRef = useSizeObserver((rect) => {
     setIsHorizontal(rect.width > 322)
   })
-  const isDark = useIsDark()
+
   const {editor, onSubmit, onDiscard, isSaved, account} = useCommentEditor(
     docId,
     {
@@ -275,7 +275,6 @@ function _CommentDraftEditor({
       ref={sizeObserverdRef}
       f={1}
       marginTop="$1"
-      bg={isDark ? '$background' : '$backgroundStrong'}
       paddingHorizontal="$4"
       onPress={(e: GestureResponderEvent) => {
         // @ts-expect-error fix this type in the future!
@@ -298,13 +297,14 @@ function _CommentDraftEditor({
           return true
         }
       }}
-      gap="$4"
-      paddingBottom="$2"
+      // paddingBottom="$2"
       className="comment-editor"
     >
-      <AppDocContentProvider comment>
-        <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
-      </AppDocContentProvider>
+      <div className="flex-1">
+        <AppDocContentProvider comment>
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
+        </AppDocContentProvider>
+      </div>
       <View
         alignSelf="flex-end"
         maxWidth={320}
@@ -313,14 +313,11 @@ function _CommentDraftEditor({
         f={1}
         flexDirection={isHorizontal ? 'row' : 'column'}
         ai={isHorizontal ? 'center' : undefined}
-        // paddingVertical="$2"
-        // marginHorizontal="$4"
-        // marginTop="$6"
       >
-        <XStack gap="$2" f={1}>
+        <div className="flex items-center flex-1">
           <AutosaveIndicator isSaved={isSaved} />
-        </XStack>
-        <XStack gap="$2">
+        </div>
+        <div className="flex gap-2">
           <Tooltip
             content={`Publish Comment as "${account?.document?.metadata.name}"`}
           >
@@ -356,7 +353,7 @@ function _CommentDraftEditor({
               icon={Trash}
             />
           </Tooltip>
-        </XStack>
+        </div>
       </View>
     </YStack>
   )

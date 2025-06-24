@@ -74,4 +74,5 @@ export type BlockContentProps = {
   depth: number
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
+  style?: React.CSSProperties
 }

@@ -398,7 +398,7 @@ function QuerySettings({
       <YStack
         className="query-settings"
         position="absolute"
-        zIndex={popoverState.open ? 99999 : '$zIndex.2'}
+        zIndex={popoverState.open ? 999 : '$zIndex.2'}
         // pointerEvents={popoverState.open ? 'none' : undefined}
         onPress={
           popoverState.open
