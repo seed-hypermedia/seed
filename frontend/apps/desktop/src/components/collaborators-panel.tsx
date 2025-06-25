@@ -70,7 +70,7 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
           />
         }
         onPress={() => {
-          navigate({key: 'document', id: hmId('d', id.uid)})
+          navigate({key: 'document', id: hmId(id.uid)})
         }}
       >
         <XStack f={1} ai="center" gap="$2">
