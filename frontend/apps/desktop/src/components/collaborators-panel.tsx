@@ -62,7 +62,7 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
           />
         }
         onPress={() => {
-          navigate({key: 'document', id: hmId('d', id.uid)})
+          navigate({key: 'document', id: hmId(id.uid)})
         }}
       >
         <div className="flex flex-1 items-center gap-2">
