@@ -436,7 +436,7 @@ func TestGetResource(t *testing.T) {
 func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, space core.Principal, path string, version []cid.Cid, threadRoot, replyParent cid.Cid, body []blob.CommentBlock, ts time.Time) blob.Encoded[*blob.Comment] {
 	t.Helper()
 
-	eb, err := blob.NewComment(u.Account, cid.Undef, space, path, version, threadRoot, replyParent, body, ts.Round(blob.ClockPrecision))
+	eb, err := blob.NewComment(u.Account, "", space, path, version, threadRoot, replyParent, body, ts.Round(blob.ClockPrecision))
 	require.NoError(t, err)
 
 	// eb implements blocks.Block directly

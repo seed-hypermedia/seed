@@ -4,6 +4,7 @@ package com.seed.documents.v3alpha;
 
 import "documents/v3alpha/documents.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
@@ -23,6 +24,12 @@ service Comments {
 
   // Lists comments by author.
   rpc ListCommentsByAuthor(ListCommentsByAuthorRequest) returns (ListCommentsResponse);
+
+  // Updates an existing comment.
+  rpc UpdateComment(UpdateCommentRequest) returns (Comment);
+
+  // Deletes a comment.
+  rpc DeleteComment(DeleteCommentRequest) returns (google.protobuf.Empty);
 }
 
 // Request to create a comment.
@@ -150,4 +157,27 @@ message Comment {
 
   // Version of this comment.
   string version = 11;
+
+  // Timestamp when the comment was last updated.
+  google.protobuf.Timestamp update_time = 14;
+}
+
+// Request to update a comment.
+message UpdateCommentRequest {
+  // Required. Full snapshot of the updated comment record.
+  // Clients should update objects received from GetComment or CreateComment calls.
+  // The server will ignore output-only fields like timestamps.
+  Comment comment = 1;
+
+  // Required. Name of the key to use for signing the comment update.
+  string signing_key_name = 2;
+}
+
+// Request to delete a comment.
+message DeleteCommentRequest {
+  // Required. ID of the comment to delete.
+  string id = 1;
+
+  // Required. Name of the key to use for signing the comment deletion.
+  string signing_key_name = 2;
 }

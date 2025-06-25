@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -24,6 +25,8 @@ const (
 	Comments_BatchGetComments_FullMethodName     = "/com.seed.documents.v3alpha.Comments/BatchGetComments"
 	Comments_ListComments_FullMethodName         = "/com.seed.documents.v3alpha.Comments/ListComments"
 	Comments_ListCommentsByAuthor_FullMethodName = "/com.seed.documents.v3alpha.Comments/ListCommentsByAuthor"
+	Comments_UpdateComment_FullMethodName        = "/com.seed.documents.v3alpha.Comments/UpdateComment"
+	Comments_DeleteComment_FullMethodName        = "/com.seed.documents.v3alpha.Comments/DeleteComment"
 )
 
 // CommentsClient is the client API for Comments service.
@@ -42,6 +45,10 @@ type CommentsClient interface {
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
 	// Lists comments by author.
 	ListCommentsByAuthor(ctx context.Context, in *ListCommentsByAuthorRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
+	// Updates an existing comment.
+	UpdateComment(ctx context.Context, in *UpdateCommentRequest, opts ...grpc.CallOption) (*Comment, error)
+	// Deletes a comment.
+	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type commentsClient struct {
@@ -102,6 +109,26 @@ func (c *commentsClient) ListCommentsByAuthor(ctx context.Context, in *ListComme
 	return out, nil
 }
 
+func (c *commentsClient) UpdateComment(ctx context.Context, in *UpdateCommentRequest, opts ...grpc.CallOption) (*Comment, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Comment)
+	err := c.cc.Invoke(ctx, Comments_UpdateComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commentsClient) DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Comments_DeleteComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommentsServer is the server API for Comments service.
 // All implementations should embed UnimplementedCommentsServer
 // for forward compatibility.
@@ -118,6 +145,10 @@ type CommentsServer interface {
 	ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error)
 	// Lists comments by author.
 	ListCommentsByAuthor(context.Context, *ListCommentsByAuthorRequest) (*ListCommentsResponse, error)
+	// Updates an existing comment.
+	UpdateComment(context.Context, *UpdateCommentRequest) (*Comment, error)
+	// Deletes a comment.
+	DeleteComment(context.Context, *DeleteCommentRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedCommentsServer should be embedded to have
@@ -141,6 +172,12 @@ func (UnimplementedCommentsServer) ListComments(context.Context, *ListCommentsRe
 }
 func (UnimplementedCommentsServer) ListCommentsByAuthor(context.Context, *ListCommentsByAuthorRequest) (*ListCommentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCommentsByAuthor not implemented")
+}
+func (UnimplementedCommentsServer) UpdateComment(context.Context, *UpdateCommentRequest) (*Comment, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateComment not implemented")
+}
+func (UnimplementedCommentsServer) DeleteComment(context.Context, *DeleteCommentRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteComment not implemented")
 }
 func (UnimplementedCommentsServer) testEmbeddedByValue() {}
 
@@ -252,6 +289,42 @@ func _Comments_ListCommentsByAuthor_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Comments_UpdateComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentsServer).UpdateComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Comments_UpdateComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentsServer).UpdateComment(ctx, req.(*UpdateCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Comments_DeleteComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentsServer).DeleteComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Comments_DeleteComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentsServer).DeleteComment(ctx, req.(*DeleteCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Comments_ServiceDesc is the grpc.ServiceDesc for Comments service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -278,6 +351,14 @@ var Comments_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCommentsByAuthor",
 			Handler:    _Comments_ListCommentsByAuthor_Handler,
+		},
+		{
+			MethodName: "UpdateComment",
+			Handler:    _Comments_UpdateComment_Handler,
+		},
+		{
+			MethodName: "DeleteComment",
+			Handler:    _Comments_DeleteComment_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

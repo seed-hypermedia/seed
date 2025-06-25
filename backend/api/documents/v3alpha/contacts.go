@@ -53,16 +53,16 @@ func (srv *Server) CreateContact(ctx context.Context, in *documents.CreateContac
 
 	clock := cclock.New()
 
-	encoded, err := blob.NewContact(kp, "", subject, in.Name, clock.MustNow())
+	eb, err := blob.NewContact(kp, "", subject, in.Name, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create contact: %v", err)
 	}
 
-	if err := srv.idx.Put(ctx, encoded); err != nil {
+	if err := srv.idx.Put(ctx, eb); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to store contact: %v", err)
 	}
 
-	return contactToProto(encoded.TSID(), encoded.Decoded), nil
+	return contactToProto(eb.TSID(), eb.Decoded), nil
 }
 
 // ListContacts implements Documents API v3.
@@ -388,25 +388,11 @@ func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContac
 }
 
 func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
-	var rid blob.RecordID
-	var createTime time.Time
-
-	// TODO(burdiyan): this is an ugly hack to avoid rewriting a lot of code.
-	// When the contact blob has an ID we use it, instead of the TSID derived from the blob data.
-	if v.ID != "" {
-		// v.ID is a TSID, use it directly for the RecordID
-		rid = blob.RecordID{
-			Authority: v.Signer,
-			TSID:      v.ID,
-		}
-		createTime = v.ID.Timestamp()
-	} else {
-		rid = blob.RecordID{
-			Authority: v.Signer,
-			TSID:      tsid,
-		}
-		createTime = tsid.Timestamp()
+	rid := blob.RecordID{
+		Authority: v.Signer,
+		TSID:      tsid,
 	}
+	createTime := tsid.Timestamp()
 
 	return &documents.Contact{
 		Id:         rid.String(),

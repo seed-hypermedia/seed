@@ -183,7 +183,12 @@ type Encoded[T any] struct {
 func (eb Encoded[T]) TSID() TSID {
 	switch blob := any(eb.Decoded).(type) {
 	case ReplacementBlob:
-		return blob.TSID()
+		tsid := blob.TSID()
+		if tsid != "" {
+			return tsid
+		}
+
+		return NewTSID(blob.BlobTime(), eb.Data)
 	case Blob:
 		return NewTSID(blob.BlobTime(), eb.Data)
 	default:

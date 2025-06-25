@@ -54,6 +54,11 @@ func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, 
 	return encodeBlob(cu)
 }
 
+// TSID implement [ReplacementBlob] interface.
+func (c *Contact) TSID() TSID {
+	return c.ID
+}
+
 func init() {
 	cbornode.RegisterCborType(Contact{})
 
@@ -107,13 +112,8 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 
 	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Signer, time.Time{})
 
-	tsid := v.ID
-	if tsid == "" {
-		tsid = eb.TSID()
-	}
-
 	extraAttrs := map[string]any{
-		"tsid": tsid.String(),
+		"tsid": eb.TSID(),
 	}
 
 	// For active contacts, add subject and name

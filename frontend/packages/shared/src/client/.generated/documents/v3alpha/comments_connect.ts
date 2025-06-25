@@ -3,8 +3,8 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse } from "./comments_pb";
-import { MethodKind } from "@bufbuild/protobuf";
+import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, UpdateCommentRequest } from "./comments_pb";
+import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
  * Comments service allows users to add comments to documents.
@@ -67,6 +67,28 @@ export const Comments = {
       name: "ListCommentsByAuthor",
       I: ListCommentsByAuthorRequest,
       O: ListCommentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Updates an existing comment.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.UpdateComment
+     */
+    updateComment: {
+      name: "UpdateComment",
+      I: UpdateCommentRequest,
+      O: Comment,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Deletes a comment.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.DeleteComment
+     */
+    deleteComment: {
+      name: "DeleteComment",
+      I: DeleteCommentRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
   }

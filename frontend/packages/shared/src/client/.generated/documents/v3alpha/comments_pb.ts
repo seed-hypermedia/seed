@@ -494,6 +494,13 @@ export class Comment extends Message<Comment> {
    */
   version = "";
 
+  /**
+   * Timestamp when the comment was last updated.
+   *
+   * @generated from field: google.protobuf.Timestamp update_time = 14;
+   */
+  updateTime?: Timestamp;
+
   constructor(data?: PartialMessage<Comment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -515,6 +522,7 @@ export class Comment extends Message<Comment> {
     { no: 9, name: "create_time", kind: "message", T: Timestamp },
     { no: 10, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 11, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "update_time", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {
@@ -531,6 +539,106 @@ export class Comment extends Message<Comment> {
 
   static equals(a: Comment | PlainMessage<Comment> | undefined, b: Comment | PlainMessage<Comment> | undefined): boolean {
     return proto3.util.equals(Comment, a, b);
+  }
+}
+
+/**
+ * Request to update a comment.
+ *
+ * @generated from message com.seed.documents.v3alpha.UpdateCommentRequest
+ */
+export class UpdateCommentRequest extends Message<UpdateCommentRequest> {
+  /**
+   * Required. Full snapshot of the updated comment record.
+   * Clients should update objects received from GetComment or CreateComment calls.
+   * The server will ignore output-only fields like timestamps.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Comment comment = 1;
+   */
+  comment?: Comment;
+
+  /**
+   * Required. Name of the key to use for signing the comment update.
+   *
+   * @generated from field: string signing_key_name = 2;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<UpdateCommentRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.UpdateCommentRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "comment", kind: "message", T: Comment },
+    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined, b: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateCommentRequest, a, b);
+  }
+}
+
+/**
+ * Request to delete a comment.
+ *
+ * @generated from message com.seed.documents.v3alpha.DeleteCommentRequest
+ */
+export class DeleteCommentRequest extends Message<DeleteCommentRequest> {
+  /**
+   * Required. ID of the comment to delete.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Required. Name of the key to use for signing the comment deletion.
+   *
+   * @generated from field: string signing_key_name = 2;
+   */
+  signingKeyName = "";
+
+  constructor(data?: PartialMessage<DeleteCommentRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DeleteCommentRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined, b: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteCommentRequest, a, b);
   }
 }
 

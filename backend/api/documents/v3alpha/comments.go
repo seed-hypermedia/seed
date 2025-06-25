@@ -23,6 +23,7 @@ import (
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -65,7 +66,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			rpComment, err := srv.getComment(conn, in.ReplyParent)
 			if err != nil {
-				return fmt.Errorf("reply parent %s not found: %w", in.ReplyParent, err)
+				return fmt.Errorf("reply parent not found: %w", err)
 			}
 
 			replyParent = rpComment.CID
@@ -83,18 +84,18 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		}
 	}
 
-	encodedBlob, err := blob.NewComment(kp, cid.Undef, space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), clock.MustNow())
+	eb, err := blob.NewComment(kp, "", space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
 
-	if err := srv.idx.Put(ctx, encodedBlob); err != nil {
+	if err := srv.idx.Put(ctx, eb); err != nil {
 		return nil, err
 	}
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Comment, error) {
 		lookup := blob.NewLookupCache(conn)
-		return commentToProto(lookup, encodedBlob.CID, encodedBlob.Decoded, encodedBlob.TSID())
+		return commentToProto(lookup, eb.CID, eb.Decoded, eb.TSID())
 	})
 }
 
@@ -290,15 +291,22 @@ func (srv *Server) iterComments(conn *sqlite.Conn, resource blob.IRI) (it iter.S
 
 var qIterComments = dqb.Str(`
 	SELECT
-        sb.id,
-		b.codec,
+		sb.id,
+        b.codec,
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+	FROM (
+		SELECT
+        	sb.*,
+         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+        FROM structural_blobs sb
+  		WHERE sb.type = 'Comment'
+    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+	) sb
 	JOIN blobs b ON b.id = sb.id
-	WHERE sb.type = 'Comment'
-	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+	WHERE sb.rn = 1
+	AND sb.extra_attrs->>'deleted' IS NULL
 	ORDER BY sb.ts
 `)
 
@@ -364,10 +372,17 @@ var qIterCommentsByAuthor = dqb.Str(`
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+	FROM (
+        SELECT
+        	sb.*,
+         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+        FROM structural_blobs sb
+  		WHERE sb.type = 'Comment'
+    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	) sb
 	JOIN blobs b ON b.id = sb.id
-	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	WHERE sb.rn = 1
+	AND sb.extra_attrs->>'deleted' IS NULL
 	AND sb.id < :afterID
 	ORDER BY sb.id DESC
 	LIMIT :limit
@@ -381,7 +396,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (indexedComment, 
 	{
 		rid, err := blob.DecodeRecordID(idRaw)
 		if err != nil {
-			// We allow to get comment by ID or CID.
+			// We allow to get comment by RecordID or CID.
 			c, cerr := cid.Decode(idRaw)
 			if cerr != nil {
 				return indexedComment{}, status.Errorf(codes.InvalidArgument, "failed to parse comment ID %s: %v: %v", idRaw, err, cerr)
@@ -416,9 +431,16 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (indexedComment, 
 
 		chcid := cid.NewCidV1(uint64(codec), hash)
 		cmt := &blob.Comment{}
+
 		err = cbornode.DecodeInto(buf, cmt)
 		if err != nil {
 			err = fmt.Errorf("getComment: failed to decode comment %s: %w", chcid, err)
+			break
+		}
+
+		// Check if the comment is marked as deleted
+		if cmt.Body == nil || len(cmt.Body) == 0 {
+			err = status.Errorf(codes.NotFound, "comment %s not found", idRaw)
 			break
 		}
 
@@ -453,6 +475,7 @@ var qGetCommentByID = dqb.Str(`
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
+	ORDER BY sb.ts DESC
 	LIMIT 1
 `)
 
@@ -469,10 +492,16 @@ var qGetCommentByCID = dqb.Str(`
 `)
 
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
-	content, err := commentContentToProto(cmt.Body)
-	if err != nil {
-		return nil, err
+	var content []*documents.BlockNode
+	var err error
+	if cmt.Body != nil {
+		content, err = commentContentToProto(cmt.Body)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	createTime := tsid.Timestamp()
 
 	pb := &documents.Comment{
 		Id:            blob.RecordID{Authority: cmt.Signer, TSID: tsid}.String(),
@@ -481,8 +510,14 @@ func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid
 		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
 		Author:        cmt.Signer.String(),
 		Content:       content,
-		CreateTime:    timestamppb.New(cmt.Ts),
+		CreateTime:    timestamppb.New(createTime),
 		Version:       c.String(),
+		UpdateTime:    timestamppb.New(cmt.Ts),
+	}
+
+	// Handle deleted attribute
+	if len(content) == 0 {
+		pb.Content = nil
 	}
 
 	if cmt.ThreadRoot.Defined() {
@@ -550,4 +585,153 @@ func commentContentFromProto(in []*documents.BlockNode) []blob.CommentBlock {
 	}
 
 	return out
+}
+
+// UpdateComment implements Comments API.
+func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommentRequest) (*documents.Comment, error) {
+	if in.Comment == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "comment is required")
+	}
+
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing_key_name is required")
+	}
+
+	comment := in.Comment
+	if comment.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "comment.id is required")
+	}
+
+	if comment.TargetAccount == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "comment.target_account is required")
+	}
+
+	if comment.TargetVersion == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "comment.target_version is required")
+	}
+
+	if len(comment.Content) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "comment.content is required")
+	}
+
+	rid, err := blob.DecodeRecordID(comment.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !kp.Principal().Equal(rid.Authority) {
+		return nil, status.Errorf(codes.PermissionDenied, "only the original author can update a comment")
+	}
+
+	space, err := core.DecodePrincipal(comment.TargetAccount)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target account: %v", err)
+	}
+
+	versionHeads, err := blob.Version(comment.TargetVersion).Parse()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target version: %v", err)
+	}
+
+	clock := cclock.New()
+
+	var (
+		threadRoot  cid.Cid
+		replyParent cid.Cid
+	)
+
+	if comment.ReplyParent != "" {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			rpComment, err := srv.getComment(conn, comment.ReplyParent)
+			if err != nil {
+				return fmt.Errorf("reply parent %s not found: %w", comment.ReplyParent, err)
+			}
+
+			replyParent = rpComment.CID
+			threadRoot = rpComment.Comment.ThreadRoot
+			if !threadRoot.Defined() {
+				threadRoot = replyParent
+			}
+
+			if err := clock.Track(rpComment.Comment.Ts); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	eb, err := blob.NewComment(kp, rid.TSID, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), clock.MustNow())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srv.idx.Put(ctx, eb); err != nil {
+		return nil, err
+	}
+
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Comment, error) {
+		lookup := blob.NewLookupCache(conn)
+		return commentToProto(lookup, eb.CID, eb.Decoded, eb.TSID())
+	})
+}
+
+// DeleteComment implements Comments API.
+func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommentRequest) (*emptypb.Empty, error) {
+	if in.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing_key_name is required")
+	}
+
+	rid, err := blob.DecodeRecordID(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !kp.Principal().Equal(rid.Authority) {
+		return nil, status.Errorf(codes.PermissionDenied, "signing key must match the comment author")
+	}
+
+	var originalComment indexedComment
+	clock := cclock.New()
+
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		var err error
+		originalComment, err = srv.getComment(conn, in.Id)
+		if err != nil {
+			return err
+		}
+		return clock.Track(originalComment.Comment.Ts)
+	}); err != nil {
+		return nil, err
+	}
+
+	if !originalComment.Comment.Signer.Equal(kp.Principal()) {
+		return nil, status.Errorf(codes.PermissionDenied, "only the original author can delete a comment")
+	}
+
+	eb, err := blob.NewComment(kp, rid.TSID, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, clock.MustNow())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
+	}
+
+	if err := srv.idx.Put(ctx, eb); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store comment deletion: %v", err)
+	}
+
+	return &emptypb.Empty{}, nil
 }

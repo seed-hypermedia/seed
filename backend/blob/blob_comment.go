@@ -47,7 +47,8 @@ func init() {
 // Comment is a blob that represents a comment to some document, or a reply to some other comment.
 type Comment struct {
 	BaseBlob
-	Capability   cid.Cid        `refmt:"capability,omitempty"`
+	ID           TSID           `refmt:"id,omitempty"`
+	_            cid.Cid        `refmt:"capability,omitempty"` // deprecated
 	Space_       core.Principal `refmt:"space,omitempty"`
 	Path         string         `refmt:"path,omitempty"`
 	Version      []cid.Cid      `refmt:"version,omitempty"`
@@ -59,7 +60,7 @@ type Comment struct {
 // NewComment creates a new Comment blob.
 func NewComment(
 	kp *core.KeyPair,
-	cpb cid.Cid,
+	id TSID,
 	space core.Principal,
 	path string,
 	version []cid.Cid,
@@ -71,13 +72,14 @@ func NewComment(
 	if threadRoot.Equals(replyParent) {
 		replyParent = cid.Undef
 	}
+
 	cu := &Comment{
+		ID: id,
 		BaseBlob: BaseBlob{
 			Type:   TypeComment,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
-		Capability:   cpb,
 		Path:         path,
 		Version:      version,
 		ThreadRoot:   threadRoot,
@@ -94,6 +96,11 @@ func NewComment(
 	}
 
 	return encodeBlob(cu)
+}
+
+// TSID implements the [ReplacementBlob] interface.
+func (c *Comment) TSID() TSID {
+	return c.ID
 }
 
 // ReplyParent is a convenience method to get the ReplyParent field.
@@ -216,11 +223,19 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		}
 	}
 
+	// Check if this is a tombstone (deleted comment)
+	isTombstone := len(v.Body) == 0
+
 	extraAttrs := make(map[string]any)
 	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 	sb.ExtraAttrs = extraAttrs
 
 	extraAttrs["tsid"] = eb.TSID()
+
+	// For tombstones, mark as deleted
+	if isTombstone {
+		extraAttrs["deleted"] = true
+	}
 
 	targetURI, err := url.Parse(string(iri))
 	if err != nil {
@@ -246,9 +261,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		sb.AddBlobLink("comment/reply-parent", replyParent)
 	}
 
-	if v.Capability.Defined() {
-		sb.AddBlobLink("comment/capability", v.Capability)
-	}
 	const ftsType = "comment"
 	var ftsContent string
 	var ftsBlkID string
