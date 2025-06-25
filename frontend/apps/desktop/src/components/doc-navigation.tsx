@@ -65,7 +65,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
         onActivateBlock={(blockId) => {
           navigate({
             key: 'document',
-            id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+            id: hmId(id.uid, {blockRef: blockId, path: id.path}),
           })
           const targetElement = window.document.getElementById(blockId)
           if (targetElement) {
@@ -113,7 +113,7 @@ export function DocNavigationDraftLoader({
   //     }
   //   }
   //   if (uId) {
-  //     return hmId('d', uId, {path})
+  //     return hmId( uId, {path})
   //   }
   //   return undefined
   // }, [route, draftQuery.data])
@@ -126,9 +126,7 @@ export function DocNavigationDraftLoader({
 
   const siteList = useListSite(id)
   const siteListQuery =
-    siteList?.data && id
-      ? {in: hmId('d', id.uid), results: siteList.data}
-      : null
+    siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
   const embeds = useDocumentEmbeds(document)
 
   if (!siteListQuery || !metadata) return null

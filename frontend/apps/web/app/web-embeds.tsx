@@ -28,7 +28,7 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText, Text} from '@shm/ui/text'
+import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useState} from 'react'
 
@@ -62,7 +62,7 @@ function EmbedWrapper({
         if (hasSelection) {
           return
         }
-        const destUrl = createWebHMUrl(id.type, id.uid, {
+        const destUrl = createWebHMUrl(id.uid, {
           hostname: null,
           blockRange: id.blockRange,
           blockRef: id.blockRef,
@@ -101,18 +101,9 @@ export function EmbedComment(props: EntityComponentProps) {
 
 export function EmbedInline(props: EntityComponentProps) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
-  if (props?.type == 'd') {
-    return (
-      <DocInlineEmbed
-        {...props}
-        onHoverIn={onHoverIn}
-        onHoverOut={onHoverOut}
-      />
-    )
-  } else {
-    console.error('Inline Embed Error', JSON.stringify(props))
-    return <Text>?</Text>
-  }
+  return (
+    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
+  )
 }
 
 function DocInlineEmbed(props: EntityComponentProps) {
@@ -143,7 +134,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
 export function EmbedDocumentCard(props: EntityComponentProps) {
   const doc = useEntity(props)
   const authors = useEntities(
-    doc.data?.document?.authors.map((uid) => hmId('d', uid)) || [],
+    doc.data?.document?.authors.map((uid) => hmId(uid)) || [],
   )
   if (doc.isLoading)
     return (
@@ -302,7 +293,7 @@ function QueryStyleCard({
 
   const docs = useMemo(() => {
     return items.map((item) => {
-      const id = hmId('d', item.account, {
+      const id = hmId(item.account, {
         path: item.path,
         latest: true,
       })
@@ -336,7 +327,7 @@ function QueryListStyle({
   return (
     <div className="flex w-full flex-col gap-3">
       {items?.map((item) => {
-        const id = hmId('d', item.account, {
+        const id = hmId(item.account, {
           path: item.path,
           latest: true,
         })
@@ -350,7 +341,7 @@ function QueryListStyle({
             variant="outline"
             onClick={() => {
               navigate(
-                createWebHMUrl(id.type, id.uid, {
+                createWebHMUrl(id.uid, {
                   hostname: null,
                   blockRange: id.blockRange,
                   blockRef: id.blockRef,

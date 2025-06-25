@@ -159,8 +159,8 @@ export function HypermediaLinkPreview(
               props.type !== 'card'
             }
             hasSearch={props.type !== 'link'}
-            seedEntityType={unpackHmId(props.url)?.type}
             resetLink={props.resetHyperlink}
+            isHmLink={!!unpackedRef}
             toolbarProps={props.toolbarProps}
           />
         </YStack>

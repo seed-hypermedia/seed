@@ -97,7 +97,7 @@ export function Comment({
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const discussionsContext = useDiscussionsContext()
   const authorHmId =
-    comment.author || authorId ? hmId('d', authorId || comment.author) : null
+    comment.author || authorId ? hmId(authorId || comment.author) : null
   const authorLink = useRouteLink(
     authorHmId ? {key: 'document', id: authorHmId} : null,
     {
@@ -179,7 +179,7 @@ export function Comment({
             <button
               className="text-muted-foreground"
               onClick={() => {
-                const url = getUrl(hmId('d', comment.id))
+                const url = getUrl(hmId(comment.id))
                 console.log('~ url', url)
                 copyTextToClipboard(url)
               }}

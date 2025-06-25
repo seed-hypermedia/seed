@@ -95,10 +95,10 @@ function InlineEmbedNodeComponent(props: any) {
 export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
-  if (unpackedRef?.type == 'd') {
-    if (unpackedRef.path && unpackedRef.path.length > 0) {
-      return <DocumentMention unpackedRef={unpackedRef} {...props} />
-    } else return <ContactMention unpackedRef={unpackedRef} {...props} />
+  if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
+    return <DocumentMention unpackedRef={unpackedRef} {...props} />
+  } else if (unpackedRef) {
+    return <ContactMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>

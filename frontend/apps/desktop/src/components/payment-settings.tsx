@@ -135,7 +135,7 @@ export function WalletPage({
   onClose: () => void
 }) {
   const wallet = useWallet(walletId)
-  const accountDoc = useEntity(hmId('d', accountUid))
+  const accountDoc = useEntity(hmId(accountUid))
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)

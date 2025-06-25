@@ -21,7 +21,6 @@ import {Search} from './icons'
 import {SizableText} from './text'
 
 import {
-  HYPERMEDIA_ENTITY_TYPES,
   idToUrl,
   packHmId,
   useRouteLink,
@@ -66,7 +65,7 @@ export function MobileSearch({
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime:
             typeof item.versionTime === 'string'
@@ -150,7 +149,7 @@ export function HeaderSearch({
           onFocus: () => {},
           onMouseEnter: () => {},
           // onSelect: () => {}, Now it's assumed it can be undefined for query search?
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime:
             typeof item.versionTime === 'string'

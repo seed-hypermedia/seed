@@ -128,7 +128,7 @@ async function handleEventsForEmailNotifications(
       notificationsToSend[email] = []
     }
     if (accountMetas[accountId] === undefined) {
-      accountMetas[accountId] = (await await getAccount(accountId)).metadata
+      accountMetas[accountId] = (await getAccount(accountId)).metadata
     }
     notificationsToSend[email].push({
       accountId,
@@ -334,7 +334,7 @@ async function handleEventsForEmailNotifications(
           commentAuthorMeta: (await getAccount(comment.author)).metadata,
           targetMeta: (
             await getMetadata(
-              hmId('d', comment.targetAccount, {
+              hmId(comment.targetAccount, {
                 path: entityQueryPathToHmIdPath(comment.targetPath),
               }),
             )
@@ -352,7 +352,7 @@ async function handleEventsForEmailNotifications(
       const account = accountNotificationOptions[accountId]
       const comment = newComment.comment
       const targetDocUrl = `${SITE_BASE_URL}/hm/${comment.targetAccount}${comment.targetPath}`
-      const targetDocId = hmId('d', comment.targetAccount, {
+      const targetDocId = hmId(comment.targetAccount, {
         path: entityQueryPathToHmIdPath(comment.targetPath),
       })
       if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
@@ -486,7 +486,7 @@ async function resolveAccount(accountId: string) {
     return await resolveAccount(account.aliasAccount)
   }
   const result: HMMetadataPayload = {
-    id: hmId('d', accountId),
+    id: hmId(accountId),
     metadata: HMDocumentMetadataSchema.parse(account.metadata),
   }
   return result

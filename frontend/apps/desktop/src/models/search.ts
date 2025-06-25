@@ -1,11 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {SearchPayload, setSearchQuery} from '@shm/shared/models/search'
-import {
-  hmId,
-  HYPERMEDIA_ENTITY_TYPES,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 export async function querySearch(
   searchQuery: string,
@@ -34,7 +30,7 @@ export async function querySearch(
         if (entity.type === 'contact' && id) {
           return {
             // TO FIX when @juligasa changes this. We should reference the docId instead of the contact id uid
-            id: hmId('d', id.uid),
+            id: hmId(id.uid),
             title: entity.content,
             parentNames: entity.parentNames,
             icon: entity.icon,
@@ -78,7 +74,7 @@ export function transformResultsToItems(
 
         return {
           title: entity.content,
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          subtitle: 'Document',
           value: entity.id,
         } as SearchItem
       })

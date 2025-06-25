@@ -386,9 +386,7 @@ function AccountKeys() {
   const {data: mnemonics, refetch: mnemonicsRefetch} =
     useSavedMnemonics(selectedAccount)
 
-  const selectedAccountId = selectedAccount
-    ? hmId('d', selectedAccount)
-    : undefined
+  const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
   const {data: profile} = useEntity(selectedAccountId)
 
@@ -708,7 +706,7 @@ function LinkedDevices({
   accountName: string
 }) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
+  const {data: capabilities} = useAllDocumentCapabilities(hmId(accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <div className="flex flex-col gap-3">
@@ -720,7 +718,7 @@ function LinkedDevices({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  copyTextToClipboard(hmId('d', d.accountUid).id)
+                  copyTextToClipboard(hmId(d.accountUid).id)
                   toast('Device ID copied to clipboard')
                 }}
                 className="justify-start"
@@ -897,7 +895,7 @@ function KeyItem({
   isActive: boolean
   onSelect: () => void
 }) {
-  const id = hmId('d', item)
+  const id = hmId(item)
   const entity = useEntity(id)
   return (
     <ListItem

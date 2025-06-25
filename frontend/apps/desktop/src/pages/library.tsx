@@ -49,7 +49,7 @@ import {
   MessageSquare,
   X,
 } from 'lucide-react'
-import {createContext, useContext, useState} from 'react'
+import {createContext, useContext, useMemo, useState} from 'react'
 
 export default function LibraryPage() {
   const route = useNavRoute()
@@ -92,6 +92,27 @@ export default function LibraryPage() {
   })
 
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
+
+  const [addSiteOpen, setAddSiteOpen] = useState(false)
+  const menu = useMemo(() => {
+    const siteMenuItems =
+      library?.sites?.map((site) => {
+        const id = hmId(site.id)
+        return {
+          key: site.id,
+          label: site.hostname,
+          onPress: () => {
+            replace({
+              key: 'document',
+              id: hmId(site.id),
+            })
+          },
+        }
+      }) || []
+    return {
+      siteMenuItems,
+    }
+  }, [library?.sites, replace])
 
   return (
     <div className="flex h-full flex-1">
@@ -169,9 +190,9 @@ export default function LibraryPage() {
                             library.items
                               ?.map((item) => {
                                 if (item.type === 'site') {
-                                  return hmId('d', item.id)
+                                  return hmId(item.id)
                                 }
-                                return hmId('d', item.account, {
+                                return hmId(item.account, {
                                   path: item.path,
                                 })
                               })
@@ -380,7 +401,7 @@ function LibrarySiteItem({
   }
   const navigate = useNavigate()
   const metadata = site?.metadata
-  const id = hmId('d', site.id)
+  const id = hmId(site.id)
   const isSelected = selectedDocIds.includes(id.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
   const homeDocument = documents.data?.find((doc) => !doc.path?.length)
@@ -476,7 +497,7 @@ export function LibraryDocumentItem({
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
-  const id = hmId('d', item.account, {
+  const id = hmId(item.account, {
     path: item.path,
   })
   const {isSelecting, selectedDocIds, onSelect} = useContext(

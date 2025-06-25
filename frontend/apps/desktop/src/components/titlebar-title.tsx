@@ -751,7 +751,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     let uId = draft.data?.locationUid || route.locationUid
     let path = draft.data?.locationPath || route.locationPath
     if (uId) {
-      return hmId('d', uId, {
+      return hmId(uId, {
         path,
       })
     } else {
@@ -769,7 +769,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     let uId = draft.data?.editUid || route.editUid
     let path = draft.data?.editPath || route.editPath
     if (uId) {
-      return hmId('d', uId, {
+      return hmId(uId, {
         path,
       })
     }

@@ -50,7 +50,7 @@ export default function PublishDraftButton() {
   const selectedAccount = useSelectedAccount()
   console.log('== ~~~ draft:', draft.data)
   const prevId = draftRoute.editUid
-    ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
+    ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
     : draft.data?.editId
     ? draft.data?.editId
     : null
@@ -60,9 +60,7 @@ export default function PublishDraftButton() {
     },
   })
   const rootDraftUid = prevId?.uid
-  const rootEntity = useEntity(
-    rootDraftUid ? hmId('d', rootDraftUid) : undefined,
-  )
+  const rootEntity = useEntity(rootDraftUid ? hmId(rootDraftUid) : undefined)
   const siteUrl = rootEntity.data?.document?.metadata.siteUrl
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
@@ -85,7 +83,7 @@ export default function PublishDraftButton() {
         if (draft.id && resultDoc.version) {
           const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
           let publishPromise = publishToSite(
-            hmId('d', resultDoc.account, {
+            hmId(resultDoc.account, {
               path: resultPath,
               version: resultDoc.version,
             }),
@@ -143,7 +141,7 @@ export default function PublishDraftButton() {
           accountId,
         })
         .then(async (res) => {
-          const resultDocId = hmId('d', res.account, {
+          const resultDocId = hmId(res.account, {
             path: entityQueryPathToHmIdPath(res.path),
           })
           if (resultDocId && draftId)
@@ -239,7 +237,7 @@ function FirstPublishDialog({
 }) {
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.defaultLocation
-      ? hmId('d', input.defaultLocation.uid, {
+      ? hmId(input.defaultLocation.uid, {
           path: [
             ...(input.defaultLocation.path || []),
             pathNameify(input.newDefaultName),

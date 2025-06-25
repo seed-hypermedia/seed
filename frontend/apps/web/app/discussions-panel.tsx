@@ -360,7 +360,7 @@ export function CommentCitationEntry({
     return comment
   }, [comment, citationTargetFragment, citationTarget])
   const docId = comment
-    ? hmId('d', comment.targetAccount, {
+    ? hmId(comment.targetAccount, {
         path: entityQueryPathToHmIdPath(comment.targetPath || ''),
         version: comment.targetVersion,
       })

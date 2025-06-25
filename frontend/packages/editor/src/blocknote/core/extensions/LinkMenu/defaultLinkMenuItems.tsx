@@ -106,89 +106,51 @@ export function getLinkMenuItems({
     linkMenuItems = [loadingItem, ...linkMenuItems]
   } else {
     if (hmId) {
-      // if (hmId.type !== 'c') {
-      //   // comments are not supported for card embeds yet
+      linkMenuItems = [
+        {
+          key: 'embed',
+          name: 'Embed',
+          disabled: false,
+          icon: <FileIcon size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+            const {state, schema} = editor._tiptapEditor
+            const {selection} = state
+            if (!selection.empty) return
+            const hmRef = createHMUrl(hmId)
+            const node = schema.nodes.embed.create(
+              {
+                url: hmRef,
+                view: 'Content',
+              },
+              schema.text(' '),
+            )
 
-      //   linkMenuItems = [
-      //     {
-      //       name: `Insert Card of ${
-      //         docTitle
-      //           ? '"' + docTitle + '"'
-      //           : HYPERMEDIA_ENTITY_TYPES[hmId.type]
-      //       }`,
-      //       disabled: false,
-      //       icon: <SquareAsterisk size={18} />,
-      //       execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-      //         const {state, schema} = editor._tiptapEditor
-      //         const {selection} = state
-      //         if (!selection.empty) return
-      //         const node = schema.nodes.embed.create(
-      //           {
-      //             url: createHMUrl(hmId),
-      //             view: 'Card',
-      //           },
-      //           schema.text(' '),
-      //         )
-
-      //         insertNode(editor, sourceUrl || ref, node)
-      //       },
-      //     },
-      //     ...linkMenuItems,
-      //   ]
-      // }
-
-      if (hmId.type) {
-        linkMenuItems = [
-          {
-            // name: `Embed ${HYPERMEDIA_ENTITY_TYPES[hmId.type]} ${
-            //   docTitle
-            //     ? '"' + docTitle + '"'
-            //     : HYPERMEDIA_ENTITY_TYPES[hmId.type]
-            // }`,
-            key: 'embed',
-            name: 'Embed',
-            disabled: false,
-            icon: <FileIcon size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-              const {state, schema} = editor._tiptapEditor
-              const {selection} = state
-              if (!selection.empty) return
-              const hmRef = createHMUrl(hmId)
-              const node = schema.nodes.embed.create(
-                {
-                  url: hmRef,
-                  view: 'Content',
-                },
-                schema.text(' '),
-              )
-
-              insertNode(editor, sourceUrl || hmRef, node)
-            },
+            insertNode(editor, sourceUrl || hmRef, node)
           },
-          {
-            key: 'card',
-            name: 'Card',
-            disabled: false,
-            icon: <PanelBottom size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-              const {state, schema} = editor._tiptapEditor
-              const {selection} = state
-              if (!selection.empty) return
-              const hmRef = createHMUrl(hmId)
-              const node = schema.nodes.embed.create(
-                {
-                  url: hmRef,
-                  view: 'Card',
-                },
-                schema.text(' '),
-              )
+        },
+        {
+          key: 'card',
+          name: 'Card',
+          disabled: false,
+          icon: <PanelBottom size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+            const {state, schema} = editor._tiptapEditor
+            const {selection} = state
+            if (!selection.empty) return
+            const hmRef = createHMUrl(hmId)
+            const node = schema.nodes.embed.create(
+              {
+                url: hmRef,
+                view: 'Card',
+              },
+              schema.text(' '),
+            )
 
-              insertNode(editor, sourceUrl || hmRef, node)
-            },
+            insertNode(editor, sourceUrl || hmRef, node)
           },
-          ...linkMenuItems,
-        ]
-      }
+        },
+        ...linkMenuItems,
+      ]
 
       if (docTitle && docTitle !== sourceUrl) {
         linkMenuItems = [

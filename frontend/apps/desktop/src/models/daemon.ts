@@ -94,7 +94,7 @@ export function useMyAccountIds() {
 
 export function useMyAccounts() {
   const {data = []} = useMyAccountIds()
-  return useEntities(data?.map((k) => hmId('d', k)))
+  return useEntities(data?.map((k) => hmId(k)))
 }
 
 /**

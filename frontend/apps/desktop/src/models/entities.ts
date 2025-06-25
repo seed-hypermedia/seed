@@ -89,14 +89,14 @@ export function useUndeleteEntity(
     },
     onSuccess: (result: void, variables: {id: string}, context) => {
       const hmId = unpackHmId(variables.id)
-      if (hmId?.type === 'd') {
+      if (hmId) {
         invalidateQueries([queryKeys.ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
         invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-      } else if (hmId?.type === 'c') {
+        // for comments
         invalidateQueries([queryKeys.COMMENT, variables.id])
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       }
@@ -125,10 +125,7 @@ export function getParentPaths(path?: string[] | null): string[][] {
 }
 
 function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
-  if (id.type === 'd') {
-    return getParentPaths(id.path).map((path) => hmId('d', id.uid, {path}))
-  }
-  return []
+  return getParentPaths(id.path).map((path) => hmId(id.uid, {path}))
 }
 
 export function useItemsFromId(
@@ -174,12 +171,12 @@ async function getAccount(accountUid: string) {
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata,
     } as HMMetadataPayload
   } catch (error) {
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata: {},
     } as HMMetadataPayload
   }
@@ -259,7 +256,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
               invalidateEntityWithVersion(
-                hmId('d', doc.account, {path: doc.path}),
+                hmId(doc.account, {path: doc.path}),
                 doc.version,
               )
             })
@@ -388,7 +385,7 @@ export function useIdEntities(
 }
 
 export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useSubscribedEntities(ids.map((id) => ({id: hmId('d', id)})))
+  const accounts = useSubscribedEntities(ids.map((id) => ({id: hmId(id)})))
   return Object.fromEntries(
     accounts
       .map((account) => {

@@ -10,7 +10,7 @@ function _ScrollArea(
     onScroll,
     ...props
   }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>,
-  ref: React.Ref<HTMLDivElement>,
+  ref: React.ForwardedRef<HTMLDivElement>,
 ) {
   return (
     <ScrollAreaPrimitive.Root
