@@ -16,6 +16,9 @@ export function FacePile({
     () => (accounts.length > 3 ? accounts.slice(0, 2) : accounts),
     [accounts],
   )
+
+  const classNames =
+    'dark:border-background dark:bg-background -ml-2 overflow-hidden rounded-full border-2 border-white bg-white'
   return (
     <div className="flex items-center">
       {showAccountIds.map((author, idx) => {
@@ -24,10 +27,7 @@ export function FacePile({
         return (
           <div
             key={showAccountIds[idx]}
-            className={cn(
-              `z-${idx + 1}`,
-              'dark: border-background dark:bg-background -ml-2 overflow-hidden rounded-full border-2 border-white bg-white',
-            )}
+            className={cn(classNames, `z-${idx + 1}`)}
           >
             <HMIcon
               key={authorInfo.id.uid}
@@ -39,11 +39,7 @@ export function FacePile({
         )
       })}
       {accounts.length > 2 ? (
-        <XStack
-          className={cn(
-            'dark: border-background dark:bg-background z-5 -ml-2 flex size-6 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white',
-          )}
-        >
+        <XStack className={cn(classNames)}>
           <Text
             size="xs"
             className="size-6 text-center leading-5 text-gray-400"

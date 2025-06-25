@@ -50,15 +50,11 @@ export function DocumentCard({
 
   const coverImage = getDocumentCardImage(entity?.document)
 
-  if (banner) {
-    console.log('linkProps', docId, linkProps)
-  }
-
   return (
     <div
       data-docid={docId?.id}
       className={cn(
-        'dark:bg-background hover:bg-brand-12 @container min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300',
+        'hover:bg-accent dark:hover:bg-accent @container min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
         banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
       )}
       onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
@@ -85,7 +81,7 @@ export function DocumentCard({
           <div className="p-4">
             <p
               className={cn(
-                'block font-sans leading-tight! font-bold text-black',
+                'text-foreground block font-sans leading-tight! font-bold',
                 banner ? 'text-2xl' : 'text-lg',
               )}
             >
