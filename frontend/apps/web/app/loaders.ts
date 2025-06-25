@@ -18,7 +18,6 @@ import {
   HMInlineContent,
   HMLoadedBlock,
   HMLoadedBlockNode,
-  HMLoadedDocument,
   HMLoadedInlineEmbedNode,
   HMLoadedLinkNode,
   HMLoadedText,
@@ -116,16 +115,16 @@ export type WebBaseDocumentPayload = {
   isLatest: boolean
 }
 
-export type WebDocumentPayload = WebBaseDocumentPayload & {
+export type WebResourcePayload = WebBaseDocumentPayload & {
   breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>
 }
 
-export async function getHMDocument(
+export async function loadDocument(
   entityId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
 ) {
   console.log(
-    'getHMDocument called with id:',
+    'loadDocument called with id:',
     entityId.id,
     'discover:',
     discover,
@@ -173,7 +172,7 @@ export async function resolveHMDocument(
     discover,
   )
   try {
-    const document = await getHMDocument(entityId, {discover})
+    const document = await loadDocument(entityId, {discover})
     return document
   } catch (e) {
     if (e instanceof HMRedirectError) {
@@ -206,13 +205,13 @@ export async function getBaseDocument(
     })
   const latestDocument =
     entityId.version || !entityId.latest
-      ? await getHMDocument(
+      ? await loadDocument(
           {...entityId, latest: true, version: null},
           {discover: true},
         )
       : null
-  console.log('getHMDocument called for latest version:', entityId.id)
-  const document = await getHMDocument(entityId, {discover: true})
+  console.log('loadDocument called for latest version:', entityId.id)
+  const document = await loadDocument(entityId, {discover: true})
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId(authorUid))
@@ -223,10 +222,7 @@ export async function getBaseDocument(
     await Promise.all(
       refs.map(async (ref) => {
         try {
-          console.log(
-            'getHMDocument called for support document:',
-            ref.refId.id,
-          )
+          console.log('loadDocument called for support document:', ref.refId.id)
           const doc = await resolveHMDocument(ref.refId)
           if (!doc) return null
           return {document: doc, id: ref.refId}
@@ -240,8 +236,8 @@ export async function getBaseDocument(
 
   const queryBlocks = extractQueryBlocks(document.content)
   const homeId = hmId(uid)
-  console.log('getHMDocument called for home document:', homeId.id)
-  const homeDocument = await getHMDocument(homeId)
+  console.log('loadDocument called for home document:', homeId.id)
+  const homeDocument = await loadDocument(homeId)
   supportDocuments.push({
     id: homeId,
     document: homeDocument,
@@ -258,7 +254,7 @@ export async function getBaseDocument(
           .flatMap((item) => item.results)
           .map(async (item) => {
             const id = hmId(item.account, {path: item.path})
-            const document = await getHMDocument(id)
+            const document = await loadDocument(id)
             document.authors.forEach((author) => {
               if (!alreadySupportDocIds.has(hmId(author).id)) {
                 supportAuthorsUidsToFetch.add(author)
@@ -279,7 +275,7 @@ export async function getBaseDocument(
     await Promise.all(
       Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
         try {
-          const document = await getHMDocument(hmId(uid), {
+          const document = await loadDocument(hmId(uid), {
             discover: true,
           })
           return {
@@ -323,7 +319,7 @@ export function getOriginRequestData(parsedRequest: ParsedRequest) {
 export async function getDocument(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
-): Promise<WebDocumentPayload> {
+): Promise<WebResourcePayload> {
   const document = await getBaseDocument(entityId, parsedRequest)
   const crumbs = getParentPaths(entityId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
@@ -349,7 +345,7 @@ export async function getDocument(
 export async function loadResource(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
-): Promise<WebDocumentPayload> {
+): Promise<WebResourcePayload> {
   // const {uid} = entityId
   // const path = hmIdPathToEntityQueryPath(entityId.path)
   console.log('will get resource', entityId.id)
@@ -411,7 +407,7 @@ async function loadEditorNodes(
             id: null,
           } satisfies HMLoadedInlineEmbedNode
         try {
-          const document = await getHMDocument(id)
+          const document = await loadDocument(id)
           return {
             type: 'InlineEmbed',
             ref: editorNode.link,
@@ -497,8 +493,8 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       }
     }
     try {
-      console.log('getHMDocument called for embed:', id.id)
-      const document = await getHMDocument(id)
+      console.log('loadDocument called for embed:', id.id)
+      const document = await loadDocument(id)
       const selectedBlock = id.blockRef
         ? getBlockNodeById(document.content, id.blockRef)
         : null
@@ -642,21 +638,7 @@ export async function loadAuthors(
   )
 }
 
-export async function loadDocument(
-  entityId: UnpackedHypermediaId,
-): Promise<HMLoadedDocument> {
-  console.log('loadDocument called for:', entityId.id)
-  const doc = await getHMDocument(entityId)
-  return {
-    id: entityId,
-    version: doc.version,
-    content: await loadDocumentContent(doc.content),
-    metadata: doc.metadata,
-    authors: await loadAuthors(doc.authors),
-  }
-}
-
-export type SiteDocumentPayload = WebDocumentPayload & {
+export type SiteDocumentPayload = WebResourcePayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
