@@ -20,7 +20,7 @@ export function EntityVersionsAccessory({
     item?.change?.author && authors.add(item?.change?.author)
   })
   const authorAccounts = useEntities(
-    Array.from(authors).map((author) => hmId('d', author)),
+    Array.from(authors).map((author) => hmId(author)),
   )
   if (!id) return null
   return (

@@ -110,7 +110,7 @@ export function useLibrary({
         (doc) =>
           subscriptions.data?.find((sub) =>
             isSubscribedBy(
-              hmId('d', doc.account, {
+              hmId(doc.account, {
                 path: doc.path,
               }),
               sub,
@@ -124,7 +124,7 @@ export function useLibrary({
             return (
               fav &&
               fav.id ===
-                hmId('d', doc.account, {
+                hmId(doc.account, {
                   path: doc.path,
                 }).id
             )

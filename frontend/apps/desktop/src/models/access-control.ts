@@ -118,7 +118,7 @@ function useAccountsCapabilities(accountIds: string[]) {
               id: serverCap.id,
               accountUid: serverCap.account,
               role: roleToHMRole(serverCap.role),
-              grantId: hmId('d', serverCap.account, {
+              grantId: hmId(serverCap.account, {
                 path: entityQueryPathToHmIdPath(serverCap.path),
               }),
             } satisfies HMCapability
@@ -156,7 +156,7 @@ export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
     })
   })
   if (selectedAccountId) {
-    addWritableId(hmId('d', selectedAccountId))
+    addWritableId(hmId(selectedAccountId))
   }
 
   const writableDocuments = useEntities(writableDocumentIds)
@@ -208,7 +208,7 @@ export function useSelectedAccountCapability(
       id: '_owner',
       accountUid: id.uid,
       role: 'owner',
-      grantId: hmId('d', id.uid),
+      grantId: hmId(id.uid),
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -238,7 +238,7 @@ export function useMyCapability(
       id: '_owner',
       accountUid: id.uid,
       role: 'owner',
-      grantId: hmId('d', id.uid),
+      grantId: hmId(id.uid),
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -272,7 +272,7 @@ export function useSelectedAccountCapabilities(
             id: '_owner',
             accountUid: id.uid,
             role: 'owner',
-            grantId: hmId('d', id.uid),
+            grantId: hmId(id.uid),
           } satisfies HMCapability,
         ]
       : []
@@ -300,7 +300,7 @@ export function useMyAccountsWithWriteAccess(
     return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
   })
   const accountsWithCapabilities =
-    myAccountIdsWithCapability?.map((uid) => hmId('d', uid)) || []
+    myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
   return useEntities(accountsWithCapabilities)
 }
 
@@ -328,7 +328,7 @@ export function useAllDocumentCapabilities(
       const grantedCaps = outputCaps.map((cap) => ({
         id: cap.id,
         accountUid: cap.delegate,
-        grantId: hmId('d', cap.account, {
+        grantId: hmId(cap.account, {
           path: entityQueryPathToHmIdPath(cap.path),
         }),
         role: roleToHMRole(cap.role),
@@ -339,7 +339,7 @@ export function useAllDocumentCapabilities(
         {
           id: '_owner',
           accountUid: id.uid,
-          grantId: hmId('d', id.uid),
+          grantId: hmId(id.uid),
           role: 'owner',
           label: 'Owner',
         },

@@ -41,7 +41,9 @@ export const loader = async ({
       try {
         const sourceId = unpackHmId(mention.source)
         if (!sourceId) continue
-        if (sourceId.type !== 'c') continue
+        console.log('~~ TODO: fix this', mention.sourceType)
+        // mention.sourceType
+        // if (mention.source?.type !== 'c') continue
         if (mention.targetFragment !== blockId) continue
         const serverComment = await queryClient.comments.getComment({
           id: mention.sourceBlob?.cid,
@@ -53,7 +55,7 @@ export const loader = async ({
         allComments.push(comment)
 
         const targetFragment = parseFragment(mention.targetFragment)
-        const citationTargetId = hmId(targetId.type, targetId.uid, {
+        const citationTargetId = hmId(targetId.uid, {
           path: targetId.path,
           version: mention.targetVersion,
         })

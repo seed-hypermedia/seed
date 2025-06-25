@@ -534,7 +534,7 @@ function EditProfileDialog({
 }) {
   console.log('EditProfileDialog', input)
   const keyPair = useLocalKeyPair()
-  const id = hmId('d', input.accountUid)
+  const id = hmId(input.accountUid)
   const tx = useTx()
   const account = useAccount(input.accountUid)
   const accountDocument = useEntity(account?.data?.id)

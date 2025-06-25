@@ -1092,12 +1092,12 @@ export function useSeedHostDialog() {
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
           return
         }
-        loadEntity(hmId('d', watchingDomain.siteUid))
+        loadEntity(hmId(watchingDomain.siteUid))
           .then((entity) => {
             const siteUrl = entity?.document?.metadata?.siteUrl
             if (siteUrl && siteUrl === `https://${watchingDomain.hostname}`) {
               open({
-                id: hmId('d', watchingDomain.siteUid),
+                id: hmId(watchingDomain.siteUid),
                 host: watchingDomain.hostname,
               })
             }
@@ -1552,13 +1552,9 @@ function PublishWithUrl({
   )
 }
 
-const setupGuideId = hmId(
-  'd',
-  'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS',
-  {
-    path: ['resources', 'self-host-seed'],
-  },
-)
+const setupGuideId = hmId('z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS', {
+  path: ['resources', 'self-host-seed'],
+})
 const setupGuideRoute: DocumentRoute = {
   key: 'document',
   id: setupGuideId,

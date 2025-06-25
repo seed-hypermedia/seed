@@ -110,7 +110,7 @@ function Render(
 
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0]?.space) {
-      return hmId('d', queryIncludes[0].space, {
+      return hmId(queryIncludes[0].space, {
         path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
         latest: true,
       })
@@ -138,7 +138,7 @@ function Render(
 
   const docResults = useEntities(
     sortedItems.map((item) =>
-      hmId('d', item.account, {
+      hmId(item.account, {
         path: item.path,
         latest: true,
         version: item.version,
@@ -323,7 +323,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
   const queryIncludesFirst = queryIncludesData?.[0]
   const includesEntity = useEntity(
     queryIncludesFirst
-      ? hmId('d', queryIncludesFirst.space, {
+      ? hmId(queryIncludesFirst.space, {
           path: entityQueryPathToHmIdPath(queryIncludesFirst.path),
         })
       : null,

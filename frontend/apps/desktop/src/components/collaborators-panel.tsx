@@ -45,7 +45,7 @@ export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
 
 function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   const navigate = useNavigate('push')
-  const pubId = id ? hmId('d', id.uid) : null
+  const pubId = id ? hmId(id.uid) : null
   const entity = useEntity(pubId)
 
   if (!id || !entity.data) return null
@@ -173,7 +173,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                 onClick={() => {
                   console.log('Add new member', search)
                   let hmUrl = unpackHmId(search)
-                  let result = hmUrl ? createHMUrl(hmId('d', hmUrl.uid)) : null
+                  let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
                   if (result && hmUrl) {
                     setSelectedCollaborators((v) => [
                       ...v,
@@ -320,7 +320,7 @@ function CollaboratorItem({
   id: UnpackedHypermediaId
 }) {
   const navigate = useNavigate('push')
-  const collaboratorId = hmId('d', capability.accountUid)
+  const collaboratorId = hmId(capability.accountUid)
   const entity = useSubscribedEntity(collaboratorId)
   if (capability.role === 'owner') return null
   return (

@@ -172,9 +172,7 @@ function FavoritesSection() {
 
 function AccountsSection() {
   const accountIds = useMyAccountIds()
-  const accounts = useEntities(
-    accountIds.data?.map((uid) => hmId('d', uid)) || [],
-  )
+  const accounts = useEntities(accountIds.data?.map((uid) => hmId(uid)) || [])
   const contacts = useSelectedAccountContacts()
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()

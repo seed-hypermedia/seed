@@ -4,7 +4,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import { useEntity } from '@shm/shared/models/entity'
 import {
   PropsWithChildren,
   useEffect,
@@ -12,29 +12,28 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Input, InputProps, Button as TButton} from 'tamagui'
-import {UIAvatar} from './avatar'
-import {Button} from './button'
-import {ScrollArea} from './components/scroll-area'
-import {getDaemonFileUrl} from './get-file-url'
-import {Search} from './icons'
-import {SizableText} from './text'
+import { Input, InputProps, Button as TButton } from 'tamagui'
+import { UIAvatar } from './avatar'
+import { Button } from './button'
+import { ScrollArea } from './components/scroll-area'
+import { getDaemonFileUrl } from './get-file-url'
+import { Search } from './icons'
+import { SizableText } from './text'
 
 import {
-  HYPERMEDIA_ENTITY_TYPES,
   idToUrl,
   packHmId,
   useRouteLink,
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
-import {Popover} from '@shm/ui/TamaguiPopover'
-import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Fragment} from 'react'
-import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
-import {Separator} from './separator'
-import {Tooltip} from './tooltip'
-import {cn} from './utils'
+import { Popover } from '@shm/ui/TamaguiPopover'
+import { usePopoverState } from '@shm/ui/use-popover-state'
+import { Fragment } from 'react'
+import { NativeSyntheticEvent, TextInputChangeEventData } from 'react-native'
+import { Separator } from './separator'
+import { Tooltip } from './tooltip'
+import { cn } from './utils'
 
 export function MobileSearch({
   originHomeId,
@@ -66,7 +65,7 @@ export function MobileSearch({
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime:
             typeof item.versionTime === 'string'
@@ -80,7 +79,7 @@ export function MobileSearch({
 
   return (
     <div
-      className="w-full p-2"
+      className="p-2 w-full"
       gap="$2"
       padding="$2"
       position="relative"
@@ -161,7 +160,7 @@ export function HeaderSearch({
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {},
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime:
             typeof item.versionTime === 'string'
@@ -190,8 +189,8 @@ export function HeaderSearch({
           <TButton size="$2" chromeless icon={<Search className="size-4" />} />
         </Popover.Trigger>
         <Popover.Content asChild>
-          <div className="border-borded dark:bg-background flex h-[calc(100vh-100px)] max-h-[600px] flex-col rounded-md border bg-white shadow-md">
-            <div className="flex items-center gap-2 self-stretch p-2">
+          <div className="border border-borded rounded-md bg-white dark:bg-background shadow-md flex flex-col h-[calc(100vh-100px)] max-h-[600px]">
+            <div className="flex gap-2 items-center self-stretch p-2">
               <Search className="size-4" />
               <Input
                 value={searchValue}
@@ -241,7 +240,7 @@ export function HeaderSearch({
                 }}
               />
             </div>
-            <div className="min-h-0 w-full max-w-2xl flex-1">
+            <div className="flex-1 w-full max-w-2xl min-h-0">
               <ScrollArea>
                 <div className="flex flex-col">
                   {searchItems.map((item: SearchResult, index: number) => {
@@ -354,8 +353,8 @@ export function SearchResultItem({
       ) : item.path?.length === 1 ? (
         <UIAvatar label={item.title} size={20} id={item.key} />
       ) : null}
-      <div className="flex w-full flex-1 flex-col gap-1 @md:flex-row">
-        <SizableText className="line-clamp-1 w-full truncate text-left font-sans">
+      <div className="flex flex-col @md:flex-row flex-1 gap-1 w-full">
+        <SizableText className="w-full font-sans text-left truncate line-clamp-1">
           {highlightSearchMatch(item.title, item.searchQuery, {
             weight: 'bold',
             size: 'sm',
@@ -363,13 +362,13 @@ export function SearchResultItem({
         </SizableText>
 
         {!!item.path && (unpackHmId(item.key)?.latest || item.versionTime) && (
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex overflow-hidden gap-2 items-center">
             {!!item.path
               ? [
                   <SizableText
                     size="xs"
                     weight="light"
-                    className="line-clamp-1 flex-none font-sans text-gray-400"
+                    className="flex-none font-sans text-gray-400 line-clamp-1"
                   >
                     {collapsedPath.join(' / ')}
                   </SizableText>,
@@ -379,7 +378,7 @@ export function SearchResultItem({
 
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
-                className="line-clamp-1 flex-none text-gray-400"
+                className="flex-none text-gray-400 line-clamp-1"
                 size="xs"
                 weight="light"
                 color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
@@ -479,8 +478,8 @@ export function SearchInput({
   focusedIndex: number
 }>) {
   return (
-    <div className="flex w-full flex-col gap-2">
-      <div className="border-border flex items-center gap-2 rounded-md border px-2">
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex gap-2 items-center px-2 rounded-md border border-border">
         <div className="flex-none">
           <Search className="size-4" />
         </div>

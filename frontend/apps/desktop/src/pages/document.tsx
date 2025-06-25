@@ -223,7 +223,7 @@ function _MainDocumentPage({
 
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
-    id.path?.length ? hmId('d', id.uid) : id,
+    id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
 
     id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
@@ -420,7 +420,7 @@ function _AppDocSiteHeader({
   const navItems = useSiteNavigationItems(siteHomeEntity)
   return (
     <SiteHeader
-      originHomeId={hmId('d', siteHomeEntity.id.uid)}
+      originHomeId={hmId(siteHomeEntity.id.uid)}
       items={navItems}
       docId={docId}
       isCenterLayout={
@@ -766,8 +766,10 @@ function DocPageContent({
                 comments: 0,
               })
             : null
-          if (sourceId.type === 'c' && blockCounts) blockCounts.comments += 1
-          if (sourceId.type === 'd' && blockCounts) blockCounts.citations += 1
+          if (citation.source.type === 'c' && blockCounts)
+            blockCounts.comments += 1
+          if (citation.source.type === 'd' && blockCounts)
+            blockCounts.citations += 1
         })
         return blockCitations
       }, [citations.data])}

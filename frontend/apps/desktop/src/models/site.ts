@@ -9,7 +9,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation} from '@tanstack/react-query'
 
 export function useSiteRegistration(accountUid: string) {
-  const accountId = hmId('d', accountUid)
+  const accountId = hmId(accountUid)
   const entity = useEntity(accountId)
 
   const registerSite = trpc.sites.registerSite.useMutation()

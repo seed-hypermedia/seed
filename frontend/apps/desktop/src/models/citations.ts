@@ -32,7 +32,7 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
             ...restMention
           }) => {
             const sourceId = unpackHmId(source)
-            const targetId = hmId(docId.type, docId.uid, {
+            const targetId = hmId(docId.uid, {
               path: docId.path,
               version: targetVersion,
             })

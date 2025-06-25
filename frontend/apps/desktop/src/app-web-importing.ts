@@ -1,14 +1,14 @@
 import {PartialMessage} from '@bufbuild/protobuf'
-import {DocumentChange} from '@shm/shared/client/grpc-types'
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {HMBlockNode} from '@shm/shared/hm-types'
-import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import {
   hmId,
   hmIdPathToEntityQueryPath,
   packHmId,
   unpackHmId,
-} from '@shm/shared/utils'
+} from '@shm/shared'
+import {DocumentChange} from '@shm/shared/client/grpc-types'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
 import {readFile} from 'fs/promises'
 import http from 'http'
@@ -173,7 +173,7 @@ async function importPost({
       // console.log('~~ absolute site link', href)
       const path = href.split('/').filter((s) => !!s)
       const resultLink = packHmId(
-        hmId('d', destinationHmId.uid, {
+        hmId(destinationHmId.uid, {
           path: [...(destinationHmId.path || []), ...path],
         }),
       )

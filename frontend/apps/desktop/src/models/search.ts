@@ -1,10 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {SearchPayload, setSearchQuery} from '@shm/shared/models/search'
-import {
-  HYPERMEDIA_ENTITY_TYPES,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 export async function querySearch(
   searchQuery: string,
@@ -58,7 +55,7 @@ export function transformResultsToItems(
 
         return {
           title: entity.content,
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          subtitle: 'Document',
           value: entity.id,
         } as SearchItem
       })

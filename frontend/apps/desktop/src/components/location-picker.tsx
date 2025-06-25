@@ -68,7 +68,7 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!location && account) {
-      const id = hmId('d', account, {
+      const id = hmId(account, {
         path: [pathNameify(newName)],
       })
       setLocation(id)
@@ -103,9 +103,7 @@ export function LocationPicker({
                         ...(location.path?.slice(0, -2) || []),
                         newUrlPath,
                       ]
-                      handleSetLocation(
-                        hmId('d', location.uid, {path: newPath}),
-                      )
+                      handleSetLocation(hmId(location.uid, {path: newPath}))
                     }}
                     icon={Undo2}
                     size="$2"
@@ -126,7 +124,7 @@ export function LocationPicker({
                   <Button
                     onPress={() => {
                       handleSetLocation(
-                        hmId('d', location.uid, {
+                        hmId(location.uid, {
                           path: [...d.path, newUrlPath],
                         }),
                       )
@@ -160,7 +158,7 @@ export function LocationPicker({
           onChangeText={(text: string) => {
             if (!location) return
             handleSetLocation(
-              hmId('d', location?.uid, {
+              hmId(location?.uid, {
                 path: [
                   ...(location?.path?.slice(0, -1) || []),
                   pathNameify(text),
@@ -203,7 +201,7 @@ function LocationSearch({
           onLocationSelected={(newParent) => {
             popover.onOpenChange(false)
             setLocation(
-              hmId('d', newParent.uid, {
+              hmId(newParent.uid, {
                 path: [...(newParent.path || []), location.path?.at(-1) || ''],
               }),
             )
@@ -284,7 +282,7 @@ function LocationPreview({
   setLocation: (location: UnpackedHypermediaId) => void
 }) {
   const newUrlPath = location?.path?.at(-1) || ''
-  const siteId = hmId('d', location.uid, {latest: true})
+  const siteId = hmId(location.uid, {latest: true})
   const site = useEntity(siteId)
   const locationBreadcrumbIds = useMemo(() => {
     if (!location) return []
@@ -292,7 +290,7 @@ function LocationPreview({
       location.path
         ?.slice(0, -1)
         ?.map((_path, index) =>
-          hmId('d', location.uid, {path: location.path?.slice(0, index + 1)}),
+          hmId(location.uid, {path: location.path?.slice(0, index + 1)}),
         ) || []
     )
   }, [location.uid, location.path])
@@ -312,7 +310,7 @@ function LocationPreview({
           textDecorationLine: 'underline',
         }}
         onPress={() => {
-          setLocation(hmId('d', location.uid, {path: [newUrlPath]}))
+          setLocation(hmId(location.uid, {path: [newUrlPath]}))
         }}
       >
         {site?.data?.document?.metadata.name}
@@ -326,7 +324,7 @@ function LocationPreview({
             onPress={() => {
               const path = b.data?.id?.path || []
               setLocation(
-                hmId('d', location?.uid, {
+                hmId(location?.uid, {
                   path: [...path, newUrlPath],
                 }),
               )
@@ -343,7 +341,7 @@ function LocationPreview({
 
 function useDocumentUrl(location: UnpackedHypermediaId) {
   const gatewayUrl = useGatewayUrl()
-  const {data: site} = useEntity(hmId('d', location.uid, {latest: true}))
+  const {data: site} = useEntity(hmId(location.uid, {latest: true}))
   if (!site || !gatewayUrl.data) return null
   const siteUrl = site.document?.metadata.siteUrl
   if (siteUrl) {
@@ -352,7 +350,7 @@ function useDocumentUrl(location: UnpackedHypermediaId) {
       hostname: siteUrl,
     })
   }
-  const url = createWebHMUrl(location.type, location.uid, {
+  const url = createWebHMUrl(location.uid, {
     path: location.path,
     hostname: gatewayUrl.data,
   })
@@ -451,7 +449,7 @@ function useDefaultAccountId(
 function useParentId(id: UnpackedHypermediaId | null) {
   return useMemo(() => {
     if (!id) return null
-    return hmId('d', id.uid, {
+    return hmId(id.uid, {
       path: id.path?.slice(0, -1),
     })
   }, [id?.uid, id?.path?.slice(0, -1).join('/')])

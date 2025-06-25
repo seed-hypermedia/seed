@@ -316,14 +316,14 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const route = useNavRoute()
   const doc = useSubscribedEntity(props)
   const authors = useEntities(
-    doc.data?.document?.authors?.map((uid) => hmId('d', uid)) || [],
+    doc.data?.document?.authors?.map((uid) => hmId(uid)) || [],
   )
   const view =
     (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
     'Content'
   if (doc.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -354,11 +354,13 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 }
 
 export function EmbedComment(props: EntityComponentProps) {
-  if (props?.type !== 'c')
-    throw new Error('Invalid props as ref for EmbedComment')
-  const comment = useComment(hmId('c', props.uid), {
-    enabled: !!props,
-  })
+  const comment = useComment(
+    hmId(props.uid, {
+      path: props.path,
+      blockRef: props.blockRef,
+    }),
+    {enabled: !!props.uid},
+  )
   let embedBlocks = useMemo(() => {
     const selectedBlock =
       props.blockRef && comment.data?.content
@@ -370,7 +372,7 @@ export function EmbedComment(props: EntityComponentProps) {
     return embedBlocks
   }, [props.blockRef, comment.data])
   const account = useSubscribedEntity(
-    comment.data?.author ? hmId('d', comment.data?.author) : null,
+    comment.data?.author ? hmId(comment.data?.author) : null,
   )
   if (comment.isLoading) return null
   return (
@@ -418,24 +420,13 @@ export function EmbedComment(props: EntityComponentProps) {
 
 export function EmbedInline(props: EntityComponentProps) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
-  if (props?.type == 'd') {
-    return (
-      <DocInlineEmbed
-        {...props}
-        onHoverIn={onHoverIn}
-        onHoverOut={onHoverOut}
-      />
-    )
-  } else {
-    console.error('Inline Embed Error', JSON.stringify(props))
-    return <SizableText>??</SizableText>
-  }
+  return (
+    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
+  )
 }
 
 function DocInlineEmbed(props: EntityComponentProps) {
-  const pubId = props?.type == 'd' ? props.id : undefined
   const contacts = useSelectedAccountContacts()
-  if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useSubscribedEntity(props)
   const document = doc.data?.document
   return (
@@ -492,7 +483,7 @@ export function QueryBlockDesktop({
 
   const docIds =
     sortedItems.map((item) =>
-      hmId('d', item.account, {
+      hmId(item.account, {
         path: item.path,
         latest: true,
       }),
@@ -505,7 +496,7 @@ export function QueryBlockDesktop({
 
   const documents = useEntities([
     ...docIds,
-    ...Array.from(authorIds).map((uid) => hmId('d', uid)),
+    ...Array.from(authorIds).map((uid) => hmId(uid)),
   ])
 
   function getEntity(path: string[]) {
@@ -567,7 +558,7 @@ function QueryStyleCard({
 }) {
   const docs = useMemo(() => {
     return items.map((item) => {
-      const id = hmId('d', item.account, {
+      const id = hmId(item.account, {
         path: item.path,
         latest: true,
       })
@@ -603,7 +594,7 @@ function QueryStyleList({
   const entries = useMemo(
     () =>
       items.map((item) => {
-        const id = hmId('d', item.account, {
+        const id = hmId(item.account, {
           path: item.path,
           latest: true,
         })
