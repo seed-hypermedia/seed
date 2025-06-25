@@ -111,8 +111,10 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
   return useRouteLink(hmId ? {key: 'document', id: hmId} : href, opts)
 }
 
-const [setIsMetaKeyPressed, isMetaKeyPressed] =
+const [setIsMetaKeyPressed, _isMetaKeyPressed] =
   writeableStateStream<boolean>(false)
+
+export const isMetaKeyPressed = _isMetaKeyPressed
 
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {

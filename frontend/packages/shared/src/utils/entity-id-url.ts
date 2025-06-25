@@ -102,7 +102,7 @@ export function createWebHMUrl(
 ) {
   let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
   if (originHomeId?.uid === uid) {
-    webPath = ''
+    webPath = '/'
   }
   const urlHost =
     hostname === undefined

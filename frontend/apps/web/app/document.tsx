@@ -195,7 +195,7 @@ const DEFAULT_MAIN_PANEL_SIZE = 65
 export function DocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const {siteHost, origin, prefersLanguages} = props
+  const {siteHost, origin, prefersLanguages, document} = props
   return (
     <WebSiteProvider
       origin={origin}
@@ -203,7 +203,7 @@ export function DocumentPage(
       siteHost={siteHost}
       prefersLanguages={supportedLanguages(prefersLanguages)}
     >
-      <InnerDocumentPage {...props} />
+      {document ? <InnerDocumentPage {...props} /> : <Spinner />}
     </WebSiteProvider>
   )
 }

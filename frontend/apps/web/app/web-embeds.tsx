@@ -10,6 +10,7 @@ import {
   HMEmbedView,
   hmId,
   hmIdPathToEntityQueryPath,
+  isMetaKeyPressed,
   narrowHmId,
   queryBlockSortedItems,
   UnpackedHypermediaId,
@@ -59,6 +60,11 @@ function EmbedWrapper({
         onPress={(e) => {
           e.preventDefault()
           e.stopPropagation()
+          const selection = window.getSelection()
+          const hasSelection = selection && selection.toString().length > 0
+          if (hasSelection) {
+            return
+          }
           const destUrl = createWebHMUrl(id.type, id.uid, {
             hostname: null,
             blockRange: id.blockRange,
@@ -68,7 +74,12 @@ function EmbedWrapper({
             path: id.path,
             originHomeId,
           })
-          navigate(destUrl)
+          const isMeta = isMetaKeyPressed.get()
+          if (isMeta) {
+            window.open(destUrl, '_blank')
+          } else {
+            navigate(destUrl)
+          }
         }}
         onHoverIn={() => docContext?.onHoverIn?.(id)}
         onHoverOut={() => docContext?.onHoverOut?.(id)}

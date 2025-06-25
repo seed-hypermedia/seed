@@ -3,6 +3,7 @@ import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
+import {isMetaKeyPressed} from '@shm/shared'
 import {getContactMetadata, queryBlockSortedItems} from '@shm/shared/content'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
@@ -72,6 +73,7 @@ function EmbedWrapper({
   const {comment, routeParams} = docContentContext
   const spawn = useNavigate('spawn')
   const replace = useNavigate('replace')
+  const navigate = useNavigate()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const sideannotationRef = useRef<HTMLDivElement>(null)
   const wrapperRect = useRef<DOMRect>()
@@ -142,7 +144,7 @@ function EmbedWrapper({
   return id ? (
     <YStack
       ref={wrapperRef}
-      userSelect="none"
+      // userSelect="none"
       // @ts-expect-error this is a tamagui error
       contentEditable={false}
       // userSelect="none"
@@ -180,13 +182,22 @@ function EmbedWrapper({
         //   return
         // }
 
+        const selection = window.getSelection()
+        const hasSelection = selection && selection.toString().length > 0
+        if (hasSelection) {
+          e.preventDefault()
+          e.stopPropagation()
+          return
+        }
+
         if (route.key != 'document') {
           e.preventDefault()
           e.stopPropagation()
           return
         }
         // if the embed is from the same document, we navigate on the same window, if not. we open a new window.
-        const method = isSameDocument ? replace : spawn
+        const defaultMethod = isMetaKeyPressed.get() ? spawn : navigate
+        const method = isSameDocument ? replace : defaultMethod
 
         method(
           isSameDocument
