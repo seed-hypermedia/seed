@@ -20,7 +20,7 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {getMetadata} from './loaders'
+import {getAccount, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
@@ -357,16 +357,28 @@ async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
   const resolvedNames: Record<string, string> = {}
 
   for (const block of comment.content) {
-    const node = HMBlockNodeSchema.parse(block)
-    for (const annotation of node.block?.annotations || []) {
+    const blockNode = HMBlockNodeSchema.parse(block)
+    for (const annotation of blockNode.block?.annotations || []) {
       if (annotation.type === 'Embed' && annotation.link) {
         const unpacked = unpackHmId(annotation.link)
+
         if (unpacked) {
+          const isAccountLink = !unpacked.path || unpacked.path.length === 0
+
           try {
-            const meta = await getMetadata(unpacked)
-            resolvedNames[annotation.link] = meta.metadata?.name || '@unknown'
+            if (isAccountLink) {
+              const account = await getAccount(unpacked.uid)
+              resolvedNames[annotation.link] = account.metadata?.name
+                ? account.metadata?.name
+                : `@${unpacked.uid.slice(0, 6)}…`
+            } else {
+              const meta = await getMetadata(unpacked)
+              resolvedNames[annotation.link] = meta.metadata?.name
+                ? meta.metadata?.name
+                : `@${unpacked.uid.slice(0, 6)}…`
+            }
           } catch {
-            resolvedNames[annotation.link] = '@unknown'
+            resolvedNames[annotation.link] = `@${unpacked.uid.slice(0, 6)}…`
           }
         }
       }
