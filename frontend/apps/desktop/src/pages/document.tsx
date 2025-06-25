@@ -274,8 +274,8 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <ScrollArea ref={elementRef}>
+      <div className="flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+        <ScrollArea>
           <DocumentCover docId={id} />
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
