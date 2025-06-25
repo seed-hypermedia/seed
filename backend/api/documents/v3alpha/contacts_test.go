@@ -39,8 +39,7 @@ func TestCreateContact(t *testing.T) {
 
 	// Verify the contact can be retrieved with GetContact.
 	retrievedContact, err := alice.GetContact(ctx, &documents.GetContactRequest{
-		Account: alice.me.Account.PublicKey.String(),
-		Id:      contact.Id,
+		Id: contact.Id,
 	})
 	require.NoError(t, err)
 	testutil.StructsEqual(contact, retrievedContact).Compare(t, "created and retrieved contacts should be equal")
@@ -276,8 +275,7 @@ func TestUpdateContact(t *testing.T) {
 
 		// Verify the contact can be retrieved with the updated data
 		retrievedContact, err := alice.GetContact(ctx, &documents.GetContactRequest{
-			Account: alice.me.Account.PublicKey.String(),
-			Id:      originalContact.Id,
+			Id: originalContact.Id,
 		})
 		require.NoError(t, err)
 		testutil.StructsEqual(updatedContact, retrievedContact).Compare(t, "updated and retrieved contacts should be equal")
@@ -369,8 +367,7 @@ func TestDeleteContact(t *testing.T) {
 
 	t.Run("successfully delete contact", func(t *testing.T) {
 		// Delete the contact
-		_, err := alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-			Account:        alice.me.Account.PublicKey.String(),
+		_, err = alice.DeleteContact(ctx, &documents.DeleteContactRequest{
 			Id:             contact.Id,
 			SigningKeyName: "main",
 		})
@@ -378,8 +375,7 @@ func TestDeleteContact(t *testing.T) {
 
 		// Verify the contact can no longer be retrieved
 		_, err = alice.GetContact(ctx, &documents.GetContactRequest{
-			Account: alice.me.Account.PublicKey.String(),
-			Id:      contact.Id,
+			Id: contact.Id,
 		})
 		require.Error(t, err)
 		st, _ := status.FromError(err)
@@ -397,38 +393,26 @@ func TestDeleteContact(t *testing.T) {
 	})
 
 	t.Run("missing required fields", func(t *testing.T) {
-		// Missing account
+		// Missing ID
 		_, err := alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-			Id:             contact.Id,
 			SigningKeyName: "main",
 		})
 		require.Error(t, err)
 		st, _ := status.FromError(err)
 		require.Equal(t, codes.InvalidArgument, st.Code())
 
-		// Missing ID
-		_, err = alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-			Account:        alice.me.Account.PublicKey.String(),
-			SigningKeyName: "main",
-		})
-		require.Error(t, err)
-		st, _ = status.FromError(err)
-		require.Equal(t, codes.InvalidArgument, st.Code())
-
 		// Missing signing key name
 		_, err = alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-			Account: alice.me.Account.PublicKey.String(),
-			Id:      contact.Id,
+			Id: contact.Id,
 		})
 		require.Error(t, err)
 		st, _ = status.FromError(err)
 		require.Equal(t, codes.InvalidArgument, st.Code())
 	})
 
-	t.Run("invalid account", func(t *testing.T) {
+	t.Run("invalid contact ID", func(t *testing.T) {
 		_, err := alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-			Account:        "invalid-account",
-			Id:             contact.Id,
+			Id:             "invalid-contact-id",
 			SigningKeyName: "main",
 		})
 		require.Error(t, err)
@@ -492,15 +476,13 @@ func TestContactUpdateAndDeleteWorkflow(t *testing.T) {
 
 	// Verify only the latest version appears
 	retrievedContact, err := alice.GetContact(ctx, &documents.GetContactRequest{
-		Account: alice.me.Account.PublicKey.String(),
-		Id:      originalContact.Id,
+		Id: originalContact.Id,
 	})
 	require.NoError(t, err)
 	testutil.StructsEqual(secondUpdate, retrievedContact).Compare(t, "Should get the latest updated version")
 
 	// Now delete the contact
 	_, err = alice.DeleteContact(ctx, &documents.DeleteContactRequest{
-		Account:        alice.me.Account.PublicKey.String(),
 		Id:             originalContact.Id,
 		SigningKeyName: "main",
 	})
@@ -508,8 +490,7 @@ func TestContactUpdateAndDeleteWorkflow(t *testing.T) {
 
 	// Verify it's gone from everywhere
 	_, err = alice.GetContact(ctx, &documents.GetContactRequest{
-		Account: alice.me.Account.PublicKey.String(),
-		Id:      originalContact.Id,
+		Id: originalContact.Id,
 	})
 	require.Error(t, err)
 	st, _ := status.FromError(err)

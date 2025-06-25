@@ -984,16 +984,9 @@ export class CreateContactRequest extends Message<CreateContactRequest> {
  */
 export class GetContactRequest extends Message<GetContactRequest> {
   /**
-   * Required. ID of the account issuer of the contact record.
+   * Required. ID of the contact to retrieve.
    *
-   * @generated from field: string account = 1;
-   */
-  account = "";
-
-  /**
-   * Required. ID of the contact within the account.
-   *
-   * @generated from field: string id = 2;
+   * @generated from field: string id = 1;
    */
   id = "";
 
@@ -1005,8 +998,7 @@ export class GetContactRequest extends Message<GetContactRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.GetContactRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactRequest {
@@ -1084,23 +1076,16 @@ export class UpdateContactRequest extends Message<UpdateContactRequest> {
  */
 export class DeleteContactRequest extends Message<DeleteContactRequest> {
   /**
-   * Required. ID of the account issuer of the contact record.
-   *
-   * @generated from field: string account = 1;
-   */
-  account = "";
-
-  /**
    * Required. ID of the contact within the account.
    *
-   * @generated from field: string id = 2;
+   * @generated from field: string id = 1;
    */
   id = "";
 
   /**
    * Required. Name of the key to use for signing the contact deletion.
    *
-   * @generated from field: string signing_key_name = 3;
+   * @generated from field: string signing_key_name = 2;
    */
   signingKeyName = "";
 
@@ -1112,9 +1097,8 @@ export class DeleteContactRequest extends Message<DeleteContactRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.DeleteContactRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteContactRequest {

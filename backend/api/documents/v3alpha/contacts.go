@@ -188,8 +188,10 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 		// Create time is inferred from the original TSID.
 		createTimestamp := blob.TSID(tsid).Timestamp()
 
+		rid := blob.RecordID{Authority: accountPrincipal, TSID: blob.TSID(tsid)}
+
 		proto := &documents.Contact{
-			Id:         tsid,
+			Id:         rid.String(),
 			Subject:    core.Principal(subjectPrincipal).String(),
 			Name:       name,
 			CreateTime: timestamppb.New(createTimestamp),
@@ -216,12 +218,9 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 
-	if in.Account == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "account is required")
-	}
-
-	if _, err := core.DecodePrincipal(in.Account); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account: %v", err)
+	recordID, err := blob.DecodeRecordID(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode contact ID: %v", err)
 	}
 
 	conn, release, err := srv.db.Conn(ctx)
@@ -250,7 +249,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 	`
 
 	var contact *documents.Contact
-	rows, check := sqlitex.Query(conn, query, in.Account, in.Id)
+	rows, check := sqlitex.Query(conn, query, recordID.Authority.String(), recordID.TSID.String())
 	for row := range rows {
 		seq := sqlite.NewIncrementor(0)
 		accountPrincipal := row.ColumnBytes(seq())
@@ -267,7 +266,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 		timestamp := time.UnixMilli(ts)
 
 		// Create time is inferred from the original TSID
-		createTimestamp := blob.TSID(in.Id).Timestamp()
+		createTimestamp := recordID.TSID.Timestamp()
 
 		contact = &documents.Contact{
 			Id:         in.Id,
@@ -331,7 +330,13 @@ func (srv *Server) UpdateContact(ctx context.Context, in *documents.UpdateContac
 
 	clock := cclock.New()
 
-	encoded, err := blob.NewContact(kp, blob.TSID(contact.Id), subject, contact.Name, clock.MustNow())
+	// Extract TSID from RecordID format
+	recordID, err := blob.DecodeRecordID(contact.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode contact ID: %v", err)
+	}
+
+	encoded, err := blob.NewContact(kp, recordID.TSID, subject, contact.Name, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update contact: %v", err)
 	}
@@ -346,17 +351,18 @@ func (srv *Server) UpdateContact(ctx context.Context, in *documents.UpdateContac
 // DeleteContact implements Documents API v3.
 func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContactRequest) (*emptypb.Empty, error) {
 	if err := validation.ValidateStruct(in,
-		validation.Field(&in.Account, validation.Required),
 		validation.Field(&in.Id, validation.Required),
 		validation.Field(&in.SigningKeyName, validation.Required),
 	); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	account, err := core.DecodePrincipal(in.Account)
+	recordID, err := blob.DecodeRecordID(in.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode contact ID: %v", err)
 	}
+
+	account := recordID.Authority
 
 	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
 	if err != nil {
@@ -369,7 +375,7 @@ func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContac
 
 	clock := cclock.New()
 
-	encoded, err := blob.NewContact(kp, blob.TSID(in.Id), nil, "", clock.MustNow())
+	encoded, err := blob.NewContact(kp, recordID.TSID, nil, "", clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete contact: %v", err)
 	}
@@ -382,16 +388,28 @@ func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContac
 }
 
 func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
+	var rid blob.RecordID
+	var createTime time.Time
+
 	// TODO(burdiyan): this is an ugly hack to avoid rewriting a lot of code.
 	// When the contact blob has an ID we use it, instead of the TSID derived from the blob data.
 	if v.ID != "" {
-		tsid = v.ID
+		// v.ID is a TSID, use it directly for the RecordID
+		rid = blob.RecordID{
+			Authority: v.Signer,
+			TSID:      v.ID,
+		}
+		createTime = v.ID.Timestamp()
+	} else {
+		rid = blob.RecordID{
+			Authority: v.Signer,
+			TSID:      tsid,
+		}
+		createTime = tsid.Timestamp()
 	}
 
-	createTime := tsid.Timestamp()
-
 	return &documents.Contact{
-		Id:         tsid.String(),
+		Id:         rid.String(),
 		Subject:    core.Principal(v.Subject).String(),
 		Name:       v.Name,
 		CreateTime: timestamppb.New(createTime),

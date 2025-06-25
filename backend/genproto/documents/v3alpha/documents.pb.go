@@ -1129,10 +1129,8 @@ func (x *CreateContactRequest) GetName() string {
 // Request to get a contact by ID.
 type GetContactRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. ID of the account issuer of the contact record.
-	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
-	// Required. ID of the contact within the account.
-	Id            string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Required. ID of the contact to retrieve.
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1165,13 +1163,6 @@ func (x *GetContactRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetContactRequest.ProtoReflect.Descriptor instead.
 func (*GetContactRequest) Descriptor() ([]byte, []int) {
 	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *GetContactRequest) GetAccount() string {
-	if x != nil {
-		return x.Account
-	}
-	return ""
 }
 
 func (x *GetContactRequest) GetId() string {
@@ -1241,12 +1232,10 @@ func (x *UpdateContactRequest) GetSigningKeyName() string {
 // Request to delete a contact.
 type DeleteContactRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. ID of the account issuer of the contact record.
-	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
 	// Required. ID of the contact within the account.
-	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Required. Name of the key to use for signing the contact deletion.
-	SigningKeyName string `protobuf:"bytes,3,opt,name=signing_key_name,json=signingKeyName,proto3" json:"signing_key_name,omitempty"`
+	SigningKeyName string `protobuf:"bytes,2,opt,name=signing_key_name,json=signingKeyName,proto3" json:"signing_key_name,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1279,13 +1268,6 @@ func (x *DeleteContactRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DeleteContactRequest.ProtoReflect.Descriptor instead.
 func (*DeleteContactRequest) Descriptor() ([]byte, []int) {
 	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{18}
-}
-
-func (x *DeleteContactRequest) GetAccount() string {
-	if x != nil {
-		return x.Account
-	}
-	return ""
 }
 
 func (x *DeleteContactRequest) GetId() string {
@@ -3958,17 +3940,15 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12(\n" +
 	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\x12\x18\n" +
 	"\asubject\x18\x03 \x01(\tR\asubject\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\"=\n" +
-	"\x11GetContactRequest\x12\x18\n" +
-	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\x7f\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"#\n" +
+	"\x11GetContactRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x7f\n" +
 	"\x14UpdateContactRequest\x12=\n" +
 	"\acontact\x18\x01 \x01(\v2#.com.seed.documents.v3alpha.ContactR\acontact\x12(\n" +
-	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\"j\n" +
-	"\x14DeleteContactRequest\x12\x18\n" +
-	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\x12(\n" +
-	"\x10signing_key_name\x18\x03 \x01(\tR\x0esigningKeyName\"\x93\x01\n" +
+	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\"P\n" +
+	"\x14DeleteContactRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12(\n" +
+	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\"\x93\x01\n" +
 	"\x13ListContactsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +

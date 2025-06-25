@@ -310,11 +310,8 @@ message CreateContactRequest {
 
 // Request to get a contact by ID.
 message GetContactRequest {
-  // Required. ID of the account issuer of the contact record.
-  string account = 1;
-
-  // Required. ID of the contact within the account.
-  string id = 2;
+  // Required. ID of the contact to retrieve.
+  string id = 1;
 }
 
 // Request to delete a contact.
@@ -330,14 +327,11 @@ message UpdateContactRequest {
 
 // Request to delete a contact.
 message DeleteContactRequest {
-  // Required. ID of the account issuer of the contact record.
-  string account = 1;
-
   // Required. ID of the contact within the account.
-  string id = 2;
+  string id = 1;
 
   // Required. Name of the key to use for signing the contact deletion.
-  string signing_key_name = 3;
+  string signing_key_name = 2;
 }
 
 // Request to list contacts for an account.
