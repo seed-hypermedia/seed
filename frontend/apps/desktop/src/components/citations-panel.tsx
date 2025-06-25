@@ -5,7 +5,6 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   DocumentCitationsAccessory,
   deduplicateCitations,
-  entityQueryPathToHmIdPath,
   hmId,
   unpackHmId,
 } from '@shm/shared'
@@ -169,12 +168,7 @@ export function CommentCitationEntry({
     }
     return comment.data
   }, [comment.data, citationTargetFragment, citationTarget])
-  const docId = comment.data
-    ? hmId('d', comment.data.targetAccount, {
-        path: entityQueryPathToHmIdPath(comment.data.targetPath),
-        version: comment.data.targetVersion,
-      })
-    : undefined
+  const docId = comment.data ? hmId(comment.data.targetAccount) : undefined
   const replies = useCommentReplies(citation.source.id.uid, docId)
 
   if (!comment.data || !docId) return null

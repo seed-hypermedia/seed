@@ -101,7 +101,7 @@ export function DocOptionsButton({
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const doc = useEntity(route.id)
-  const rootEntity = useEntity(hmId('d', route.id.uid))
+  const rootEntity = useEntity(hmId(route.id.uid))
   const siteUrl = rootEntity.data?.document?.metadata.siteUrl
   const copyLatest =
     route.id.latest ||
@@ -110,7 +110,7 @@ export function DocOptionsButton({
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
-    siteUrl ? hmId('d', route.id.uid) : undefined,
+    siteUrl ? hmId(route.id.uid) : undefined,
   )
   const copyUrlId = {
     ...route.id,
@@ -206,7 +206,7 @@ export function DocOptionsButton({
               type: 'backplace',
               route: {
                 key: 'document',
-                id: hmId('d', route.id.uid, {
+                id: hmId(route.id.uid, {
                   path: route.id.path?.slice(0, -1),
                 }),
               } as any,
@@ -323,11 +323,7 @@ function useExistingDraft(route: DocumentRoute) {
   const existingDraft = drafts.data?.find((d) => {
     const id = d.editId
     if (!id) return false
-    return (
-      id.type === route.id.type &&
-      id.uid === route.id.uid &&
-      pathMatches(id.path, route.id.path)
-    )
+    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
   })
   return existingDraft
 }
@@ -476,7 +472,7 @@ export function PageActionButtons(props: TitleBarProps) {
       <DiscardDraftButton key="discard-draft" />,
       <AccessorySidebarToggle />,
     ]
-  } else if (route.key === 'document' && route.id.type === 'd') {
+  } else if (route.key === 'document') {
     return <DocumentTitlebarButtons route={route} />
   }
   return <TitlebarSection>{buttonGroup}</TitlebarSection>
@@ -728,4 +724,18 @@ function AccessorySidebarToggle() {
     )
   }
   return null
+}
+
+export function TitlebarTitle() {
+  const route = useNavRoute()
+  if (route.key !== 'document') return null
+  return (
+    <View userSelect="none" minWidth={100}>
+      <DocumentTitle
+        id={hmId(route.id.uid, {
+          path: route.id.path,
+        })}
+      />
+    </View>
+  )
 }

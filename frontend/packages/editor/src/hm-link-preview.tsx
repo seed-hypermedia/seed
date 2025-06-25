@@ -4,20 +4,20 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
-import {SizableText} from '@shm/ui/text'
-import {Fragment, Node} from '@tiptap/pm/model'
-import {useEffect, useMemo, useState} from 'react'
-import {Button, XStack, YStack} from 'tamagui'
-import {Pencil} from '../../ui/src/icons'
+import { useEntity } from '@shm/shared/models/entity'
+import { SizableText } from '@shm/ui/text'
+import { Fragment, Node } from '@tiptap/pm/model'
+import { useEffect, useMemo, useState } from 'react'
+import { Button, XStack, YStack } from 'tamagui'
+import { Pencil } from '../../ui/src/icons'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
   HyperlinkToolbarProps,
 } from './blocknote'
-import {getNodeById} from './blocknote/core/api/util/nodeUtil'
-import {HypermediaLinkForm} from './hm-link-form'
-import {HMBlockSchema} from './schema'
+import { getNodeById } from './blocknote/core/api/util/nodeUtil'
+import { HypermediaLinkForm } from './hm-link-form'
+import { HMBlockSchema } from './schema'
 
 export function HypermediaLinkPreview(
   props: HyperlinkToolbarProps & {
@@ -159,8 +159,8 @@ export function HypermediaLinkPreview(
               props.type !== 'card'
             }
             hasSearch={props.type !== 'link'}
-            seedEntityType={unpackHmId(props.url)?.type}
             resetLink={props.resetHyperlink}
+            isHmLink={!!unpackedRef}
             toolbarProps={props.toolbarProps}
           />
         </YStack>
@@ -184,7 +184,7 @@ export function HypermediaLinkPreview(
             <SizableText
               size="lg"
               color="brand"
-              className="flex-1 truncate overflow-hidden whitespace-nowrap"
+              className="overflow-hidden flex-1 truncate whitespace-nowrap"
             >
               {!!unpackedRef
                 ? entity.data?.document?.metadata.name ?? props.url

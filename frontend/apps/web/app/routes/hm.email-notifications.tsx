@@ -35,7 +35,7 @@ export const loader = async ({request}: {request: Request}) => {
     throw new Error(`No registered account uid defined for ${hostname}`)
   const result = await loadSiteDocument(
     parsedRequest,
-    hmId('d', registeredAccountUid, {path: [], latest: true}),
+    hmId(registeredAccountUid, {path: [], latest: true}),
   )
   return result
 }
@@ -145,7 +145,7 @@ export function EmailNotificationsContent() {
 }
 
 function AccountTitle({accountId}: {accountId: string}) {
-  const {data: entity} = useEntity(hmId('d', accountId))
+  const {data: entity} = useEntity(hmId(accountId))
   console.log('entity', entity?.document?.metadata)
   return (
     <div className="flex gap-2">

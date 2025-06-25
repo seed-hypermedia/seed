@@ -278,7 +278,7 @@ export function usePublishDraft(
       variables: PublishDraftInput,
       context: unknown,
     ) => {
-      const resultDocId = hmId('d', result.account, {
+      const resultDocId = hmId(result.account, {
         path: entityQueryPathToHmIdPath(result.path),
       })
       opts?.onSuccess?.(result, variables, context)
@@ -421,7 +421,7 @@ export function useDraftEditor() {
 
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
-    return hmId('d', route.locationUid, {
+    return hmId(route.locationUid, {
       path: route.locationPath,
     })
   }, [route])
@@ -430,11 +430,11 @@ export function useDraftEditor() {
 
   const editId = useMemo(() => {
     if (data?.editUid)
-      return hmId('d', data.editUid, {
+      return hmId(data.editUid, {
         path: data.editPath,
       })
     if (route.editUid)
-      return hmId('d', route.editUid, {
+      return hmId(route.editUid, {
         path: route.editPath,
       })
     return undefined
@@ -794,7 +794,7 @@ export function usePublishToSite() {
               if (results) {
                 await Promise.all(
                   results.results.map(async (result) => {
-                    const id = hmId('d', result.account, {
+                    const id = hmId(result.account, {
                       path: result.path,
                       version: result.version,
                     })
@@ -854,7 +854,7 @@ export function usePublishToSite() {
       if (authors.has(id.uid) && path.length === 0) {
         return
       }
-      syncParentIds.push(hmId('d', id.uid, {path}))
+      syncParentIds.push(hmId(id.uid, {path}))
     })
     const authorIds = (
       await Promise.all(
@@ -864,7 +864,7 @@ export function usePublishToSite() {
             const authorDoc = await grpcClient.documents.getDocument({
               account: authorUid,
             })
-            const authorId = hmId('d', authorUid, {version: authorDoc.version})
+            const authorId = hmId(authorUid, {version: authorDoc.version})
             if (authorId.uid === id.uid && authorId.version === doc.version) {
               // we are already discovering this doc, so it does not need to be included in the list of authorIds
               return null
@@ -926,7 +926,7 @@ export function queryListDirectory(
         .map((d) => ({
           ...toPlainMessage(d),
           type: 'document',
-          id: hmId('d', d.account, {
+          id: hmId(d.account, {
             path: entityQueryPathToHmIdPath(d.path),
           }).id,
           metadata: HMDocumentMetadataSchema.parse(
@@ -1435,7 +1435,7 @@ export function getDraftEditId(
   } else if (!draftData.destinationUid) {
     return undefined
   } else {
-    return hmId('d', draftData.destinationUid, {
+    return hmId(draftData.destinationUid, {
       path: draftData.destinationPath,
     })
   }

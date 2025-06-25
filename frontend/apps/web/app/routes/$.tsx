@@ -30,7 +30,7 @@ export const loader = async ({
   const path = (params['*'] || '').split('/')
   return await loadSiteDocument(
     parsedRequest,
-    hmId('d', registeredAccountUid, {path, version, latest}),
+    hmId(registeredAccountUid, {path, version, latest}),
     {prefersLanguages: parsedRequest.prefersLanguages},
   )
 }

@@ -38,9 +38,9 @@ export function SiteTemplate({
   const route = input
   const navigate = useNavigate('push')
   const openWindow = useNavigate('spawn')
-  const blogTemplate = useSubscribedEntity(hmId('d', templates.blog))
+  const blogTemplate = useSubscribedEntity(hmId(templates.blog))
   const documentationTemplate = useSubscribedEntity(
-    hmId('d', templates.documentation),
+    hmId(templates.documentation),
   )
   function confirmTemplate() {
     const targetId = route.id?.uid
@@ -49,7 +49,7 @@ export function SiteTemplate({
     onClose()
 
     setTimeout(() => {
-      const id = hmId('d', targetId)
+      const id = hmId(targetId)
       invalidateQueries([queryKeys.ENTITY, id.id])
       invalidateQueries([queryKeys.ACCOUNT, id.uid])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
@@ -110,7 +110,7 @@ export function SiteTemplate({
             e.preventDefault()
             openWindow({
               key: 'document',
-              id: hmId('d', templates.blog),
+              id: hmId(templates.blog),
             })
           }}
         />
@@ -133,7 +133,7 @@ export function SiteTemplate({
             e.preventDefault()
             openWindow({
               key: 'document',
-              id: hmId('d', templates.documentation),
+              id: hmId(templates.documentation),
             })
           }}
         />
@@ -251,7 +251,7 @@ function TemplateItem({
   onPress: ButtonProps['onPress']
   onPressExternal: ButtonProps['onPress']
 }) {
-  const e = useSubscribedEntity(hmId('d', template))
+  const e = useSubscribedEntity(hmId(template))
   return (
     <YStack
       opacity={!!e.data?.document && isOnline ? 1 : 0.5}

@@ -59,6 +59,7 @@ import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
+
 export default function DraftPage() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
@@ -70,9 +71,9 @@ export default function DraftPage() {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
     if (route.locationUid)
-      return hmId('d', route.locationUid, {path: route.locationPath})
+      return hmId(route.locationUid, {path: route.locationPath})
     if (data?.locationUid)
-      return hmId('d', data.locationUid, {
+      return hmId(data.locationUid, {
         path: data.locationPath,
       })
     return undefined
@@ -86,8 +87,8 @@ export default function DraftPage() {
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.editId) return data.editId
-    if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
-    if (data?.editUid) return hmId('d', data.editUid, {path: data.editPath})
+    if (route.editUid) return hmId(route.editUid, {path: route.editPath})
+    if (data?.editUid) return hmId(data.editUid, {path: data.editPath})
     return undefined
   }, [route, data])
 
@@ -98,10 +99,10 @@ export default function DraftPage() {
 
   const homeId = useMemo(() => {
     if (locationId) {
-      return hmId('d', locationId.uid, {path: []})
+      return hmId(locationId.uid, {path: []})
     }
     if (editId) {
-      return hmId('d', editId.uid, {path: []})
+      return hmId(editId.uid, {path: []})
     }
     return undefined
   }, [locationId, editId])
@@ -275,7 +276,7 @@ function DocumentEditor({
       }
     }
     if (uId) {
-      return hmId('d', uId, {path})
+      return hmId(uId, {path})
     }
     return undefined
   }, [route, draftQuery.data])
@@ -517,7 +518,7 @@ function DocumentEditor({
 
   //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
   //   copyUrlToClipboardWithFeedback(
-  //     createWebHMUrl(id.type, id.uid, {
+  //     createWebHMUrl(id.uid, {
   //       blockRef: blockId,
   //       blockRange,
   //       hostname: gwUrl.data,
