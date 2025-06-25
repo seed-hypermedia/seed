@@ -2,7 +2,12 @@ import {queryClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, getCommentGroups, unpackHmId} from '@shm/shared'
+import {
+  BIG_INT,
+  getCommentGroups,
+  hmIdPathToEntityQueryPath,
+  unpackHmId,
+} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMComment,
@@ -28,29 +33,16 @@ export const loader = async ({
   if (!targetId) throw new Error('targetId is required')
   if (!commentId) throw new Error('commentId is required')
   let result: HMDiscussionPayload | {error: string}
-
   try {
-    const res = await queryClient.entities.listEntityMentions({
-      id: targetId.id,
+    const data = await queryClient.comments.listComments({
+      targetAccount: targetId.uid,
+      targetPath: hmIdPathToEntityQueryPath(targetId.path),
       pageSize: BIG_INT,
     })
 
-    const allComments: HMComment[] = []
-
-    for (const mention of res.mentions) {
-      try {
-        const sourceId = unpackHmId(mention.source)
-        if (!sourceId) continue
-        if (sourceId.type !== 'c') continue
-        const comment = await queryClient.comments.getComment({
-          id: mention.sourceBlob?.cid,
-        })
-        if (!comment) continue
-        allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
-      } catch (error) {
-        console.error('=== comment error', error)
-      }
-    }
+    const allComments = data.comments.map(
+      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
+    )
 
     const commentGroups = getCommentGroups(allComments, commentId)
 
