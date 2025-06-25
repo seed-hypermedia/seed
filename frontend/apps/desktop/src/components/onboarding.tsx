@@ -1104,8 +1104,8 @@ function RecoveryStep({
         color="$gray11"
         className="no-window-drag"
       >
-        Store this Secret Recover Phrase somewhere safe. You'll need it to recover your
-        account if you lose access.
+        Store this Secret Recover Phrase somewhere safe. You'll need it to
+        recover your account if you lose access.
       </Text>
 
       <YStack
