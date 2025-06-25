@@ -9,10 +9,11 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useTx, useTxUtils} from '@shm/shared/translation'
+import {useTxString, useTxUtils} from '@shm/shared/translation'
+import {useResourceUrl} from '@shm/shared/url'
 import {Button, ButtonText} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
-import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronRight, Copy} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {copyTextToClipboard} from './copy-to-clipboard'
@@ -105,14 +106,14 @@ export function Comment({
   )
   const theme = useTheme()
   const isDark = useIsDark()
-  const tx = useTx()
+  const tx = useTxString()
   const {formattedDateMedium, formattedDateLong} = useTxUtils()
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
       setShowReplies(defaultExpandReplies)
     }
   }, [defaultExpandReplies])
-
+  const getUrl = useResourceUrl()
   return (
     <XStack
       gap="$2"
@@ -138,7 +139,7 @@ export function Comment({
           }
         />
       ) : null}
-      <Stack position="relative" minWidth={20} className="mt-0.5">
+      <div className="relative mt-0.5 min-w-5">
         <Stack
           position="absolute"
           top={0}
@@ -146,6 +147,7 @@ export function Comment({
           left={0}
           w={20}
           h={20}
+          role="link"
           bg="transparent"
           outlineColor={
             highlight
@@ -167,31 +169,41 @@ export function Comment({
             <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
           </div>
         )}
-      </Stack>
+      </div>
       <YStack f={1} gap="$1">
-        <XStack minHeight={16} ai="center" gap="$2">
-          <ButtonText
-            size="$1"
-            h={16}
-            fontWeight="bold"
-            hoverStyle={{
-              bg: '$backgroundStrong',
-            }}
-            {...authorLink}
-          >
-            {authorMetadata?.name || '...'}
-          </ButtonText>
-          <Tooltip content={formattedDateLong(comment.createTime)}>
+        <XStack justifyContent="space-between">
+          <XStack minHeight={16} ai="center" gap="$2">
             <ButtonText
-              color="$color8"
-              fontSize={10}
+              size="$1"
               h={16}
-              onPress={() => {
-                copyTextToClipboard(comment.id)
+              role="link"
+              fontWeight="bold"
+              hoverStyle={{
+                bg: '$backgroundStrong',
               }}
+              {...authorLink}
             >
-              {formattedDateMedium(comment.createTime)}
+              {authorMetadata?.name || '...'}
             </ButtonText>
+            <Tooltip content={formattedDateLong(comment.createTime)}>
+              <ButtonText color="$color8" fontSize={10} h={16}>
+                {formattedDateMedium(comment.createTime)}
+              </ButtonText>
+            </Tooltip>
+          </XStack>
+          <Tooltip content={tx('Copy Comment Link')}>
+            <Button
+              icon={Copy}
+              chromeless
+              size="$1"
+              $group-item-hover={{opacity: 1}}
+              opacity={0}
+              onPress={() => {
+                const url = getUrl(hmId('d', comment.id))
+                console.log('~ url', url)
+                copyTextToClipboard(url)
+              }}
+            />
           </Tooltip>
         </XStack>
         <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>
