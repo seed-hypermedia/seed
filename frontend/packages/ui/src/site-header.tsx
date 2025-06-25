@@ -99,7 +99,7 @@ export function SiteHeader({
       ) : null}
       <header
         className={cn(
-          'border-muted dark:bg-background flex w-full border-b bg-white p-4',
+          'border-border dark:bg-background flex w-full border-b bg-white p-4',
           {
             'flex-col': isCenterLayout,
             'flex-row items-center': !isCenterLayout,

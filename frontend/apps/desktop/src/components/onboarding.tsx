@@ -1269,12 +1269,14 @@ export function OnboardingDebugBox() {
       maxHeight={300}
     >
       <ScrollArea>
-        <Text fontSize="$3" fontFamily="$mono">
-          Debug: Onboarding State
-        </Text>
-        <Text fontSize="$2" fontFamily="$mono" color="$gray11">
-          {JSON.stringify(state, null, 2)}
-        </Text>
+        <div className="p-3">
+          <Text fontSize="$3" fontFamily="$mono">
+            Debug: Onboarding State
+          </Text>
+          <Text fontSize="$2" fontFamily="$mono" color="$gray11">
+            {JSON.stringify(state, null, 2)}
+          </Text>
+        </div>
       </ScrollArea>
     </YStack>
   )

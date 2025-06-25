@@ -2340,13 +2340,15 @@ export function DocumentCardGrid({
   return (
     <div className="flex w-full flex-col">
       {firstItem ? (
-        <DocumentCard
-          banner
-          entity={getEntity(firstItem.item.path)}
-          docId={firstItem.id}
-          key={firstItem.item.path.join('/')}
-          accountsMetadata={accountsMetadata}
-        />
+        <div className="flex p-3">
+          <DocumentCard
+            banner
+            entity={getEntity(firstItem.item.path)}
+            docId={firstItem.id}
+            key={firstItem.item.path.join('/')}
+            accountsMetadata={accountsMetadata}
+          />
+        </div>
       ) : null}
       {items?.length ? (
         <div className="-mx-3 mt-2 flex flex-wrap justify-center">

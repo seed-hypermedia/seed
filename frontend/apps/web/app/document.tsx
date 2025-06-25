@@ -704,7 +704,7 @@ function InnerDocumentPage(
                     <div className="flex items-center justify-center">
                       {activitySummary}
                     </div>
-                    <div className="border-border border-b px-5 py-1">
+                    <div className="border-border border-b px-5 py-2 text-left">
                       <Text weight="semibold">{panelTitle}</Text>
                     </div>
                   </DrawerHeader>
@@ -962,7 +962,7 @@ function InteractionSummaryItem({
   active: boolean
 }) {
   return (
-    <Tooltip content={label}>
+    <Tooltip content={`${count} ${pluralS(count, label)}`}>
       <Button
         onClick={onClick}
         variant="ghost"

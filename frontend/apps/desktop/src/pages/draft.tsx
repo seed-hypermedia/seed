@@ -339,7 +339,7 @@ function DocumentEditor({
               setShow={setShowCover}
               showOutline={showOutline}
             />
-            <YStack ref={elementRef} w="100%" f={1}>
+            <YStack ref={elementRef} w="100%" f={1} className="draft-editor">
               <XStack {...wrapperProps}>
                 {showSidebars ? (
                   <YStack

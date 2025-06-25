@@ -654,20 +654,22 @@ function PathItemCard({
       {directoryItems?.length ? (
         <>
           <ScrollArea className="flex-1 overflow-y-auto py-0">
-            {/* <YStack gap="$1"> */}
-            {directoryItems?.map((item) => {
-              return (
-                <DocumentSmallListItem
-                  key={item.id?.path?.join('/') || item.id?.id || item.draftId}
-                  metadata={item.metadata}
-                  id={item.id}
-                  onPress={() => {}}
-                  draftId={item.draftId}
-                  isPublished={item.isPublished}
-                />
-              )
-            })}
-            {/* </YStack> */}
+            <div className="pl-2.5">
+              {directoryItems?.map((item) => {
+                return (
+                  <DocumentSmallListItem
+                    key={
+                      item.id?.path?.join('/') || item.id?.id || item.draftId
+                    }
+                    metadata={item.metadata}
+                    id={item.id}
+                    onPress={() => {}}
+                    draftId={item.draftId}
+                    isPublished={item.isPublished}
+                  />
+                )
+              })}
+            </div>
           </ScrollArea>
         </>
       ) : null}

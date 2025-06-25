@@ -221,9 +221,9 @@ function IdentitySelector() {
               <div
                 key={option.id.uid}
                 className={cn(
-                  'hover:bg-accent dark:hover:bg-accent flex flex-row items-center gap-4 rounded-sm p-2',
+                  'hover:bg-sidebar-accent flex flex-row items-center gap-4 rounded-md p-2',
                   selectedAccount?.data?.id?.uid === option.id.uid
-                    ? 'bg-brand-12 hover:bg-brand-11 dark:bg-brand-1 dark:hover:bg-brand-11'
+                    ? 'bg-sidebar-accent'
                     : '',
                 )}
                 onClick={() => {
@@ -249,13 +249,13 @@ function IdentitySelector() {
 function CreateAccountButton({className}: {className?: string}) {
   return (
     <Button
-      variant="brand"
+      variant="default"
       className={cn('flex-1 border-none', className)}
       onClick={() => {
         dispatchOnboardingDialog(true)
       }}
     >
-      <Plus className="size-3" />
+      <Plus className="size-4" />
       Create Account
     </Button>
   )

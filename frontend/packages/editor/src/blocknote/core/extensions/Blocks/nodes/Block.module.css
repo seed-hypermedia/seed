@@ -111,7 +111,17 @@ NESTED BLOCKS
 
 .inlineContent {
   font-size: 0.9em;
-  /* font-family:
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.draft-editor .ProseMirror .inlineContent {
+  font-family: Georgia, serif !important;
+}
+
+.comment-editor .ProseMirror .inlineContent {
+  font-family:
     'Inter',
     'SF Pro Display',
     -apple-system,
@@ -125,10 +135,7 @@ NESTED BLOCKS
     'Fira Sans',
     'Droid Sans',
     'Helvetica Neue',
-    sans-serif; */
-  font-family: Georgia, serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    sans-serif !important;
 }
 
 /* [data-theme='light']

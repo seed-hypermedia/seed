@@ -56,13 +56,18 @@ function DocumentCitationToken({
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
   const className =
-    'text-sm bg-secondary border border-brand-11 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all hover:bg-brand-11 active:bg-brand-10'
+    'text-sm bg-gray-200 border border-gray-300 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all'
   if (DocPreview) {
     return (
       <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
         <a
           {...linkProps}
-          className={cn(className, 'text-secondary-foreground')}
+          className={cn(
+            className,
+            'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 hover:dark:border-gray-600 hover:dark:text-white',
+            // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
+            'text-secondary-foreground',
+          )}
         >
           {metadata?.name}
         </a>

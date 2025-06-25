@@ -235,7 +235,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="flex min-h-full flex-1 flex-row justify-center p-4">
-        <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-3 rounded-lg bg-gray-100 p-4 py-7 dark:bg-gray-900">
+        <div className="border-border bg-background mx-auto flex w-full max-w-lg flex-col items-center gap-3 rounded-lg border p-4 py-7 dark:bg-black">
           <HMIcon id={contactId} metadata={contact.data?.metadata} size={80} />
           <Tooltip content={primaryTooltip}>
             <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
@@ -369,7 +369,7 @@ function ContactEdgeNames({
   const buttonIcon = isExpanded ? ChevronDown : ChevronRight
 
   return (
-    <div className="self-stretch rounded-sm border-2 border-gray-200 p-2 dark:border-gray-700">
+    <div className="border-border self-stretch rounded-md border-2 p-2">
       {contact.subjectContacts?.length ? (
         <>
           <XStack jc="center">
@@ -416,7 +416,7 @@ function ContactEdgeNames({
           ) : null}
         </>
       ) : (
-        <span className="text-center text-sm text-gray-500 dark:text-gray-300">
+        <span className="text-foreground block w-full text-center text-sm">
           No Edge Names
         </span>
       )}
@@ -436,7 +436,7 @@ function AccountContacts({
   )
   const navigate = useNavigate()
   return (
-    <div className="mt-4 self-stretch rounded-sm bg-green-100 p-2 dark:bg-green-900">
+    <div className="border-border dark:bg-background mt-4 self-stretch rounded-md border bg-white p-2">
       <h3 className="text-l p-3 font-bold break-words">
         {contact.contacts?.length
           ? `${ownerLabel}'s Contacts`

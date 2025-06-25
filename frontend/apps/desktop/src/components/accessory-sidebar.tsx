@@ -197,9 +197,9 @@ export function AccessoryContent({
   title?: string
 }) {
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-3" {...props}>
+    <div className="flex flex-1 flex-col overflow-hidden" {...props}>
       <ScrollArea>
-        <div className="flex flex-col gap-2">{children}</div>
+        <div className="flex flex-col gap-2 p-3">{children}</div>
       </ScrollArea>
       {footer ? (
         <div className="bg-background rounded-md py-2 dark:bg-black">

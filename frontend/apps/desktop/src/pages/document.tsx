@@ -57,7 +57,6 @@ import {
   ArrowRight,
   BlockQuote,
   HistoryIcon,
-  IconComponent,
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -71,7 +70,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, Plus} from '@tamagui/lucide-icons'
+import {MessageSquare, Plus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {ButtonText, XStack, YStack} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
@@ -274,7 +273,11 @@ function _MainDocumentPage({
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
-      <div className="flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      <div
+        className="relative flex flex-1 flex-col overflow-hidden"
+        ref={elementRef}
+      >
+        <DocInteractionsSummary docId={id} />
         <ScrollArea>
           <DocumentCover docId={id} />
 
@@ -311,7 +314,6 @@ function _MainDocumentPage({
             </BaseDocContainer>
             {showSidebars ? <YStack {...sidebarProps} /> : null}
           </div>
-          <DocInteractionsSummary docId={id} />
         </ScrollArea>
       </div>
     </div>
@@ -333,34 +335,36 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="dark:bg-background absolute top-2 right-2 z-50 flex gap-1 rounded-md bg-white px-3 py-2 shadow-md">
-      <InteractionSummaryItem
-        label="citation"
-        count={docCitations.length || 0}
-        onPress={() => {
-          replace({...docRoute, accessory: {key: 'citations'}})
-        }}
-        icon={BlockQuote}
-      />
+    <div className="dark:bg-background absolute top-2 right-2 z-[999] rounded-md bg-white shadow-md">
+      <div className="flex">
+        <InteractionSummaryItem
+          label="citation"
+          count={docCitations.length || 0}
+          onPress={() => {
+            replace({...docRoute, accessory: {key: 'citations'}})
+          }}
+          icon={<BlockQuote className="size-3" />}
+        />
 
-      <Separator />
-      <InteractionSummaryItem
-        label="comment"
-        count={comments.data?.length || 0}
-        onPress={() => {
-          replace({...docRoute, accessory: {key: 'discussions'}})
-        }}
-        icon={MessageSquare}
-      />
-      <Separator />
-      <InteractionSummaryItem
-        label="version"
-        count={changes.data?.length || 0}
-        onPress={() => {
-          replace({...docRoute, accessory: {key: 'versions'}})
-        }}
-        icon={HistoryIcon}
-      />
+        <Separator />
+        <InteractionSummaryItem
+          label="comment"
+          count={comments.data?.length || 0}
+          onPress={() => {
+            replace({...docRoute, accessory: {key: 'discussions'}})
+          }}
+          icon={<MessageSquare className="size-3" />}
+        />
+        <Separator />
+        <InteractionSummaryItem
+          label="version"
+          count={changes.data?.length || 0}
+          onPress={() => {
+            replace({...docRoute, accessory: {key: 'versions'}})
+          }}
+          icon={<HistoryIcon size={16} color="currentColor" />}
+        />
+      </div>
     </div>
   )
 }
@@ -369,18 +373,19 @@ function InteractionSummaryItem({
   label,
   count,
   onPress,
-  icon: Icon,
+  icon,
 }: {
   label: string
   count: number
   onPress: () => void
-  icon: IconComponent
+  icon: React.ReactNode
 }) {
   return (
     <Tooltip content={`${count} ${pluralS(count, label)}`}>
-      <Button onPress={onPress} size="$1" chromeless icon={Icon}>
-        <SizableText size="xs">{count}</SizableText>
-      </Button>
+      <TWButton onClick={onPress} size="sm" className={'p-0'}>
+        {icon}
+        <span className="text-xs">{count}</span>
+      </TWButton>
     </Tooltip>
   )
 }
