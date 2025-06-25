@@ -27,6 +27,7 @@
     "@hookform/resolvers": "3.3.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.2",
+    "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-popover": "^1.1.14",
     "@radix-ui/react-radio-group": "^1.3.7",
@@ -69,7 +70,8 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.8",
     "tamagui": "1.108.2",
-    "tw-animate-css": "^1.3.0"
+    "tw-animate-css": "^1.3.0",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@tamagui/build": "1.108.2",

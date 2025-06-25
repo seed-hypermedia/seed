@@ -7,16 +7,10 @@ import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {postCBOR} from '../api'
-import type {DelegateDevicePayload} from './hm.api.delegate-device'
+import * as cbor from '@ipld/dag-cbor'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {createAccount, LocalWebIdentity, logout} from '../auth'
-import {linkDevice, LinkingResult, LinkingEvent} from '../device-linking'
-import * as cbor from '@ipld/dag-cbor'
 import {
   DeviceLinkSessionSchema,
   hmId,
@@ -29,23 +23,21 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallSiteHeader} from '@shm/ui/site-header'
-import {Spinner} from '@shm/ui/spinner'
-import {ArrowRight, Check} from '@tamagui/lucide-icons'
+import {Text} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
+import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {ArrowRight, Check} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
-import {
-  Button,
-  Heading,
-  Paragraph,
-  styled,
-  Text,
-  View,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {postCBOR} from '../api'
+import {createAccount, LocalWebIdentity, logout} from '../auth'
+import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
+import type {DelegateDevicePayload} from './hm.api.delegate-device'
 
 injectModels()
 // export async function loader({request}: LoaderFunctionArgs) {
@@ -100,7 +92,7 @@ export default function DeviceLinkPage() {
   const {enableWebSigning, originHomeId, siteHost, origin, originHomeMetadata} =
     unwrap<DeviceLinkPagePayload>(useLoaderData())
   if (!originHomeId) {
-    return <Heading>Invalid origin home id</Heading>
+    return <h2>Invalid origin home id</h2>
   }
   return (
     <WebSiteProvider
@@ -108,7 +100,7 @@ export default function DeviceLinkPage() {
       originHomeId={originHomeId}
       siteHost={siteHost}
     >
-      <YStack ai="center" flex={1} minHeight="100vh">
+      <div className="flex min-h-screen flex-1 flex-col items-center">
         {originHomeMetadata && (
           <SmallSiteHeader
             originHomeMetadata={originHomeMetadata}
@@ -116,31 +108,26 @@ export default function DeviceLinkPage() {
             siteHost={siteHost}
           />
         )}
-        <YStack
-          flex={1}
-          gap="$3"
-          width="100%"
-          maxWidth={600}
-          paddingTop="$4"
-          paddingHorizontal={0}
-        >
-          <View paddingHorizontal="$4">
+        <div className="w-full max-w-lg flex-1 gap-3 px-0 pt-4">
+          <div className="px-4">
             <HMDeviceLink />
-          </View>
-        </YStack>
+          </div>
+        </div>
         <PageFooter enableWebSigning={enableWebSigning} />
-      </YStack>
+      </div>
     </WebSiteProvider>
   )
 }
 
-const DeviceLinkContainer = styled(YStack, {
-  gap: '$5',
-  ai: 'center',
-  borderRadius: '$3',
-  padding: '$4',
-  backgroundColor: '$backgroundStrong',
-})
+const DeviceLinkContainer = ({className, ...props}: any) => (
+  <div
+    className={cn(
+      'flex flex-col items-center gap-5 rounded-sm bg-white p-4',
+      className,
+    )}
+    {...props}
+  />
+)
 
 async function storeDeviceDelegation(payload: DelegateDevicePayload) {
   const result = await postCBOR('/hm/api/delegate-device', cbor.encode(payload))
@@ -265,16 +252,10 @@ export function HMDeviceLink() {
   if (error) {
     return (
       <DeviceLinkContainer>
-        <YStack
-          theme="red"
-          borderRadius="$3"
-          padding="$4"
-          borderColor="$red10"
-          backgroundColor="$red3"
-        >
-          <Heading>Error linking device</Heading>
-          <Paragraph>{error}</Paragraph>
-        </YStack>
+        <div className="flex flex-col items-center gap-5 rounded-sm border border-red-500 bg-red-100 p-4">
+          <h2>Error linking device</h2>
+          <p>{error}</p>
+        </div>
       </DeviceLinkContainer>
     )
   }
@@ -289,19 +270,19 @@ export function HMDeviceLink() {
             size={48}
           />
         )}
-        <Heading>
+        <h2>
           {existingAccount?.metadata?.name ? (
             <>
               You are signed in as{' '}
-              <Text fontWeight="bold">{existingAccount?.metadata?.name}</Text>
+              <Text weight="bold">{existingAccount?.metadata?.name}</Text>
             </>
           ) : (
             'You are signed in'
           )}
-        </Heading>
-        <XStack jc="center">
+        </h2>
+        <div className="flex justify-center">
           <GoHomeButton />
-        </XStack>
+        </div>
       </DeviceLinkContainer>
     )
   }
@@ -310,7 +291,7 @@ export function HMDeviceLink() {
     desktopAccount?.document?.metadata?.name || 'Unknown Account'
   let heading: React.ReactNode = (
     <>
-      Sign in to <Text fontWeight="bold">{linkAccountName}</Text>
+      Sign in to <Text weight="bold">{linkAccountName}</Text>
     </>
   )
   let description = `You can access your desktop account from this browser`
@@ -328,15 +309,15 @@ export function HMDeviceLink() {
       browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
     heading = (
       <>
-        Merge <Text fontWeight="bold">{browserAccountName}</Text> to{' '}
-        <Text fontWeight="bold">{linkAccountName}</Text>
+        Merge <Text weight="bold">{browserAccountName}</Text> to{' '}
+        <Text weight="bold">{linkAccountName}</Text>
       </>
     )
     description = `Your "${browserAccountName}" web identity will be merged into "${linkAccountName}", and this browser will gain full access to this desktop account.`
     actionLabel = 'Approve Account Merge'
     extraContent =
       browserAccount && desktopAccount ? (
-        <XStack gap="$4">
+        <div className="flex gap-4">
           <HMIcon
             metadata={browserAccount.document?.metadata}
             id={browserAccount?.id}
@@ -348,7 +329,7 @@ export function HMDeviceLink() {
             id={desktopAccount?.id}
             size={36}
           />
-        </XStack>
+        </div>
       ) : null
   }
 
@@ -369,16 +350,14 @@ export function HMDeviceLink() {
 
   return (
     <DeviceLinkContainer>
-      <Heading>{heading}</Heading>
-      <Paragraph textWrap="wrap" maxWidth="100%">
-        {description}
-      </Paragraph>
+      <h2>{heading}</h2>
+      <p>{description}</p>
       {extraContent}
       {/* {existingAccount && (
         <Paragraph>{JSON.stringify(existingAccount)}</Paragraph>
       )} */}
       <Button
-        onPress={() => {
+        onClick={() => {
           if (!session) {
             setError('No device link session found')
             return
@@ -396,17 +375,10 @@ export function HMDeviceLink() {
             })
         }}
         disabled={linkDevice.isLoading}
-        color="$color1"
-        iconAfter={Check}
-        backgroundColor="$brand5"
-        hoverStyle={{
-          backgroundColor: '$brand6',
-        }}
-        pressStyle={{
-          backgroundColor: '$brand7',
-        }}
+        variant="default"
       >
         {actionLabel}
+        <Check size="size-4" />
       </Button>
     </DeviceLinkContainer>
   )
@@ -426,20 +398,9 @@ function GoHomeButton() {
     return null
   }
   return (
-    <Button
-      {...routeLink}
-      size="$2"
-      color="$color1"
-      iconAfter={ArrowRight}
-      backgroundColor="$brand5"
-      hoverStyle={{
-        backgroundColor: '$brand6',
-      }}
-      pressStyle={{
-        backgroundColor: '$brand7',
-      }}
-    >
+    <Button {...routeLink} size="sm" variant="default">
       Go Home
+      <ArrowRight className="size-4" />
     </Button>
   )
 }

@@ -1,7 +1,6 @@
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Spinner} from '@shm/ui/spinner'
 import {DialogTitle} from '@shm/ui/universal-dialog'
-import {YStack} from 'tamagui'
 
 import {useTxString} from '@shm/shared/translation'
 import {z} from 'zod'
@@ -49,13 +48,13 @@ export function NotifSettingsDialog({onClose}: {onClose: () => void}) {
       </div>
     ) // todo: make it look better
   return (
-    <YStack gap="$4">
+    <div>
       <DialogTitle>{tx('Email Notification Settings')}</DialogTitle>
       <EmailNotificationsForm
         onClose={onClose}
         onComplete={onClose}
         defaultValues={emailNotifications?.account}
       />
-    </YStack>
+    </div>
   )
 }

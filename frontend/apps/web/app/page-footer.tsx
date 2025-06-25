@@ -1,12 +1,9 @@
 import {createHMUrl, UnpackedHypermediaId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
+import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
-import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
-import {ButtonText} from '@tamagui/button'
-import {View} from '@tamagui/core'
-import {ExternalLink} from '@tamagui/lucide-icons'
-import {XStack} from '@tamagui/stacks'
+import {ExternalLink} from 'lucide-react'
 import {ReactNode} from 'react'
 import {AccountFooterActionsLazy} from './client-lazy'
 
@@ -20,16 +17,9 @@ export function PageFooter({
   const tx = useTx()
   return (
     <Container className="mb-10 shrink-0 md:mb-0">
-      <XStack
-        jc="space-between"
-        ai="center"
-        flexWrap="wrap"
-        flexDirection="row-reverse"
-        marginBottom="$4"
-        gap="$4"
-      >
-        {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
-        <XStack gap="$4" ai="center">
+      <div className="mb-4 flex flex-row-reverse flex-wrap items-center justify-between gap-4">
+        {enableWebSigning ? <AccountFooterActionsLazy /> : <div />}
+        <div className="flex items-center gap-4">
           <SizableText size="xs">
             {tx(
               'powered_by',
@@ -38,36 +28,32 @@ export function PageFooter({
               ),
               {
                 seedLink: (
-                  <ButtonText
-                    size="$1"
-                    tag="a"
+                  <a
+                    className="text-sm"
                     href="https://seed.hyper.media"
                     target="_blank"
                   >
                     Seed Hypermedia
-                  </ButtonText>
+                  </a>
                 ),
               },
             )}
           </SizableText>
           {id ? (
             <Button
-              display="none"
-              $gtSm={{display: 'flex'}}
-              tag="a"
-              size="$2"
-              href={createHMUrl(id)}
-              style={{textDecoration: 'none'}}
-              icon={ExternalLink}
-              backgroundColor="$green4"
-              hoverStyle={{backgroundColor: '$green5'}}
-              themeInverse
+              className="hidden sm:flex"
+              size="sm"
+              variant="default"
+              onClick={() => {
+                createHMUrl(id)
+              }}
             >
+              <ExternalLink className="size-3" />
               {tx('Open App')}
             </Button>
           ) : null}
-        </XStack>
-      </XStack>
+        </div>
+      </div>
     </Container>
   )
 }

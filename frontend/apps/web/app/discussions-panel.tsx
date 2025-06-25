@@ -15,7 +15,6 @@ import {SizableText} from '@shm/ui/text'
 import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
-import {YStack} from 'tamagui'
 
 import {useTxString} from '@shm/shared/translation'
 import {cn} from '@shm/ui/utils'
@@ -144,11 +143,7 @@ export function AllDiscussions({
         />
       )
   }
-  return (
-    <YStack gap="$4" paddingHorizontal="$2">
-      {panelContent}
-    </YStack>
-  )
+  return <div className="flex flex-col gap-4 px-2">{panelContent}</div>
 }
 
 function BlockDiscussions({
@@ -193,8 +188,8 @@ function BlockDiscussions({
       )
   }
   return (
-    <YStack gap="$4" paddingHorizontal="$2">
-      <YStack padding="$3" borderRadius="$3">
+    <div className="flex flex-col gap-4 px-2">
+      <div className="rounded-md p-3">
         <WebDocContentProvider
           key={blockId}
           originHomeId={originHomeId}
@@ -202,9 +197,9 @@ function BlockDiscussions({
         >
           <QuotedDocBlock docId={docId} blockId={blockId} doc={document!} />
         </WebDocContentProvider>
-      </YStack>
-      <YStack>{panelContent}</YStack>
-    </YStack>
+      </div>
+      <div className="flex flex-col">{panelContent}</div>
+    </div>
   )
 }
 
@@ -232,12 +227,12 @@ function CommentDiscussion(
       commentGroups?.length > 0
         ? commentGroups?.map((cg, idx) => {
             return (
-              <YStack
+              <div
                 key={cg.id}
-                paddingHorizontal="$3"
-                marginBottom={commentGroups.length - 1 > idx ? '$4' : 0}
-                borderBottomWidth={1}
-                borderBottomColor="$borderColor"
+                className={cn(
+                  'border-border border-b px-3',
+                  commentGroups.length - 1 > idx && 'mb-4',
+                )}
               >
                 <CommentGroup
                   key={cg.id}
@@ -246,7 +241,7 @@ function CommentDiscussion(
                   renderCommentContent={renderCommentContent}
                   enableReplies
                 />
-              </YStack>
+              </div>
             )
           })
         : null
@@ -255,7 +250,7 @@ function CommentDiscussion(
   return (
     <div className="flex flex-col gap-2 p-3">
       {rootCommentId && thread ? (
-        <YStack padding="$3" borderRadius="$3">
+        <div className="rounded-md p-3">
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
@@ -268,7 +263,7 @@ function CommentDiscussion(
             highlightLastComment
             enableReplies
           />
-        </YStack>
+        </div>
       ) : null}
       <div className="flex flex-col">{panelContent}</div>
     </div>

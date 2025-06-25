@@ -10,12 +10,9 @@ import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
-import {Linux, Macos, Win32} from '@shm/ui/icons'
+import {Button} from '@shm/ui/button'
+import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
-import {Button} from '@tamagui/button'
-import {Download} from '@tamagui/lucide-icons'
-import {SizableStack, XStack, YStack} from '@tamagui/stacks'
-import {H1} from '@tamagui/text'
 import {useEffect, useState} from 'react'
 import {z} from 'zod'
 import {Container} from '../ui/container'
@@ -178,10 +175,9 @@ export default function DownloadPage() {
       originHomeId={originHomeId}
       siteHost={siteHost}
     >
-      <YStack
-        backgroundImage={`url(${downloadBg})`}
-        backgroundSize="cover"
-        backgroundPosition="top"
+      <div
+        className="bg-cover bg-top"
+        style={{backgroundImage: `url(${downloadBg})`}}
       >
         <WebSiteHeader
           homeMetadata={homeMetadata}
@@ -192,37 +188,24 @@ export default function DownloadPage() {
           supportQueries={supportQueries}
           origin={origin}
         />
-        <YStack
-          minHeight="45vh"
-          justifyContent="center"
-          // backgroundColor="$brand12"
-          alignItems="center"
-          paddingVertical="$8"
-        >
-          <Container gap="$4" paddingHorizontal="$6">
-            <H1 size="$10" textAlign="center" $gtMd={{size: '$13'}}>
+        <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
+          <Container className="gap-4 px-6">
+            <h1 className="text-3xl font-bold md:text-4xl">
               Download Seed Hypermedia Today!
-            </H1>
+            </h1>
             <SizableText size="xl" className="text-center">
               Start writing and collaborating with your peers.
             </SizableText>
             {suggestedButtons.length > 0 && suggestedButtons}
           </Container>
-        </YStack>
+        </div>
         <Container>
-          <YStack gap="$4" ai="center">
+          <div className="flex flex-col items-center justify-center gap-4">
             <SizableText size="2xl" weight="bold">
               Download Seed Hypermedia {stableRelease.name}
             </SizableText>
-          </YStack>
-          <SizableStack
-            flexDirection="column"
-            $gtSm={{flexDirection: 'row'}}
-            gap="$4"
-            ai="center"
-            jc="center"
-            p="$4"
-          >
+          </div>
+          <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
             {stableRelease.assets?.macos && (
               <PlatformItem
                 label="MacOS"
@@ -259,10 +242,10 @@ export default function DownloadPage() {
                 )}
               />
             )}
-          </SizableStack>
+          </div>
         </Container>
         <PageFooter enableWebSigning={enableWebSigning} />
-      </YStack>
+      </div>
     </WebSiteProvider>
   )
 }
@@ -273,44 +256,36 @@ function PlatformItem({
   assets = [],
 }: {
   label: string
-  icon: React.ReactNode
+  icon: any
   assets: Array<{
     label: string
     url: string
   }>
 }) {
   return (
-    <YStack
-      $gtSm={{minWidth: 250, width: 'auto'}}
-      width="100%"
-      bg="$backgroundStrong"
-      p="$4"
-      gap="$3"
-      borderRadius="$4"
-      elevation="$2"
-      ai="center"
-    >
-      <Icon color="hsl(171, 96%, 28%)" size={60} />
+    <div className="flex w-full flex-col items-center gap-3 rounded-md p-4 shadow-sm sm:w-auto sm:min-w-3xs">
+      <Icon size={60} className="text-[hsl(171, 96%, 28%)] size-[60px]" />
       <SizableText size="lg" weight="bold">
         {label}
       </SizableText>
-      <XStack gap="$2">
+      <div className="flex gap-2">
         {assets.map((asset) => (
           <Button
+            variant="link"
             className={`plausible-event-name=download plausible-event-os=${asset.url
               .split('.')
               .pop()}`}
-            size="$2"
-            icon={Download}
-            tag="a"
-            href={asset.url}
-            style={{textDecoration: 'none'}}
+            size="sm"
+            asChild
           >
-            {asset.label}
+            <a href={asset.url} style={{textDecoration: 'none'}}>
+              <Download className="size-3" />
+              {asset.label}
+            </a>
           </Button>
         ))}
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -326,23 +301,17 @@ function ReleaseEntry({
   if (!asset) return null
   return (
     <Button
-      tag="a"
+      asChild
+      variant="default"
       className={`plausible-event-name=download plausible-event-os=${asset.download_url
         .split('.')
-        .pop()}`}
-      href={asset.download_url}
+        .pop()} self-center rounded-md`}
       style={{textDecoration: 'none'}}
-      download
-      alignSelf="center"
-      icon={Download}
-      size={large ? '$6' : '$4'}
-      borderRadius="$4"
-      backgroundColor="$brand5"
-      color="white"
-      hoverStyle={{backgroundColor: '$brand4', color: 'white'}}
-      focusStyle={{backgroundColor: '$brand3', color: 'white'}}
+      size={large ? 'lg' : 'default'}
     >
-      {label}
+      <a href={asset.download_url}>
+        <Download className={large ? 'size-6' : 'size-4'} /> {label}
+      </a>
     </Button>
   )
 }

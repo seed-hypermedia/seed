@@ -22,6 +22,12 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTrigger,
+} from '@shm/ui/components/drawer'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
@@ -45,7 +51,6 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {Sheet} from 'tamagui'
 import {WebCommenting} from './client-lazy'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDiscussionsPanel} from './discussions-panel'
@@ -681,60 +686,40 @@ function InnerDocumentPage(
         </div>
         {media.gtSm || !activityEnabled ? null : (
           <>
-            <MobileInteractionCardCollapsed
-              onClick={() => {
-                // if (!panel) {
-                setActivePanel({type: 'discussions', blockId: undefined})
-                // }
-                setIsSheetOpen(true)
-              }}
-              interactionSummary={
-                interactionSummary.data ? <>{activitySummary}</> : null
-              }
-            />
-            <Sheet
-              snapPoints={[92]}
-              onOpenChange={(val: boolean) => {
-                setIsSheetOpen(val)
-                if (!val) {
-                  setActivePanel(null)
+            <Drawer open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <MobileInteractionCardCollapsed
+                onClick={() => {
+                  // if (!panel) {
+                  setActivePanel({type: 'discussions', blockId: undefined})
+                  // }
+                  setIsSheetOpen(true)
+                }}
+                interactionSummary={
+                  interactionSummary.data ? <>{activitySummary}</> : null
                 }
-              }}
-              modal
-              open={isSheetOpen}
-              dismissOnSnapToBottom
-              zIndex={99999}
-            >
-              <Sheet.Overlay
-                height="100vh"
-                bg={'#00000088'}
-                width="100vw"
-                animation="fast"
-                opacity={0.8}
-                enterStyle={{opacity: 0}}
-                exitStyle={{opacity: 0}}
               />
-              <Sheet.Handle />
-              <Sheet.Frame
-                bg={isDark ? '$background' : '$backgroundStrong'}
-                borderColor="$borderColor"
-                borderWidth={1}
-                borderRadius="$4"
-              >
-                <div className="flex items-center justify-center p-2 pb-0">
-                  {activitySummary}
+              <DrawerContent>
+                <div className="flex h-full flex-1 flex-col overflow-hidden">
+                  <DrawerHeader>
+                    <div className="flex items-center justify-center">
+                      {activitySummary}
+                    </div>
+                    <div className="border-border border-b px-5 py-1">
+                      <Text weight="semibold">{panelTitle}</Text>
+                    </div>
+                  </DrawerHeader>
+                  <div className="flex flex-1 flex-col overflow-hidden">
+                    <ScrollArea>{panel}</ScrollArea>
+                  </div>
+
+                  {/*
+                <DrawerContent>
+                  
+                </DrawerContent>
+                <DrawerFooter>{commentEditor}</DrawerFooter> */}
                 </div>
-                <div className="border-border border-b px-5 py-3">
-                  <Text weight="semibold">{panelTitle}</Text>
-                </div>
-                <Sheet.ScrollView f={1} h="100%" overflow="scroll" flex={1}>
-                  {panel}
-                </Sheet.ScrollView>
-                <div className="border-sidebar-border border-t p-2">
-                  {commentEditor}
-                </div>
-              </Sheet.Frame>
-            </Sheet>
+              </DrawerContent>
+            </Drawer>
           </>
         )}
       </div>
@@ -751,19 +736,21 @@ function MobileInteractionCardCollapsed({
 }) {
   const tx = useTx()
   return (
-    <div className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-[999] flex rounded-md border bg-white p-2 shadow-md">
-      <Button
-        variant="ghost"
-        className="flex min-w-0 flex-1 items-center justify-start"
-        onClick={onClick}
-      >
-        <div className="shrink-0">
-          <MessageSquare />
-        </div>
-        <span className="ml-2 flex-1 truncate text-left">
-          {tx('Start a Discussion')}
-        </span>
-      </Button>
+    <div className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex rounded-md border bg-white p-2 shadow-md">
+      <DrawerTrigger asChild>
+        <Button
+          variant="ghost"
+          className="flex min-w-0 flex-1 items-center justify-start"
+          onClick={onClick}
+        >
+          <div className="shrink-0">
+            <MessageSquare />
+          </div>
+          <span className="ml-2 flex-1 truncate text-left">
+            {tx('Start a Discussion')}
+          </span>
+        </Button>
+      </DrawerTrigger>
       {interactionSummary}
     </div>
   )

@@ -29,9 +29,8 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Button} from '@shm/ui/legacy/button'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {Text} from '@tamagui/core'
-import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText, Text} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {useMemo, useState} from 'react'
 
 injectModels()
@@ -51,42 +50,40 @@ function EmbedWrapper({
   const navigate = useNavigate()
 
   return (
-    <YStack width="100%">
-      <YStack
-        width="100%"
-        borderRadius={0}
-        borderLeftWidth={hideBorder ? 0 : 3}
-        borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
-        onPress={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          const selection = window.getSelection()
-          const hasSelection = selection && selection.toString().length > 0
-          if (hasSelection) {
-            return
-          }
-          const destUrl = createWebHMUrl(id.type, id.uid, {
-            hostname: null,
-            blockRange: id.blockRange,
-            blockRef: id.blockRef,
-            version: id.version,
-            latest: id.latest,
-            path: id.path,
-            originHomeId,
-          })
-          const isMeta = isMetaKeyPressed.get()
-          if (isMeta) {
-            window.open(destUrl, '_blank')
-          } else {
-            navigate(destUrl)
-          }
-        }}
-        onHoverIn={() => docContext?.onHoverIn?.(id)}
-        onHoverOut={() => docContext?.onHoverOut?.(id)}
-      >
-        {children}
-      </YStack>
-    </YStack>
+    <div
+      className={cn(
+        'w-full',
+        hideBorder && 'border-primary border-[3px] border-l',
+      )}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const selection = window.getSelection()
+        const hasSelection = selection && selection.toString().length > 0
+        if (hasSelection) {
+          return
+        }
+        const destUrl = createWebHMUrl(id.type, id.uid, {
+          hostname: null,
+          blockRange: id.blockRange,
+          blockRef: id.blockRef,
+          version: id.version,
+          latest: id.latest,
+          path: id.path,
+          originHomeId,
+        })
+        const isMeta = isMetaKeyPressed.get()
+        if (isMeta) {
+          window.open(destUrl, '_blank')
+        } else {
+          navigate(destUrl)
+        }
+      }}
+      onMouseEnter={() => docContext?.onHoverIn?.(id)}
+      onMouseLeave={() => docContext?.onHoverOut?.(id)}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -339,7 +336,7 @@ function QueryListStyle({
   const navigate = useNavigate()
 
   return (
-    <YStack gap="$3" w="100%">
+    <div className="flex w-full flex-col gap-3">
       {items?.map((item) => {
         const id = hmId('d', item.account, {
           path: item.path,
@@ -374,20 +371,20 @@ function QueryListStyle({
               )
             }}
           >
-            <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
+            <div className="flex flex-1 items-center gap-2 py-2">
               <SizableText
                 weight="bold"
                 className="overflow-hidden text-ellipsis whitespace-nowrap"
               >
                 {item.metadata.name}
               </SizableText>
-            </XStack>
+            </div>
             <SizableText size="xs" color="muted">
               {formattedDate(item.updateTime)}
             </SizableText>
           </Button>
         )
       })}
-    </YStack>
+    </div>
   )
 }

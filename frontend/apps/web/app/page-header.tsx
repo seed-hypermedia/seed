@@ -9,11 +9,9 @@ import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Home} from '@shm/ui/icons'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
-import {ButtonText} from '@tamagui/button'
-import {Home} from '@tamagui/lucide-icons'
-import {XStack} from '@tamagui/stacks'
 import {useMemo} from 'react'
 import {getHref} from './href'
 
@@ -64,21 +62,13 @@ export function PageHeader({
             {authors?.length ? (
               <div className="flex max-w-full flex-wrap items-center gap-1">
                 {authors.flatMap((a, index) => [
-                  <ButtonText
-                    hoverStyle={{
-                      textDecorationLine: 'underline',
-                      textDecorationColor: 'currentColor',
-                    }}
-                    size="$2"
-                    cursor="pointer"
-                    fontWeight="bold"
+                  <a
                     key={a.id.id}
-                    tag="a"
                     href={getHref(originHomeId, a.id)}
-                    style={{textDecoration: 'none'}}
+                    className="cursor-pointer text-sm font-bold"
                   >
                     {getMetadataName(a.metadata)}
-                  </ButtonText>,
+                  </a>,
                   index !== authors.length - 1 ? (
                     index === authors.length - 2 ? (
                       <SizableText key={`${a}-and`} size="xs" weight="bold">
@@ -94,7 +84,7 @@ export function PageHeader({
               </div>
             ) : null}
             {authors?.length ? (
-              <Separator vertical className="h- self-stretch" />
+              <Separator vertical className="self-stretch" />
             ) : null}
             {updateTime ? (
               <DocumentDate
@@ -137,10 +127,10 @@ function Breadcrumbs({
   const [first, ...rest] = breadcrumbs
 
   return (
-    <XStack flex={1} gap="$2" alignItems="center">
+    <div className="flex flex-1 items-center gap-2">
       {first ? (
-        <XStack alignItems="center" gap="$1">
-          <Home color="$color10" size={12} />
+        <div className="flex items-center gap-1">
+          <Home className="text-foreground size-3" />
           <SizableText
             color="muted"
             asChild
@@ -154,7 +144,7 @@ function Breadcrumbs({
               {first.metadata?.name}
             </a>
           </SizableText>
-        </XStack>
+        </div>
       ) : null}
       {rest.flatMap((crumb, index) => {
         return [
@@ -176,6 +166,6 @@ function Breadcrumbs({
           </SizableText>,
         ]
       })}
-    </XStack>
+    </div>
   )
 }

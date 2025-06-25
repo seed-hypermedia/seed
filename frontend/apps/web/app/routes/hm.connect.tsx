@@ -15,20 +15,13 @@ import {
   HMPeerConnectionRequestSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {SmallSiteHeader} from '@shm/ui/site-header'
-import {ArrowUpRight} from '@tamagui/lucide-icons'
+import {cn} from '@shm/ui/utils'
+import {ArrowUpRight} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
-import {
-  Button,
-  ButtonText,
-  Heading,
-  Paragraph,
-  styled,
-  View,
-  YStack,
-} from 'tamagui'
 
 type ConnectPagePayload = {
   enableWebSigning: boolean
@@ -75,7 +68,7 @@ export default function ConnectPage() {
   const {enableWebSigning, originHomeId, siteHost, origin, originHomeMetadata} =
     unwrap<ConnectPagePayload>(useLoaderData())
   if (!originHomeId) {
-    return <Heading>Invalid origin home id</Heading>
+    return <h2>Invalid origin home id</h2>
   }
   return (
     <WebSiteProvider
@@ -83,7 +76,7 @@ export default function ConnectPage() {
       originHomeId={originHomeId}
       siteHost={siteHost}
     >
-      <YStack ai="center" flex={1} minHeight="100vh">
+      <div className="flex min-h-screen flex-1 flex-col items-center">
         {originHomeMetadata && (
           <SmallSiteHeader
             originHomeMetadata={originHomeMetadata}
@@ -91,31 +84,26 @@ export default function ConnectPage() {
             siteHost={siteHost}
           />
         )}
-        <YStack
-          flex={1}
-          gap="$3"
-          width="100%"
-          maxWidth={600}
-          paddingTop="$4"
-          paddingHorizontal={0}
-        >
-          <View paddingHorizontal="$4">
+        <div className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-4">
+          <div className="px-4">
             <HMConnectPage />
-          </View>
-        </YStack>
+          </div>
+        </div>
         <PageFooter enableWebSigning={enableWebSigning} />
-      </YStack>
+      </div>
     </WebSiteProvider>
   )
 }
 
-const ConnectionPageContainer = styled(YStack, {
-  gap: '$5',
-  ai: 'center',
-  borderRadius: '$3',
-  padding: '$4',
-  backgroundColor: '$backgroundStrong',
-})
+const ConnectionPageContainer = ({className, ...props}: any) => (
+  <div
+    className={cn(
+      'dark:bg-dark flex flex-col items-center gap-5 rounded-sm bg-white p-4',
+      className,
+    )}
+    {...props}
+  />
+)
 
 export function HMConnectPage() {
   const [error, setError] = useState<string | null>(null)
@@ -146,44 +134,31 @@ export function HMConnectPage() {
   if (error) {
     return (
       <ConnectionPageContainer>
-        <YStack
-          theme="red"
-          borderRadius="$3"
-          padding="$4"
-          borderColor="$red10"
-          backgroundColor="$red3"
-        >
-          <Paragraph>{error}</Paragraph>
-        </YStack>
+        <div className="flex flex-col rounded-sm border border-red-500 bg-red-100 p-4">
+          <p>{error}</p>
+        </div>
       </ConnectionPageContainer>
     )
   }
 
   return (
     <ConnectionPageContainer>
-      <Heading>Connect to Seed Hypermedia Peer</Heading>
-      <Paragraph textWrap="wrap" maxWidth="100%">
+      <h2>Connect to Seed Hypermedia Peer</h2>
+      <p>
         Somebody wants to connect with you. Click the button below to launch the
         Seed Desktop App and connect.
-      </Paragraph>
+      </p>
       {connectionInfo && (
-        <Button
-          theme="green"
-          style={{textDecorationLine: 'none'}}
-          tag="a"
-          iconAfter={ArrowUpRight}
-          href={`hm://connect/${connectionInfo.encoded}`}
-        >
-          Launch Seed Desktop App
+        <Button variant="default" asChild>
+          <a href={`hm://connect/${connectionInfo.encoded}`}>
+            Launch Seed Desktop App <ArrowUpRight size="size-4" />
+          </a>
         </Button>
       )}
-      <Paragraph>
+      <p>
         If you don't have the Seed Desktop App installed, you can{' '}
-        <ButtonText tag="a" href="https://seed.hypermedia.app/hm/download">
-          download it here
-        </ButtonText>
-        .
-      </Paragraph>
+        <a href="https://seed.hypermedia.app/hm/download">download it here</a>.
+      </p>
     </ConnectionPageContainer>
   )
 }

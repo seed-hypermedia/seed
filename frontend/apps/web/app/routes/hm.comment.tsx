@@ -11,6 +11,7 @@ import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
+import {Button} from '@shm/ui/button'
 
 import {unwrap, wrapJSON} from '@/wrapping'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
@@ -37,15 +38,14 @@ import {BlocksContent} from '@shm/ui/document-content'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {Heading} from '@tamagui/text'
 import {useMutation} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
-import {Button, ButtonText, View, XStack, YStack} from 'tamagui'
 
 import {defaultSiteIcon} from '@/meta'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {cn} from '@shm/ui/utils'
 import {CommentPayload} from './hm.api.comment'
 import {SyncCommentRequest} from './hm.api.sync-comment'
 
@@ -200,13 +200,13 @@ export default function CreateComment() {
     [originHomeId],
   )
   if (!targetId) {
-    return <Heading>Invalid target</Heading>
+    return <h2>Invalid target</h2>
   }
   if (!originHomeId) {
-    return <Heading>Invalid origin home id</Heading>
+    return <h2>Invalid origin home id</h2>
   }
   if (!originUrl) {
-    return <Heading>Invalid origin url</Heading>
+    return <h2>Invalid origin url</h2>
   }
 
   return (
@@ -215,7 +215,7 @@ export default function CreateComment() {
       originHomeId={originHomeId}
       siteHost={siteHost}
     >
-      <YStack ai="center" flex={1} minHeight="100vh">
+      <div className="flex min-h-screen flex-1 flex-col items-center">
         {originHomeMetadata && (
           <SmallSiteHeader
             originHomeMetadata={originHomeMetadata}
@@ -223,15 +223,8 @@ export default function CreateComment() {
             siteHost={siteHost}
           />
         )}
-        <YStack
-          flex={1}
-          gap="$3"
-          width="100%"
-          maxWidth={600}
-          paddingTop="$4"
-          paddingHorizontal={0}
-        >
-          <View paddingHorizontal="$4">
+        <div className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-4">
+          <div className="py-4">
             <SizableText size="lg">
               {replyComment
                 ? tx(
@@ -257,9 +250,9 @@ export default function CreateComment() {
                     ),
                   })}
             </SizableText>
-          </View>
+          </div>
           {quotingBlockId ? (
-            <View marginHorizontal="$4">
+            <div className="py-4">
               <WebDocContentProvider
                 originHomeId={originHomeId}
                 siteHost={siteHost}
@@ -270,9 +263,9 @@ export default function CreateComment() {
                   doc={targetDocument}
                 />
               </WebDocContentProvider>
-            </View>
+            </div>
           ) : null}
-          <YStack paddingHorizontal="$4">
+          <div className="py-4">
             {replyComment ? (
               <Comment
                 isLast={!publishedComment}
@@ -302,8 +295,8 @@ export default function CreateComment() {
                 />
               </>
             ) : null}
-          </YStack>
-          <View paddingHorizontal="$4" flex={1}>
+          </div>
+          <div className="py-4">
             {publishedComment ? null : (
               <WebCommenting
                 docId={targetId}
@@ -333,22 +326,14 @@ export default function CreateComment() {
               />
             )}
             {syncComment.isSuccess && originUrlUrl ? (
-              <Button
-                backgroundColor="$brand5"
-                hoverStyle={{backgroundColor: '$brand4'}}
-                focusStyle={{backgroundColor: '$brand4'}}
-                tag="a"
-                style={{textDecorationLine: 'none'}}
-                color="$color1"
-                href={originUrl}
-              >
-                {`Go back to ${originUrlUrl.hostname}`}
+              <Button asChild variant="default">
+                <a href={originUrl}>{`Go back to ${originUrlUrl.hostname}`}</a>
               </Button>
             ) : null}
-          </View>
+          </div>
           <PageFooter enableWebSigning={enableWebSigning} />
-        </YStack>
-      </YStack>
+        </div>
+      </div>
     </WebSiteProvider>
   )
 }
@@ -362,15 +347,9 @@ function DocButtonLink({
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
   return (
-    <ButtonText
-      {...linkProps}
-      textDecorationLine="underline"
-      fontWeight="bold"
-      fontSize="$5"
-      whiteSpace="wrap"
-    >
+    <a {...linkProps} className="white-space-wrap font-bold underline">
       {name}
-    </ButtonText>
+    </a>
   )
 }
 
@@ -396,22 +375,20 @@ function SyncCommentFeedback({
     statusText = `Error: ${error}`
   }
   return (
-    <XStack
-      jc="space-between"
-      borderWidth={1}
-      borderRadius="$3"
-      borderColor={borderColor}
-      padding="$2"
-      backgroundColor={bgColor}
+    <div
+      className={cn(
+        'border-border bg-background flex justify-between rounded-sm border p-2',
+        error && 'border-red-600 bg-red-100',
+      )}
     >
       <SizableText className="text-current">{statusText}</SizableText>
-      {isLoading && <Spinner width={20} height={20} />}
+      {isLoading && <Spinner />}
       {retry && !isLoading ? (
-        <Button onPress={retry} size="$1" theme="red">
+        <Button onClick={retry} size="sm" variant="destructive">
           Retry
         </Button>
       ) : null}
-    </XStack>
+    </div>
   )
 }
 

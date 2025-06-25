@@ -9,7 +9,6 @@ import {unwrap} from '@/wrapping'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {SizableText} from '@shm/ui/text'
-import {Heading} from '@tamagui/text'
 import {Container} from '../ui/container'
 
 import type {Email} from '@/db'
@@ -24,8 +23,6 @@ import {FullCheckbox} from '@shm/ui/form-input'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
-import {YStack} from '@tamagui/stacks'
-import {XStack} from 'tamagui'
 
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request)
@@ -71,7 +68,7 @@ export default function EmailNotificationsPage() {
         supportQueries={supportQueries}
         origin={origin}
       >
-        <Container gap="$4" paddingHorizontal="$6" f={1}>
+        <Container className="flex-1 gap-4 px-6">
           <EmailNotificationsContent />
         </Container>
       </WebSiteHeader>
@@ -91,18 +88,18 @@ export function EmailNotificationsContent() {
 
   console.log('notifSettings', notifSettings)
   return (
-    <YStack gap="$5">
+    <div className="flex flex-col gap-5">
       {notifSettings ? (
         <>
-          <YStack gap="$1">
-            <Heading size="$2">{notifSettings.email}</Heading>
-            <Heading>Email Notification Settings</Heading>
-          </YStack>
+          <div className="flex flex-col gap-1">
+            <p>{notifSettings.email}</p>
+            <h2 className="text-2xl font-bold">Email Notification Settings</h2>
+          </div>
           {notifSettings.isUnsubscribed ? (
             <>
-              <Heading size="$3" color="$red9">
+              <p className="text-red-600">
                 Unsubscribed from All Notifications
-              </Heading>
+              </p>
               <SizableText>
                 You can enable notifications for the following accounts:
               </SizableText>
@@ -143,7 +140,7 @@ export function EmailNotificationsContent() {
           <Spinner />
         </div>
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -151,7 +148,7 @@ function AccountTitle({accountId}: {accountId: string}) {
   const {data: entity} = useEntity(hmId('d', accountId))
   console.log('entity', entity?.document?.metadata)
   return (
-    <XStack gap="$2">
+    <div className="flex gap-2">
       {entity?.id ? (
         <HMIcon
           size={24}
@@ -160,7 +157,7 @@ function AccountTitle({accountId}: {accountId: string}) {
         />
       ) : null}
       <SizableText weight="bold">{entity?.document?.metadata.name}</SizableText>
-    </XStack>
+    </div>
   )
 }
 
@@ -172,7 +169,7 @@ function EmailNotificationAccount({
   token: string
 }) {
   return (
-    <YStack gap="$3">
+    <div className="flex flex-col gap-3">
       <AccountTitle accountId={account.id} />
       <AccountValueCheckbox
         token={token}
@@ -186,7 +183,7 @@ function EmailNotificationAccount({
         field="notifyAllReplies"
         account={account}
       />
-    </YStack>
+    </div>
   )
 }
 

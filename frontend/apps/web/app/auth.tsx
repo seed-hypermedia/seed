@@ -11,10 +11,10 @@ import {
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useEntity} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
+import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -22,8 +22,8 @@ import {
   DialogTitle,
   useAppDialog,
 } from '@shm/ui/universal-dialog'
-import {LogOut, Megaphone, Pencil} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {LogOut, Megaphone, Pencil} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
@@ -36,7 +36,6 @@ import {
   useController,
   useForm,
 } from 'react-hook-form'
-import {Form, Stack, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import {
   createDocumentGenesisChange,
@@ -371,8 +370,8 @@ function EditProfileForm({
     }, 300) // wait for animation
   }, [setFocus])
   return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
-      <YStack gap="$2">
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <div className="flex flex-col gap-2">
         <Field id="name" label={tx('Account Name')}>
           <FormInput
             control={control}
@@ -381,19 +380,19 @@ function EditProfileForm({
           />
         </Field>
         <ImageField control={control} name="icon" label={tx('Site Icon')} />
-        <XStack jc="center">
-          <Form.Trigger asChild>
-            <Button
-              className={`plausible-event-name=finish-create-account plausible-event-image=${
-                AccountWithImage || 'false'
-              }`}
-            >
-              {submitLabel || tx('Save Account')}
-            </Button>
-          </Form.Trigger>
-        </XStack>
-      </YStack>
-    </Form>
+        <div className="flex justify-center">
+          <Button
+            type="submit"
+            variant="default"
+            className={`plausible-event-name=finish-create-account plausible-event-image=${
+              AccountWithImage || 'false'
+            }`}
+          >
+            {submitLabel || tx('Save Account')}
+          </Button>
+        </div>
+      </div>
+    </form>
   )
 }
 
@@ -432,16 +431,7 @@ function ImageField<Fields extends FieldValues>({
       : URL.createObjectURL(c.field.value)
     : null
   return (
-    <Stack
-      position="relative"
-      group="icon"
-      overflow="hidden"
-      height={128}
-      width={128}
-      borderRadius="$2"
-      alignSelf="stretch"
-      flex={1}
-    >
+    <div className="relative flex size-[128px] flex-1 self-stretch overflow-hidden rounded-sm">
       <input
         type="file"
         onChange={(event) => {
@@ -464,25 +454,13 @@ function ImageField<Fields extends FieldValues>({
         }}
       />
       {!c.field.value && (
-        <XStack
-          bg="rgba(0,0,0,0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 0.5}}
-          h="100%"
-          opacity={1}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
-        >
+        <div className="bg-muted pointer-none absolute z-5 flex h-full w-full items-center justify-center gap-2 opacity-100">
           <SizableText size="xs" className="text-center text-white">
             {tx('add', ({what}: {what: string}) => `Add ${what}`, {
               what: label,
             })}
           </SizableText>
-        </XStack>
+        </div>
       )}
       {c.field.value && (
         <img
@@ -498,25 +476,13 @@ function ImageField<Fields extends FieldValues>({
         />
       )}
       {c.field.value && (
-        <XStack
-          bg="rgba(0,0,0,0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 1}}
-          h="100%"
-          opacity={0}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
-        >
+        <div className="bg-muted pointer-none absolute z-5 flex h-full w-full items-center justify-center gap-2 opacity-100">
           <SizableText size="xs" className="text-center text-white">
             Edit {label}
           </SizableText>
-        </XStack>
+        </div>
       )}
-    </Stack>
+    </div>
   )
 }
 
@@ -547,11 +513,11 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
             )}
       </DialogDescription>
       <Button
-        onPress={() => {
+        variant="destructive"
+        onClick={() => {
           logout()
           onClose()
         }}
-        theme="red"
       >
         {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
       </Button>
@@ -629,37 +595,28 @@ export function AccountFooterActions() {
   const tx = useTx()
   if (!userKeyPair) return null
   return (
-    <XStack gap="$2" flexWrap="wrap" maxWidth="100%" jc="flex-end">
+    <div className="flex max-w-full flex-wrap justify-end gap-2">
       {ENABLE_EMAIL_NOTIFICATIONS && (
-        <Button
-          size="$2"
-          onPress={() => notifSettingsDialog.open({})}
-          backgroundColor="$color4"
-          icon={Megaphone}
-        >
+        <Button size="sm" onClick={() => notifSettingsDialog.open({})}>
+          <Megaphone className="size-4" />
           {tx('Notification Settings')}
         </Button>
       )}
       <Button
-        size="$2"
-        onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
-        backgroundColor="$color4"
-        icon={Pencil}
+        size="sm"
+        onClick={() => editProfileDialog.open({accountUid: userKeyPair.id})}
       >
+        <Pencil className="size-4" />
         {tx('Edit Profile')}
       </Button>
-      <Button
-        size="$2"
-        onPress={() => logoutDialog.open({})}
-        backgroundColor="$color4"
-        icon={LogOut}
-      >
+      <Button size="sm" onClick={() => logoutDialog.open({})}>
+        <LogOut className="size-4" />
         {tx('Logout')}
       </Button>
       {logoutDialog.content}
       {editProfileDialog.content}
       {notifSettingsDialog.content}
-    </XStack>
+    </div>
   )
 }
 
