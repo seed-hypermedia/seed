@@ -393,7 +393,7 @@ function SearchUI({
       })) || []
     : dirList.data
         ?.map((d) => ({
-          link: hmId('d', d.account, {path: d.path}).id,
+          link: hmId(d.account, {path: d.path}).id,
           label: d.metadata.name || '?',
         }))
         .filter(filterPresets) || []

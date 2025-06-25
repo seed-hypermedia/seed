@@ -77,11 +77,11 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const config = await getConfig(parsedRequest.hostname)
 
   const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId('d', config.registeredAccountUid))
+    ? await getMetadata(hmId(config.registeredAccountUid))
     : undefined
   return wrapJSON({
     originHomeId: config?.registeredAccountUid
-      ? hmId('d', config.registeredAccountUid)
+      ? hmId(config.registeredAccountUid)
       : undefined,
     ...getOriginRequestData(parsedRequest),
     originHomeMetadata: originHome?.metadata ?? undefined,
@@ -238,10 +238,10 @@ export function HMDeviceLink() {
   }, [])
 
   const {data: desktopAccount} = useEntity(
-    session ? hmId('d', session.accountId) : undefined,
+    session ? hmId(session.accountId) : undefined,
   )
   const localIdentity = useLocalKeyPair()
-  const localId = localIdentity ? hmId('d', localIdentity.id) : null
+  const localId = localIdentity ? hmId(localIdentity.id) : null
   const {data: browserAccount} = useEntity(localId)
   const {data: existingAccount} = useAccount(localIdentity?.id)
   const isLinkedAlready =

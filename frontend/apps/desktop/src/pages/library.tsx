@@ -49,7 +49,7 @@ import {
   MessageSquare,
   X,
 } from 'lucide-react'
-import {createContext, useContext, useState} from 'react'
+import {createContext, useContext, useMemo, useState} from 'react'
 
 export default function LibraryPage() {
   const route = useNavRoute()
@@ -93,13 +93,34 @@ export default function LibraryPage() {
 
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
 
+  const [addSiteOpen, setAddSiteOpen] = useState(false)
+  const menu = useMemo(() => {
+    const siteMenuItems =
+      library?.sites?.map((site) => {
+        const id = hmId(site.id)
+        return {
+          key: site.id,
+          label: site.hostname,
+          onPress: () => {
+            replace({
+              key: 'document',
+              id: hmId(site.id),
+            })
+          },
+        }
+      }) || []
+    return {
+      siteMenuItems,
+    }
+  }, [library?.sites, replace])
+
   return (
-    <div className="flex h-full flex-1">
+    <div className="flex flex-1 h-full">
       <PanelContainer>
         <MainWrapper scrollable>
           <Container className="justify-center" centered>
             <CreateAccountBanner />
-            <div className="mb-4 flex">
+            <div className="flex mb-4">
               <DisplayModeTab
                 label="Subscribed"
                 value="subscribed"
@@ -119,7 +140,7 @@ export default function LibraryPage() {
                 onDisplayMode={setDisplayMode}
               />
             </div>
-            <div className="my-2 mb-4 flex justify-between">
+            <div className="flex justify-between my-2 mb-4">
               <div className="flex gap-2">
                 <GroupingControl
                   grouping={grouping}
@@ -127,7 +148,7 @@ export default function LibraryPage() {
                 />
               </div>
               {isLibraryEmpty ? null : (
-                <div className="flex items-center gap-3">
+                <div className="flex gap-3 items-center">
                   <Button
                     size="sm"
                     onClick={() => {
@@ -169,9 +190,9 @@ export default function LibraryPage() {
                             library.items
                               ?.map((item) => {
                                 if (item.type === 'site') {
-                                  return hmId('d', item.id)
+                                  return hmId(item.id)
                                 }
-                                return hmId('d', item.account, {
+                                return hmId(item.account, {
                                   path: item.path,
                                 })
                               })
@@ -319,12 +340,12 @@ function SelectionCollapseButton({
   onSelect: (docId: string, isSelected: boolean) => void
 }) {
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center">
+    <div className="flex justify-center items-center size-8 shrink-0">
       {isSelecting ? (
         <Checkbox
           variant="primary"
           size="lg"
-          className="border-primary border"
+          className="border border-primary"
           checked={isSelected}
           onCheckedChange={(isSelected: boolean) => onSelect(docId, isSelected)}
           onClick={(e) => {
@@ -380,7 +401,7 @@ function LibrarySiteItem({
   }
   const navigate = useNavigate()
   const metadata = site?.metadata
-  const id = hmId('d', site.id)
+  const id = hmId(site.id)
   const isSelected = selectedDocIds.includes(id.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
   const homeDocument = documents.data?.find((doc) => !doc.path?.length)
@@ -420,12 +441,12 @@ function LibrarySiteItem({
           onSelect={onSelect}
         />
         <HMIcon id={id} metadata={metadata} />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="items-center-justify-start flex flex-1 overflow-hidden">
+        <div className="flex overflow-hidden flex-col flex-1">
+          <div className="flex gap-3 items-center">
+            <div className="flex overflow-hidden flex-1 items-center-justify-start">
               <SizableText
                 className={cn(
-                  'flex-1 truncate overflow-hidden text-left',
+                  'overflow-hidden flex-1 text-left truncate',
                   isRead ? undefined : 'font-bold',
                 )}
               >
@@ -448,7 +469,7 @@ function LibrarySiteItem({
         </div>
       </Button>
       {isCollapsed ? null : (
-        <div className="mb-4 flex flex-col gap-1">
+        <div className="flex flex-col gap-1 mb-4">
           {documents.data?.map((item) => {
             if (item.path?.length === 0) return null
             return (
@@ -476,7 +497,7 @@ export function LibraryDocumentItem({
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
-  const id = hmId('d', item.account, {
+  const id = hmId(item.account, {
     path: item.path,
   })
   const {isSelecting, selectedDocIds, onSelect} = useContext(
@@ -510,16 +531,16 @@ export function LibraryDocumentItem({
       />
       <div className="size-8 shrink-0" />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex overflow-hidden flex-col flex-1">
         <LibraryEntryBreadcrumbs
           breadcrumbs={item.breadcrumbs}
           onNavigate={navigate}
           id={id}
         />
-        <div className="flex flex-1 items-center gap-3">
-          <div className="items-center-justify-start flex flex-1 overflow-hidden">
+        <div className="flex flex-1 gap-3 items-center">
+          <div className="flex overflow-hidden flex-1 items-center-justify-start">
             <SizableText
-              className={cn('flex-1 truncate text-left')}
+              className={cn('flex-1 text-left truncate')}
               weight={isRead ? undefined : 'bold'}
             >
               {getMetadataName(metadata)}
@@ -576,7 +597,7 @@ function LibraryEntryBreadcrumbs({
           {idx === displayCrumbs.length - 1 ? null : (
             <SizableText
               key={`separator-${idx}`}
-              className="text-muted-foreground text-sm"
+              className="text-sm text-muted-foreground"
             >
               /
             </SizableText>
@@ -595,7 +616,7 @@ function LibraryEntryCommentCount({
   const commentCount = activitySummary?.commentCount
   if (!commentCount) return null
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex gap-1 items-center">
       <MessageSquare size={16} />
       <SizableText size="sm">{commentCount}</SizableText>
     </div>

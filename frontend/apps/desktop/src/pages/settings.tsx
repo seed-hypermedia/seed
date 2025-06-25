@@ -112,7 +112,7 @@ export default function Settings() {
     <div
       className={cn(
         windowContainerStyles,
-        'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
+        'overflow-hidden pt-0 w-full h-full min-h-0 max-h-full',
       )}
     >
       <div className={cn(panelContainerStyles)}>
@@ -212,7 +212,7 @@ export function DeleteDraftLogs() {
           })
         }}
       >
-        <Trash className="mr-2 h-4 w-4" />
+        <Trash className="mr-2 w-4 h-4" />
         Confirm Delete Draft Log Folder?
       </Button>
     )
@@ -224,7 +224,7 @@ export function DeleteDraftLogs() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 h-4 w-4" />
+      <Trash className="mr-2 w-4 h-4" />
       Delete All Draft Logs
     </Button>
   )
@@ -309,7 +309,7 @@ export function DeveloperSettings() {
               openDraftLogs.mutate()
             }}
           >
-            <ExternalLink className="mr-2 h-4 w-4" />
+            <ExternalLink className="mr-2 w-4 h-4" />
             Open Draft Log Folder
           </Button>
           <DeleteDraftLogs />
@@ -335,10 +335,10 @@ export function ProfileForm({
   return (
     <>
       <div className="flex gap-4">
-        <div className="flex flex-shrink-0 flex-grow-0 flex-col items-center">
+        <div className="flex flex-col flex-grow-0 flex-shrink-0 items-center">
           <IconForm url={getDaemonFileUrl(profile?.icon)} />
         </div>
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-col flex-1 gap-3">
           <div className="flex flex-col">
             <Label size="$3" htmlFor="accountid">
               Account Id
@@ -359,7 +359,7 @@ export function ProfileForm({
               />
               <Tooltip content="Copy your account id">
                 <Button size="sm" onClick={onCopy} className="rounded-l-none">
-                  <Copy className="h-4 w-4" />
+                  <Copy className="w-4 h-4" />
                 </Button>
               </Tooltip>
             </div>
@@ -370,7 +370,7 @@ export function ProfileForm({
                 editProfileDialog.open(true)
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil className="mr-2 w-4 h-4" />
               Edit My Profile
             </Button>
           </div>
@@ -399,9 +399,7 @@ function AccountKeys() {
   const {data: mnemonics, refetch: mnemonicsRefetch} =
     useSavedMnemonics(selectedAccount)
 
-  const selectedAccountId = selectedAccount
-    ? hmId('d', selectedAccount)
-    : undefined
+  const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
   const {data: profile} = useEntity(selectedAccountId)
 
@@ -437,9 +435,9 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <div className="flex flex-1 gap-3 overflow-hidden">
+    <div className="flex overflow-hidden flex-1 gap-3">
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-col flex-1">
           <ScrollArea>
             {keys.data?.map((key) => (
               <KeyItem
@@ -453,13 +451,13 @@ function AccountKeys() {
       </div>
       <div
         className={cn(
-          'border-border flex flex-[3] flex-col rounded-lg border',
+          'flex flex-col rounded-lg border border-border flex-[3]',
           isDark ? 'bg-background' : 'bg-muted',
         )}
       >
         <ScrollArea>
           <div className="flex flex-col gap-4 p-4">
-            <div className="mb-4 flex gap-4">
+            <div className="flex gap-4 mb-4">
               {selectedAccountId ? (
                 <HMIcon
                   id={selectedAccountId}
@@ -467,7 +465,7 @@ function AccountKeys() {
                   size={80}
                 />
               ) : null}
-              <div className="mt-2 flex flex-1 flex-col gap-3">
+              <div className="flex flex-col flex-1 gap-3 mt-2">
                 <Field id="username" label="Profile Name">
                   <Input
                     disabled
@@ -501,9 +499,9 @@ function AccountKeys() {
                         onClick={() => setShowWords((v) => !v)}
                       >
                         {showWords ? (
-                          <EyeOff className="h-4 w-4" />
+                          <EyeOff className="w-4 h-4" />
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          <Eye className="w-4 h-4" />
                         )}
                       </Button>
                       <Button
@@ -515,14 +513,14 @@ function AccountKeys() {
                           toast.success('Words copied to clipboard')
                         }}
                       >
-                        <Copy className="h-4 w-4" />
+                        <Copy className="w-4 h-4" />
                       </Button>
 
                       <AlertDialog>
                         <Tooltip content="Delete words from device">
                           <AlertDialogTrigger asChild>
                             <Button size="sm" variant="destructive">
-                              <Trash className="h-4 w-4" />
+                              <Trash className="w-4 h-4" />
                             </Button>
                           </AlertDialogTrigger>
                         </Tooltip>
@@ -536,7 +534,7 @@ function AccountKeys() {
                               words after you delete them. please save them
                               securely in another place before you delete
                             </AlertDialogDescription>
-                            <div className="flex justify-end gap-3">
+                            <div className="flex gap-3 justify-end">
                               <AlertDialogCancel asChild>
                                 <Button variant="ghost">Cancel</Button>
                               </AlertDialogCancel>
@@ -571,7 +569,7 @@ function AccountKeys() {
               <Tooltip content="Delete account from device">
                 <AlertDialogTrigger asChild>
                   <Button size="sm" variant="destructive" className="self-end">
-                    <Trash className="mr-2 h-4 w-4" />
+                    <Trash className="mr-2 w-4 h-4" />
                     Delete Account
                   </Button>
                 </AlertDialogTrigger>
@@ -586,7 +584,7 @@ function AccountKeys() {
                     have saved the Secret Recovery Phrase for this account if
                     you want to recover it later.
                   </AlertDialogDescription>
-                  <div className="flex justify-end gap-3">
+                  <div className="flex gap-3 justify-end">
                     <AlertDialogCancel asChild>
                       <Button variant="ghost">Cancel</Button>
                     </AlertDialogCancel>
@@ -624,8 +622,8 @@ function AccountKeys() {
       </div>
     </div>
   ) : (
-    <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">
-      <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+    <div className="flex flex-col flex-1 gap-4 justify-center items-center p-6 h-full">
+      <div className="flex justify-center items-center w-20 h-20 rounded-lg bg-muted">
         <UserRoundPlus size={50} className="text-muted-foreground" />
       </div>
       <Heading>No Accounts Found</Heading>
@@ -641,7 +639,7 @@ function AccountKeys() {
           console.log('Create new profile clicked')
         }}
       >
-        <Plus className="mr-2 h-4 w-4" />
+        <Plus className="mr-2 w-4 h-4" />
         Create a new Profile
       </Button>
     </div>
@@ -690,7 +688,7 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           size="sm"
           onClick={() => notifSettingsDialog.open({accountUid})}
         >
-          <Pencil className="mr-2 h-4 w-4" />
+          <Pencil className="mr-2 w-4 h-4" />
           Edit Notification Settings
         </Button>
       </div>
@@ -701,7 +699,7 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
 
 function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex gap-3 items-center">
       <div className="w-6">
         {checked ? <Check className="text-primary" /> : null}
       </div>
@@ -720,7 +718,7 @@ function LinkedDevices({
   accountName: string
 }) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
+  const {data: capabilities} = useAllDocumentCapabilities(hmId(accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <div className="flex flex-col gap-3">
@@ -732,7 +730,7 @@ function LinkedDevices({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  copyTextToClipboard(hmId('d', d.accountUid).id)
+                  copyTextToClipboard(hmId(d.accountUid).id)
                   toast('Device ID copied to clipboard')
                 }}
                 className="justify-start"
@@ -749,7 +747,7 @@ function LinkedDevices({
           variant="default"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 w-4 h-4" />
           Link Web Session
         </Button>
       </div>
@@ -790,7 +788,7 @@ function LinkDeviceDialog({
             }}
           >
             Close
-            <Check className="ml-2 h-4 w-4" />
+            <Check className="ml-2 w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -865,7 +863,7 @@ function DeviceLabelForm({
 
   if (linkDevice.isLoading) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -906,7 +904,7 @@ function KeyItem({
   isActive: boolean
   onSelect: () => void
 }) {
-  const id = hmId('d', item)
+  const id = hmId(item)
   const entity = useEntity(id)
   return (
     <ListItem
@@ -1050,7 +1048,7 @@ function GatewaySettings({}: {}) {
       <TableList>
         <InfoListHeader title="URL" />
         <TableList.Item>
-          <div className="flex w-full gap-3">
+          <div className="flex gap-3 w-full">
             <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
             <Button
               size="sm"
@@ -1149,7 +1147,7 @@ function PushOnCopySetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex items-center gap-2" key={option.value}>
+              <div className="flex gap-2 items-center" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
@@ -1248,7 +1246,7 @@ function PushOnPublishSetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex items-center gap-2" key={option.value}>
+              <div className="flex gap-2 items-center" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}

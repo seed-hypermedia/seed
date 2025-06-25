@@ -14,7 +14,6 @@ const processDocuments = (docs: any[]) => {
 
   docs.forEach((doc) => {
     const id = hmId(
-      'd',
       doc.account,
       doc.path ? {path: entityQueryPathToHmIdPath(doc.path)} : undefined,
     )

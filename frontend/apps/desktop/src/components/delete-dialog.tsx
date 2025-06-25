@@ -5,9 +5,9 @@ import {
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
 
+import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
@@ -56,13 +56,13 @@ export function DeleteEntityDialog({
 
   if (doc.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
   if (doc.isError || !doc.data?.document)
     return (
-      <Text className="text-destructive text-sm">
+      <Text className="text-sm text-destructive">
         {doc.error || 'Could not load document'}
       </Text>
     )
@@ -71,23 +71,23 @@ export function DeleteEntityDialog({
       <Text className="text-lg font-semibold">
         Delete "{getDocumentTitle(doc.data?.document)}"
       </Text>
-      <Text className="text-muted-foreground text-sm">
+      <Text className="text-sm text-muted-foreground">
         Are you sure you want to delete{' '}
         {childDocs.length ? 'these documents' : 'this document'}? This may break
         links that refer to the current{' '}
         {childDocs.length ? 'versions' : 'version'}.
       </Text>
-      <Text className="text-muted-foreground text-sm">
+      <Text className="text-sm text-muted-foreground">
         {childDocs.length ? 'They' : 'It'} will be removed from your directory
         but the content will remain on your computer, and other people may still
         have it saved.
       </Text>
-      <Text className="text-muted-foreground text-sm">
+      <Text className="text-sm text-muted-foreground">
         Note: This feature is a work-in-progress. For now, the raw document data
         will continue to be synced with other peers. Soon we will avoid that.
         Eventually, you will be able to recover deleted documents.
       </Text>
-      <div className="my-4 flex flex-col gap-3">
+      <div className="flex flex-col gap-3 my-4">
         <DeletionListItem
           metadata={doc.data.document.metadata}
           path={id.path}
@@ -100,7 +100,7 @@ export function DeleteEntityDialog({
           />
         ))}
       </div>
-      <div className="flex justify-end gap-3">
+      <div className="flex gap-3 justify-end">
         <Button onClick={onClose} variant="outline">
           Cancel
         </Button>
@@ -113,9 +113,7 @@ export function DeleteEntityDialog({
             deleteEntity.mutate({
               ids: [
                 id,
-                ...childDocs.map((item) =>
-                  hmId('d', id.uid, {path: item.path}),
-                ),
+                ...childDocs.map((item) => hmId(id.uid, {path: item.path})),
               ],
               signingAccountUid: cap.accountUid,
               capabilityId: cap.capabilityId,
@@ -137,11 +135,11 @@ function DeletionListItem({
   path: string[] | null
 }) {
   return (
-    <div className="flex justify-between gap-3">
-      <Text className="text-destructive line-through">
+    <div className="flex gap-3 justify-between">
+      <Text className="line-through text-destructive">
         {getMetadataName(metadata)}
       </Text>
-      <Text className="text-destructive/70 line-through">
+      <Text className="line-through text-destructive/70">
         {path?.join('/') || '?'}
       </Text>
     </div>
@@ -163,14 +161,14 @@ export function DeleteKeyDialog({
   const deleteKey = useDeleteKey()
 
   return (
-    <div className="bg-background rounded-lg p-4">
+    <div className="p-4 rounded-lg bg-background">
       <Text className="text-lg font-semibold">Delete Key</Text>
-      <Text className="text-muted-foreground text-sm">
+      <Text className="text-sm text-muted-foreground">
         Are you sure you want to delete this key from your computer? You will
         NOT be able to recover this neither sign content with this identity.
       </Text>
 
-      <div className="flex justify-end gap-3">
+      <div className="flex gap-3 justify-end">
         <Button onClick={onClose} variant="outline">
           Cancel
         </Button>

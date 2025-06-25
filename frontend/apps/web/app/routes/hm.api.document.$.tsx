@@ -19,7 +19,7 @@ export const loader = async ({
   if (!uid) {
     throw new Error('No uid provided')
   }
-  const id = hmId('d', uid, {path: path || [], version, latest})
+  const id = hmId(uid, {path: path || [], version, latest})
   const loaded = await loadDocument(id)
   return wrapJSON(loaded)
 }

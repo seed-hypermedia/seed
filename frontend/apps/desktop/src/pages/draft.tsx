@@ -57,6 +57,7 @@ import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
+
 export default function DraftPage() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
@@ -68,9 +69,9 @@ export default function DraftPage() {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
     if (route.locationUid)
-      return hmId('d', route.locationUid, {path: route.locationPath})
+      return hmId(route.locationUid, {path: route.locationPath})
     if (data?.locationUid)
-      return hmId('d', data.locationUid, {
+      return hmId(data.locationUid, {
         path: data.locationPath,
       })
     return undefined
@@ -84,8 +85,8 @@ export default function DraftPage() {
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.editId) return data.editId
-    if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
-    if (data?.editUid) return hmId('d', data.editUid, {path: data.editPath})
+    if (route.editUid) return hmId(route.editUid, {path: route.editPath})
+    if (data?.editUid) return hmId(data.editUid, {path: data.editPath})
     return undefined
   }, [route, data])
 
@@ -96,10 +97,10 @@ export default function DraftPage() {
 
   const homeId = useMemo(() => {
     if (locationId) {
-      return hmId('d', locationId.uid, {path: []})
+      return hmId(locationId.uid, {path: []})
     }
     if (editId) {
-      return hmId('d', editId.uid, {path: []})
+      return hmId(editId.uid, {path: []})
     }
     return undefined
   }, [locationId, editId])
@@ -170,7 +171,7 @@ export default function DraftPage() {
   const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <div className="flex h-full flex-1">
+      <div className="flex flex-1 h-full">
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
@@ -185,7 +186,7 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'dark:bg-background flex flex-col bg-white',
+              'flex flex-col bg-white dark:bg-background',
             )}
           >
             <DraftRebaseBanner />
@@ -273,7 +274,7 @@ function DocumentEditor({
       }
     }
     if (uId) {
-      return hmId('d', uId, {path})
+      return hmId(uId, {path})
     }
     return undefined
   }, [route, draftQuery.data])
@@ -326,7 +327,7 @@ function DocumentEditor({
         }}
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex flex-1 flex-col overflow-hidden"
+        className="flex overflow-hidden flex-col flex-1"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
@@ -341,7 +342,7 @@ function DocumentEditor({
               setShow={setShowCover}
               showOutline={showOutline}
             />
-            <div ref={elementRef} className="draft-editor w-full flex-1">
+            <div ref={elementRef} className="flex-1 w-full draft-editor">
               <div {...wrapperProps}>
                 {showSidebars ? (
                   <div
@@ -471,6 +472,25 @@ function DocumentEditor({
 
     setIsDragging(false)
   }
+
+  // function onBlockCopy(
+  //   blockId: string,
+  //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+  // ) {
+  //   const gwUrl = useGatewayUrl()
+
+  //   if (!id) throw new Error('draft route id is missing')
+
+  //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+  //   copyUrlToClipboardWithFeedback(
+  //     createWebHMUrl(id.uid, {
+  //       blockRef: blockId,
+  //       blockRange,
+  //       hostname: gwUrl.data,
+  //     }),
+  //     'Block',
+  //   )
+  // }
 }
 
 function DraftAppHeader({
@@ -626,7 +646,7 @@ function DraftMetadataEditor({
         bg={isDark ? '$background' : '$backgroundStrong'}
         borderRadius="$2"
       >
-        <div className="group-header flex flex-col gap-4">
+        <div className="flex flex-col gap-4 group-header">
           <Input
             disabled={disabled}
             // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -766,7 +786,7 @@ function DraftRebaseBanner() {
 
   if (isRebasing) {
     return (
-      <div className="flex border-0 border-b border-solid bg-yellow-100 p-4 text-black">
+      <div className="flex p-4 text-black bg-yellow-100 border-0 border-b border-solid">
         <div className="mr-2">
           <Spinner className="size-4" />
         </div>

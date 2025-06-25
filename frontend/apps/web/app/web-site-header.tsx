@@ -97,7 +97,7 @@ function getDirectoryItems(props: {
         isPublished: true,
         isDraft: false,
         key: item.path.join('/'),
-        id: hmId('d', item.account, {path: item.path}),
+        id: hmId(item.account, {path: item.path}),
         sortTime,
         metadata: item.metadata,
       }

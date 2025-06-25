@@ -708,6 +708,32 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
+        {!hideCollapseButtons && bnChildren && !_expanded ? (
+          <Tooltip
+            content={tx(
+              'block_is_collapsed',
+              'This block is collapsed. you can expand it and see its children',
+            )}
+          >
+            <Button
+              size="icon"
+              variant="ghost"
+              className="rounded-sm opacity-0 select-none hover:opacity-100"
+              style={{
+                padding: layoutUnit / 4,
+                marginHorozontal: layoutUnit / 4,
+                opacity: hover ? 1 : 0,
+              }}
+              userSelect="none"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleBlockNodeToggle()
+              }}
+            >
+              <MoreHorizontal className="size-3" />
+            </Button>
+          </Tooltip>
+        ) : null}
         <div
           className={cn(
             'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
@@ -1390,12 +1416,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (props.block.type !== 'Embed')
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.link)
-  if (id?.type == 'd') {
-    return <EmbedTypes.Document {...props} {...id} />
-  }
-  if (id?.type == 'c') {
-    return <EmbedTypes.Comment {...props} {...id} />
-  }
+  if (id) return <EmbedTypes.Document {...props} {...id} />
   return <BlockContentUnknown {...props} />
 }
 
@@ -1670,7 +1691,7 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     return <ErrorBlockMessage message="Query block with nothing included" />
   const id =
     mainInclude.space &&
-    hmId('d', query.includes[0].space, {
+    hmId(query.includes[0].space, {
       path: query.includes[0].path ? query.includes[0].path.split('/') : null,
       latest: true,
     })

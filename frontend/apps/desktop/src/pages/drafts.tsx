@@ -27,7 +27,7 @@ export default function DraftsPage() {
         const uid = contextId.uid
         const parentPaths = getParentPaths(contextId.path)
         parentPaths.forEach((path) => {
-          allLocationParents.add(hmId('d', uid, {path}).id)
+          allLocationParents.add(hmId(uid, {path}).id)
         })
       }
     })
@@ -48,7 +48,7 @@ export default function DraftsPage() {
         breadcrumbs = (
           contextId === item.editId ? parentPaths.slice(0, -1) : parentPaths
         ).map((path) => {
-          const id = hmId('d', uid, {path})
+          const id = hmId(uid, {path})
           return {
             id,
             metadata:

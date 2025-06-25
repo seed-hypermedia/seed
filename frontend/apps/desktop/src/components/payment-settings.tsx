@@ -1,5 +1,5 @@
-import {DialogTitle, useAppDialog} from '@/components/dialog'
-import {useCurrencyComparisons} from '@/models/compare-currencies'
+import { DialogTitle, useAppDialog } from '@/components/dialog'
+import { useCurrencyComparisons } from '@/models/compare-currencies'
 import {
   useCreateLocalInvoice,
   useCreateWallet,
@@ -11,16 +11,16 @@ import {
   usePayInvoice,
   useWallet,
 } from '@/models/payments'
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
-import {getAccountName} from '@shm/shared/content'
-import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
-import {useInvoiceStatus} from '@shm/shared/models/payments'
-import {formattedDateMedium} from '@shm/shared/utils/date'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {Field} from '@shm/ui/form-fields'
+import { PlainMessage } from '@bufbuild/protobuf'
+import { hmId } from '@shm/shared'
+import { Invoice } from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
+import { getAccountName } from '@shm/shared/content'
+import { HMInvoice, HMWallet } from '@shm/shared/hm-types'
+import { useEntity } from '@shm/shared/models/entity'
+import { useInvoiceStatus } from '@shm/shared/models/payments'
+import { formattedDateMedium } from '@shm/shared/utils/date'
+import { copyTextToClipboard } from '@shm/ui/copy-to-clipboard'
+import { Field } from '@shm/ui/form-fields'
 import {
   AlertCircle,
   ChevronDown,
@@ -32,13 +32,13 @@ import {
   Trash,
   Upload,
 } from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
-import {Spinner} from '@shm/ui/spinner'
-import {InfoListHeader, TableList} from '@shm/ui/table-list'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useState} from 'react'
+import { Button } from '@shm/ui/legacy/button'
+import { SelectDropdown } from '@shm/ui/select-dropdown'
+import { Spinner } from '@shm/ui/spinner'
+import { InfoListHeader, TableList } from '@shm/ui/table-list'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { useState } from 'react'
 import QRCode from 'react-qr-code'
 import {
   ButtonText,
@@ -61,13 +61,13 @@ export function AccountWallet({
   if (!wallets.data?.wallets) return null
   if (wallets.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
   if (createWallet.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -123,7 +123,7 @@ function WalletButton({
         <div className="flex items-center gap-3">
           <Tag label="Account Wallet" />
           {wallet.isLoading ? (
-            <div className="flex items-center justify-center">
+            <div className="flex justify-center items-center">
               <Spinner />
             </div>
           ) : wallet.data ? (
@@ -151,7 +151,7 @@ export function WalletPage({
   onClose: () => void
 }) {
   const wallet = useWallet(walletId)
-  const accountDoc = useEntity(hmId('d', accountUid))
+  const accountDoc = useEntity(hmId(accountUid))
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)
@@ -188,7 +188,7 @@ export function WalletPage({
       </div>
       {
         wallet.isLoading ? (
-          <div className="flex items-center justify-center">
+          <div className="flex justify-center items-center">
             <Spinner />
           </div>
         ) : wallet.isError ? (
@@ -218,7 +218,7 @@ export function WalletPage({
             </SizableText>
           </div>
         ) : (
-          <div className="m-4 flex items-center justify-center">
+          <div className="flex justify-center items-center m-4">
             <Spinner />
           </div>
         )}

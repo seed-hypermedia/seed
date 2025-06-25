@@ -95,7 +95,7 @@ function InlineEmbedNodeComponent(props: any) {
 export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
-  if (unpackedRef?.type == 'd') {
+  if (unpackedRef) {
     return <DocumentMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
