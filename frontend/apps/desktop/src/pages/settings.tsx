@@ -466,20 +466,20 @@ function AccountKeys() {
                 />
               ) : null}
               <YStack f={1} gap="$3" marginTop="$2">
-                <Field id="username" label="Profile name">
+                <Field id="username" label="Profile Name">
                   <Input
                     disabled
                     value={getMetadataName(profile?.document?.metadata)}
                   />
                 </Field>
-                <Field id="accountid" label="Account Id">
+                <Field id="accountid" label="Account ID">
                   <Input disabled value={selectedAccount} />
                 </Field>
               </YStack>
             </XStack>
             {mnemonics ? (
               <YStack gap="$2">
-                <Field label="Secret Words" id="words">
+                <Field label="Secret Recovery Phrase" id="words">
                   <XStack gap="$3">
                     <TextArea
                       f={1}
@@ -628,8 +628,9 @@ function AccountKeys() {
                     Delete Account
                   </AlertDialog.Title>
                   <AlertDialog.Description>
-                    Are you really sure? Your account will be removed and can't
-                    be recovered unless you have the secret words
+                    Are you sure? This account will be removed. Make sure you
+                    have saved the Secret Recovery Phrase for this account if
+                    you want to recover it later.
                   </AlertDialog.Description>
                   <XStack gap="$3" justifyContent="flex-end">
                     <AlertDialog.Cancel asChild>
@@ -1470,7 +1471,7 @@ function AppSettings() {
         />
         <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
         <InfoListItem label="Protocol ID" value={deviceInfo?.protocolId} />
-        <InfoListItem label="Addresses" value={addrs} />
+        <InfoListItem label="Addresses" value={addrs?.split('\n')} />
       </TableList>
 
       <TableList>

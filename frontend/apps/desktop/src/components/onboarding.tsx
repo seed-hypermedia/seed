@@ -794,11 +794,11 @@ function ExistingStep({
         <YStack gap="$4">
           <YStack gap="$2">
             <Text fontSize="$2" color="$gray11">
-              Secret Words
+              Secret Recovery Phrase
             </Text>
             <TextArea
               size="$4"
-              placeholder="Enter or paste your secret words here"
+              placeholder="Enter or paste your Secret Recovery Phrase here..."
               value={secretWords}
               onChange={(e) => setSecretWords(e.nativeEvent.text)}
               minHeight={120}
@@ -815,7 +815,7 @@ function ExistingStep({
             }
             variant="brand"
           >
-            Save secret words to this device
+            Store the Secret Recovery Phrase securely on this device.
           </CheckboxField>
         </YStack>
         <View f={1} />
@@ -1104,7 +1104,7 @@ function RecoveryStep({
         color="$gray11"
         className="no-window-drag"
       >
-        Save these secret words somewhere safe. You'll need them to recover your
+        Store this Secret Recover Phrase somewhere safe. You'll need it to recover your
         account if you lose access.
       </Text>
 
@@ -1127,7 +1127,7 @@ function RecoveryStep({
 
         <XStack gap="$4">
           <Button size="$2" flex={1} onPress={() => mnemonics.refetch()}>
-            regenerate
+            Regenerate
           </Button>
           <Button
             size="$2"
@@ -1155,7 +1155,7 @@ function RecoveryStep({
             setShouldSaveWords(v === 'indeterminate' ? false : v)
           }
         >
-          Save words on this device
+          Store the Secret Recovery Phrase on this device
         </CheckboxField>
         <View f={1} />
         <XStack marginTop="$4" gap="$4" justifyContent="center">
