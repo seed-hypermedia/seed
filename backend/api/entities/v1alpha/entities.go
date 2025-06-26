@@ -517,14 +517,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	//var timesCalled int
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
-		parentTitles, err := getParentsFcn(match)
+		var parentTitles []string
+		var err error
+		if contentType[match.Index] != "contact" {
+			if parentTitles, err = getParentsFcn(match); err != nil {
+				return nil, err
+			}
+		}
 		//totalGetParentsTime += time.Since(startParents)
-		if err != nil {
-			return nil, err
-		}
-		if err != nil {
-			return nil, err
-		}
 
 		offsets := make([]int64, len(match.MatchedIndexes))
 		for j, off := range match.MatchedIndexes {
