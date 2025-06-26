@@ -21,6 +21,7 @@ import {Button} from '@shm/ui/button'
 import {CommentGroup} from '@shm/ui/discussion'
 import {ChevronUp} from '@shm/ui/icons'
 
+import {hmId} from '@shm/shared'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {Sparkle} from 'lucide-react'
@@ -144,10 +145,19 @@ export function ActivityList({
   const changeAuthorIds = Array.from(changeAuthorIdsSet)
   const changeAuthors: HMAccountsMetadata = Object.fromEntries(
     changeAuthorIds
-      .map((uid, index) => [
-        uid,
-        accounts.data?.accounts?.find((a) => a.id === uid)?.metadata,
-      ])
+      .map((uid, index) => {
+        const accountMetadata = accounts.data?.accounts?.find(
+          (a) => a.id === uid,
+        )?.metadata
+        if (!accountMetadata) return [uid, undefined]
+        return [
+          uid,
+          {
+            id: hmId('d', uid),
+            metadata: accountMetadata,
+          },
+        ]
+      })
       .filter(([k, v]) => !!v),
   )
   if (route.key !== 'document') return null
