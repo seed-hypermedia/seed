@@ -17,6 +17,7 @@ import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
 
 import {useTxString} from '@shm/shared/translation'
+import {AccessoryBackButton} from '@shm/ui/accessories'
 import {cn} from '@shm/ui/utils'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -70,6 +71,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       <BlockDiscussions
         {...props}
         isDark={isDark}
+        handleBack={handleBack}
         renderCommentContent={renderCommentContent}
       />
     )
@@ -80,6 +82,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       <CommentDiscussion
         {...props}
         isDark={isDark}
+        handleBack={handleBack}
         renderCommentContent={renderCommentContent}
       />
     )
@@ -143,7 +146,7 @@ export function AllDiscussions({
         />
       )
   }
-  return <div className="flex flex-col gap-4 px-2">{panelContent}</div>
+  return <div className="flex flex-col gap-4 p-3">{panelContent}</div>
 }
 
 function BlockDiscussions({
@@ -155,10 +158,12 @@ function BlockDiscussions({
   handleStartDiscussion,
   renderCommentContent,
   enableWebSigning,
+  handleBack,
 }: DiscussionsPanelProps & {
   isDark?: boolean
   renderCommentContent: (comment: HMComment) => React.ReactNode
 }) {
+  const tx = useTxString()
   if (!blockId) throw new Error('Block ID is required in BlockDiscussions')
   const blockDiscussions = useBlockDiscussions(docId, blockId)
   let panelContent = null
@@ -190,6 +195,10 @@ function BlockDiscussions({
   return (
     <div className="flex flex-col gap-4 px-2">
       <div className="rounded-md p-3">
+        <AccessoryBackButton
+          onPress={handleBack}
+          label={tx('All Discussions')}
+        />
         <WebDocContentProvider
           key={blockId}
           originHomeId={originHomeId}
@@ -209,15 +218,14 @@ function CommentDiscussion(
     renderCommentContent: (comment: HMComment) => React.ReactNode
   },
 ) {
-  const {comment, docId, renderCommentContent} = props
-
+  const {comment, docId, renderCommentContent, handleBack} = props
+  const tx = useTxString()
   const discussion = useDiscussion(docId, comment?.id)
 
   if (!discussion.data) return null
   const {thread, authors, commentGroups} = discussion.data
 
   const rootCommentId = thread?.at(0)?.id
-  const rootCommentVersion = thread?.at(0)?.version
 
   let panelContent = null
   if (discussion.isInitialLoading) {
@@ -249,6 +257,13 @@ function CommentDiscussion(
 
   return (
     <div className="flex flex-col gap-2 p-3">
+      <div className="mx-3 mb-0 flex flex-col">
+        <AccessoryBackButton
+          onPress={handleBack}
+          label={tx('All Discussions')}
+        />
+      </div>
+
       {rootCommentId && thread ? (
         <div className="rounded-md p-3">
           <CommentGroup

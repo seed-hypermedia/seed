@@ -1,6 +1,7 @@
 import {ChevronLeft} from 'lucide-react'
 import {HTMLAttributes} from 'react'
 import {Button} from './button'
+import {cn} from './utils'
 
 export function AccessoryBackButton({
   onPress,
@@ -15,9 +16,10 @@ export function AccessoryBackButton({
     <Button
       variant="ghost"
       size="sm"
-      className={`text-muted-foreground justify-start rounded-lg px-2 py-0 ${
-        className || ''
-      }`}
+      className={cn(
+        'text-muted-foreground flex-1 justify-start rounded-lg p-2',
+        className,
+      )}
       onClick={onPress}
       {...props}
     >

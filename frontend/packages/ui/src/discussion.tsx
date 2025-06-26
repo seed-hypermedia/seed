@@ -10,20 +10,17 @@ import {
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
 import {useTx, useTxUtils} from '@shm/shared/translation'
-import {Button, ButtonText} from '@tamagui/button'
-import {useTheme, View} from '@tamagui/core'
-import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
-import {XStack, YStack} from '@tamagui/stacks'
+import {ChevronRight} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
+import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
-import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useIsDark} from './use-is-dark'
+import {cn} from './utils'
 
-const Stack = View
 const avatarSize = 18
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
@@ -49,7 +46,7 @@ export function CommentGroup({
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,
-            left: avatarSize - 2,
+            left: avatarSize - 1,
           }}
         />
       )}
@@ -102,8 +99,10 @@ export function Comment({
     comment.author || authorId ? hmId('d', authorId || comment.author) : null
   const authorLink = useRouteLink(
     authorHmId ? {key: 'document', id: authorHmId} : null,
+    {
+      handler: 'onClick',
+    },
   )
-  const theme = useTheme()
   const isDark = useIsDark()
   const tx = useTx()
   const {formattedDateMedium, formattedDateLong} = useTxUtils()
@@ -114,52 +113,33 @@ export function Comment({
   }, [defaultExpandReplies])
 
   return (
-    <XStack
-      gap="$2"
-      padding="$2"
-      group="item"
-      backgroundColor={highlight ? '$brand12' : undefined}
-      borderRadius={'$2'}
+    <div
+      className={cn(
+        'group relative flex gap-1 rounded-lg p-2',
+        highlight ? 'bg-secondary' : '',
+      )}
     >
       {isLast ? (
-        <View
-          width={10}
-          h={`calc(100% - ${avatarSize + 12}px)`}
-          zi="$zIndex.1"
-          position="absolute"
-          left={10}
-          bottom={0}
-          bg={
-            highlight
-              ? '$brand12'
-              : isDark
-              ? '$background'
-              : '$backgroundStrong'
-          }
+        <div
+          className={cn(
+            'absolute z-1 w-3',
+            highlight ? 'bg-secondary' : 'dark:bg-background bg-white',
+          )}
+          style={{
+            height: `calc(100% - ${avatarSize + 12}px)`,
+            left: 12,
+            bottom: 0,
+          }}
         />
       ) : null}
-      <Stack position="relative" minWidth={20} className="mt-0.5">
-        <Stack
-          position="absolute"
-          top={0}
-          zi="$zIndex.2"
-          left={0}
-          w={20}
-          h={20}
-          bg="transparent"
-          outlineColor={
+      <div className="relative mt-0.5 min-w-5">
+        <div
+          className={cn(
+            'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
             highlight
-              ? '$brand12'
-              : isDark
-              ? '$backgroundStrong'
-              : '$background'
-          }
-          outlineStyle="solid"
-          outlineWidth={4}
-          borderRadius={100}
-          hoverStyle={{
-            outlineColor: '$backgroundStrong',
-          }}
+              ? 'outline-secondary hover:outline-secondary'
+              : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
+          )}
           {...authorLink}
         />
         {authorHmId && (
@@ -167,124 +147,70 @@ export function Comment({
             <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
           </div>
         )}
-      </Stack>
-      <YStack f={1} gap="$1">
-        <XStack minHeight={16} ai="center" gap="$2">
-          <ButtonText
-            size="$1"
-            h={16}
-            fontWeight="bold"
-            hoverStyle={{
-              bg: '$backgroundStrong',
-            }}
+      </div>
+      <div className="flex flex-1 flex-col gap-1">
+        <div className="flex min-h-5 items-center gap-1">
+          <button
+            className={cn(
+              'hover:bg-accent h-5 rounded px-1 text-sm font-bold transition-colors',
+              authorLink ? 'cursor-pointer' : '',
+            )}
             {...authorLink}
           >
             {authorMetadata?.name || '...'}
-          </ButtonText>
+          </button>
           <Tooltip content={formattedDateLong(comment.createTime)}>
-            <ButtonText
-              color="$color8"
-              fontSize={10}
-              h={16}
-              onPress={() => {
+            <button
+              className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs"
+              onClick={() => {
                 copyTextToClipboard(comment.id)
               }}
             >
               {formattedDateMedium(comment.createTime)}
-            </ButtonText>
+            </button>
           </Tooltip>
-        </XStack>
-        <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>
+        </div>
+        <div className="-ml-2">{renderCommentContent(comment)}</div>
         {!highlight && (
-          <XStack
-            ai="center"
-            gap="$2"
-            marginLeft={-4}
-            paddingVertical="$1"
-            marginBottom="$2"
-          >
+          <div className="mb-2 -ml-1 flex items-center gap-2 py-1">
             {replyCount ? (
               <Button
-                chromeless
-                size="$1"
-                icon={showReplies ? ChevronDown : ChevronRight}
-                color="$brand5"
-                borderColor="$colorTransparent"
-                hoverStyle={{
-                  bg: '$color4',
-                  borderColor: '$color5',
-                }}
-                focusStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                pressStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                onPress={() => {
-                  // if (onReplyCountClick) {
-                  //   onReplyCountClick(
-                  //     comment.id,
-                  //     rootReplyCommentId || comment.id,
-                  //   )
-                  // } else {
-                  //   setShowReplies(!showReplies)
-                  // }
+                variant="ghost"
+                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+                size="xs"
+                onClick={() => {
                   discussionsContext.onReplyCountClick(comment)
                 }}
               >
-                <SizableText
-                  size="xs"
-                  color="brand"
-                  className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
-                >
-                  {tx(
-                    'replies_count',
-                    (args: {count: number}) => `Replies (${args.count})`,
-                    {count: replyCount},
-                  )}
-                </SizableText>
+                <ChevronRight className="size-3" />
+
+                {tx(
+                  'replies_count',
+                  (args: {count: number}) => `Replies (${args.count})`,
+                  {count: replyCount},
+                )}
               </Button>
             ) : null}
             {enableReplies || discussionsContext.onReplyClick ? (
               <Button
-                chromeless
-                size="$1"
-                icon={<ReplyArrow color={theme.brand5.val} size={16} />}
-                onPress={() => {
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+                onClick={() => {
                   if (discussionsContext.onReplyClick) {
                     discussionsContext.onReplyClick(comment)
                   }
                 }}
-                color="$brand5"
-                borderColor="$colorTransparent"
-                hoverStyle={{
-                  bg: '$color4',
-                  borderColor: '$color5',
-                }}
-                focusStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
-                pressStyle={{
-                  bg: '$color5',
-                  borderColor: '$color6',
-                }}
               >
-                <SizableText
-                  size="xs"
-                  color="brand"
-                  className="hover:text-brand-600 focus:text-brand-700 active:text-brand-700"
-                >
-                  {tx('Reply')}
-                </SizableText>
+                <ReplyArrow className="size-3" />
+
+                {tx('Reply')}
               </Button>
             ) : null}
-          </XStack>
+          </div>
         )}
-      </YStack>
-    </XStack>
+      </div>
+    </div>
   )
 }
 
@@ -303,18 +229,12 @@ export function QuotedDocBlock({
   }, [doc.content, blockId])
 
   return (
-    <YStack bg="$brand12" borderRadius="$2">
-      <XStack
-        borderRadius="$2"
-        padding="$2"
-        gap="$1"
-        position="relative"
-        animation="fast"
-      >
-        <XStack flexShrink={0} paddingVertical="$1.5">
+    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
+      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
+        <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
-        </XStack>
-        <YStack f={1}>
+        </div>
+        <div className="flex-1">
           {blockContent && (
             <BlocksContent
               blocks={[blockContent]}
@@ -322,8 +242,8 @@ export function QuotedDocBlock({
               hideCollapseButtons
             />
           )}
-        </YStack>
-      </XStack>
-    </YStack>
+        </div>
+      </div>
+    </div>
   )
 }
