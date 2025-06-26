@@ -54,7 +54,10 @@ function DocumentCitationToken({
     docId: UnpackedHypermediaId
   }>
 }) {
-  const linkProps = useRouteLink({key: 'document', id: docId})
+  const linkProps = useRouteLink(
+    {key: 'document', id: docId},
+    {handler: 'onClick'},
+  )
   const className =
     'text-sm bg-gray-200 border border-gray-300 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all'
   if (DocPreview) {
@@ -82,7 +85,10 @@ function DocumentCitationToken({
 }
 
 function HMAuthor({author}: {author: HMMetadataPayload}) {
-  const linkProps = useRouteLink({key: 'document', id: author.id})
+  const linkProps = useRouteLink(
+    {key: 'document', id: author.id},
+    {handler: 'onClick'},
+  )
   return (
     <Button variant="ghost" size="sm" {...linkProps}>
       <HMIcon size={20} id={author.id} metadata={author.metadata} />

@@ -1,6 +1,7 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
+  Contact,
   HMAccountsMetadata,
   HMBlockChildrenType,
   HMBlockNode,
@@ -98,12 +99,14 @@ export function DocContentProvider({
   routeParams = {},
   layoutUnit = contentLayoutUnit,
   textUnit = contentTextUnit,
+  contacts,
   ...docContextContent
 }: PropsWithChildren<
   DocContentContextValue & {
     debugTop?: number
     showDevMenu?: boolean
     ffSerif?: boolean
+    contacts?: PlainMessage<Contact>[] | null
   }
 >) {
   const [tUnit, setTUnit] = useState(textUnit)
@@ -136,6 +139,7 @@ export function DocContentProvider({
         routeParams,
         collapsedBlocks,
         setCollapsedBlocks,
+        contacts,
       }}
     >
       {children}
@@ -1047,7 +1051,6 @@ function BlockContentImage({
             ? `${getBlockAttribute(block.attributes, 'width')}px`
             : undefined,
         }}
-        maxWidth="100%"
       >
         <img
           alt={block?.attributes?.name}
