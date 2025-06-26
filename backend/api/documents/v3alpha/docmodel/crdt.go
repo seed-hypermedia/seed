@@ -409,6 +409,14 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				refID.Actor = actorID
 			}
 
+			// Because we support detached blocks, we allow moves to refer to parents that are not previously mentioned anywhere.
+			// So here we want to make sure parents mentioned in the move operation have their sublists created, to avoid "missing parent" errors.
+			// This is a bit of a hack, but other than that should be harmless.
+			if _, ok := e.tree.sublists.Get(op.Parent); !ok {
+				e.tree.sublists.Set(op.Parent, newRGAList[string]())
+				e.tree.detachedBlocks.Set(op.Parent, blockLatestMove{detached: true})
+			}
+
 			var lastOp opID
 			for i, blk := range op.Blocks {
 				idx += i

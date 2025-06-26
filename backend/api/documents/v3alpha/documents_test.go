@@ -1383,3 +1383,123 @@ func TestDetachedBlocks(t *testing.T) {
 	require.Equal(t, "detached1", doc2.Content[0].Children[0].Block.Id, "detached block should now be in content tree")
 	require.Equal(t, "This block is detached", doc2.Content[0].Children[0].Block.Text, "detached block text should be preserved")
 }
+
+func TestBug_DetachedBlocksWithChildrenInTheSameChange(t *testing.T) {
+	// We had a bug when a detached block was created along with its children in the same change.
+	// It's because when we clean up and prepare the change we put move operations before replace operations,
+	// which resulted in moves refering to parents that were never mentioned before.
+	// We fixed this by just allowing this to happen.
+
+	t.Parallel()
+
+	ctx := t.Context()
+	alice := newTestDocsAPI(t, "alice")
+
+	// 1. Create home document with content blocks and a detached navigation block.
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Home"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Welcome!",
+				},
+			}},
+			// {Op: &documents.DocumentChange_ReplaceBlock{
+			// 	ReplaceBlock: &documents.Block{
+			// 		Id:   "navigation",
+			// 		Type: "navigation",
+			// 	},
+			// }},
+		},
+	})
+	require.NoError(t, err)
+
+	// 2. Add navigation items as children of the navigation block in a separate change.
+	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		BaseVersion:    doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "navigation",
+					Type: "navigation",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "nav1", Parent: "navigation", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "nav1",
+					Type: "navigation_item",
+					Text: "First",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "nav2", Parent: "navigation", LeftSibling: "nav1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "nav2",
+					Type: "navigation_item",
+					Text: "Second",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "nav3", Parent: "navigation", LeftSibling: "nav2"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "nav3",
+					Type: "navigation_item",
+					Text: "Third",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. Move navigation items around and check the order.
+	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		BaseVersion:    doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "navigation",
+					Type: "navigation",
+				},
+			}},
+			// Move nav3 to the front (before nav1)
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "nav3", Parent: "navigation", LeftSibling: ""},
+			}},
+			// Move nav1 after nav2 (so order: nav3, nav2, nav1)
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "nav1", Parent: "navigation", LeftSibling: "nav2"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	nav := doc.DetachedBlocks["navigation"]
+	require.NotNil(t, nav, "navigation block must exist")
+	require.Len(t, nav.Children, 3, "navigation must have 3 children")
+	require.Equal(t, "nav3", nav.Children[0].Block.Id, "first nav item must be nav3")
+	require.Equal(t, "nav2", nav.Children[1].Block.Id, "second nav item must be nav2")
+	require.Equal(t, "nav1", nav.Children[2].Block.Id, "third nav item must be nav1")
+}

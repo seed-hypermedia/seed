@@ -281,6 +281,11 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 
 	dm.dirtyBlocks[blk.ID()] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
 
+	if _, ok := dm.crdt.tree.sublists.Get(blk.ID()); !ok {
+		dm.crdt.tree.sublists.Set(blk.ID(), newRGAList[string]())
+		dm.crdt.tree.detachedBlocks.Set(blk.ID(), blockLatestMove{detached: true})
+	}
+
 	return nil
 }
 
