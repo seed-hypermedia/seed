@@ -221,6 +221,7 @@ SELECT
   f.tsid,
   resources.iri,
   public_keys.principal AS author,
+  pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
   document_generations.metadata,
@@ -262,6 +263,9 @@ FROM fts_top100 AS f
 
   JOIN document_generations
     ON document_generations.resource = resources.id
+
+  LEFT JOIN public_keys pk_subject
+    ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
 WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
 
@@ -337,11 +341,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	if in.IncludeBody {
 		entityTypeDoc = "document"
-		entityTypeComment = "comment" // TODO: comment out this when we have comment links
+		entityTypeComment = "comment"
 	}
 	var loggedAccountID int64 = 0
 	if in.LoggedAccountUid != "" {
-
 		ppal, err := core.DecodePrincipal(in.LoggedAccountUid)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "bad provided logged account UID %s: %v", in.LoggedAccountUid, err)
@@ -404,11 +407,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			// build substring on rune boundaries
 			matchStr := string(fullRunes[contextStart:contextEndRune])
 			contents = append(contents, matchStr)
-			if err := json.Unmarshal(stmt.ColumnBytes(10), &icon); err != nil {
+			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
 				return nil
 			}
 			icons = append(icons, icon.Icon.Value)
-			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(8)), stmt.ColumnBytesUnsafe(9)).String()
+			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
 			blobCIDs = append(blobCIDs, blobCID)
 			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
 			cType := stmt.ColumnText(1)
@@ -416,7 +419,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			tsids = append(tsids, tsid)
 			iri := stmt.ColumnText(6)
 			docIDs = append(docIDs, iri)
-			if err := json.Unmarshal(stmt.ColumnBytes(11), &heads); err != nil {
+			if err := json.Unmarshal(stmt.ColumnBytes(12), &heads); err != nil {
 				return err
 			}
 
@@ -432,15 +435,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			version := stmt.ColumnText(3)
 			latestVersions = append(latestVersions, latestVersion)
 			versions = append(versions, version)
-			ts := hlc.Timestamp(stmt.ColumnInt64(12) * 1000).Time()
+			ts := hlc.Timestamp(stmt.ColumnInt64(13) * 1000).Time()
 			versionTimes = append(versionTimes, timestamppb.New(ts))
 
 			contentType = append(contentType, cType)
 			blockIDs = append(blockIDs, stmt.ColumnText(2))
 			ownerID := core.Principal(stmt.ColumnBytes(7)).String()
 			owners = append(owners, ownerID)
-			if cType == "comment" || cType == "contact" {
+			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
+			if cType == "comment" {
 				iris = append(iris, "hm://"+ownerID+"/"+tsid)
+			} else if cType == "contact" {
+				iris = append(iris, "hm://"+subjectID+"/"+tsid)
 			} else {
 				iris = append(iris, iri)
 			}
