@@ -74,8 +74,12 @@ export async function getMetadata(
 
 export async function getAccount(
   accountUid: string,
+  {discover}: {discover?: boolean} = {},
 ): Promise<HMMetadataPayload> {
   try {
+    if (discover) {
+      await discoverDocument(accountUid, [], undefined)
+    }
     const grpcAccount = await queryClient.documents.getAccount({
       id: accountUid,
     })

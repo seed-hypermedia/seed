@@ -54,7 +54,7 @@ export const loader = async ({
     const authorAccountUids = Array.from(authorAccounts)
     const accounts = await Promise.all(
       authorAccountUids.map(async (accountUid) => {
-        return await getAccount(accountUid)
+        return await getAccount(accountUid, {discover: true})
       }),
     )
 
