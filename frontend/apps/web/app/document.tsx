@@ -965,7 +965,7 @@ function InteractionSummaryItem({
   active: boolean
 }) {
   return (
-    <Tooltip content={`${count} ${pluralS(count, label)}`}>
+    <Tooltip content={label}>
       <Button
         onClick={onClick}
         variant="ghost"
