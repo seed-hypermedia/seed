@@ -58,8 +58,6 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
         pressTheme
         focusTheme
         outlineColor="transparent"
-        borderWidth={1}
-        borderColor="$borderColor"
         hoverStyle={{backgroundColor: '$hoverColor'}}
         borderRadius="$2"
         paddingHorizontal="$3"
@@ -71,7 +69,9 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
             size={24}
           />
         }
-        onPress={() => navigate({key: 'document', id})}
+        onPress={() => {
+          navigate({key: 'document', id: hmId('d', id.uid)})
+        }}
       >
         <XStack f={1} ai="center" gap="$2">
           <SizableText size="$2" f={1}>
@@ -330,7 +330,7 @@ function CollaboratorItem({
       pressTheme
       focusTheme
       outlineColor="transparent"
-      hoverStyle={{backgroundColor: '$color7'}}
+      hoverStyle={{backgroundColor: '$hoverColor'}}
       borderRadius="$2"
       paddingHorizontal="$3"
       paddingVertical={0}
