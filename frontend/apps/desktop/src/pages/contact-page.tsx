@@ -161,7 +161,7 @@ function ContactListItem({
   savedContact: PlainMessage<Contact> | undefined
 }) {
   const navigate = useNavigate()
-  const id = hmId('d', account.id, {})
+  const id = hmId(account.id, {})
   return (
     <Button
       className="group mx-2 h-auto items-center gap-1 py-2"
@@ -417,7 +417,7 @@ function AccountContacts({
   ownerLabel: string
 }) {
   const subjectAccounts = useSubscribedEntities(
-    contact.contacts?.map((c) => ({id: hmId('d', c.subject)})) || [],
+    contact.contacts?.map((c) => ({id: hmId(c.subject)})) || [],
   )
   const navigate = useNavigate()
   return (
@@ -441,7 +441,7 @@ function AccountContacts({
               onClick={() => {
                 navigate({
                   key: 'contact',
-                  id: hmId('d', contact.subject),
+                  id: hmId(contact.subject),
                 })
               }}
             >

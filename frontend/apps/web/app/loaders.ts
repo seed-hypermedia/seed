@@ -18,7 +18,6 @@ import {
   HMInlineContent,
   HMLoadedBlock,
   HMLoadedBlockNode,
-  HMLoadedDocument,
   HMLoadedInlineEmbedNode,
   HMLoadedLinkNode,
   HMLoadedText,
@@ -90,11 +89,11 @@ export async function getAccount(
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata,
     } as HMMetadataPayload
   } catch (e) {
-    return {id: hmId('d', accountUid), metadata: {}}
+    return {id: hmId(accountUid), metadata: {}}
   }
 }
 
@@ -116,16 +115,16 @@ export type WebBaseDocumentPayload = {
   isLatest: boolean
 }
 
-export type WebDocumentPayload = WebBaseDocumentPayload & {
+export type WebResourcePayload = WebBaseDocumentPayload & {
   breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>
 }
 
-export async function getHMDocument(
+export async function loadDocument(
   entityId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
 ) {
   console.log(
-    'getHMDocument called with id:',
+    'loadDocument called with id:',
     entityId.id,
     'discover:',
     discover,
@@ -173,7 +172,7 @@ export async function resolveHMDocument(
     discover,
   )
   try {
-    const document = await getHMDocument(entityId, {discover})
+    const document = await loadDocument(entityId, {discover})
     return document
   } catch (e) {
     if (e instanceof HMRedirectError) {
@@ -206,16 +205,16 @@ export async function getBaseDocument(
     })
   const latestDocument =
     entityId.version || !entityId.latest
-      ? await getHMDocument(
+      ? await loadDocument(
           {...entityId, latest: true, version: null},
           {discover: true},
         )
       : null
-  console.log('getHMDocument called for latest version:', entityId.id)
-  const document = await getHMDocument(entityId, {discover: true})
+  console.log('loadDocument called for latest version:', entityId.id)
+  const document = await loadDocument(entityId, {discover: true})
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
-      return await getMetadata(hmId('d', authorUid))
+      return await getMetadata(hmId(authorUid))
     }),
   )
   const refs = extractRefs(document.content)
@@ -223,10 +222,7 @@ export async function getBaseDocument(
     await Promise.all(
       refs.map(async (ref) => {
         try {
-          console.log(
-            'getHMDocument called for support document:',
-            ref.refId.id,
-          )
+          console.log('loadDocument called for support document:', ref.refId.id)
           const doc = await resolveHMDocument(ref.refId)
           if (!doc) return null
           return {document: doc, id: ref.refId}
@@ -239,9 +235,9 @@ export async function getBaseDocument(
   let supportQueries: HMQueryResult[] = []
 
   const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId('d', uid)
-  console.log('getHMDocument called for home document:', homeId.id)
-  const homeDocument = await getHMDocument(homeId)
+  const homeId = hmId(uid)
+  console.log('loadDocument called for home document:', homeId.id)
+  const homeDocument = await loadDocument(homeId)
   supportDocuments.push({
     id: homeId,
     document: homeDocument,
@@ -249,68 +245,53 @@ export async function getBaseDocument(
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
   const directoryResults = await getDirectory(entityId)
-  const queryBlockQueries = (
-    await Promise.all(
-      queryBlocks.map(async (block) => {
-        return await getQueryResults(block.attributes.query)
-      }),
-    )
-  ).filter((result) => !!result)
-  supportQueries = [
-    homeDirectoryQuery,
-    {in: entityId, results: directoryResults},
-    ...queryBlockQueries,
-  ]
-  const alreadySupportDocIds = new Set<string>()
-  supportDocuments.forEach((doc) => {
-    if (doc.id.latest || doc.id.version == null) {
-      alreadySupportDocIds.add(doc.id.id)
-    }
-  })
   const supportAuthorsUidsToFetch = new Set<string>()
+  const queryBlockQueries = await Promise.all(
+    queryBlocks.map(async (block) => {
+      const query = block.attributes.query
+      const results = await getQueryResults(query)
+      const newResults = await Promise.all(
+        results
+          .flatMap((item) => item.results)
+          .map(async (item) => {
+            const id = hmId(item.account, {path: item.path})
+            const document = await loadDocument(id)
+            document.authors.forEach((author) => {
+              if (!alreadySupportDocIds.has(hmId(author).id)) {
+                supportAuthorsUidsToFetch.add(author)
+              }
+            })
+            return {...item, document}
+          }),
+      )
+      return {
+        ...results,
+        query,
+        results: newResults,
+      }
+    }),
+  )
 
-  supportDocuments.push(
-    ...(await Promise.all(
-      queryBlockQueries
-        .flatMap((item) => item.results)
-        .map(async (item) => {
-          const id = hmId('d', item.account, {path: item.path})
-          const document = await getHMDocument(id)
-          document.authors.forEach((author) => {
-            if (!alreadySupportDocIds.has(hmId('d', author).id)) {
-              supportAuthorsUidsToFetch.add(author)
-            }
+  const supportAuthors = (
+    await Promise.all(
+      Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
+        try {
+          const document = await loadDocument(hmId(uid), {
+            discover: true,
           })
           return {
-            id,
+            id: hmId(uid),
             document,
           }
-        }),
-    )),
-  )
+        } catch (e) {
+          console.error('error fetching support author', e)
+        }
+      }),
+    )
+  ).filter((author) => !!author)
 
-  // now we need to get the author content for queried docs
-  supportDocuments.push(
-    ...(
-      await Promise.all(
-        Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
-          try {
-            console.log('getHMDocument called for author:', uid)
-            const document = await getHMDocument(hmId('d', uid), {
-              discover: true,
-            })
-            return {
-              id: hmId('d', uid),
-              document,
-            }
-          } catch (e) {
-            console.error('error fetching author', uid, e)
-            return null
-          }
-        }),
-      )
-    ).filter((doc) => !!doc),
-  )
+  supportDocuments.push(...supportAuthors)
+  await discoverPromise
 
   return {
     document,
@@ -339,23 +320,65 @@ export function getOriginRequestData(parsedRequest: ParsedRequest) {
 export async function getDocument(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
-): Promise<WebDocumentPayload> {
+): Promise<WebResourcePayload> {
   const document = await getBaseDocument(entityId, parsedRequest)
   const crumbs = getParentPaths(entityId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
-      const id = hmId(entityId.type, entityId.uid, {path: crumbPath})
+      const id = hmId(entityId.uid, {path: crumbPath})
       const metadataPayload = await getMetadata(id)
       return {
-        id,
-        metadata: metadataPayload.metadata || {},
+        ...metadataPayload,
       }
     }),
   )
+  breadcrumbs.push({
+    id: entityId,
+    metadata: document.document.metadata,
+  })
   return {
     ...document,
     breadcrumbs,
   }
+}
+
+// WIP
+export async function loadResource(
+  entityId: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+): Promise<WebResourcePayload> {
+  // const {uid} = entityId
+  // const path = hmIdPathToEntityQueryPath(entityId.path)
+  console.log('will get resource', entityId.id)
+  const resource = await queryClient.resources.getResource({
+    iri: entityId.id,
+  })
+  if (resource.kind.case === 'comment') {
+    const comment = resource.kind.value
+  } else if (resource.kind.case === 'document') {
+    const document = resource.kind.value
+  }
+  console.log('resource', resource)
+
+  // const document = await getBaseDocument(entityId, parsedRequest)
+  // const crumbs = getParentPaths(entityId.path).slice(0, -1)
+  // const breadcrumbs = await Promise.all(
+  //   crumbs.map(async (crumbPath) => {
+  //     const id = hmId(entityId.uid, {path: crumbPath})
+  //     const metadataPayload = await getMetadata(id)
+  //     return {
+  //       ...metadataPayload,
+  //     }
+  //   }),
+  // )
+  // breadcrumbs.push({
+  //   id: entityId,
+  //   metadata: document.document.metadata,
+  // })
+  // return {
+  //   ...document,
+  //   breadcrumbs,
+  // }
 }
 
 function textNodeAttributes(
@@ -385,7 +408,7 @@ async function loadEditorNodes(
             id: null,
           } satisfies HMLoadedInlineEmbedNode
         try {
-          const document = await getHMDocument(id)
+          const document = await loadDocument(id)
           return {
             type: 'InlineEmbed',
             ref: editorNode.link,
@@ -471,8 +494,8 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       }
     }
     try {
-      console.log('getHMDocument called for embed:', id.id)
-      const document = await getHMDocument(id)
+      console.log('loadDocument called for embed:', id.id)
+      const document = await loadDocument(id)
       const selectedBlock = id.blockRef
         ? getBlockNodeById(document.content, id.blockRef)
         : null
@@ -600,31 +623,23 @@ async function loadDocumentContent(
 export async function loadAuthors(
   authors: string[],
 ): Promise<HMAccountsMetadata> {
+  const accountMetas = await Promise.all(
+    authors.map(async (author) => {
+      const metadata = await getMetadata(hmId(author))
+      return {
+        [author]: metadata,
+      }
+    }),
+  )
   return Object.fromEntries(
-    await Promise.all(
-      authors.map(async (author) => {
-        const metadata = await getMetadata(hmId('d', author))
-        return [author, metadata]
-      }),
-    ),
+    accountMetas.map((meta) => {
+      const key = Object.keys(meta)[0]
+      return [key, meta[key]]
+    }),
   )
 }
 
-export async function loadDocument(
-  entityId: UnpackedHypermediaId,
-): Promise<HMLoadedDocument> {
-  console.log('loadDocument called for:', entityId.id)
-  const doc = await getHMDocument(entityId)
-  return {
-    id: entityId,
-    version: doc.version,
-    content: await loadDocumentContent(doc.content),
-    metadata: doc.metadata,
-    authors: await loadAuthors(doc.authors),
-  }
-}
-
-export type SiteDocumentPayload = WebDocumentPayload & {
+export type SiteDocumentPayload = WebResourcePayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
@@ -646,7 +661,7 @@ export async function loadSiteDocument<T>(
   if (config.registeredAccountUid) {
     try {
       const {id, metadata} = await getMetadata(
-        hmId('d', config.registeredAccountUid),
+        hmId(config.registeredAccountUid),
       )
       homeMetadata = metadata
       originHomeId = id
@@ -679,7 +694,7 @@ export async function loadSiteDocument<T>(
     })
   } catch (e) {
     if (e instanceof HMRedirectError) {
-      const destRedirectUrl = createWebHMUrl(e.target.type, e.target.uid, {
+      const destRedirectUrl = createWebHMUrl(e.target.uid, {
         path: e.target.path,
         version: e.target.version,
         latest: e.target.latest,

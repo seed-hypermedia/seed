@@ -6,7 +6,7 @@ export function useSelectedAccount() {
   const {selectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const {data: account} = useEntity(
-    selectedIdentityValue ? hmId('d', selectedIdentityValue) : null,
+    selectedIdentityValue ? hmId(selectedIdentityValue) : null,
   )
   return account
 }

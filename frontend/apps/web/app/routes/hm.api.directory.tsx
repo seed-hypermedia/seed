@@ -61,7 +61,7 @@ export const loader = async ({
           path: doc.path,
           updateTime: doc.updateTime,
           metadata: doc.metadata,
-          id: hmId('d', id.uid, {path: doc.path.split('/').slice(1)}),
+          id: hmId(id.uid, {path: doc.path.split('/').slice(1)}),
           authors: doc.authors,
         }
       })
@@ -80,7 +80,7 @@ export const loader = async ({
             res.metadata?.toJson({emitDefaultValues: true}),
           ),
         }
-        return {id: hmId('d', authorUid), metadata: authorAccount.metadata}
+        return {id: hmId(authorUid), metadata: authorAccount.metadata}
       }),
     )
     result = {

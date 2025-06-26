@@ -42,7 +42,13 @@ import {
   MessageSquare,
   X,
 } from '@tamagui/lucide-icons'
-import {ComponentProps, createContext, useContext, useState} from 'react'
+import {
+  ComponentProps,
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {
   Button,
@@ -95,6 +101,27 @@ export default function LibraryPage() {
   })
 
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
+
+  const [addSiteOpen, setAddSiteOpen] = useState(false)
+  const menu = useMemo(() => {
+    const siteMenuItems =
+      library?.sites?.map((site) => {
+        const id = hmId(site.id)
+        return {
+          key: site.id,
+          label: site.hostname,
+          onPress: () => {
+            replace({
+              key: 'document',
+              id: hmId(site.id),
+            })
+          },
+        }
+      }) || []
+    return {
+      siteMenuItems,
+    }
+  }, [library?.sites, replace])
 
   return (
     <XStack flex={1} height="100%">
@@ -178,9 +205,9 @@ export default function LibraryPage() {
                             library.items
                               ?.map((item) => {
                                 if (item.type === 'site') {
-                                  return hmId('d', item.id)
+                                  return hmId(item.id)
                                 }
-                                return hmId('d', item.account, {
+                                return hmId(item.account, {
                                   path: item.path,
                                 })
                               })
@@ -401,7 +428,7 @@ function LibrarySiteItem({
   const isDark = useIsDark()
   const navigate = useNavigate()
   const metadata = site?.metadata
-  const id = hmId('d', site.id)
+  const id = hmId(site.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
   const homeDocument = documents.data?.find((doc) => !doc.path?.length)
   const siteDisplayActivitySummary =
@@ -496,7 +523,7 @@ export function LibraryDocumentItem({
   const metadata = item?.metadata
   const isDark = useIsDark()
   const readBackground = isDark ? '$backgroundStrong' : '$background'
-  const id = hmId('d', item.account, {
+  const id = hmId(item.account, {
     path: item.path,
   })
   const isRead = !item.activitySummary?.isUnread

@@ -240,13 +240,13 @@ function getHmIdOfRequest(
   const latest = url.searchParams.get('l') === ''
   if (pathParts.length === 0) {
     if (!originAccountId) return null
-    return hmId('d', originAccountId, {path: [], version, latest})
+    return hmId(originAccountId, {path: [], version, latest})
   }
   if (pathParts[0] === 'hm') {
-    return hmId('d', pathParts[1], {path: pathParts.slice(2), version, latest})
+    return hmId(pathParts[1], {path: pathParts.slice(2), version, latest})
   }
   if (!originAccountId) return null
-  return hmId('d', originAccountId, {path: pathParts, version, latest})
+  return hmId(originAccountId, {path: pathParts, version, latest})
 }
 
 async function handleOptionsRequest(request: Request) {

@@ -36,7 +36,7 @@ export const loader = async ({request}: {request: Request}) => {
   if (!registeredAccountUid) return wrapJSON('unregistered', {status: 404})
   const result = await loadSiteDocument(
     parsedRequest,
-    hmId('d', registeredAccountUid, {version, path: [], latest}),
+    hmId(registeredAccountUid, {version, path: [], latest}),
     {prefersLanguages: parsedRequest.prefersLanguages},
   )
   debugTiming('homepage loader resolved')

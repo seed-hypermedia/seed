@@ -79,11 +79,11 @@ export const action: ActionFunction = async ({request}) => {
     return json({message: 'Failed to store comment'}, {status: 500})
   }
   const targetUid = base58btc.encode(comment.space)
-  const targetId = hmId('d', targetUid, {
+  const targetId = hmId(targetUid, {
     path: entityQueryPathToHmIdPath(comment.path),
   })
   const dependencies: UnpackedHypermediaId[] = [
-    hmId('d', signerUid, {}),
+    hmId(signerUid, {}),
     ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
   ]
   const commentResult = await queryClient.comments.getComment({

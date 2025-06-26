@@ -193,7 +193,7 @@ export class HMRedirectError extends Error {
     super('Document Redirected')
   }
   public get target(): UnpackedHypermediaId {
-    return hmId('d', this.redirect.targetAccount, {
+    return hmId(this.redirect.targetAccount, {
       path: entityQueryPathToHmIdPath(this.redirect.targetPath),
     })
   }

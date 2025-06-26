@@ -5,9 +5,9 @@ import {
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
 
+import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
@@ -71,7 +71,7 @@ export function DeleteEntityDialog({
 
   if (doc.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -131,9 +131,7 @@ export function DeleteEntityDialog({
               deleteEntity.mutate({
                 ids: [
                   id,
-                  ...childDocs.map((item) =>
-                    hmId('d', id.uid, {path: item.path}),
-                  ),
+                  ...childDocs.map((item) => hmId(id.uid, {path: item.path})),
                 ],
                 signingAccountUid: cap.accountUid,
                 capabilityId: cap.capabilityId,

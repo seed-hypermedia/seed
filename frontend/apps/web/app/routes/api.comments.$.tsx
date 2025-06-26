@@ -1,10 +1,9 @@
 import {queryClient} from '@/client'
 import {apiGetter} from '@/server-api'
-import {BIG_INT, hmIdPathToEntityQueryPath, HMIDTypeSchema} from '@shm/shared'
+import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
 
 export const loader = apiGetter(async ({pathParts}) => {
-  const [_api, _citations, type, uid, ...restPath] = pathParts
-  const t = HMIDTypeSchema.parse(type)
+  const [_api, _citations, uid, ...restPath] = pathParts
   const result = await queryClient.comments.listComments({
     targetAccount: uid,
     targetPath: hmIdPathToEntityQueryPath(restPath),
