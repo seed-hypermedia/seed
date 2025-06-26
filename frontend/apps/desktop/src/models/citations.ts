@@ -1,16 +1,7 @@
 import {grpcClient} from '@/grpc-client'
-import {
-  BIG_INT,
-  deduplicateCitations,
-  hmId,
-  parseFragment,
-  queryKeys,
-  sortCitations,
-  unpackHmId,
-} from '@shm/shared'
+import {BIG_INT, hmId, parseFragment, queryKeys, unpackHmId} from '@shm/shared'
 import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
-import {useMemo} from 'react'
 
 export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
   return useQuery({
@@ -38,7 +29,6 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
             })
             if (!sourceId) return null
             const targetFragment = parseFragment(restMention.targetFragment)
-            console.log('raw mention source', source, restMention)
             if (sourceType === 'Comment') {
               return {
                 source: {
@@ -74,9 +64,14 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
 
 export function useSortedCitations(docId?: UnpackedHypermediaId | null) {
   const citations = useEntityCitations(docId)
-  return useMemo(() => {
-    if (!citations.data) return {docCitations: [], commentCitations: []}
-    const dedupedCitations = deduplicateCitations(citations.data)
-    return sortCitations(dedupedCitations)
-  }, [citations.data])
+  const docCitations: HMCitation[] = []
+  const commentCitations: HMCitation[] = []
+  citations.data?.forEach((citation) => {
+    if (citation.source.type === 'd') {
+      docCitations.push(citation)
+    } else if (citation.source.type === 'c') {
+      commentCitations.push(citation)
+    }
+  })
+  return {docCitations, commentCitations}
 }
