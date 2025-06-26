@@ -1,7 +1,7 @@
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
-import {useSelectedAccount} from '@/selected-account'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -171,7 +171,8 @@ export function useCommentEditor(
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
 
-  const {onMentionsQuery} = useInlineMentions()
+  const selectedAccountId = useSelectedAccountId()
+  const {onMentionsQuery} = useInlineMentions(selectedAccountId)
   function initDraft() {
     if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current

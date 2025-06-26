@@ -1,3 +1,4 @@
+import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -8,6 +9,7 @@ import {
   HMQueryResult,
 } from './hm-types'
 
+import {Contact} from './client'
 import {UnpackedHypermediaId} from './hm-types'
 
 export type DocContentContextValue = {
@@ -38,6 +40,7 @@ export type DocContentContextValue = {
     blockRef?: string
     blockRange?: BlockRange
   }
+  contacts?: PlainMessage<Contact>[] | null
   importWebFile?: any
   handleFileAttachment?: (
     file: File,

@@ -1,5 +1,5 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
-import {useContacts} from '@/models/contacts'
+import {useContacts, useSelectedAccountContacts} from '@/models/contacts'
 import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
@@ -268,6 +268,8 @@ function _CommentDraftEditor({
     docId.id,
     replyCommentId,
   ])
+  const contacts = useSelectedAccountContacts()
+
   if (!account) return null
 
   return (
@@ -301,7 +303,7 @@ function _CommentDraftEditor({
       className="comment-editor"
     >
       <div className="flex-1">
-        <AppDocContentProvider comment>
+        <AppDocContentProvider comment contacts={contacts.data}>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </AppDocContentProvider>
       </div>

@@ -294,6 +294,7 @@ function AutocompletePopupInner(
     Recents: [],
     Sites: [],
     Documents: [],
+    Contacts: [],
   })
 
   const [position, setPosition] = useState<'above' | 'below'>('below')
@@ -315,6 +316,7 @@ function AutocompletePopupInner(
     editor.options
       .onMentionsQuery(text)
       .then((results: InlineMentionsResult) => {
+        console.log('~~ MENTIONS RESULTS', results)
         setSuggestions((suggestions) => ({
           ...suggestions,
           ...results,
@@ -325,12 +327,14 @@ function AutocompletePopupInner(
       })
   }, [text])
 
-  const groupsOrder = ['Recents', 'Sites', 'Documents'] as const
+  const groupsOrder = ['Contacts', 'Recents', 'Sites', 'Documents'] as const
   const groups = useMemo(() => {
     return groupsOrder.filter(
       (g) => suggestions.hasOwnProperty(g) && suggestions[g].length,
     )
   }, [suggestions])
+
+  console.log('groups', groups)
 
   useKeyboard({
     ArrowUp: (e) => {

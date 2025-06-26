@@ -2,10 +2,11 @@ import {
   AutocompletePopup,
   createAutoCompletePlugin,
 } from '@shm/editor/autocomplete'
-import {getDocumentTitle} from '@shm/shared/content'
+import {getContactMetadata} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useDocContentContext} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
@@ -109,13 +110,15 @@ function DocumentMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const entity = useEntity(unpackedRef)
+  const {contacts} = useDocContentContext()
+  const entity = useAccount(unpackedRef.uid)
 
   return (
     <MentionText selected={selected}>
-      {entity.data?.document
-        ? getDocumentTitle(entity.data?.document)
-        : unpackedRef.id}
+      {
+        getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts)
+          .name
+      }
     </MentionText>
   )
 }

@@ -29,6 +29,7 @@ export default function CommentEditor({
   onDiscardDraft,
   submitButton,
   handleSubmit,
+  perspectiveAccountUid,
 }: {
   onDiscardDraft?: () => void
   submitButton: (opts: {
@@ -43,6 +44,7 @@ export default function CommentEditor({
       blobs: {cid: string; data: Uint8Array}[]
     }>
   }) => JSX.Element
+  perspectiveAccountUid?: string | null | undefined
   handleSubmit: (
     getContent: (
       prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -56,7 +58,7 @@ export default function CommentEditor({
     reset: () => void,
   ) => void
 }) {
-  const {editor} = useCommentEditor()
+  const {editor} = useCommentEditor(perspectiveAccountUid)
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
 
@@ -302,8 +304,10 @@ const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
   'https://hyper.media',
 )
 
-export function useCommentEditor() {
-  const {onMentionsQuery} = useInlineMentions()
+export function useCommentEditor(
+  perspectiveAccountUid?: string | null | undefined,
+) {
+  const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -347,6 +351,7 @@ export function CommentEditor2({
   handleSubmit,
   account,
   autoFocus,
+  perspectiveAccountUid,
 }: {
   onDiscardDraft?: () => void
   account?: ReturnType<typeof useAccount>['data']
@@ -375,8 +380,9 @@ export function CommentEditor2({
     }>,
     reset: () => void,
   ) => void
+  perspectiveAccountUid?: string | null | undefined
 }) {
-  const {editor} = useCommentEditor()
+  const {editor} = useCommentEditor(perspectiveAccountUid)
   const [isEditorFocused, setIsEditorFocused] = useState(
     () => autoFocus || false,
   )

@@ -2,6 +2,7 @@ import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
+import {useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
@@ -448,7 +449,8 @@ export function useDraftEditor() {
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const saveDraft = trpc.drafts.write.useMutation()
-  const {onMentionsQuery} = useInlineMentions()
+  const selectedAccountId = useSelectedAccountId()
+  const {onMentionsQuery} = useInlineMentions(selectedAccountId)
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {

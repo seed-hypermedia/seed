@@ -10,6 +10,8 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {PlainMessage} from '@bufbuild/protobuf'
+import {Contact} from '@shm/shared'
 import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
@@ -29,10 +31,12 @@ export function AppDocContentProvider({
   children,
   docId,
   isBlockFocused = false,
+  contacts,
   ...overrides
 }: React.PropsWithChildren<Partial<DocContentContextValue>> & {
   docId?: UnpackedHypermediaId
   isBlockFocused?: boolean
+  contacts?: PlainMessage<Contact>[]
 }) {
   const {saveCidAsFile} = useAppContext()
   const openUrl = useOpenUrl()
@@ -50,6 +54,7 @@ export function AppDocContentProvider({
         textUnit={contentTextUnit}
         entityId={docId}
         debug={false}
+        contacts={contacts}
         entityComponents={{
           Document: EmbedDocument,
           Comment: EmbedComment,

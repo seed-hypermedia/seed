@@ -1,8 +1,8 @@
+import {Timestamp} from '@bufbuild/protobuf'
 import {useQuery} from '@tanstack/react-query'
 import {UnpackedHypermediaId} from '../hm-types'
-import {queryKeys} from './query-keys'
-import {Timestamp} from '@bufbuild/protobuf'
 import {packHmId} from '../utils/entity-id-url'
+import {queryKeys} from './query-keys'
 
 export type SearchResultItem = {
   id: UnpackedHypermediaId
@@ -11,6 +11,7 @@ export type SearchResultItem = {
   parentNames: string[]
   versionTime: Timestamp
   searchQuery: string
+  type: 'document' | 'contact'
 }
 
 export type SearchPayload = {
@@ -21,18 +22,24 @@ export type SearchPayload = {
 export let searchQuery:
   | ((
       query: string,
-      accountUid?: string,
-      includeBody?: boolean,
-      contextSize?: number,
+      opts?: {
+        accountUid?: string
+        perspectiveAccountUid?: string
+        includeBody?: boolean
+        contextSize?: number
+      },
     ) => Promise<SearchPayload>)
   | null = null
 
 export function setSearchQuery(
   handler: (
     query: string,
-    accountUid?: string,
-    includeBody?: boolean,
-    contextSize?: number,
+    opts?: {
+      accountUid?: string
+      perspectiveAccountUid?: string
+      includeBody?: boolean
+      contextSize?: number
+    },
   ) => Promise<SearchPayload>,
 ) {
   searchQuery = handler
@@ -45,15 +52,20 @@ export function useSearch(
   contextSize: number | undefined = 48,
 ) {
   return useQuery({
-    queryKey: [queryKeys.SEARCH, accountUid || null, query],
+    queryKey: [
+      queryKeys.SEARCH,
+      accountUid || null,
+      query,
+      includeBody,
+      contextSize,
+    ],
     queryFn: async () => {
       if (!searchQuery) throw new Error('searchQuery not injected')
-      const out = await searchQuery(
-        query,
-        accountUid || undefined,
-        includeBody || false,
-        contextSize || 48,
-      )
+      const out = await searchQuery(query, {
+        accountUid: accountUid || undefined,
+        includeBody: includeBody || false,
+        contextSize: contextSize || 48,
+      })
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       const limit = query.length < 3 ? 30 : Number.MAX_SAFE_INTEGER

@@ -6,6 +6,7 @@ import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
+import {useSelectedAccountContacts} from '@/models/contacts'
 import {
   useDraftEditor,
   useListDirectory,
@@ -310,6 +311,8 @@ function DocumentEditor({
     })
   }, [id])
 
+  const contacts = useSelectedAccountContacts()
+
   if (state.matches('editing'))
     return (
       <div
@@ -331,6 +334,7 @@ function DocumentEditor({
           <AppDocContentProvider
             // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
             importWebFile={importWebFile}
+            contacts={contacts.data}
           >
             <DraftCover
               draftActor={actor}

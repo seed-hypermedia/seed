@@ -2,7 +2,9 @@ import {useEffect, useRef} from 'react'
 import {useRecents} from './recents'
 import {searchQuery, SearchResultItem} from './search'
 
-export function useInlineMentions() {
+export function useInlineMentions(
+  perspectiveAccountUid?: string | null | undefined,
+) {
   const recents = useRecents()
   const recentsRef = useRef<InlineSearchItem[]>([])
   useEffect(() => {
@@ -16,7 +18,9 @@ export function useInlineMentions() {
 
   async function onMentionsQuery(query: string) {
     if (!searchQuery) throw new Error('searchQuery not injected')
-    const resp = await searchQuery(query)
+    const resp = await searchQuery(query, {
+      perspectiveAccountUid: perspectiveAccountUid || undefined,
+    })
     const alreadySeenIds = new Set<string>()
     const entities: SearchResultItem[] = []
     resp.entities.forEach((result) => {
@@ -29,16 +33,24 @@ export function useInlineMentions() {
       Sites: [],
       Documents: [],
       Recents: [],
+      Contacts: [],
     }
     if (!entities.length) {
       return {
         Sites: [],
         Documents: [],
+        Contacts: [],
         Recents: recentsRef.current,
       } as InlineMentionsResult
     }
     const response = entities.reduce((acc: InlineMentionsResult, entity) => {
-      if (entity.id?.path?.length) {
+      if (entity.type === 'contact') {
+        acc.Contacts.push({
+          title: entity.title,
+          subtitle: 'Contact',
+          value: entity.id.id,
+        })
+      } else if (entity.id?.path?.length) {
         acc.Documents.push({
           title: entity.title,
           subtitle: 'Document',
@@ -71,4 +83,5 @@ export type InlineMentionsResult = {
   Sites: Array<InlineSearchItem>
   Documents: Array<InlineSearchItem>
   Recents: Array<InlineSearchItem>
+  Contacts: Array<InlineSearchItem>
 }
