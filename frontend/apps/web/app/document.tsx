@@ -208,7 +208,11 @@ export function DocumentPage(
       siteHost={siteHost}
       prefersLanguages={supportedLanguages(prefersLanguages)}
     >
-      {document ? <InnerDocumentPage {...props} /> : <Spinner />}
+      {document ? (
+        <InnerDocumentPage {...props} />
+      ) : (
+        <NotFoundPage {...props} />
+      )}
     </WebSiteProvider>
   )
 }
@@ -501,7 +505,6 @@ function InnerDocumentPage(
     panelTitle = tx('Citations')
   }
 
-  if (!id) return <NotFoundPage {...props} />
   if (!document)
     return (
       <DocumentDiscoveryPage
