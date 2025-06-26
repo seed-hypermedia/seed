@@ -40,7 +40,7 @@ export function SubDocumentItem({
     path: item.path,
   })
   const isRead = markedAsRead || !item.activitySummary?.isUnread
-  const linkProps = useRouteLink({key: 'document', id})
+  const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
   return (
     <Button
       variant={isRead ? 'ghost' : 'outline'}
