@@ -225,6 +225,7 @@ SELECT
   blobs.codec,
   blobs.multihash,
   document_generations.metadata,
+  dg_subject.metadata AS subject_metadata,
   (
     SELECT json_group_array(
              json_object(
@@ -263,6 +264,9 @@ FROM fts_top100 AS f
 
   JOIN document_generations
     ON document_generations.resource = resources.id
+  
+  LEFT JOIN document_generations dg_subject
+	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = structural_blobs.id and structural_blobs.type = 'Contact') order by id limit 1)
 
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
@@ -407,10 +411,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			// build substring on rune boundaries
 			matchStr := string(fullRunes[contextStart:contextEndRune])
 			contents = append(contents, matchStr)
-			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
-				return nil
-			}
-			icons = append(icons, icon.Icon.Value)
+
 			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
 			blobCIDs = append(blobCIDs, blobCID)
 			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
@@ -419,7 +420,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			tsids = append(tsids, tsid)
 			iri := stmt.ColumnText(6)
 			docIDs = append(docIDs, iri)
-			if err := json.Unmarshal(stmt.ColumnBytes(12), &heads); err != nil {
+			if err := json.Unmarshal(stmt.ColumnBytes(13), &heads); err != nil {
 				return err
 			}
 
@@ -435,7 +436,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			version := stmt.ColumnText(3)
 			latestVersions = append(latestVersions, latestVersion)
 			versions = append(versions, version)
-			ts := hlc.Timestamp(stmt.ColumnInt64(13) * 1000).Time()
+			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			versionTimes = append(versionTimes, timestamppb.New(ts))
 
 			contentType = append(contentType, cType)
@@ -443,13 +444,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			ownerID := core.Principal(stmt.ColumnBytes(7)).String()
 			owners = append(owners, ownerID)
 			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
+			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
+				return nil
+			}
+
 			if cType == "comment" {
 				iris = append(iris, "hm://"+ownerID+"/"+tsid)
 			} else if cType == "contact" {
 				iris = append(iris, "hm://"+subjectID+"/"+tsid)
+				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
+					return nil
+				}
 			} else {
 				iris = append(iris, iri)
 			}
+			icons = append(icons, icon.Icon.Value)
 			offsets := []int{firstRuneOffset}
 			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
 				offsets = append(offsets, i)
