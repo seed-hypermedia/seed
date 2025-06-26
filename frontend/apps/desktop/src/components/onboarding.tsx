@@ -12,6 +12,12 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CheckboxField} from '@shm/ui/components/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+} from '@shm/ui/components/dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast} from '@shm/ui/toast'
@@ -21,7 +27,6 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   Button,
   ButtonFrame,
-  Dialog,
   Form,
   H2,
   Input,
@@ -91,43 +96,17 @@ export function OnboardingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          height="100vh"
-          bg={'#00000088'}
-          width="100vw"
-          animation="fast"
-          opacity={0.8}
-          enterStyle={{opacity: 0}}
-          exitStyle={{opacity: 0}}
-        />
-        <Dialog.Content
-          overflow="hidden"
-          h="80%"
-          w="90%"
-          maxWidth={1200}
-          maxHeight={800}
-          p={0}
-          backgroundColor={'$background'}
-          animation={[
-            'fast',
-            {
-              opacity: {
-                overshootClamping: true,
-              },
-            },
-          ]}
-          enterStyle={{y: -10, opacity: 0}}
-          exitStyle={{y: -10, opacity: 0}}
-        >
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogContent className="no-window-drag h-8/10 max-h-[800px] w-9/10 max-w-6xl p-0">
           <Onboarding
             modal={true}
             onComplete={() => {
               handleOpenChange(false)
             }}
           />
-        </Dialog.Content>
-      </Dialog.Portal>
+        </DialogContent>
+      </DialogPortal>
     </Dialog>
   )
 }

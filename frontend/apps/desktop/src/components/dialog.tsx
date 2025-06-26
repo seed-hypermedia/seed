@@ -9,7 +9,6 @@ import {
   XStack,
   XStackProps,
   YStack,
-  YStackProps,
   styled,
 } from 'tamagui'
 import {
@@ -188,7 +187,7 @@ export function useAppDialog<DialogInput>(
   options?: {
     isAlert?: boolean
     onClose?: () => void
-    contentProps?: YStackProps
+    contentClassName?: string
     overrideNavigation?: NavigationContext
   },
 ) {

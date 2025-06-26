@@ -65,18 +65,9 @@ import {
   WebPublishedGraphic,
 } from './publish-graphics'
 
-const publishDialogContentProps = {
-  maxWidth: null,
-  maxHeight: null,
-  height: 'content-fit',
-  width: 'content-fit',
-  overflow: 'hidden',
-  padding: 0,
-} as const
-
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
-    contentProps: publishDialogContentProps,
+    contentClassName: 'bg-red-500 p-0',
   })
 }
 
@@ -138,16 +129,7 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <YStack
-      gap="$4"
-      padding="$4"
-      maxWidth={1000}
-      maxHeight={800}
-      width="80vw"
-      height="80vh"
-      alignItems="center"
-      position="relative"
-    >
+    <div className="bg-red-500 p-40">
       {heading ? <Heading size="$2">{heading}</Heading> : null}
       {backButton ? (
         <View position="absolute" top={'$4'} left={'$4'}>
@@ -157,7 +139,7 @@ function PublishDialogContainer({
       <YStack f={1} jc="center" ai="center" gap="$4">
         {children}
       </YStack>
-    </YStack>
+    </div>
   )
 }
 
@@ -1060,9 +1042,7 @@ function PublishedUrl({url}: {url: string}) {
 const activelyWatchedDomainIds = new Set<string>()
 
 export function useSeedHostDialog() {
-  const {open, content} = useAppDialog(SeedHostDomainPublishedDialog, {
-    contentProps: publishDialogContentProps,
-  })
+  const {open, content} = useAppDialog(SeedHostDomainPublishedDialog)
   const {pendingDomains} = useHostSession()
   const watchingDomainsInProgress = useRef<
     {

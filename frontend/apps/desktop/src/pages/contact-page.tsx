@@ -1,4 +1,3 @@
-import {DialogTitle} from '@/components/dialog'
 import {FavoriteButton} from '@/components/favoriting'
 import {
   useAllAccountsWithContacts,
@@ -23,30 +22,31 @@ import {
   hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {Button} from '@shm/ui/button'
 import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button} from '@shm/ui/legacy/button'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Pencil,
   ShieldCheck,
   ShieldPlus,
-} from '@tamagui/lucide-icons'
-import {Trash} from 'lucide-react'
+  Trash,
+} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Form, Paragraph, Text, XStack, YStack} from 'tamagui'
+import {Text, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 
 export default function ContactPage() {
@@ -164,46 +164,26 @@ function ContactListItem({
   const id = hmId('d', account.id, {})
   return (
     <Button
-      group="item"
-      borderWidth={0}
-      className="mx-2"
-      bg={active ? '$blue5' : '$colorTransparent'}
-      hoverStyle={{
-        bg: active ? '$blue6' : '$color5',
-      }}
-      focusStyle={{
-        borderWidth: 0,
-      }}
-      paddingHorizontal={16}
-      marginVertical="$1"
-      onPress={() => {
+      className="group mx-2 h-auto items-center gap-1 py-2"
+      variant={active ? 'brand-12' : 'ghost'}
+      onClick={() => {
         navigate({key: 'contact', id})
       }}
-      h={60}
-      icon={
-        <HMIcon
-          size={28}
-          id={id}
-          metadata={account.metadata}
-          borderRadius={40}
-        />
-      }
     >
-      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
-        <YStack f={1} gap="$1.5">
-          <XStack ai="center" gap="$2">
-            <span className="truncate overflow-hidden whitespace-nowrap">
-              {savedContact
-                ? savedContact.name
-                : getMetadataName(account.metadata)}
-            </span>
-          </XStack>
-        </YStack>
-      </XStack>
-      <XStack gap="$3" ai="center">
-        {savedContact ? <ShieldCheck color="$brand5" /> : null}
-        <FavoriteButton id={id} hideUntilItemHover />
-      </XStack>
+      <HMIcon size={28} id={id} metadata={account.metadata} />
+      <span className="text-foreground flex-1 truncate overflow-hidden pl-2 text-left whitespace-nowrap">
+        {savedContact ? savedContact.name : getMetadataName(account.metadata)}
+      </span>
+
+      <FavoriteButton active={active} hideUntilItemHover id={id} />
+
+      <ShieldCheck
+        className={cn(
+          'size-4',
+          'text-primary dark:text-brand-5',
+          !savedContact && 'opacity-0',
+        )}
+      />
     </Button>
   )
 }
@@ -255,21 +235,22 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
           ) : null}
           <XStack jc="center" gap="$3" ai="center">
             <Button
-              icon={ArrowUpRight}
-              onPress={() =>
+              variant="outline"
+              onClick={() =>
                 navigate({
                   key: 'document',
                   id: contactId,
                 })
               }
             >
+              <ArrowUpRight className="size-4" />
               Open Site
             </Button>
             {myContact ? (
               <>
                 <Button
-                  icon={Pencil}
-                  onPress={() => {
+                  variant="outline"
+                  onClick={() => {
                     contactFormDialog.open({
                       editId: myContact.id,
                       name: myContact.name,
@@ -277,6 +258,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
                     })
                   }}
                 >
+                  <Pencil className="size-4" />
                   Edit Contact
                 </Button>
                 <OptionsDropdown
@@ -294,15 +276,14 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
               </>
             ) : (
               <Button
-                icon={ShieldPlus}
-                theme="green"
-                onPress={() => {
+                onClick={() => {
                   contactFormDialog.open({
                     name: contact.data?.metadata?.name || '?',
                     subjectUid: contactId?.uid,
                   })
                 }}
               >
+                <ShieldPlus className="text-primary size-4" />
                 Save Contact
               </Button>
             )}
@@ -338,15 +319,15 @@ function DeleteContactDialog({
       <div className="flex flex-row items-center justify-between gap-2">
         <Spinner hide={!deleteContact.isLoading} />
         <Button
-          theme="red"
-          icon={Trash}
-          onPress={() => {
+          variant="destructive"
+          onClick={() => {
             console.log('~ will deleteContact', input.contact)
             deleteContact.mutateAsync(input.contact).then(() => {
               onClose()
             })
           }}
         >
+          <Trash className="size-4" />
           Confirm Delete
         </Button>
       </div>
@@ -374,11 +355,15 @@ function ContactEdgeNames({
         <>
           <XStack jc="center">
             <Button
-              chromeless
-              size="$2"
-              onPress={() => setIsExpanded(!isExpanded)}
-              iconAfter={buttonIcon}
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded((v) => !v)}
             >
+              {isExpanded ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
               {buttonLabel}
             </Button>
           </XStack>
@@ -529,13 +514,13 @@ function ContactFormDialog({
   return (
     <div className="flex flex-col gap-6">
       <DialogTitle>Save Contact</DialogTitle>
-      <Paragraph fontStyle="italic">
+      <p className="text-foreground italic">
         This contact will be saved publicly for others to see.
-      </Paragraph>
+      </p>
 
-      <Form
-        onSubmit={() => {
-          console.log('~ hey')
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
           handleSubmit(onSubmit)()
         }}
         className="flex flex-col gap-4"
@@ -551,19 +536,18 @@ function ContactFormDialog({
             placeholder="What you will publicly name this contact"
           />
         </FormField>
-        <Form.Trigger asChild>
-          <Button>
-            {selectedAccount?.id ? (
-              <HMIcon
-                id={selectedAccount?.id}
-                metadata={selectedAccount?.document?.metadata}
-                size={24}
-              />
-            ) : null}
-            Save Contact
-          </Button>
-        </Form.Trigger>
-      </Form>
+
+        <Button type="submit" variant="default">
+          {selectedAccount?.id ? (
+            <HMIcon
+              id={selectedAccount?.id}
+              metadata={selectedAccount?.document?.metadata}
+              size={24}
+            />
+          ) : null}
+          Save Contact
+        </Button>
+      </form>
     </div>
   )
 }

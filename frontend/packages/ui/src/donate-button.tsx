@@ -14,7 +14,7 @@ import {
   useInvoiceStatus,
 } from '@shm/shared'
 import {Button} from '@tamagui/button'
-import {DialogDescription} from '@tamagui/dialog'
+
 import {Input} from '@tamagui/input'
 import {Label} from '@tamagui/label'
 import {
@@ -34,7 +34,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
-import {DialogTitle, useAppDialog} from './universal-dialog'
+import {DialogDescription, DialogTitle, useAppDialog} from './universal-dialog'
 
 async function sendWeblnPayment(invoice: string) {
   // @ts-expect-error

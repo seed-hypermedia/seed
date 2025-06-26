@@ -15,25 +15,28 @@ import {
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {Button} from '@shm/ui/button'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {
+  DialogCloseButton,
+  DialogDescription,
+  DialogTitle,
+  useAppDialog,
+} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {Form, YStack} from 'tamagui'
 import {z} from 'zod'
-import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
 
 export function useImportDialog() {
@@ -58,35 +61,41 @@ export function ImportDialog({
         You can import a single Markdown file, or a folder of Markdown files.
       </DialogDescription>
       <DialogCloseButton />
-      <YStack gap="$4" theme="blue">
+      <div className="flex flex-col gap-4">
         <Button
-          icon={File}
-          onPress={() => {
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
             onClose()
             input.onImportFile()
           }}
         >
+          <File className="size-3" />
           Import File
         </Button>
         <Button
-          icon={Folder}
-          onPress={() => {
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
             onClose()
             input.onImportDirectory()
           }}
         >
+          <Folder className="size-3" />
           Import Directory
         </Button>
         <Button
-          icon={Globe}
-          onPress={() => {
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
             onClose()
             input.onImportWebSite()
           }}
         >
+          <Globe className="size-3" />
           Import Web Site
         </Button>
-      </YStack>
+      </div>
     </>
   )
 }
@@ -256,7 +265,7 @@ function WebImportDialog({
           hostname={hostname}
         />
       ) : (
-        <YStack gap="$3">
+        <div className="flex flex-col gap-3">
           <DialogTitle>Import Web Site</DialogTitle>
           <ImportURLForm
             defaultUrl={input.defaultUrl}
@@ -271,7 +280,7 @@ function WebImportDialog({
               console.log('url', url)
             }}
           />
-        </YStack>
+        </div>
       )}
     </>
   )
@@ -303,7 +312,7 @@ function WebImportInProgress({
 
   if (result && !confirmImport.isLoading) {
     return (
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         <DialogTitle>Ready to import from {hostname}</DialogTitle>
         <SizableText>{result.posts.length} posts ready for import</SizableText>
         {selectedAccount && (
@@ -331,7 +340,8 @@ function WebImportInProgress({
         )}
 
         <Button
-          onPress={() => {
+          variant="ghost"
+          onClick={() => {
             if (!selectedAccount) {
               toast.error('No account found')
               return
@@ -350,7 +360,7 @@ function WebImportInProgress({
         >
           {`Import & Publish ${result?.posts.length} pages`}
         </Button>
-      </YStack>
+      </div>
     )
   } else if (
     status?.mode === 'importing' ||
@@ -360,7 +370,7 @@ function WebImportInProgress({
     const scrapeStatus: ScrapeStatus | undefined =
       status?.mode === 'scraping' ? status : undefined
     return (
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         <DialogTitle>Importing from {hostname}...</DialogTitle>
         {scrapeStatus?.visitedCount ? (
           <SizableText>
@@ -381,20 +391,20 @@ function WebImportInProgress({
           <SizableText>Importing...</SizableText>
         ) : null}
         <Spinner size="small" />
-      </YStack>
+      </div>
     )
   } else if (status?.mode === 'error') {
     return (
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         <DialogTitle>Error importing from {hostname}</DialogTitle>
         <SizableText color="destructive">Error: {status.error}</SizableText>
-      </YStack>
+      </div>
     )
   }
   return (
-    <YStack gap="$4">
+    <div className="flex flex-col gap-4">
       <DialogTitle color="$red10">Unexpected Importer Situation</DialogTitle>
-    </YStack>
+    </div>
   )
 }
 
@@ -421,20 +431,24 @@ function ImportURLForm({
     },
   })
   return (
-    <Form onSubmit={handleSubmit(({url}) => onSubmit(url))} gap="$4">
-      <FormField name="url" label="Web URL" errors={errors} width={400}>
-        <FormInput
-          // disabled={isSendingEmail}
-          control={control}
-          name="url"
-          placeholder="https://example.com"
-        />
-      </FormField>
-      <Form.Trigger asChild>
-        <Button>Import Site</Button>
-      </Form.Trigger>
-      {/* <AnimatedSpinner isVisible={isSendingEmail} /> */}
-    </Form>
+    <form onSubmit={handleSubmit(({url}) => onSubmit(url))}>
+      <div className="flex flex-col gap-4">
+        <FormField name="url" label="Web URL" errors={errors} width={400}>
+          <FormInput
+            // disabled={isSendingEmail}
+            control={control}
+            name="url"
+            placeholder="https://example.com"
+          />
+        </FormField>
+
+        <Button type="submit" variant="default">
+          Import Site
+        </Button>
+
+        {/* <AnimatedSpinner isVisible={isSendingEmail} /> */}
+      </div>
+    </form>
   )
 }
 

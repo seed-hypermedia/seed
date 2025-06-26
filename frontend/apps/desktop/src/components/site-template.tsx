@@ -198,12 +198,7 @@ export function SiteTemplate({
 }
 
 export function useTemplateDialog(route: DocumentRoute) {
-  const dialog = useAppDialog(SiteTemplate, {
-    contentProps: {
-      maxWidth: null,
-      width: null,
-    },
-  })
+  const dialog = useAppDialog(SiteTemplate)
   const navigate = useNavigate('replace')
   useEffect(() => {
     if (route.immediatelyPromptTemplate) {

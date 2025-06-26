@@ -1,4 +1,3 @@
-import {DialogTitle} from '@/components/dialog'
 import {
   useEmailNotifications,
   useSetEmailNotifications,
@@ -6,7 +5,7 @@ import {
 import {useTx} from '@shm/shared/translation'
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Spinner} from '@shm/ui/spinner'
-import {YStack} from 'tamagui'
+import {DialogTitle} from '@shm/ui/universal-dialog'
 
 export function NotifSettingsDialog({
   onClose,
@@ -26,7 +25,7 @@ export function NotifSettingsDialog({
       </div>
     ) // todo: make it look better
   return (
-    <YStack gap="$4">
+    <div className="flex flex-col gap-4">
       <DialogTitle>
         {input.title || tx('Email Notification Settings')}
       </DialogTitle>
@@ -37,6 +36,6 @@ export function NotifSettingsDialog({
         setEmailNotifications={setEmailNotifications.mutateAsync}
         isLoading={setEmailNotifications.isLoading}
       />
-    </YStack>
+    </div>
   )
 }

@@ -214,6 +214,7 @@ export function LibraryListItem({
       }
       // this data attribute is used by the hypermedia highlight component
       data-docid={docId}
+      className="group"
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
@@ -249,7 +250,7 @@ export function LibraryListItem({
           ) : null}
         </YStack>
       </XStack>
-      <XStack gap="$3" ai="center">
+      <div className="flex items-center gap-3">
         {isUnpublished ? null : (
           <FavoriteButton id={entry.id} hideUntilItemHover />
         )}
@@ -306,7 +307,7 @@ export function LibraryListItem({
             </XStack>
           ) : null}
         </XStack>
-      </XStack>
+      </div>
     </Button>
   )
 }

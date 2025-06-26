@@ -91,6 +91,7 @@ export default function DocumentPage() {
 
   const gatewayUrl = useGatewayUrl()
   const markPromptedKey = trpc.prompting.markPromptedKey.useMutation()
+
   useEffect(() => {
     if (immediatePromptNotifs) {
       getAccountNotifsSafe(

@@ -18,14 +18,14 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
 import {
   PropsWithChildren,
@@ -35,14 +35,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import {XGroup, YStack, YStackProps} from 'tamagui'
+import {XGroup, YStackProps} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
   usePublishDraft,
   usePublishToSite,
 } from '../models/documents'
-import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
@@ -249,23 +248,14 @@ export default function PublishDraftButton() {
                 : 'Publish Document...'
             }
           >
-            <Button
-              size="$2"
-              onPress={handlePublishPress}
-              borderRadius={0}
-              hoverStyle={{cursor: 'default'}}
-              // disabled={!hassigningKeySelected}
-              // opacity={hassigningKeySelected ? 1 : 0.3}
-              icon={
-                signingAccount ? (
-                  <HMIcon
-                    id={signingAccount.id}
-                    metadata={signingAccount.document?.metadata}
-                    size={20}
-                  />
-                ) : null
-              }
-            >
+            <Button size="xs" onClick={handlePublishPress} variant="outline">
+              {signingAccount ? (
+                <HMIcon
+                  id={signingAccount.id}
+                  metadata={signingAccount.document?.metadata}
+                  size={20}
+                />
+              ) : null}
               Publish
             </Button>
           </Tooltip>
@@ -273,7 +263,11 @@ export default function PublishDraftButton() {
         {accts.length > 1 ? (
           <XGroup.Item>
             <OptionsDropdown
-              button={<Button borderRadius={0} size="$2" icon={ChevronDown} />}
+              button={
+                <Button size="xs">
+                  <ChevronDown className="size-2" />
+                </Button>
+              }
               menuItems={accts.map((acc) => {
                 if (acc.data) {
                   return {
@@ -338,7 +332,7 @@ function FirstPublishDialog({
   const selectedAccount = useSelectedAccount()
   if (!selectedAccount?.id.uid) return null
   return (
-    <YStack>
+    <>
       <DialogTitle>Publish Document</DialogTitle>
       <LocationPicker
         newName={input.newDefaultName}
@@ -351,7 +345,8 @@ function FirstPublishDialog({
         }}
       />
       <Button
-        onPress={() => {
+        variant="default"
+        onClick={() => {
           if (!isAvailable.current) {
             toast.error('This location is unavailable. Create a new path name.')
             return
@@ -367,7 +362,7 @@ function FirstPublishDialog({
       >
         Publish
       </Button>
-    </YStack>
+    </>
   )
 }
 
@@ -376,11 +371,7 @@ function useFirstPublishDialog() {
 }
 
 function StatusWrapper({children, ...props}: PropsWithChildren<YStackProps>) {
-  return (
-    <YStack space="$2" opacity={0.6}>
-      {children}
-    </YStack>
-  )
+  return <div className="flex flex-col gap-2 opacity-60">{children}</div>
 }
 
 function PublishedToast({
@@ -391,7 +382,6 @@ function PublishedToast({
   host: string
 }) {
   const pushed = useStream(isPushed)
-  let indicator: ReactNode = null
   let message: ReactNode = ''
   if (pushed === null) {
     message = (
@@ -432,7 +422,8 @@ function SaveIndicatorStatus() {
   if (status == 'saving') {
     return (
       <StatusWrapper>
-        <Button chromeless size="$1" icon={<Spinner />}>
+        <Button variant="ghost" size="xs">
+          <Spinner />
           saving...
         </Button>
       </StatusWrapper>
@@ -442,7 +433,8 @@ function SaveIndicatorStatus() {
   if (status == 'saved') {
     return (
       <StatusWrapper>
-        <Button chromeless size="$1" icon={<Check />} disabled>
+        <Button variant="ghost" size="xs" disabled>
+          <Check />
           saved
         </Button>
       </StatusWrapper>
@@ -453,7 +445,8 @@ function SaveIndicatorStatus() {
     return (
       <StatusWrapper alignItems="flex-end">
         <Tooltip content="An error ocurred while trying to save the latest changes.">
-          <Button theme="red" size="$2" icon={<AlertCircle />} disabled>
+          <Button variant="destructive" size="xs">
+            <AlertCircle className="size-2" />
             Error
           </Button>
         </Tooltip>

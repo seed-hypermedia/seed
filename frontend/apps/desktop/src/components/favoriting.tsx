@@ -1,30 +1,34 @@
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useHover} from '@shm/shared/use-hover'
-import {Button} from '@shm/ui/legacy/button'
+import {Button} from '@shm/ui/button'
+import {Star, StarFull} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Star, StarFull} from '@tamagui/lucide-icons'
+import {cn} from '@shm/ui/utils'
 import {ComponentProps} from 'react'
-import {GestureResponderEvent} from 'react-native'
 import {useFavorite} from '../models/favorites'
 
 function RemoveFavoriteButton({
-  onPress,
+  onClick,
+  active,
 }: {
-  onPress: ComponentProps<typeof Button>['onPress']
+  onClick: ComponentProps<typeof Button>['onClick']
+  active?: boolean
 }) {
   const {hover, ...hoverProps} = useHover()
   return (
     <Tooltip content="Remove from Favorites">
       <Button
+        size="icon"
+        variant={active ? 'default' : 'ghost'}
         {...hoverProps}
-        size="$2"
-        icon={StarFull}
-        onPress={onPress}
-        color={hover ? '$yellow8' : '$yellow10'}
-        className="no-window-drag"
-        chromeless
-        backgroundColor="$colorTransparent"
-      />
+        onClick={onClick}
+        className={cn(
+          'no-window-drag',
+          active && 'hover:bg-primary bg-red-500',
+        )}
+      >
+        <StarFull color="var(--color-yellow-500)" />
+      </Button>
     </Tooltip>
   )
 }
@@ -32,15 +36,18 @@ function RemoveFavoriteButton({
 export function FavoriteButton({
   id,
   hideUntilItemHover,
+  active,
 }: {
   id: UnpackedHypermediaId
   hideUntilItemHover?: boolean
+  active?: boolean
 }) {
   const favorite = useFavorite(id)
   if (favorite.isFavorited) {
     return (
       <RemoveFavoriteButton
-        onPress={(e: GestureResponderEvent) => {
+        active={active}
+        onClick={(e) => {
           e.stopPropagation()
           favorite.removeFavorite()
         }}
@@ -50,21 +57,20 @@ export function FavoriteButton({
   return (
     <Tooltip content="Add To Favorites">
       <Button
-        icon={Star}
-        size="$2"
-        className="no-window-drag"
-        backgroundColor="$colorTransparent"
-        chromeless
-        hoverStyle={{
-          backgroundColor: '$color3',
-        }}
-        opacity={hideUntilItemHover ? 0 : 1}
-        $group-item-hover={{opacity: 1}}
-        onPress={(e: GestureResponderEvent) => {
+        size="icon"
+        variant={active ? 'default' : 'ghost'}
+        className={cn(
+          'no-window-drag',
+          hideUntilItemHover && 'opacity-0 group-hover:opacity-100',
+          'bg-transparent shadow-none hover:bg-transparent',
+        )}
+        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           e.stopPropagation()
           favorite.addFavorite()
         }}
-      />
+      >
+        <Star className="stroke-foreground text-foreground size-4 dark:stroke-white dark:text-white" />
+      </Button>
     </Tooltip>
   )
 }
@@ -74,8 +80,8 @@ export function useFavoriteMenuItem(url: string | null) {
   return {
     key: 'toggleFavorite',
     label: favorite.isFavorited ? 'Remove from Favorites' : 'Add to Favorites',
-    icon: Star,
-    onPress: () => {
+    icon: <Star className="size-4 stroke-white" />,
+    onClick: () => {
       favorite.isFavorited ? favorite.removeFavorite() : favorite.addFavorite()
     },
   }
