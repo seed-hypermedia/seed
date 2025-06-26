@@ -53,8 +53,9 @@ export const loader = async ({
 
   const docCitations = mentions.mentions
     .map((mention) => {
+      if (mention.sourceType !== 'Ref') return null
       const sourceId = unpackHmId(mention.source)
-      if (!sourceId || sourceId.type !== 'd') return null
+      if (!sourceId) return null
       return {
         source: {
           id: sourceId,
@@ -69,7 +70,7 @@ export const loader = async ({
     })
     .filter((d) => !!d)
   const dedupedDocCitations = deduplicateCitations(docCitations)
-  let citationCount = dedupedDocCitations.length
+  let citationCount = docCitations.length
   let commentCount = 0
   const blocks: Record<string, {citations: number; comments: number}> = {}
   dedupedDocCitations.forEach((mention) => {

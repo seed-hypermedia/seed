@@ -8,6 +8,7 @@ import {
   getDocumentTitle,
   HMComment,
   HMDocument,
+  HMDocumentCitation,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -1003,15 +1004,20 @@ function WebCitationsPanel({
     const dedupedCitations = deduplicateCitations(filteredCitations)
     return dedupedCitations
   }, [citations.data, blockId])
-  const tx = useTx()
+  const tx = useTxString()
   return (
     <div className="flex flex-col gap-2 p-3">
       {blockId ? (
         <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
       ) : null}
       {displayCitations ? (
-        displayCitations.map((citation) => {
-          return <DocumentCitationEntry citation={citation} />
+        displayCitations.map((citation: HMDocumentCitation) => {
+          return (
+            <DocumentCitationEntry
+              key={citation.source.id.id}
+              citation={citation}
+            />
+          )
         })
       ) : (
         <div className="flex items-center justify-center">

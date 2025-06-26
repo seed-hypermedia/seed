@@ -4,6 +4,7 @@ import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   DocumentCitationsAccessory,
+  deduplicateCitations,
   entityQueryPathToHmIdPath,
   hmId,
   unpackHmId,
@@ -39,36 +40,38 @@ export function CitationsPanel({
   const citations = useEntityCitations(entityId)
   if (!entityId) return null
 
-  const citationSet = new Set()
-  const distinctCitations = citations?.data
-    ?.filter(
+  const distinctCitations = useMemo(() => {
+    if (!citations.data) return []
+    const filtered = citations.data.filter(
       (item) =>
         !accessory.openBlockId ||
         item.targetFragment?.blockId === accessory.openBlockId,
     )
-    ?.filter((item) => {
-      if (!citationSet.has(item?.source.id.id)) {
-        citationSet.add(item?.source.id.id)
-        return true
+    const deduped = deduplicateCitations(filtered)
+    return deduped.filter((item) => item.source.type === 'd')
+  }, [citations.data, accessory.openBlockId])
+
+  const accountsToLoad = useMemo(() => {
+    const accounts = new Set<string>()
+    distinctCitations.forEach((citation) => {
+      if (citation.source.author) {
+        accounts.add(citation.source.author)
       }
-      return false
     })
-    .filter((item) => item.source.type === 'd')
-  const distinctCount = distinctCitations?.length || 0
-  const accountsToLoad = new Set<string>()
-  distinctCitations?.forEach((citation) => {
-    if (citation.source.author) {
-      accountsToLoad.add(citation.source.author)
-    }
-  })
-  const documents = useResolvedEntities(
-    (distinctCitations
-      ?.map((citation) =>
-        citation.source.type === 'd' ? citation.source.id : null,
-      )
-      .filter((id) => id !== null) as UnpackedHypermediaId[]) || [],
+    return Array.from(accounts)
+  }, [distinctCitations])
+
+  const documentIds = useMemo(
+    () =>
+      distinctCitations
+        .map((citation) =>
+          citation.source.type === 'd' ? citation.source.id : null,
+        )
+        .filter(Boolean) as UnpackedHypermediaId[],
+    [distinctCitations],
   )
-  const accounts = useContactsMetadata(Array.from(accountsToLoad))
+  const documents = useResolvedEntities(documentIds)
+  const accounts = useContactsMetadata(accountsToLoad)
   return (
     <AccessoryContent>
       <div>

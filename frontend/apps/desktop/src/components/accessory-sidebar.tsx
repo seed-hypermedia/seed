@@ -1,5 +1,5 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {useEntityCitations} from '@/models/citations'
+import {useSortedCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
@@ -123,9 +123,8 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
   const comments = useAllDocumentComments(docId)
   const commentCount = comments.data?.length || undefined
-  const citations = useEntityCitations(docId)
-  const citationCount =
-    citations.data?.filter((c) => c.source.type === 'd').length || undefined
+  const citations = useSortedCitations(docId)
+  const citationCount = citations.docCitations.length || undefined
   const childrenActivity = useChildrenActivity(docId)
   const directoryCount = childrenActivity.data?.length || undefined
   return (

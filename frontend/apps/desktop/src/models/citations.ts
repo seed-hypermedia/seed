@@ -1,7 +1,16 @@
 import {grpcClient} from '@/grpc-client'
-import {BIG_INT, hmId, parseFragment, queryKeys, unpackHmId} from '@shm/shared'
+import {
+  BIG_INT,
+  deduplicateCitations,
+  hmId,
+  parseFragment,
+  queryKeys,
+  sortCitations,
+  unpackHmId,
+} from '@shm/shared'
 import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
+import {useMemo} from 'react'
 
 export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
   return useQuery({
@@ -13,41 +22,51 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
         pageSize: BIG_INT,
       })
       return results.mentions
-        .map(({source, isExactVersion, ...mention}) => {
-          const sourceId = unpackHmId(source)
-          const targetId = hmId(docId.type, docId.uid, {
-            path: docId.path,
-            version: mention.targetVersion,
-          })
-          if (!sourceId) return null
-          const targetFragment = parseFragment(mention.targetFragment)
-          if (sourceId.type === 'c') {
-            return {
-              source: {
-                id: sourceId,
-                type: 'c',
-                author: mention.sourceBlob?.author,
-                time: mention.sourceBlob?.createTime,
-              },
-              targetFragment,
-              isExactVersion,
-              targetId,
-            } satisfies HMCitation
-          } else if (sourceId.type === 'd') {
-            return {
-              source: {
-                id: sourceId,
-                type: 'd',
-                author: mention.sourceBlob?.author,
-                time: mention.sourceBlob?.createTime,
-              },
-              targetFragment,
-              isExactVersion,
-              targetId,
-            } satisfies HMCitation
-          }
-          return null
-        })
+        .map(
+          ({
+            source,
+            isExactVersion,
+            sourceType,
+            targetVersion,
+            sourceBlob,
+            ...restMention
+          }) => {
+            const sourceId = unpackHmId(source)
+            const targetId = hmId(docId.type, docId.uid, {
+              path: docId.path,
+              version: targetVersion,
+            })
+            if (!sourceId) return null
+            const targetFragment = parseFragment(restMention.targetFragment)
+            console.log('raw mention source', source, restMention)
+            if (sourceType === 'Comment') {
+              return {
+                source: {
+                  id: sourceId,
+                  type: 'c',
+                  author: sourceBlob?.author,
+                  time: sourceBlob?.createTime,
+                },
+                targetFragment,
+                isExactVersion,
+                targetId,
+              } satisfies HMCitation
+            } else if (sourceType === 'Ref') {
+              return {
+                source: {
+                  id: sourceId,
+                  type: 'd',
+                  author: sourceBlob?.author,
+                  time: sourceBlob?.createTime,
+                },
+                targetFragment,
+                isExactVersion,
+                targetId,
+              } satisfies HMCitation
+            }
+            return null
+          },
+        )
         .filter((citation) => !!citation)
     },
   })
@@ -55,14 +74,9 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
 
 export function useSortedCitations(docId?: UnpackedHypermediaId | null) {
   const citations = useEntityCitations(docId)
-  const docCitations: HMCitation[] = []
-  const commentCitations: HMCitation[] = []
-  citations.data?.forEach((citation) => {
-    if (citation.source.id.type === 'd') {
-      docCitations.push(citation)
-    } else if (citation.source.id.type === 'c') {
-      commentCitations.push(citation)
-    }
-  })
-  return {docCitations, commentCitations}
+  return useMemo(() => {
+    if (!citations.data) return {docCitations: [], commentCitations: []}
+    const dedupedCitations = deduplicateCitations(citations.data)
+    return sortCitations(dedupedCitations)
+  }, [citations.data])
 }
