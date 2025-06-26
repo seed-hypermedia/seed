@@ -9,7 +9,6 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import {XStack, YStack} from '@tamagui/stacks'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -146,7 +145,7 @@ export function SiteHeader({
                 }}
               />
               {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
-                <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
+                <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
                   {items?.map((item) => (
                     <DocumentSmallListItem
                       onPress={() => {
@@ -159,7 +158,7 @@ export function SiteHeader({
                       isPublished={item.isPublished}
                     />
                   ))}
-                </YStack>
+                </div>
               )}
 
               {docId && document && !isHomeDoc && (
@@ -205,7 +204,7 @@ function NavItems({
     // todo: pass drafts
   })
   return (
-    <YStack gap="$2.5">
+    <div className="flex flex-col gap-2.5">
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
@@ -219,7 +218,7 @@ function NavItems({
             />
           ))
         : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -256,19 +255,17 @@ export function SmallSiteHeader({
   siteHost: string
 }) {
   return (
-    <YStack
-      backgroundColor="$backgroundStrong"
+    <div
+      className="flex w-screen flex-col items-center bg-white dark:bg-black"
       // this data attribute is used by the hypermedia highlight component
       data-docid={originHomeId.id}
-      ai="center"
-      width="100vw"
     >
-      <XStack maxWidth={600} width="100%">
-        <XStack paddingHorizontal="$4" paddingVertical="$2">
+      <div className="flex w-full max-w-lg">
+        <div className="px-4 py-2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
-        </XStack>
-      </XStack>
-    </YStack>
+        </div>
+      </div>
+    </div>
   )
 }
 

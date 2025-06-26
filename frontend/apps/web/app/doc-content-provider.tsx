@@ -6,6 +6,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
+import {toast} from '@shm/ui/toast'
 import {getHref} from './href'
 import {
   EmbedComment,
@@ -92,6 +93,7 @@ export function WebDocContentProvider({
                   }`,
                 {replace: true, preventScrollReset: true},
               )
+              toast.success('Block copied to clipboard')
             }
           : null
       }

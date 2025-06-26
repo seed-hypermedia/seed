@@ -26,11 +26,11 @@ import {
 import {ExternalLink} from '@shm/ui/icons'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Input, YStack} from 'tamagui'
-import {toast} from '../../ui/src/toast'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />

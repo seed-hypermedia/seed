@@ -8,17 +8,11 @@ import {
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {Spinner} from '@shm/ui/spinner'
-import {
-  ErrorToastDecoration,
-  Hostname,
-  SuccessToastDecoration,
-  toast,
-} from '@shm/ui/toast'
+import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
-import {Button, DialogDescription, XStack, YStack} from 'tamagui'
+import {Button, DialogDescription, XStack} from 'tamagui'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
@@ -60,15 +54,8 @@ export function useCopyReferenceUrl(
     }
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
-    const {close} = toast.custom(
-      <CopiedToast
-        host={hostname}
-        isPublished={isPublished}
-        hmId={packHmId(input)}
-      />,
-      {duration: 4000, waitForClose: isPublished.get() === null},
-    )
-    publishToSite(input, hostname)
+
+    const publishPromise = publishToSite(input, hostname)
       .then((didPublish) => {
         if (didPublish) {
           setIsPublished(true)
@@ -80,9 +67,23 @@ export function useCopyReferenceUrl(
         toast.error('Failed to Publish: ' + e.message)
         setIsPublished(false)
       })
-      .finally(() => {
-        close()
-      })
+    toast.promise(publishPromise, {
+      loading: `Pushing to ${hostname}`,
+      success: (
+        <CopiedToast
+          isPublished={isPublished}
+          host={hostname}
+          hmId={packHmId(input)}
+        />
+      ),
+      error: (
+        <CopiedToast
+          isPublished={isPublished}
+          host={hostname}
+          hmId={packHmId(input)}
+        />
+      ),
+    })
   }
   return [dialog.content, onCopy] as const
 }
@@ -107,32 +108,23 @@ function CopiedToast({
     )
     message = (
       <>
-        Copied URL, pushing to <Hostname host={host} />
+        Copied URL, pushing to <b>{host}</b>
       </>
     )
   } else if (published === true) {
-    indicator = <SuccessToastDecoration />
     message = (
       <>
-        Copied URL, available on <Hostname host={host} />
+        Copied URL, available on <b>{host}</b>
       </>
     )
   } else if (published === false) {
-    indicator = <ErrorToastDecoration />
     message = (
       <>
-        Copied URL, failed to push to <Hostname host={host} />
+        Copied URL, failed to push to <b>{host}</b>
       </>
     )
   }
-  return (
-    <YStack f={1} gap="$3">
-      <XStack gap="$4" ai="center">
-        {indicator}
-        <SizableText flexWrap="wrap">{message}</SizableText>
-      </XStack>
-    </YStack>
-  )
+  return message
 }
 
 export function PushToGatewayDialog({

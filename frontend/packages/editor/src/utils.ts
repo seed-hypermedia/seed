@@ -6,10 +6,10 @@ import {HMBlockChildrenTypeSchema} from '@shm/shared'
 import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
 import {Block, BlockNode} from '@shm/shared/client/grpc-types'
 import {EditorBlock} from '@shm/shared/editor-types'
+import {toast} from '@shm/ui/toast'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
-import {toast} from '../../ui/src/toast'
 
 export function youtubeParser(url: string) {
   var regExp =

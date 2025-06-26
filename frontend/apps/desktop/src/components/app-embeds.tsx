@@ -336,17 +336,19 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       viewType={view}
     >
-      <DocumentCard
-        entity={{
-          id,
-          document: doc.data.document,
-        }}
-        docId={id}
-        accountsMetadata={authors
-          .map((author) => author.data)
-          .filter((d) => !!d)}
-        navigate={route.key === 'document'}
-      />
+      <div className="flex p-3">
+        <DocumentCard
+          entity={{
+            id,
+            document: doc.data.document,
+          }}
+          docId={id}
+          accountsMetadata={authors
+            .map((author) => author.data)
+            .filter((d) => !!d)}
+          navigate={route.key === 'document'}
+        />
+      </div>
     </EmbedWrapper>
   )
 }

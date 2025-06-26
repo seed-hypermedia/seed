@@ -41,7 +41,6 @@ import {
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, X} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -220,7 +219,6 @@ export function DocumentPage(
 function InnerDocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const isDark = useIsDark()
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
   const [isSheetOpen, setIsSheetOpen] = useState(false)

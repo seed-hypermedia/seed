@@ -23,13 +23,7 @@ import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
 import {Button} from '@shm/ui/legacy/button'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {
-  ErrorToastDecoration,
-  Hostname,
-  SuccessToastDecoration,
-  toast,
-} from '@shm/ui/toast'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
@@ -41,7 +35,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {XGroup, XStack, YStack, YStackProps} from 'tamagui'
+import {XGroup, YStack, YStackProps} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
@@ -98,13 +92,10 @@ export default function PublishDraftButton() {
         const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(
           null,
         )
-        const {close} = toast.custom(
-          <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
-          {waitForClose: true, duration: 4000},
-        )
+
         if (draft.id && resultDoc.version) {
           const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
-          publishToSite(
+          let publishPromise = publishToSite(
             hmId('d', resultDoc.account, {
               path: resultPath,
               version: resultDoc.version,
@@ -118,8 +109,16 @@ export default function PublishDraftButton() {
               setIsPushed(false)
             })
             .finally(() => {
-              close()
+              // toast.dismiss(toastId)
             })
+
+          toast.promise(publishPromise, {
+            loading: `Pushing to ${publishSiteUrl}`,
+            success: (
+              <PublishedToast host={publishSiteUrl} isPushed={isPushed} />
+            ),
+            error: <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
+          })
         } else {
           setIsPushed(false)
           close()
@@ -395,39 +394,25 @@ function PublishedToast({
   let indicator: ReactNode = null
   let message: ReactNode = ''
   if (pushed === null) {
-    indicator = (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
     message = (
       <>
-        Published. Pushing to <Hostname host={host} />
+        Published. Pushing to <b>{host}</b>
       </>
     )
   } else if (pushed === true) {
-    indicator = <SuccessToastDecoration />
     message = (
       <>
-        Published to <Hostname host={host} />
+        Published to <b>{host}</b>
       </>
     )
   } else if (pushed === false) {
-    indicator = <ErrorToastDecoration />
     message = (
       <>
-        Published locally. Could not push to <Hostname host={host} />
+        Published locally. Could not push to <b>{host}</b>
       </>
     )
   }
-  return (
-    <YStack f={1} gap="$3">
-      <XStack gap="$4" ai="center">
-        {indicator}
-        <SizableText className="flex-wrap">{message}</SizableText>
-      </XStack>
-    </YStack>
-  )
+  return message
 }
 
 function SaveIndicatorStatus() {
