@@ -171,7 +171,6 @@ export function useRouteLink(
 
   const clickHandler = context.openRoute
     ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
-
         e.stopPropagation()
         if (isMetaKeyPressed.get()) {
           if (context.openRouteNewWindow) {
