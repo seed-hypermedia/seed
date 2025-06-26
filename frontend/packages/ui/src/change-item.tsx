@@ -36,10 +36,15 @@ export function ChangeItem({
 
   const iconSize = 20
 
-  const linkProps = useRouteLink({
-    key: 'document',
-    id: {...docId, version: change.id, latest: false},
-  })
+  const linkProps = useRouteLink(
+    {
+      key: 'document',
+      id: {...docId, version: change.id, latest: false},
+    },
+    {
+      handler: 'onClick',
+    },
+  )
 
   return (
     <Button
