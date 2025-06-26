@@ -206,10 +206,13 @@ export async function getBaseDocument(
     })
   const latestDocument =
     entityId.version || !entityId.latest
-      ? await getHMDocument({...entityId, latest: true, version: null})
+      ? await getHMDocument(
+          {...entityId, latest: true, version: null},
+          {discover: true},
+        )
       : null
   console.log('getHMDocument called for latest version:', entityId.id)
-  const document = await getHMDocument(entityId)
+  const document = await getHMDocument(entityId, {discover: true})
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId('d', authorUid))
