@@ -5,7 +5,7 @@ import {cloneSiteFromTemplate} from '@shm/shared/utils/clone'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {ExternalLink} from '@tamagui/lucide-icons'
+import {ExternalLink} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {Button, ButtonProps, View, XStack, YStack} from 'tamagui'
 
@@ -20,8 +20,9 @@ import documentationDark from '@/images/template-documentation-dark.png'
 import documentationLight from '@/images/template-documentation-light.png'
 import {useSubscribedEntity} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
-import {useAppDialog} from './dialog'
 
 export function SiteTemplate({
   onClose,
@@ -149,10 +150,16 @@ export function SiteTemplate({
           onPress={() => {
             setSelectedTemplate('blank')
           }}
+          position="relative"
         >
           <View width={200} height={140} bg="$color7" />
+
           <SizableText
-            color={selectedTemplate === 'blank' ? 'default' : 'muted'}
+            className={cn(
+              selectedTemplate === 'blank'
+                ? 'text-primary-foreground'
+                : 'text-muted-foreground',
+            )}
           >
             Blank
           </SizableText>
@@ -198,7 +205,9 @@ export function SiteTemplate({
 }
 
 export function useTemplateDialog(route: DocumentRoute) {
-  const dialog = useAppDialog(SiteTemplate)
+  const dialog = useAppDialog(SiteTemplate, {
+    contentClassName: 'w-full max-w-3xl',
+  })
   const navigate = useNavigate('replace')
   useEffect(() => {
     if (route.immediatelyPromptTemplate) {
@@ -260,12 +269,30 @@ function TemplateItem({
     >
       <TemplateImage name={name} />
       <XStack ai="center" gap="$3">
-        <SizableText color={active ? 'default' : 'muted'}>{label}</SizableText>
+        <SizableText
+          className={cn(
+            active ? 'text-primary-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {label}
+        </SizableText>
         <Tooltip content="Preview Documentation Site">
           <Button
             chromeless
             color={active ? 'default' : 'muted'}
-            icon={ExternalLink}
+            icon={
+              <ExternalLink
+                className={cn(
+                  'size-3',
+                  active
+                    ? 'stroke-primary-foreground text-primary-foreground'
+                    : 'stroke-foreground text-foreground',
+                )}
+              />
+            }
+            hoverStyle={{
+              bg: '$backgroundTransparent',
+            }}
             onPress={onPressExternal}
             size="$2"
           />

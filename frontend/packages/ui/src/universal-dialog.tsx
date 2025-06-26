@@ -128,7 +128,7 @@ export function useAppDialog<DialogInput>(
         >
           <Component.Portal>
             <Component.Overlay />
-            <Component.Content>
+            <Component.Content className={options?.contentClassName}>
               {openState && (
                 <DialogContentComponent
                   input={openState}
