@@ -366,14 +366,19 @@ function GotoLatestBanner({
     return !isLatest
   }, [isLatest, hideVersionBanner])
 
-  const latestLinkProps = useRouteLink({
-    key: 'document',
-    id: {
-      ...id,
-      latest: true,
-      version: null,
+  const latestLinkProps = useRouteLink(
+    {
+      key: 'document',
+      id: {
+        ...id,
+        latest: true,
+        version: null,
+      },
     },
-  })
+    {
+      handler: 'onClick',
+    },
+  )
 
   return show ? (
     <div

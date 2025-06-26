@@ -40,7 +40,7 @@ export function SiteLogo({
     )
   }
   return (
-    <div
+    <a
       {...homeLinkProps}
       className={cn('flex items-center justify-center gap-2')}
     >
@@ -52,6 +52,6 @@ export function SiteLogo({
       >
         {metadata?.name}
       </p>
-    </div>
+    </a>
   )
 }

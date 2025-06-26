@@ -102,7 +102,7 @@ export function createWebHMUrl(
 ) {
   let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
   if (originHomeId?.uid === uid) {
-    webPath = '/'
+    webPath = ''
   }
   const urlHost =
     hostname === undefined
@@ -114,6 +114,7 @@ export function createWebHMUrl(
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
+  if (res === '') res = '/'
   res += getHMQueryString({latest, version, targetDocUid, targetDocPath})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`

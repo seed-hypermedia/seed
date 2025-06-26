@@ -23,7 +23,7 @@ type UniversalAppContextValue = {
   openUrl: (url: string) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
-  // set this to true if you want all <a href="" values to be full hypermedia urls. otherwise, web URLs will be prepared
+  // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   hmUrlHref?: boolean
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
@@ -171,6 +171,7 @@ export function useRouteLink(
 
   const clickHandler = context.openRoute
     ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
+
         e.stopPropagation()
         if (isMetaKeyPressed.get()) {
           if (context.openRouteNewWindow) {
