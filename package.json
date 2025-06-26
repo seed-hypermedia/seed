@@ -2,7 +2,7 @@
   "name": "seed",
   "private": true,
   "scripts": {
-    "test": "yarn workspace @shm/shared test",
+    "test": "yarn web:test && yarn shared:test",
     "shared:test": "yarn workspace @shm/shared test",
     "format:check": "yarn workspaces foreach -pt run format:check",
     "format:write": "yarn workspaces foreach -pt run format:write",
