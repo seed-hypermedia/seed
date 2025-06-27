@@ -1,7 +1,6 @@
 import {updateGroup} from '@/block-utils'
 import {BlockNoteEditor, BlockSchema} from '@/blocknote/core'
 import {useMemo, useState} from 'react'
-import {IconType} from 'react-icons'
 import {RiH2, RiListOrdered, RiListUnordered, RiText} from 'react-icons/ri'
 import {ToolbarDropdown} from '../../../SharedComponents/Toolbar/components/ToolbarDropdown'
 import {ToolbarDropdownItemProps} from '../../../SharedComponents/Toolbar/components/ToolbarDropdownItem'
@@ -12,20 +11,20 @@ export type BlockTypeDropdownItem = {
   name: string
   type: string
   props?: Record<string, string>
-  icon: IconType
+  icon: any
 }
 
 export const defaultBlockTypeDropdownItems: BlockTypeDropdownItem[] = [
   {
     name: 'Paragraph',
     type: 'paragraph',
-    icon: RiText,
+    icon: <RiText className="size-4" />,
   },
   {
     name: 'Heading',
     type: 'heading',
     props: {level: '2'},
-    icon: RiH2,
+    icon: <RiH2 className="size-4" />,
   },
   // {
   //   name: 'Heading 2',
@@ -42,12 +41,12 @@ export const defaultBlockTypeDropdownItems: BlockTypeDropdownItem[] = [
   {
     name: 'Bullet List',
     type: 'bulletListItem',
-    icon: RiListUnordered,
+    icon: <RiListUnordered className="size-4" />,
   },
   {
     name: 'Numbered List',
     type: 'numberedListItem',
-    icon: RiListOrdered,
+    icon: <RiListOrdered className="size-4" />,
   },
 ]
 

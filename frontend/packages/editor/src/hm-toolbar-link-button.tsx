@@ -6,21 +6,15 @@ import {
 } from '@/blocknote'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {Button} from '@shm/ui/button'
 import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Check, Link, Unlink} from '@tamagui/lucide-icons'
+import {cn} from '@shm/ui/utils'
+import {Check, Link, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
-import {
-  Button,
-  Input,
-  Popover,
-  SizeTokens,
-  Theme,
-  XGroup,
-  XStack,
-} from 'tamagui'
+import {Input, Popover, SizeTokens, XGroup, XStack} from 'tamagui'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
@@ -79,29 +73,29 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   return (
     <XGroup.Item>
       <Popover placement="top-end" open={open} {...popoverProps}>
-        <Theme>
-          <XGroup.Item>
-            <Tooltip content="Link (Mod+K)">
-              <Popover.Trigger asChild>
-                <Button
-                  height="100%"
-                  size={props.size}
-                  background={open ? '$color11' : 'transparent'}
-                  color={open ? '$background' : undefined}
-                  icon={Link}
-                  borderRadius="$3"
-                  hoverStyle={{backgroundColor: open ? '$color9' : '$color4'}}
-                />
-              </Popover.Trigger>
-            </Tooltip>
-          </XGroup.Item>
-        </Theme>
-        <Popover.Content
-          p="$1"
-          elevation="$4"
-          borderColor="$color4"
-          borderWidth="$1"
-        >
+        <XGroup.Item>
+          <Tooltip content="Link (Mod+K)">
+            <Popover.Trigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(
+                  open &&
+                    'bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
+                  'hover:bg-black/10 dark:hover:bg-white/10',
+                  'focus:bg-black/10 dark:focus:bg-white/10',
+                )}
+                onClick={() => {
+                  popoverProps.onOpenChange(true)
+                }}
+              >
+                <Link className="size-4" />
+              </Button>
+            </Popover.Trigger>
+          </Tooltip>
+        </XGroup.Item>
+
+        <Popover.Content elevation="$4" borderColor="$color4" borderWidth="$1">
           <AddHyperlink
             url={url}
             setLink={(_url: string) => {
@@ -194,32 +188,50 @@ function AddHyperlink({
             <Spinner size="small" />
           ) : (
             <Button
-              size="$2"
-              bg="$color4"
-              icon={Check}
+              size="icon"
+              variant="ghost"
+              className={cn(
+                'hover:bg-black/10 dark:hover:bg-white/10',
+                'focus:bg-black/10 dark:focus:bg-white/10',
+              )}
               disabled={!_url}
-              borderRadius={0}
               onClick={() => {
                 inputLink(_url)
               }}
-            />
+            >
+              <Check className="size-3" />
+            </Button>
           )}
         </XGroup.Item>
 
         <XGroup.Item>
-          <Tooltip content="Delete Link" placement="top">
+          <Tooltip content="Delete Link" side="top">
             <Button
-              size="$2"
-              bg="$color4"
-              icon={Unlink}
-              onPress={deleteHyperlink}
-              borderRadius={0}
-            />
+              size="icon"
+              variant="ghost"
+              className={cn(
+                'hover:bg-black/10 dark:hover:bg-white/10',
+                'focus:bg-black/10 dark:focus:bg-white/10',
+              )}
+              onClick={deleteHyperlink}
+            >
+              <Unlink className="size-3" />
+            </Button>
           </Tooltip>
         </XGroup.Item>
 
         <XGroup.Item>
-          <Button size="$2" bg="$color4" icon={Close} onPress={onCancel} />
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn(
+              'hover:bg-black/10 dark:hover:bg-white/10',
+              'focus:bg-black/10 dark:focus:bg-white/10',
+            )}
+            onClick={onCancel}
+          >
+            <Close className="size-4" />
+          </Button>
         </XGroup.Item>
       </XGroup>
     </XStack>

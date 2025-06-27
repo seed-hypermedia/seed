@@ -13,6 +13,7 @@ import {
 } from '@/blocknote/react'
 import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
 import {EditorToggledStyle} from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
 import {
   Code,
   Emphasis,
@@ -24,11 +25,12 @@ import {
   Underline,
   UnorderedList,
 } from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import {useState} from 'react'
-import {SizeTokens, Theme, XGroup, XStack} from 'tamagui'
+import {SizeTokens, XGroup, XStack} from 'tamagui'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 const size: SizeTokens = '$3'
@@ -36,27 +38,27 @@ const size: SizeTokens = '$3'
 const toggleStyles = [
   {
     name: 'Bold (Mod+B)',
-    icon: Strong,
+    icon: <Strong className="size-4" />,
     style: 'bold' as EditorToggledStyle,
   },
   {
     name: 'Italic (Mod+I)',
-    icon: Emphasis,
+    icon: <Emphasis className="size-4" />,
     style: 'italic' as EditorToggledStyle,
   },
   {
     name: 'Underline (Mod+U)',
-    icon: Underline,
+    icon: <Underline className="size-4" />,
     style: 'underline' as EditorToggledStyle,
   },
   {
     name: 'Strikethrough (Mod+Shift+X)',
-    icon: Strikethrough,
+    icon: <Strikethrough className="size-4" />,
     style: 'strike' as EditorToggledStyle,
   },
   {
     name: 'Code (Mod+E)',
-    icon: Code,
+    icon: <Code className="size-4" />,
     style: 'code' as EditorToggledStyle,
   },
 ]
@@ -70,17 +72,17 @@ export const blockDropdownItems: BlockTypeDropdownItem[] = [
   {
     name: 'Heading',
     type: 'heading',
-    icon: HeadingIcon,
+    icon: <HeadingIcon className="size-4" />,
   },
   {
     name: 'Bullet List',
     type: 'bulletListItem',
-    icon: UnorderedList,
+    icon: <UnorderedList className="size-4" />,
   },
   {
     name: 'Numbered List',
     type: 'numberedListItem',
-    icon: OrderedList,
+    icon: <OrderedList className="size-4" />,
   },
 ]
 
@@ -127,20 +129,8 @@ export function HMFormattingToolbar<
   })
 
   return (
-    <XStack
-      borderRadius="$4"
-      borderWidth="$1"
-      borderColor="$color4"
-      backgroundColor="$background"
-      padding="$1"
-      shadowColor="$shadowColor"
-      shadowOffset={{width: 0, height: 2}}
-      shadowOpacity={0.1}
-      shadowRadius={4}
-      elevation={4}
-      width="fit-content"
-    >
-      <XGroup alignItems="center">
+    <div className="border-border bg-background w-fit rounded-md border px-2 py-1 shadow-md">
+      <XGroup alignItems="center" gap="$1" className="h-full">
         {toggleStyles.map((item) => (
           <ToggleStyleButton
             key={item.style}
@@ -151,14 +141,7 @@ export function HMFormattingToolbar<
         ))}
         <HMLinkToolbarButton editor={props.editor} size={size} />
 
-        <XStack
-          width={1}
-          height="80%"
-          backgroundColor="$color11"
-          marginHorizontal="$2"
-          alignSelf="center"
-          borderRadius="$full"
-        />
+        <Separator vertical className="mx-1" />
 
         <XGroup.Item>
           <FormatDropdown
@@ -198,7 +181,7 @@ export function HMFormattingToolbar<
           />
         </XGroup.Item>
       </XGroup>
-    </XStack>
+    </div>
   )
 }
 
@@ -233,27 +216,23 @@ function ToggleStyleButton<
   }
 
   return (
-    <Theme>
-      <XGroup.Item>
-        <Tooltip content={name}>
-          <Button
-            height="100%"
-            background={active ? '$color11' : 'transparent'}
-            color={active ? '$background' : undefined}
-            size={size}
-            borderRadius="$3"
-            icon={icon}
-            onPress={() => handlePress(toggleStyle)}
-            hoverStyle={{
-              backgroundColor: active ? '$color9' : '$color4',
-            }}
-            focusStyle={{
-              backgroundColor: active ? '$color9' : '$color4',
-            }}
-          />
-        </Tooltip>
-      </XGroup.Item>
-    </Theme>
+    <XGroup.Item>
+      <Tooltip content={name}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className={cn(
+            'hover:bg-black/10 dark:hover:bg-white/10',
+            'focus:bg-black/10 dark:focus:bg-white/10',
+            active &&
+              'bg-black text-white hover:bg-black/9 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90',
+          )}
+          onClick={() => handlePress(toggleStyle)}
+        >
+          {icon}
+        </Button>
+      </Tooltip>
+    </XGroup.Item>
   )
 }
 
@@ -273,10 +252,10 @@ function FormatDropdown({
         options={options}
         onValue={onChange}
         width="100%"
-        size="$3"
+        size="$2"
         triggerProps={{
           backgroundColor: 'transparent',
-          borderRadius: '$3',
+          borderRadius: '$2',
           borderColor: 'transparent',
           hoverStyle: {backgroundColor: '$color4'},
         }}
