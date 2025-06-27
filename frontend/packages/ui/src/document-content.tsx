@@ -1210,7 +1210,7 @@ function InlineContentView({
       )
     if (styles.underline) classes.push('underline')
     if (styles.strike) classes.push('line-through')
-    if (styles.range || isRange) classes.push('bg-brand-11')
+    if (styles.range || isRange) classes.push('bg-brand-10')
 
     return classes.join(' ')
   }
