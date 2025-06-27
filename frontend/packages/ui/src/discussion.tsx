@@ -14,6 +14,7 @@ import {useResourceUrl} from '@shm/shared/url'
 import {Button} from '@tamagui/button'
 import {ChevronRight, Link} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
+import {toast} from 'sonner'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
@@ -165,9 +166,8 @@ export function Comment({
               <button
                 className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs"
                 onClick={() => {
-                  copyTextToClipboard(comment.id)
+                  // copyTextToClipboard(comment.id)
                 }}
-                {...authorLink}
               >
                 {formattedDateMedium(comment.createTime)}
               </button>
@@ -179,7 +179,9 @@ export function Comment({
               onClick={() => {
                 const url = getUrl(hmId(comment.id))
                 console.log('~ url', url)
+
                 copyTextToClipboard(url)
+                toast.success('Copied Comment URL')
               }}
             >
               <Link size={12} />
