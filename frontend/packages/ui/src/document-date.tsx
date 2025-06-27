@@ -55,7 +55,11 @@ export function DocumentDate({
   }
   return (
     <HoverCard
-      content={<div className="flex flex-col gap-2">{content}</div>}
+      content={
+        <div className="flex flex-col items-center justify-center gap-2">
+          {content}
+        </div>
+      }
       disabled={disableTooltip}
     >
       <SizableText

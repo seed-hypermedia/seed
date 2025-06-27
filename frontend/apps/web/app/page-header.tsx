@@ -83,15 +83,14 @@ export function PageHeader({
                 ])}
               </div>
             ) : null}
-            {authors?.length ? (
-              <Separator vertical className="self-stretch" />
-            ) : null}
+            {authors?.length ? <div className="bg-border h-6 w-px" /> : null}
             {updateTime ? (
               <DocumentDate
                 metadata={docMetadata || undefined}
                 updateTime={updateTime}
               />
             ) : null}
+            <div className="flex-1" />
             {docId && <DonateButton docId={docId} authors={authors} />}
           </div>
           <Separator />

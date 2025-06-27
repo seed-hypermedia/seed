@@ -68,7 +68,6 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Plus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
@@ -475,7 +474,6 @@ export function NewSubDocumentButton({
 }
 
 function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
-  const isDark = useIsDark()
   const entity = useEntity(docId)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -488,7 +486,6 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
   const authorContacts = useContactsMetadata(authors || [])
-  console.log('~~~ ', authors)
 
   if (entity.isLoading) return null
   if (entity.data?.document === undefined) return null
@@ -577,7 +574,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                         })
                         .filter(Boolean)}
                     </div>
-                    <Separator />
+                    <div className="bg-border h-6 w-px" />
                   </>
                 ) : null}
                 {entity.data?.document ? (
