@@ -251,6 +251,8 @@ function HeaderLogo({
         Header Logo
       </Label>
       <ImageForm
+        emptyLabel="Add Logo"
+        suggestedSize="height: 100px"
         height={100}
         id={`logo-${draftId.id}`}
         label={metadata.seedExperimentalLogo}
