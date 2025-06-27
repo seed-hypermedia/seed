@@ -1,4 +1,4 @@
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HTMLAttributes} from 'react'
 
