@@ -12,7 +12,7 @@ import {
   useEditorSelectionChange,
 } from '@/blocknote/react'
 import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
-import {EditorToggledStyle} from '@shm/shared/hm-types'
+import {EditorToggledStyle, HMBlockChildrenType} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {
   Code,
@@ -30,10 +30,7 @@ import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useState} from 'react'
-import {SizeTokens, XGroup, XStack} from 'tamagui'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
-
-const size: SizeTokens = '$3'
 
 const toggleStyles = [
   {
@@ -46,6 +43,7 @@ const toggleStyles = [
     icon: <Emphasis className="size-4" />,
     style: 'italic' as EditorToggledStyle,
   },
+
   {
     name: 'Underline (Mod+U)',
     icon: <Underline className="size-4" />,
@@ -129,8 +127,8 @@ export function HMFormattingToolbar<
   })
 
   return (
-    <div className="border-border bg-background w-fit rounded-md border px-2 py-1 shadow-md">
-      <XGroup alignItems="center" gap="$1" className="h-full">
+    <div className="border-border bg-background w-fit rounded-md border p-1 shadow-md">
+      <div className="flex w-full items-center justify-stretch gap-1">
         {toggleStyles.map((item) => (
           <ToggleStyleButton
             key={item.style}
@@ -139,48 +137,52 @@ export function HMFormattingToolbar<
             {...item}
           />
         ))}
-        <HMLinkToolbarButton editor={props.editor} size={size} />
+        <div className="relative">
+          <HMLinkToolbarButton editor={props.editor} />
+        </div>
 
-        <Separator vertical className="mx-1" />
+        <Separator vertical className="bg-foreground mx-1 h-6" />
 
-        <XGroup.Item>
-          <FormatDropdown
-            value={currentGroupType}
-            onChange={(listType) => {
-              if (listType !== currentGroupType) {
-                const tiptap = props.editor._tiptapEditor
-                const {state} = tiptap
-                const {$pos} = getGroupInfoFromPos(state.selection.from, state)
-                tiptap.commands.command(
-                  updateGroupCommand($pos.pos, listType, false, false, true),
-                )
+        <FormatDropdown
+          value={currentGroupType}
+          onChange={(listType) => {
+            if (listType !== currentGroupType) {
+              const tiptap = props.editor._tiptapEditor
+              const {state} = tiptap
+              const {$pos} = getGroupInfoFromPos(state.selection.from, state)
+              tiptap.commands.command(
+                updateGroupCommand(
+                  $pos.pos,
+                  listType as HMBlockChildrenType,
+                  false,
+                  false,
+                  true,
+                ),
+              )
 
-                setCurrentGroupType(listType)
-              }
-            }}
-            options={groupTypeOptions}
-          />
-        </XGroup.Item>
+              setCurrentGroupType(listType)
+            }
+          }}
+          options={groupTypeOptions}
+        />
 
-        <XGroup.Item>
-          <FormatDropdown
-            value={currentBlockType}
-            onChange={(blockType) => {
-              if (blockType !== currentBlockType) {
-                const tiptap = props.editor._tiptapEditor
-                const {state} = tiptap
-                const blockInfo = getBlockInfoFromSelection(state)
-                props.editor.updateBlock(blockInfo.block.node.attrs.id, {
-                  type: blockType,
-                  props: {},
-                })
-                setCurrentBlockType(blockType)
-              }
-            }}
-            options={textTypeOptions}
-          />
-        </XGroup.Item>
-      </XGroup>
+        <FormatDropdown
+          value={currentBlockType}
+          onChange={(blockType) => {
+            if (blockType !== currentBlockType) {
+              const tiptap = props.editor._tiptapEditor
+              const {state} = tiptap
+              const blockInfo = getBlockInfoFromSelection(state)
+              props.editor.updateBlock(blockInfo.block.node.attrs.id, {
+                type: blockType,
+                props: {},
+              })
+              setCurrentBlockType(blockType)
+            }
+          }}
+          options={textTypeOptions}
+        />
+      </div>
     </div>
   )
 }
@@ -216,23 +218,24 @@ function ToggleStyleButton<
   }
 
   return (
-    <XGroup.Item>
-      <Tooltip content={name}>
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn(
-            'hover:bg-black/10 dark:hover:bg-white/10',
-            'focus:bg-black/10 dark:focus:bg-white/10',
-            active &&
-              'bg-black text-white hover:bg-black/9 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90',
-          )}
-          onClick={() => handlePress(toggleStyle)}
-        >
-          {icon}
-        </Button>
-      </Tooltip>
-    </XGroup.Item>
+    <Tooltip content={name}>
+      <Button
+        size="icon"
+        variant="ghost"
+        className={cn(
+          'hover:bg-black/10 dark:hover:bg-white/10',
+          'focus:bg-black/10 dark:focus:bg-white/10',
+          active &&
+            'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
+        )}
+        onClick={() => {
+          console.log('toggleStyle', toggleStyle)
+          handlePress(toggleStyle)
+        }}
+      >
+        {icon}
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -246,7 +249,7 @@ function FormatDropdown({
   options: {label: string; value: string}[]
 }) {
   return (
-    <XStack alignItems="center">
+    <div className="flex items-center">
       <SelectDropdown
         value={value}
         options={options}
@@ -260,6 +263,6 @@ function FormatDropdown({
           hoverStyle: {backgroundColor: '$color4'},
         }}
       />
-    </XStack>
+    </div>
   )
 }

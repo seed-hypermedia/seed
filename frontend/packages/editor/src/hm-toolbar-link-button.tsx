@@ -7,6 +7,11 @@ import {
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -14,11 +19,10 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {Check, Link, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
-import {Input, Popover, SizeTokens, XGroup, XStack} from 'tamagui'
+import {Input} from 'tamagui'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
-  size: SizeTokens
 }) => {
   const [url, setUrl] = useState<string>(
     props.editor.getSelectedLinkUrl() || '',
@@ -71,48 +75,41 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   }
 
   return (
-    <XGroup.Item>
-      <Popover placement="top-end" open={open} {...popoverProps}>
-        <XGroup.Item>
-          <Tooltip content="Link (Mod+K)">
-            <Popover.Trigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={cn(
-                  open &&
-                    'bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
-                  'hover:bg-black/10 dark:hover:bg-white/10',
-                  'focus:bg-black/10 dark:focus:bg-white/10',
-                )}
-                onClick={() => {
-                  popoverProps.onOpenChange(true)
-                }}
-              >
-                <Link className="size-4" />
-              </Button>
-            </Popover.Trigger>
-          </Tooltip>
-        </XGroup.Item>
+    <Popover open={open} {...popoverProps}>
+      <PopoverTrigger asChild>
+        <span>
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn(
+              'hover:bg-black/10 dark:hover:bg-white/10',
+              'focus:bg-black/10 dark:focus:bg-white/10',
+              open &&
+                'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
+            )}
+          >
+            <Link className="size-4" />
+          </Button>
+        </span>
+      </PopoverTrigger>
 
-        <Popover.Content elevation="$4" borderColor="$color4" borderWidth="$1">
-          <AddHyperlink
-            url={url}
-            setLink={(_url: string) => {
-              popoverProps.onOpenChange(false)
-              props.editor.focus()
-              if (url) {
-                setLink(_url, text, url)
-              } else {
-                setLink(_url, text)
-              }
-            }}
-            onCancel={() => popoverProps.onOpenChange(false)}
-            deleteHyperlink={deleteLink}
-          />
-        </Popover.Content>
-      </Popover>
-    </XGroup.Item>
+      <PopoverContent className="w-fit p-0">
+        <AddHyperlink
+          url={url}
+          setLink={(_url: string) => {
+            popoverProps.onOpenChange(false)
+            props.editor.focus()
+            if (url) {
+              setLink(_url, text, url)
+            } else {
+              setLink(_url, text)
+            }
+          }}
+          onCancel={() => popoverProps.onOpenChange(false)}
+          deleteHyperlink={deleteLink}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -164,16 +161,15 @@ function AddHyperlink({
   }, [])
 
   return (
-    <XStack elevation="$4" padding="$2" borderRadius="$4" space>
+    <div className="flex items-center rounded-md p-1.5">
       <Input
         value={_url}
         onChangeText={setUrl}
         minWidth="15rem"
         size="$2"
-        bg="$color4"
         borderWidth={0}
         placeholder="Enter a link"
-        onKeyPress={(e: KeyboardEvent) => {
+        onKeyPress={(e: any) => {
           if (e.key === 'Enter') {
             e.preventDefault()
             inputLink(_url)
@@ -182,58 +178,50 @@ function AddHyperlink({
         flex={1}
       />
 
-      <XGroup borderRadius="$4">
-        <XGroup.Item>
-          {isLoading ? (
-            <Spinner size="small" />
-          ) : (
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                'hover:bg-black/10 dark:hover:bg-white/10',
-                'focus:bg-black/10 dark:focus:bg-white/10',
-              )}
-              disabled={!_url}
-              onClick={() => {
-                inputLink(_url)
-              }}
-            >
-              <Check className="size-3" />
-            </Button>
+      {isLoading ? (
+        <Spinner size="small" />
+      ) : (
+        <Button
+          size="icon"
+          variant="ghost"
+          className={cn(
+            'hover:bg-black/10 dark:hover:bg-white/10',
+            'focus:bg-black/10 dark:focus:bg-white/10',
           )}
-        </XGroup.Item>
+          disabled={!_url}
+          onClick={() => {
+            inputLink(_url)
+          }}
+        >
+          <Check className="size-3" />
+        </Button>
+      )}
 
-        <XGroup.Item>
-          <Tooltip content="Delete Link" side="top">
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                'hover:bg-black/10 dark:hover:bg-white/10',
-                'focus:bg-black/10 dark:focus:bg-white/10',
-              )}
-              onClick={deleteHyperlink}
-            >
-              <Unlink className="size-3" />
-            </Button>
-          </Tooltip>
-        </XGroup.Item>
+      <Tooltip content="Delete Link" side="top">
+        <Button
+          size="icon"
+          variant="ghost"
+          className={cn(
+            'hover:bg-black/10 dark:hover:bg-white/10',
+            'focus:bg-black/10 dark:focus:bg-white/10',
+          )}
+          onClick={deleteHyperlink}
+        >
+          <Unlink className="size-3" />
+        </Button>
+      </Tooltip>
 
-        <XGroup.Item>
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn(
-              'hover:bg-black/10 dark:hover:bg-white/10',
-              'focus:bg-black/10 dark:focus:bg-white/10',
-            )}
-            onClick={onCancel}
-          >
-            <Close className="size-4" />
-          </Button>
-        </XGroup.Item>
-      </XGroup>
-    </XStack>
+      <Button
+        size="icon"
+        variant="ghost"
+        className={cn(
+          'hover:bg-black/10 dark:hover:bg-white/10',
+          'focus:bg-black/10 dark:focus:bg-white/10',
+        )}
+        onClick={onCancel}
+      >
+        <Close className="size-4" />
+      </Button>
+    </div>
   )
 }
