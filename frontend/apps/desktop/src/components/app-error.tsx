@@ -44,7 +44,7 @@ export function AppErrorContent({
               Something went wrong
             </h2>
           </div>
-          <div className="max-h-50 gap-4 overflow-y-auto rounded-b border border-t-0 border-red-400 bg-red-100 px-4 py-3">
+          <div className="max-h-50 gap-4 rounded-b border border-t-0 border-red-400 bg-red-100 px-4 py-3">
             <ScrollArea>
               <pre className="p-4 text-sm break-all whitespace-pre-wrap text-red-700">
                 {message}

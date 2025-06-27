@@ -553,93 +553,96 @@ function InnerDocumentPage(
                     ) : null}
                   </div>
                 ) : null}
-                <div className="flex min-h-full flex-1 flex-col overflow-y-auto">
-                  <DocumentCover cover={document.metadata.cover} id={id} />
+                <div className="flex min-h-full flex-1 flex-col">
+                  <ScrollArea>
+                    <DocumentCover cover={document.metadata.cover} id={id} />
 
-                  <div
-                    className={cn('flex flex-1', wrapperProps.className)}
-                    style={wrapperProps.style}
-                  >
-                    {showSidebars ? (
-                      <div
-                        className={cn(
-                          sidebarProps.className,
-                          'hide-scrollbar overflow-y-scroll pb-6',
-                        )}
-                        style={{
-                          ...sidebarProps.style,
-                          marginTop: document.metadata?.cover ? 152 : 220,
-                        }}
-                      >
-                        <div className="hide-scrollbar h-full overflow-scroll pb-6">
-                          <WebDocumentOutline
-                            showCollapsed={showCollapsed}
-                            supportDocuments={props.supportDocuments}
-                            onActivateBlock={onActivateBlock}
-                            id={id}
-                            document={document}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                    <div {...mainContentProps}>
-                      {isHomeDoc ? null : (
-                        <PageHeader
-                          originHomeId={originHomeId}
-                          breadcrumbs={props.breadcrumbs}
-                          docMetadata={document.metadata}
-                          docId={id}
-                          authors={document.authors.map(
-                            (author) => accountsMetadata[author],
+                    <div
+                      className={cn('flex flex-1', wrapperProps.className)}
+                      style={wrapperProps.style}
+                    >
+                      {showSidebars ? (
+                        <div
+                          className={cn(
+                            sidebarProps.className,
+                            'hide-scrollbar overflow-y-scroll pb-6',
                           )}
-                          updateTime={document.updateTime}
-                        />
-                      )}
-                      <WebDocContentProvider
-                        onBlockCitationClick={
-                          activityEnabled ? onBlockCitationClick : undefined
-                        }
-                        onBlockCommentClick={
-                          activityEnabled ? onBlockCommentClick : undefined
-                        }
-                        originHomeId={originHomeId}
-                        id={{...id, version: document.version}}
-                        siteHost={siteHost}
-                        supportDocuments={supportDocuments}
-                        supportQueries={supportQueries}
-                        blockCitations={interactionSummary.data?.blocks}
-                        routeParams={{
-                          uid: id.uid,
-                          version: id.version || undefined,
-                          blockRef: blockRef,
-                          blockRange: blockRange,
-                        }}
-                      >
-                        <DocContent
-                          document={document}
-                          handleBlockReplace={() => {
-                            // Replace the URL to not include fragment.
-                            replace(
-                              window.location.pathname + window.location.search,
-                              {
-                                replace: true,
-                                preventScrollReset: true,
-                              },
-                            )
-                            return true
+                          style={{
+                            ...sidebarProps.style,
+                            marginTop: document.metadata?.cover ? 152 : 220,
                           }}
+                        >
+                          <div className="hide-scrollbar h-full overflow-scroll pb-6">
+                            <WebDocumentOutline
+                              showCollapsed={showCollapsed}
+                              supportDocuments={props.supportDocuments}
+                              onActivateBlock={onActivateBlock}
+                              id={id}
+                              document={document}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                      <div {...mainContentProps}>
+                        {isHomeDoc ? null : (
+                          <PageHeader
+                            originHomeId={originHomeId}
+                            breadcrumbs={props.breadcrumbs}
+                            docMetadata={document.metadata}
+                            docId={id}
+                            authors={document.authors.map(
+                              (author) => accountsMetadata[author],
+                            )}
+                            updateTime={document.updateTime}
+                          />
+                        )}
+                        <WebDocContentProvider
+                          onBlockCitationClick={
+                            activityEnabled ? onBlockCitationClick : undefined
+                          }
+                          onBlockCommentClick={
+                            activityEnabled ? onBlockCommentClick : undefined
+                          }
+                          originHomeId={originHomeId}
+                          id={{...id, version: document.version}}
+                          siteHost={siteHost}
+                          supportDocuments={supportDocuments}
+                          supportQueries={supportQueries}
+                          blockCitations={interactionSummary.data?.blocks}
+                          routeParams={{
+                            uid: id.uid,
+                            version: id.version || undefined,
+                            blockRef: blockRef,
+                            blockRange: blockRange,
+                          }}
+                        >
+                          <DocContent
+                            document={document}
+                            handleBlockReplace={() => {
+                              // Replace the URL to not include fragment.
+                              replace(
+                                window.location.pathname +
+                                  window.location.search,
+                                {
+                                  replace: true,
+                                  preventScrollReset: true,
+                                },
+                              )
+                              return true
+                            }}
+                          />
+                        </WebDocContentProvider>
+                      </div>
+                      {showSidebars ? (
+                        <div
+                          className={cn(sidebarProps.className)}
+                          style={sidebarProps.style}
                         />
-                      </WebDocContentProvider>
+                      ) : null}
                     </div>
-                    {showSidebars ? (
-                      <div
-                        className={cn(sidebarProps.className)}
-                        style={sidebarProps.style}
-                      />
-                    ) : null}
-                  </div>
 
-                  <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                    <PageFooter enableWebSigning={enableWebSigning} id={id} />
+                  </ScrollArea>
                 </div>
               </div>
             </Panel>
