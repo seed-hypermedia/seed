@@ -246,6 +246,7 @@ export async function getBaseDocument(
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
   const directoryResults = await getDirectory(entityId)
   const supportAuthorsUidsToFetch = new Set<string>()
+  const alreadySupportDocIds = new Set<string>()
   const queryBlockQueries = await Promise.all(
     queryBlocks.map(async (block) => {
       const query = block.attributes.query
