@@ -190,13 +190,15 @@ export default function DownloadPage() {
         />
         <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
           <Container className="gap-4 px-6">
-            <h1 className="text-3xl font-bold md:text-4xl">
+            <h1 className="text-center text-4xl font-bold md:text-5xl">
               Download Seed Hypermedia Today!
             </h1>
             <SizableText size="xl" className="text-center">
               Start writing and collaborating with your peers.
             </SizableText>
-            {suggestedButtons.length > 0 && suggestedButtons}
+            <div className="flex flex-col gap-4">
+              {suggestedButtons.length > 0 && suggestedButtons}
+            </div>
           </Container>
         </div>
         <Container>
@@ -263,8 +265,8 @@ function PlatformItem({
   }>
 }) {
   return (
-    <div className="flex w-full flex-col items-center gap-3 rounded-md p-4 shadow-sm sm:w-auto sm:min-w-3xs">
-      <Icon size={60} className="text-[hsl(171, 96%, 28%)] size-[60px]" />
+    <div className="border-border flex w-full flex-col items-center gap-3 rounded-md border bg-white p-4 shadow-xl sm:w-auto sm:min-w-3xs dark:bg-black">
+      <Icon size={60} className="size-[60px]" />
       <SizableText size="lg" weight="bold">
         {label}
       </SizableText>
@@ -278,10 +280,12 @@ function PlatformItem({
             size="sm"
             asChild
           >
-            <a href={asset.url} style={{textDecoration: 'none'}}>
-              <Download className="size-3" />
-              {asset.label}
-            </a>
+            <Button size="xs" variant="ghost" asChild>
+              <a href={asset.url} style={{textDecoration: 'none'}}>
+                <Download className="size-3" />
+                {asset.label}
+              </a>
+            </Button>
           </Button>
         ))}
       </div>
@@ -303,14 +307,15 @@ function ReleaseEntry({
     <Button
       asChild
       variant="default"
-      className={`plausible-event-name=download plausible-event-os=${asset.download_url
+      className={`plausible-event-name=download p-8 plausible-event-os=${asset.download_url
         .split('.')
         .pop()} self-center rounded-md`}
       style={{textDecoration: 'none'}}
       size={large ? 'lg' : 'default'}
     >
       <a href={asset.download_url}>
-        <Download className={large ? 'size-6' : 'size-4'} /> {label}
+        <Download className={large ? 'size-6' : 'size-4'} />{' '}
+        <span className="text-xl">{label}</span>
       </a>
     </Button>
   )
