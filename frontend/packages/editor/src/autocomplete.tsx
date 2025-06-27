@@ -1,4 +1,3 @@
-import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
@@ -279,6 +278,8 @@ export function AutocompletePopup(props: {
   )
 }
 
+const popupHeight = 160
+
 function AutocompletePopupInner(
   props: AutocompleteTokenPluginActiveState<string> &
     AutocompleteTokenPluginActions & {
@@ -301,7 +302,7 @@ function AutocompletePopupInner(
 
   useEffect(() => {
     const viewportHeight = window.innerHeight
-    const popupHeight = 160
+
     const spaceBelow = viewportHeight - rect.bottom
     const spaceAbove = rect.top
 
@@ -402,17 +403,20 @@ function AutocompletePopupInner(
     },
   })
 
+  const topValue = position === 'below' ? rect.bottom + 4 : undefined
+  const bottomValue =
+    position === 'above'
+      ? window.innerHeight - rect.top + popupHeight
+      : undefined
+
   return (
     <div
       style={{
         position: 'fixed',
-        top: position === 'below' ? rect.bottom + 4 : undefined,
-        bottom:
-          position === 'above'
-            ? window.innerHeight - rect.top + 220
-            : undefined,
+        top: topValue,
+        bottom: bottomValue,
         left: rect.left,
-        zIndex: 1000,
+        zIndex: 9999,
       }}
     >
       <div
@@ -441,8 +445,8 @@ function AutocompletePopupInner(
           height: '10em',
           borderRadius: 4,
           overflow: 'scroll',
-          backgroundColor: 'transparent',
         }}
+        className="dark:bg-background bg-white"
       >
         {/* <div>Query: "{text}"</div> */}
         {isOptionsEmpty(suggestions) && (
@@ -465,7 +469,7 @@ function AutocompletePopupInner(
                 background="$backgroundFocus"
                 borderWidth={1}
                 borderColor="$borderColor"
-                elevate
+                elevation="$5"
               >
                 <XStack
                   background="$backgroundStrong"
@@ -558,9 +562,9 @@ export type AutocompleteTokenPluginAction =
   | {type: 'close'}
 
 const SuggestionItem = React.memo(function SuggestionItem(props: {
-  value?: Entity
+  value?: string
   title: string
-  subtitle: boolean
+  subtitle: string
   selected: boolean
   onPress: ButtonProps['onPress']
   onMouseEnter: ButtonProps['onMouseEnter']
@@ -583,9 +587,9 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       onPress={props.onPress}
       fontWeight="600"
       size="$2"
-      jc="flex-start"
+      justifyContent="flex-start"
       borderRadius={0}
-      bg={props.selected ? '$brand11' : '$backgroundFocus'}
+      backgroundColor={props.selected ? '$brand11' : '$backgroundFocus'}
       color="$color"
       hoverStyle={{
         backgroundColor: props.selected ? '$brand11' : '$backgroundFocus',
