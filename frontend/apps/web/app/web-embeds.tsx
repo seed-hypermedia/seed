@@ -18,6 +18,7 @@ import {
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
   DocumentCardGrid,
@@ -26,7 +27,6 @@ import {
   useDocContentContext,
 } from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button} from '@shm/ui/legacy/button'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
@@ -348,17 +348,9 @@ function QueryListStyle({
           ) : null
         return (
           <Button
-            borderWidth={0}
-            backgroundColor="$colorTransparent"
-            hoverStyle={{
-              backgroundColor: '$color5',
-            }}
-            elevation="$1"
-            paddingHorizontal={16}
-            paddingVertical="$1"
-            h={60}
-            icon={icon}
-            onPress={() => {
+            className="h-15 h-auto shadow-md"
+            variant="outline"
+            onClick={() => {
               navigate(
                 createWebHMUrl(id.type, id.uid, {
                   hostname: null,
@@ -371,11 +363,9 @@ function QueryListStyle({
               )
             }}
           >
-            <div className="flex flex-1 items-center gap-2 py-2">
-              <SizableText
-                weight="bold"
-                className="overflow-hidden text-ellipsis whitespace-nowrap"
-              >
+            {icon}
+            <div className="flex flex-1 items-center gap-2 overflow-hidden py-2">
+              <SizableText weight="bold" className="truncate">
                 {item.metadata.name}
               </SizableText>
             </div>

@@ -19,9 +19,9 @@ import {
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
 import {useEntity} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
 import {FullCheckbox} from '@shm/ui/form-input'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 
 export const loader = async ({request}: {request: Request}) => {
@@ -107,10 +107,10 @@ export function EmailNotificationsContent() {
                 <AccountTitle key={account.id} accountId={account.id} />
               ))}
               <Button
-                onPress={() => {
+                variant="default"
+                onClick={() => {
                   setEmailUnsubscribed(false)
                 }}
-                theme="blue"
               >
                 Re-Enable Notifications
               </Button>
@@ -125,10 +125,10 @@ export function EmailNotificationsContent() {
                 />
               ))}
               <Button
-                onPress={() => {
+                variant="destructive"
+                onClick={() => {
                   setEmailUnsubscribed(true)
                 }}
-                theme="red"
               >
                 Unsubscribe from all Notifications
               </Button>

@@ -1111,7 +1111,6 @@ function BlockContentVideo({
           {isIpfs ? (
             <video
               className={cn('absolute top-0 left-0 h-full w-full')}
-              // @ts-expect-error this is a bug in tamagui
               contentEditable={false}
               playsInline
               controls

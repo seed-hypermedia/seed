@@ -15,8 +15,8 @@ import {
 } from '@shm/shared'
 import {Button} from '@tamagui/button'
 
+import {Label} from '@shm/ui/components/label'
 import {Input} from '@tamagui/input'
-import {Label} from '@tamagui/label'
 import {
   AlertCircle,
   CircleDollarSign,
@@ -24,7 +24,6 @@ import {
   PartyPopper,
 } from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
-import {Heading} from '@tamagui/text'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './components/checkbox'
@@ -225,7 +224,7 @@ function DonateForm({
   if (createInvoice.isLoading)
     return (
       <YStack ai="center" gap="$4">
-        <Heading>Creating Invoice</Heading>
+        <h2 className="text-lg font-bold">Creating Invoice</h2>
         <div className="flex items-center justify-center">
           <Spinner />
         </div>
@@ -233,7 +232,7 @@ function DonateForm({
     )
   return (
     <>
-      <Heading>Distribution Overview</Heading>
+      <h2 className="text-lg font-bold">Distribution Overview</h2>
       <Label>Total Payment (SAT)</Label>
       <Input
         value={`${total}`}

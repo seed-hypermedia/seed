@@ -17,8 +17,8 @@ import {
 } from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
+import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
-import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -76,11 +76,8 @@ export function ExternalWebCommenting(props: WebCommentingProps) {
   const tx = useTx()
   return (
     <Button
-      bg="$brand5"
-      color="white"
-      hoverStyle={{bg: '$brand4'}}
-      focusStyle={{bg: '$brand4'}}
-      onPress={() => {
+      variant="default"
+      onClick={() => {
         redirectToWebIdentityCommenting(props.docId, {
           replyCommentId: props.replyCommentId,
           replyCommentVersion: props.replyCommentVersion,
@@ -444,8 +441,10 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
           to your comments?
         </SizableText>
         <div className="flex justify-end gap-3">
-          <Button onPress={() => onClose()}>No Thanks</Button>
-          <Button onPress={() => setMode('form')} theme="blue">
+          <Button variant="ghost" onClick={() => onClose()}>
+            No Thanks
+          </Button>
+          <Button variant="default" onClick={() => setMode('form')}>
             Yes, Notify Me
           </Button>
         </div>
@@ -481,7 +480,9 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
           You can edit your notification preferences by pressing "Notification
           Settings" in the footer.
         </SizableText>
-        <Button onPress={() => onClose()}>Done</Button>
+        <Button variant="default" onClick={() => onClose()}>
+          Done
+        </Button>
       </div>
     )
   }
