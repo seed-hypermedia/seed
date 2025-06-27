@@ -85,13 +85,16 @@ function CreateDocumentButton() {
   const myAccountIds = useMyAccountIds()
   if (!myAccountIds.data?.length) return null
   return (
-    <Button
-      variant="default"
-      onClick={() => createDraft()}
-      className="mb-5 w-full"
-    >
-      <FilePlus2 color="currentColor" size={16} /> <span>Create Document</span>
-    </Button>
+    <Tooltip content="Create Document" side="bottom">
+      <Button
+        variant="default"
+        onClick={() => createDraft()}
+        className="mb-5 w-full justify-start"
+      >
+        <FilePlus2 color="currentColor" size={16} />{' '}
+        <span className="truncate">Create Document</span>
+      </Button>
+    </Tooltip>
   )
 }
 function SidebarSection({
