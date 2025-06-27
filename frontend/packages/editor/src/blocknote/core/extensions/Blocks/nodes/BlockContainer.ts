@@ -142,18 +142,21 @@ class HeadingLinePlugin {
       let {node} = view.domAtPos(res.groupStartPos)
 
       let rect = (node as HTMLElement).getBoundingClientRect()
+
       let editorRect = view.dom.getBoundingClientRect()
       let groupPadding = 10
-      let editorPaddingTop = 40
+      let editorPaddingTop = 32
       this.line.style.position = 'absolute'
+      this.line.classList.add('rounded-md')
+      // this.line.style.padding = '16px'
       this.line.style.top = `${
         rect.top + editorPaddingTop + groupPadding - editorRect.top
       }px`
-      this.line.style.left = `${rect.left - editorRect.left + groupPadding}px`
-      this.line.style.width = `2.5px`
-      this.line.style.height = `${rect.height - groupPadding * 2}px`
-      this.line.style.backgroundColor = 'var(--brand5)'
-      this.line.style.opacity = '0.4'
+      this.line.style.left = `${rect.left - editorRect.left - 8}px`
+      this.line.style.width = `100%`
+      this.line.style.height = `${rect.height}px`
+      this.line.style.backgroundColor = 'var(--color-primary)'
+      this.line.style.opacity = '0.05'
     } else {
       this.line.style.opacity = '0'
       return
