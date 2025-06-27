@@ -220,6 +220,7 @@ export async function getBaseDocument(
   const directoryResults = await getDirectory(entityId)
   const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
   const supportAuthorsUidsToFetch = new Set<string>()
+  const alreadySupportDocIds = new Set<string>()
   const queryBlockQueries = await Promise.all(
     queryBlocks.map(async (block) => {
       const query = block.attributes.query

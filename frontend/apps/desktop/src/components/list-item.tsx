@@ -10,7 +10,6 @@ import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Link} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps, ReactElement, useMemo, useState} from 'react'
@@ -83,18 +82,6 @@ export function ListItem({
       </Button>
     </div>
   )
-}
-
-export function copyLinkMenuItem(
-  onPress: () => void,
-  label: string,
-): MenuItemType | null {
-  return {
-    onPress,
-    key: 'copy-link',
-    label: `Copy Link to ${label}`,
-    icon: Link,
-  }
 }
 
 export function TimeAccessory({
