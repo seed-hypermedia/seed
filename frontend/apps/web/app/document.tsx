@@ -26,6 +26,7 @@ import {DocumentCitationEntry} from '@shm/ui/citations'
 import {
   Drawer,
   DrawerContent,
+  DrawerFooter,
   DrawerHeader,
   DrawerTrigger,
 } from '@shm/ui/components/drawer'
@@ -716,12 +717,7 @@ function InnerDocumentPage(
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <ScrollArea>{panel}</ScrollArea>
                   </div>
-
-                  {/*
-                <DrawerContent>
-                  
-                </DrawerContent>
-                <DrawerFooter>{commentEditor}</DrawerFooter> */}
+                  <DrawerFooter>{commentEditor}</DrawerFooter>
                 </div>
               </DrawerContent>
             </Drawer>
