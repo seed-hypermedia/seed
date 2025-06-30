@@ -3,12 +3,19 @@ package blob
 import (
 	"encoding/hex"
 	"seed/backend/core"
+	"seed/backend/core/coretest"
+	"seed/backend/ipfs"
+	"seed/backend/storage"
+	"seed/backend/util/cclock"
 	"seed/backend/util/must"
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/klauspost/compress/zstd"
+	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestCommentOldEncoding(t *testing.T) {
@@ -30,4 +37,34 @@ func TestCommentOldEncoding(t *testing.T) {
 	sig := core.Signature(comment["sig"].([]byte))
 
 	require.NoError(t, verifyBlob(signer, comment, sig))
+}
+
+func TestCommentCausality(t *testing.T) {
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+	alice := coretest.NewTester("alice")
+	c := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
+	clock := cclock.New()
+
+	root, err := NewComment(alice.Account, "", alice.Account.Principal(), "", []cid.Cid{c}, cid.Undef, cid.Undef, []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "Hello World",
+		}},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	reply, err := NewComment(alice.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "Hello World",
+		}},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	require.NoError(t, idx.Put(t.Context(), reply))
+	require.NoError(t, idx.Put(t.Context(), root))
+
+	require.Equal(t, 0, countStashedBlobs(t, db), "must have no stashed blobs")
 }

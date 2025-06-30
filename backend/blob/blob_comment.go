@@ -300,6 +300,12 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return err
 	}
 
+	// If the comment we've just indexed was a reply parent of another comment we've seen before,
+	// we need to reindex those comments.
+	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log); err != nil {
+		return err
+	}
+
 	spaceID := v.Space().String()
 
 	// Update space comment stats.
@@ -374,12 +380,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 				return err
 			}
 		}
-	}
-
-	// If the comment we've just indexed was a reply parent of another comment we've seen before,
-	// we need to reindex those comments.
-	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log); err != nil {
-		return err
 	}
 
 	return nil

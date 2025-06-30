@@ -1521,6 +1521,6 @@ var qLoadStashedBlobs = dqb.Str(`
 	FROM blobs WHERE id IN (
 		SELECT id FROM stashed_blobs
 		WHERE reason = :reason
-		AND instr(extra_attrs, json_quote(:signer)) > 0
+		AND instr(extra_attrs, :match) > 0
 	)
 `)
