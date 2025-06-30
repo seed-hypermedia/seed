@@ -565,15 +565,15 @@ function BreadcrumbItem({
             chromeless
             size="$2"
             margin={0}
-            color="$red10"
             backgroundColor="$colorTransparent"
             borderWidth={0}
             className="no-window-drag"
-            icon={AlertCircle}
             onPress={() => {
               navigate({key: 'document', id})
             }}
-          />
+          >
+            <AlertCircle size={18} className="text-red-700" />
+          </Button>
         </Tooltip>
       )
     }
