@@ -10,14 +10,12 @@ import (
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
-	"seed/backend/core"
 	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
-
-	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/storage"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -41,17 +39,9 @@ type Server struct {
 	}
 }
 
-// Storage holds all the storing functionality.
-type Storage interface {
-	DB() *sqlitex.Pool
-	KeyStore() core.KeyStore
-	Migrate() error
-	Device() *core.KeyPair
-}
-
 // New creates a new API server.
 func New(
-	repo Storage,
+	repo *storage.Store,
 	idx *blob.Index,
 	node *hmnet.Node,
 	sync *syncing.Service,

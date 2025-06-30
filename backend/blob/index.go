@@ -18,6 +18,7 @@ import (
 	"seed/backend/util/strbytes"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -98,6 +99,8 @@ type Index struct {
 	bs  *blockStore
 	db  *sqlitex.Pool
 	log *zap.Logger
+
+	mu sync.Mutex // protects from concurrent reindexing
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.

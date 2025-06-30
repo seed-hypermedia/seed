@@ -5,10 +5,12 @@ package daemon
 import (
 	context "context"
 	"fmt"
+	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
+	"seed/backend/storage"
 	"seed/backend/util/colx"
 	sync "sync"
 	"time"
@@ -26,12 +28,6 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Storage is a subset of the [ondisk.OnDisk] used by this server.
-type Storage interface {
-	Device() *core.KeyPair
-	KeyStore() core.KeyStore
-}
-
 // Node is a subset of the p2p node.
 type Node interface {
 	AddrInfo() peer.AddrInfo
@@ -47,9 +43,9 @@ type Blockstore interface {
 
 // Server implements the Daemon gRPC API.
 type Server struct {
-	store     Storage
+	store     *storage.Store
 	startTime time.Time
-	blocks    Blockstore
+	blocks    *blob.Index
 
 	p2p   Node
 	dlink *devicelink.Service
@@ -59,7 +55,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, n Node, bs Blockstore, dlink *devicelink.Service) *Server {
+func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -69,7 +65,7 @@ func NewServer(store Storage, n Node, bs Blockstore, dlink *devicelink.Service) 
 		startTime: time.Now(),
 		// wallet:        w, // TODO(hm24): Put the wallet back.
 		p2p:    n,
-		blocks: bs,
+		blocks: idx,
 		dlink:  dlink,
 	}
 }
@@ -201,6 +197,15 @@ func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptyp
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ForceReindex implements the corresponding gRPC method.
+func (srv *Server) ForceReindex(ctx context.Context, in *daemon.ForceReindexRequest) (*daemon.ForceReindexResponse, error) {
+	if err := srv.blocks.Reindex(ctx); err != nil {
+		return nil, err
+	}
+
+	return &daemon.ForceReindexResponse{}, nil
 }
 
 // StoreBlobs implements the corresponding gRPC method.

@@ -24,6 +24,7 @@ const (
 	Daemon_RegisterKey_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
 	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
+	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
 	Daemon_UpdateKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
 	Daemon_DeleteKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
@@ -51,6 +52,8 @@ type DaemonClient interface {
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Forces the daemon to reindex the entire database.
+	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
 	ListKeys(ctx context.Context, in *ListKeysRequest, opts ...grpc.CallOption) (*ListKeysResponse, error)
 	// Updates the existing key.
@@ -118,6 +121,16 @@ func (c *daemonClient) ForceSync(ctx context.Context, in *ForceSyncRequest, opts
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Daemon_ForceSync_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForceReindexResponse)
+	err := c.cc.Invoke(ctx, Daemon_ForceReindex_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +234,8 @@ type DaemonServer interface {
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
+	// Forces the daemon to reindex the entire database.
+	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
 	ListKeys(context.Context, *ListKeysRequest) (*ListKeysResponse, error)
 	// Updates the existing key.
@@ -264,6 +279,9 @@ func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Inf
 }
 func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceSync not implemented")
+}
+func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
 }
 func (UnimplementedDaemonServer) ListKeys(context.Context, *ListKeysRequest) (*ListKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListKeys not implemented")
@@ -377,6 +395,24 @@ func _Daemon_ForceSync_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DaemonServer).ForceSync(ctx, req.(*ForceSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_ForceReindex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForceReindexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).ForceReindex(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_ForceReindex_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).ForceReindex(ctx, req.(*ForceReindexRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -547,6 +583,10 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ForceSync",
 			Handler:    _Daemon_ForceSync_Handler,
+		},
+		{
+			MethodName: "ForceReindex",
+			Handler:    _Daemon_ForceReindex_Handler,
 		},
 		{
 			MethodName: "ListKeys",

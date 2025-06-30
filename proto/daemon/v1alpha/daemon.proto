@@ -24,6 +24,9 @@ service Daemon {
   // Force-trigger periodic background sync of Seed objects.
   rpc ForceSync(ForceSyncRequest) returns (google.protobuf.Empty);
 
+  // Forces the daemon to reindex the entire database.
+  rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
+
   // Lists all the signing keys registered on this Daemon.
   rpc ListKeys(ListKeysRequest) returns (ListKeysResponse);
 
@@ -89,6 +92,12 @@ message GetInfoRequest {}
 
 // Request to force the syncing process.
 message ForceSyncRequest {}
+
+// Request to force reindexing of the entire database.
+message ForceReindexRequest {}
+
+// Response after forcing reindexing.
+message ForceReindexResponse {}
 
 // Request to delete all keys.
 message DeleteAllKeysRequest {}

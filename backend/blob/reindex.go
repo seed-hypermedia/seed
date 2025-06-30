@@ -39,6 +39,11 @@ func (idx *Index) Reindex(ctx context.Context) (err error) {
 }
 
 func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
+	if !idx.mu.TryLock() {
+		return nil
+	}
+	defer idx.mu.Unlock()
+
 	start := time.Now()
 	var (
 		blobsTotal   int

@@ -251,6 +251,72 @@ export class ForceSyncRequest extends Message<ForceSyncRequest> {
 }
 
 /**
+ * Request to force reindexing of the entire database.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ForceReindexRequest
+ */
+export class ForceReindexRequest extends Message<ForceReindexRequest> {
+  constructor(data?: PartialMessage<ForceReindexRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ForceReindexRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ForceReindexRequest {
+    return new ForceReindexRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ForceReindexRequest {
+    return new ForceReindexRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ForceReindexRequest {
+    return new ForceReindexRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined, b: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined): boolean {
+    return proto3.util.equals(ForceReindexRequest, a, b);
+  }
+}
+
+/**
+ * Response after forcing reindexing.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ForceReindexResponse
+ */
+export class ForceReindexResponse extends Message<ForceReindexResponse> {
+  constructor(data?: PartialMessage<ForceReindexResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ForceReindexResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ForceReindexResponse {
+    return new ForceReindexResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ForceReindexResponse {
+    return new ForceReindexResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ForceReindexResponse {
+    return new ForceReindexResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined, b: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined): boolean {
+    return proto3.util.equals(ForceReindexResponse, a, b);
+  }
+}
+
+/**
  * Request to delete all keys.
  *
  * @generated from message com.seed.daemon.v1alpha.DeleteAllKeysRequest

@@ -5,6 +5,7 @@ export type AppWindowSimpleEvent =
   | 'back'
   | 'forward'
   | 'trigger_peer_sync'
+  | 'trigger_database_reindex'
   | 'open_launcher'
   | 'find_in_page'
   | 'discover'

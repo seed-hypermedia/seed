@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -59,6 +59,17 @@ export const Daemon = {
       name: "ForceSync",
       I: ForceSyncRequest,
       O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Forces the daemon to reindex the entire database.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ForceReindex
+     */
+    forceReindex: {
+      name: "ForceReindex",
+      I: ForceReindexRequest,
+      O: ForceReindexResponse,
       kind: MethodKind.Unary,
     },
     /**

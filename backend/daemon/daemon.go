@@ -16,11 +16,11 @@ import (
 	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
-	"seed/backend/core"
 	"seed/backend/devicelink"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
+	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/future"
 
@@ -44,7 +44,7 @@ type App struct {
 
 	log *zap.Logger
 
-	Storage      Storage
+	Storage      *storage.Store
 	HTTPListener net.Listener
 	HTTPServer   *http.Server
 	GRPCListener net.Listener
@@ -92,13 +92,6 @@ func WithGRPCServerOption(opt grpc.ServerOption) Option {
 	}
 }
 
-type Storage interface {
-	DB() *sqlitex.Pool
-	KeyStore() core.KeyStore
-	Migrate() error
-	Device() *core.KeyPair
-}
-
 // Load all of the dependencies for the app, and start
 // all the background goroutines.
 //
@@ -112,7 +105,7 @@ type Storage interface {
 // futures might not be resolved yet.
 //
 // To shut down the app gracefully cancel the provided context and call Wait().
-func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *App, err error) {
+func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option) (a *App, err error) {
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,
@@ -283,7 +276,7 @@ func (a *App) Wait() error {
 func initNetwork(
 	clean *cleanup.Stack,
 	g *errgroup.Group,
-	store Storage,
+	store *storage.Store,
 	cfg config.P2P,
 	index *blob.Index,
 	LogLevel string,
@@ -367,7 +360,7 @@ func initGRPC(
 	port int,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
-	repo Storage,
+	repo *storage.Store,
 	idx *blob.Index,
 	node *hmnet.Node,
 	sync *syncing.Service,

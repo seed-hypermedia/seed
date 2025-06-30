@@ -2,16 +2,17 @@ package daemon
 
 import (
 	context "context"
+	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"testing"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -73,7 +74,7 @@ func TestSignData(t *testing.T) {
 	testData := []byte("hello world")
 	resp, err := srv.SignData(ctx, &daemon.SignDataRequest{
 		SigningKeyName: "main",
-		Data:          testData,
+		Data:           testData,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -103,7 +104,7 @@ func TestSignData(t *testing.T) {
 	t.Run("non-existent key", func(t *testing.T) {
 		_, err := srv.SignData(ctx, &daemon.SignDataRequest{
 			SigningKeyName: "non-existent-key",
-			Data:          testData,
+			Data:           testData,
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -119,13 +120,10 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	return NewServer(store, &mockedP2PNode{}, &mockedBlockstore{}, nil)
-}
+	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
+	require.NoError(t, err)
 
-type mockedBlockstore struct{}
-
-func (*mockedBlockstore) PutMany(context.Context, []blocks.Block) error {
-	return nil
+	return NewServer(store, &mockedP2PNode{}, idx, nil)
 }
 
 type mockedP2PNode struct{}
