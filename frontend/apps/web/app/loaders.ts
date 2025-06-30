@@ -124,12 +124,6 @@ export async function getHMDocument(
   entityId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
 ) {
-  console.log(
-    'getHMDocument called with id:',
-    entityId.id,
-    'discover:',
-    discover,
-  )
   const {version, uid, latest} = entityId
   if (discover) {
     return await discoverDocument(
@@ -166,12 +160,6 @@ export async function resolveHMDocument(
   entityId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
 ) {
-  console.log(
-    'resolveHMDocument called with id:',
-    entityId.id,
-    'discover:',
-    discover,
-  )
   try {
     const document = await getHMDocument(entityId, {discover})
     return document
@@ -202,7 +190,7 @@ export async function getBaseDocument(
     })
     .then(() => {})
     .catch((e) => {
-      console.error('error discovering entity', entityId.id, e)
+      // console.error('error discovering entity', entityId.id, e)
     })
   const latestDocument =
     entityId.version || !entityId.latest
@@ -211,7 +199,6 @@ export async function getBaseDocument(
           {discover: true},
         )
       : null
-  console.log('getHMDocument called for latest version:', entityId.id)
   const document = await getHMDocument(entityId, {discover: true})
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
@@ -223,10 +210,6 @@ export async function getBaseDocument(
     await Promise.all(
       refs.map(async (ref) => {
         try {
-          console.log(
-            'getHMDocument called for support document:',
-            ref.refId.id,
-          )
           const doc = await resolveHMDocument(ref.refId)
           if (!doc) return null
           return {document: doc, id: ref.refId}
@@ -240,7 +223,6 @@ export async function getBaseDocument(
 
   const queryBlocks = extractQueryBlocks(document.content)
   const homeId = hmId('d', uid)
-  console.log('getHMDocument called for home document:', homeId.id)
   const homeDocument = await getHMDocument(homeId)
   supportDocuments.push({
     id: homeId,
@@ -295,7 +277,6 @@ export async function getBaseDocument(
       await Promise.all(
         Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
           try {
-            console.log('getHMDocument called for author:', uid)
             const document = await getHMDocument(hmId('d', uid), {
               discover: true,
             })
@@ -471,7 +452,6 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       }
     }
     try {
-      console.log('getHMDocument called for embed:', id.id)
       const document = await getHMDocument(id)
       const selectedBlock = id.blockRef
         ? getBlockNodeById(document.content, id.blockRef)
@@ -690,7 +670,7 @@ export async function loadSiteDocument<T>(
       })
       return redirect(destRedirectUrl)
     }
-    console.error('Error Loading Site Document', id, e)
+    // console.error('Error Loading Site Document', id, e)
     // probably document not found. todo, handle other errors
   }
   return wrapJSON(

@@ -70,7 +70,7 @@ export const loader = async ({
     })
     .filter((d) => !!d)
   const dedupedDocCitations = deduplicateCitations(docCitations)
-  let citationCount = docCitations.length
+  let citationCount = dedupedDocCitations.length
   let commentCount = 0
   const blocks: Record<string, {citations: number; comments: number}> = {}
   dedupedDocCitations.forEach((mention) => {

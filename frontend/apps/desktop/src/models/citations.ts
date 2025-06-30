@@ -1,5 +1,12 @@
 import {grpcClient} from '@/grpc-client'
-import {BIG_INT, hmId, parseFragment, queryKeys, unpackHmId} from '@shm/shared'
+import {
+  BIG_INT,
+  deduplicateCitations,
+  hmId,
+  parseFragment,
+  queryKeys,
+  unpackHmId,
+} from '@shm/shared'
 import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
 
@@ -64,9 +71,10 @@ export function useEntityCitations(docId?: UnpackedHypermediaId | null) {
 
 export function useSortedCitations(docId?: UnpackedHypermediaId | null) {
   const citations = useEntityCitations(docId)
+  const dedupedCitations = deduplicateCitations(citations.data || [])
   const docCitations: HMCitation[] = []
   const commentCitations: HMCitation[] = []
-  citations.data?.forEach((citation) => {
+  dedupedCitations.forEach((citation) => {
     if (citation.source.type === 'd') {
       docCitations.push(citation)
     } else if (citation.source.type === 'c') {

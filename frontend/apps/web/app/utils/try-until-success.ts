@@ -15,7 +15,7 @@ export async function tryUntilSuccess<Result>(
   let didTimeout = false
   while (!resolution && !didTimeout) {
     try {
-      console.log('attempting', fn)
+      // console.log('attempting', fn)
       const result = await fn()
       if (result) {
         resolution = result
@@ -24,7 +24,7 @@ export async function tryUntilSuccess<Result>(
       if (immediateCatch?.(error)) {
         throw error
       }
-      console.log('swallowing error', error)
+      // console.log('swallowing error', error)
     }
     if (!resolution) {
       if (Date.now() - startTime > maxRetryMs) {
