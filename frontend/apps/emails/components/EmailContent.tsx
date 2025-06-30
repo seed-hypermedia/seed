@@ -6,36 +6,15 @@ import {
   MjmlSection,
   MjmlText,
 } from '@faire/mjml-react'
-import {HMBlockNode} from '@shm/shared'
+import {BlockNode} from '@shm/shared'
 import {format} from 'date-fns'
 import React from 'react'
 import {Notification} from '../notifier'
 import {extractIpfsUrlCid, getDaemonFileUrl} from './EmailHeader'
 
 export function EmailContent({notification}: {notification: Notification}) {
-  const authorName =
-    notification.type === 'change'
-      ? notification.authorMeta?.name
-      : notification.commentAuthorMeta?.name || notification.comment.author
-
-  const authorAvatar =
-    notification.type === 'change'
-      ? notification.authorMeta?.icon
-        ? getDaemonFileUrl(notification.authorMeta.icon)
-        : ''
-      : notification.commentAuthorMeta?.icon
-      ? getDaemonFileUrl(notification.commentAuthorMeta.icon)
-      : ''
-
-  const fallbackLetter = authorName[0].toUpperCase()
-
-  const createdAt =
-    notification.type !== 'change' && notification.comment.createTime?.seconds
-      ? format(
-          new Date(Number(notification.comment.createTime.seconds) * 1000),
-          'MMM d',
-        )
-      : ''
+  const {authorName, authorAvatar, fallbackLetter, createdAt} =
+    getNotificationMeta(notification)
 
   return (
     <>
@@ -104,7 +83,10 @@ export function EmailContent({notification}: {notification: Notification}) {
         </MjmlColumn>
         {notification.type === 'mention' ? (
           renderMention({
-            blocks: notification.comment.content,
+            blocks:
+              notification.source === 'comment'
+                ? notification.comment.content.map((n) => new BlockNode(n))
+                : [notification.block],
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
             resolvedNames: notification.resolvedNames,
           })
@@ -115,7 +97,10 @@ export function EmailContent({notification}: {notification: Notification}) {
           })
         ) : (
           <MjmlColumn width="100%" verticalAlign="middle">
-            {renderBlocks(notification.comment.content, notification.url)}
+            {renderBlocks(
+              notification.comment.content.map((n) => new BlockNode(n)),
+              notification.url,
+            )}
           </MjmlColumn>
         )}
       </MjmlSection>
@@ -128,7 +113,7 @@ export function renderMention({
   targetDocName,
   resolvedNames,
 }: {
-  blocks: HMBlockNode[]
+  blocks: BlockNode[]
   targetDocName: string
   resolvedNames?: Record<string, string>
 }) {
@@ -207,7 +192,7 @@ function renderChange({
 }
 
 function renderBlocks(
-  blocks: HMBlockNode[],
+  blocks: BlockNode[],
   notifUrl: string,
   resolvedNames?: Record<string, string>,
 ) {
@@ -222,7 +207,7 @@ function renderBlocks(
 }
 
 function renderBlock(
-  blockNode: HMBlockNode,
+  blockNode: BlockNode,
   notifUrl: string,
   resolvedNames?: Record<string, string>,
 ) {
@@ -412,4 +397,35 @@ function renderInlineTextWithAnnotations(
   }
 
   return result.join('')
+}
+
+function getNotificationMeta(notification: Notification) {
+  const authorMeta =
+    notification.type === 'change' || notification.type === 'mention'
+      ? notification.authorMeta
+      : notification.commentAuthorMeta
+
+  const authorName =
+    authorMeta?.name ||
+    ('comment' in notification ? notification.comment.author : 'Unknown')
+
+  const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
+
+  const createdAt =
+    notification.type === 'reply' ||
+    (notification.type === 'mention' && notification.source === 'comment')
+      ? notification.comment.createTime?.seconds
+        ? format(
+            new Date(Number(notification.comment.createTime.seconds) * 1000),
+            'MMM d',
+          )
+        : ''
+      : ''
+
+  return {
+    authorName,
+    authorAvatar,
+    fallbackLetter: authorName?.[0]?.toUpperCase?.() || '?',
+    createdAt,
+  }
 }

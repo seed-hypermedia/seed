@@ -12,6 +12,7 @@ import {
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {
+  BlockNode,
   Comment,
   HMMetadata,
   SITE_BASE_URL,
@@ -87,7 +88,10 @@ ${docNotifs
       .map((notification) => {
         const {notif} = notification
 
-        if (notif.type === 'reply' || notif.type === 'mention') {
+        if (
+          notif.type === 'reply' ||
+          (notif.type === 'mention' && notif.source === 'comment')
+        ) {
           return `New ${notif.type} from ${notif.comment.author} on ${notif.url}`
         }
 
@@ -259,11 +263,23 @@ function NotifSettings({url}: {url: string}) {
 export type Notification =
   | {
       type: 'mention'
+      source: 'comment'
       comment: PlainMessage<Comment>
-      commentAuthorMeta: HMMetadata | null
+      authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       parentComments: PlainMessage<Comment>[]
+      url: string
+      resolvedNames?: Record<string, string>
+    }
+  | {
+      type: 'mention'
+      source: 'change'
+      block: BlockNode
+      authorAccountId: string
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
       url: string
       resolvedNames?: Record<string, string>
     }
@@ -298,7 +314,11 @@ function getNotificationSummary(
 ): string {
   if (notification.type === 'mention') {
     return `${accountMeta?.name || 'You were'} mentioned by ${
-      notification.commentAuthorMeta?.name || notification.comment.author
+      notification.authorMeta?.name
+        ? notification.authorMeta.name
+        : notification.source === 'comment'
+        ? notification.comment.author
+        : 'Unknown User'
     }.`
   }
   if (notification.type === 'reply') {

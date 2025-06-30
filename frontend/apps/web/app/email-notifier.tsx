@@ -2,6 +2,8 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
+  Annotation,
+  BlockNode,
   Comment,
   DAEMON_HTTP_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -11,6 +13,7 @@ import {
   HMBlockNodeSchema,
   HMDocumentMetadataSchema,
   hmId,
+  HMLoadedBlock,
   HMMetadata,
   HMMetadataPayload,
   SITE_BASE_URL,
@@ -165,29 +168,120 @@ async function handleEventsForEmailNotifications(
             if (!unpacked?.uid) continue
 
             const refData = await loadRefFromIpfs(blob.cid)
-            // console.log('REF DATA ~~~~~\n', refData)
 
             const changeCid = refData.heads?.[0]?.toString()
-
-            // console.log(CID.parse(refData.heads?.[0]))
 
             const changeData = await queryClient.documents.getDocumentChange({
               id: changeCid,
             })
 
-            // console.log(
-            //   'CHANGE REQUEST~~~~~\n',
-            //   JSON.stringify(changeData, null, 2),
-            // )
-
-            const isNewDocument =
-              Array.isArray(changeData.deps) && changeData.deps.length === 0
+            const changeDataWithOps = await loadRefFromIpfs(changeCid)
 
             const changedDoc = await loadDocument(unpacked)
             const targetMeta = changedDoc?.metadata ?? {}
             const docUrl = `${SITE_BASE_URL}/hm/${unpacked.uid}/${(
               unpacked.path || []
             ).join('/')}`
+
+            const prevVersionId = {
+              ...unpacked,
+              version:
+                changeDataWithOps.deps && changeDataWithOps.deps.length > 0
+                  ? changeDataWithOps.deps
+                      .map((cid) => cid.toString())
+                      .join('.')
+                  : null,
+            }
+
+            if (prevVersionId) {
+              const prevVersionDoc = await loadDocument(prevVersionId)
+              const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
+
+              const previousMentionsByBlockId: Record<string, Set<string>> = {}
+
+              for (const loaded of prevVersionDoc.content ?? []) {
+                const blockId = loaded.block?.id
+                if (!blockId) continue
+
+                const accountIds = getMentionsFromBlock(loaded.block)
+                if (accountIds.size > 0) {
+                  previousMentionsByBlockId[blockId] = accountIds
+                }
+              }
+
+              for (const [blockId, newMentions] of Object.entries(
+                mentionsMap,
+              )) {
+                const oldMentions =
+                  previousMentionsByBlockId[blockId] ?? new Set()
+
+                console.log(oldMentions)
+
+                for (const accountLink of newMentions) {
+                  const accountId = accountLink.slice('hm://'.length)
+
+                  console.log(accountId, oldMentions.has(accountId))
+
+                  // Skip if already mentioned in this block in the previous version
+                  if (oldMentions.has(accountId)) continue
+
+                  const {notifyAllMentions, email} =
+                    accountNotificationOptions[accountId] || {}
+                  if (!notifyAllMentions) continue
+
+                  const op = changeDataWithOps.body.ops.find(
+                    (op) =>
+                      op.type === 'ReplaceBlock' && op.block?.id === blockId,
+                  )
+
+                  if (!op?.block) continue
+
+                  const blockNode = new BlockNode({
+                    block: op.block,
+                    children: [],
+                  })
+
+                  const authorMeta = (await getMetadata(hmId('d', blob.author)))
+                    .metadata
+                  const resolvedNames = await resolveAnnotationNames([
+                    blockNode,
+                  ])
+
+                  console.log(
+                    JSON.stringify(
+                      {
+                        type: 'mention',
+                        source: 'change',
+                        block: blockNode,
+                        authorAccountId: blob.author,
+                        authorMeta,
+                        targetMeta,
+                        targetId: unpacked,
+                        url: docUrl,
+                        resolvedNames: resolvedNames,
+                      },
+                      null,
+                      2,
+                    ),
+                  )
+
+                  await appendNotification(email, accountId, {
+                    type: 'mention',
+                    source: 'change',
+                    block: blockNode,
+                    authorAccountId: blob.author,
+                    authorMeta,
+                    targetMeta,
+                    targetId: unpacked,
+                    url: docUrl,
+                    resolvedNames,
+                  })
+                }
+              }
+            }
+
+            const isNewDocument =
+              Array.isArray(changeData.deps) && changeData.deps.length === 0
 
             for (const accountId in accountNotificationOptions) {
               const {notifyOwnedDocChange, email} =
@@ -297,12 +391,15 @@ async function handleEventsForEmailNotifications(
       }
       if (account.notifyAllMentions) {
         if (newComment.mentions.has(accountId)) {
-          const resolvedNames = await resolveAnnotationNames(newComment.comment)
+          const resolvedNames = await resolveAnnotationNames(
+            newComment.comment.content.map((n) => new BlockNode(n)),
+          )
           await appendNotification(account.email, accountId, {
             type: 'mention',
             comment: newComment.comment,
+            source: 'comment',
             parentComments: newComment.parentComments,
-            commentAuthorMeta: newComment.commentAuthorMeta,
+            authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
             url: targetDocUrl,
@@ -418,10 +515,10 @@ async function resolveAccount(accountId: string) {
   return result
 }
 
-async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
+async function resolveAnnotationNames(blocks: BlockNode[]) {
   const resolvedNames: Record<string, string> = {}
 
-  for (const block of comment.content) {
+  for (const block of blocks) {
     const blockNode = HMBlockNodeSchema.parse(block)
     for (const annotation of blockNode.block?.annotations || []) {
       if (annotation.type === 'Embed' && annotation.link) {
@@ -451,6 +548,49 @@ async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
   }
 
   return resolvedNames
+}
+
+function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
+  const mentionMap: Record<string, Set<string>> = {}
+
+  for (const op of ops) {
+    if (op.type !== 'ReplaceBlock' || !op.block?.annotations) continue
+
+    const mentions = op.block.annotations
+      .filter(
+        (a: Annotation) => a.type === 'Embed' && a.link?.startsWith('hm://'),
+      )
+      .map((a: Annotation) => a.link)
+    // .map((a: Annotation) => a.link!.slice('hm://'.length))
+
+    if (mentions.length > 0 && op.block.id) {
+      mentionMap[op.block.id] = new Set(mentions)
+    }
+  }
+
+  return mentionMap
+}
+
+function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
+  const accountIds = new Set<string>()
+
+  if (!block?.content || !Array.isArray(block.content)) return accountIds
+
+  for (const item of block.content) {
+    if (
+      item.type === 'InlineEmbed' &&
+      typeof item.ref === 'string' &&
+      item.ref.startsWith('hm://')
+    ) {
+      // Remove hm part of the link
+      const ref = item.ref.slice(5)
+      if (ref && !ref.includes('/')) {
+        accountIds.add(ref)
+      }
+    }
+  }
+
+  return accountIds
 }
 
 async function loadRefFromIpfs(cid: string): Promise<any> {
