@@ -128,9 +128,7 @@ async function handleEventsForEmailNotifications(
       notificationsToSend[email] = []
     }
     if (accountMetas[accountId] === undefined) {
-      accountMetas[accountId] = (
-        await getMetadata(hmId('d', accountId))
-      ).metadata
+      accountMetas[accountId] = (await await getAccount(accountId)).metadata
     }
     notificationsToSend[email].push({
       accountId,
@@ -240,8 +238,7 @@ async function handleEventsForEmailNotifications(
                     children: [],
                   })
 
-                  const authorMeta = (await getMetadata(hmId('d', blob.author)))
-                    .metadata
+                  const authorMeta = (await getAccount(blob.author)).metadata
                   const resolvedNames = await resolveAnnotationNames([
                     blockNode,
                   ])
@@ -277,8 +274,7 @@ async function handleEventsForEmailNotifications(
               const isOwner = changedDoc?.authors?.[accountId]
               if (!isOwner) continue
 
-              const authorMeta = (await getMetadata(hmId('d', blob.author)))
-                .metadata
+              const authorMeta = (await getAccount(blob.author)).metadata
 
               await appendNotification(email, accountId, {
                 type: 'change',
@@ -334,8 +330,7 @@ async function handleEventsForEmailNotifications(
           comment: toPlainMessage(comment),
           parentComments,
           parentAuthors: resolvedParentAuthors,
-          commentAuthorMeta: (await getMetadata(hmId('d', comment.author)))
-            .metadata,
+          commentAuthorMeta: (await getAccount(comment.author)).metadata,
           targetMeta: (
             await getMetadata(
               hmId('d', comment.targetAccount, {
