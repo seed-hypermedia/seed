@@ -215,15 +215,14 @@ async function handleEventsForEmailNotifications(
                 const oldMentions =
                   previousMentionsByBlockId[blockId] ?? new Set()
 
-                console.log(oldMentions)
-
                 for (const accountLink of newMentions) {
                   const accountId = accountLink.slice('hm://'.length)
 
-                  console.log(accountId, oldMentions.has(accountId))
-
                   // Skip if already mentioned in this block in the previous version
                   if (oldMentions.has(accountId)) continue
+
+                  // Skip if a user mentions themselves
+                  if (accountId === blob.author) continue
 
                   const {notifyAllMentions, email} =
                     accountNotificationOptions[accountId] || {}
@@ -246,24 +245,6 @@ async function handleEventsForEmailNotifications(
                   const resolvedNames = await resolveAnnotationNames([
                     blockNode,
                   ])
-
-                  console.log(
-                    JSON.stringify(
-                      {
-                        type: 'mention',
-                        source: 'change',
-                        block: blockNode,
-                        authorAccountId: blob.author,
-                        authorMeta,
-                        targetMeta,
-                        targetId: unpacked,
-                        url: docUrl,
-                        resolvedNames: resolvedNames,
-                      },
-                      null,
-                      2,
-                    ),
-                  )
 
                   await appendNotification(email, accountId, {
                     type: 'mention',
