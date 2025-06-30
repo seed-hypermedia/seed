@@ -43,7 +43,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount, useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -209,6 +209,16 @@ function _MainDocumentPage({
   onAccessory: (accessory: DocumentRoute['accessory']) => void
 }) {
   const replace = useNavigate('replace')
+
+  const account = useAccount(id.uid, {enabled: !id.path?.length})
+
+  useEffect(() => {
+    if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
+      toast.error('This account redirects to another account.')
+      replace({key: 'document', id: account.data.id})
+    }
+  }, [account.data])
+
   const entity = useSubscribedEntity(
     id,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
