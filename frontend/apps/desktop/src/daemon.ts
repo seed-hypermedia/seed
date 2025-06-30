@@ -156,7 +156,7 @@ export async function startMainDaemon(): Promise<{
   return mainDaemon
 }
 
-export async function tryUntilSuccess(
+async function tryUntilSuccess(
   fn: () => Promise<void>,
   attemptName: string,
   retryDelayMs: number = 1_000,

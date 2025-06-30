@@ -1,5 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {DiscoverEntityResponse} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMDocument,
@@ -10,6 +11,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
+  getErrorMessage,
+  HMRedirectError,
   setAccountQuery,
   setEntityQuery,
   useEntities,
@@ -17,6 +20,7 @@ import {
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
+import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
@@ -188,35 +192,94 @@ type EntitySubscription = {
   recursive?: boolean
 }
 
-function invalidateEntityWithVersion(id: string, version?: string) {
-  if (!version) return
+function invalidateEntityWithVersion(
+  id: UnpackedHypermediaId,
+  version: string,
+) {
   const lastEntity = queryClient.getQueryData<HMEntityContent>([
     queryKeys.ENTITY,
-    id,
+    id.id,
     undefined,
   ])
-  if (lastEntity && lastEntity.document?.version !== version) {
+  if (!lastEntity || lastEntity?.document?.version !== version) {
     // console.log('[sync] new version discovered for entity', id, version)
-    invalidateQueries([queryKeys.ENTITY, id])
+    invalidateQueries([queryKeys.ENTITY, id.id])
     invalidateQueries([queryKeys.ACCOUNT, id.uid])
-    invalidateQueries([queryKeys.RESOLVED_ENTITY, id])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   }
+}
+
+export async function discoverDocument(
+  uid: string,
+  path: string[] | null,
+  version?: string | null,
+  recursive?: boolean,
+) {
+  const discoverRequest = {
+    account: uid,
+    path: hmIdPathToEntityQueryPath(path),
+    version: version || undefined,
+    recursive,
+  } as const
+  console.log('~~ will discoverEntity', discoverRequest)
+  function checkDiscoverySuccess(discoverResp: DiscoverEntityResponse) {
+    if (!version && discoverResp.version) return true
+    if (version && version === discoverResp.version) return true
+    return false
+  }
+  const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+  if (checkDiscoverySuccess(discoverResp))
+    return {version: discoverResp.version}
+  return await tryUntilSuccess(
+    async () => {
+      const discoverResp =
+        await grpcClient.entities.discoverEntity(discoverRequest)
+      if (checkDiscoverySuccess(discoverResp))
+        return {version: discoverResp.version}
+
+      // console.log('~~ discover check for getDocument', uid, path, version)
+      // const apiDoc = await grpcClient.documents.getDocument({
+      //   account: uid,
+      //   path: hmIdPathToEntityQueryPath(path),
+      //   version: version || undefined,
+      // })
+      // const versionMatch =
+      //   !!apiDoc.version && (!version || apiDoc.version === version)
+      // console.log(
+      //   '~~ discover did getDocument',
+      //   versionMatch,
+      //   apiDoc.version,
+      //   version,
+      // )
+      // if (versionMatch) {
+      //   const docJSON = apiDoc.toJson() as any
+      //   documentMetadataParseAdjustments(docJSON.metadata)
+      //   const document = HMDocumentSchema.parse(docJSON)
+      //   // console.log('discover getDocument complete', document)
+      //   return document
+      // }
+      return null
+    },
+    {
+      maxRetryMs: 300_000, // 5 minutes cause why not
+      retryDelayMs: 2_000,
+      immediateCatch: (e) => {
+        const error = getErrorMessage(e)
+        return error instanceof HMRedirectError
+      },
+    },
+  )
 }
 
 async function updateEntitySubscription(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return
-  const discoveryRequest = {
-    account: id.uid,
-    path: hmIdPathToEntityQueryPath(id.path),
-    recursive,
-  }
-  // console.log('[sync] discovery request', discoveryRequest)
-  await grpcClient.entities
-    .discoverEntity(discoveryRequest)
+  console.log('~~ updateEntitySubscription', id)
+  await discoverDocument(id.uid, id.path, undefined, recursive)
     .then((result) => {
+      console.log('~~ updateEntitySubscription result', result)
       // console.log('[sync] discovery complete', sub)
-      invalidateEntityWithVersion(id.id, result.version)
+      invalidateEntityWithVersion(id, result.version)
       if (recursive) {
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
         queryClient
@@ -224,7 +287,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
               invalidateEntityWithVersion(
-                hmId('d', doc.account, {path: doc.path}).id,
+                hmId('d', doc.account, {path: doc.path}),
                 doc.version,
               )
             })
@@ -245,7 +308,7 @@ function createEntitySubscription(sub: EntitySubscription) {
   let loopTimer: NodeJS.Timeout | null = null
   function _updateSubscriptionLoop() {
     updateEntitySubscription(sub).finally(() => {
-      loopTimer = setTimeout(_updateSubscriptionLoop, 2_000)
+      loopTimer = setTimeout(_updateSubscriptionLoop, 60_000)
     })
   }
   loopTimer = setTimeout(

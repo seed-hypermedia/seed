@@ -5,7 +5,7 @@ import {
   getErrorMessage,
   HMRedirectError,
 } from '@shm/shared/models/entity'
-import {tryUntilSuccess} from './try-until-success'
+import {tryUntilSuccess} from '@shm/shared/try-until-success'
 
 export async function discoverDocument(
   uid: string,

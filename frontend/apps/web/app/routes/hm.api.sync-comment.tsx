@@ -1,7 +1,6 @@
 import {queryClient} from '@/client'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
-import {tryUntilSuccess} from '@/utils/try-until-success'
 import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
 import {
   hmIdPathToEntityQueryPath,
@@ -9,6 +8,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
+import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {z} from 'zod'
 
 const syncCommentRequestSchema = z.object({
