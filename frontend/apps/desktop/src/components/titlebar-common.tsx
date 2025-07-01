@@ -50,12 +50,12 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   FilePlus,
-  Forward as ForwardIcon,
+  ForwardIcon,
   GitFork,
   Import,
   PanelLeft,
   PanelRight,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
 import {

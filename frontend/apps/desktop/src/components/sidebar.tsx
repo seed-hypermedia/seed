@@ -14,14 +14,14 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {
   ChevronDown,
-  Forward as ChevronRight,
+  ChevronRight,
   Contact,
   File,
   FilePlus2,
   Library,
   Plus,
   UserPlus2,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 import React, {memo} from 'react'
 import {XStack, YStack} from 'tamagui'
 import {dispatchOnboardingDialog} from './onboarding'

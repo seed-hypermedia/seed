@@ -1,19 +1,19 @@
 import {TitlebarWrapper} from '@shm/ui/titlebar'
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {XStack} from 'tamagui'
+import {AlertCircle} from 'lucide-react'
 import {NavMenuButton, NavigationButtons} from './titlebar-common'
+
 export default function ErrorBar() {
   return (
     <TitlebarWrapper>
-      <XStack jc="space-between">
-        <XStack gap="$2" alignItems="center">
+      <div className="flex justify-between">
+        <div className="flex items-center gap-2">
           <NavMenuButton />
           <NavigationButtons />
-        </XStack>
-        <XStack f={1} jc="center" alignItems="center">
-          <AlertCircle size="$1" color="$red10" />
-        </XStack>
-      </XStack>
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          <AlertCircle className="text-destructive size-3" />
+        </div>
+      </div>
     </TitlebarWrapper>
   )
 }

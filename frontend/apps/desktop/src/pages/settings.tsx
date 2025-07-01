@@ -65,7 +65,7 @@ import {
   AtSign,
   Check,
   Code2,
-  Settings as Cog,
+  Cog,
   Eye,
   EyeOff,
   Info,
@@ -74,7 +74,7 @@ import {
   Trash,
   UserRoundPlus,
   X,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
@@ -1595,7 +1595,7 @@ function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
       hoverStyle={{cursor: 'default', bg: '$color6'}}
       {...rest}
     >
-      <Icon size={20} color={active ? '$brand5' : '$color'} />
+      <Icon className={active ? 'text-brand-5' : 'text-color'} />
       <SizableText flex={1} size="$1" color={active ? '$brand5' : '$color'}>
         {label}
       </SizableText>

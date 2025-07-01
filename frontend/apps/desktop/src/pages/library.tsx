@@ -25,13 +25,20 @@ import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
-import {useIsDark} from '@shm/ui/use-is-dark'
+import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
 import {
   Check,
   CheckCheck,
@@ -41,18 +48,8 @@ import {
   ListFilter,
   MessageSquare,
   X,
-} from '@tamagui/lucide-icons'
-import {ComponentProps, createContext, useContext, useState} from 'react'
-import {GestureResponderEvent} from 'react-native'
-import {
-  Button,
-  Popover,
-  SizableText,
-  View,
-  XStack,
-  YGroup,
-  YStack,
-} from 'tamagui'
+} from 'lucide-react'
+import {createContext, useContext, useState} from 'react'
 
 export default function LibraryPage() {
   const route = useNavRoute()
@@ -97,12 +94,12 @@ export default function LibraryPage() {
   const isLibraryEmpty = filteredItems && filteredItems.length === 0
 
   return (
-    <XStack flex={1} height="100%">
+    <div className="flex h-full flex-1">
       <PanelContainer>
         <MainWrapper scrollable>
-          <Container justifyContent="center" centered>
+          <Container className="justify-center" centered>
             <CreateAccountBanner />
-            <XStack marginBottom="$4">
+            <div className="mb-4 flex">
               <DisplayModeTab
                 label="Subscribed"
                 value="subscribed"
@@ -121,19 +118,19 @@ export default function LibraryPage() {
                 activeValue={displayMode}
                 onDisplayMode={setDisplayMode}
               />
-            </XStack>
-            <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
-              <XStack gap="$2">
+            </div>
+            <div className="my-2 mb-4 flex justify-between">
+              <div className="flex gap-2">
                 <GroupingControl
                   grouping={grouping}
                   onGroupingChange={setGrouping}
                 />
-              </XStack>
+              </div>
               {isLibraryEmpty ? null : (
-                <XStack gap="$3" ai="center">
+                <div className="flex items-center gap-3">
                   <Button
-                    size="$2"
-                    onPress={() => {
+                    size="sm"
+                    onClick={() => {
                       if (isSelecting) {
                         exportDocuments(selectedDocIds).then((res) => {
                           setIsSelecting(false)
@@ -143,28 +140,22 @@ export default function LibraryPage() {
                         setIsSelecting(true)
                       }
                     }}
-                    icon={FileOutput}
-                    bg="$brand5"
-                    borderColor="$brand5"
-                    color="white"
-                    hoverStyle={{
-                      bg: '$brand6',
-                      borderColor: '$brand6',
-                    }}
+                    variant="default"
                   >
+                    <FileOutput className="size-4" />
                     Export
                   </Button>
                   {isSelecting ? (
                     <Button
-                      size="$2"
-                      theme="red"
-                      onPress={() => {
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
                         setIsSelecting(false)
                         setSelectedDocIds([])
                       }}
-                      iconAfter={X}
                     >
                       Cancel
+                      <X className="size-4" />
                     </Button>
                   ) : null}
                   <OptionsDropdown
@@ -192,45 +183,47 @@ export default function LibraryPage() {
                       },
                     ]}
                   />
-                </XStack>
+                </div>
               )}
-            </XStack>
+            </div>
             <librarySelectionContext.Provider
               value={{
                 isSelecting,
                 selectedDocIds,
-                onSelect: (id, isSelected) => {
+                onSelect: (docId, isSelected) => {
                   setSelectedDocIds(
                     isSelected
-                      ? [...selectedDocIds, id]
-                      : selectedDocIds.filter((id) => id !== id),
+                      ? [...selectedDocIds, docId]
+                      : selectedDocIds.filter((id) => id !== docId),
                   )
                 },
               }}
             >
-              {filteredItems?.map((item: LibraryItem) => {
-                if (item.type === 'site') {
+              <div className="flex flex-col gap-1">
+                {filteredItems?.map((item: LibraryItem) => {
+                  if (item.type === 'site') {
+                    return (
+                      <LibrarySiteItem
+                        key={item.id}
+                        site={item}
+                        accountsMetadata={library.accountsMetadata}
+                      />
+                    )
+                  }
                   return (
-                    <LibrarySiteItem
-                      key={item.id}
-                      site={item}
-                      accountsMetadata={library.accountsMetadata}
+                    <LibraryDocumentItem
+                      key={`${item.account}-${item.path}`}
+                      item={item}
+                      accountsMetadata={library.accountsMetadata || {}}
                     />
                   )
-                }
-                return (
-                  <LibraryDocumentItem
-                    key={`${item.account}-${item.path}`}
-                    item={item}
-                    accountsMetadata={library.accountsMetadata || {}}
-                  />
-                )
-              })}
+                })}
+              </div>
             </librarySelectionContext.Provider>
           </Container>
         </MainWrapper>
       </PanelContainer>
-    </XStack>
+    </div>
   )
 }
 
@@ -245,50 +238,18 @@ function DisplayModeTab({
   activeValue: 'all' | 'subscribed' | 'favorites'
   onDisplayMode: (value: 'all' | 'subscribed' | 'favorites') => void
 }) {
-  const borderWidth = 4
-  const activationColor = activeValue === value ? '$brand5' : undefined
   return (
     <Button
-      onPress={() => onDisplayMode(value)}
-      borderWidth={0}
-      borderColor="$colorTransparent"
-      borderRadius={0}
-      borderBottomWidth={borderWidth}
-      borderBottomColor={activationColor}
-      chromeless
-      hoverStyle={{
-        // borderWidth: 0,
-        bg: '$colorTransparent',
-        borderColor: '$brand5',
-        borderBottomWidth: borderWidth,
-        borderBottomColor: activationColor,
-      }}
-      focusStyle={{
-        bg: '$colorTransparent',
-        borderColor: '$brand5',
-        borderBottomWidth: borderWidth,
-        borderBottomColor: activationColor,
-      }}
+      onClick={() => onDisplayMode(value)}
+      variant="outline"
+      className={cn(
+        'hover:border-primary! hover:text-primary rounded-none border-t-0 border-r-0 border-b-3 border-l-0 border-b-transparent! bg-transparent! shadow-none hover:bg-transparent',
+        activeValue === value && 'border-b-primary! text-primary',
+      )}
     >
       {label}
     </Button>
   )
-}
-
-const commonPopoverProps: ComponentProps<typeof Popover.Content> = {
-  padding: 0,
-  elevation: '$2',
-  animation: [
-    'fast',
-    {
-      opacity: {
-        overshootClamping: true,
-      },
-    },
-  ],
-  enterStyle: {y: -10, opacity: 0},
-  exitStyle: {y: -10, opacity: 0},
-  elevate: true,
 }
 
 const groupingOptions: Readonly<{label: string; value: 'site' | 'none'}[]> = [
@@ -305,25 +266,29 @@ function GroupingControl({
 }) {
   const popoverState = usePopoverState()
   return (
-    <Popover {...popoverState} placement="bottom-start">
-      <Popover.Trigger asChild>
-        <Button size="$2" paddingVertical={0} bg="$color5" icon={ListFilter} />
-      </Popover.Trigger>
-      <Popover.Content {...commonPopoverProps}>
-        <YGroup>
+    <Popover {...popoverState}>
+      <PopoverTrigger>
+        <ListFilter className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent className="p-0" side="bottom" align="start">
+        <div className="flex flex-col">
           {groupingOptions.map((option) => (
             <Button
-              size="$2"
-              onPress={() => onGroupingChange(option.value)}
+              onClick={() => onGroupingChange(option.value)}
               key={option.value}
-              iconAfter={grouping === option.value ? Check : null}
-              justifyContent="flex-start"
+              variant="ghost"
+              className="justify-start border-none"
             >
+              {grouping === option.value ? (
+                <Check className="text-primary size-4" />
+              ) : (
+                <div className="size-4" />
+              )}
               {option.label}
             </Button>
           ))}
-        </YGroup>
-      </Popover.Content>
+        </div>
+      </PopoverContent>
     </Popover>
   )
 }
@@ -342,37 +307,48 @@ function SelectionCollapseButton({
   isCollapsed,
   setIsCollapsed,
   docId,
+  isSelecting = false,
+  isSelected,
+  onSelect,
 }: {
   isCollapsed: boolean | null
   setIsCollapsed?: (isCollapsed: boolean) => void
   docId: string
+  isSelecting: boolean
+  isSelected: boolean
+  onSelect: (docId: string, isSelected: boolean) => void
 }) {
-  const {isSelecting, selectedDocIds, onSelect} = useContext(
-    librarySelectionContext,
-  )
-  const isSelected = selectedDocIds.includes(docId)
-  if (isSelecting) {
-    return (
-      <Checkbox
-        checked={isSelected}
-        onCheckedChange={(isSelected: boolean) => onSelect(docId, !!isSelected)}
-        onClick={(e) => {
-          e.stopPropagation()
-        }}
-      />
-    )
-  }
-  if (isCollapsed === null) return <View width="$1" />
   return (
-    <Button
-      icon={isCollapsed ? ChevronRight : ChevronDown}
-      onPress={(e: GestureResponderEvent) => {
-        e.stopPropagation()
-        setIsCollapsed?.(!isCollapsed)
-      }}
-      circular
-      size="$1"
-    />
+    <div className="flex size-8 shrink-0 items-center justify-center">
+      {isSelecting ? (
+        <Checkbox
+          variant="primary"
+          size="lg"
+          className="border-primary border"
+          checked={isSelected}
+          onCheckedChange={(isSelected: boolean) => onSelect(docId, isSelected)}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        />
+      ) : isCollapsed === null ? null : (
+        <Button
+          variant="ghost"
+          size="iconSm"
+          className="size-7 hover:bg-black/10 dark:hover:bg-white/10"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsCollapsed?.(!isCollapsed)
+          }}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="size-4" />
+          ) : (
+            <ChevronDown className="size-4" />
+          )}
+        </Button>
+      )}
+    </div>
   )
 }
 
@@ -384,6 +360,10 @@ function LibrarySiteItem({
   accountsMetadata?: HMAccountsMetadata
 }) {
   const route = useNavRoute()
+  const {isSelecting, selectedDocIds, onSelect} = useContext(
+    librarySelectionContext,
+  )
+
   const libraryRoute = route.key === 'library' ? route : undefined
   const replace = useNavigate('replace')
   const expandedIds =
@@ -398,10 +378,10 @@ function LibrarySiteItem({
         : [...expandedIds, site.id],
     })
   }
-  const isDark = useIsDark()
   const navigate = useNavigate()
   const metadata = site?.metadata
   const id = hmId('d', site.id)
+  const isSelected = selectedDocIds.includes(id.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
   const homeDocument = documents.data?.find((doc) => !doc.path?.length)
   const siteDisplayActivitySummary =
@@ -412,50 +392,52 @@ function LibrarySiteItem({
     ? site.latestComment
     : homeDocument?.latestComment
   const isRead = !siteDisplayActivitySummary?.isUnread
-  const readBackground = isDark ? '$backgroundStrong' : '$background'
   return (
     <>
       <Button
-        group="item"
-        borderWidth={0}
-        hoverStyle={{
-          bg: '$color5',
-        }}
-        bg={isRead ? '$colorTransparent' : readBackground}
-        paddingHorizontal={16}
-        paddingVertical="$2"
-        onPress={() => {
-          navigate({key: 'document', id})
-        }}
-        h="auto"
-        ai="center"
-        // this data attribute is used by the hypermedia highlight component
         data-docid={id.id}
+        variant="ghost"
+        className={cn(
+          'h-auto! items-center gap-2 border-none bg-transparent px-4 py-2',
+          // isRead && 'bg-muted',
+        )}
+        onClick={() => {
+          if (isSelecting) {
+            onSelect(id.id, !isSelected)
+          } else {
+            navigate({key: 'document', id})
+          }
+        }}
+
+        // this data attribute is used by the hypermedia highlight component
       >
         <SelectionCollapseButton
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
           docId={id.id}
+          isSelecting={isSelecting}
+          isSelected={isSelected}
+          onSelect={onSelect}
         />
         <HMIcon id={id} metadata={metadata} />
-        <YStack f={1}>
-          <XStack gap="$3" ai="center">
-            <SizableText
-              textAlign="left"
-              f={1}
-              fontWeight={isRead ? undefined : 'bold'}
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
-            >
-              {getMetadataName(metadata)}
-            </SizableText>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="items-center-justify-start flex flex-1 overflow-hidden">
+              <SizableText
+                className={cn(
+                  'flex-1 truncate overflow-hidden text-left',
+                  isRead ? undefined : 'font-bold',
+                )}
+              >
+                {getMetadataName(metadata)}
+              </SizableText>
+            </div>
             {siteDisplayActivitySummary && (
               <LibraryEntryCommentCount
                 activitySummary={siteDisplayActivitySummary}
               />
             )}
-          </XStack>
+          </div>
           {siteDisplayActivitySummary && (
             <LibraryEntryUpdateSummary
               accountsMetadata={accountsMetadata}
@@ -463,10 +445,10 @@ function LibrarySiteItem({
               activitySummary={siteDisplayActivitySummary}
             />
           )}
-        </YStack>
+        </div>
       </Button>
       {isCollapsed ? null : (
-        <YStack>
+        <div className="mb-4 flex flex-col gap-1">
           {documents.data?.map((item) => {
             if (item.path?.length === 0) return null
             return (
@@ -477,7 +459,7 @@ function LibrarySiteItem({
               />
             )
           })}
-        </YStack>
+        </div>
       )}
     </>
   )
@@ -494,52 +476,55 @@ export function LibraryDocumentItem({
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
-  const isDark = useIsDark()
-  const readBackground = isDark ? '$backgroundStrong' : '$background'
   const id = hmId('d', item.account, {
     path: item.path,
   })
+  const {isSelecting, selectedDocIds, onSelect} = useContext(
+    librarySelectionContext,
+  )
+  const isSelected = selectedDocIds.includes(id.id)
   const isRead = !item.activitySummary?.isUnread
   return (
     <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: '$color5',
-      }}
-      bg={isRead ? '$colorTransparent' : readBackground}
-      // elevation="$1"
-      paddingHorizontal={16}
-      paddingVertical="$2"
-      onPress={() => {
-        navigate({key: 'document', id})
-      }}
-      h="auto"
-      marginVertical={'$1'}
-      ai="center"
       // this data attribute is used by the hypermedia highlight component
       data-docid={id.id}
+      variant="ghost"
+      className={cn(
+        'h-auto! w-full items-center justify-start border-none bg-transparent px-4 py-2',
+        // isRead && 'bg-muted',
+      )}
+      onClick={() => {
+        if (isSelecting) {
+          onSelect(id.id, !isSelected)
+        } else {
+          navigate({key: 'document', id})
+        }
+      }}
     >
-      <SelectionCollapseButton isCollapsed={null} docId={id.id} />
-      <View width={32} />
+      <SelectionCollapseButton
+        isCollapsed={null}
+        docId={id.id}
+        isSelecting={isSelecting}
+        isSelected={isSelected}
+        onSelect={onSelect}
+      />
+      <div className="size-8 shrink-0" />
 
-      <YStack f={1}>
+      <div className="flex flex-1 flex-col overflow-hidden">
         <LibraryEntryBreadcrumbs
           breadcrumbs={item.breadcrumbs}
           onNavigate={navigate}
           id={id}
         />
-        <XStack gap="$3" ai="center">
-          <SizableText
-            textAlign="left"
-            f={1}
-            fontWeight={isRead ? undefined : 'bold'}
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
-          >
-            {getMetadataName(metadata)}
-          </SizableText>
+        <div className="flex flex-1 items-center gap-3">
+          <div className="items-center-justify-start flex flex-1 overflow-hidden">
+            <SizableText
+              className={cn('flex-1 truncate text-left')}
+              weight={isRead ? undefined : 'bold'}
+            >
+              {getMetadataName(metadata)}
+            </SizableText>
+          </div>
           {item.activitySummary && (
             <LibraryEntryCommentCount activitySummary={item.activitySummary} />
           )}
@@ -547,7 +532,7 @@ export function LibraryDocumentItem({
             item={item}
             accountsMetadata={accountsMetadata}
           />
-        </XStack>
+        </div>
         {item.activitySummary && (
           <LibraryEntryUpdateSummary
             accountsMetadata={accountsMetadata}
@@ -555,7 +540,7 @@ export function LibraryDocumentItem({
             activitySummary={item.activitySummary}
           />
         )}
-      </YStack>
+      </div>
     </Button>
   )
 }
@@ -572,28 +557,13 @@ function LibraryEntryBreadcrumbs({
   const displayCrumbs = breadcrumbs.slice(1).filter((crumb) => !!crumb.name)
   if (!displayCrumbs.length) return null
   return (
-    <XStack>
+    <div className="flex">
       {displayCrumbs.map((breadcrumb, idx) => (
         <>
           <Button
             key={breadcrumb.name}
-            color="$color10"
-            fontWeight="400"
-            size="$1"
-            textProps={{
-              hoverStyle: {
-                color: '$color',
-              },
-            }}
-            margin={0}
-            marginRight="$1"
-            paddingHorizontal={0}
-            hoverStyle={{
-              bg: '$colorTransparent',
-            }}
-            borderWidth={0}
-            bg="$colorTransparent"
-            onPress={(e: GestureResponderEvent) => {
+            variant="link"
+            onClick={(e) => {
               e.stopPropagation()
               onNavigate({
                 key: 'document',
@@ -605,18 +575,15 @@ function LibraryEntryBreadcrumbs({
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
             <SizableText
-              size="$1"
-              color="$color10"
-              margin={0}
-              marginRight="$1"
               key={`separator-${idx}`}
+              className="text-muted-foreground text-sm"
             >
               /
             </SizableText>
           )}
         </>
       ))}
-    </XStack>
+    </div>
   )
 }
 
@@ -628,10 +595,10 @@ function LibraryEntryCommentCount({
   const commentCount = activitySummary?.commentCount
   if (!commentCount) return null
   return (
-    <XStack gap="$1" ai="center">
+    <div className="flex items-center gap-1">
       <MessageSquare size={16} />
-      <SizableText size="$1">{commentCount}</SizableText>
-    </XStack>
+      <SizableText size="sm">{commentCount}</SizableText>
+    </div>
   )
 }
 

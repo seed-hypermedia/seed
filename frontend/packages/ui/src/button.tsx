@@ -44,11 +44,13 @@ export const buttonVariants = cva(
         secondary:
           'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
         ghost:
-          'active:bg-background hover:text-foreground hover:bg-background dark:hover:bg-muted',
+          'active:bg-black/5 dark:active:bg-white/10 hover:text-foreground hover:bg-background dark:hover:bg-muted',
         link: 'text-primary underline-offset-4 hover:underline',
         brand: 'bg-brand text-white shadow-xs hover:bg-brand-4 active:brand-3',
         'brand-12':
           'bg-brand-12 shadow-xs hover:bg-brand-11 active:bg-brand-10',
+        blue: 'bg-blue-700 text-white shadow-xs hover:bg-blue-800',
+        green: 'bg-green-700 text-white shadow-xs hover:bg-green-800',
       },
       size: {
         xs: 'h-6 rounded-md gap-1.5 px-2 has-[>svg]:px-1.5',
@@ -59,6 +61,7 @@ export const buttonVariants = cva(
         iconSm: 'h-4 min-w-4 rounded-md has-[>svg]:px-1',
       },
     },
+
     defaultVariants: {
       variant: 'ghost',
       size: 'default',

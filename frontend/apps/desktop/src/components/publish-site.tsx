@@ -12,6 +12,7 @@ import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {loadEntity, useEntity} from '@shm/shared/models/entity'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -23,21 +24,18 @@ import {
   SelfHost,
   UploadCloud,
 } from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText, Text, TextProps} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {
   AlertCircle,
-  AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   Check,
   Copy,
   ExternalLink,
-  Plus,
   X,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {
@@ -45,10 +43,7 @@ import {
   ButtonText,
   Form,
   Heading,
-  SizableText,
   styled,
-  TamaguiTextElement,
-  Text,
   Theme,
   ThemeName,
   View,
@@ -57,7 +52,10 @@ import {
   YStack,
 } from 'tamagui'
 import {z} from 'zod'
-import {useAppDialog} from './dialog'
+
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
 import {
   CelebrationDotsLeft,
   CelebrationDotsRight,
@@ -67,7 +65,8 @@ import {
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
-    contentClassName: 'bg-red-500 p-0',
+    contentClassName:
+      'max-w-3xl h-8/10 w-full p-0 flex items-center justify-center',
   })
 }
 
@@ -94,18 +93,18 @@ function RemoveSiteDialog({
       <XStack gap="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
           <Button
-            onPress={() => {
+            variant="ghost"
+            onClick={() => {
               onClose()
             }}
-            chromeless
           >
             Cancel
           </Button>
         </AlertDialog.Cancel>
         <AlertDialog.Action asChild>
           <Button
-            theme="red"
-            onPress={() => {
+            variant="destructive"
+            onClick={() => {
               removeSite.mutate()
               onClose()
             }}
@@ -129,7 +128,7 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <div className="bg-red-500 p-40">
+    <div className="dark p-40">
       {heading ? <Heading size="$2">{heading}</Heading> : null}
       {backButton ? (
         <View position="absolute" top={'$4'} left={'$4'}>
@@ -147,7 +146,7 @@ function SeedHostHeader() {
   return (
     <XStack gap="$2" ai="center" marginTop="$6">
       <SeedHost color="#ffffff" size={32} />
-      <Text fontSize={22} fontWeight="bold" color="#ffffff">
+      <Text weight="bold" size="lg" className="text-muted-foreground">
         Hosting by Seed Hypermedia
       </Text>
     </XStack>
@@ -165,40 +164,25 @@ function SeedHostContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <Theme name="dark_blue">
-      <YStack
-        gap="$4"
-        padding="$4"
-        maxWidth={1000}
-        maxHeight={800}
-        width="80vw"
-        height="80vh"
-        alignItems="center"
-        backgroundColor="#1c1c1c"
-        position="relative"
-      >
-        <SeedHostHeader />
-        {backButton ? (
-          <View position="absolute" top={'$4'} left={'$4'}>
-            {backButton}
-          </View>
+    <div className="relative flex h-full w-full flex-col items-center gap-4 bg-gray-900 p-4">
+      <SeedHostHeader />
+      {backButton ? (
+        <div className="absolute top-4 left-4">{backButton}</div>
+      ) : null}
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        {heading ? (
+          <Text
+            weight="bold"
+            size="lg"
+            className="text-muted-foreground text-center"
+          >
+            {heading}
+          </Text>
         ) : null}
-        <YStack f={1} jc="center" ai="center" gap="$3">
-          {heading ? (
-            <Text
-              fontSize={28}
-              fontWeight="bold"
-              marginBottom="$4"
-              textAlign="center"
-            >
-              {heading}
-            </Text>
-          ) : null}
-          {children}
-        </YStack>
-        {footer ? footer : null}
-      </YStack>
-    </Theme>
+        {children}
+      </div>
+      {footer ? footer : null}
+    </div>
   )
 }
 
@@ -266,10 +250,9 @@ function SeedHostCongratsContainer({
           ) : null}
           {heading ? (
             <Text
-              fontSize={28}
-              fontWeight="bold"
-              marginBottom="$4"
-              textAlign="center"
+              weight="bold"
+              size="lg"
+              className="text-muted-foreground mb-4 text-center"
             >
               {heading}
             </Text>
@@ -325,7 +308,7 @@ function PublishSiteDialog({
     <PublishDialogContainer heading="Set Up Web Domain">
       <YStack f={1} jc="center">
         <DialogInner>
-          <SizableText textAlign="center">
+          <SizableText className="text-muted-foreground text-center">
             How would you like to publish to the web?
           </SizableText>
           <YStack
@@ -336,19 +319,19 @@ function PublishSiteDialog({
           >
             <PublishOptionButton
               icon={SeedHost}
-              onPress={() => setMode('seed-host')}
+              onClick={() => setMode('seed-host')}
               label="Free Hosting by Seed Hypermedia"
               theme="blue"
               height={60}
             />
             <PublishOptionButton
               icon={SelfHost}
-              onPress={() => setMode('self-host')}
+              onClick={() => setMode('self-host')}
               label="Self Host on Your Own Server"
             />
             <PublishOptionButton
               icon={PasteSetupUrl}
-              onPress={() => setMode('input-url')}
+              onClick={() => setMode('input-url')}
               label="Paste a Hosting Setup URL"
             />
           </YStack>
@@ -358,53 +341,54 @@ function PublishSiteDialog({
   )
 }
 
-const DialogInner = styled(YStack, {
-  maxWidth: 400,
-  gap: '$2',
-})
+function DialogInner(props: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      {...props}
+      className={cn(props.className, 'flex max-w-md flex-col gap-2')}
+    />
+  )
+}
 
-const BlueButton = styled(Button, {
-  backgroundColor: '$blue8',
-  hoverStyle: {
-    backgroundColor: '$blue7',
-  },
-})
+function BlueButton(props: ButtonProps) {
+  return <Button {...props} variant="blue" />
+}
 
-const GreenButton = styled(Button, {
-  backgroundColor: '$green10',
-  hoverStyle: {
-    backgroundColor: '$green9',
-  },
-  color: '$color1',
-})
+function GreenButton(props: ButtonProps) {
+  return <Button {...props} variant="green" />
+}
 
 function PublishOptionButton({
   icon: Icon,
-  onPress,
+  onClick,
   label,
   color,
   height,
   theme,
 }: {
   icon: IconComponent
-  onPress: () => void
+  onClick: () => void
   label: string
   color?: string
   height?: number
   theme?: ThemeName
 }) {
   return (
-    <Button onPress={onPress} height={height} theme={theme}>
-      <XStack f={1} ai="center" gap="$2">
-        <Icon color={color} size={32} />
-        <SizableText color={color}>{label}</SizableText>
-      </XStack>
+    <Button onClick={onClick} style={{height}}>
+      <Icon color={color} size={32} />
+      <SizableText className="text-muted-foreground" style={{color}}>
+        {label}
+      </SizableText>
     </Button>
   )
 }
 
 function BackButton({onPress}: {onPress: () => void}) {
-  return <Button onPress={onPress} icon={ArrowLeft} chromeless />
+  return (
+    <Button size="icon" onClick={onPress} variant="ghost">
+      <ArrowLeft className="size-4" />
+    </Button>
+  )
 }
 
 function SeedHostInfo({
@@ -416,21 +400,21 @@ function SeedHostInfo({
 }) {
   if (!info.pricing?.free || !info.pricing?.premium) {
     return (
-      <SizableText>
+      <SizableText className="text-destructive">
         Error: Service unavailable or incompatible with this version of Seed.
       </SizableText>
     )
   }
   return (
     <YStack gap="$3" maxWidth={600}>
-      <SizableText textAlign="center">
+      <SizableText className="text-muted-foreground text-center">
         Seed offers free server hosting with a generous storage and bandwidth
         limit, perfect for getting started. If your needs grow beyond the free
         tier, you can easily purchase additional capacity to scale seamlessly.
       </SizableText>
-      <SizableText color="$blue11" textAlign="center">
+      <SizableText className="text-center text-blue-700">
         By using Seed, you're supporting{' '}
-        <SizableText fontWeight="bold" color="$blue11">
+        <SizableText weight="bold" className="text-blue-700">
           Open Source Software
         </SizableText>
         , helping to build a more open and collaborative digital future.
@@ -449,7 +433,7 @@ function SeedHostInfo({
             <PlanFeature label={siteCountLabel(info.pricing.free.siteCount)} />
           </PlanFeatures>
           <OverageWarning />
-          <SelectPlanButton active onPress={onSubmit} />
+          <SelectPlanButton active onClick={onSubmit} />
         </PlanContainer>
         <PlanContainer>
           <PlanHeading>
@@ -490,14 +474,10 @@ function SeedHostInfo({
         marginBottom="$4"
         jc="center"
       >
-        <SizableText>
+        <SizableText className="text-muted-foreground">
           For large organizations,{' '}
-          <SizableText
-            tag="a"
-            textDecorationLine="underline"
-            href="mailto:sales@seedhypermedia.com"
-          >
-            contact us
+          <SizableText asChild className="text-muted-foreground underline">
+            <a href="mailto:sales@seedhypermedia.com">contact us</a>
           </SizableText>{' '}
           for a customized plan.
         </SizableText>
@@ -509,35 +489,26 @@ function SeedHostInfo({
 function SelectPlanButton({
   active,
   comingSoon,
-  onPress,
+  onClick,
 }: {
   active?: boolean
   comingSoon?: boolean
-  onPress?: () => void
+  onClick?: () => void
 }) {
   const label = active ? 'Get Started' : comingSoon ? 'Coming Soon' : 'Select'
-  const buttonColor = active ? '$blue9' : 'transparent'
+
   const disabled = active || comingSoon
   return (
     <XStack padding="$3" jc="center">
       <Button
-        onPress={onPress}
-        backgroundColor={active ? '$blue9' : 'transparent'}
-        hoverStyle={{
-          backgroundColor: disabled ? buttonColor : '$blue10',
-          borderColor: active ? undefined : '$blue9',
-        }}
-        pressStyle={{
-          backgroundColor: disabled ? buttonColor : '$blue10',
-        }}
-        borderWidth={1}
-        focusStyle={{
-          borderColor: active ? undefined : '$blue9',
-          borderWidth: 1,
-        }}
-        borderColor={active ? undefined : '$blue9'}
-        opacity={1}
-        cursor={disabled ? 'default' : 'pointer'}
+        variant="blue"
+        onClick={onClick}
+        className={cn(
+          'border border-transparent',
+          active && 'border-blue-700 bg-blue-500',
+          disabled ? 'cursor-default opacity-50' : 'cursor-pointer',
+        )}
+        disabled={disabled}
       >
         {label}
       </Button>
@@ -549,9 +520,9 @@ function OverageWarning() {
   return (
     <XStack gap="$3" alignItems="center" marginHorizontal="$3">
       <FeatureSpacer>
-        <AlertTriangle size={24} color="$blue9" />
+        <AlertTriangle className="size-4 text-blue-900" />
       </FeatureSpacer>
-      <SizableText fontStyle="italic" size="$3" paddingVertical="$3">
+      <SizableText className="text-muted-foreground py-3 italic">
         Service may be interrupted if resources are exceeded.
       </SizableText>
     </XStack>
@@ -573,12 +544,19 @@ const PlanHeading = styled(YStack, {
   minHeight: 100,
 })
 
-const PlanTitle = styled(Text, {
-  fontWeight: 'bold',
-  textAlign: 'center',
-  fontSize: 22,
-  marginBottom: '$3',
-})
+const PlanTitle = ({className, ...props}: TextProps) => {
+  return (
+    <Text
+      weight="bold"
+      size="lg"
+      className={cn(
+        'text-muted-foreground text-muted-foreground mb-3 text-center',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
 
 function formatPriceUSDCents(cents: number) {
   if (cents % 100 === 0) {
@@ -590,12 +568,16 @@ function formatPriceUSDCents(cents: number) {
 function PlanPrice({value, label}: {value: number; label?: string}) {
   return (
     <YStack gap="$1" alignItems="center">
-      <SizableText color="$blue11">{label?.toUpperCase() || ' '}</SizableText>
+      <SizableText className="text-blue-300">
+        {label?.toUpperCase() || ' '}
+      </SizableText>
       <XStack gap="$1">
-        <Text fontWeight="bold" fontSize={32}>
+        <Text weight="bold" size="lg" className="text-muted-foreground">
           {formatPriceUSDCents(value)}
         </Text>
-        <Text fontSize={28}>/mo</Text>
+        <Text size="lg" className="text-muted-foreground">
+          /mo
+        </Text>
       </XStack>
     </YStack>
   )
@@ -606,14 +588,14 @@ function PlanFeature({label, plus}: {label: string; plus?: string}) {
     <YStack marginBottom="$2" gap="$1">
       <XStack gap="$3">
         <FeatureSpacer>
-          <Check size={24} color="$blue9" />
+          <Check className="size-6 text-blue-900" />
         </FeatureSpacer>
         <FeatureText>{label}</FeatureText>
       </XStack>
       {plus ? (
         <PlusLabel>
-          <Plus color="$color11" size="$1" />
-          <FeatureText color="$color11">{plus}</FeatureText>
+          <Plus className="size-4" />
+          <FeatureText className="text-black/80">{plus}</FeatureText>
         </PlusLabel>
       ) : null}
     </YStack>
@@ -652,7 +634,16 @@ const PlanContainer = styled(YStack, {
   gap: '$2',
 })
 
-const FeatureText = styled(SizableText, {})
+const FeatureText = ({className, ...props}: TextProps) => {
+  return (
+    <Text
+      weight="bold"
+      size="lg"
+      className={cn('text-muted-foreground', className)}
+      {...props}
+    />
+  )
+}
 
 function versionToInt(version: string): number | null {
   const parts = version.split('.')
@@ -684,27 +675,97 @@ function SeedHostIntro({
   infoError?: unknown
   infoIsLoading: boolean
 }) {
+  // Debug logging - initial state
+  console.log('🔍 SeedHostIntro Debug:', {
+    infoIsLoading,
+    hasInfo: !!info,
+    infoError:
+      infoError instanceof Error ? infoError.message : String(infoError),
+    info: info
+      ? {
+          serviceErrorMessage: info.serviceErrorMessage,
+          minimumAppVersion: info.minimumAppVersion,
+          // Log other relevant info properties without logging sensitive data
+          hasPricing: !!info.pricing,
+          hostDomain: info.hostDomain,
+        }
+      : null,
+  })
+
   let content = infoIsLoading ? (
     <div className="flex items-center justify-center">
       <Spinner />
     </div>
   ) : null
+
+  console.log(
+    '📊 After initial assignment - content is:',
+    content ? 'SPINNER' : 'NULL',
+  )
+
   const isInvalidVersion =
     info?.minimumAppVersion && !isAppVersionEqualOrAbove(info.minimumAppVersion)
+
+  console.log('🔍 Version check:', {
+    minimumAppVersion: info?.minimumAppVersion,
+    isInvalidVersion,
+    currentVersion:
+      typeof VERSION !== 'undefined' ? VERSION : 'VERSION_UNDEFINED',
+  })
+
   if (info && !info.serviceErrorMessage && !isInvalidVersion) {
+    console.log('✅ Setting content to SeedHostInfo - conditions met')
     content = <SeedHostInfo info={info} onSubmit={onSubmit} />
   } else if (infoError || info?.serviceErrorMessage || isInvalidVersion) {
     const invalidVersionMessage = isInvalidVersion
       ? 'The service has been updated. You must update to the latest version of the app.'
       : null
+    console.log('❌ Setting content to error message:', {
+      hasInfoError: !!infoError,
+      infoErrorMessage:
+        infoError instanceof Error ? infoError.message : String(infoError),
+      serviceErrorMessage: info?.serviceErrorMessage,
+      invalidVersionMessage,
+    })
     content = (
-      <SizableText color="$red11">
-        {infoError?.message ||
+      <SizableText className="text-destructive">
+        {(infoError instanceof Error ? infoError.message : String(infoError)) ||
           info?.serviceErrorMessage ||
           invalidVersionMessage}
       </SizableText>
     )
+  } else {
+    console.log(
+      '⚠️  No conditions met - content remains null. Conditions check:',
+      {
+        hasInfo: !!info,
+        hasServiceError: !!info?.serviceErrorMessage,
+        isInvalidVersion,
+        hasInfoError: !!infoError,
+        infoIsLoading,
+      },
+    )
+
+    // 🔧 FIX: Add fallback content when no conditions are met
+    console.log('🔧 Setting fallback content - no info available')
+    content = (
+      <div className="flex flex-col items-center gap-4 p-8">
+        <SizableText className="text-muted-foreground text-center">
+          Unable to load hosting service information.
+        </SizableText>
+        <SizableText className="text-muted-foreground text-center">
+          Please check your internet connection and try again.
+        </SizableText>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    )
   }
+
+  console.log(
+    '🎯 Final content state:',
+    content ? content.type?.name || 'COMPONENT' : 'NULL',
+  )
+
   return (
     <SeedHostContainer backButton={<BackButton onPress={onBack} />}>
       {content}
@@ -751,20 +812,21 @@ function SeedHostLogin({
         heading="Waiting for Email Validation"
         backButton={<BackButton onPress={onBack} />}
         footer={
-          <Button onPress={reset} size="$2" icon={X} alignSelf="center">
+          <Button onClick={reset} size="sm" className="self-center">
+            <X className="size-3" />
             Cancel Login
           </Button>
         }
       >
-        <DialogInner gap="$4">
+        <DialogInner className="gap-4">
           {errorMessage ? (
             <>
               <ErrorBox error={errorMessage} />
-              <Button onPress={reset}>Try Again</Button>
+              <Button onClick={reset}>Try Again</Button>
             </>
           ) : (
             <>
-              <SizableText textAlign="center">
+              <SizableText className="text-muted-foreground text-center">
                 We sent a verification link to {email}. Click on it, and you
                 will be logged in here.
               </SizableText>
@@ -866,19 +928,24 @@ function SeedHostRegisterSubdomain({
       backButton={<BackButton onPress={onBack} />}
       footer={
         <XStack>
-          <SizableText fontSize="$1">Logged in as </SizableText>
+          <SizableText size="sm" className="text-muted-foreground">
+            Logged in as{' '}
+          </SizableText>
           <HoverCard
             content={
               <YStack gap="$2" padding="$2">
-                <SizableText fontSize="$1">
+                <SizableText size="sm" className="text-muted-foreground">
                   Logged into{' '}
-                  <Text fontWeight="bold">
+                  <Text weight="bold" className="text-muted-foreground">
                     {hostnameStripProtocol(SEED_HOST_URL)}
                   </Text>{' '}
-                  as <Text fontWeight="bold">{email}</Text>
+                  as{' '}
+                  <Text weight="bold" className="text-muted-foreground">
+                    {email}
+                  </Text>
                 </SizableText>
                 <Button
-                  onPress={() => {
+                  onClick={() => {
                     onLogout()
                     logout()
                   }}
@@ -888,7 +955,7 @@ function SeedHostRegisterSubdomain({
               </YStack>
             }
           >
-            <SizableText color="$blue11" fontSize="$1">
+            <SizableText className="text-blue-300" size="sm">
               {email}
             </SizableText>
           </HoverCard>
@@ -916,7 +983,10 @@ function SeedHostRegisterSubdomain({
         </FormField>
         <ErrorBox error={errorText} />
         <Form.Trigger asChild>
-          <BlueButton icon={UploadCloud}>Publish Site</BlueButton>
+          <BlueButton>
+            <UploadCloud className="size-4" />
+            Publish Site
+          </BlueButton>
         </Form.Trigger>
         <AnimatedSpinner isVisible={isSubmitting} />
       </Form>
@@ -925,28 +995,16 @@ function SeedHostRegisterSubdomain({
 }
 
 function AnimatedSpinner({isVisible}: {isVisible: boolean}) {
-  return (
-    <Spinner
-      transition="opacity 0.5s ease-in-out"
-      opacity={isVisible ? 1 : 0}
-    />
-  )
+  return <Spinner className={isVisible ? 'opacity-100' : 'opacity-0'} />
 }
 
 function ErrorBox({error}: {error: string | null}) {
   if (!error) return null
   return (
-    <XStack
-      gap="$3"
-      alignItems="center"
-      padding="$3"
-      borderWidth={1}
-      borderColor="$red11"
-      borderRadius="$3"
-    >
-      <AlertCircle size={24} color="$red11" />
-      <SizableText color="$red11">{error}</SizableText>
-    </XStack>
+    <div className="border-destructive flex items-center gap-3 rounded-md border p-3">
+      <AlertCircle className="text-destructive size-6" />
+      <p className="text-destructive">{error}</p>
+    </div>
   )
 }
 
@@ -967,22 +1025,26 @@ function SeedHostSubdomainPublished({
       graphic={<WebPublishedGraphic />}
       footer={
         <YStack gap="$3">
-          <SizableText>
+          <SizableText className="text-muted-foreground">
             Now you can publish the site to your own domain.
           </SizableText>
 
           <XStack gap="$3">
-            <Button onPress={onClose} icon={Check}>
+            <Button onClick={onClose}>
+              <Check className="size-4" />
               Close
             </Button>
-            <BlueButton onPress={onCustomDomain} iconAfter={ArrowRight}>
+            <BlueButton onClick={onCustomDomain}>
+              <ArrowRight className="size-4" />
               Publish Custom Domain
             </BlueButton>
           </XStack>
         </YStack>
       }
     >
-      <SizableText>Here is the link to your new site.</SizableText>
+      <SizableText className="text-muted-foreground">
+        Here is the link to your new site.
+      </SizableText>
       <PublishedUrl url={host} />
     </SeedHostCongratsContainer>
   )
@@ -990,7 +1052,7 @@ function SeedHostSubdomainPublished({
 
 function PublishedUrl({url}: {url: string}) {
   const {openUrl} = useUniversalAppContext()
-  const textRef = useRef<TamaguiTextElement>(null)
+  const textRef = useRef<any>(null)
   return (
     <XGroup borderColor="$blue8" borderWidth={1}>
       <div
@@ -998,7 +1060,7 @@ function PublishedUrl({url}: {url: string}) {
           e.preventDefault()
           if (textRef.current) {
             const range = document.createRange()
-            // @ts-expect-error
+
             range.selectNode(textRef.current)
             window.getSelection()?.removeAllRanges()
             window.getSelection()?.addRange(range)
@@ -1007,32 +1069,29 @@ function PublishedUrl({url}: {url: string}) {
       >
         <XGroup.Item>
           <XStack flex={1} alignItems="center">
-            <Text
-              fontSize={18}
-              color="$blue11"
-              ref={textRef}
-              marginHorizontal="$3"
-            >
+            <Text size="md" className="mx-3 text-blue-300" ref={textRef}>
               {url}
             </Text>
             <Tooltip content="Copy URL">
               <Button
-                chromeless
-                size="$2"
-                margin="$2"
-                icon={Copy}
-                onPress={() => {
+                variant="ghost"
+                size="icon"
+                className="m-2"
+                onClick={() => {
                   copyTextToClipboard(url)
                   toast(`Copied ${url} URL`)
                 }}
-              />
+              >
+                <Copy className="size-4" />
+              </Button>
             </Tooltip>
           </XStack>
         </XGroup.Item>
       </div>
       <XGroup.Item>
-        <BlueButton onPress={() => openUrl(url)} iconAfter={ExternalLink}>
+        <BlueButton onClick={() => openUrl(url)}>
           Open
+          <ExternalLink className="size-4" />
         </BlueButton>
       </XGroup.Item>
     </XGroup>
@@ -1124,10 +1183,13 @@ function SeedHostDomainPublished({
       heading={`Now Published to ${host}!`}
       graphic={<CongratsGraphic />}
     >
-      <SizableText>Here is the link for your site.</SizableText>
+      <SizableText className="text-muted-foreground">
+        Here is the link for your site.
+      </SizableText>
       <PublishedUrl url={`https://${host}`} />
       <XStack>
-        <BlueButton onPress={onClose} icon={Check}>
+        <BlueButton onClick={onClose}>
+          <Check className="size-4" />
           Done
         </BlueButton>
       </XStack>
@@ -1211,17 +1273,21 @@ function SeedHostRegisterCustomDomain({
         </DialogInner>
       )
     } else if (pendingDomain?.status === 'initializing') {
-      pendingStatus = <SizableText>Initializing your domain...</SizableText>
+      pendingStatus = (
+        <SizableText className="text-muted-foreground">
+          Initializing your domain...
+        </SizableText>
+      )
     }
     return (
       <SeedHostContainer
         heading="Set Up Custom Domain"
         footer={
           <YStack gap="$3">
-            <SizableText>
+            <SizableText className="text-muted-foreground">
               You can close this dialog and keep using the app.
             </SizableText>
-            <BlueButton onPress={onClose}>Close</BlueButton>
+            <BlueButton onClick={onClose}>Close</BlueButton>
           </YStack>
         }
       >
@@ -1256,10 +1322,10 @@ function SeedHostRegisterCustomDomain({
       {siteUrl ? (
         <>
           <DialogInner>
-            <SizableText>
+            <SizableText className="text-muted-foreground">
               You can now publish to a domain that you own.
             </SizableText>
-            <SizableText>
+            <SizableText className="text-muted-foreground">
               On the next step you will be asked to update your DNS settings to
               point to the Seed Host service.
             </SizableText>
@@ -1288,8 +1354,9 @@ function SeedHostRegisterCustomDomain({
                 <ErrorBox error={createDomain.error.message} />
               ) : null}
               <Form.Trigger asChild>
-                <BlueButton iconAfter={UploadCloud}>
+                <BlueButton>
                   Publish to Domain
+                  <UploadCloud className="size-4" />
                 </BlueButton>
               </Form.Trigger>
               <AnimatedSpinner isVisible={createDomain.isLoading} />
@@ -1297,7 +1364,9 @@ function SeedHostRegisterCustomDomain({
           </DialogInner>
         </>
       ) : (
-        <SizableText>You need to publish your site first.</SizableText>
+        <SizableText className="text-muted-foreground">
+          You need to publish your site first.
+        </SizableText>
       )}
     </SeedHostContainer>
   )
@@ -1313,15 +1382,20 @@ export function DNSInstructions({
   const isSubd = isSubdomain(hostname)
   return (
     <YStack gap="$3">
-      <SizableText>
+      <SizableText className="text-muted-foreground">
         Now is your time to change the DNS record for your domain.
       </SizableText>
-      <SizableText>
-        Set the <Text fontWeight="bold">{hostname}</Text>{' '}
+      <SizableText className="text-muted-foreground">
+        Set the{' '}
+        <Text weight="bold" className="text-muted-foreground">
+          {hostname}
+        </Text>{' '}
         {isSubd ? 'CNAME' : 'ALIAS'} record to{' '}
-        <Text fontWeight="bold">{hostnameStripProtocol(siteUrl)}.</Text>
+        <Text weight="bold" className="text-muted-foreground">
+          {hostnameStripProtocol(siteUrl)}.
+        </Text>
       </SizableText>
-      <SizableText>
+      <SizableText className="text-muted-foreground">
         Once you update the DNS, it usually takes 10 minutes to propagate. Keep
         the app open until then.
       </SizableText>
@@ -1428,23 +1502,22 @@ function SelfHostContent({
       backButton={<BackButton onPress={onBack} />}
     >
       <DialogInner>
-        <SizableText>
+        <SizableText className="text-muted-foreground">
           You will need your own server and domain. Follow this guide to get
           started, and return when the setup script has printed the setup URL.
         </SizableText>
         <XStack jc="center" marginVertical="$6">
           <Button
-            icon={ExternalLink}
-            backgroundColor="$color4"
-            hoverStyle={{backgroundColor: '$color3'}}
-            onPress={() => {
+            onClick={() => {
               spawn(setupGuideRoute)
             }}
           >
+            <ExternalLink className="size-4" />
             Open Setup Guide
           </Button>
         </XStack>
-        <GreenButton onPress={onSetupUrl} iconAfter={ArrowRight}>
+        <GreenButton onClick={onSetupUrl}>
+          <ArrowRight className="size-4" />
           My Setup URL is Ready
         </GreenButton>
       </DialogInner>
@@ -1497,7 +1570,7 @@ function PublishWithUrl({
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >
       {/* <DialogDescription>description</DialogDescription> */}
-      <SizableText>
+      <SizableText className="text-muted-foreground">
         The{' '}
         <ButtonText
           onPress={() => {
@@ -1520,7 +1593,10 @@ function PublishWithUrl({
         </FormField>
         {register.error ? <ErrorBox error={register.error.message} /> : null}
         <Form.Trigger asChild>
-          <GreenButton icon={UploadCloud}>Publish Site</GreenButton>
+          <GreenButton>
+            <UploadCloud className="size-4" />
+            Publish Site
+          </GreenButton>
         </Form.Trigger>
         {register.isLoading ? (
           <div className="flex items-center justify-center">

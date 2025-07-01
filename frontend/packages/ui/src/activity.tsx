@@ -107,7 +107,12 @@ export function LibraryEntryUpdateSummary({
   }
   return (
     <div className="flex items-center justify-start gap-2">
-      <SizableText size="xs" color="muted" className="line-clamp-1">
+      <SizableText
+        size="xs"
+        color="muted"
+        className="line-clamp-1"
+        weight="light"
+      >
         {summaryText}
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
@@ -130,7 +135,12 @@ export function ActivityTime({
       : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText size="xs" color="muted" className="line-clamp-1 shrink-0">
+      <SizableText
+        size="xs"
+        color="muted"
+        className="line-clamp-1 shrink-0 opacity-80"
+        weight="light"
+      >
         ({formattedDate(displayTime)})
       </SizableText>
     )

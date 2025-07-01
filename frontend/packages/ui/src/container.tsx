@@ -1,25 +1,4 @@
-import {styled} from '@tamagui/core'
-import {YStack} from '@tamagui/stacks'
 import {cn} from './utils'
-
-const variants = {
-  hide: {
-    true: {
-      pointerEvents: 'none',
-      opacity: 0,
-    },
-  },
-  clearVerticalSpace: {
-    true: {
-      paddingVertical: 0,
-    },
-  },
-  centered: {
-    true: {
-      maxWidth: 'calc(85ch + 1em)',
-    },
-  },
-} as const
 
 export function PanelContainer({
   className,
@@ -41,15 +20,27 @@ export function PanelContainer({
   )
 }
 
-export const Container = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingTop: '$6',
-  width: '100%',
-  // maxWidth: "calc(85ch + 1em)",
-  flexShrink: 'unset',
-  variants,
-})
+export const Container = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
+  hide?: boolean
+  clearVerticalSpace?: boolean
+  centered?: boolean
+}) => {
+  return (
+    <div
+      className={cn(
+        'mx-auto w-full flex-shrink-0 px-4 pt-6',
+        props.hide && 'pointer-events-none opacity-0',
+        props.clearVerticalSpace && 'py-0',
+        props.centered && 'max-w-[calc(85ch+1em)]',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
 
 export const windowContainerStyles = cn(
   'flex flex-col w-screen h-screen min-h-svh bg-background dark:bg-black p-2',

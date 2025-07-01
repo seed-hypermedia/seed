@@ -1,8 +1,9 @@
 import {fileUpload} from '@/utils/file-upload'
+import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Trash} from '@tamagui/lucide-icons'
+import {cn} from '@shm/ui/utils'
+import {Trash} from 'lucide-react'
 import {ChangeEvent} from 'react'
-import {Button, Stack, XStack, YStack} from 'tamagui'
 import appError from '../errors'
 
 export function CoverImage({
@@ -37,13 +38,12 @@ export function CoverImage({
   }
 
   const coverImage = (
-    <XStack
-      bg={url ? '$backgroundTransparent' : 'brand11'}
-      height={show ? '25vh' : 0}
-      opacity={show ? 1 : 0}
-      width="100%"
-      position="relative"
-      animation="fast"
+    <div
+      className={cn(
+        'relative h-0 w-full bg-transparent opacity-0 transition-all duration-300',
+        show && 'h-[25vh] opacity-100',
+        url && 'bg-secondary',
+      )}
     >
       {url ? (
         <img
@@ -59,33 +59,18 @@ export function CoverImage({
           }}
         />
       ) : null}
-    </XStack>
+    </div>
   )
   if (!onCoverUpload) return coverImage
   return (
-    <Stack group="cover">
+    <div className="group">
       {show ? (
-        <YStack
-          position="absolute"
-          top={0}
-          left={0}
-          right={0}
-          w="100%"
-          zi="$zIndex.1"
-        >
-          {showOutline ? <YStack /> : null}
-          <YStack paddingHorizontal="$2">
-            <XStack
-              opacity={0}
-              jc="flex-end"
-              paddingHorizontal="$4"
-              paddingTop="$6"
-              $group-cover-hover={{opacity: 1}}
-              gap="$2"
-            >
-              <XStack position="relative">
-                <XStack
-                  tag="input"
+        <div className="absolute top-0 right-0 left-0 z-10 w-full">
+          {showOutline ? <div /> : null}
+          <div className="px-2">
+            <div className="flex items-center justify-end gap-2 px-4 pt-6 opacity-0 group-hover:opacity-100">
+              <div className="relative flex items-center justify-center">
+                <input
                   type="file"
                   onChange={handleFileChange}
                   style={{
@@ -100,21 +85,20 @@ export function CoverImage({
                     backgroundColor: '#666666',
                   }}
                 />
-                <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
-              </XStack>
+                <Button variant="ghost" className="bg-background">{`${
+                  url ? 'CHANGE' : 'ADD'
+                } COVER`}</Button>
+              </div>
               <Tooltip content="Remove Cover image">
-                <Button
-                  icon={Trash}
-                  size="$2"
-                  onPress={onRemoveCover}
-                  theme="red"
-                />
+                <Button variant="destructive" onClick={onRemoveCover}>
+                  <Trash className="size-4" />
+                </Button>
               </Tooltip>
-            </XStack>
-          </YStack>
-        </YStack>
+            </div>
+          </div>
+        </div>
       ) : null}
       {coverImage}
-    </Stack>
+    </div>
   )
 }

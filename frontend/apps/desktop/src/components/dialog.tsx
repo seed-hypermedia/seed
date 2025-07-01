@@ -1,4 +1,4 @@
-import {X} from '@tamagui/lucide-icons'
+import {X} from 'lucide-react'
 import {FC, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {
@@ -71,7 +71,7 @@ export function DialogCloseButton() {
           right="$3"
           size="$2"
           circular
-          icon={X}
+          icon={<X className="size-4" />}
         />
       </Dialog.Close>
     </Unspaced>
@@ -126,7 +126,7 @@ export function AppDialog<
 }) {
   const Component = getComponent(isAlert)
   const [isOpen, setIsOpen] = useState(false)
-  const nav = useNavigation()
+  const nav = useNavigation(undefined)
   return (
     <Component.Root onOpenChange={setIsOpen} open={isOpen}>
       <Component.Trigger asChild>

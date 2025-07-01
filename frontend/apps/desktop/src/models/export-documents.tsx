@@ -10,7 +10,6 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {YStack} from 'tamagui'
 
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()
@@ -50,7 +49,7 @@ export function useExportDocuments() {
       .then((res) => {
         const success = (
           <>
-            <YStack gap="$1.5" maxWidth={700}>
+            <div className="flex max-w-[700px] flex-col gap-1.5">
               <SizableText className="break-words">
                 Successfully exported documents to: <b>{`${res}`}</b>.
               </SizableText>
@@ -67,7 +66,7 @@ export function useExportDocuments() {
                   Show directory
                 </a>
               </SizableText>
-            </YStack>
+            </div>
           </>
         )
         toast.success('', {customContent: success})

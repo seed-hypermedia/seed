@@ -1,10 +1,9 @@
-import {createStyles} from '@mantine/core'
 import {createHmDocLink_DEPRECATED} from '@shm/shared'
 import {Check, ExternalLink, TextCursorInput, Unlink} from '@shm/ui/icons'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Link as LinkIcon} from '@tamagui/lucide-icons'
-import {HTMLAttributes, forwardRef, useState} from 'react'
+import {HTMLAttributes, forwardRef} from 'react'
 import {Button, Checkbox, Input, Label, XStack, YStack} from 'tamagui'
 
 export type EditHyperlinkMenuProps = {
@@ -22,13 +21,6 @@ export const EditHyperlinkMenu = forwardRef<
   HTMLDivElement,
   EditHyperlinkMenuProps & HTMLAttributes<HTMLDivElement>
 >(({url, text, update, className, ...props}, ref) => {
-  const {classes} = createStyles({root: {}})(undefined, {
-    name: 'EditHyperlinkMenu',
-  })
-
-  const [currentUrl, setCurrentUrl] = useState(url)
-  const [currentText, setCurrentText] = useState(text)
-
   return (
     <YStack
       p="$2"

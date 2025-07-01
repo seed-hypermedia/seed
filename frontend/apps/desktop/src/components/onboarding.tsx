@@ -20,8 +20,8 @@ import {
 } from '@shm/ui/components/dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Prev as ArrowLeft} from '@shm/ui/icons'
 import {toast} from '@shm/ui/toast'
-import {ArrowLeft} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {

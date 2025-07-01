@@ -10,6 +10,7 @@ import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
+import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {
   Popover,
@@ -22,11 +23,16 @@ import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Pencil, Plus} from '@tamagui/lucide-icons'
-import {EllipsisVertical, Globe, Search, Trash} from 'lucide-react'
+import {
+  EllipsisVertical,
+  Globe,
+  Pencil,
+  Plus,
+  Search,
+  Trash,
+} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
-import {Button, XStack, YStack} from 'tamagui'
 
 export function EditNavPopover({
   docNav,
@@ -41,7 +47,9 @@ export function EditNavPopover({
   return (
     <Popover {...popover}>
       <PopoverTrigger className="no-window-drag">
-        <Button onPress={() => {}} size="$2" icon={Pencil} opacity={1} />
+        <Button size="sm" variant="ghost">
+          <Pencil className="size-4" />
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="max-h-[80vh] overflow-y-auto bg-white dark:bg-black">
         {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}
@@ -102,7 +110,7 @@ function EditNavigation({
   }, [docNav, onDocNav])
 
   return (
-    <YStack gap="$2" ref={containerRef}>
+    <div className="flex flex-col gap-2" ref={containerRef}>
       {docNav.map((item) => {
         return (
           <DraggableNavItem
@@ -124,10 +132,11 @@ function EditNavigation({
         )
       })}
 
-      <XStack>
+      <div className="flex">
         <Button
-          size="$3"
-          onPress={() => {
+          size="sm"
+          variant="ghost"
+          onClick={() => {
             onDocNav([
               ...docNav,
               {
@@ -138,12 +147,12 @@ function EditNavigation({
               },
             ])
           }}
-          icon={Plus}
         >
+          <Plus className="size-4" />
           Add Navigation Item
         </Button>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -195,25 +204,21 @@ function DraggableNavItem({
   const popoverState = usePopoverState(initialOpen)
 
   return (
-    <XStack
+    <div
+      className={cn(
+        'hover:bg-muted flex items-center justify-between rounded-md p-2',
+        isDraggingOver && 'bg-muted ring-primary/60 ring-2',
+      )}
       ref={elementRef}
-      jc="space-between"
-      ai="center"
-      p="$2"
-      borderRadius="$2"
-      hoverStyle={{bg: '$color5'}}
-      bg={isDraggingOver ? '$color6' : undefined}
       style={{
         userSelect: 'none',
         WebkitUserSelect: 'none',
         cursor: 'grab',
       }}
     >
-      <XStack
-        ai="center"
-        gap="$2"
-        flex={1}
-        onPress={() => {
+      <div
+        className="flex flex-1 items-center gap-2"
+        onClick={() => {
           popoverState.onOpenChange(!popoverState.open)
         }}
       >
@@ -228,17 +233,18 @@ function DraggableNavItem({
         >
           {item.text || 'Untitled Document'}
         </span>
-      </XStack>
+      </div>
       <Popover {...popoverState}>
         <PopoverTrigger asChild>
           <Button
-            size="$1"
-            chromeless
-            icon={Pencil}
-            onPress={(e: any) => {
+            size="sm"
+            variant="ghost"
+            onClick={(e: any) => {
               e.stopPropagation()
             }}
-          />
+          >
+            <Pencil className="size-3" />
+          </Button>
         </PopoverTrigger>
         <PopoverContent>
           <NavItemForm
@@ -252,7 +258,7 @@ function DraggableNavItem({
           />
         </PopoverContent>
       </Popover>
-    </XStack>
+    </div>
   )
 }
 
@@ -288,24 +294,25 @@ function NavItemForm({
         />
       </FormField>
 
-      <YStack gap="$2">
+      <div className="flex flex-col gap-2">
         <Separator />
 
-        <XStack justifyContent="flex-end">
+        <div className="flex justify-end">
           {onRemove && (
             <Tooltip content="Remove Navigation Item">
               <Button
-                size="$3"
-                icon={<Trash size={16} />}
-                chromeless
-                onPress={() => {
+                size="sm"
+                variant="destructive"
+                onClick={() => {
                   onRemove()
                 }}
-              />
+              >
+                <Trash className="size-4" />
+              </Button>
             </Tooltip>
           )}
-        </XStack>
-      </YStack>
+        </div>
+      </div>
     </div>
   )
 }

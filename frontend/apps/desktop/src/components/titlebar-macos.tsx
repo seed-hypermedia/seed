@@ -1,6 +1,6 @@
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
-import {View, XStack} from 'tamagui'
+import {View} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
   NavMenuButton,
@@ -15,7 +15,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
   if (clean) {
     return (
       <TitlebarWrapper {...restProps}>
-        <XStack className="window-drag" ai="center" jc="center" w="100%">
+        <div className="window-drag flex w-full items-center justify-center">
           <TitleText
             marginHorizontal="$4"
             fontWeight="bold"
@@ -24,32 +24,20 @@ export default function TitleBarMacos(props: TitleBarProps) {
           >
             {cleanTitle}
           </TitleText>
-        </XStack>
+        </div>
       </TitlebarWrapper>
     )
   }
 
   return (
     <TitlebarWrapper {...restProps}>
-      <XStack
-        paddingRight="$2"
-        justifyContent="space-between"
-        className="window-drag"
-        height="100%"
-      >
-        <XStack
-          minWidth={'min-content'}
-          flexBasis={0}
-          alignItems="center"
-          className="window-drag"
-        >
-          <XStack
-            flex={1}
-            paddingHorizontal={0}
-            alignItems="flex-start"
-            className="window-drag"
-            gap="$2"
-            minWidth={sidebarWidth}
+      <div className="window-drag flex w-full items-center justify-between pr-2">
+        <div className="flex-basis-0 window-drag flex min-w-min items-center">
+          <div
+            className="window-drag flex flex-1 items-center gap-2 px-0"
+            style={{
+              minWidth: sidebarWidth,
+            }}
           >
             <NavMenuButton
               left={
@@ -59,21 +47,15 @@ export default function TitleBarMacos(props: TitleBarProps) {
               }
             />
             <NavigationButtons />
-          </XStack>
-        </XStack>
-        <XStack flex={1} alignItems="center" paddingHorizontal="$2">
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-2 px-2">
           <TitlebarTitleSearch />
-        </XStack>
-        <XStack
-          className="window-drag"
-          justifyContent="flex-end"
-          minWidth={'min-content'}
-          flexBasis={0}
-          alignItems="center"
-        >
+        </div>
+        <div className="flex-basis-0 window-drag flex min-w-min items-center justify-end">
           <PageActionButtons {...restProps} />
-        </XStack>
-      </XStack>
+        </div>
+      </div>
     </TitlebarWrapper>
   )
 }

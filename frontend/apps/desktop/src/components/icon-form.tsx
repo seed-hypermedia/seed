@@ -3,7 +3,7 @@ import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {X} from '@tamagui/lucide-icons'
+import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {Stack, XStack} from 'tamagui'
@@ -132,7 +132,7 @@ export function IconForm({
             opacity={0}
             theme="red"
             $group-icon-hover={{opacity: 1, pointerEvents: 'all'}}
-            icon={X}
+            icon={<X className="size-3" />}
             size="$1"
             fontWeight="600"
             zi="$zIndex.5"

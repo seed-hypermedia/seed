@@ -25,11 +25,11 @@ import {validatePath} from '@shm/shared/utils/document-path'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {AlertCircle, Search, Undo2} from '@shm/ui/icons'
 import {Button} from '@shm/ui/legacy/button'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {AlertCircle, Search, Undo2} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
 import {Input, Popover, SizableText, View, XStack, YStack} from 'tamagui'
 
@@ -107,7 +107,7 @@ export function LocationPicker({
                         hmId('d', location.uid, {path: newPath}),
                       )
                     }}
-                    icon={Undo2}
+                    icon={<Undo2 className="size-4" />}
                     size="$2"
                   />
                 </Tooltip>
@@ -194,7 +194,7 @@ function LocationSearch({
   return (
     <Popover {...popover}>
       <Popover.Trigger className="no-window-drag">
-        <Button icon={Search} size="$2" />
+        <Button icon={<Search className="size-4" />} size="$2" />
       </Popover.Trigger>
       <Popover.Content bg="$backgroundStrong">
         <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
@@ -248,7 +248,9 @@ function SearchContent({
   return (
     <YStack>
       <View marginBottom="$2">
-        <Search position="absolute" left="$3" top={11} size="$1" />
+        <div className="absolute top-[11px] left-3">
+          <Search className="size-3" />
+        </div>
         <Input
           paddingLeft="$7"
           value={searchQ}
@@ -397,7 +399,9 @@ function URLPreview({
           >
             Branch Destination URL{extraLabel}
           </SizableText>
-          {isError ? <AlertCircle color="$red11" size="$1" /> : null}
+          {isError ? (
+            <AlertCircle className="color-destructive size-3" />
+          ) : null}
         </XStack>
         <SizableText color={isError ? '$red11' : '$blue11'} size="$3">
           {url}

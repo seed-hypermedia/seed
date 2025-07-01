@@ -2,7 +2,6 @@ import {useSubscribedEntity} from '@/models/entities'
 import {useDocumentChanges, useVersionChanges} from '@/models/versions'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {ChangeItem} from '@shm/ui/change-item'
-import {YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
@@ -11,7 +10,7 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const changes = useDocumentChanges(docId)
   return (
     <AccessoryContent>
-      <YStack>
+      <div>
         {changes.data?.map((change, idx) => {
           const isActive = activeChangeIds?.has(change.id) || false
           return (
@@ -26,7 +25,7 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
             />
           )
         })}
-      </YStack>
+      </div>
     </AccessoryContent>
   )
 }

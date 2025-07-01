@@ -14,10 +14,8 @@ import {
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {YStack} from '@tamagui/stacks'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
-import {useTheme} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 
 export const WebEmbed = createReactBlockSpec({
@@ -57,8 +55,6 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const theme = useTheme()
-
   const submitWebEmbedLink = (url: string, assign: any, setFileName: any) => {
     if (!isValidUrl(url)) {
       setFileName({name: 'The provided URL is invalid.', color: 'red'})
@@ -105,7 +101,7 @@ const Render = (
       mediaType="web-embed"
       submit={submitWebEmbedLink}
       DisplayComponent={display}
-      icon={<TwitterXIcon fill={theme.color12?.get()} />}
+      icon={<TwitterXIcon fill="currentColor" />}
     />
   )
 }
@@ -215,11 +211,11 @@ const display = ({
         </div>
       )}
       {error && (
-        <YStack padding="$7" alignItems="center" alignContent="center">
+        <div className="flex flex-col items-center justify-center p-7">
           <SizableText color="destructive" className="p-1">
             Error loading embed, please check the link!
           </SizableText>
-        </YStack>
+        </div>
       )}
       <div
         ref={containerRef}

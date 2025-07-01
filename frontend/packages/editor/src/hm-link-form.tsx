@@ -16,7 +16,7 @@ import {
   PanelBottom,
   Quote,
   Search,
-} from '@tamagui/lucide-icons'
+} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {

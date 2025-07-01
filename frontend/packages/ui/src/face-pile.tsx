@@ -1,5 +1,4 @@
 import {HMAccountsMetadata} from '@shm/shared'
-import {XStack} from '@tamagui/stacks'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
 import {Text} from './text'
@@ -39,7 +38,7 @@ export function FacePile({
         )
       })}
       {accounts.length > 2 ? (
-        <XStack className={cn(classNames)}>
+        <div className={cn('flex', classNames)}>
           <Text
             size="xs"
             className="size-6 text-center leading-5 text-gray-400"
@@ -50,7 +49,7 @@ export function FacePile({
           >
             +{accounts.length - 3}
           </Text>
-        </XStack>
+        </div>
       ) : null}
     </div>
   )
