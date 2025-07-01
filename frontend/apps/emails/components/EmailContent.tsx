@@ -6,7 +6,7 @@ import {
   MjmlSection,
   MjmlText,
 } from '@faire/mjml-react'
-import {BlockNode} from '@shm/shared'
+import {BlockNode, createWebHMUrl, unpackHmId} from '@shm/shared'
 import {format} from 'date-fns'
 import React from 'react'
 import {Notification} from '../notifier'
@@ -382,10 +382,27 @@ function renderInlineTextWithAnnotations(
     } else if (annotation.type === 'Code') {
       annotatedText = `<code>${annotatedText}</code>`
     } else if (annotation.type === 'Link') {
-      annotatedText = `<a href="${annotation.link}" style="color: #346DB7;">${annotatedText}</a>`
+      let href = annotation.link
+      if (href?.startsWith('hm://')) {
+        const unpacked = unpackHmId(href)
+        href = createWebHMUrl(unpacked.type, unpacked.uid, {
+          path: unpacked.path,
+          hostname: unpacked.hostname ?? null,
+        })
+      }
+      annotatedText = `<a href="${href}" style="color: #346DB7;">${annotatedText}</a>`
     } else if (annotation.type === 'Embed') {
       const resolved = resolvedNames?.[annotation.link] || annotation.link
-      annotatedText = `<a href="${annotation.link}" style="color: #008060;">@${resolved}</a>`
+
+      let href = annotation.link
+      if (href?.startsWith('hm://')) {
+        const unpacked = unpackHmId(href)
+        href = createWebHMUrl(unpacked.type, unpacked.uid, {
+          path: unpacked.path,
+          hostname: unpacked.hostname ?? null,
+        })
+      }
+      annotatedText = `<a href="${href}" style="color: #008060;">@${resolved}</a>`
     }
 
     result.push(annotatedText)
