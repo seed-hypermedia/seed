@@ -10,7 +10,6 @@ import {
   HMEmbedView,
   hmId,
   hmIdPathToEntityQueryPath,
-  isMetaKeyPressed,
   narrowHmId,
   queryBlockSortedItems,
   UnpackedHypermediaId,
@@ -72,8 +71,7 @@ function EmbedWrapper({
           path: id.path,
           originHomeId,
         })
-        const isMeta = isMetaKeyPressed.get()
-        if (isMeta) {
+        if (e.nativeEvent.metaKey) {
           window.open(destUrl, '_blank')
         } else {
           navigate(destUrl)

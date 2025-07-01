@@ -3,13 +3,7 @@ import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import {
-  createHMUrl,
-  idToUrl,
-  StateStream,
-  unpackHmId,
-  writeableStateStream,
-} from './utils'
+import {createHMUrl, idToUrl, StateStream, unpackHmId} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -111,27 +105,6 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
   return useRouteLink(hmId ? {key: 'document', id: hmId} : href, opts)
 }
 
-const [setIsMetaKeyPressed, _isMetaKeyPressed] =
-  writeableStateStream<boolean>(false)
-
-export const isMetaKeyPressed = _isMetaKeyPressed
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', (e) => {
-    if (e.metaKey) {
-      setIsMetaKeyPressed(true)
-    }
-  })
-  window.addEventListener('keyup', (e) => {
-    if (e.metaKey) {
-      setIsMetaKeyPressed(false)
-    }
-  })
-  window.addEventListener('blur', () => {
-    setIsMetaKeyPressed(false)
-  })
-}
-
 type UseRouteLinkOpts = {
   replace?: boolean
   onPress?: () => void
@@ -170,9 +143,13 @@ export function useRouteLink(
   const href = typeof route === 'string' ? route : getDocHref(docId)
 
   const clickHandler = context.openRoute
-    ? (e: {preventDefault: () => void; stopPropagation: () => void}) => {
+    ? (e: {
+        preventDefault: () => void
+        stopPropagation: () => void
+        metaKey?: boolean
+      }) => {
         e.stopPropagation()
-        if (isMetaKeyPressed.get()) {
+        if (e.metaKey) {
           if (context.openRouteNewWindow) {
             e.preventDefault()
             if (typeof route === 'string') {

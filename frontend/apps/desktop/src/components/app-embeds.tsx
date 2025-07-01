@@ -3,7 +3,6 @@ import {useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
-import {isMetaKeyPressed} from '@shm/shared'
 import {getContactMetadata, queryBlockSortedItems} from '@shm/shared/content'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
@@ -196,7 +195,7 @@ function EmbedWrapper({
           return
         }
         // if the embed is from the same document, we navigate on the same window, if not. we open a new window.
-        const defaultMethod = isMetaKeyPressed.get() ? spawn : navigate
+        const defaultMethod = e.nativeEvent.metaKey ? spawn : navigate
         const method = isSameDocument ? replace : defaultMethod
 
         method(
