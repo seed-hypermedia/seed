@@ -221,7 +221,6 @@ export async function discoverDocument(
     version: version || undefined,
     recursive,
   } as const
-  console.log('~~ will discoverEntity', discoverRequest)
   function checkDiscoverySuccess(discoverResp: DiscoverEntityResponse) {
     if (!version && discoverResp.version) return true
     if (version && version === discoverResp.version) return true
@@ -237,31 +236,10 @@ export async function discoverDocument(
       if (checkDiscoverySuccess(discoverResp))
         return {version: discoverResp.version}
 
-      // console.log('~~ discover check for getDocument', uid, path, version)
-      // const apiDoc = await grpcClient.documents.getDocument({
-      //   account: uid,
-      //   path: hmIdPathToEntityQueryPath(path),
-      //   version: version || undefined,
-      // })
-      // const versionMatch =
-      //   !!apiDoc.version && (!version || apiDoc.version === version)
-      // console.log(
-      //   '~~ discover did getDocument',
-      //   versionMatch,
-      //   apiDoc.version,
-      //   version,
-      // )
-      // if (versionMatch) {
-      //   const docJSON = apiDoc.toJson() as any
-      //   documentMetadataParseAdjustments(docJSON.metadata)
-      //   const document = HMDocumentSchema.parse(docJSON)
-      //   // console.log('discover getDocument complete', document)
-      //   return document
-      // }
       return null
     },
     {
-      maxRetryMs: 300_000, // 5 minutes cause why not
+      maxRetryMs: 10_000, // 10 seconds because subscriptions are scheduled to run discovery every 10 seconds
       retryDelayMs: 2_000,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
@@ -274,11 +252,8 @@ export async function discoverDocument(
 async function updateEntitySubscription(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return
-  console.log('~~ updateEntitySubscription', id)
   await discoverDocument(id.uid, id.path, undefined, recursive)
     .then((result) => {
-      console.log('~~ updateEntitySubscription result', result)
-      // console.log('[sync] discovery complete', sub)
       invalidateEntityWithVersion(id, result.version)
       if (recursive) {
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
@@ -308,7 +283,7 @@ function createEntitySubscription(sub: EntitySubscription) {
   let loopTimer: NodeJS.Timeout | null = null
   function _updateSubscriptionLoop() {
     updateEntitySubscription(sub).finally(() => {
-      loopTimer = setTimeout(_updateSubscriptionLoop, 60_000)
+      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
     })
   }
   loopTimer = setTimeout(

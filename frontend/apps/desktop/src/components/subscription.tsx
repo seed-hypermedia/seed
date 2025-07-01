@@ -41,7 +41,6 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
     return null
   }
 
-  console.log('subscription.subscription', subscription.subscription)
   return (
     <>
       <Popover {...popoverState} placement="bottom-end">

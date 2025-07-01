@@ -23,7 +23,7 @@ import {
   createNotifierRequester,
   getAccountNotifsSafe,
 } from '@/models/email-notifications'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
@@ -69,7 +69,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, Plus} from 'lucide-react'
+import {AlertCircle, MessageSquare, Plus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {ButtonText, XStack, YStack} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
@@ -495,6 +495,9 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   )
   const navigate = useNavigate()
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
+  useSubscribedEntities(
+    entity.data?.document?.authors?.map((a) => ({id: hmId('d', a)})) || [],
+  )
   const authorContacts = useContactsMetadata(authors || [])
 
   if (entity.isLoading) return null
@@ -559,7 +562,16 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                                 navigate({key: 'document', id: contact.id})
                               }}
                             >
-                              {contact.metadata?.name || 'Untitled Contact'}
+                              {contact.metadata?.name ? (
+                                contact.metadata.name
+                              ) : (
+                                <Tooltip content="Author has not yet loaded">
+                                  <AlertCircle
+                                    size={18}
+                                    className="text-red-800"
+                                  />
+                                </Tooltip>
+                              )}
                             </ButtonText>,
                             index !== authors.length - 1 ? (
                               index === authors.length - 2 ? (

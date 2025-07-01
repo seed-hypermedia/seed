@@ -5,7 +5,6 @@ import {
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {
-  useAccountDraftList,
   useCreateDraft,
   useDocumentEmbeds,
   useListSite,
@@ -57,10 +56,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
       />
     )
   }
-  const drafts = useAccountDraftList(id?.uid)
-
   const outline = useNodesOutline(document, id, embeds)
-  console.log('outline', outline)
   if (!document || !siteListQuery || !outline.length) return null
 
   return (
