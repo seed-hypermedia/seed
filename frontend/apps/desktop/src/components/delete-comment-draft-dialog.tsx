@@ -1,5 +1,5 @@
 import {Button} from '@shm/ui/button'
-import {AlertDialog, XStack, YStack} from 'tamagui'
+import {AlertDialog} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useDeleteCommentDraftDialog() {
@@ -14,13 +14,13 @@ function DeleteCommentDraftDialog({
   input: {onConfirm: () => void}
 }) {
   return (
-    <YStack space backgroundColor="$background" padding="$4" borderRadius="$3">
+    <div className="bg-background flex flex-col gap-2 rounded-md p-4">
       <AlertDialog.Title>Discard Comment</AlertDialog.Title>
       <AlertDialog.Description>
         Permanently delete this draft comment?
       </AlertDialog.Description>
 
-      <XStack space="$3" justifyContent="flex-end">
+      <div className="flex justify-end gap-3">
         <AlertDialog.Cancel asChild>
           <Button
             onClick={() => {
@@ -41,7 +41,7 @@ function DeleteCommentDraftDialog({
             Delete
           </Button>
         </AlertDialog.Action>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

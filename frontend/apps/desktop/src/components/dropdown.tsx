@@ -2,7 +2,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {MenuItem} from '@shm/ui/menu-item'
 import {forwardRef} from 'react'
-import {ListItemProps, SizableText, SizableTextProps, YStack} from 'tamagui'
+import {ListItemProps, SizableText, SizableTextProps} from 'tamagui'
 import {DialogOverlay} from './dialog'
 
 const Content = ({
@@ -11,18 +11,13 @@ const Content = ({
 }: DropdownMenuPrimitive.DropdownMenuContentProps) => {
   return (
     <DropdownMenuPrimitive.Content asChild {...props}>
-      <YStack
+      <div
         //@ts-ignore
         contentEditable={false}
-        minWidth={220}
-        elevation="$5"
-        backgroundColor="$background"
-        borderRadius="$3"
-        overflow="hidden"
-        zIndex="$zIndex.5"
+        className="bg-background z-[5] min-w-[220px] overflow-hidden rounded-md shadow-lg"
       >
         {children}
-      </YStack>
+      </div>
     </DropdownMenuPrimitive.Content>
   )
 }
@@ -33,19 +28,14 @@ const SubContent = forwardRef<
 >(({children, ...props}, ref) => {
   return (
     <DropdownMenuPrimitive.SubContent asChild {...props}>
-      <YStack
+      <div
         ref={ref}
         //@ts-ignore
         contentEditable={false}
-        minWidth={300}
-        elevation="$7"
-        backgroundColor="$background"
-        borderRadius="$3"
-        overflow="hidden"
-        zIndex="$zIndex.5"
+        className="bg-background z-[5] min-w-[300px] overflow-hidden rounded-md shadow-lg"
       >
         {children}
-      </YStack>
+      </div>
     </DropdownMenuPrimitive.SubContent>
   )
 })
@@ -53,10 +43,10 @@ const SubContent = forwardRef<
 var RightSlot = SizableText
 
 export const ElementDropdown = forwardRef<any, ButtonProps>(
-  ({onPress, ...props}, ref) => {
+  ({onClick, ...props}, ref) => {
     return (
       <DropdownMenuPrimitive.Trigger asChild ref={ref}>
-        <Button size="sm" onClick={onPress} {...props} />
+        <Button size="sm" onClick={onClick} {...props} />
       </DropdownMenuPrimitive.Trigger>
     )
   },

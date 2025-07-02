@@ -15,6 +15,7 @@ import {useEntities} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {
   BlockContentUnknown,
   BlockNodeContent,
@@ -38,14 +39,13 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {
-  ComponentProps,
+  HTMLAttributes,
   PropsWithChildren,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import {Button, XStack, YStack} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 import {LibraryListItem} from './list-item'
@@ -65,7 +65,7 @@ function EmbedWrapper({
     depth?: number
     viewType?: 'Content' | 'Card'
     hideBorder?: boolean
-  } & Omit<ComponentProps<typeof YStack>, 'id'>
+  } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const docContentContext = useDocContentContext()
 
@@ -141,40 +141,29 @@ function EmbedWrapper({
   }, [wrapperRef])
 
   return id ? (
-    <YStack
+    <div
       ref={wrapperRef}
-      // userSelect="none"
-      // @ts-expect-error this is a tamagui error
       contentEditable={false}
-      // userSelect="none"
-      className={cn('block-embed', blockStyles)}
+      className={cn(
+        'block-embed flex flex-col',
+        blockStyles,
+        isHighlight
+          ? routeParams?.blockRef == id?.blockRef
+            ? 'bg-primary'
+            : 'bg-transparent'
+          : 'bg-transparent hover:bg-transparent',
+        !hideBorder && 'border-l-primary border-l-3',
+        'm-0 rounded-none',
+      )}
       data-content-type="embed"
       data-url={id ? packHmId(id) : ''}
       data-view={viewType}
       // this data attribute is used by the hypermedia highlight component
-      onHoverIn={() => docContentContext?.onHoverIn?.(id)}
-      onHoverOut={() => docContentContext?.onHoverOut?.(id)}
+      onMouseEnter={() => docContentContext?.onHoverIn?.(id)}
+      onMouseLeave={() => docContentContext?.onHoverOut?.(id)}
       data-blockid={id?.blockRef}
       data-docid={id?.blockRef ? undefined : id?.id}
-      backgroundColor={
-        isHighlight
-          ? routeParams?.blockRef == id?.blockRef
-            ? '$brand12'
-            : '$backgroundTransparent'
-          : '$backgroundTransparent'
-      }
-      hoverStyle={{
-        backgroundColor: isHighlight
-          ? routeParams?.blockRef == id?.blockRef
-            ? '$brand12'
-            : '$backgroundTransparent'
-          : '$backgroundTransparent',
-      }}
-      margin={0}
-      borderRadius={0}
-      borderLeftWidth={hideBorder ? 0 : 3}
-      borderLeftColor={hideBorder ? '$colorTransparent' : '$brand5'}
-      onPress={(e) => {
+      onClick={(e) => {
         // Prevent navigation if there's text selected
         // const selection = window.getSelection()
         // if (selection && selection.toString().length > 0) {
@@ -231,7 +220,7 @@ function EmbedWrapper({
       {...props}
     >
       {children}
-    </YStack>
+    </div>
   ) : null
 }
 
@@ -289,9 +278,8 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       renderOpenButton={() => (
         <Button
-          size="$2"
-          icon={ArrowUpRightSquare}
-          onPress={(e) => {
+          size="sm"
+          onClick={(e) => {
             if (route.key != 'document') {
               e.preventDefault()
               e.stopPropagation()
@@ -304,6 +292,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
             })
           }}
         >
+          <ArrowUpRightSquare className="mr-2" />
           Open Document
         </Button>
       )}
@@ -374,8 +363,8 @@ export function EmbedComment(props: EntityComponentProps) {
   if (comment.isLoading) return null
   return (
     <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
-      <XStack flexWrap="wrap" jc="space-between" p="$3">
-        <XStack gap="$2" ai="center">
+      <div className="flex flex-wrap justify-between p-3">
+        <div className="flex items-center gap-2">
           {account.data?.id && (
             <HMIcon
               size={24}
@@ -386,13 +375,13 @@ export function EmbedComment(props: EntityComponentProps) {
           <SizableText weight="bold">
             {account.data?.document?.metadata?.name}
           </SizableText>
-        </XStack>
+        </div>
         {comment.data?.createTime ? (
           <SizableText size="sm" color="muted">
             {formattedDateMedium(comment.data.createTime)}
           </SizableText>
         ) : null}
-      </XStack>
+      </div>
       {embedBlocks?.length ? (
         <BlockNodeList childrenType="Group">
           {embedBlocks.map((bn, idx) => (
@@ -534,9 +523,9 @@ export function QueryBlockDesktop({
 
   if (directoryItems.isInitialLoading) {
     return (
-      <XStack className="block-query" w="100%" data-content-type="query">
+      <div className="block-query flex w-full" data-content-type="query">
         <QueryBlockPlaceholder styleType={block.attributes?.style} />
-      </XStack>
+      </div>
     )
   }
 
@@ -622,7 +611,7 @@ function QueryStyleList({
   )
 
   return (
-    <YStack gap="$3" w="100%">
+    <div className="flex w-full flex-col gap-3">
       {entries.length ? (
         entries.map((item) => {
           return (
@@ -639,6 +628,6 @@ function QueryStyleList({
       ) : (
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       )}
-    </YStack>
+    </div>
   )
 }

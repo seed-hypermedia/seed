@@ -15,6 +15,7 @@ import {
 } from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
 import {
   BlocksContent,
   getBlockNodeById,
@@ -24,9 +25,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
-import {memo, useEffect, useMemo, useState} from 'react'
-import {GestureResponderEvent} from 'react-native'
-import {Button, View, XStack, YStack} from 'tamagui'
+import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {useSizeObserver} from './app-embeds'
 import {HyperMediaEditorView} from './editor'
 
@@ -65,10 +64,10 @@ export function renderCommentContent(comment: HMComment) {
       //   copyUrlToClipboardWithFeedback(url, 'Comment Block')
       // }}
     >
-      <YStack w="100%">
+      <div className="flex w-full flex-col">
         <CommentReference reference={data.reference} />
         <BlocksContent blocks={data.content} parentBlockId={null} />
-      </YStack>
+      </div>
     </AppDocContentProvider>
   )
 }
@@ -94,7 +93,7 @@ export function useCommentGroupAuthors(
 export const CommentBox = memo(_CommentBox)
 function _CommentBox({
   docId,
-  backgroundColor = '$colorTransparent',
+  backgroundColor = 'transparent',
   quotingBlockId,
   replyCommentId,
   autoFocus,
@@ -165,28 +164,10 @@ function _CommentBox({
   } else {
     content = (
       <Button
-        paddingVertical={16}
-        paddingHorizontal={18}
-        f={1}
-        textAlign="left"
-        jc="flex-start"
-        ai="flex-start"
-        margin={0}
-        chromeless
-        color="$color8"
-        fontSize={17}
-        hoverStyle={{bg: backgroundColor}}
-        focusStyle={{bg: backgroundColor, borderWidth: 0}}
-        borderWidth={0}
-        // fontStyle="italic"
-        h="auto"
-        // icon={
-        //   <>
-        //     <Plus color="$color7" size={20} />
-        //     <GripVertical color="$color7" size={20} />
-        //   </>
-        // }
-        onPress={() => {
+        variant="ghost"
+        className="text-muted-foreground m-0 h-auto flex-1 items-start justify-start border-0 px-[18px] py-4 text-left text-base hover:bg-transparent focus:bg-transparent"
+        style={{backgroundColor: backgroundColor}}
+        onClick={() => {
           setIsStartingComment(true)
         }}
       >
@@ -197,16 +178,9 @@ function _CommentBox({
     )
   }
   return (
-    <YStack
-      borderRadius="$4"
-      // borderWidth={2}
-      // borderColor="$color8"
-      minHeight={105}
-      onPress={onPress}
-      // bg={backgroundColor}
-    >
+    <div className="min-h-[105px] rounded-lg" onClick={onPress}>
       {content}
-    </YStack>
+    </div>
   )
 }
 
@@ -273,13 +247,10 @@ function _CommentDraftEditor({
   if (!account) return null
 
   return (
-    <YStack
+    <div
       ref={sizeObserverdRef}
-      f={1}
-      marginTop="$1"
-      paddingHorizontal="$4"
-      onPress={(e: GestureResponderEvent) => {
-        // @ts-expect-error fix this type in the future!
+      className="comment-editor mt-1 flex flex-1 flex-col px-4"
+      onClick={(e: MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement
 
         // Check if the clicked element is not an input, button, or textarea
@@ -289,8 +260,7 @@ function _CommentDraftEditor({
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
-      // @ts-expect-error fix this type in the future!
-      onKeyDownCapture={(e: KeyboardEvent) => {
+      onKeyDownCapture={(e: React.KeyboardEvent<HTMLDivElement>) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault()
           e.stopPropagation()
@@ -299,22 +269,16 @@ function _CommentDraftEditor({
           return true
         }
       }}
-      // paddingBottom="$2"
-      className="comment-editor"
     >
       <div className="flex-1">
-        <AppDocContentProvider comment contacts={contacts.data}>
+        <AppDocContentProvider comment contacts={contacts.data || undefined}>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </AppDocContentProvider>
       </div>
-      <View
-        alignSelf="flex-end"
-        maxWidth={320}
-        w="100%"
-        gap="$2"
-        f={1}
-        flexDirection={isHorizontal ? 'row' : 'column'}
-        ai={isHorizontal ? 'center' : undefined}
+      <div
+        className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
+          isHorizontal ? 'flex-row items-center' : 'flex-col'
+        } flex`}
       >
         <div className="flex flex-1 items-center">
           <AutosaveIndicator isSaved={isSaved} />
@@ -324,10 +288,9 @@ function _CommentDraftEditor({
             content={`Publish Comment as "${account?.document?.metadata.name}"`}
           >
             <Button
-              flex={1}
-              w="100%"
-              size="$2"
-              onPress={(e: GestureResponderEvent) => {
+              className="w-full flex-1"
+              size="sm"
+              onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation()
                 onSubmit()
               }}
@@ -345,19 +308,19 @@ function _CommentDraftEditor({
           </Tooltip>
           <Tooltip content="Discard Comment Draft">
             <Button
-              // marginLeft="$2"
-              size="$2"
-              onPress={(e: GestureResponderEvent) => {
+              size="iconSm"
+              onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation()
                 onDiscard()
               }}
-              theme="red"
-              icon={Trash}
-            />
+              variant="destructive"
+            >
+              <Trash />
+            </Button>
           </Tooltip>
         </div>
-      </View>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -365,16 +328,11 @@ const autosaveIndicatorSize = 6
 function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
   const currentIsSaved = useStream(isSaved)
   return (
-    <View
-      position="absolute"
-      top={0}
-      left={0}
-      x={-12}
-      y={10}
-      backgroundColor={currentIsSaved ? '$colorTransparent' : '$yellow10'}
-      width={autosaveIndicatorSize}
-      height={autosaveIndicatorSize}
-      borderRadius={autosaveIndicatorSize / 2}
+    <div
+      className="absolute top-0 left-0 h-1.5 w-1.5 -translate-x-3 translate-y-2.5 rounded-full"
+      style={{
+        backgroundColor: currentIsSaved ? 'transparent' : '#eab308',
+      }}
     />
   )
 }
@@ -418,26 +376,21 @@ function CommentReference({reference}: {reference: string | null}) {
   if (!referenceData.data) return null
 
   return (
-    <XStack
-      gap="$3"
-      ai="center"
-      width="100%"
-      borderLeftWidth={2}
-      borderLeftColor="$brand5"
-      margin="$2"
-      onHoverIn={() => {
+    <div
+      className={`border-l-primary m-2 ml-0.5 flex w-full cursor-pointer items-center gap-3 border-l-2 ${
+        highlight ? 'bg-primary text-primary-foreground' : 'bg-transparent'
+      }`}
+      onMouseEnter={() => {
         if (referenceId) {
           context.onHoverIn?.(referenceId)
         }
       }}
-      onHoverOut={() => {
+      onMouseLeave={() => {
         if (referenceId) {
           context.onHoverOut?.(referenceId)
         }
       }}
-      bg={highlight ? '$brand12' : '$colorTransparent'}
-      x={2}
-      onPress={() => {
+      onClick={() => {
         if (route.key == 'document' && referenceId?.blockRef) {
           navigate({
             ...route,
@@ -456,7 +409,7 @@ function CommentReference({reference}: {reference: string | null}) {
         }
       }}
     >
-      <View opacity={0.5} f={1}>
+      <div className="flex-1 opacity-50">
         <AppDocContentProvider {...context} comment>
           <BlocksContent
             blocks={referenceContent}
@@ -465,7 +418,7 @@ function CommentReference({reference}: {reference: string | null}) {
             hideCollapseButtons
           />
         </AppDocContentProvider>
-      </View>
-    </XStack>
+      </div>
+    </div>
   )
 }

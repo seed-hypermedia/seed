@@ -26,7 +26,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {Sparkle} from 'lucide-react'
 import {useState} from 'react'
-import {useTheme, YStack} from 'tamagui'
+import {useTheme} from 'tamagui'
 import {
   CommentBox,
   renderCommentContent,
@@ -162,9 +162,7 @@ export function ActivityList({
   )
   if (route.key !== 'document') return null
   const isInitialLoad =
-    commentGroups.isInitialLoading ||
-    changes.isInitialLoading ||
-    childrenActivity.isInitialLoading
+    changes.isInitialLoading || childrenActivity.isInitialLoading
   if (isInitialLoad) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -174,12 +172,12 @@ export function ActivityList({
   }
   if (activityWithGroups.length == 0) {
     return (
-      <YStack padding="$4" jc="center" ai="center" gap="$4">
+      <div className="flex flex-col items-center justify-center gap-4 p-4">
         <Sparkle className="size-25" color={theme.color6.val} />
         <SizableText color="muted" weight="medium" size="xl">
           There is no activity yet.
         </SizableText>
-      </YStack>
+      </div>
     )
   }
   const prevActivity = activityWithGroups.at(-visibleCount)
@@ -207,7 +205,6 @@ export function ActivityList({
           return (
             <div key={activityItem.id} className="p-1.5">
               <CommentGroup
-                rootReplyCommentId={null}
                 key={activityItem.id}
                 commentGroup={activityItem}
                 authors={authors}

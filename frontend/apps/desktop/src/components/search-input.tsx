@@ -30,7 +30,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
-import {XStack} from 'tamagui'
 
 export function SearchInput({
   onClose,
@@ -211,11 +210,11 @@ export function SearchInput({
   let content = (
     <>
       {isDisplayingRecents ? (
-        <XStack padding={4}>
+        <div className="flex p-4">
           <SizableText size="xs" color="muted" className="uppercase">
             RECENT DOCUMENTS
           </SizableText>
-        </XStack>
+        </div>
       ) : null}
       {activeItems.map((item, itemIndex) => {
         const isSelected = focusedIndex === itemIndex

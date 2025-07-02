@@ -1,13 +1,10 @@
 import {fileUpload} from '@/utils/file-upload'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/legacy/button'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
-import {GestureResponderEvent} from 'react-native'
-import {Stack, XStack} from 'tamagui'
-import appError from '../errors'
 
 export function IconForm({
   url,
@@ -42,7 +39,7 @@ export function IconForm({
         onIconUpload(data)
       })
       .catch((error) => {
-        appError(`Failed to upload icon: ${error.message}`, {error})
+        console.error(`Failed to upload icon: ${error.message}`, error)
       })
       .finally(() => {
         event.target.value = ''
@@ -50,29 +47,23 @@ export function IconForm({
   }
 
   const iconImage = (
-    <UIAvatar
-      label={label}
-      id={id}
-      size={size}
-      url={url}
-      color="$brand12"
-      marginTop={marginTop}
-      borderRadius={borderRadius}
-    />
+    <UIAvatar label={label} id={id} size={size} url={url} color="$brand12" />
   )
   if (!onIconUpload) return iconImage
   return (
-    <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="flex-start">
-      <Stack
-        className="IconFormmmmm"
+    <div
+      className="group flex w-auto items-end gap-2 self-start"
+      data-group="icon"
+    >
+      <div
+        className="relative overflow-hidden"
+        style={{
+          marginTop,
+          width: size,
+          height: size,
+          borderRadius,
+        }}
         {...props}
-        marginTop={marginTop}
-        position="relative"
-        group="icon"
-        w={size}
-        h={size}
-        borderRadius={borderRadius}
-        overflow="hidden"
       >
         <input
           type="file"
@@ -89,61 +80,42 @@ export function IconForm({
           }}
         />
         {emptyLabel && !url ? (
-          <XStack
-            bg="rgba(0,0,0,0.3)"
-            position="absolute"
-            gap="$2"
-            zi="$zIndex.5"
-            w="100%"
-            $group-icon-hover={{opacity: 0}}
-            h="100%"
-            opacity={1}
-            ai="center"
-            jc="center"
-            pointerEvents="none"
+          <div
+            className="pointer-events-none absolute flex h-full w-full items-center justify-center gap-2 bg-black/30 opacity-100 group-hover:opacity-0"
+            style={{zIndex: 5}}
           >
             <SizableText size="xs" className="text-center text-white">
               {emptyLabel}
             </SizableText>
-          </XStack>
+          </div>
         ) : null}
-        <XStack
-          bg="rgba(0,0,0,0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 1}}
-          h="100%"
-          opacity={0}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
+        <div
+          className="pointer-events-none absolute flex h-full w-full items-center justify-center gap-2 bg-black/30 opacity-0 group-hover:opacity-100"
+          style={{zIndex: 5}}
         >
           <SizableText size="xs" className="text-center text-white">
             {url ? 'UPDATE' : emptyLabel || 'ADD ICON'}
           </SizableText>
-        </XStack>
+        </div>
         {iconImage}
-      </Stack>
+      </div>
       {onRemoveIcon && url ? (
         <Tooltip content="Remove Icon">
           <Button
-            opacity={0}
-            theme="red"
-            $group-icon-hover={{opacity: 1, pointerEvents: 'all'}}
-            icon={<X className="size-3" />}
-            size="$1"
-            fontWeight="600"
-            zi="$zIndex.5"
-            onPress={(e: GestureResponderEvent) => {
+            className="opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+            variant="destructive"
+            size="sm"
+            style={{zIndex: 5}}
+            onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
               onRemoveIcon()
             }}
-          />
+          >
+            <X className="size-3" />
+          </Button>
         </Tooltip>
       ) : null}
-    </XStack>
+    </div>
   )
 }

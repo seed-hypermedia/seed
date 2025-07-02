@@ -1,7 +1,7 @@
 import {ChevronDown, ChevronUp} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {Control, FieldValues, Path, useController} from 'react-hook-form'
-import {Select, YStack} from 'tamagui'
+import {Select} from 'tamagui'
 
 export function SelectInput<Fields extends FieldValues>({
   control,
@@ -42,9 +42,9 @@ export function SelectInput<Fields extends FieldValues>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex="$zIndex.5">
+          <div className="z-5">
             <ChevronUp size={20} />
-          </YStack>
+          </div>
         </Select.ScrollUpButton>
         <Select.Viewport
           animation="fast"
@@ -67,9 +67,9 @@ export function SelectInput<Fields extends FieldValues>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex="$zIndex.5">
+          <div className="z-5">
             <ChevronDown size={20} />
-          </YStack>
+          </div>
         </Select.ScrollDownButton>
       </Select.Content>
     </Select>

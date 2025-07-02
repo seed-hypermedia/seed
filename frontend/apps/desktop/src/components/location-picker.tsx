@@ -22,16 +22,16 @@ import {
 } from '@shm/shared'
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
+import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Search, Undo2} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useEffect, useMemo, useState} from 'react'
-import {Input, Popover, SizableText, View, XStack, YStack} from 'tamagui'
+import {Input, Popover, SizableText} from 'tamagui'
 
 export function LocationPicker({
   location,
@@ -84,21 +84,21 @@ export function LocationPicker({
   const parentId = useParentId(location)
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
   return (
-    <YStack gap="$3" marginVertical="$4">
+    <div className="my-4 flex flex-col gap-3">
       {location ? (
         <Field label={`${capitalize(actionLabel)} to Location`} id="location">
-          <XStack jc="space-between" ai="center" flexWrap="wrap">
+          <div className="flex flex-wrap items-center justify-between">
             {location ? (
               <LocationPreview
                 location={location}
                 setLocation={handleSetLocation}
               />
             ) : null}
-            <XStack gap="$2">
+            <div className="flex gap-2">
               {(location.path?.length || 0) > 1 ? (
                 <Tooltip content={`Location to ${actionLabel} this document`}>
                   <Button
-                    onPress={() => {
+                    onClick={() => {
                       const newPath = [
                         ...(location.path?.slice(0, -2) || []),
                         newUrlPath,
@@ -107,9 +107,10 @@ export function LocationPicker({
                         hmId('d', location.uid, {path: newPath}),
                       )
                     }}
-                    icon={<Undo2 className="size-4" />}
-                    size="$2"
-                  />
+                    size="sm"
+                  >
+                    <Undo2 className="size-4" />
+                  </Button>
                 </Tooltip>
               ) : null}
               <LocationSearch
@@ -117,24 +118,25 @@ export function LocationPicker({
                 location={location}
                 setLocation={handleSetLocation}
               />
-            </XStack>
-          </XStack>
+            </div>
+          </div>
           <ScrollArea className="border-border h-40 rounded-md border">
-            <YStack className="pl-2.5">
+            <div className="flex flex-col pl-2.5">
               {directory?.map((d, index) => {
                 return (
                   <Button
-                    onPress={() => {
+                    key={index}
+                    onClick={() => {
                       handleSetLocation(
                         hmId('d', location.uid, {
                           path: [...d.path, newUrlPath],
                         }),
                       )
                     }}
-                    h="auto"
-                    minHeight={40}
+                    variant="ghost"
+                    className="h-auto min-h-[40px] justify-start"
                   >
-                    <XStack jc="space-between" f={1} flexWrap="wrap">
+                    <div className="flex flex-1 flex-wrap justify-between">
                       <SizableText numberOfLines={1}>
                         {d.metadata.name}
                       </SizableText>
@@ -145,11 +147,11 @@ export function LocationPicker({
                       >
                         {d.path?.at(-1)}
                       </SizableText>
-                    </XStack>
+                    </div>
                   </Button>
                 )
               })}
-            </YStack>
+            </div>
           </ScrollArea>
         </Field>
       ) : null}
@@ -177,7 +179,7 @@ export function LocationPicker({
           actionLabel={actionLabel}
         />
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -194,7 +196,9 @@ function LocationSearch({
   return (
     <Popover {...popover}>
       <Popover.Trigger className="no-window-drag">
-        <Button icon={<Search className="size-4" />} size="$2" />
+        <Button size="sm">
+          <Search className="size-4" />
+        </Button>
       </Popover.Trigger>
       <Popover.Content bg="$backgroundStrong">
         <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
@@ -246,8 +250,8 @@ function SearchContent({
         })) || []
   }
   return (
-    <YStack>
-      <View marginBottom="$2">
+    <div className="flex flex-col">
+      <div className="relative mb-2">
         <div className="absolute top-[11px] left-3">
           <Search className="size-3" />
         </div>
@@ -257,24 +261,25 @@ function SearchContent({
           onChangeText={setSearchQ}
           placeholder="Find Locations..."
         />
-      </View>
+      </div>
       {searchedLocations.map((d) => {
         return (
           <Button
-            onPress={() => {
+            key={d.id.id}
+            onClick={() => {
               onLocationSelected(d.id)
             }}
-            backgroundColor="$colorTransparent"
-            paddingHorizontal="$2"
+            variant="ghost"
+            className="justify-start px-2"
           >
-            <XStack gap="$2" ai="center" f={1} jc="flex-start">
+            <div className="flex flex-1 items-center justify-start gap-2">
               <HMIcon id={d.id} metadata={d.metadata} size={24} />
               <SizableText>{d.metadata?.name}</SizableText>
-            </XStack>
+            </div>
           </Button>
         )
       })}
-    </YStack>
+    </div>
   )
 }
 
@@ -300,13 +305,7 @@ function LocationPreview({
   }, [location.uid, location.path])
   const locationBreadcrumbs = useEntities(locationBreadcrumbIds)
   return (
-    <XStack
-      paddingVertical="$2"
-      ai="center"
-      gap="$3"
-      flexWrap="wrap"
-      maxWidth="100%"
-    >
+    <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
       <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
       <SizableText
         fontWeight="bold"
@@ -316,12 +315,14 @@ function LocationPreview({
         onPress={() => {
           setLocation(hmId('d', location.uid, {path: [newUrlPath]}))
         }}
+        className="cursor-pointer hover:underline"
       >
         {site?.data?.document?.metadata.name}
       </SizableText>
       {locationBreadcrumbs.map((b, index) => {
         return (
           <SizableText
+            key={index}
             hoverStyle={{
               textDecorationLine: 'underline',
             }}
@@ -333,13 +334,14 @@ function LocationPreview({
                 }),
               )
             }}
+            className="cursor-pointer hover:underline"
           >
             {b.data?.document?.metadata.name}
           </SizableText>
         )
       })}
       {/* <SizableText>{location.path?.at(-1) || ''}</SizableText> */}
-    </XStack>
+    </div>
   )
 }
 
@@ -390,8 +392,8 @@ function URLPreview({
   const isError = isUnavailable || pathInvalid
   return (
     <Tooltip content={tooltipContent}>
-      <YStack>
-        <XStack ai="center" gap="$2">
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2">
           <SizableText
             color={isError ? '$red11' : '$color10'}
             fontWeight={isError ? 'bold' : 'normal'}
@@ -402,11 +404,11 @@ function URLPreview({
           {isError ? (
             <AlertCircle className="color-destructive size-3" />
           ) : null}
-        </XStack>
+        </div>
         <SizableText color={isError ? '$red11' : '$blue11'} size="$3">
           {url}
         </SizableText>
-      </YStack>
+      </div>
     </Tooltip>
   )
 }

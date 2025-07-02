@@ -9,7 +9,6 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
-import {XStack, YStack} from 'tamagui'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 
@@ -40,7 +39,7 @@ export function BranchDialog({
       </div>
     )
   return (
-    <YStack>
+    <div className="flex flex-col">
       <DialogTitle>Branch from "{entity?.document?.metadata.name}"</DialogTitle>
       {entity ? (
         <>
@@ -54,7 +53,7 @@ export function BranchDialog({
               isAvailable.current = isAvail
             }}
           />
-          <XStack gap="$2">
+          <div className="flex gap-2">
             <Spinner hide={!forkDoc.isLoading} />
 
             {location && selectedAccount ? (
@@ -90,13 +89,13 @@ export function BranchDialog({
                 Create Document Branch
               </Button>
             ) : null}
-          </XStack>
+          </div>
         </>
       ) : (
         <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}
-    </YStack>
+    </div>
   )
 }

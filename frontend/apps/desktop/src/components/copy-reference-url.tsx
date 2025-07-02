@@ -6,13 +6,14 @@ import {
   packHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
-import {Button, DialogDescription, XStack} from 'tamagui'
+import {DialogDescription} from 'tamagui'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
@@ -169,37 +170,18 @@ export function PushToGatewayDialog({
       >
         Do this every time
       </CheckboxField>
-      <XStack gap="$1">
-        {/* <Button
-          theme="green"
-          size="$2"
-          iconAfter={push.isLoading ? <Spinner /> : null}
-          onPress={() => {
-            if (shouldDoAlways) setDoEveryTime('always')
-            push
-              .mutateAsync(packHmId(input))
-              .then(() => {
-                onClose()
-                toast.success(`Pushed to ${input.host}`)
-              })
-              .catch((e) => {
-                toast.error(`Failed to push to ${input.host}: ${e.message}`)
-              })
-          }}
-        >
-          Push to Web
-        </Button> */}
+      <div className="flex gap-1">
         <Button
-          chromeless
-          size="$2"
-          onPress={() => {
+          variant="ghost"
+          size="sm"
+          onClick={() => {
             if (shouldDoAlways) setDoEveryTime('never')
             onClose()
           }}
         >
           Dismiss
         </Button>
-      </XStack>
+      </div>
     </>
   )
 }

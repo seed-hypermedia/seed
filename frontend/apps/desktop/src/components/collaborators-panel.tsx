@@ -21,15 +21,7 @@ import {ArrowRight, X} from '@shm/ui/icons'
 import {RadioButtons} from '@shm/ui/radio-buttons'
 import {toast} from '@shm/ui/toast'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {
-  Button,
-  ListItem,
-  SizableText,
-  XGroup,
-  XStack,
-  YGroup,
-  YStack,
-} from 'tamagui'
+import {Button, ListItem, SizableText, XGroup, YGroup, YStack} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
@@ -51,7 +43,7 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   if (!id || !entity.data) return null
 
   return (
-    <YStack>
+    <div className="flex flex-col">
       <ListItem
         bg="$colorTransparent"
         hoverTheme
@@ -73,16 +65,16 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
           navigate({key: 'document', id: hmId('d', id.uid)})
         }}
       >
-        <XStack f={1} ai="center" gap="$2">
+        <div className="flex flex-1 items-center gap-2">
           <SizableText size="$2" f={1}>
             {getDocumentTitle(entity.data?.document)}
           </SizableText>
           <SizableText size="$1" color="$color9">
             Publisher
           </SizableText>
-        </XStack>
+        </div>
       </ListItem>
-    </YStack>
+    </div>
   )
 }
 
@@ -134,7 +126,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
 
   if (!myCapability) return null
   return (
-    <YStack gap="$2">
+    <div className="flex flex-col gap-2">
       <XGroup
         borderWidth={1}
         borderColor="$color8"
@@ -224,7 +216,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
       {/* <Button bg="#DED9FF" icon={Link} size="$2">
         Generate Invite Link
       </Button> */}
-    </YStack>
+    </div>
   )
 }
 
@@ -268,7 +260,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
     ) || []
 
   return (
-    <YStack gap="$3">
+    <div className="flex flex-col gap-3">
       {parentCapabilities ? (
         <YStack marginBottom="$3">
           {parentCapabilities.map((cap) => (
@@ -276,7 +268,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
           ))}
         </YStack>
       ) : null}
-      <XStack>
+      <div className="flex">
         <RadioButtons
           activeColor="$brand5"
           size="$2"
@@ -284,9 +276,9 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
           value={tab}
           onValue={setTab}
         />
-      </XStack>
+      </div>
       {content}
-    </YStack>
+    </div>
   )
 }
 
@@ -298,7 +290,7 @@ function GrantedCollabs({
   id: UnpackedHypermediaId
 }) {
   return (
-    <YStack>
+    <div>
       {capabilities?.map((capability) => {
         return (
           <CollaboratorItem
@@ -308,7 +300,7 @@ function GrantedCollabs({
           />
         )
       })}
-    </YStack>
+    </div>
   )
 }
 
@@ -343,7 +335,7 @@ function CollaboratorItem({
       }
       onPress={() => navigate({key: 'document', id: collaboratorId})}
     >
-      <XStack f={1} ai="center" gap="$2">
+      <div className="flex flex-1 items-center gap-2">
         <SizableText size="$2" f={1}>
           {getDocumentTitle(entity.data?.document)}
         </SizableText>
@@ -351,7 +343,7 @@ function CollaboratorItem({
           {getRoleName(capability.role)}{' '}
           {capability.grantId.id !== id.id ? '(Parent Capability)' : ''}
         </SizableText>
-      </XStack>
+      </div>
     </ListItem>
   )
 }

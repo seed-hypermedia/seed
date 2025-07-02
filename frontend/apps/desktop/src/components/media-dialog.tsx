@@ -1,5 +1,6 @@
+import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
-import {AlertDialog, Button, XStack, YStack} from 'tamagui'
+import {AlertDialog} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useMediaDialog() {
@@ -14,28 +15,28 @@ function MediaDialog({
   input: {draftId: string | undefined; publish: any}
 }) {
   return (
-    <YStack space backgroundColor="$background" padding="$4" borderRadius="$3">
+    <div className="bg-background flex flex-col gap-2 rounded-md p-4">
       <AlertDialog.Title>Commit Document</AlertDialog.Title>
       <AlertDialog.Description>
         All empty media elements will be deleted in your publication. Do you
         wish to proceed?
       </AlertDialog.Description>
 
-      <XStack space="$3" justifyContent="flex-end">
+      <div className="flex justify-end gap-3">
         <AlertDialog.Cancel asChild>
           <Button
-            onPress={() => {
+            onClick={() => {
               onClose()
             }}
-            chromeless
+            variant="ghost"
           >
             Cancel
           </Button>
         </AlertDialog.Cancel>
         <AlertDialog.Action asChild>
           <Button
-            theme="green"
-            onPress={() => {
+            variant="default"
+            onClick={() => {
               if (input.draftId) {
                 try {
                   input.publish.mutate({draftId: input.draftId})
@@ -49,7 +50,7 @@ function MediaDialog({
             Commit
           </Button>
         </AlertDialog.Action>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

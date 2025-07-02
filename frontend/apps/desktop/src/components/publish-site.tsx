@@ -128,16 +128,12 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <div className="dark p-40">
+    <div className="flex flex-col gap-6 bg-red-500">
       {heading ? <Heading size="$2">{heading}</Heading> : null}
       {backButton ? (
-        <View position="absolute" top={'$4'} left={'$4'}>
-          {backButton}
-        </View>
+        <div className="absolute top-4 left-4">{backButton}</div>
       ) : null}
-      <YStack f={1} jc="center" ai="center" gap="$4">
-        {children}
-      </YStack>
+      <div>{children}</div>
     </div>
   )
 }
@@ -306,37 +302,35 @@ function PublishSiteDialog({
   }
   return (
     <PublishDialogContainer heading="Set Up Web Domain">
-      <YStack f={1} jc="center">
-        <DialogInner>
-          <SizableText className="text-muted-foreground text-center">
-            How would you like to publish to the web?
-          </SizableText>
-          <YStack
-            backgroundColor="$color6"
-            borderRadius="$3"
-            padding="$2"
-            gap="$2"
-          >
-            <PublishOptionButton
-              icon={SeedHost}
-              onClick={() => setMode('seed-host')}
-              label="Free Hosting by Seed Hypermedia"
-              theme="blue"
-              height={60}
-            />
-            <PublishOptionButton
-              icon={SelfHost}
-              onClick={() => setMode('self-host')}
-              label="Self Host on Your Own Server"
-            />
-            <PublishOptionButton
-              icon={PasteSetupUrl}
-              onClick={() => setMode('input-url')}
-              label="Paste a Hosting Setup URL"
-            />
-          </YStack>
-        </DialogInner>
-      </YStack>
+      <DialogInner>
+        <SizableText className="text-muted-foreground text-center">
+          How would you like to publish to the web?
+        </SizableText>
+        <YStack
+          backgroundColor="$color6"
+          borderRadius="$3"
+          padding="$2"
+          gap="$2"
+        >
+          <PublishOptionButton
+            icon={SeedHost}
+            onClick={() => setMode('seed-host')}
+            label="Free Hosting by Seed Hypermedia"
+            theme="blue"
+            height={60}
+          />
+          <PublishOptionButton
+            icon={SelfHost}
+            onClick={() => setMode('self-host')}
+            label="Self Host on Your Own Server"
+          />
+          <PublishOptionButton
+            icon={PasteSetupUrl}
+            onClick={() => setMode('input-url')}
+            label="Paste a Hosting Setup URL"
+          />
+        </YStack>
+      </DialogInner>
     </PublishDialogContainer>
   )
 }

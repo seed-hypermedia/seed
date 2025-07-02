@@ -464,19 +464,11 @@ function AutocompletePopupInner(
         {groups.map((group) => {
           if (suggestions[group] && suggestions[group].length) {
             return (
-              <YStack
+              <div
+                className="border-border flex flex-col border shadow-lg"
                 key={group}
-                background="$backgroundFocus"
-                borderWidth={1}
-                borderColor="$borderColor"
-                elevation="$5"
               >
-                <XStack
-                  background="$backgroundStrong"
-                  paddingHorizontal="$4"
-                  paddingVertical="$2"
-                  gap="$2"
-                >
+                <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
                   <SizableText size="sm" className="flex-1">
                     {group}
                   </SizableText>
@@ -489,7 +481,7 @@ function AutocompletePopupInner(
                         : ''}
                     </SizableText>
                   ) : null}
-                </XStack>
+                </div>
                 {suggestions[group].map((item, i) => {
                   let [currentGroup, idx] = index
                   return (
@@ -509,7 +501,7 @@ function AutocompletePopupInner(
                     />
                   )
                 })}
-              </YStack>
+              </div>
             )
           }
           return null

@@ -1,16 +1,7 @@
 import {X} from 'lucide-react'
-import {FC, useMemo, useState} from 'react'
+import {FC, HTMLAttributes, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {
-  AlertDialog,
-  Button,
-  Dialog,
-  Unspaced,
-  XStack,
-  XStackProps,
-  YStack,
-  styled,
-} from 'tamagui'
+import {AlertDialog, Button, Dialog, Unspaced} from 'tamagui'
 import {
   NavContextProvider,
   NavigationContext,
@@ -33,29 +24,28 @@ export function DialogOverlay(props: any) {
 export const dialogBoxShadow =
   'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
 
-export const DialogContent = styled(YStack, {
-  backgroundColor: '$base-background-normal',
-  borderRadius: 6,
-  boxShadow: dialogBoxShadow,
-  // Can't use 'fixed' as it's not in the type
-  // Just keeping the comment here to document the issue:
-  // position: 'fixed',
-  width: '90vw',
-  maxWidth: '500px',
-  maxHeight: '85vh',
-  padding: '$4',
-  display: 'flex',
-  gap: '$4',
-  borderWidth: 0,
-  zIndex: '$zIndex.9',
-})
+export function DialogContent(props: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className="bg-background z-[900] flex flex-col gap-4 rounded-md border-0 p-4"
+      style={{
+        backgroundColor: 'var(--background)',
+        boxShadow: dialogBoxShadow,
+        width: '90vw',
+        maxWidth: '500px',
+        maxHeight: '85vh',
+      }}
+      {...props}
+    />
+  )
+}
 
 export function AlertDialogContent(props: any) {
   return <AlertDialog.Content borderWidth={0} {...props} />
 }
 
-export function DialogFooter(props: XStackProps) {
-  return <XStack justifyContent="flex-end" gap="$4" {...props} />
+export function DialogFooter(props: HTMLAttributes<HTMLDivElement>) {
+  return <div className="flex justify-end gap-4" {...props} />
 }
 export function DialogTitle(props: any) {
   return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />
@@ -241,7 +231,6 @@ export function useAppDialog<DialogInput>(
                 ]}
                 enterStyle={{y: -10, opacity: 0}}
                 exitStyle={{y: -10, opacity: 0}}
-                {...options?.contentProps}
               >
                 {openState && (
                   <DialogContentComponent

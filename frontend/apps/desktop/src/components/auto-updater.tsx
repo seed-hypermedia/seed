@@ -1,7 +1,8 @@
 import {UpdateStatus} from '@/types/updater-types'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {Button, Progress, XStack, YStack} from 'tamagui'
+import {Progress} from 'tamagui'
 
 import {useEffect} from 'react'
 
@@ -30,97 +31,62 @@ export function AutoUpdater() {
   }
 
   return (
-    <YStack
-      position="absolute"
-      gap="$4"
-      right={20}
-      bottom={20}
-      minWidth={360}
-      minHeight={100}
-      borderRadius="$2"
-      zIndex="$zIndex.9"
-      elevation="$4"
-      bg="$backgroundStrong"
-      padding="$4"
-      x={
-        updateStatus?.type == 'update-available' ||
-        updateStatus?.type == 'downloading' ||
-        updateStatus?.type == 'restarting'
-          ? 0
-          : 500
-      }
-      animation={[
-        'slow',
-        {
-          opacity: {
-            overshootClamping: true,
-          },
-        },
-      ]}
-      enterStyle={{x: 500, opacity: 0}}
-      exitStyle={{y: 500, opacity: 0}}
+    <div
+      className="absolute right-5 bottom-5 z-[900] flex min-h-[100px] min-w-[360px] flex-col gap-4 rounded bg-white p-4 shadow-md dark:bg-black"
+      style={{
+        transform:
+          updateStatus?.type == 'update-available' ||
+          updateStatus?.type == 'downloading' ||
+          updateStatus?.type == 'restarting'
+            ? 'translateX(0)'
+            : 'translateX(500px)',
+        transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
+        opacity:
+          updateStatus?.type == 'update-available' ||
+          updateStatus?.type == 'downloading' ||
+          updateStatus?.type == 'restarting'
+            ? 1
+            : 0,
+      }}
     >
-      <SizableText size="sm">{getUpdateStatusLabel(updateStatus)}</SizableText>
+      <SizableText>{getUpdateStatusLabel(updateStatus)}</SizableText>
       {updateStatus?.type == 'update-available' && updateStatus.updateInfo ? (
-        <XStack gap="$2">
-          <Button
-            size="$2"
-            onPress={handleDownloadAndInstall}
-            bg="$brand5"
-            color="white"
-            borderColor="$colorTransparent"
-            hoverStyle={{bg: '$brand4', borderColor: '$colorTransparent'}}
-            focusStyle={{bg: '$brand4', borderColor: '$colorTransparent'}}
-          >
+        <div className="flex gap-2">
+          <Button variant="default" onClick={handleDownloadAndInstall}>
             Download and Update
           </Button>
           <Button
-            size="$2"
-            onPress={() => handleLater()}
-            hoverStyle={{
-              bg: '$backgroundStrong',
-              borderColor: '$colorTransparent',
-            }}
-            focusStyle={{
-              bg: '$backgroundStrong',
-              borderColor: '$colorTransparent',
-            }}
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => handleLater()}
           >
             Later
           </Button>
           {updateStatus?.type == 'update-available' &&
             updateStatus.updateInfo.release_notes && (
               <Button
-                size="$2"
-                hoverStyle={{
-                  bg: '$backgroundStrong',
-                  borderColor: '$colorTransparent',
-                }}
-                focusStyle={{
-                  bg: '$backgroundStrong',
-                  borderColor: '$colorTransparent',
-                }}
-                onPress={() => window.autoUpdate?.releaseNotes()}
+                variant="outline"
+                onClick={() => window.autoUpdate?.releaseNotes()}
               >
                 Release Notes
               </Button>
             )}
-        </XStack>
+        </div>
       ) : updateStatus?.type == 'downloading' ? (
-        <YStack gap="$2">
+        <div className="flex flex-col gap-2">
           <Progress
             key="download-progress"
             size="$1"
             value={updateStatus.progress}
           >
-            <Progress.Indicator animation="medium" bg="$brand5" />
+            <Progress.Indicator animation="medium" bg="$primary" />
           </Progress>
           {/* <Button size="$2" onPress={handleLater}>
             Cancel
           </Button> */}
-        </YStack>
+        </div>
       ) : null}
-    </YStack>
+    </div>
   )
 }
 

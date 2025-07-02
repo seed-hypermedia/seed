@@ -2,7 +2,7 @@ import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Theme, YStack} from 'tamagui'
+import {Theme} from 'tamagui'
 import {AccessoryContent} from './components/accessory-sidebar'
 
 export function EntityVersionsAccessory({
@@ -27,13 +27,7 @@ export function EntityVersionsAccessory({
     <>
       <Theme name="subtle">
         <AccessoryContent>
-          <YStack
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-            paddingBottom="$6"
-            borderBottomColor="$borderColor"
-            borderBottomWidth={1}
-          >
+          <div className="border-b-border flex flex-col border-b px-4 py-2 pb-6">
             {changes.map((item, index) => {
               const change = item?.change
               const authorQ = change?.author
@@ -56,7 +50,7 @@ export function EntityVersionsAccessory({
               //   author={author}
               // />
             })}
-          </YStack>
+          </div>
         </AccessoryContent>
       </Theme>
     </>

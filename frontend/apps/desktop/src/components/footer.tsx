@@ -2,21 +2,21 @@ import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
 import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {ReactNode} from 'react'
-import {ButtonProps, XStack} from 'tamagui'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
 export default function Footer({children}: {children?: ReactNode}) {
   const updateStatus = useUpdateStatus()
   return (
-    <FooterWrapper style={{flex: 'none'}}>
+    <FooterWrapper className="flex-none">
       <FooterNetworkingButton />
-      <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
+      <div className="flex items-center gap-4 px-2">
         <SizableText
           size="xs"
           className="text-muted-foreground cursor-default opacity-50 select-none"
@@ -34,11 +34,11 @@ export default function Footer({children}: {children?: ReactNode}) {
             {getUpdateStatusLabel(updateStatus)}
           </SizableText>
         )}
-      </XStack>
+      </div>
 
-      <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
+      <div className="flex flex-1 items-center justify-end gap-1">
         {children}
-      </XStack>
+      </div>
     </FooterWrapper>
   )
 }
@@ -51,18 +51,17 @@ export function FooterButton({
 }: {
   active?: boolean
   label: string
-  icon?: ButtonProps['icon']
+  icon?: ReactNode
   onPress: () => void
 }) {
   return (
     <Button
-      size="$1"
-      chromeless={!active}
-      onPress={onPress}
-      theme={active ? 'blue' : undefined}
-      icon={icon}
-      paddingHorizontal="$2"
+      size="sm"
+      variant={active ? 'default' : 'ghost'}
+      className={cn('px-2', active && 'bg-blue-500 hover:bg-blue-600')}
+      onClick={onPress}
     >
+      {icon}
       {label}
     </Button>
   )
@@ -73,19 +72,18 @@ function FooterNetworkingButton() {
   const networkDialog = useNetworkDialog()
   const summary = useConnectionSummary()
   return (
-    <XStack alignItems="center" gap="$2">
+    <div className="flex items-center gap-2">
       <Button
-        size="$1"
-        chromeless={route.key != 'contacts'}
-        color={route.key == 'contacts' ? '$brand5' : undefined}
-        paddingHorizontal="$2"
-        onPress={() => networkDialog.open(true)}
+        size="sm"
+        variant={route.key == 'contacts' ? 'default' : 'ghost'}
+        className={cn('px-2', route.key == 'contacts' && 'text-primary')}
+        onClick={() => networkDialog.open(true)}
       >
         <OnlineIndicator online={summary.online} />
         <Cable size={12} />
         <SizableText size="xs">{summary.connectedCount}</SizableText>
       </Button>
       {networkDialog.content}
-    </XStack>
+    </div>
   )
 }

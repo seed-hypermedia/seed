@@ -28,6 +28,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
 import {
+  HTMLAttributes,
   PropsWithChildren,
   ReactNode,
   useEffect,
@@ -35,7 +36,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import {XGroup, YStackProps} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
@@ -239,8 +239,8 @@ export default function PublishDraftButton() {
   return (
     <>
       <SaveIndicatorStatus />
-      <XGroup borderRadius="$2" overflow="hidden">
-        <XGroup.Item>
+      <div className="flex overflow-hidden rounded-md">
+        <div>
           <Tooltip
             content={
               signingAccount
@@ -259,9 +259,9 @@ export default function PublishDraftButton() {
               Publish
             </Button>
           </Tooltip>
-        </XGroup.Item>
+        </div>
         {accts.length > 1 ? (
-          <XGroup.Item>
+          <div>
             <OptionsDropdown
               button={
                 <Button size="xs">
@@ -291,9 +291,9 @@ export default function PublishDraftButton() {
                 }
               })}
             />
-          </XGroup.Item>
+          </div>
         ) : null}
-      </XGroup>
+      </div>
       {firstPublishDialog.content}
     </>
   )
@@ -370,8 +370,19 @@ function useFirstPublishDialog() {
   return useAppDialog(FirstPublishDialog)
 }
 
-function StatusWrapper({children, ...props}: PropsWithChildren<YStackProps>) {
-  return <div className="flex flex-col gap-2 opacity-60">{children}</div>
+function StatusWrapper({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+  return (
+    <div
+      className={`flex flex-col gap-2 opacity-60 ${className || ''}`}
+      {...props}
+    >
+      {children}
+    </div>
+  )
 }
 
 function PublishedToast({
@@ -443,7 +454,7 @@ function SaveIndicatorStatus() {
 
   if (status == 'error') {
     return (
-      <StatusWrapper alignItems="flex-end">
+      <StatusWrapper className="items-end">
         <Tooltip content="An error ocurred while trying to save the latest changes.">
           <Button variant="destructive" size="xs">
             <AlertCircle className="size-2" />

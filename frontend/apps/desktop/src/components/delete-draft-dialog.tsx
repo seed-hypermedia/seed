@@ -1,6 +1,6 @@
 import {useDeleteDraft} from '@/models/documents'
 import {Button} from '@shm/ui/button'
-import {AlertDialog, XStack, YStack} from 'tamagui'
+import {AlertDialog} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useDeleteDraftDialog() {
@@ -18,19 +18,19 @@ function DeleteDraftDialog({
     onSettled: input.onSuccess,
   })
   return (
-    <YStack gap="$4" padding="$4" borderRadius="$3" maxWidth={400}>
+    <div className="flex flex-col gap-4 rounded-md p-4" style={{maxWidth: 400}}>
       <AlertDialog.Title>Discard Draft</AlertDialog.Title>
       <AlertDialog.Description>
         Permanently delete this draft document?
       </AlertDialog.Description>
 
-      <XStack gap="$3" justifyContent="flex-end">
+      <div className="flex justify-end gap-3">
         <AlertDialog.Cancel asChild>
           <Button
             onClick={() => {
               onClose()
             }}
-            chromeless
+            variant="ghost"
           >
             Cancel
           </Button>
@@ -46,7 +46,7 @@ function DeleteDraftDialog({
             Delete
           </Button>
         </AlertDialog.Action>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

@@ -1,12 +1,13 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import {Textarea} from '@shm/ui/components/textarea'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {UserPlus} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {base58btc} from 'multiformats/bases/base58'
 import {useMemo, useState} from 'react'
-import {Button, TextArea, XStack} from 'tamagui'
+import {Button} from 'tamagui'
 import appError from '../errors'
 import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
@@ -67,27 +68,26 @@ export function AddConnectionDialog({
       <DialogDescription>
         Paste other people&apos;s connection URL here:
       </DialogDescription>
-      <TextArea
+      <Textarea
         value={peerText}
-        onChangeText={setPeer}
-        multiline
-        numberOfLines={4}
+        onChange={(e) => setPeer(e.target.value)}
+        rows={4}
         data-testid="add-contact-input"
       />
       <DialogDescription size={'$1'}>
         You can also paste the full peer address here.
       </DialogDescription>
 
-      <XStack jc="space-between">
+      <div className="flex justify-between">
         <Button
           onPress={() => connect.mutate(peerText)}
           disabled={!peerText}
           icon={UserPlus}
-          bg="$brand12"
-          borderColor="$brand11"
+          bg="$secondary"
+          borderColor="$secondary"
           hoverStyle={{
-            bg: '$brand11',
-            borderColor: '$brand10',
+            bg: '$secondary/80',
+            borderColor: '$secondary/80',
           }}
         >
           Connect to Peer
@@ -97,7 +97,7 @@ export function AddConnectionDialog({
             <Spinner />
           </div>
         ) : null}
-      </XStack>
+      </div>
     </>
   )
 }

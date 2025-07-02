@@ -24,7 +24,7 @@ function RemoveFavoriteButton({
         onClick={onClick}
         className={cn(
           'no-window-drag',
-          active && 'hover:bg-primary bg-red-500',
+          active && 'bg-transparent shadow-none hover:bg-transparent',
         )}
       >
         <StarFull color="var(--color-yellow-500)" />

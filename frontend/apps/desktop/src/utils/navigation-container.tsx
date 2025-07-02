@@ -12,10 +12,10 @@ import {
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode, useEffect, useMemo} from 'react'
-import {Button, View, XStack} from 'tamagui'
 import {useAppContext, useIPC} from '../app-context'
 import {
   NavAction,
@@ -136,19 +136,19 @@ function DevTools() {
   const routeDialog = useAppDialog(RouteDialog)
   return experiments?.developerTools ? (
     <>
-      <View userSelect="none">
+      <div className="select-none">
         <ReactQueryDevtools />
-      </View>
-      <XStack
-        position="absolute"
-        bottom={20}
-        left={60}
-        zIndex={1000}
-        backgroundColor="$color1"
-        boxShadow={dialogBoxShadow}
+      </div>
+      <div
+        className="absolute bottom-5 left-15 z-[1000] bg-white dark:bg-black"
+        style={{
+          boxShadow: dialogBoxShadow,
+        }}
       >
-        <Button onPress={() => routeDialog.open(route)}>View Route</Button>
-      </XStack>
+        <Button variant="outline" onClick={() => routeDialog.open(route)}>
+          View Route
+        </Button>
+      </div>
       {routeDialog.content}
     </>
   ) : null
