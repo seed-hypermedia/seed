@@ -1,7 +1,6 @@
 import {AppPlatform, useAppContext} from '@/app-context'
 import {TitlebarWrapper} from '@shm/ui/titlebar'
-import {Suspense, lazy} from 'react'
-import {YStackProps} from 'tamagui'
+import {HTMLAttributes, Suspense, lazy} from 'react'
 
 var TitleBarMacos = lazy(() => import('./titlebar-macos'))
 var TitleBarWindowsLinux = lazy(() => import('./titlebar-windows-linux'))
@@ -12,11 +11,13 @@ export interface TitleBarProps {
   height?: number
 }
 
-export function TitleBar(props: TitleBarProps & YStackProps) {
+export function TitleBar(
+  props: TitleBarProps & HTMLAttributes<HTMLDivElement>,
+) {
   const {platform} = useAppContext()
   let Component = getTitleBar(platform)
   return (
-    <Suspense fallback={<TitlebarWrapper style={{flex: 'none'}} />}>
+    <Suspense fallback={<TitlebarWrapper className="flex-none" />}>
       <Component {...props} />
     </Suspense>
   )

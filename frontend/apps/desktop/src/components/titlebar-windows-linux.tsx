@@ -5,7 +5,6 @@ import {
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {useIsDark} from '@shm/ui/use-is-dark'
-import {XStack, YStack} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
   NavigationButtons,
@@ -22,21 +21,16 @@ export default function TitleBarWindows(props: TitleBarProps) {
   if (props.clean) {
     return (
       <TitlebarWrapper>
-        <XStack paddingHorizontal="$2" className="window-drag">
-          <XStack
-            ai="center"
-            flex={1}
-            justifyContent="center"
-            className="window-drag"
-          >
+        <div className="window-drag flex px-2">
+          <div className="window-drag flex flex-1 items-center justify-center">
             <TitleText marginHorizontal="$4" fontWeight="bold">
               {props.cleanTitle}
             </TitleText>
-          </XStack>
-          <XStack className="no-window-drag">
+          </div>
+          <div className="no-window-drag flex">
             <CloseButton />
-          </XStack>
-        </XStack>
+          </div>
+        </div>
       </TitlebarWrapper>
     )
   }
@@ -45,17 +39,13 @@ export default function TitleBarWindows(props: TitleBarProps) {
     <WindowsLinuxTitleBar
       right={<PageActionButtons />}
       left={
-        <XStack
-          flex={1}
-          paddingHorizontal={0}
-          alignItems="flex-start"
-          className="window-drag"
-          gap="$2"
-          minWidth={sidebarWidth}
+        <div
+          className="window-drag flex flex-1 items-start gap-2 px-0"
+          style={{minWidth: sidebarWidth}}
         >
           <NavMenuButton />
           <NavigationButtons />
-        </XStack>
+        </div>
       }
       title={<TitlebarTitleSearch />}
     />
@@ -75,49 +65,32 @@ export function WindowsLinuxTitleBar({
 }) {
   const isDark = useIsDark()
   return (
-    <YStack>
-      <XStack
-        height={24}
-        ai="center"
-        bg={isDark ? '$background' : '$backgroundStrong'}
-        borderBottomWidth={1}
-        borderBottomColor={'$borderColor'}
+    <div className="flex flex-col">
+      <div
+        className="border-b-border flex h-6 items-center border-b"
+        style={{
+          backgroundColor: isDark ? 'var(--background)' : 'var(--secondary)',
+        }}
       >
         <SystemMenu />
-        <XStack flex={1} className="window-drag" height="100%" />
+        <div className="window-drag flex h-full flex-1" />
         <WindowsLinuxWindowControls />
-      </XStack>
+      </div>
 
       <TitlebarWrapper platform={platform}>
-        <XStack
-          paddingRight="$2"
-          justifyContent="space-between"
-          className="window-drag"
-        >
-          <XStack
-            minWidth={'min-content'}
-            flexBasis={0}
-            alignItems="center"
-            className="window-drag"
-          >
+        <div className="window-drag flex justify-between pr-2">
+          <div className="window-drag flex min-w-min basis-0 items-center">
             {left}
-          </XStack>
-          <XStack flex={1} alignItems="center" paddingHorizontal="$2">
+          </div>
+          <div className="flex flex-1 items-center px-2">
             {/* <Title /> */}
             {title}
-          </XStack>
-          <XStack
-            className="window-drag"
-            justifyContent="flex-end"
-            minWidth={'min-content'}
-            flexBasis={0}
-            alignItems="center"
-            paddingRight="$2"
-          >
+          </div>
+          <div className="window-drag flex min-w-min basis-0 items-center justify-end pr-2">
             {right}
-          </XStack>
-        </XStack>
+          </div>
+        </div>
       </TitlebarWrapper>
-    </YStack>
+    </div>
   )
 }

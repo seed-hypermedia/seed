@@ -1,9 +1,9 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
+import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
 import {Search} from 'lucide-react'
 import {useState} from 'react'
-import {Button, XStack} from 'tamagui'
 import {usePublishSite} from './publish-site'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
@@ -15,28 +15,17 @@ export function TitlebarTitleSearch() {
     setShowLauncher(true)
   })
   return (
-    <XStack
-      ai="center"
-      position="relative"
-      gap="$2"
-      w="100%"
-      borderColor="$color7"
-    >
+    <div className="border-border relative flex w-full items-center gap-2">
       <Button
-        chromeless
-        size="$2"
+        variant="ghost"
+        size="sm"
         className="no-window-drag"
-        icon={Search}
-        hoverStyle={{
-          bg: '$color6',
-        }}
-        // hoverStyle={{
-        //   cursor: 'text !important',
-        // }}
-        onPress={() => {
+        onClick={() => {
           setShowLauncher((v) => !v)
         }}
-      />
+      >
+        <Search className="size-4" />
+      </Button>
       <Title onPublishSite={publishSite.open} />
       {publishSite.content}
       {showLauncher ? (
@@ -47,7 +36,7 @@ export function TitlebarTitleSearch() {
           }}
         />
       ) : null}
-    </XStack>
+    </div>
   )
 }
 
