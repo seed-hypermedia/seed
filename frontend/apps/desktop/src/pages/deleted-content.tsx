@@ -10,32 +10,23 @@ import {Button} from '@shm/ui/legacy/button'
 import {List} from '@shm/ui/list'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {View, XStack} from 'tamagui'
 
 export default function DeletedContent() {
   const deleted = useDeletedContent()
   return (
     <List
       items={deleted.data || []}
-      header={<View height={20} />}
-      footer={<View height={20} />}
+      header={<div className="h-5" />}
+      footer={<div className="h-5" />}
       renderItem={({item}) => {
         return (
-          <XStack
-            paddingVertical="$1.5"
-            w="100%"
-            gap="$2"
-            ai="center"
-            paddingHorizontal="$4"
-            maxWidth={600}
-            group="item"
-          >
+          <div className="flex w-full max-w-[600px] items-center gap-2 px-4 py-1.5">
             <Tooltip content={`Reason: ${item.deletedReason}`}>
               <SizableText weight="bold" color="destructive">
                 {item.metadata}
               </SizableText>
             </Tooltip>
-            <View f={1} />
+            <div className="flex-1" />
             <Tooltip
               content={`You deleted this on ${formattedDateLong(
                 item.deleteTime,
@@ -46,7 +37,7 @@ export default function DeletedContent() {
               </SizableText>
             </Tooltip>
             <UndeleteButton item={item} />
-          </XStack>
+          </div>
         )
       }}
     />

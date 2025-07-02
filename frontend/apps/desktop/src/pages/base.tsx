@@ -1,13 +1,13 @@
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
-import {Heading, YStack} from 'tamagui'
+import {Heading} from 'tamagui'
 
 export function NotFoundPage() {
   return (
-    <YStack flex={1} alignItems="center" justifyContent="center">
+    <div className="flex flex-1 flex-col items-center justify-center">
       <Heading>404</Heading>
       <Text>Page not found</Text>
-    </YStack>
+    </div>
   )
 }
 

@@ -3,7 +3,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {ChevronDown, ChevronUp, Close} from '@shm/ui/icons'
 import {useEffect, useRef, useState} from 'react'
 import {NativeSyntheticEvent, TextInputKeyPressEventData} from 'react-native'
-import {Button, Input, XGroup, XStack} from 'tamagui'
+import {Button, Input, XGroup} from 'tamagui'
 
 export function FindInPage() {
   const size = '$2'
@@ -74,7 +74,7 @@ export function FindInPage() {
   }, [query])
 
   return (
-    <XStack fullscreen ai="center" jc="center">
+    <div className="fixed inset-0 flex items-center justify-center">
       <XGroup
         elevation="$4"
         borderWidth={1}
@@ -139,6 +139,6 @@ export function FindInPage() {
           />
         </XGroup.Item>
       </XGroup>
-    </XStack>
+    </div>
   )
 }

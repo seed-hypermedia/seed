@@ -40,6 +40,7 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -81,7 +82,6 @@ import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {
   AlertDialog,
-  Button,
   Form,
   Heading,
   Input,
@@ -94,7 +94,6 @@ import {
   Text,
   TextArea,
   View,
-  XGroup,
   XStack,
   YStack,
 } from 'tamagui'
@@ -199,27 +198,27 @@ export function DeleteDraftLogs() {
   if (isConfirming) {
     return (
       <Button
-        icon={Trash}
-        theme="red"
-        onPress={() => {
+        variant="destructive"
+        onClick={() => {
           destroyDraftLogs.mutateAsync().then(() => {
             toast.success('Cleaned up Draft Logs')
             setIsConfirming(false)
           })
         }}
       >
+        <Trash className="mr-2 h-4 w-4" />
         Confirm Delete Draft Log Folder?
       </Button>
     )
   }
   return (
     <Button
-      icon={Trash}
-      theme="red"
-      onPress={() => {
+      variant="destructive"
+      onClick={() => {
         setIsConfirming(true)
       }}
     >
+      <Trash className="mr-2 h-4 w-4" />
       Delete All Draft Logs
     </Button>
   )
@@ -228,10 +227,10 @@ export function DeleteDraftLogs() {
 function GeneralSettings() {
   const [theme, setTheme, isInitialLoading] = useSystemThemeWriter()
   return (
-    <YStack gap="$4">
+    <div className="flex flex-col gap-4">
       <Heading>General Settings</Heading>
       {!isInitialLoading && (
-        <XStack gap="$4">
+        <div className="flex gap-4">
           <Label>Theme</Label>
           <SelectDropdown
             value={theme || 'system'}
@@ -243,9 +242,9 @@ function GeneralSettings() {
               {label: 'Dark', value: 'dark'},
             ]}
           />
-        </XStack>
+        </div>
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -262,29 +261,29 @@ export function DeveloperSettings() {
           Adds features across the app for helping diagnose issues. Mostly
           useful for Seed Developers.
         </SizableText>
-        <XStack jc="space-between">
-          {enabledDevTools ? <EnabledTag /> : <View />}
+        <div className="flex justify-between">
+          {enabledDevTools ? <EnabledTag /> : <div />}
           <Button
-            size="$2"
-            theme={enabledDevTools ? 'red' : 'green'}
-            onPress={() => {
+            size="sm"
+            variant={enabledDevTools ? 'destructive' : 'default'}
+            onClick={() => {
               writeExperiments.mutate({developerTools: !enabledDevTools})
             }}
           >
             {enabledDevTools ? 'Disable Debug Tools' : `Enable Debug Tools`}
           </Button>
-        </XStack>
+        </div>
       </SettingsSection>
       <SettingsSection title="Publication Content Dev Tools">
         <SizableText fontSize="$4">
           Debug options for the formatting of all publication content
         </SizableText>
-        <XStack jc="space-between">
-          {enabledPubContentDevMenu ? <EnabledTag /> : <View />}
+        <div className="flex justify-between">
+          {enabledPubContentDevMenu ? <EnabledTag /> : <div />}
           <Button
-            size="$2"
-            theme={enabledPubContentDevMenu ? 'red' : 'green'}
-            onPress={() => {
+            size="sm"
+            variant={enabledPubContentDevMenu ? 'destructive' : 'default'}
+            onClick={() => {
               writeExperiments.mutate({
                 pubContentDevMenu: !enabledPubContentDevMenu,
               })
@@ -294,21 +293,21 @@ export function DeveloperSettings() {
               ? 'Disable Publication Debug Panel'
               : `Enable Publication Debug Panel`}
           </Button>
-        </XStack>
+        </div>
       </SettingsSection>
       <SettingsSection title="Draft Logs">
-        <XStack space>
+        <div className="flex gap-2">
           <Button
-            size="$2"
-            icon={ExternalLink}
-            onPress={() => {
+            size="sm"
+            onClick={() => {
               openDraftLogs.mutate()
             }}
           >
+            <ExternalLink className="mr-2 h-4 w-4" />
             Open Draft Log Folder
           </Button>
           <DeleteDraftLogs />
-        </XStack>
+        </div>
       </SettingsSection>
       {/* <TestURLCheck /> */}
     </>
@@ -329,49 +328,48 @@ export function ProfileForm({
   }
   return (
     <>
-      <XStack gap="$4">
-        <YStack flex={0} alignItems="center" flexGrow={0}>
+      <div className="flex gap-4">
+        <div className="flex flex-shrink-0 flex-grow-0 flex-col items-center">
           <IconForm url={getDaemonFileUrl(profile?.icon)} />
-        </YStack>
-        <YStack flex={1} space>
-          <YStack>
+        </div>
+        <div className="flex flex-1 flex-col gap-3">
+          <div className="flex flex-col">
             <Label size="$3" htmlFor="accountid">
               Account Id
             </Label>
-            <XGroup>
-              <XGroup.Item>
-                <Input
-                  size="$3"
-                  id="accountid"
-                  userSelect="none"
-                  disabled
-                  value={accountId}
-                  data-testid="account-id"
-                  flex={1}
-                  hoverStyle={{
-                    cursor: 'default',
-                  }}
-                />
-              </XGroup.Item>
-              <XGroup.Item>
-                <Tooltip content="Copy your account id">
-                  <Button size="$3" icon={Copy} onPress={onCopy} />
-                </Tooltip>
-              </XGroup.Item>
-            </XGroup>
-          </YStack>
-          <XStack>
+            <div className="flex">
+              <Input
+                size="$3"
+                id="accountid"
+                userSelect="none"
+                disabled
+                value={accountId}
+                data-testid="account-id"
+                flex={1}
+                hoverStyle={{
+                  cursor: 'default',
+                }}
+                className="flex-1 rounded-r-none"
+              />
+              <Tooltip content="Copy your account id">
+                <Button size="sm" onClick={onCopy} className="rounded-l-none">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
+          <div className="flex">
             <Button
-              icon={Pencil}
-              onPress={() => {
+              onClick={() => {
                 editProfileDialog.open(true)
               }}
             >
+              <Pencil className="mr-2 h-4 w-4" />
               Edit My Profile
             </Button>
-          </XStack>
-        </YStack>
-      </XStack>
+          </div>
+        </div>
+      </div>
       {editProfileDialog.content}
     </>
   )
@@ -433,9 +431,9 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1}} gap="$3" overflow="hidden">
-      <YStack f={1} maxWidth="25%" gap="$2">
-        <YStack f={1}>
+    <div className="flex flex-1 gap-3 overflow-hidden">
+      <div className="flex max-w-[25%] flex-1 flex-col gap-2">
+        <div className="flex flex-1 flex-col">
           <ScrollArea>
             {keys.data?.map((key) => (
               <KeyItem
@@ -445,18 +443,17 @@ function AccountKeys() {
               />
             ))}
           </ScrollArea>
-        </YStack>
-      </YStack>
-      <YStack
-        f={3}
-        borderColor="$borderColor"
-        borderWidth={1}
-        borderRadius="$3"
-        bg={isDark ? '$background' : '$backgroundStrong'}
+        </div>
+      </div>
+      <div
+        className={cn(
+          'border-border flex flex-[3] flex-col rounded-lg border',
+          isDark ? 'bg-background' : 'bg-muted',
+        )}
       >
         <ScrollArea>
-          <YStack p="$4" gap="$4">
-            <XStack marginBottom="$4" gap="$4">
+          <div className="flex flex-col gap-4 p-4">
+            <div className="mb-4 flex gap-4">
               {selectedAccountId ? (
                 <HMIcon
                   id={selectedAccountId}
@@ -464,7 +461,7 @@ function AccountKeys() {
                   size={80}
                 />
               ) : null}
-              <YStack f={1} gap="$3" marginTop="$2">
+              <div className="mt-2 flex flex-1 flex-col gap-3">
                 <Field id="username" label="Profile Name">
                   <Input
                     disabled
@@ -474,12 +471,12 @@ function AccountKeys() {
                 <Field id="accountid" label="Account ID">
                   <Input disabled value={selectedAccount} />
                 </Field>
-              </YStack>
-            </XStack>
+              </div>
+            </div>
             {mnemonics ? (
-              <YStack gap="$2">
+              <div className="flex flex-col gap-2">
                 <Field label="Secret Recovery Phrase" id="words">
-                  <XStack gap="$3">
+                  <div className="flex gap-3">
                     <TextArea
                       f={1}
                       disabled
@@ -491,26 +488,36 @@ function AccountKeys() {
                           : '**** **** **** **** **** **** **** **** **** **** **** ****'
                       }
                     />
-                    <YStack gap="$2">
+                    <div className="flex flex-col gap-2">
                       <Button
-                        size="$2"
-                        icon={showWords ? EyeOff : Eye}
-                        onPress={() => setShowWords((v) => !v)}
-                      />
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowWords((v) => !v)}
+                      >
+                        {showWords ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
                       <Button
-                        size="$2"
-                        icon={Copy}
-                        onPress={() => {
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
                           console.log('mnemonics', mnemonics)
                           copyTextToClipboard(mnemonics.join(', '))
                           toast.success('Words copied to clipboard')
                         }}
-                      />
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
 
                       <AlertDialog native>
                         <Tooltip content="Delete words from device">
                           <AlertDialog.Trigger asChild>
-                            <Button size="$2" theme="red" icon={Trash} />
+                            <Button size="sm" variant="destructive">
+                              <Trash className="h-4 w-4" />
+                            </Button>
                           </AlertDialog.Trigger>
                         </Tooltip>
                         <AlertDialog.Portal>
@@ -550,14 +557,14 @@ function AccountKeys() {
                               words after you delete them. please save them
                               securely in another place before you delete
                             </AlertDialog.Description>
-                            <XStack gap="$3" justifyContent="flex-end">
+                            <div className="flex justify-end gap-3">
                               <AlertDialog.Cancel asChild>
-                                <Button chromeless>Cancel</Button>
+                                <Button variant="ghost">Cancel</Button>
                               </AlertDialog.Cancel>
                               <AlertDialog.Action asChild>
                                 <Button
-                                  theme="red"
-                                  onPress={() =>
+                                  variant="destructive"
+                                  onClick={() =>
                                     deleteWords
                                       .mutateAsync(selectedAccount)
                                       .then(() => {
@@ -571,25 +578,21 @@ function AccountKeys() {
                                   Delete Permanently
                                 </Button>
                               </AlertDialog.Action>
-                            </XStack>
+                            </div>
                           </AlertDialog.Content>
                         </AlertDialog.Portal>
                       </AlertDialog>
-                    </YStack>
-                  </XStack>
+                    </div>
+                  </div>
                 </Field>
-              </YStack>
+              </div>
             ) : null}
 
             <AlertDialog native>
               <Tooltip content="Delete words from device">
                 <AlertDialog.Trigger asChild>
-                  <Button
-                    size="$2"
-                    theme="red"
-                    icon={Trash}
-                    alignSelf="flex-end"
-                  >
+                  <Button size="sm" variant="destructive" className="self-end">
+                    <Trash className="mr-2 h-4 w-4" />
                     Delete Account
                   </Button>
                 </AlertDialog.Trigger>
@@ -631,16 +634,19 @@ function AccountKeys() {
                     have saved the Secret Recovery Phrase for this account if
                     you want to recover it later.
                   </AlertDialog.Description>
-                  <XStack gap="$3" justifyContent="flex-end">
+                  <div className="flex justify-end gap-3">
                     <AlertDialog.Cancel asChild>
-                      <Button chromeless>Cancel</Button>
+                      <Button variant="ghost">Cancel</Button>
                     </AlertDialog.Cancel>
                     <AlertDialog.Action asChild>
-                      <Button theme="red" onPress={handleDeleteCurrentAccount}>
+                      <Button
+                        variant="destructive"
+                        onClick={handleDeleteCurrentAccount}
+                      >
                         Delete Permanently
                       </Button>
                     </AlertDialog.Action>
-                  </XStack>
+                  </div>
                 </AlertDialog.Content>
               </AlertDialog.Portal>
             </AlertDialog>
@@ -661,44 +667,32 @@ function AccountKeys() {
               key={selectedAccount}
               accountUid={selectedAccount}
             />
-          </YStack>
+          </div>
         </ScrollArea>
-      </YStack>
-    </XStack>
+      </div>
+    </div>
   ) : (
-    <YStack
-      style={{flex: 1, height: '100%'}}
-      ai="center"
-      jc="center"
-      gap="$4"
-      p="$6"
-    >
-      <YStack
-        width={80}
-        height={80}
-        borderRadius="$6"
-        backgroundColor="$color4"
-        ai="center"
-        jc="center"
-      >
-        <UserRoundPlus size={50} color="$color11" />
-      </YStack>
+    <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+        <UserRoundPlus size={50} className="text-muted-foreground" />
+      </div>
       <Heading>No Accounts Found</Heading>
       <Paragraph textAlign="center" maxWidth={400} color="$color11">
         Create a new profile to get started with Seed. You'll need to create a
         profile to use all the features.
       </Paragraph>
       <Button
-        mt="$4"
-        size="$4"
-        theme="brand"
-        icon={Plus}
-        color="white"
-        onPress={() => dispatchWizardEvent(true)}
+        className="mt-4"
+        size="lg"
+        onClick={() => {
+          // TODO: Implement wizard event dispatch
+          console.log('Create new profile clicked')
+        }}
       >
+        <Plus className="mr-2 h-4 w-4" />
         Create a new Profile
       </Button>
-    </YStack>
+    </div>
   )
 }
 
@@ -739,15 +733,15 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           ) : null}
         </YStack>
       ) : null}
-      <XStack>
+      <div className="flex">
         <Button
-          icon={Pencil}
-          size="$2"
-          onPress={() => notifSettingsDialog.open({accountUid})}
+          size="sm"
+          onClick={() => notifSettingsDialog.open({accountUid})}
         >
+          <Pencil className="mr-2 h-4 w-4" />
           Edit Notification Settings
         </Button>
-      </XStack>
+      </div>
       {notifSettingsDialog.content}
     </SettingsSection>
   )
@@ -755,12 +749,14 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
 
 function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (
-    <XStack gap="$3" ai="center">
-      <View width={24}>{checked ? <Check color="$brand3" /> : null}</View>
+    <div className="flex items-center gap-3">
+      <div className="w-6">
+        {checked ? <Check className="text-primary" /> : null}
+      </div>
       <SizableText fontWeight={checked ? 'bold' : 'normal'}>
         {label}
       </SizableText>
-    </XStack>
+    </div>
   )
 }
 
@@ -775,45 +771,38 @@ function LinkedDevices({
   const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
-    <YStack gap="$3">
+    <div className="flex flex-col gap-3">
       {devices?.length ? (
-        <YStack gap="$2">
+        <div className="flex flex-col gap-2">
           {devices.map((d) => (
-            <Tooltip content={`Copy ID of ${d.label}`}>
+            <Tooltip content={`Copy ID of ${d.label}`} key={d.accountUid}>
               <Button
-                size="$2"
-                onPress={() => {
+                size="sm"
+                variant="outline"
+                onClick={() => {
                   copyTextToClipboard(hmId('d', d.accountUid).id)
                   toast('Device ID copied to clipboard')
                 }}
+                className="justify-start"
               >
-                <XStack f={1}>
-                  <SizableText>{d.label}</SizableText>
-                </XStack>
+                <SizableText>{d.label}</SizableText>
               </Button>
             </Tooltip>
           ))}
-        </YStack>
-      ) : // <Paragraph>No linked devices found</Paragraph>
-      null}
-      <XStack>
+        </div>
+      ) : null}
+      <div className="flex">
         <Button
-          onPress={() => linkDevice.open({accountUid, accountName})}
-          color="$color1"
-          icon={Plus}
-          backgroundColor="$brand5"
-          hoverStyle={{
-            backgroundColor: '$brand6',
-          }}
-          pressStyle={{
-            backgroundColor: '$brand7',
-          }}
+          onClick={() => linkDevice.open({accountUid, accountName})}
+          variant="default"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
+          <Plus className="mr-2 h-4 w-4" />
           Link Web Session
         </Button>
-      </XStack>
+      </div>
       {linkDevice.content}
-    </YStack>
+    </div>
   )
 }
 
@@ -840,18 +829,18 @@ function LinkDeviceDialog({
           You have signed in to{' '}
           <Text fontWeight="bold">{input.accountName}</Text> in the web browser.
         </Paragraph>
-        <XStack jc="center">
+        <div className="flex justify-center">
           <Button
-            backgroundColor="$color3"
-            size="$2"
-            iconAfter={Check}
-            onPress={() => {
+            size="sm"
+            variant="outline"
+            onClick={() => {
               onClose()
             }}
           >
             Close
+            <Check className="ml-2 h-4 w-4" />
           </Button>
-        </XStack>
+        </div>
       </YStack>
     )
   }
@@ -871,13 +860,13 @@ function LinkDeviceDialog({
         </Paragraph>
       )}
       {linkDeviceUrl ? (
-        <YStack gap="$4">
+        <div className="flex flex-col gap-4">
           <CopyUrlField url={linkDeviceUrl} label="Device Login" />
           {linkDeviceUrl ? (
             <Paragraph>Or, scan this code with your smartphone:</Paragraph>
           ) : null}
           <QRCode value={linkDeviceUrl} size={465} />
-        </YStack>
+        </div>
       ) : (
         <DeviceLabelForm
           accountUid={input.accountUid}
@@ -939,7 +928,7 @@ function DeviceLabelForm({
         onSuccess(linkSession)
       })}
     >
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         {linkDevice.error ? (
           <Paragraph color="$red10">
             Error linking device: {linkDevice.error.message}
@@ -951,7 +940,7 @@ function DeviceLabelForm({
         <Form.Trigger asChild>
           <Button>Link Device</Button>
         </Form.Trigger>
-      </YStack>
+      </div>
     </Form>
   )
 }
@@ -1122,18 +1111,18 @@ function GatewaySettings({}: {}) {
       <TableList>
         <InfoListHeader title="URL" />
         <TableList.Item>
-          <XStack gap="$3" width="100%">
+          <div className="flex w-full gap-3">
             <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
             <Button
-              size="$3"
-              onPress={() => {
+              size="sm"
+              onClick={() => {
                 setGatewayUrl.mutate(gwUrl)
                 toast.success('Public Gateway URL changed!')
               }}
             >
               Save
             </Button>
-          </XStack>
+          </div>
         </TableList.Item>
       </TableList>
 
@@ -1171,12 +1160,16 @@ function PushOnCopySetting({}: {}) {
       <TableList>
         <InfoListHeader title="Push on Copy" />
         <TableList.Item>
-          <YStack>
+          <div className="flex flex-col">
             <Paragraph theme="red">Error loading settings.</Paragraph>
-            <Button theme="red" size="$2" onPress={() => pushOnCopy.refetch()}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => pushOnCopy.refetch()}
+            >
               Retry
             </Button>
-          </YStack>
+          </div>
         </TableList.Item>
       </TableList>
     )
@@ -1263,16 +1256,16 @@ function PushOnPublishSetting({}: {}) {
       <TableList>
         <InfoListHeader title="Push on Publish" />
         <TableList.Item>
-          <YStack>
+          <div className="flex flex-col">
             <Paragraph theme="red">Error loading settings.</Paragraph>
             <Button
-              theme="red"
-              size="$2"
-              onPress={() => pushOnPublish.refetch()}
+              variant="destructive"
+              size="sm"
+              onClick={() => pushOnPublish.refetch()}
             >
               Retry
             </Button>
-          </YStack>
+          </div>
         </TableList.Item>
       </TableList>
     )
@@ -1375,7 +1368,7 @@ function DeviceItem({id}: {id: string}) {
         title={id.substring(id.length - 10)}
         right={
           isCurrent && (
-            <Button size="$1" fontWeight="700" disabled>
+            <Button size="xs" className="font-bold" disabled>
               current device
             </Button>
           )

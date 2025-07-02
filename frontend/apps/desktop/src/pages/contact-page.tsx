@@ -46,7 +46,7 @@ import {
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Text, XStack, YStack} from 'tamagui'
+import {Text} from 'tamagui'
 import {z} from 'zod'
 
 export default function ContactPage() {
@@ -233,7 +233,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
               accounts={accounts.data?.accountsMetadata}
             />
           ) : null}
-          <XStack jc="center" gap="$3" ai="center">
+          <div className="flex items-center justify-center gap-3">
             <Button
               variant="outline"
               onClick={() =>
@@ -287,7 +287,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
                 Save Contact
               </Button>
             )}
-          </XStack>
+          </div>
           {contact.data ? (
             <AccountContacts
               contact={contact.data}
@@ -353,7 +353,7 @@ function ContactEdgeNames({
     <div className="border-border self-stretch rounded-md border-2 p-2">
       {contact.subjectContacts?.length ? (
         <>
-          <XStack jc="center">
+          <div className="flex justify-center">
             <Button
               variant="ghost"
               size="sm"
@@ -366,9 +366,9 @@ function ContactEdgeNames({
               )}
               {buttonLabel}
             </Button>
-          </XStack>
+          </div>
           {isExpanded ? (
-            <YStack>
+            <div className="flex flex-col">
               {contact.subjectContacts?.map((contact) => {
                 const account = accounts[contact.account]
                 return (
@@ -397,7 +397,7 @@ function ContactEdgeNames({
                   </div>
                 )
               })}
-            </YStack>
+            </div>
           ) : null}
         </>
       ) : (
@@ -427,7 +427,7 @@ function AccountContacts({
           ? `${ownerLabel}'s Contacts`
           : `${ownerLabel} has no Contacts`}
       </h3>
-      <YStack>
+      <div className="flex flex-col">
         {contact.contacts?.map((contact) => {
           const subjectAccount = subjectAccounts.find(
             (a) => a.data?.id?.uid === contact.subject,
@@ -461,7 +461,7 @@ function AccountContacts({
             </div>
           )
         })}
-      </YStack>
+      </div>
     </div>
   )
 }
@@ -490,7 +490,7 @@ function ContactFormDialog({
   } = useForm<z.infer<typeof SaveContactSchema>>({
     resolver: zodResolver(SaveContactSchema),
     defaultValues: {
-      name: input.name,
+      name: input.name || '',
     },
   })
   const selectedAccount = useSelectedAccount()

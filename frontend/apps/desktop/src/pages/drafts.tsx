@@ -15,7 +15,7 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {Button, XStack, YStack} from 'tamagui'
+import {Button} from 'tamagui'
 
 export default function DraftsPage() {
   const drafts = useDraftList()
@@ -108,9 +108,9 @@ export function DraftItem({
       h="auto"
       ai="center"
     >
-      <XStack gap="$4" ai="center" f={1}>
-        <YStack gap="$1" f={1}>
-          <XStack overflow="hidden">
+      <div className="flex flex-1 items-center gap-4">
+        <div className="flex flex-1 flex-col gap-1">
+          <div className="flex overflow-hidden">
             {breadcrumbs.map((breadcrumb, idx) => (
               <>
                 <Button
@@ -152,7 +152,7 @@ export function DraftItem({
                 )}
               </>
             ))}
-          </XStack>
+          </div>
           <SizableText
             size="lg"
             weight="bold"
@@ -160,7 +160,7 @@ export function DraftItem({
           >
             {getMetadataName(metadata)}
           </SizableText>
-        </YStack>
+        </div>
         {/* <LibraryEntryAuthors
             item={item}
             accountsMetadata={accountsMetadata}
@@ -172,7 +172,7 @@ export function DraftItem({
         >
           {formattedDateMedium(new Date(item.lastUpdateTime))}
         </SizableText>
-      </XStack>
+      </div>
     </Button>
   )
 }
