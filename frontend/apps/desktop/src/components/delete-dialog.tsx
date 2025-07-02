@@ -12,33 +12,18 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
+import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {ReactNode} from 'react'
-import {
-  AlertDialog,
-  AlertDialogContentProps,
-  AlertDialogProps,
-  HeadingProps,
-  ParagraphProps,
-  SizableText,
-  XStack,
-  XStackProps,
-  YStack,
-} from 'tamagui'
 import {useDeleteEntities} from '../models/entities'
 import {useAppDialog} from './dialog'
 
-export type DeleteDialogProps = AlertDialogProps & {
-  dialogContentProps?: AlertDialogContentProps
+export type DeleteDialogProps = {
   trigger?: (props: {onPress: () => void}) => JSX.Element
   cancelButton?: ReactNode
   actionButton?: ReactNode
-  contentStackProps?: XStackProps
-  actionStackProps?: XStackProps
   title: string
-  titleProps?: HeadingProps
   description: string
-  descriptionProps?: ParagraphProps
 }
 
 export function useDeleteDialog() {
@@ -77,32 +62,32 @@ export function DeleteEntityDialog({
     )
   if (doc.isError || !doc.data?.document)
     return (
-      <AlertDialog.Description theme="red">
+      <Text className="text-destructive text-sm">
         {doc.error || 'Could not load document'}
-      </AlertDialog.Description>
+      </Text>
     )
   return (
-    <YStack gap="$4" padding="$4" borderRadius="$3" maxWidth={440}>
-      <AlertDialog.Title>
+    <div className="flex max-w-[440px] flex-col gap-4 rounded-lg p-4">
+      <Text className="text-lg font-semibold">
         Delete "{getDocumentTitle(doc.data?.document)}"
-      </AlertDialog.Title>
-      <AlertDialog.Description>
+      </Text>
+      <Text className="text-muted-foreground text-sm">
         Are you sure you want to delete{' '}
         {childDocs.length ? 'these documents' : 'this document'}? This may break
         links that refer to the current{' '}
         {childDocs.length ? 'versions' : 'version'}.
-      </AlertDialog.Description>
-      <AlertDialog.Description>
+      </Text>
+      <Text className="text-muted-foreground text-sm">
         {childDocs.length ? 'They' : 'It'} will be removed from your directory
         but the content will remain on your computer, and other people may still
         have it saved.
-      </AlertDialog.Description>
-      <AlertDialog.Description color="$color9">
+      </Text>
+      <Text className="text-muted-foreground text-sm">
         Note: This feature is a work-in-progress. For now, the raw document data
         will continue to be synced with other peers. Soon we will avoid that.
         Eventually, you will be able to recover deleted documents.
-      </AlertDialog.Description>
-      <YStack gap="$3" marginVertical="$4">
+      </Text>
+      <div className="my-4 flex flex-col gap-3">
         <DeletionListItem
           metadata={doc.data.document.metadata}
           path={id.path}
@@ -114,37 +99,33 @@ export function DeleteEntityDialog({
             path={item.path}
           />
         ))}
-      </YStack>
-      <XStack gap="$3" justifyContent="flex-end">
-        <AlertDialog.Cancel asChild>
-          <Button onClick={onClose} chromeless>
-            Cancel
-          </Button>
-        </AlertDialog.Cancel>
-        {deleteEntity.isLoading ? <Spinner /> : null}
-        <AlertDialog.Action asChild>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              if (!cap || !roleCanWrite(cap?.role))
-                throw new Error('Not allowed to delete')
-              deleteEntity.mutate({
-                ids: [
-                  id,
-                  ...childDocs.map((item) =>
-                    hmId('d', id.uid, {path: item.path}),
-                  ),
-                ],
-                signingAccountUid: cap.accountUid,
-                capabilityId: cap.capabilityId,
-              })
-            }}
-          >
-            {childDocs.length ? 'Delete Documents' : 'Delete Document'}
-          </Button>
-        </AlertDialog.Action>
-      </XStack>
-    </YStack>
+      </div>
+      <div className="flex justify-end gap-3">
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+
+        <Button
+          variant="destructive"
+          onClick={() => {
+            if (!cap || !roleCanWrite(cap?.role))
+              throw new Error('Not allowed to delete')
+            deleteEntity.mutate({
+              ids: [
+                id,
+                ...childDocs.map((item) =>
+                  hmId('d', id.uid, {path: item.path}),
+                ),
+              ],
+              signingAccountUid: cap.accountUid,
+              capabilityId: cap.capabilityId,
+            })
+          }}
+        >
+          {childDocs.length ? 'Delete Documents' : 'Delete Document'}
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -156,14 +137,14 @@ function DeletionListItem({
   path: string[] | null
 }) {
   return (
-    <XStack jc="space-between" gap="$3">
-      <SizableText color="$red11" textDecorationLine="line-through">
+    <div className="flex justify-between gap-3">
+      <Text className="text-destructive line-through">
         {getMetadataName(metadata)}
-      </SizableText>
-      <SizableText color="$red9" textDecorationLine="line-through">
+      </Text>
+      <Text className="text-destructive/70 line-through">
         {path?.join('/') || '?'}
-      </SizableText>
-    </XStack>
+      </Text>
+    </div>
   )
 }
 
@@ -182,33 +163,28 @@ export function DeleteKeyDialog({
   const deleteKey = useDeleteKey()
 
   return (
-    <YStack backgroundColor="$background" padding="$4" borderRadius="$3">
-      <AlertDialog.Title>Delete Key</AlertDialog.Title>
-      <AlertDialog.Description>
+    <div className="bg-background rounded-lg p-4">
+      <Text className="text-lg font-semibold">Delete Key</Text>
+      <Text className="text-muted-foreground text-sm">
         Are you sure you want to delete this key from your computer? You will
         NOT be able to recover this neither sign content with this identity.
-      </AlertDialog.Description>
+      </Text>
 
-      <XStack gap="$3" justifyContent="flex-end">
-        <AlertDialog.Cancel asChild>
-          <Button onPress={onClose} chromeless>
-            Cancel
-          </Button>
-        </AlertDialog.Cancel>
-        <AlertDialog.Action asChild>
-          <Button
-            theme="red"
-            onPress={() => {
-              deleteKey.mutateAsync({accountId}).then(() => {
-                onSuccess?.()
-                onClose?.()
-              })
-            }}
-          >
-            Delete Account
-          </Button>
-        </AlertDialog.Action>
-      </XStack>
-    </YStack>
+      <div className="flex justify-end gap-3">
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            deleteKey.mutate({accountId})
+            onSuccess?.()
+            onClose?.()
+          }}
+        >
+          Delete Key
+        </Button>
+      </div>
+    </div>
   )
 }

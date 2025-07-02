@@ -7,6 +7,7 @@ import {getMetadataName} from '@shm/shared/content'
 import {DocumentRoute} from '@shm/shared/routes'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
+import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
@@ -14,15 +15,7 @@ import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ComponentProps, ReactElement, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {
-  Button,
-  ButtonProps,
-  ButtonText,
-  SizableText,
-  Text,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {ButtonProps, ButtonText, SizableText} from 'tamagui'
 
 export function ListItem({
   accessory,
@@ -48,53 +41,45 @@ export function ListItem({
     typeof menuItems === 'function' ? undefined : menuItems,
   )
   return (
-    <XStack paddingVertical="$1.5" w="100%" maxWidth={900} group="item">
+    <div className="group flex w-full max-w-[900px] py-2">
       <Button
-        theme={theme}
-        backgroundColor={backgroundColor}
         onPointerEnter={() => {
           onPointerEnter?.()
           if (!currentMenuItems && typeof menuItems === 'function') {
             setMenuItems(menuItems())
           }
         }}
-        chromeless
-        onPress={onPress}
+        variant="ghost"
+        onClick={onPress}
         {...hoverProps}
-        maxWidth={600}
-        f={1}
-        width="100%"
-        hoverStyle={{
-          bg: '$backgroundFocus',
-          borderColor: '$background',
-        }}
+        className="hover:bg-accent hover:border-background w-full max-w-[600px] flex-1 justify-start"
       >
         {icon}
-        <ButtonText
-          onPress={(e: GestureResponderEvent) => {
+        <span
+          onClick={(e) => {
             e.stopPropagation()
-            onPress?.(e)
+            onPress?.(e as any)
           }}
-          fontWeight="700"
-          flex={2}
-          textAlign="left"
+          className="flex-[2] text-left font-bold"
         >
           {title}
-        </ButtonText>
+        </span>
         {accessory && (
-          <XStack flexShrink={0} gap="$2" paddingHorizontal="$2">
-            {accessory}
-          </XStack>
+          <div className="flex flex-shrink-0 gap-2 px-2">{accessory}</div>
         )}
         {currentMenuItems && currentMenuItems.length ? (
-          <XStack opacity={hover ? 1 : 0} $group-item-hover={{opacity: 1}}>
+          <div
+            className={`${
+              hover ? 'opacity-100' : 'opacity-0'
+            } group-hover:opacity-100`}
+          >
             <OptionsDropdown hover={hover} menuItems={currentMenuItems} />
-          </XStack>
+          </div>
         ) : (
-          <XStack width={20} />
+          <div className="w-5" />
         )}
       </Button>
-    </XStack>
+    </div>
   )
 }
 
@@ -127,17 +112,13 @@ export function TimeAccessory({
           : formattedDateLong(time)
       }
     >
-      <ButtonText
-        fontFamily="$body"
-        fontSize="$2"
+      <button
+        className="min-w-10 justify-end text-right text-sm"
         data-testid="list-item-date"
-        onPress={onPress}
-        // alignSelf="flex-end"
-        minWidth={40}
-        justifyContent="flex-end"
+        onClick={onPress as any}
       >
         {time ? formattedDate(time) : '...'}
-      </ButtonText>
+      </button>
     </Tooltip>
   )
 }
@@ -173,19 +154,11 @@ export function LibraryListItem({
       />
     ) : null
 
-  const hoverColor = '$color5'
+  const hoverColor = 'hover:bg-accent'
   return (
     <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: hoverColor,
-      }}
-      bg="$colorTransparent"
-      elevation="$1"
-      paddingHorizontal={16}
-      paddingVertical="$1"
-      onPress={() => {
+      variant="ghost"
+      onClick={() => {
         if (!exportMode) {
           navigate({key: 'document', id: entry.id})
         }
@@ -193,32 +166,28 @@ export function LibraryListItem({
         //   toggleDocumentSelection(entry.id.id)
         // }
       }}
-      h={60}
-      icon={
-        exportMode ? (
-          <XStack ai="center" gap="$3">
-            {exportMode && (
-              <Checkbox
-                checked={selected}
-                onCheckedChange={() => {
-                  toggleDocumentSelection(entry.id.id)
-                }}
-              />
-            )}
-
-            {icon}
-          </XStack>
-        ) : (
-          icon
-        )
-      }
       // this data attribute is used by the hypermedia highlight component
       data-docid={docId}
-      className="group"
+      className={`group hover:bg-accent h-[60px] w-full justify-start border-0 bg-transparent px-4 py-1 shadow-sm`}
     >
-      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
-        <YStack f={1} gap="$1.5">
-          <XStack ai="center" gap="$2" paddingLeft={4}>
+      {exportMode ? (
+        <div className="flex items-center gap-3">
+          {exportMode && (
+            <Checkbox
+              checked={selected}
+              onCheckedChange={() => {
+                toggleDocumentSelection(entry.id.id)
+              }}
+            />
+          )}
+          {icon}
+        </div>
+      ) : (
+        icon
+      )}
+      <div className="flex flex-1 items-center gap-2 py-2">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <div className="flex items-center gap-2 pl-1">
             <SizableText
               fontWeight="bold"
               textOverflow="ellipsis"
@@ -228,28 +197,19 @@ export function LibraryListItem({
               {getMetadataName(metadata)}
             </SizableText>
             {isUnpublished && (
-              <SizableText
-                size="$1"
-                color="$yellow11"
-                paddingHorizontal="$2"
-                paddingVertical="$1"
-                bg="$yellow3"
-                borderRadius="$1"
-                borderColor="$yellow10"
-                borderWidth={1}
-              >
+              <span className="rounded border border-yellow-400 bg-yellow-100 px-2 py-1 text-xs text-yellow-500 dark:bg-yellow-900 dark:text-yellow-300">
                 Unpublished
-              </SizableText>
+              </span>
             )}
-          </XStack>
+          </div>
           {entry.location.length ? (
             <LibraryEntryLocation
               location={entry.location}
               onNavigate={navigate}
             />
           ) : null}
-        </YStack>
-      </XStack>
+        </div>
+      </div>
       <div className="flex items-center gap-3">
         {isUnpublished ? null : (
           <FavoriteButton id={entry.id} hideUntilItemHover />
@@ -257,56 +217,24 @@ export function LibraryListItem({
 
         <LibraryEntryTime entry={entry} />
 
-        <XStack>
+        <div className="flex">
           {editors.map((author, idx) => (
-            <XStack
-              zIndex={idx + 1}
+            <div
               key={author.id.id}
-              borderColor="$background"
-              backgroundColor="$background"
-              $group-item-hover={{
-                borderColor: hoverColor,
-                backgroundColor: hoverColor,
-              }}
-              borderWidth={2}
-              borderRadius={100}
-              overflow="hidden"
-              marginLeft={-8}
-              animation="fast"
+              className="border-background bg-background group-hover:border-accent group-hover:bg-accent -ml-2 overflow-hidden rounded-full border-2 transition-all duration-200"
+              style={{zIndex: idx + 1}}
             >
-              <LinkIcon
-                key={author.id.id}
-                id={author.id}
-                metadata={author.metadata}
-                size={20}
-              />
-            </XStack>
+              <HMIcon id={author.id} metadata={author.metadata} size={20} />
+            </div>
           ))}
           {entry.authors.length > editors.length && editors.length != 0 ? (
-            <XStack
-              zIndex="$zIndex.1"
-              borderColor="$background"
-              backgroundColor="$background"
-              borderWidth={2}
-              borderRadius={100}
-              marginLeft={-8}
-              animation="fast"
-              width={24}
-              height={24}
-              ai="center"
-              jc="center"
-            >
-              <Text
-                fontSize={10}
-                fontFamily="$body"
-                fontWeight="bold"
-                color="$color10"
-              >
+            <div className="border-background bg-background z-[1] -ml-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200">
+              <span className="text-muted-foreground text-[10px] font-bold">
                 +{entry.authors.length - editors.length - 1}
-              </Text>
-            </XStack>
+              </span>
+            </div>
           ) : null}
-        </XStack>
+        </div>
       </div>
     </Button>
   )
@@ -329,20 +257,12 @@ function LibraryEntryLocation({
 }) {
   const [space, ...names] = location
   return (
-    <XStack gap="$2" w="100%" overflow="hidden">
+    <div className="flex w-full gap-2 overflow-hidden">
       <Button
-        color="$brand5"
-        fontWeight="400"
-        size="$1"
-        borderWidth={0}
-        bg="$colorTransparent"
-        hoverStyle={{
-          color: '$brand6',
-          bg: '$colorTransparent',
-          textDecorationLine: 'underline',
-          textDecorationColor: 'currentColor',
-        }}
-        onPress={(e: GestureResponderEvent) => {
+        variant="ghost"
+        size="xs"
+        className="text-primary hover:text-primary/80 h-auto border-0 bg-transparent p-0 font-normal hover:bg-transparent hover:underline"
+        onClick={(e) => {
           e.stopPropagation()
           onNavigate({key: 'document', id: space.id})
         }}
@@ -352,33 +272,24 @@ function LibraryEntryLocation({
 
       {names.length ? (
         <>
-          <SizableText size="$1" color="$color9">
-            |
-          </SizableText>
-          <XStack ai="center" gap="$0.5">
+          <span className="text-muted-foreground text-xs">|</span>
+          <div className="flex items-center gap-0.5">
             {names.map(({id, metadata}, idx) => (
               <>
                 {idx != 0 ? (
-                  <SizableText
+                  <span
                     key={`slash-${id.id}`}
-                    color="$color10"
-                    size="$1"
+                    className="text-muted-foreground text-xs"
                   >
                     /
-                  </SizableText>
+                  </span>
                 ) : null}
                 <Button
                   key={id.id}
-                  size="$1"
-                  borderWidth={0}
-                  bg="$colorTransparent"
-                  color="$color10"
-                  hoverStyle={{
-                    bg: '$colorTransparent',
-                    textDecorationLine: 'underline',
-                    textDecorationColor: 'currentColor',
-                  }}
-                  onPress={(e: GestureResponderEvent) => {
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground h-auto border-0 bg-transparent p-0 hover:bg-transparent hover:underline"
+                  onClick={(e) => {
                     e.stopPropagation()
                     onNavigate({key: 'document', id})
                   }}
@@ -389,9 +300,9 @@ function LibraryEntryLocation({
                 </Button>
               </>
             ))}
-          </XStack>
+          </div>
         </>
       ) : null}
-    </XStack>
+    </div>
   )
 }

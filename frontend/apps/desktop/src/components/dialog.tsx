@@ -1,7 +1,8 @@
+import {Button} from '@shm/ui/button'
 import {X} from 'lucide-react'
 import {FC, HTMLAttributes, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {AlertDialog, Button, Dialog, Unspaced} from 'tamagui'
+import {AlertDialog, Dialog, Unspaced} from 'tamagui'
 import {
   NavContextProvider,
   NavigationContext,
@@ -48,7 +49,7 @@ export function DialogFooter(props: HTMLAttributes<HTMLDivElement>) {
   return <div className="flex justify-end gap-4" {...props} />
 }
 export function DialogTitle(props: any) {
-  return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />
+  return <Dialog.Title className="text-lg font-bold" {...props} />
 }
 
 export function DialogCloseButton() {
@@ -56,13 +57,12 @@ export function DialogCloseButton() {
     <Unspaced>
       <Dialog.Close asChild>
         <Button
-          position="absolute"
-          top="$3"
-          right="$3"
-          size="$2"
-          circular
-          icon={<X className="size-4" />}
-        />
+          size="sm"
+          variant="ghost"
+          className="absolute top-3 right-3 rounded-full"
+        >
+          <X className="size-4" />
+        </Button>
       </Dialog.Close>
     </Unspaced>
   )
@@ -142,19 +142,7 @@ export function AppDialog<
             exitStyle={{opacity: 0}}
             onPress={() => setIsOpen(false)}
           />
-          <Component.Content
-            backgroundColor={'$background'}
-            animation={[
-              'fast',
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{y: -10, opacity: 0}}
-            exitStyle={{y: -10, opacity: 0}}
-          >
+          <Component.Content>
             <ContentComponent
               isOpen={isOpen}
               onClose={() => {
@@ -219,19 +207,7 @@ export function useAppDialog<DialogInput>(
                 exitStyle={{opacity: 0}}
                 onPress={close}
               />
-              <Component.Content
-                backgroundColor={'$background'}
-                animation={[
-                  'fast',
-                  {
-                    opacity: {
-                      overshootClamping: true,
-                    },
-                  },
-                ]}
-                enterStyle={{y: -10, opacity: 0}}
-                exitStyle={{y: -10, opacity: 0}}
-              >
+              <Component.Content>
                 {openState && (
                   <DialogContentComponent
                     input={openState}

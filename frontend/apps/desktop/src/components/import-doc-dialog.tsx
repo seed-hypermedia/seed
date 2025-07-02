@@ -1,6 +1,5 @@
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
-import {AlertDialog} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export type ImportedDocument = {
@@ -32,35 +31,31 @@ function ImportConfirmDialog({
 
   return (
     <div className="flex flex-col gap-4 rounded-md p-4">
-      <AlertDialog.Title>
+      <Text className="text-lg font-semibold">
         <Text weight="bold">{`${documentCount} documents found.`}</Text>
-      </AlertDialog.Title>
-      <AlertDialog.Description>
+      </Text>
+      <Text className="text-muted-foreground text-sm">
         <Text>Do you want to continue with the import?</Text>
-      </AlertDialog.Description>
+      </Text>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex justify-end gap-3">
-          <AlertDialog.Cancel asChild>
-            <Button
-              onClick={() => {
-                onClose()
-              }}
-              variant="ghost"
-            >
-              Cancel
-            </Button>
-          </AlertDialog.Cancel>
-          <AlertDialog.Action asChild>
-            <Button
-              variant="default"
-              onClick={() => {
-                onSuccess(documents, docMap)
-                onClose()
-              }}
-            >
-              Continue Import
-            </Button>
-          </AlertDialog.Action>
+          <Button
+            onClick={() => {
+              onClose()
+            }}
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => {
+              onSuccess(documents, docMap)
+              onClose()
+            }}
+          >
+            Continue Import
+          </Button>
         </div>
       </div>
     </div>

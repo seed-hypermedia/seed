@@ -41,6 +41,16 @@ import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogPortal,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@shm/ui/components/alert-dialog'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -81,7 +91,6 @@ import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {
-  AlertDialog,
   Form,
   Heading,
   Input,
@@ -512,56 +521,29 @@ function AccountKeys() {
                         <Copy className="h-4 w-4" />
                       </Button>
 
-                      <AlertDialog native>
+                      <AlertDialog>
                         <Tooltip content="Delete words from device">
-                          <AlertDialog.Trigger asChild>
+                          <AlertDialogTrigger asChild>
                             <Button size="sm" variant="destructive">
                               <Trash className="h-4 w-4" />
                             </Button>
-                          </AlertDialog.Trigger>
+                          </AlertDialogTrigger>
                         </Tooltip>
-                        <AlertDialog.Portal>
-                          <AlertDialog.Overlay
-                            key="overlay"
-                            animation="fast"
-                            opacity={0.5}
-                            enterStyle={{opacity: 0}}
-                            exitStyle={{opacity: 0}}
-                          />
-                          <AlertDialog.Content
-                            bordered
-                            elevate
-                            key="content"
-                            animation={[
-                              'fast',
-                              {
-                                opacity: {
-                                  overshootClamping: true,
-                                },
-                              },
-                            ]}
-                            enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                            exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                            x={0}
-                            scale={1}
-                            opacity={1}
-                            y={0}
-                            maxWidth={600}
-                            gap="$4"
-                          >
-                            <AlertDialog.Title size="$8" fontWeight="bold">
+                        <AlertDialogPortal>
+                          <AlertDialogContent className="max-w-[600px] gap-4">
+                            <AlertDialogTitle className="text-2xl font-bold">
                               Delete Words
-                            </AlertDialog.Title>
-                            <AlertDialog.Description>
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
                               Are you really sure? you cant recover the secret
                               words after you delete them. please save them
                               securely in another place before you delete
-                            </AlertDialog.Description>
+                            </AlertDialogDescription>
                             <div className="flex justify-end gap-3">
-                              <AlertDialog.Cancel asChild>
+                              <AlertDialogCancel asChild>
                                 <Button variant="ghost">Cancel</Button>
-                              </AlertDialog.Cancel>
-                              <AlertDialog.Action asChild>
+                              </AlertDialogCancel>
+                              <AlertDialogAction asChild>
                                 <Button
                                   variant="destructive"
                                   onClick={() =>
@@ -577,10 +559,10 @@ function AccountKeys() {
                                 >
                                   Delete Permanently
                                 </Button>
-                              </AlertDialog.Action>
+                              </AlertDialogAction>
                             </div>
-                          </AlertDialog.Content>
-                        </AlertDialog.Portal>
+                          </AlertDialogContent>
+                        </AlertDialogPortal>
                       </AlertDialog>
                     </div>
                   </div>
@@ -588,67 +570,40 @@ function AccountKeys() {
               </div>
             ) : null}
 
-            <AlertDialog native>
-              <Tooltip content="Delete words from device">
-                <AlertDialog.Trigger asChild>
+            <AlertDialog>
+              <Tooltip content="Delete account from device">
+                <AlertDialogTrigger asChild>
                   <Button size="sm" variant="destructive" className="self-end">
                     <Trash className="mr-2 h-4 w-4" />
                     Delete Account
                   </Button>
-                </AlertDialog.Trigger>
+                </AlertDialogTrigger>
               </Tooltip>
-              <AlertDialog.Portal>
-                <AlertDialog.Overlay
-                  key="overlay"
-                  animation="fast"
-                  opacity={0.5}
-                  enterStyle={{opacity: 0}}
-                  exitStyle={{opacity: 0}}
-                />
-                <AlertDialog.Content
-                  bordered
-                  elevate
-                  key="content"
-                  animation={[
-                    'fast',
-                    {
-                      opacity: {
-                        overshootClamping: true,
-                      },
-                    },
-                  ]}
-                  enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                  exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                  x={0}
-                  scale={1}
-                  opacity={1}
-                  y={0}
-                  maxWidth={600}
-                  gap="$4"
-                >
-                  <AlertDialog.Title size="$8" fontWeight="bold">
+              <AlertDialogPortal>
+                <AlertDialogContent className="max-w-[600px] gap-4">
+                  <AlertDialogTitle className="text-2xl font-bold">
                     Delete Account
-                  </AlertDialog.Title>
-                  <AlertDialog.Description>
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
                     Are you sure? This account will be removed. Make sure you
                     have saved the Secret Recovery Phrase for this account if
                     you want to recover it later.
-                  </AlertDialog.Description>
+                  </AlertDialogDescription>
                   <div className="flex justify-end gap-3">
-                    <AlertDialog.Cancel asChild>
+                    <AlertDialogCancel asChild>
                       <Button variant="ghost">Cancel</Button>
-                    </AlertDialog.Cancel>
-                    <AlertDialog.Action asChild>
+                    </AlertDialogCancel>
+                    <AlertDialogAction asChild>
                       <Button
                         variant="destructive"
                         onClick={handleDeleteCurrentAccount}
                       >
                         Delete Permanently
                       </Button>
-                    </AlertDialog.Action>
+                    </AlertDialogAction>
                   </div>
-                </AlertDialog.Content>
-              </AlertDialog.Portal>
+                </AlertDialogContent>
+              </AlertDialogPortal>
             </AlertDialog>
             <Separator />
             <SettingsSection title="Wallets">

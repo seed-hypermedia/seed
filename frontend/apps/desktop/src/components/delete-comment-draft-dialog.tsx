@@ -1,5 +1,5 @@
 import {Button} from '@shm/ui/button'
-import {AlertDialog} from 'tamagui'
+import {Text} from '@shm/ui/text'
 import {useAppDialog} from './dialog'
 
 export function useDeleteCommentDraftDialog() {
@@ -15,32 +15,28 @@ function DeleteCommentDraftDialog({
 }) {
   return (
     <div className="bg-background flex flex-col gap-2 rounded-md p-4">
-      <AlertDialog.Title>Discard Comment</AlertDialog.Title>
-      <AlertDialog.Description>
+      <Text className="text-lg font-semibold">Discard Comment</Text>
+      <Text className="text-muted-foreground text-sm">
         Permanently delete this draft comment?
-      </AlertDialog.Description>
+      </Text>
 
       <div className="flex justify-end gap-3">
-        <AlertDialog.Cancel asChild>
-          <Button
-            onClick={() => {
-              onClose()
-            }}
-          >
-            Cancel
-          </Button>
-        </AlertDialog.Cancel>
-        <AlertDialog.Action asChild>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              input.onConfirm()
-              onClose()
-            }}
-          >
-            Delete
-          </Button>
-        </AlertDialog.Action>
+        <Button
+          onClick={() => {
+            onClose()
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            input.onConfirm()
+            onClose()
+          }}
+        >
+          Delete
+        </Button>
       </div>
     </div>
   )

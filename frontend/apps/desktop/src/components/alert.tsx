@@ -1,64 +1,80 @@
-import {SizableText} from '@shm/ui/text'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@shm/ui/components/alert-dialog'
+import {cn} from '@shm/ui/utils'
 import type {ComponentProps, PropsWithChildren} from 'react'
 import React from 'react'
-import {AlertDialog, Button, DialogContent, H3} from 'tamagui'
 
 function Root({children, ...props}: ComponentProps<typeof AlertDialog>) {
   return <AlertDialog {...props}>{children}</AlertDialog>
 }
 
-function Title(props: any) {
+function Title({className, ...props}: ComponentProps<typeof AlertDialogTitle>) {
   return (
-    <AlertDialog.Title asChild>
-      <H3 {...props} />
-    </AlertDialog.Title>
+    <AlertDialogTitle
+      className={cn('text-lg font-semibold', className)}
+      {...props}
+    />
   )
 }
 
-function Description(props: any) {
+function Description({
+  className,
+  ...props
+}: ComponentProps<typeof AlertDialogDescription>) {
   return (
-    <AlertDialog.Description asChild>
-      <SizableText {...props} />
-    </AlertDialog.Description>
+    <AlertDialogDescription
+      className={cn('text-muted-foreground text-sm', className)}
+      {...props}
+    />
   )
 }
 
-type ButtonProps = ComponentProps<typeof Button>
 function Cancel({
   disabled = false,
+  className,
   ...props
 }: PropsWithChildren<
-  Omit<ButtonProps, 'chromeless' | 'color' | 'size'> & {
+  ComponentProps<typeof AlertDialogCancel> & {
     disabled?: boolean
+    className?: string
   }
 >) {
   return (
-    <AlertDialog.Cancel asChild>
-      <Button chromeless size="$1" disabled={disabled} {...props} />
-    </AlertDialog.Cancel>
+    <AlertDialogCancel
+      className={cn('mt-2 sm:mt-0', className)}
+      disabled={disabled}
+      {...props}
+    />
   )
 }
 
 function Action({
   disabled = false,
+  className,
   ...props
 }: PropsWithChildren<
-  Omit<ButtonProps, 'size'> & {disabled?: boolean} & {
+  ComponentProps<typeof AlertDialogAction> & {
+    disabled?: boolean
+    className?: string
     onClick: React.MouseEventHandler<HTMLButtonElement>
   }
 >) {
   return (
-    <AlertDialog.Action asChild>
-      <Button size="$1" disabled={disabled} {...props} />
-    </AlertDialog.Action>
+    <AlertDialogAction className={className} disabled={disabled} {...props} />
   )
 }
 
 export const Alert = {
-  ...AlertDialog,
   Root,
-  Trigger: AlertDialog.Trigger,
-  Content: DialogContent,
+  Trigger: AlertDialogTrigger,
+  Content: AlertDialogContent,
   Title,
   Description,
   Cancel,

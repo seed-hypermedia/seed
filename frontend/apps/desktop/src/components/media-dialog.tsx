@@ -1,6 +1,6 @@
 import {Button} from '@shm/ui/button'
+import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {AlertDialog} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useMediaDialog() {
@@ -16,40 +16,36 @@ function MediaDialog({
 }) {
   return (
     <div className="bg-background flex flex-col gap-2 rounded-md p-4">
-      <AlertDialog.Title>Commit Document</AlertDialog.Title>
-      <AlertDialog.Description>
+      <Text className="text-lg font-semibold">Commit Document</Text>
+      <Text className="text-muted-foreground text-sm">
         All empty media elements will be deleted in your publication. Do you
         wish to proceed?
-      </AlertDialog.Description>
+      </Text>
 
       <div className="flex justify-end gap-3">
-        <AlertDialog.Cancel asChild>
-          <Button
-            onClick={() => {
-              onClose()
-            }}
-            variant="ghost"
-          >
-            Cancel
-          </Button>
-        </AlertDialog.Cancel>
-        <AlertDialog.Action asChild>
-          <Button
-            variant="default"
-            onClick={() => {
-              if (input.draftId) {
-                try {
-                  input.publish.mutate({draftId: input.draftId})
-                } catch (e: any) {
-                  toast.error('Failed to publish: ' + e)
-                }
+        <Button
+          onClick={() => {
+            onClose()
+          }}
+          variant="ghost"
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="default"
+          onClick={() => {
+            if (input.draftId) {
+              try {
+                input.publish.mutate({draftId: input.draftId})
+              } catch (e: any) {
+                toast.error('Failed to publish: ' + e)
               }
-              onClose()
-            }}
-          >
-            Commit
-          </Button>
-        </AlertDialog.Action>
+            }
+            onClose()
+          }}
+        >
+          Commit
+        </Button>
       </div>
     </div>
   )
