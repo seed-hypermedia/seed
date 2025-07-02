@@ -156,8 +156,7 @@ export function LibraryListItem({
 
   const hoverColor = 'hover:bg-accent'
   return (
-    <Button
-      variant="ghost"
+    <div
       onClick={() => {
         if (!exportMode) {
           navigate({key: 'document', id: entry.id})
@@ -168,7 +167,7 @@ export function LibraryListItem({
       }}
       // this data attribute is used by the hypermedia highlight component
       data-docid={docId}
-      className={`group hover:bg-accent h-[60px] w-full justify-start border-0 bg-transparent px-4 py-1 shadow-sm`}
+      className={`group hover:bg-accent flex h-[60px] w-full cursor-pointer items-center justify-start border-0 bg-transparent px-4 py-1 shadow-sm transition-colors`}
     >
       {exportMode ? (
         <div className="flex items-center gap-3">
@@ -236,7 +235,7 @@ export function LibraryListItem({
           ) : null}
         </div>
       </div>
-    </Button>
+    </div>
   )
 }
 

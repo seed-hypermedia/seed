@@ -172,7 +172,7 @@ export const useDocumentLayout = (
         },
       },
       wrapperProps: {
-        className: 'mx-auto w-full justify-between flex-1',
+        className: 'flex mx-auto w-full justify-between flex-1',
         style: {
           maxWidth:
             contentMaxWidth +

@@ -248,8 +248,9 @@ export function EmbedDocument(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
+  console.log('== ~ EmbedDocumentContent ~ props:', props)
   const [showReferenced, setShowReferenced] = useState(false)
-  const {entityId, textUnit} = useDocContentContext()
+  const {entityId} = useDocContentContext()
   const route = useNavRoute()
   if (props.id && entityId && props.id === entityId.id) {
     return (

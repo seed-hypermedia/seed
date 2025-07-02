@@ -22,6 +22,8 @@ export function PanelContainer({
 
 export const Container = ({
   className,
+  clearVerticalSpace = false,
+  centered = false,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   hide?: boolean
@@ -33,8 +35,8 @@ export const Container = ({
       className={cn(
         'mx-auto w-full flex-shrink-0 px-4 pt-6',
         props.hide && 'pointer-events-none opacity-0',
-        props.clearVerticalSpace && 'py-0',
-        props.centered && 'max-w-[calc(85ch+1em)]',
+        clearVerticalSpace && 'py-0',
+        centered && 'max-w-[calc(85ch+1em)]',
         className,
       )}
       {...props}

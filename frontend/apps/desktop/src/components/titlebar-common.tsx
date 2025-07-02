@@ -58,16 +58,7 @@ import {
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
-import {
-  Button,
-  ColorProp,
-  Popover,
-  SizableText,
-  View,
-  XGroup,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, ColorProp, Popover, SizableText, XGroup} from 'tamagui'
 import {BranchDialog} from './branch-dialog'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
@@ -155,7 +146,7 @@ export function DocOptionsButton({
           .then((res) => {
             const success = (
               <>
-                <YStack gap="$1.5" maxWidth={700}>
+                <div className="flex max-w-[700px] flex-col gap-1.5">
                   <SizableText wordWrap="break-word" textOverflow="break-word">
                     Successfully exported document "{title}" to:{' '}
                     <b>{`${res}`}</b>.
@@ -171,7 +162,7 @@ export function DocOptionsButton({
                   >
                     Show directory
                   </SizableText>
-                </YStack>
+                </div>
               </>
             )
             toast.success('', {customContent: success})
@@ -385,16 +376,9 @@ function EditDocButton() {
   if (popoverVisible) {
     return (
       <>
-        <XStack
-          width="100vw"
-          height="100vh"
-          position="fixed"
-          top={0}
-          left={0}
-          bg="black"
-          zIndex="$zIndex.9"
-          opacity={0.5}
-          onPress={(e) => {
+        <div
+          className="fixed top-0 left-0 z-[900] flex h-screen w-screen bg-black opacity-50"
+          onClick={(e) => {
             e.stopPropagation()
             e.preventDefault()
             setPopoverVisible(false)
@@ -431,20 +415,8 @@ function EditDocButton() {
               },
             ]}
           >
-            <View
-              position="absolute"
-              top={-8}
-              right={36}
-              width={16}
-              height={16}
-              backgroundColor="$background"
-              borderWidth={1}
-              borderColor="$borderColor"
-              borderRightColor="$colorTransparent"
-              borderBottomColor="$colorTransparent"
-              transform={[{rotate: '45deg'}]}
-            />
-            <YStack gap="$2">
+            <div className="border-border bg-background absolute -top-2 right-9 h-4 w-4 rotate-45 border border-r-transparent border-b-transparent" />
+            <div className="flex flex-col gap-2">
               <SizableText size="$6" fontWeight="bold">
                 Start Editing the Content
               </SizableText>
@@ -452,7 +424,7 @@ function EditDocButton() {
                 When you press "Edit" you can start customizing the content of
                 the current page
               </SizableText>
-            </YStack>
+            </div>
           </Popover.Content>
         </Popover>
       </>
@@ -526,7 +498,7 @@ export function NavigationButtons() {
   const dispatch = useNavigationDispatch()
   if (!state) return null
   return (
-    <XStack className="no-window-drag">
+    <div className="no-window-drag flex">
       <XGroup>
         <XGroup.Item>
           <Button
@@ -555,7 +527,7 @@ export function NavigationButtons() {
           />
         </XGroup.Item>
       </XGroup>
-    </XStack>
+    </div>
   )
 }
 
@@ -600,14 +572,10 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   }
 
   return (
-    <XStack marginLeft="$2" flex={1} ai="center">
-      {left || <View />}
+    <div className="ml-2 flex flex-1 items-center">
+      {left || <div />}
       {ctx && (
-        <XStack
-          position="relative"
-          zIndex="$zIndex.1"
-          className="no-window-drag"
-        >
+        <div className="no-window-drag relative z-10">
           <Tooltip
             content={tooltip}
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
@@ -626,9 +594,9 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
               onPress={handleClick}
             />
           </Tooltip>
-        </XStack>
+        </div>
       )}
-    </XStack>
+    </div>
   )
 }
 

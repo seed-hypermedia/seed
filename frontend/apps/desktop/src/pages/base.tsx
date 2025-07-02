@@ -1,11 +1,10 @@
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
-import {Heading} from 'tamagui'
 
 export function NotFoundPage() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center">
-      <Heading>404</Heading>
+      <Text size="lg">404</Text>
       <Text>Page not found</Text>
     </div>
   )

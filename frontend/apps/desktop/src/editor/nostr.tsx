@@ -27,8 +27,6 @@ import {
   SizableText,
   Tabs,
   Text,
-  XStack,
-  YStack,
   useTheme,
 } from 'tamagui'
 import {HMBlockSchema} from './schema'
@@ -126,7 +124,7 @@ const Render = (
   }
 
   return (
-    <YStack overflow="hidden">
+    <div className="flex flex-col overflow-hidden">
       {block.props.name ? (
         <NostrComponent
           block={block}
@@ -138,7 +136,7 @@ const Render = (
       ) : editor.isEditable ? (
         <NostrForm block={block} editor={editor} assign={assignNostr} />
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -183,18 +181,16 @@ function NostrComponent({
   }
 
   return (
-    <YStack
+    <div
       // @ts-ignore
       contentEditable={false}
-      className={block.type}
-      onHoverIn={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      className={`flex flex-col ${block.type}`}
+      onMouseEnter={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         setReplace(true)
       }}
-      onHoverOut={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      onMouseLeave={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         setReplace(false)
       }}
-      borderWidth={0}
-      outlineWidth={0}
     >
       {replace && editor.isEditable ? (
         <Button
@@ -224,11 +220,11 @@ function NostrComponent({
           replace
         </Button>
       ) : null}
-      <XStack>
+      <div className="flex">
         <Card elevate size="$4" bordered animation="bouncy" flex={1}>
           <Card.Header padded>
             <H2 marginTop={12}>
-              <XStack justifyContent="space-between">
+              <div className="flex justify-between">
                 <Text>
                   {'Public Key: '}
                   {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
@@ -257,15 +253,15 @@ function NostrComponent({
                     }
                   />
                 </Tooltip>
-              </XStack>
+              </div>
             </H2>
             <Paragraph theme="alt2" marginTop={12}>
               {content}
             </Paragraph>
           </Card.Header>
         </Card>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -416,12 +412,8 @@ function NostrForm({
   }
 
   return (
-    <YStack
-      position="relative"
-      borderWidth={2.5}
-      borderColor="$color6"
-      borderRadius="$2"
-      outlineWidth={0}
+    <div
+      className="border-border relative flex flex-col rounded border-[2.5px] outline-none"
       // @ts-ignore
       contentEditable={false}
     >
@@ -476,14 +468,9 @@ function NostrForm({
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Content value="search">
-          <XStack
-            padding="$4"
-            alignItems="center"
-            backgroundColor="$background"
-            borderRadius="$2"
-          >
+          <div className="bg-background flex items-center rounded p-4">
             <Form width="100%" onSubmit={() => searchNote()} borderWidth={0}>
-              <XStack flex={1} gap="$3">
+              <div className="flex flex-1 gap-3">
                 <Input
                   unstyled
                   borderColor="$color8"
@@ -523,24 +510,19 @@ function NostrForm({
                     SEARCH
                   </Button>
                 </Form.Trigger>
-              </XStack>
+              </div>
               {state.name && (
                 <SizableText size="$2" color={state.color} paddingTop="$2">
                   {state.name}
                 </SizableText>
               )}
             </Form>
-          </XStack>
+          </div>
         </Tabs.Content>
         <Tabs.Content value="manual">
-          <XStack
-            padding="$4"
-            alignItems="center"
-            backgroundColor="$background"
-            borderRadius="$2"
-          >
+          <div className="bg-background flex items-center rounded p-4">
             <Form width="100%" onSubmit={() => submitNote()} borderWidth={0}>
-              <XStack flex={1} gap="$3">
+              <div className="flex flex-1 gap-3">
                 <Input
                   unstyled
                   borderColor="$color8"
@@ -580,16 +562,16 @@ function NostrForm({
                     EMBED
                   </Button>
                 </Form.Trigger>
-              </XStack>
+              </div>
               {state.name && (
                 <SizableText size="$2" color={state.color} paddingTop="$2">
                   {state.name}
                 </SizableText>
               )}
             </Form>
-          </XStack>
+          </div>
         </Tabs.Content>
       </Tabs>
-    </YStack>
+    </div>
   )
 }

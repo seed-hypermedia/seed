@@ -71,7 +71,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle, MessageSquare, Plus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {ButtonText, XStack, YStack} from 'tamagui'
+import {ButtonText} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -179,9 +179,13 @@ export default function DocumentPage() {
   )
 }
 
-function BaseDocContainer({children, ...props}: {children: ReactNode}) {
+function BaseDocContainer({
+  children,
+  className,
+  ...props
+}: {children: ReactNode} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <Container clearVerticalSpace padding={0} {...props}>
+    <Container clearVerticalSpace className={className} {...props}>
       {children}
     </Container>
   )
@@ -293,24 +297,26 @@ function _MainDocumentPage({
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
-              <YStack
+              <div
                 {...sidebarProps}
-                marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
+                className={`${sidebarProps.className || ''} flex flex-col`}
+                style={{
+                  ...sidebarProps.style,
+                  marginTop: entity.data?.document?.metadata.cover ? 152 : 220,
+                }}
               >
-                <YStack
-                  className="hide-scrollbar"
-                  overflow="scroll"
-                  height="100%"
+                <div
+                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
                   // paddingVertical="$4"
                 >
                   <DocNavigation showCollapsed={showCollapsed} />
-                </YStack>
-              </YStack>
+                </div>
+              </div>
             ) : null}
 
             <BaseDocContainer
               {...mainContentProps}
-              $gtSm={{marginRight: 40, marginLeft: 0}}
+              className={cn(mainContentProps.className, 'sm:mr-10 sm:ml-0')}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
@@ -322,7 +328,12 @@ function _MainDocumentPage({
                 />
               </div>
             </BaseDocContainer>
-            {showSidebars ? <YStack {...sidebarProps} /> : null}
+            {showSidebars ? (
+              <div
+                {...sidebarProps}
+                className={`${sidebarProps.className || ''} flex flex-col`}
+              />
+            ) : null}
           </div>
         </ScrollArea>
       </div>
@@ -512,17 +523,22 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
         data-docid={docId.id}
         borderRadius="$2"
       >
-        <YStack group="header" gap="$4">
+        <div className="group flex flex-col gap-4" data-group="header">
           {hasIcon ? (
-            <XStack marginTop={hasCover ? -80 : 0}>
+            <div
+              className="flex"
+              style={{
+                marginTop: hasCover ? -80 : 0,
+              }}
+            >
               <HMIcon
                 size={100}
                 id={docId}
                 metadata={entity.data?.document?.metadata}
               />
-            </XStack>
+            </div>
           ) : null}
-          <XStack>
+          <div className="flex">
             <SeedHeading
               level={1}
               f={1}
@@ -530,15 +546,15 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
             >
               {getDocumentTitle(entity.data?.document)}
             </SeedHeading>
-          </XStack>
-          <YStack gap="$2">
+          </div>
+          <div className="flex flex-col gap-2">
             {entity.data?.document?.metadata.siteUrl ? (
               <SiteURLButton
                 siteUrl={entity.data?.document?.metadata.siteUrl}
               />
             ) : null}
-            <XStack gap="$3" ai="center" jc="space-between" f={1}>
-              <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
+            <div className="flex flex-1 items-center justify-between gap-3">
+              <div className="flex flex-1 flex-wrap items-center gap-3">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
                     <div className="flex max-w-full flex-wrap items-center gap-1">
@@ -606,17 +622,17 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                     disableTooltip={false}
                   />
                 ) : null}
-              </XStack>
+              </div>
               {entity.data?.document && (
                 <DocumentHeadItems
                   document={entity.data.document}
                   docId={docId}
                 />
               )}
-            </XStack>
-          </YStack>
+            </div>
+          </div>
           <TSeparator />
-        </YStack>
+        </div>
       </Container>
     </div>
   )
@@ -719,15 +735,10 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
   if (!entity.data.document.metadata.cover) return null
 
   return (
-    <XStack
-      bg={
-        entity.data.document.metadata.cover
-          ? '$backgroundTransparent'
-          : 'brand11'
-      }
-      height="25vh"
-      width="100%"
-      position="relative"
+    <div
+      className={`relative flex h-[25vh] w-full ${
+        entity.data.document.metadata.cover ? 'bg-transparent' : 'bg-secondary'
+      }`}
     >
       <img
         src={imageUrl(entity.data.document.metadata.cover, 'XL')}
@@ -740,7 +751,7 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
           objectFit: 'cover',
         }}
       />
-    </XStack>
+    </div>
   )
 }
 

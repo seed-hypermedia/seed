@@ -31,7 +31,7 @@ import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {ButtonFrame, Input, SizableText, View, XStack, YStack} from 'tamagui'
+import {ButtonFrame, Input, SizableText} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
@@ -192,17 +192,12 @@ function Render(
   const DataComponent = block.props.style == 'List' ? ListView : CardView
 
   return (
-    <YStack
+    <div
       // @ts-ignore
       contentEditable={false}
-      group="item"
-      borderColor={selected ? '$color8' : '$colorTransparent'}
-      borderWidth={3}
-      borderRadius="$2"
-      marginLeft={-16}
-      marginRight={-16}
-      paddingHorizontal={16}
-      userSelect="none"
+      className={`group ${
+        selected ? 'border-muted' : 'border-transparent'
+      } -mx-4 flex flex-col rounded border-[3px] px-4 select-none`}
     >
       <QuerySettings
         queryDocName={entity.data?.document?.metadata.name || ''}
@@ -224,7 +219,7 @@ function Render(
         items={docResults}
         block={block as unknown as EditorQueryBlock}
       />
-    </YStack>
+    </div>
   )
 }
 
@@ -300,7 +295,7 @@ function ListView({
     [items],
   )
   return (
-    <YStack gap="$3">
+    <div className="flex flex-col gap-3">
       {entries.length ? (
         entries.map((entry) => (
           <LibraryListItem
@@ -314,7 +309,7 @@ function ListView({
       ) : (
         <EmptyQueryBlock queryIncludes={block.props.queryIncludes} />
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -342,7 +337,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
 
 function BlankQueryBlockMessage({message}: {message: string}) {
   return (
-    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
+    <div className="bg-muted flex items-center rounded-lg p-4">
       <SizableText
         fontSize="$4"
         color="$color9"
@@ -351,7 +346,7 @@ function BlankQueryBlockMessage({message}: {message: string}) {
       >
         {message}
       </SizableText>
-    </YStack>
+    </div>
   )
 }
 
@@ -395,12 +390,11 @@ function QuerySettings({
 
   return (
     <>
-      <YStack
-        className="query-settings"
-        position="absolute"
-        zIndex={popoverState.open ? 999 : '$zIndex.2'}
-        // pointerEvents={popoverState.open ? 'none' : undefined}
-        onPress={
+      <div
+        className={`query-settings absolute -left-8 flex h-full w-full items-start justify-end gap-2 p-2 ${
+          popoverState.open ? 'z-[999] opacity-100' : 'z-20 opacity-0'
+        } group-hover:opacity-100`}
+        onClick={
           popoverState.open
             ? (e) => {
                 e.stopPropagation()
@@ -408,16 +402,9 @@ function QuerySettings({
               }
             : undefined
         }
-        y={queryIncludes.length > 0 ? 12 : 0}
-        x={-32}
-        width="100%"
-        height="100%"
-        jc="flex-start"
-        ai="flex-end"
-        opacity={popoverState.open ? 1 : 0}
-        padding="$2"
-        gap="$2"
-        $group-item-hover={{opacity: 1}}
+        style={{
+          top: queryIncludes.length > 0 ? 12 : 0,
+        }}
       >
         <Tooltip content="Edit Query">
           <Button
@@ -430,24 +417,12 @@ function QuerySettings({
 
         {popoverState.open ? (
           <>
-            <YStack
-              p="$4"
-              bg="$background"
-              borderRadius="$4"
-              zi="$zIndex.3"
-              // overflow="hidden"
-              w="100%"
-              maxWidth={350}
-              onPress={(e) => {
+            <div
+              className="bg-background z-30 flex w-full max-w-[350px] flex-col gap-4 rounded-lg p-4 shadow-lg"
+              onClick={(e) => {
                 console.log('CLICK MODAL')
                 e.stopPropagation()
               }}
-              gap="$4"
-              zIndex="$zIndex.3"
-              animation="fast"
-              enterStyle={{opacity: 0, y: -10}}
-              exitStyle={{opacity: 0, y: 10}}
-              elevation="$3"
             >
               <QuerySearch
                 selectedDocName={queryDocName}
@@ -679,10 +654,10 @@ function QuerySettings({
                   placeholder="Item Count"
                 />
               ) : null}
-              <YStack gap="$2" marginTop="$-1">
+              <div className="-mt-1 flex flex-col gap-2">
                 <Separator />
 
-                <XStack justifyContent="flex-end">
+                <div className="flex justify-end">
                   <Button
                     size="$3"
                     icon={<Trash size={16} />}
@@ -691,23 +666,16 @@ function QuerySettings({
                       editor.removeBlocks([block.id])
                     }}
                   />
-                </XStack>
-              </YStack>
-            </YStack>
+                </div>
+              </div>
+            </div>
           </>
         ) : null}
-      </YStack>
+      </div>
       {popoverState.open ? (
-        <XStack
-          zIndex="$zIndex.1"
-          onPress={() => popoverState.onOpenChange(false)}
-          fullscreen
-          // @ts-ignore
-          position="fixed"
-          top={0}
-          bottom={0}
-          right={0}
-          left={0}
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => popoverState.onOpenChange(false)}
         />
       ) : null}
     </>
@@ -734,7 +702,7 @@ export function QuerySearch({
   const [showSearch, setShowSearch] = useState(false)
 
   return (
-    <YStack position="relative">
+    <div className="relative flex flex-col">
       <ButtonFrame
         onPress={() => setShowSearch(true)}
         padding="$2"
@@ -758,33 +726,11 @@ export function QuerySearch({
       </ButtonFrame>
       {showSearch ? (
         <>
-          <View
-            onPress={() => setShowSearch(false)}
-            top={0}
-            left={0}
-            right={0}
-            bottom={0}
-            // @ts-ignore
-            position="fixed"
-            zIndex="$zIndex.8"
+          <div
+            className="fixed inset-0 z-[800]"
+            onClick={() => setShowSearch(false)}
           />
-          <YStack
-            elevation="$4"
-            className="no-window-drag"
-            minHeight="80%"
-            position="absolute"
-            top={-8}
-            left={-8}
-            zi="$zIndex.8"
-            width="calc(100% + 16px)"
-            maxWidth={800}
-            backgroundColor="$background"
-            borderColor="$color7"
-            borderWidth={1}
-            borderRadius={6}
-            h={260}
-            padding="$2"
-          >
+          <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-[800] h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
             <SearchInput
               onClose={() => setShowSearch(false)}
               allowWebURL={allowWebURL}
@@ -796,9 +742,9 @@ export function QuerySearch({
                 onSelect(data)
               }}
             />
-          </YStack>
+          </div>
         </>
       ) : null}
-    </YStack>
+    </div>
   )
 }

@@ -994,8 +994,7 @@ export function BlockContentHeading({
       {...props}
       {...debugStyles(debug, 'blue')}
       level={depth as 1 | 2 | 3 | 4 | undefined}
-      className={cn('block-content block-heading', blockStyles)}
-      maxWidth="95%"
+      className={cn('block-content block-heading max-w-[95%]', blockStyles)}
     >
       <InlineContentView inline={inline} fontWeight="bold" fontSize={null} />
     </SeedHeading>

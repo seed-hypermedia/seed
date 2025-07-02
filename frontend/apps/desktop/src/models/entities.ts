@@ -365,14 +365,9 @@ export function useSubscribedEntity(
   }) => void,
 ) {
   const result = useSubscribedEntities([{id, recursive}])[0]
-  // id && console.log('~~ useSubscribedEntity', id.id, result.data)
+
   useEffect(() => {
     if (result.data?.redirectTarget) {
-      console.error(
-        '~~ Redirected entity',
-        result.data?.redirectTarget,
-        !!handleRedirectOrDeleted,
-      )
       handleRedirectOrDeleted?.({
         isDeleted: false,
         redirectTarget: result.data?.redirectTarget,
