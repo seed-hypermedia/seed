@@ -35,9 +35,8 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
   }
   const openDb = idb.open(DB_NAME, DB_VERSION)
   openDb.onupgradeneeded = (event) => {
-    const db = event.target.result
-    const tx = event.target.transaction
-    console.log(`Upgrading to version ${db.version}`)
+    // @ts-expect-error
+    const db: IDBDatabase = event.target.result
     upgradeStore(db, KEYS_STORE_NAME)
     upgradeStore(db, EMAIL_NOTIFICATIONS_STORE_NAME)
   }

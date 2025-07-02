@@ -46,10 +46,9 @@ export async function initDatabase(): Promise<void> {
     process.env.DATA_DIR || process.cwd(),
     'web-db.sqlite',
   )
-  console.log('init db', dbFilePath)
   db = new Database(dbFilePath)
   let version: number = db.pragma('user_version', {simple: true}) as number
-  console.log('init db', version)
+  console.log('init db', dbFilePath, version)
   if (version === 0) {
     // Initial migration.
     db.exec(`

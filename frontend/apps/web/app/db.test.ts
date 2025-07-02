@@ -75,7 +75,7 @@ describe('Database', () => {
       const accountsSchema = db
         .prepare('PRAGMA table_info(accounts)')
         .all() as ColumnInfo[]
-      expect(accountsSchema).toHaveLength(5)
+      expect(accountsSchema).toHaveLength(6)
       expect(accountsSchema.find((c) => c.name === 'id')).toBeDefined()
       expect(accountsSchema.find((c) => c.name === 'email')).toBeDefined()
       expect(accountsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
@@ -84,6 +84,9 @@ describe('Database', () => {
       ).toBeDefined()
       expect(
         accountsSchema.find((c) => c.name === 'notifyAllReplies'),
+      ).toBeDefined()
+      expect(
+        accountsSchema.find((c) => c.name === 'notifyOwnedDocChange'),
       ).toBeDefined()
 
       // Check foreign key constraint
@@ -101,7 +104,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(1)
+      expect(version).toBe(2)
       db.close()
     })
   })
@@ -121,6 +124,7 @@ describe('Database', () => {
         email: null,
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
+        notifyOwnedDocChange: false,
       })
       expect(account?.createdAt).toBeDefined()
     })
@@ -140,6 +144,7 @@ describe('Database', () => {
         email: accountData.email,
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
+        notifyOwnedDocChange: false,
       })
       expect(account?.createdAt).toBeDefined()
     })
@@ -155,6 +160,7 @@ describe('Database', () => {
       updateAccount(accountData.id, {
         notifyAllMentions: true,
         notifyAllReplies: true,
+        notifyOwnedDocChange: true,
       })
 
       const account = getAccount(accountData.id)
@@ -162,6 +168,7 @@ describe('Database', () => {
         id: accountData.id,
         notifyAllMentions: true,
         notifyAllReplies: true,
+        notifyOwnedDocChange: true,
       })
     })
 
@@ -185,6 +192,7 @@ describe('Database', () => {
         email: accountData.email,
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
+        notifyOwnedDocChange: false,
       })
     })
 
@@ -211,6 +219,7 @@ describe('Database', () => {
         email: updateData.email,
         notifyAllMentions: updateData.notifyAllMentions,
         notifyAllReplies: updateData.notifyAllReplies,
+        notifyOwnedDocChange: false,
       })
 
       // Verify new email was created
@@ -242,6 +251,7 @@ describe('Database', () => {
         email: initialData.email,
         notifyAllMentions: true,
         notifyAllReplies: false,
+        notifyOwnedDocChange: false,
       })
     })
   })
@@ -254,12 +264,14 @@ describe('Database', () => {
         email,
         notifyAllMentions: true,
         notifyAllReplies: false,
+        notifyOwnedDocChange: false,
       }
       const account2 = {
         id: 'test-id-2',
         email,
         notifyAllMentions: false,
         notifyAllReplies: true,
+        notifyOwnedDocChange: false,
       }
 
       createAccount(account1)
@@ -285,12 +297,14 @@ describe('Database', () => {
             email: account1.email,
             notifyAllMentions: account1.notifyAllMentions,
             notifyAllReplies: account1.notifyAllReplies,
+            notifyOwnedDocChange: account1.notifyOwnedDocChange,
           }),
           expect.objectContaining({
             id: account2.id,
             email: account2.email,
             notifyAllMentions: account2.notifyAllMentions,
             notifyAllReplies: account2.notifyAllReplies,
+            notifyOwnedDocChange: account2.notifyOwnedDocChange,
           }),
         ]),
       )

@@ -42,7 +42,6 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
     if (!tx) {
       throw new Error('Transaction is null')
     }
-    console.log(`Upgrading to version ${db.version}`)
 
     // Create the recents store with id as keyPath
     const store = upgradeStore(db, RECENTS_STORE_NAME, {keyPath: 'id'})
