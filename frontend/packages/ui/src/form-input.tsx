@@ -7,8 +7,9 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
-import {Input, Text, TextArea} from 'tamagui'
+import {Text, TextArea} from 'tamagui'
 import {Checkbox, CheckboxProps} from './components/checkbox'
+import {Input} from './components/input'
 import {Label} from './components/label'
 
 export function FormInput<Fields extends FieldValues>({
@@ -27,7 +28,8 @@ export function FormInput<Fields extends FieldValues>({
     <Input
       {...inputProps}
       id={name}
-      onChangeText={(text) => {
+      onChange={(e) => {
+        const text = e.target.value
         if (transformInput) {
           onChange(transformInput(text))
         } else {
