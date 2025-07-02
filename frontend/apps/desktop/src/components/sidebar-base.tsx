@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 
+import {useAppContext} from '@/app-context'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Separator} from '@shm/ui/separator'
@@ -43,7 +44,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
 
   const [wasLocked, setWasLocked] = useState(isLocked)
 
-  const navigate = useNavigate()
+  const {platform} = useAppContext()
 
   useEffect(() => {
     // this is needed to sync the panel size with the isLocked state
@@ -122,7 +123,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
               isVisible ? 0 : -SidebarWidth
             }px) translateY(${isLocked ? 0 : 40}px)`,
             maxWidth: isLocked ? undefined : SidebarWidth,
-            top: isLocked ? undefined : 8,
+            top: isLocked ? undefined : platform === 'win32' ? 24 : 8,
             bottom: isLocked ? undefined : 8,
             height: isLocked ? '100%' : 'calc(100% - 60px)',
           }}

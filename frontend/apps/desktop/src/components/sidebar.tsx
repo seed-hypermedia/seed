@@ -23,7 +23,6 @@ import {
   UserPlus2,
 } from 'lucide-react'
 import React, {memo} from 'react'
-import {XStack, YStack} from 'tamagui'
 import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 
@@ -109,16 +108,13 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <YStack marginTop="$4">
-      <XStack paddingHorizontal="$2" ai="center" jc="space-between">
-        <XStack
-          gap="$1"
-          onPress={() => {
+    <div className="mt-4 flex flex-col">
+      <div className="flex items-center justify-between px-2">
+        <div
+          className="group/header flex cursor-pointer items-center justify-center gap-1"
+          onClick={() => {
             setCollapsed(!collapsed)
           }}
-          group="header"
-          jc="center"
-          ai="center"
         >
           <SizableText
             weight="bold"
@@ -128,14 +124,14 @@ function SidebarSection({
           >
             {title}
           </SizableText>
-          <XStack ai="center" jc="center" w={16} h={20}>
+          <div className="flex h-5 w-4 items-center justify-center">
             <Icon size={12} color="$color11" />
-          </XStack>
-        </XStack>
-        <XStack>{accessory}</XStack>
-      </XStack>
+          </div>
+        </div>
+        <div className="flex">{accessory}</div>
+      </div>
       {collapsed ? null : children}
-    </YStack>
+    </div>
   )
 }
 
