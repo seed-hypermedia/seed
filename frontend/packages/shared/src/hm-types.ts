@@ -1126,3 +1126,12 @@ export type HMContact = {
   contacts: PlainMessage<Contact>[] | undefined
   subjectContacts: PlainMessage<Contact>[] | undefined
 }
+
+export const siteDiscoverRequestSchema = z.object({
+  uid: z.string(),
+  path: z.array(z.string()),
+  version: z.string().optional(),
+  media: z.boolean().optional(),
+})
+
+export type SiteDiscoverRequest = z.infer<typeof siteDiscoverRequestSchema>

@@ -10,11 +10,16 @@ export function getDaemonFileUrl(ipfsUrl?: string) {
   }
   return ''
 }
-
-export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
+export function findtIpfsUrlCid(cidOrIPFSUrl: string): string | null {
   const regex = /^ipfs:\/\/(.+)$/
   const match = cidOrIPFSUrl.match(regex)
-  return match ? match[1] : cidOrIPFSUrl
+  return match ? match[1] : null
+}
+
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
+  const cid = findtIpfsUrlCid(cidOrIPFSUrl)
+  if (cid) return cid
+  return cidOrIPFSUrl
 }
 
 export function isIpfsUrl(url: string): boolean {

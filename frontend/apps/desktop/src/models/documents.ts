@@ -888,22 +888,26 @@ export function usePublishToSite() {
     syncParentIds.forEach((id) => {
       referenceMaterialIds.add(createHMUrl(id))
     })
-    siteDiscover({
+    await siteDiscover({
       uid: id.uid,
       version: id.version,
       path: id.path,
       host: siteHost || DEFAULT_GATEWAY_URL,
+      media: true,
     })
-    referenceMaterialIds.forEach((url) => {
-      const id = unpackHmId(url)
-      if (!id) return
-      siteDiscover({
-        uid: id.uid,
-        version: id.version,
-        path: id.path,
-        host: siteHost || DEFAULT_GATEWAY_URL,
-      })
-    })
+    await Promise.all(
+      Array.from(referenceMaterialIds).map(async (url) => {
+        const id = unpackHmId(url)
+        if (!id) return
+        await siteDiscover({
+          uid: id.uid,
+          version: id.version,
+          path: id.path,
+          host: siteHost || DEFAULT_GATEWAY_URL,
+          media: true,
+        })
+      }),
+    )
     return true
   }
 }

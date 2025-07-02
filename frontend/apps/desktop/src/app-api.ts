@@ -3,6 +3,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
+import {SiteDiscoverRequest} from '@shm/shared'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
@@ -202,6 +203,7 @@ export const router = t.router({
           path: z.array(z.string()).nullable(),
           version: z.string().optional().nullable(),
           host: z.string(),
+          media: z.boolean().optional(),
         }),
       )
       .mutation(async ({input}) => {
@@ -209,10 +211,11 @@ export const router = t.router({
           const res = await fetch(`${input.host}/hm/api/discover`, {
             method: 'post',
             body: JSON.stringify({
+              media: input.media,
               uid: input.uid,
               path: input.path || [],
               version: input.version || undefined,
-            }),
+            } as SiteDiscoverRequest),
             headers: {
               'Content-Type': 'application/json',
             },

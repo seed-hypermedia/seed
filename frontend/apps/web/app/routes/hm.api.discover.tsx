@@ -1,18 +1,15 @@
-import {discoverDocument} from '@/utils/discovery'
+import {discoverDocument, discoverMedia} from '@/utils/discovery'
 import {ActionFunction, json} from '@remix-run/node'
-import {z} from 'zod'
-
-const discoverSchema = z.object({
-  uid: z.string(),
-  path: z.array(z.string()),
-  version: z.string().optional(),
-})
+import {siteDiscoverRequestSchema} from '@shm/shared/hm-types'
 
 export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json()
-    const input = discoverSchema.parse(data)
+    const input = siteDiscoverRequestSchema.parse(data)
     await discoverDocument(input.uid, input.path, input.version)
+    if (data.media) {
+      await discoverMedia(input.uid, input.path, input.version)
+    }
     return json({message: 'Success'})
   } catch (e) {
     if (e instanceof Error) {
