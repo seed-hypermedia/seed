@@ -33,6 +33,7 @@ export function useEmailNotifications() {
         account: {
           notifyAllMentions: boolean
           notifyAllReplies: boolean
+          notifyOwnedDocChange: boolean
           email: string
         }
       }
@@ -50,10 +51,12 @@ export function useSetEmailNotifications() {
       email,
       notifyAllMentions,
       notifyAllReplies,
+      notifyOwnedDocChange,
     }: {
       email: string
       notifyAllMentions: boolean
       notifyAllReplies: boolean
+      notifyOwnedDocChange: boolean
     }) => {
       if (!keyPair) {
         return null
@@ -66,6 +69,7 @@ export function useSetEmailNotifications() {
         email,
         notifyAllMentions,
         notifyAllReplies,
+        notifyOwnedDocChange,
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(

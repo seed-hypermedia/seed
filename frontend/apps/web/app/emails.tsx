@@ -141,21 +141,30 @@ export async function sendNotificationWelcomeEmail(
     adminToken: string
     notifyAllMentions: boolean
     notifyAllReplies: boolean
+    notifyOwnedDocChange: boolean
   },
 ) {
   const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
   let whenWillYouBeNotified = ''
   let notifiedFor = ''
-  if (opts.notifyAllMentions && opts.notifyAllReplies) {
+  // TODO: improve this somehow
+  if (
+    opts.notifyAllMentions &&
+    opts.notifyAllReplies &&
+    opts.notifyOwnedDocChange
+  ) {
     whenWillYouBeNotified =
-      'when you are mentioned or when someone replies to your comments.'
-    notifiedFor = 'mentions and replies'
+      'when you are mentioned, when someone changes a document you own, or when someone replies to your comments.'
+    notifiedFor = 'mentions, changes and replies'
   } else if (opts.notifyAllMentions) {
     whenWillYouBeNotified = 'when you are mentioned.'
     notifiedFor = 'mentions'
   } else if (opts.notifyAllReplies) {
     whenWillYouBeNotified = 'when someone replies to your comments.'
     notifiedFor = 'replies'
+  } else if (opts.notifyOwnedDocChange) {
+    whenWillYouBeNotified = 'when someone changes a document you own.'
+    notifiedFor = 'changes'
   } else {
     return // notifs are disabled
   }

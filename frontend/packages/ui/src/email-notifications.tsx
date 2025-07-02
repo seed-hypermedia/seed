@@ -14,6 +14,7 @@ const emailNotificationsSchema = z.object({
   email: z.string().email(),
   notifyAllMentions: z.boolean(),
   notifyAllReplies: z.boolean(),
+  notifyOwnedDocChange: z.boolean(),
 })
 
 export type UIEmailNotificationsFormSchema = z.infer<
@@ -47,6 +48,7 @@ export function UIEmailNotificationsForm({
       email: '',
       notifyAllMentions: true,
       notifyAllReplies: true,
+      notifyOwnedDocChange: true,
     },
   })
   function onSubmit(data: z.infer<typeof emailNotificationsSchema>) {
@@ -83,6 +85,11 @@ export function UIEmailNotificationsForm({
         <FormCheckbox
           name="notifyAllReplies"
           label={tx('Someone replies to me')}
+          control={control}
+        />
+        <FormCheckbox
+          name="notifyOwnedDocChange"
+          label={tx('Someone changes a document I own')}
           control={control}
         />
       </YStack>
@@ -122,7 +129,16 @@ function EmptyNotifWarning({
     control,
     name: 'notifyAllReplies',
   })
-  if (notifyAllMentionsField.value || notifyAllRepliesField.value) return null
+  const {field: notifyOwnedDocChangeField} = useController({
+    control,
+    name: 'notifyOwnedDocChange',
+  })
+  if (
+    notifyAllMentionsField.value ||
+    notifyAllRepliesField.value ||
+    notifyOwnedDocChangeField.value
+  )
+    return null
   return (
     <SizableText color="$red10">
       {tx('You will not receive any notifications.')}

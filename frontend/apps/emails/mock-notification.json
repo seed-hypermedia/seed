@@ -7,22 +7,24 @@
   },
   "notifications": [
     {
-      "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
-      "accountMeta": {
-        "name": "Iskak Toltay",
-        "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
-      },
-      "notif": {
-        "type": "reply",
-        "comment": {
-          "id": "bafy2bzaceaiwp6z5rhkqsm25shjsoikd7sortpkw5jbd5chztdc6golc6p3oo",
-          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-          "targetPath": "",
-          "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
-          "threadRoot": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
-          "replyParent": "bafy2bzacedc3kdvwvephdye442osku3fbgyzgfuwk567tjffmwmjo7ksvw7x6",
-          "author": "z6MktffS1U44ch9pgwXKE8THo5MPqAN9q4JXTZruaiAmmE9T",
-          "content": [
+  "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+  "accountMeta": {
+    "name": "Iskak Toltay",
+    "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+  },
+  "notif": {
+    "type": "mention",
+    "comment": {
+      "id": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/z6BrMXZQ9m7K6A",
+      "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "targetPath": "/outline-2",
+      "targetVersion": "bafy2bzacedb7mvwn2kvckimsmiqxzzpb4pfhy6i54hfxpzvhs4gtgieo66sje",
+      "threadRoot": "",
+      "threadRootVersion": "",
+      "replyParent": "",
+      "replyParentVersion": "",
+      "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "content": [
             {
               "block": {
                 "id": "6CxhCOVI",
@@ -53,86 +55,32 @@
             "seconds": "1749022791",
             "nanos": 529000000
           },
-          "capability": ""
-        },
-        "parentComments": [
-          {
-            "id": "bafy2bzacedc3kdvwvephdye442osku3fbgyzgfuwk567tjffmwmjo7ksvw7x6",
-            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-            "targetPath": "",
-            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
-            "threadRoot": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
-            "replyParent": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
-            "author": "z6MktffS1U44ch9pgwXKE8THo5MPqAN9q4JXTZruaiAmmE9T",
-            "content": [
-              {
-                "block": {
-                  "id": "TKzTDI9v",
-                  "type": "Paragraph",
-                  "text": "aaaaaaaaa test",
-                  "link": "",
-                  "annotations": [],
-                  "revision": "b"
-                },
-                "children": []
-              }
-            ],
-            "createTime": {
-              "seconds": "1749022787",
-              "nanos": 411000000
-            },
-            "capability": ""
-          },
-          {
-            "id": "bafy2bzaceafe5dsiktnozxu26rcf64mbsqvk3nyfhfu7kqppatd47ukob36pi",
-            "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-            "targetPath": "",
-            "targetVersion": "bafy2bzaced7izj3efdtbh74xuuo5bkl7phb5u3kkab7j4kow75ymvtk4uz4cu",
-            "threadRoot": "",
-            "replyParent": "",
-            "author": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
-            "content": [
-              {
-                "block": {
-                  "id": "KvAKeBWE",
-                  "type": "Paragraph",
-                  "text": "test",
-                  "link": "",
-                  "annotations": [],
-                  "revision": "b"
-                },
-                "children": []
-              }
-            ],
-            "createTime": {
-              "seconds": "1747981561",
-              "nanos": 84000000
-            },
-            "capability": ""
-          }
-        ],
-        "commentAuthorMeta": {
-          "name": "New account?"
-        },
-        "targetMeta": {
-          "name": "Test"
-        },
-        "targetId": {
-          "path": [],
-          "type": "d",
-          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-          "version": null,
-          "blockRef": null,
-          "blockRange": null,
-          "hostname": null,
-          "scheme": null,
-          "targetDocUid": null,
-          "targetDocPath": null
-        },
-        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
-      }
+      "capability": "",
+      "version": "bafy2bzacebfa2lpv44bv5gkpy43am23hniio557b5mlhru37pea7eqhshvfg2"
     },
+    "parentComments": [],
+    "commentAuthorMeta": { "name": "Test" },
+    "targetMeta": { "name": "Outline 2" },
+    "targetId": {
+      "path": [],
+      "type": "d",
+      "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+      "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
+      "version": null,
+      "blockRef": null,
+      "blockRange": null,
+      "hostname": null,
+      "scheme": null,
+      "targetDocUid": null,
+      "targetDocPath": null
+    },
+    "url": "http://192.168.8.28:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
+    "resolvedNames": {
+      "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ": "Iskak Toltay"
+    }
+  }
+},
+
     {
       "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
       "accountMeta": {
@@ -154,7 +102,7 @@
               "block": {
                 "id": "6CxhCOVI",
                 "type": "Paragraph",
-                "text": "￼ ",
+                "text": "Hellooooo askfjksdajfklj asdklfjklasdf ￼ test here hmmmmmmmmmmmmmmmmmmmmmmmmmm test\n hi hi hi, test????????????????",
                 "link": "",
                 "annotations": [
                   {
@@ -257,7 +205,10 @@
           "targetDocUid": null,
           "targetDocPath": null
         },
-        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS"
+        "url": "http://localhost:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+        "resolvedNames": {
+          "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ": "Iskak Toltay"
+        }
       }
     },
     {

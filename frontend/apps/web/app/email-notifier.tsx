@@ -1,7 +1,11 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
+  Annotation,
+  BlockNode,
   Comment,
+  DAEMON_HTTP_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   entityQueryPathToHmIdPath,
   Event,
@@ -9,18 +13,20 @@ import {
   HMBlockNodeSchema,
   HMDocumentMetadataSchema,
   hmId,
+  HMLoadedBlock,
   HMMetadata,
   HMMetadataPayload,
   SITE_BASE_URL,
   unpackHmId,
 } from '@shm/shared'
+// import {CID} from 'multiformats/cid'
 import {queryClient} from './client'
 import {
   getAllEmails,
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {getAccount, getMetadata} from './loaders'
+import {getAccount, getMetadata, loadDocument} from './loaders'
 import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
@@ -29,7 +35,7 @@ export async function initEmailNotifier() {
 
   await handleEmailNotifications()
 
-  const handleEmailNotificationsIntervalSeconds = 30
+  const handleEmailNotificationsIntervalSeconds = 10
 
   setInterval(() => {
     handleEmailNotifications()
@@ -85,6 +91,7 @@ async function handleEventsForEmailNotifications(
     {
       notifyAllMentions: boolean
       notifyAllReplies: boolean
+      notifyOwnedDocChange: boolean
       email: string
     }
   > = {}
@@ -121,9 +128,7 @@ async function handleEventsForEmailNotifications(
       notificationsToSend[email] = []
     }
     if (accountMetas[accountId] === undefined) {
-      accountMetas[accountId] = (
-        await getMetadata(hmId('d', accountId))
-      ).metadata
+      accountMetas[accountId] = (await await getAccount(accountId)).metadata
     }
     notificationsToSend[email].push({
       accountId,
@@ -138,6 +143,7 @@ async function handleEventsForEmailNotifications(
       accountNotificationOptions[account.id] = {
         notifyAllMentions: account.notifyAllMentions,
         notifyAllReplies: account.notifyAllReplies,
+        notifyOwnedDocChange: account.notifyOwnedDocChange,
         email: email.email,
       }
     }
@@ -152,8 +158,138 @@ async function handleEventsForEmailNotifications(
   }[] = []
   for (const event of events) {
     if (event.data.case === 'newBlob') {
+      const blob = event.data.value
       try {
-        const blob = event.data.value
+        if (blob.blobType === 'Ref') {
+          try {
+            const unpacked = unpackHmId(blob.resource)
+            if (!unpacked?.uid) continue
+
+            const refData = await loadRefFromIpfs(blob.cid)
+
+            const changeCid = refData.heads?.[0]?.toString()
+
+            const changeData = await queryClient.documents.getDocumentChange({
+              id: changeCid,
+            })
+
+            const changeDataWithOps = await loadRefFromIpfs(changeCid)
+
+            const changedDoc = await loadDocument(unpacked)
+            const targetMeta = changedDoc?.metadata ?? {}
+            const docUrl = `${SITE_BASE_URL}/hm/${unpacked.uid}/${(
+              unpacked.path || []
+            ).join('/')}`
+
+            const prevVersionId = {
+              ...unpacked,
+              version:
+                changeDataWithOps.deps && changeDataWithOps.deps.length > 0
+                  ? changeDataWithOps.deps
+                      .map((cid) => cid.toString())
+                      .join('.')
+                  : null,
+            }
+
+            if (prevVersionId) {
+              const prevVersionDoc = await loadDocument(prevVersionId)
+              const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
+
+              const previousMentionsByBlockId: Record<string, Set<string>> = {}
+
+              for (const loaded of prevVersionDoc.content ?? []) {
+                const blockId = loaded.block?.id
+                if (!blockId) continue
+
+                const accountIds = getMentionsFromBlock(loaded.block)
+                if (accountIds.size > 0) {
+                  previousMentionsByBlockId[blockId] = accountIds
+                }
+              }
+
+              for (const [blockId, newMentions] of Object.entries(
+                mentionsMap,
+              )) {
+                const oldMentions =
+                  previousMentionsByBlockId[blockId] ?? new Set()
+
+                for (const accountLink of newMentions) {
+                  const accountId = accountLink.slice('hm://'.length)
+
+                  // Skip if already mentioned in this block in the previous version
+                  if (oldMentions.has(accountId)) continue
+
+                  // Skip if a user mentions themselves
+                  if (accountId === blob.author) continue
+
+                  const {notifyAllMentions, email} =
+                    accountNotificationOptions[accountId] || {}
+                  if (!notifyAllMentions) continue
+
+                  const op = changeDataWithOps.body.ops.find(
+                    (op) =>
+                      op.type === 'ReplaceBlock' && op.block?.id === blockId,
+                  )
+
+                  if (!op?.block) continue
+
+                  const blockNode = new BlockNode({
+                    block: op.block,
+                    children: [],
+                  })
+
+                  const authorMeta = (await getAccount(blob.author)).metadata
+                  const resolvedNames = await resolveAnnotationNames([
+                    blockNode,
+                  ])
+
+                  await appendNotification(email, accountId, {
+                    type: 'mention',
+                    source: 'change',
+                    block: blockNode,
+                    authorAccountId: blob.author,
+                    authorMeta,
+                    targetMeta,
+                    targetId: unpacked,
+                    url: docUrl,
+                    resolvedNames,
+                  })
+                }
+              }
+            }
+
+            const isNewDocument =
+              Array.isArray(changeData.deps) && changeData.deps.length === 0
+
+            for (const accountId in accountNotificationOptions) {
+              const {notifyOwnedDocChange, email} =
+                accountNotificationOptions[accountId]
+
+              if (!notifyOwnedDocChange) continue
+
+              // Skip if the user made their own change
+              if (blob.author === accountId) continue
+
+              // Skip if the user is not an owner of a document
+              const isOwner = changedDoc?.authors?.[accountId]
+              if (!isOwner) continue
+
+              const authorMeta = (await getAccount(blob.author)).metadata
+
+              await appendNotification(email, accountId, {
+                type: 'change',
+                authorAccountId: blob.author,
+                authorMeta,
+                targetMeta,
+                targetId: unpacked,
+                url: docUrl,
+                isNewDocument: isNewDocument,
+              })
+            }
+          } catch (e) {
+            console.error('Error processing Ref event', e)
+          }
+        }
         if (blob.blobType !== 'Comment') continue
         const comment = await queryClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)
@@ -194,8 +330,7 @@ async function handleEventsForEmailNotifications(
           comment: toPlainMessage(comment),
           parentComments,
           parentAuthors: resolvedParentAuthors,
-          commentAuthorMeta: (await getMetadata(hmId('d', comment.author)))
-            .metadata,
+          commentAuthorMeta: (await getAccount(comment.author)).metadata,
           targetMeta: (
             await getMetadata(
               hmId('d', comment.targetAccount, {
@@ -232,12 +367,15 @@ async function handleEventsForEmailNotifications(
       }
       if (account.notifyAllMentions) {
         if (newComment.mentions.has(accountId)) {
-          const resolvedNames = await resolveAnnotationNames(newComment.comment)
+          const resolvedNames = await resolveAnnotationNames(
+            newComment.comment.content.map((n) => new BlockNode(n)),
+          )
           await appendNotification(account.email, accountId, {
             type: 'mention',
             comment: newComment.comment,
+            source: 'comment',
             parentComments: newComment.parentComments,
-            commentAuthorMeta: newComment.commentAuthorMeta,
+            authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
             url: targetDocUrl,
@@ -353,10 +491,10 @@ async function resolveAccount(accountId: string) {
   return result
 }
 
-async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
+async function resolveAnnotationNames(blocks: BlockNode[]) {
   const resolvedNames: Record<string, string> = {}
 
-  for (const block of comment.content) {
+  for (const block of blocks) {
     const blockNode = HMBlockNodeSchema.parse(block)
     for (const annotation of blockNode.block?.annotations || []) {
       if (annotation.type === 'Embed' && annotation.link) {
@@ -386,4 +524,53 @@ async function resolveAnnotationNames(comment: PlainMessage<Comment>) {
   }
 
   return resolvedNames
+}
+
+function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
+  const mentionMap: Record<string, Set<string>> = {}
+
+  for (const op of ops) {
+    if (op.type !== 'ReplaceBlock' || !op.block?.annotations) continue
+
+    const mentions = op.block.annotations
+      .filter(
+        (a: Annotation) => a.type === 'Embed' && a.link?.startsWith('hm://'),
+      )
+      .map((a: Annotation) => a.link)
+    // .map((a: Annotation) => a.link!.slice('hm://'.length))
+
+    if (mentions.length > 0 && op.block.id) {
+      mentionMap[op.block.id] = new Set(mentions)
+    }
+  }
+
+  return mentionMap
+}
+
+function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
+  const accountIds = new Set<string>()
+
+  if (!block?.content || !Array.isArray(block.content)) return accountIds
+
+  for (const item of block.content) {
+    if (
+      item.type === 'InlineEmbed' &&
+      typeof item.ref === 'string' &&
+      item.ref.startsWith('hm://')
+    ) {
+      // Remove hm part of the link
+      const ref = item.ref.slice(5)
+      if (ref && !ref.includes('/')) {
+        accountIds.add(ref)
+      }
+    }
+  }
+
+  return accountIds
+}
+
+async function loadRefFromIpfs(cid: string): Promise<any> {
+  const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
+  const buffer = await fetch(url).then((res) => res.arrayBuffer())
+  return cborDecode(new Uint8Array(buffer))
 }
