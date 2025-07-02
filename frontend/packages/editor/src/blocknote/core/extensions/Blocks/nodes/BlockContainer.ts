@@ -15,7 +15,7 @@ import BlockAttributes from './BlockAttributes'
 export const SelectionPluginKey = new PluginKey('selectionPluginKey')
 const ClickSelectionPluginKey = new PluginKey('clickSelectionPluginKey')
 const PastePluginKey = new PluginKey('pastePluginKey')
-const headingLinePluginKey = new PluginKey('HeadingLinePlugin')
+const headingBoxPluginKey = new PluginKey('headingBoxPluginKey')
 
 const SelectionPlugin = new Plugin({
   key: SelectionPluginKey,
@@ -106,23 +106,23 @@ const PastePlugin = new Plugin({
   },
 })
 
-const headingLinePlugin = new Plugin({
-  key: headingLinePluginKey,
+const headingBoxPlugin = new Plugin({
+  key: headingBoxPluginKey,
   view(editorView) {
-    return new HeadingLinePlugin(editorView)
+    return new HeadingBoxPlugin(editorView)
   },
 })
 
-class HeadingLinePlugin {
-  private line: HTMLElement
+class HeadingBoxPlugin {
+  private box: HTMLElement
   constructor(view: EditorView) {
-    this.line = document.createElement('div')
-    this.line.style.transition = 'all 0.15s ease-in-out'
-    this.line.style.pointerEvents = 'none'
-    this.line.style.display = ''
-    this.line.style.opacity = '0'
-    view.dom.parentNode?.appendChild(this.line)
-
+    this.box = document.createElement('div')
+    this.box.style.transition = 'all 0.15s ease-in-out'
+    this.box.style.pointerEvents = 'none'
+    this.box.style.display = ''
+    this.box.style.opacity = '0'
+    view.dom.parentNode?.appendChild(this.box)
+    console.log('view.dom', view.dom.parentNode)
     this.update(view, null)
   }
 
@@ -141,30 +141,32 @@ class HeadingLinePlugin {
     if (res && res.heading?.type.name == 'heading') {
       let {node} = view.domAtPos(res.groupStartPos)
 
+      console.log(`== ~ update ~ node:`, node)
       let rect = (node as HTMLElement).getBoundingClientRect()
+
+      console.log(`== ~ update ~ rect:`, rect)
 
       let editorRect = view.dom.getBoundingClientRect()
       let groupPadding = 10
       let editorPaddingTop = 32
-      this.line.style.position = 'absolute'
-      this.line.classList.add('rounded-md')
-      // this.line.style.padding = '16px'
-      this.line.style.top = `${
-        rect.top + editorPaddingTop + groupPadding - editorRect.top
-      }px`
-      this.line.style.left = `${rect.left - editorRect.left - 8}px`
-      this.line.style.width = `100%`
-      this.line.style.height = `${rect.height}px`
-      this.line.style.backgroundColor = 'var(--color-primary)'
-      this.line.style.opacity = '0.05'
+      this.box.style.position = 'absolute'
+      this.box.classList.add('rounded-md')
+      // this.box.style.padding = '16px'
+      this.box.style.top = `${rect.top + editorPaddingTop - editorRect.top}px`
+      console.log('rect.left', rect, node)
+      this.box.style.left = `${rect.left - groupPadding}px`
+      this.box.style.width = `${rect.width}px`
+      this.box.style.height = `${rect.height}px`
+      this.box.style.backgroundColor = 'var(--color-primary)'
+      this.box.style.opacity = '0.05'
     } else {
-      this.line.style.opacity = '0'
+      this.box.style.opacity = '0'
       return
     }
   }
 
   destroy() {
-    this.line.remove()
+    this.box.remove()
   }
 }
 
@@ -260,7 +262,7 @@ export const BlockContainer = Node.create<{
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
-        class: styles.blockOuter,
+        class: `${styles.blockOuter}`,
         'data-node-type': 'block-outer',
       }),
       [
@@ -268,7 +270,7 @@ export const BlockContainer = Node.create<{
         mergeAttributes(
           {
             ...domAttributes,
-            class: mergeCSSClasses(styles.block, domAttributes.class),
+            class: mergeCSSClasses(styles.block, domAttributes.class, 'p-2'),
             'data-node-type': this.name,
           },
           HTMLAttributes,
@@ -400,7 +402,7 @@ export const BlockContainer = Node.create<{
       SelectionPlugin,
       ClickSelectionPlugin,
       PastePlugin,
-      headingLinePlugin,
+      headingBoxPlugin,
       // Replace two short hyphen with a long dash
       new Plugin({
         props: {
