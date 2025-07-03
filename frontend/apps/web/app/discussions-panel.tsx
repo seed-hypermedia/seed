@@ -78,6 +78,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   if (comment) {
+    console.log('CommentDiscussion', comment)
     return (
       <CommentDiscussion
         {...props}
@@ -221,7 +222,7 @@ function CommentDiscussion(
   const {comment, docId, renderCommentContent, handleBack} = props
   const tx = useTxString()
   const discussion = useDiscussion(docId, comment?.id)
-
+  console.log('Loading Discussion', props, discussion.data, discussion.error)
   if (!discussion.data) return null
   const {thread, authors, commentGroups} = discussion.data
 

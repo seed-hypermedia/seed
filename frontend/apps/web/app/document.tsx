@@ -229,6 +229,7 @@ function InnerDocumentPage(
 
   let panel: any = null
   let panelTitle: string = ''
+
   const {
     document,
     originHomeId,
@@ -248,10 +249,6 @@ function InnerDocumentPage(
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '')
   }, [id, document?.metadata?.name])
-
-  useEffect(() => {
-    if (comment) setActivePanel({type: 'discussions', comment: comment})
-  }, [comment])
 
   useEffect(() => {
     if (media.gtSm) {
@@ -301,6 +298,7 @@ function InnerDocumentPage(
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
     return {type: 'discussions', comment: comment}
   })
+  console.log('active panel', activePanel)
 
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
