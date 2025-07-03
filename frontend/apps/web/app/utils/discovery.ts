@@ -21,6 +21,7 @@ export async function discoverDocument(
   uid: string,
   path: string[],
   version?: string,
+  latest?: boolean | undefined | null,
 ) {
   await queryClient.entities.discoverEntity({
     account: uid,
@@ -28,16 +29,16 @@ export async function discoverDocument(
     version,
     recursive: true,
   })
-  console.log('discoverDocument', uid, path, version)
   return await tryUntilSuccess(
     async () => {
       // console.log('discover will getDocument', uid, path, version)
       const apiDoc = await queryClient.documents.getDocument({
         account: uid,
         path: hmIdPathToEntityQueryPath(path),
-        version: version,
+        version: latest ? undefined : version || '',
       })
-      const versionMatch = !version || apiDoc.version === version
+      const versionMatch =
+        !version || apiDoc.version === version || (latest && !!apiDoc.version)
       // console.log('discover getDocument', versionMatch, apiDoc.version, version)
       if (versionMatch) {
         const docJSON = apiDoc.toJson() as any

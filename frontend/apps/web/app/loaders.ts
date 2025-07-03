@@ -59,7 +59,7 @@ export async function getMetadata(
     const rawDoc = await queryClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
-      version: id.version || undefined,
+      version: id.latest ? undefined : id.version || undefined,
     })
     const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
     documentMetadataParseAdjustments(metadataJSON)
@@ -130,6 +130,7 @@ export async function getHMDocument(
       uid,
       entityId.path || [],
       version || undefined,
+      latest,
     )
   }
   const path = hmIdPathToEntityQueryPath(entityId.path)
@@ -137,7 +138,7 @@ export async function getHMDocument(
     .getDocument({
       account: uid,
       path,
-      version: !latest && version ? version : '',
+      version: latest ? undefined : version || '',
     })
     .catch((e) => {
       const error = getErrorMessage(e)
@@ -193,7 +194,7 @@ export async function getBaseDocument(
       // console.error('error discovering entity', entityId.id, e)
     })
   const latestDocument =
-    entityId.version || !entityId.latest
+    !!entityId.version && !entityId.latest
       ? await getHMDocument(
           {...entityId, latest: true, version: null},
           {discover: true},
