@@ -47,9 +47,12 @@ export function PageFooter({
               onClick={() => {
                 createHMUrl(id)
               }}
+              asChild
             >
-              <ExternalLink className="size-3" />
-              {tx('Open App')}
+              <a href={createHMUrl(id)}>
+                <ExternalLink className="size-3" />
+                {tx('Open App')}
+              </a>
             </Button>
           ) : null}
         </div>
