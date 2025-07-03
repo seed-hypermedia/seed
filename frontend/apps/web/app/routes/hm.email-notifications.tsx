@@ -1,5 +1,5 @@
 import {useFullRender} from '@/cache-policy'
-import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {PageFooter} from '@/page-footer'
 import {WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
@@ -33,7 +33,7 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
-  const result = await loadSiteDocument(
+  const result = await loadSiteResource(
     parsedRequest,
     hmId(registeredAccountUid, {path: [], latest: true}),
   )

@@ -1,6 +1,6 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage, documentPageHeaders, documentPageMeta} from '@/document'
-import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
 import {Params, useLoaderData} from '@remix-run/react'
@@ -31,7 +31,7 @@ export const loader = async ({
     targetDocUid,
     targetDocPath,
   })
-  return await loadSiteDocument(parsedRequest, id, {
+  return await loadSiteResource(parsedRequest, id, {
     prefersLanguages: parsedRequest.prefersLanguages,
   })
 }
