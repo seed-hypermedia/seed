@@ -47,10 +47,6 @@ export const Providers = (props: {children: any}) => {
       <PortalProvider>
         <QueryClientProvider client={queryClient}>
           {props.children}
-          <Toaster
-          // position="bottom-center"
-          // toastOptions={{className: 'toaster'}}
-          />
         </QueryClientProvider>
       </PortalProvider>
     </ThemeProvider>
@@ -105,6 +101,9 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
           config={tamaConf}
         >
           {children}
+          <div className="pointer-events-none fixed right-0 bottom-0 z-50 h-auto w-full">
+            <Toaster theme={theme} />
+          </div>
         </TamaguiProvider>
       </TooltipProvider>
     </ThemeContext.Provider>
@@ -172,7 +171,7 @@ export function WebSiteProvider(props: {
           hostname: SITE_BASE_URL,
         })
         copyTextToClipboard(url)
-        toast('Comment link copied to clipboard')
+        toast.success('Comment link copied to clipboard')
       }}
     >
       <script

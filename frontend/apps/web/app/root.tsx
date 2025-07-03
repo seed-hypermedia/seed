@@ -20,8 +20,8 @@ import globalTamaguiStyles from './tamagui.css?url'
 export const links: LinksFunction = () => {
   return [
     {rel: 'stylesheet', href: globalStyles},
-    {rel: 'stylesheet', href: localTailwindStyles},
     {rel: 'stylesheet', href: globalTamaguiStyles},
+    {rel: 'stylesheet', href: localTailwindStyles},
   ]
 }
 
@@ -31,14 +31,15 @@ export function Layout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en">
       <head>
+        <Styles />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
-        <Styles />
       </head>
       <body className="bg-muted min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
+
         <ScrollRestoration />
         <Scripts />
         {process.env.MONITORING_DOMAIN && (

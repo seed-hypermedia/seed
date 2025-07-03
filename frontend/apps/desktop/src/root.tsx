@@ -351,7 +351,6 @@ function MainApp({}: {}) {
       />
       {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
       {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
-      <Toaster />
     </>
   )
 
@@ -434,19 +433,11 @@ function MainApp({}: {}) {
               window.location.reload()
             }}
           >
-            <NavigationContainer
-              initialNav={
-                // @ts-expect-error
-                window.initNavState
-              }
-            >
+            <NavigationContainer initialNav={window.initNavState}>
               {mainContent}
               {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
             </NavigationContainer>
-            <Toaster
-            // position="bottom-center"
-            // toastOptions={{className: 'toaster'}}
-            />
+            <Toaster />
           </ErrorBoundary>
         </Suspense>
       </AppContextProvider>
