@@ -85,9 +85,9 @@ function EmbedWrapper({
     if (!id) return false
     if (route.key !== 'document') return false
     return (
-      typeof id.uid == 'string' &&
-      typeof route?.id?.uid == 'string' &&
-      id.uid == route?.id?.uid
+      typeof id.id == 'string' &&
+      typeof route?.id?.id == 'string' &&
+      id.id == route?.id?.id
     )
   }, [route, id])
 
@@ -164,12 +164,6 @@ function EmbedWrapper({
       data-blockid={id?.blockRef}
       data-docid={id?.blockRef ? undefined : id?.id}
       onClick={(e) => {
-        // Prevent navigation if there's text selected
-        // const selection = window.getSelection()
-        // if (selection && selection.toString().length > 0) {
-        //   return
-        // }
-
         const selection = window.getSelection()
         const hasSelection = selection && selection.toString().length > 0
         if (hasSelection) {
@@ -183,39 +177,39 @@ function EmbedWrapper({
           e.stopPropagation()
           return
         }
-        // if the embed is from the same document, we navigate on the same window, if not. we open a new window.
-        const defaultMethod = e.nativeEvent.metaKey ? spawn : navigate
-        const method = isSameDocument ? replace : defaultMethod
+        // if the embed is from the same document, we replace the current route, if not, we navigate forward
+        const defaultMethod = isSameDocument ? replace : navigate
+        // if the user is holding the meta key, we always spawn a new window
+        const method = e.nativeEvent.metaKey ? spawn : defaultMethod
 
-        method(
-          isSameDocument
-            ? ({
-                ...route,
-                id: {
-                  ...(route as DocumentRoute).id,
-                  blockRef: id.blockRef,
-                  blockRange:
-                    id.blockRange &&
-                    'start' in id.blockRange &&
-                    'end' in id.blockRange
-                      ? id.blockRange
-                      : null,
-                },
-              } as DocumentRoute)
-            : {
-                key: 'document',
-                id: {
-                  ...id,
-                  blockRef: id.blockRef,
-                  blockRange:
-                    id.blockRange &&
-                    'start' in id.blockRange &&
-                    'end' in id.blockRange
-                      ? id.blockRange
-                      : null,
-                },
+        const destRoute = isSameDocument
+          ? ({
+              ...route,
+              id: {
+                ...(route as DocumentRoute).id,
+                blockRef: id.blockRef,
+                blockRange:
+                  id.blockRange &&
+                  'start' in id.blockRange &&
+                  'end' in id.blockRange
+                    ? id.blockRange
+                    : null,
               },
-        )
+            } as DocumentRoute)
+          : ({
+              key: 'document',
+              id: {
+                ...id,
+                blockRef: id.blockRef,
+                blockRange:
+                  id.blockRange &&
+                  'start' in id.blockRange &&
+                  'end' in id.blockRange
+                    ? id.blockRange
+                    : null,
+              },
+            } as DocumentRoute)
+        method(destRoute)
       }}
       {...props}
     >
