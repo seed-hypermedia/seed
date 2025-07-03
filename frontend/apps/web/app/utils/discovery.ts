@@ -5,6 +5,7 @@ import {
   DAEMON_HTTP_URL,
   HMBlockNode,
   HMCommentSchema,
+  HMDocument,
   hmId,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared'
@@ -18,7 +19,7 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
-) {
+): Promise<HMDocument> {
   await queryClient.entities.discoverEntity({
     account: uid,
     path: hmIdPathToEntityQueryPath(path),

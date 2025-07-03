@@ -78,6 +78,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   if (comment) {
+    console.log('CommentDiscussion', comment)
     return (
       <CommentDiscussion
         {...props}
@@ -112,7 +113,7 @@ export function AllDiscussions({
   let panelContent = null
   if (allDiscussions.isLoading && !allDiscussions.data) {
     panelContent = (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -194,7 +195,7 @@ function BlockDiscussions({
   }
   return (
     <div className="flex flex-col gap-4 px-2">
-      <div className="rounded-md p-3">
+      <div className="p-3 rounded-md">
         <AccessoryBackButton
           onPress={handleBack}
           label={tx('All Discussions')}
@@ -221,7 +222,7 @@ function CommentDiscussion(
   const {comment, docId, renderCommentContent, handleBack} = props
   const tx = useTxString()
   const discussion = useDiscussion(docId, comment?.id)
-
+  console.log('Loading Discussion', props, discussion.data, discussion.error)
   if (!discussion.data) return null
   const {thread, authors, commentGroups} = discussion.data
 
@@ -257,7 +258,7 @@ function CommentDiscussion(
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <div className="mx-3 mb-0 flex flex-col">
+      <div className="flex flex-col mx-3 mb-0">
         <AccessoryBackButton
           onPress={handleBack}
           label={tx('All Discussions')}
@@ -265,7 +266,7 @@ function CommentDiscussion(
       </div>
 
       {rootCommentId && thread ? (
-        <div className="rounded-md p-3">
+        <div className="p-3 rounded-md">
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
@@ -300,7 +301,7 @@ export function EmptyDiscussions({
 }) {
   const tx = useTxString()
   return (
-    <div className="flex flex-col items-center gap-4 py-4">
+    <div className="flex flex-col gap-4 items-center py-4">
       <MessageSquareOff className="size-25" size={48} color="$color8" />
       <SizableText size="md">{tx('No discussions')}</SizableText>
       <Button

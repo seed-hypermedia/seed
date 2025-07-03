@@ -3,6 +3,7 @@ import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
   EditorText,
+  entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
   getParentPaths,
@@ -29,7 +30,7 @@ import {
   unpackHmId,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
-import {prepareHMDocument} from '@shm/shared/document-utils'
+import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
   HMComment,
@@ -104,35 +105,40 @@ export async function getComment(id: string): Promise<HMComment> {
   return HMCommentSchema.parse(rawDoc.toJson())
 }
 
-export type WebBaseDocumentPayload = {
-  document: HMDocument
-  accountsMetadata: HMAccountsMetadata
+export type WebResourcePayload = {
+  // ID refers to the primary resource that is loaded.
   id: UnpackedHypermediaId
+
+  // if the resource is a comment, it will be present
+  comment?: HMComment | null
+
+  // if the resource is a comment, this is the target document. Otherwise, it is the doc identified by the resource ID
+  document: HMDocument
+
+  // supporting metadata for referenced accounts
+  accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
   supportQueries?: HMQueryResult[]
   enableWebSigning?: boolean
   isLatest: boolean
-}
-
-export type WebResourcePayload = WebBaseDocumentPayload & {
   breadcrumbs: Array<HMMetadataPayload>
 }
 
 export async function getDocument(
-  entityId: UnpackedHypermediaId,
+  resourceId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
-) {
-  const {version, uid, latest} = entityId
+): Promise<HMDocument> {
+  const {version, uid, latest} = resourceId
   if (discover) {
     return await discoverDocument(
       uid,
-      entityId.path || [],
+      resourceId.path || [],
       version || undefined,
       latest,
     )
   }
-  const path = hmIdPathToEntityQueryPath(entityId.path)
+  const path = hmIdPathToEntityQueryPath(resourceId.path)
   const apiDoc = await queryClient.documents
     .getDocument({
       account: uid,
@@ -154,17 +160,17 @@ export async function getDocument(
 }
 
 export async function resolveHMDocument(
-  entityId: UnpackedHypermediaId,
+  resourceId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
-) {
+): Promise<HMDocument> {
   try {
-    const document = await getDocument(entityId, {discover})
+    const document = await getDocument(resourceId, {discover})
     return document
   } catch (e) {
     if (e instanceof HMRedirectError) {
       return await resolveHMDocument(e.target, {discover})
     }
-    if (e) throw e
+    throw e
   }
 }
 
@@ -182,19 +188,40 @@ export function getOriginRequestData(parsedRequest: ParsedRequest) {
   }
 }
 
-export async function loadDocument(
-  entityId: UnpackedHypermediaId,
-  parsedRequest: ParsedRequest,
-): Promise<WebResourcePayload> {
-  const {uid} = entityId
+async function getLatestDocument(resourceId: UnpackedHypermediaId) {
   const latestDocument =
-    !!entityId.version && !entityId.latest
+    !!resourceId.version && !resourceId.latest
       ? await getDocument(
-          {...entityId, latest: true, version: null},
+          {...resourceId, latest: true, version: null},
           {discover: true},
         )
       : null
-  const document = await getDocument(entityId, {discover: true})
+  return latestDocument
+}
+
+export async function loadDocument(
+  resourceId: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+): Promise<WebResourcePayload> {
+  const document = await getDocument(resourceId, {discover: true})
+
+  const latestDocument = await getLatestDocument(resourceId)
+  return await loadResourcePayload(resourceId, parsedRequest, {
+    document,
+    latestDocument,
+  })
+}
+
+async function loadResourcePayload(
+  resourceId: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+  payload: {
+    document: HMDocument
+    latestDocument?: HMDocument | null
+    comment?: HMComment
+  },
+): Promise<WebResourcePayload> {
+  const {document, latestDocument, comment} = payload
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId(authorUid))
@@ -217,7 +244,7 @@ export async function loadDocument(
   let supportQueries: HMQueryResult[] = []
 
   const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId(uid)
+  const homeId = hmId(resourceId.uid)
   const homeDocument = await getDocument(homeId)
   supportDocuments.push({
     id: homeId,
@@ -225,7 +252,7 @@ export async function loadDocument(
   })
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
-  const directoryResults = await getDirectory(entityId)
+  const directoryResults = await getDirectory(resourceId)
   const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
   const supportAuthorsUidsToFetch = new Set<string>()
   const queryBlockQueries = await Promise.all(
@@ -273,10 +300,10 @@ export async function loadDocument(
       )
     ).filter((doc) => !!doc),
   )
-  const crumbs = getParentPaths(entityId.path).slice(0, -1)
+  const crumbs = getParentPaths(resourceId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
-      const id = hmId(entityId.uid, {path: crumbPath})
+      const id = hmId(resourceId.uid, {path: crumbPath})
       const metadataPayload = await getMetadata(id)
       return {
         ...metadataPayload,
@@ -284,19 +311,20 @@ export async function loadDocument(
     }),
   )
   breadcrumbs.push({
-    id: entityId,
+    id: resourceId,
     metadata: document.metadata,
   })
 
   return {
     document,
+    comment,
     supportDocuments,
     supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: {...entityId, version: document.version},
+    id: {...resourceId, version: document.version},
     breadcrumbs,
     ...getOriginRequestData(parsedRequest),
   }
@@ -306,19 +334,26 @@ export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
 ): Promise<WebResourcePayload> {
-  // todo, refactor this but for now falling back to loadDocument
-  return loadDocument(id, parsedRequest)
-
-  // const {uid} = entityId
-  // const path = hmIdPathToEntityQueryPath(entityId.path)
-  console.log('will get resource', id.id)
   const resource = await queryClient.resources.getResource({
     iri: id.id,
   })
   if (resource.kind.case === 'comment') {
-    const comment = resource.kind.value
+    const comment = prepareHMComment(resource.kind.value)
+    const targetDocId = hmId(comment.targetAccount, {
+      path: entityQueryPathToHmIdPath(comment.targetPath),
+    })
+    const document = await getDocument(targetDocId, {discover: true})
+    return await loadResourcePayload(id, parsedRequest, {
+      document,
+      comment,
+    })
   } else if (resource.kind.case === 'document') {
     const document = prepareHMDocument(resource.kind.value)
+    const latestDocument = await getLatestDocument(id)
+    return await loadResourcePayload(id, parsedRequest, {
+      document,
+      latestDocument,
+    })
   }
   throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
 }

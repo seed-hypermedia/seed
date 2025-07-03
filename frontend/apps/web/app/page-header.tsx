@@ -27,10 +27,7 @@ export function PageHeader({
   docId: UnpackedHypermediaId | null
   authors: HMMetadataPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }>
+  breadcrumbs: HMMetadataPayload[]
   originHomeId: UnpackedHypermediaId | null
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
@@ -44,7 +41,7 @@ export function PageHeader({
           paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
-        className="dark:bg-background bg-white"
+        className="bg-white dark:bg-background"
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
@@ -58,14 +55,14 @@ export function PageHeader({
           <SizableText size="4xl" weight="bold">
             {docMetadata?.name}
           </SizableText>
-          <div className="flex flex-1 flex-wrap items-center gap-4">
+          <div className="flex flex-wrap flex-1 gap-4 items-center">
             {authors?.length ? (
-              <div className="flex max-w-full flex-wrap items-center gap-1">
+              <div className="flex flex-wrap gap-1 items-center max-w-full">
                 {authors.flatMap((a, index) => [
                   <a
                     key={a.id.id}
                     href={getHref(originHomeId, a.id)}
-                    className="cursor-pointer text-sm font-bold"
+                    className="text-sm font-bold cursor-pointer"
                   >
                     {getMetadataName(a.metadata)}
                   </a>,
@@ -83,7 +80,7 @@ export function PageHeader({
                 ])}
               </div>
             ) : null}
-            {authors?.length ? <div className="bg-border h-6 w-px" /> : null}
+            {authors?.length ? <div className="w-px h-6 bg-border" /> : null}
             {updateTime ? (
               <DocumentDate
                 metadata={docMetadata || undefined}
@@ -126,9 +123,9 @@ function Breadcrumbs({
   const [first, ...rest] = breadcrumbs
 
   return (
-    <div className="flex flex-1 items-center gap-2">
+    <div className="flex flex-1 gap-2 items-center">
       {first ? (
-        <div className="flex items-center gap-1">
+        <div className="flex gap-1 items-center">
           <Home className="text-foreground size-3" />
           <SizableText
             color="muted"

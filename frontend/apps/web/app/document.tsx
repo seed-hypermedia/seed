@@ -228,6 +228,7 @@ function InnerDocumentPage(
 
   let panel: any = null
   let panelTitle: string = ''
+
   const {
     document,
     originHomeId,
@@ -247,10 +248,6 @@ function InnerDocumentPage(
     if (!id) return
     addRecent(id.id, document?.metadata?.name || '')
   }, [id, document?.metadata?.name])
-
-  useEffect(() => {
-    if (comment) setActivePanel({type: 'discussions', comment: comment})
-  }, [comment])
 
   useEffect(() => {
     if (media.gtSm) {
@@ -300,6 +297,7 @@ function InnerDocumentPage(
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
     return {type: 'discussions', comment: comment}
   })
+  console.log('active panel', activePanel)
 
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
@@ -429,7 +427,7 @@ function InnerDocumentPage(
 
   const commentEditor =
     activePanel?.type == 'discussions' ? (
-      <div className="w-full px-4 py-2">
+      <div className="px-4 py-2 w-full">
         {enableWebSigning || WEB_IDENTITY_ENABLED ? (
           <WebCommenting
             autoFocus={editorAutoFocus}
@@ -536,7 +534,7 @@ function InnerDocumentPage(
           <PanelGroup
             direction="horizontal"
             autoSaveId="web-document"
-            className="dark:bg-background flex flex-1 overflow-hidden bg-white"
+            className="flex overflow-hidden flex-1 bg-white dark:bg-background"
           >
             <Panel
               ref={mainPanelRef}
@@ -544,7 +542,7 @@ function InnerDocumentPage(
               id="main-panel"
               className="h-full"
             >
-              <div className="relative flex h-full flex-col" ref={elementRef}>
+              <div className="flex relative flex-col h-full" ref={elementRef}>
                 {media.gtSm ? (
                   <div className="dark:bg-background absolute top-2 right-2 z-[999] rounded-md bg-white shadow-md">
                     {!activePanel &&
@@ -554,7 +552,7 @@ function InnerDocumentPage(
                     ) : null}
                   </div>
                 ) : null}
-                <div className="flex min-h-full flex-1 flex-col">
+                <div className="flex flex-col flex-1 min-h-full">
                   <ScrollArea>
                     <DocumentCover cover={document.metadata.cover} id={id} />
 
@@ -573,7 +571,7 @@ function InnerDocumentPage(
                             marginTop: document.metadata?.cover ? 152 : 220,
                           }}
                         >
-                          <div className="hide-scrollbar h-full overflow-scroll pb-6">
+                          <div className="overflow-scroll pb-6 h-full hide-scrollbar">
                             <WebDocumentOutline
                               showCollapsed={showCollapsed}
                               supportDocuments={props.supportDocuments}
@@ -654,10 +652,10 @@ function InnerDocumentPage(
                   defaultSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
                   maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
                   minSize={media.gtSm ? 20 : 100}
-                  className="border-sidebar-border flex h-full flex-1 flex-col border-l"
+                  className="flex flex-col flex-1 h-full border-l border-sidebar-border"
                 >
-                  <div className="flex shrink-0 items-center justify-center px-3 py-2">
-                    <div className="flex flex-1 items-center justify-center">
+                  <div className="flex justify-center items-center px-3 py-2 shrink-0">
+                    <div className="flex flex-1 justify-center items-center">
                       {activitySummary}
                     </div>
                     <Tooltip content={tx('Close')}>
@@ -673,16 +671,16 @@ function InnerDocumentPage(
                       </Button>
                     </Tooltip>
                   </div>
-                  <div className="dark:bg-background border-border flex items-center border-b bg-white p-3">
+                  <div className="flex items-center p-3 bg-white border-b dark:bg-background border-border">
                     <Text weight="bold" size="md">
                       {panelTitle}
                     </Text>
                   </div>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="overflow-hidden flex-1">
                     <ScrollArea>{panel}</ScrollArea>
                   </div>
 
-                  <div className="border-sidebar-border shrink-0 border-t p-2">
+                  <div className="p-2 border-t border-sidebar-border shrink-0">
                     {commentEditor}
                   </div>
                 </Panel>
@@ -705,16 +703,16 @@ function InnerDocumentPage(
                 }
               />
               <DrawerContent>
-                <div className="flex h-full flex-1 flex-col overflow-hidden">
+                <div className="flex overflow-hidden flex-col flex-1 h-full">
                   <DrawerHeader>
-                    <div className="flex items-center justify-center">
+                    <div className="flex justify-center items-center">
                       {activitySummary}
                     </div>
-                    <div className="border-border border-b px-5 py-2 text-left">
+                    <div className="px-5 py-2 text-left border-b border-border">
                       <Text weight="semibold">{panelTitle}</Text>
                     </div>
                   </DrawerHeader>
-                  <div className="flex flex-1 flex-col overflow-hidden">
+                  <div className="flex overflow-hidden flex-col flex-1">
                     <ScrollArea>{panel}</ScrollArea>
                   </div>
                   <DrawerFooter>{commentEditor}</DrawerFooter>
@@ -737,17 +735,17 @@ function MobileInteractionCardCollapsed({
 }) {
   const tx = useTx()
   return (
-    <div className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex rounded-md border bg-white p-2 shadow-md">
+    <div className="flex fixed right-0 bottom-0 left-0 z-40 p-2 bg-white rounded-md border shadow-md dark:bg-background border-sidebar-border">
       <DrawerTrigger asChild>
         <Button
           variant="ghost"
-          className="flex min-w-0 flex-1 items-center justify-start"
+          className="flex flex-1 justify-start items-center min-w-0"
           onClick={onClick}
         >
           <div className="shrink-0">
             <MessageSquare />
           </div>
-          <span className="ml-2 flex-1 truncate text-left">
+          <span className="flex-1 ml-2 text-left truncate">
             {tx('Start a Discussion')}
           </span>
         </Button>
@@ -770,7 +768,7 @@ function DocumentCover({
   return (
     <div
       className={cn(
-        'relative h-[25vh] w-full flex-shrink-0',
+        'relative flex-shrink-0 w-full h-[25vh]',
         cover ? 'bg-transparent' : 'bg-secondary',
       )}
     >
@@ -813,9 +811,9 @@ function DocumentDiscoveryPage({
   }, [id])
   const tx = useTx()
   return (
-    <div className="flex h-screen w-screen flex-col">
-      <div className="flex flex-1 items-start justify-center px-4 py-12">
-        <div className="border-border dark:bg-background flex w-full max-w-lg flex-0 flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
+    <div className="flex flex-col w-screen h-screen">
+      <div className="flex flex-1 justify-center items-start px-4 py-12">
+        <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border dark:bg-background flex-0">
           <h2 className="text-2xl font-bold">
             {tx('looking_for_document', 'Looking for a document...')}
           </h2>
@@ -1019,7 +1017,7 @@ function WebCitationsPanel({
           )
         })
       ) : (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       )}
