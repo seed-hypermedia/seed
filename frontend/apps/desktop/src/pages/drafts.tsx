@@ -66,7 +66,7 @@ export default function DraftsPage() {
   return (
     <PanelContainer>
       <MainWrapper scrollable>
-        <Container justifyContent="center" centered gap="$2">
+        <Container centered>
           {draftItems?.map((item) => {
             return (
               <DraftItem
