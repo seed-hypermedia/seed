@@ -26,7 +26,7 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {getAccount, getMetadata, loadDocument} from './loaders'
+import {getAccount, getDocument, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
 export async function initEmailNotifier() {
@@ -175,7 +175,7 @@ async function handleEventsForEmailNotifications(
 
             const changeDataWithOps = await loadRefFromIpfs(changeCid)
 
-            const changedDoc = await loadDocument(unpacked)
+            const changedDoc = await getDocument(unpacked)
             const targetMeta = changedDoc?.metadata ?? {}
             const docUrl = `${SITE_BASE_URL}/hm/${unpacked.uid}/${(
               unpacked.path || []
@@ -192,7 +192,7 @@ async function handleEventsForEmailNotifications(
             }
 
             if (prevVersionId) {
-              const prevVersionDoc = await loadDocument(prevVersionId)
+              const prevVersionDoc = await getDocument(prevVersionId)
               const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
 
               const previousMentionsByBlockId: Record<string, Set<string>> = {}
