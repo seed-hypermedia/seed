@@ -1,6 +1,5 @@
 import {Button} from '@tamagui/button'
 import {ColorTokens, SizeTokens} from '@tamagui/core'
-import {XGroup} from '@tamagui/group'
 import {ComponentProps} from 'react'
 
 export function RadioButtons<
@@ -25,7 +24,7 @@ export function RadioButtons<
   onValue: (value: Options[number]['key']) => void
 }) {
   return (
-    <XGroup borderRadius={0} borderColor="$color4" borderWidth={0}>
+    <div className="flex">
       {options.map((option) => (
         <RadioButton
           color={color}
@@ -40,7 +39,7 @@ export function RadioButtons<
           }}
         />
       ))}
-    </XGroup>
+    </div>
   )
 }
 
@@ -62,7 +61,7 @@ function RadioButton({
   onPress: () => void
 }) {
   return (
-    <XGroup.Item>
+    <div>
       <Button
         size={size}
         disabled={active}
@@ -70,9 +69,7 @@ function RadioButton({
         chromeless
         backgroundColor="$colorTransparent"
         fontWeight="bold"
-        color={active ? activeColor : color}
         hoverStyle={{
-          color: active ? activeColor : color,
           cursor: 'default',
         }}
         cursor="default"
@@ -83,6 +80,6 @@ function RadioButton({
       >
         {label}
       </Button>
-    </XGroup.Item>
+    </div>
   )
 }

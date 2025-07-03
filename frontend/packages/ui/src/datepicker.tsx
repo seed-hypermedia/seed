@@ -2,7 +2,7 @@ import type {DPDay} from '@rehookify/datepicker'
 import {useDatePickerContext} from '@rehookify/datepicker'
 import {ChevronLeft, ChevronRight} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useState} from 'react'
-import {AnimatePresence, Button, View} from 'tamagui'
+import {AnimatePresence, Button} from 'tamagui'
 
 import {
   DatePicker,
@@ -43,19 +43,13 @@ function CalendarHeader() {
     )
   }
   return (
-    <View
-      flexDirection="row"
-      width="100%"
-      height={50}
-      alignItems="center"
-      justifyContent="space-between"
-    >
+    <div className="flex h-[50px] w-full flex-row items-center justify-between">
       <Button circular size="$4" {...swapOnClick(subtractOffset({months: 1}))}>
         <Button.Icon scaleIcon={1.5}>
           <ChevronLeft />
         </Button.Icon>
       </Button>
-      <View flexDirection="column" height={50} alignItems="center">
+      <div className="flex h-[50px] flex-col items-center">
         <SizableText
           onPress={() => setHeader('year')}
           userSelect="auto"
@@ -84,13 +78,13 @@ function CalendarHeader() {
         >
           {month}
         </SizableText>
-      </View>
+      </div>
       <Button circular size="$4" {...swapOnClick(subtractOffset({months: -1}))}>
         <Button.Icon scaleIcon={1.5}>
           <ChevronRight />
         </Button.Icon>
       </Button>
-    </View>
+    </div>
   )
 }
 
@@ -121,18 +115,21 @@ function DayPicker() {
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
-      <View animation="medium" {...prevNextAnimation()}>
-        <View flexDirection="row" gap="$1">
+      <div className="animate-in" {...prevNextAnimation()}>
+        <div className="flex flex-row gap-1">
           {weekDays.map((day) => (
             <SizableText key={day} ta="center" width={45} size="$4">
               {day}
             </SizableText>
           ))}
-        </View>
-        <View flexDirection="column" gap="$1" flexWrap="wrap">
+        </div>
+        <div className="flex flex-col flex-wrap gap-1">
           {subDays.map((days) => {
             return (
-              <View flexDirection="row" key={days[0].$date.toString()} gap="$1">
+              <div
+                className="flex flex-row gap-1"
+                key={days[0].$date.toString()}
+              >
                 {days.map((d) => (
                   <Button
                     key={d.$date.toString()}
@@ -158,11 +155,11 @@ function DayPicker() {
                     </Button.Text>
                   </Button>
                 ))}
-              </View>
+              </div>
             )
           })}
-        </View>
-      </View>
+        </div>
+      </div>
     </AnimatePresence>
   )
 }
@@ -172,19 +169,14 @@ function DatePickerBody() {
 
   return (
     <HeaderTypeProvider type={header} setHeader={setHeader}>
-      <View
-        flexDirection="column"
-        alignItems="center"
-        gap="$2.5"
-        maxWidth={325}
-      >
+      <div className="flex max-w-[325px] flex-col items-center gap-2.5">
         <CalendarHeader />
         {header === 'month' && (
           <MonthPicker onChange={() => setHeader('day')} />
         )}
         {header === 'year' && <YearPicker onChange={() => setHeader('day')} />}
         {header === 'day' && <DayPicker />}
-      </View>
+      </div>
     </HeaderTypeProvider>
   )
 }

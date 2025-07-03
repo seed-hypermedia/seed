@@ -5,7 +5,7 @@ import {FormField} from '@shm/ui/forms'
 import {Spinner} from '@shm/ui/spinner'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
-import {Form, XStack, YStack} from 'tamagui'
+import {Form} from 'tamagui'
 import {z} from 'zod'
 import {Button} from './legacy/button'
 import {SizableText} from './text'
@@ -75,7 +75,7 @@ export function UIEmailNotificationsForm({
           placeholder="me@example.com"
         />
       </FormField>
-      <YStack gap="$3">
+      <div className="flex flex-col gap-3">
         <SizableText>{tx('Notify me when')}:</SizableText>
         <FormCheckbox
           name="notifyAllMentions"
@@ -92,9 +92,9 @@ export function UIEmailNotificationsForm({
           label={tx('Someone changes a document I own')}
           control={control}
         />
-      </YStack>
+      </div>
       <EmptyNotifWarning control={control} />
-      <XStack jc="flex-end" gap="$3" alignItems="center">
+      <div className="flex items-center justify-end gap-3">
         <Spinner hide={!isLoading} />
         <Button
           // @ts-expect-error
@@ -110,7 +110,7 @@ export function UIEmailNotificationsForm({
             {tx('Save Notification Settings')}
           </Button>
         </Form.Trigger>
-      </XStack>
+      </div>
     </Form>
   )
 }
@@ -140,7 +140,7 @@ function EmptyNotifWarning({
   )
     return null
   return (
-    <SizableText color="$red10">
+    <SizableText className="text-red-500">
       {tx('You will not receive any notifications.')}
     </SizableText>
   )

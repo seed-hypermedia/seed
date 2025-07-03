@@ -11,7 +11,7 @@ import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {XStack, YStack} from '@tamagui/stacks'
+import {cn} from '@shm/ui/utils'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {
   ChangeEvent,
@@ -176,7 +176,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   }
 
   return (
-    <YStack>
+    <div className="flex flex-col">
       {hideForm ? (
         <MediaComponent
           block={block}
@@ -201,7 +201,7 @@ export const MediaRender: React.FC<RenderProps> = ({
       ) : (
         <></>
       )}
-    </YStack>
+    </div>
   )
 }
 
@@ -392,42 +392,24 @@ function MediaForm({
   }
 
   return (
-    <YStack
-      position="relative"
-      borderColor={drag || selected ? '$color8' : '$colorTransparent'}
-      borderWidth={3}
-      backgroundColor={comment ? '$color6' : '$color4'}
-      borderRadius="$2"
-      borderStyle={drag ? 'dashed' : 'solid'}
-      outlineWidth={0}
-      contentEditable={false}
+    <div
+      className={cn(
+        'relative flex flex-col rounded-sm border-[3px] outline-none',
+        drag || selected ? 'border-border' : 'border-transparent',
+        drag ? 'border-dashed' : 'border-solid',
+        comment ? 'bg-muted/60' : 'bg-muted',
+      )}
       {...(isEmbed ? {} : dragProps)}
     >
       {drag && !isEmbed && (
-        <XStack
-          width="100%"
-          height="100%"
-          position="absolute"
-          top={0}
-          left={0}
-          zIndex="$zIndex.5"
-          alignItems="center"
-          justifyContent="center"
-          backgroundColor="rgb(255, 255, 255, 0.5)"
-          borderRadius="$2"
-        >
+        <div className="absolute top-0 left-0 z-[5] flex h-full w-full items-center justify-center rounded-sm bg-white/50">
           <SizableText weight="bold">DROP MEDIA HERE</SizableText>
-        </XStack>
+        </div>
       )}
-      <XStack
-        padding="$4"
-        alignItems="center"
-        // backgroundColor="$background"
-        borderRadius="$2"
-      >
+      <div className="flex items-center rounded-sm p-4">
         {mediaType !== 'file' ? (
-          <YStack flex={1}>
-            <XStack flex={1} gap="$3" width="100%">
+          <div className="flex flex-1 flex-col">
+            <div className="flex w-full flex-1 gap-3">
               {CustomInput ? (
                 <CustomInput
                   editor={editor}
@@ -567,20 +549,15 @@ function MediaForm({
                   )}
                 </Button>
               )}
-            </XStack>
+            </div>
             {fileName.color && fileName.color === 'red' && (
               <SizableText size="sm" color="destructive" className="pt-2">
                 {fileName.name}
               </SizableText>
             )}
-          </YStack>
+          </div>
         ) : (
-          <XStack
-            alignItems="center"
-            backgroundColor="$background"
-            width="100%"
-            height="$3"
-          >
+          <div className="bg-background flex h-12 w-full items-center">
             <Label
               htmlFor={'file-upload' + block.id}
               borderColor="$color12"
@@ -617,9 +594,9 @@ function MediaForm({
                 }
               }}
             />
-          </XStack>
+          </div>
         )}
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

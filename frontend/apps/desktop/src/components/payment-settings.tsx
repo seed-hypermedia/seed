@@ -47,9 +47,6 @@ import {
   Heading,
   Input,
   SizableText,
-  View,
-  XStack,
-  YStack,
 } from 'tamagui'
 
 export function AccountWallet({
@@ -101,16 +98,11 @@ export function AccountWallet({
 
 function Tag({label}: {label: string}) {
   return (
-    <View
-      borderWidth={1}
-      borderColor="$brand5"
-      paddingHorizontal="$2"
-      borderRadius="$2"
-    >
+    <div className="border-primary rounded-sm border px-2">
       <SizableText size="$1" color="$brand5">
         {label}
       </SizableText>
-    </View>
+    </div>
   )
 }
 
@@ -124,11 +116,11 @@ function WalletButton({
   const wallet = useWallet(walletId)
   return (
     <Button onPress={onOpen}>
-      <XStack f={1} jc="space-between" ai="center">
+      <div className="flex flex-1 items-center justify-between">
         <SizableText fontFamily="$mono">
           x{walletId.slice(-8).toUpperCase()}
         </SizableText>
-        <XStack ai="center" gap="$3">
+        <div className="flex items-center gap-3">
           <Tag label="Account Wallet" />
           {wallet.isLoading ? (
             <div className="flex items-center justify-center">
@@ -143,8 +135,8 @@ function WalletButton({
             <AlertCircle color="$red10" size={16} />
           ) : null}
           <ChevronRight color="$brand5" size={16} />
-        </XStack>
-      </XStack>
+        </div>
+      </div>
     </Button>
   )
 }
@@ -165,12 +157,12 @@ export function WalletPage({
   const exportWallet = useExportWallet(walletId)
   const walletName = `${getAccountName(accountDoc.data?.document)} Main Wallet`
   return (
-    <YStack gap="$4">
-      <XStack jc="space-between">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-between">
         <Button icon={ChevronLeft} size="$2" onPress={onClose}>
           Profile
         </Button>
-        <XStack gap="$3">
+        <div className="flex gap-3">
           {/* <DeleteWalletButton
             walletId={walletId}
             accountUid={accountUid}
@@ -192,19 +184,19 @@ export function WalletPage({
             Export
           </Button>
           {exportDialog.content}
-        </XStack>
-      </XStack>
+        </div>
+      </div>
       {
         wallet.isLoading ? (
           <div className="flex items-center justify-center">
             <Spinner />
           </div>
         ) : wallet.isError ? (
-          <YStack margin="$4">
+          <div className="m-4 flex flex-col">
             <Heading fontWeight="bold" color="$red10">
               Error Loading Wallet
             </Heading>
-          </YStack>
+          </div>
         ) : wallet.data ? (
           <WalletDetails
             wallet={wallet.data}
@@ -219,19 +211,19 @@ export function WalletPage({
         {invoices.data ? (
           <WalletTransactions invoices={invoices.data} />
         ) : invoices.isError ? (
-          <YStack margin="$4">
+          <div className="m-4 flex flex-col">
             <SizableText color="$red10">
               Error Loading Transaction History. May be disconnected from Seed
               Lightning Server.
             </SizableText>
-          </YStack>
+          </div>
         ) : (
           <div className="m-4 flex items-center justify-center">
             <Spinner />
           </div>
         )}
       </TableList>
-    </YStack>
+    </div>
   )
 }
 
@@ -246,16 +238,16 @@ function WalletTransactions({
 }) {
   if (invoices.all.length === 0)
     return (
-      <YStack margin="$4">
+      <div className="m-4 flex flex-col">
         <SizableText color="$color9">No transactions yet.</SizableText>
-      </YStack>
+      </div>
     )
   return (
-    <YStack>
+    <div className="flex flex-col">
       {invoices.all.map((invoice) => (
         <InvoiceRow invoice={invoice} />
       ))}
-    </YStack>
+    </div>
   )
 }
 
@@ -275,14 +267,14 @@ function WalletDetails({
 
   return (
     <>
-      <XStack jc="space-between" ai="center">
+      <div className="flex items-center justify-between">
         <Heading fontWeight="bold">{walletName}</Heading>
-        <XStack gap="$4" ai="center">
+        <div className="flex items-center gap-4">
           <Heading fontFamily="$mono"></Heading>
           <WalletValue amount={Number(wallet.balance)} />
-        </XStack>
-      </XStack>
-      <XStack jc="space-between">
+        </div>
+      </div>
+      <div className="flex justify-between">
         <Tooltip content="Click to Copy Lightning Address">
           <Button
             icon={Copy}
@@ -302,8 +294,8 @@ function WalletDetails({
         <SizableText fontFamily="$mono" fontSize="$7">
           {wallet.balance ? Number(wallet.balance) : '0'} SATS
         </SizableText>
-      </XStack>
-      <XStack gap="$4">
+      </div>
+      <div className="flex gap-4">
         <Button
           icon={Download}
           themeInverse
@@ -328,7 +320,7 @@ function WalletDetails({
           Withdraw
         </Button>
         {withdrawDialog.content}
-      </XStack>
+      </div>
     </>
   )
 }
@@ -366,10 +358,10 @@ function WithdrawDialog({
         <DialogDescription color="$color10">
           {invoice.description}
         </DialogDescription>
-        <XStack marginVertical="$4" jc="center">
+        <div className="my-4 flex justify-center">
           <Spinner hide={!payInvoice.isLoading} />
-        </XStack>
-        <XStack gap="$4">
+        </div>
+        <div className="flex gap-4">
           <Button
             f={1}
             onPress={() => {
@@ -400,7 +392,7 @@ function WithdrawDialog({
           >
             Send Funds
           </Button>
-        </XStack>
+        </div>
       </>
     )
   }
@@ -414,14 +406,14 @@ function WithdrawDialog({
       <Field id="payreq" label="Payment Request">
         <Input value={payreqInput} onChangeText={setPayreqInput} />
       </Field>
-      <XStack gap="$4">
+      <div className="flex gap-4">
         <Button f={1} onPress={onClose}>
           Cancel
         </Button>
         <Button f={1} themeInverse disabled>
           Send Funds
         </Button>
-      </XStack>
+      </div>
     </>
   )
 }
@@ -484,7 +476,7 @@ function AddFundsDialog({
     <>
       <DialogTitle>Add Funds to {walletName}</DialogTitle>
       <Form onSubmit={submit}>
-        <YStack gap="$4">
+        <div className="flex flex-col gap-4">
           <Field id="amount" label="Amount (Sats)">
             <Input
               // type="number"
@@ -497,10 +489,10 @@ function AddFundsDialog({
               onSubmitEditing={submit}
             />
           </Field>
-          <XStack jc="center">
+          <div className="flex justify-center">
             <Spinner hide={!createInvoice.isLoading} />
-          </XStack>
-          <XStack gap="$4">
+          </div>
+          <div className="flex gap-4">
             <Button f={1} onPress={onClose}>
               Cancel
             </Button>
@@ -509,8 +501,8 @@ function AddFundsDialog({
                 Create Invoice
               </Button>
             </Form.Trigger>
-          </XStack>
-        </YStack>
+          </div>
+        </div>
       </Form>
     </>
   )
@@ -549,7 +541,7 @@ function InvoiceInfo({
         Scan this code to pay with your lightning wallet, or copy and paste the
         invoice text.
       </DialogDescription>
-      <YStack ai="center" gap="$4">
+      <div className="flex flex-col items-center gap-4">
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
@@ -564,7 +556,7 @@ function InvoiceInfo({
             Copy Invoice
           </Button>
         </Tooltip>
-      </YStack>
+      </div>
       <Button onPress={onCancel}>Cancel</Button>
     </>
   )
@@ -625,8 +617,8 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
   const Chevron = isPaid ? ChevronUp : ChevronDown
   const paymentColor = isPaid ? '$red9' : '$green9'
   return (
-    <XStack jc="space-between" paddingHorizontal="$4" paddingVertical="$2">
-      <YStack gap="$1">
+    <div className="flex justify-between px-4 py-2">
+      <div className="flex flex-col gap-1">
         <SizableText>
           {formattedDateMedium(new Date(invoice.settledAt))}
         </SizableText>
@@ -647,16 +639,16 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
             </ButtonText>
           </Tooltip>
         </SizableText>
-      </YStack>
-      <YStack gap="$3">
-        <XStack gap="$2">
+      </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-2">
           <SizableText fontFamily="$mono" color={paymentColor}>
             {Number(invoice.amount)} SATS
           </SizableText>
           <Chevron color={paymentColor} size={18} />
-        </XStack>
-      </YStack>
-    </XStack>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -671,7 +663,7 @@ function WalletValue({amount}: {amount: number}) {
     precision === 0 ? Math.round(value) : value.toFixed(precision)
 
   return (
-    <XStack gap="$3" ai="center">
+    <div className="flex items-center gap-3">
       <Heading fontFamily={'$mono'}>{`${character}${displayValue}`}</Heading>
       <SelectDropdown
         value={activeCurrency}
@@ -686,6 +678,6 @@ function WalletValue({amount}: {amount: number}) {
           }) || []
         }
       />
-    </XStack>
+    </div>
   )
 }

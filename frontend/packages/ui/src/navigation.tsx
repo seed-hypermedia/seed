@@ -17,7 +17,6 @@ import {
 } from '@shm/shared'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {XStack, YStack} from 'tamagui'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {Popover} from './TamaguiPopover'
@@ -224,7 +223,7 @@ export function DocDirectory({
 }) {
   const directoryItems = getSiteNavDirectory({id, supportQueries, drafts})
   return (
-    <YStack gap="$2.5">
+    <div className="flex flex-col gap-2.5">
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
@@ -239,7 +238,7 @@ export function DocDirectory({
           ))
         : null}
       {createDirItem?.({indented: 0})}
-    </YStack>
+    </div>
   )
 }
 
@@ -424,7 +423,7 @@ export function DocNavigationWrapper({
   }, [media.gtSm])
 
   return showCollapsed ? (
-    <YStack jc="center" ai="center">
+    <div className="flex items-center justify-center">
       <Popover placement="right" {...popoverState} hoverable>
         <Popover.Trigger
           opacity={popoverState.open ? 0 : 1}
@@ -441,11 +440,11 @@ export function DocNavigationWrapper({
           animation="fast"
           maxWidth={12}
         >
-          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
+          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
+          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
+          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
+          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
         </Popover.Trigger>
         <Popover.Content
           minWidth={280}
@@ -456,20 +455,18 @@ export function DocNavigationWrapper({
           animation="fast"
           elevation="$4"
         >
-          <YStack height="100%" w="100%" maxHeight="80vh" overflow="scroll">
+          <div className="h-full max-h-[80vh] w-full overflow-auto">
             {children}
-          </YStack>
+          </div>
         </Popover.Content>
       </Popover>
-    </YStack>
+    </div>
   ) : (
-    <YStack
-      className="hide-scrollbar"
-      overflow="scroll"
-      height="100%"
+    <div
+      className="hide-scrollbar h-full overflow-auto"
       // paddingVertical="$4"
     >
       {children}
-    </YStack>
+    </div>
   )
 }

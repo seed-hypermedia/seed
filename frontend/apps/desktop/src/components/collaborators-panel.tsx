@@ -21,7 +21,7 @@ import {ArrowRight, X} from '@shm/ui/icons'
 import {RadioButtons} from '@shm/ui/radio-buttons'
 import {toast} from '@shm/ui/toast'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {Button, ListItem, SizableText, XGroup, YGroup, YStack} from 'tamagui'
+import {Button, ListItem, SizableText, XGroup, XStack, YGroup} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
@@ -262,11 +262,11 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col gap-3">
       {parentCapabilities ? (
-        <YStack marginBottom="$3">
+        <div className="mb-3">
           {parentCapabilities.map((cap) => (
             <CollaboratorItem key={cap.accountUid} capability={cap} id={id} />
           ))}
-        </YStack>
+        </div>
       ) : null}
       <div className="flex">
         <RadioButtons
@@ -453,7 +453,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       >
         <Ariakit.CompositeRow
           role="row"
-          render={<XStack gap="$1" width="100%" flexWrap="wrap" />}
+          render={<div className="flex w-full flex-wrap gap-1" />}
         >
           {selectedValues.map((value: SearchResult) => {
             // TODO: (horacio): Should I cleanup the list from the `unresolved` value?
@@ -492,7 +492,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               </Ariakit.CompositeItem>
             )
           })}
-          <YStack role="cell" flex={1}>
+          <div role="cell" className="flex flex-1 flex-col">
             <Ariakit.CompositeItem
               id={comboboxId}
               render={
@@ -511,7 +511,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 />
               }
             />
-          </YStack>
+          </div>
           <Ariakit.ComboboxPopover
             store={combobox}
             portal
@@ -568,7 +568,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
           />
         }
       >
-        <XStack gap="$2" flex={1} jc="flex-start">
+        <div className="flex flex-1 justify-start gap-2">
           {/* <Ariakit.SelectItemCheck /> */}
           {entity.data?.document?.metadata && props.member?.id ? (
             <HMIcon
@@ -577,12 +577,12 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
               id={props.member?.id}
             />
           ) : null}
-          <XStack flex={1}>
+          <div className="flex flex-1">
             <SizableText size="$2" textColor="currentColor">
               {props.children || props.member?.label}
             </SizableText>
-          </XStack>
-        </XStack>
+          </div>
+        </div>
       </Ariakit.SelectItem>
     )
   },

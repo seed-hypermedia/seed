@@ -1,8 +1,8 @@
-import {XStack, XStackProps, YStack} from '@tamagui/stacks'
 import 'katex/dist/katex.min.css'
-import {Button, ColorTokens, View, ViewProps} from 'tamagui'
+import {Button} from 'tamagui'
 import './document-content.css'
 import {SizableText} from './text'
+import {cn} from './utils'
 
 export function QueryBlockPlaceholder({
   styleType,
@@ -18,87 +18,73 @@ export function QueryBlockPlaceholder({
 
 export function QueryBlockCardPlaceholder() {
   return (
-    <XStack flexWrap="wrap" marginHorizontal="$-2" w="100%">
+    <div className="-mx-2 flex w-full flex-wrap">
       <EntityCardPlaceholder />
       <EntityCardPlaceholder />
       <EntityCardPlaceholder />
-    </XStack>
+    </div>
   )
 }
 
 export function QueryBlockListPlaceholder() {
   return (
-    <YStack gap="$2" w="100%">
+    <div className="flex w-full flex-col gap-2">
       <ListItemSkeleton />
       <ListItemSkeleton />
       <ListItemSkeleton />
-    </YStack>
+    </div>
   )
 }
 
 export function EntityCardPlaceholder() {
   return (
-    <YStack
-      flexGrow={0}
-      flexShrink={0}
-      flexBasis="100%"
-      $gtSm={{flexBasis: '50%'}}
-      $gtMd={{flexBasis: '33.33%'}}
-      p="$2"
-    >
-      <YStack
-        f={1}
-        bg="$backgroundStrong"
-        borderColor="$borderColor"
-        borderWidth={1}
-        borderRadius="$4"
-        overflow="hidden"
-      >
+    <div className="flex-basis-full sm:flex-basis-1/2 md:flex-basis-1/3 flex-none flex-shrink-0 p-2">
+      <div className="bg-muted border-border flex flex-1 flex-col overflow-hidden rounded-lg border">
         <CoverPlaceholder />
-        <YStack f={1}>
-          <YStack gap="$4" p="$4">
+        <div className="flex flex-1 flex-col">
+          <div className="flex flex-col gap-4 p-4">
             {/* document name */}
-            <YStack gap="$2">
+            <div className="flex flex-col gap-2">
               <TextPlaceholder height={24} />
               <TextPlaceholder height={24} width="70%" />
-            </YStack>
+            </div>
 
             {/* location and author */}
             <TextPlaceholder height={14} width="35%" />
 
-            <YStack gap="$2">
+            <div className="flex flex-col gap-2">
               <TextPlaceholder height={12} />
               <TextPlaceholder height={12} width="75%" />
               <TextPlaceholder height={12} width="80%" />
               <TextPlaceholder height={12} width="60%" />
-            </YStack>
-          </YStack>
-        </YStack>
-      </YStack>
-    </YStack>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
 function CoverPlaceholder() {
-  return <XStack height={180} width="100%" bg="$color6" />
+  return <div className="bg-muted-foreground/20 h-[180px] w-full" />
 }
 
 function TextPlaceholder({
   height = 16,
   width = '100%',
-  color = '$color6',
+  color = 'bg-muted-foreground/20',
 }: {
-  height?: XStackProps['height']
-  width?: XStackProps['width']
-  color?: ColorTokens
+  height?: number | string
+  width?: number | string
+  color?: string
 }) {
   return (
-    <XStack
-      height={height}
-      width={width}
-      bg={color}
-      borderRadius={100}
-      overflow="hidden"
+    <div
+      className={cn('overflow-hidden rounded-full', color)}
+      style={{
+        height: typeof height === 'number' ? `${height}px` : height,
+        width: typeof width === 'number' ? `${width}px` : width,
+      }}
     />
   )
 }
@@ -117,34 +103,68 @@ export function ListItemSkeleton() {
     >
       <Skeleton width={28} height={28} borderRadius={28} />
 
-      <YStack f={1} gap="$2">
-        <XStack ai="center" gap="$2">
+      <div className="flex flex-1 flex-col gap-2">
+        <div className="flex items-center gap-2">
           <Skeleton w="100%" maxWidth={300} height={20} borderRadius="$1" />
-        </XStack>
-        <XStack gap="$2" w="100%" overflow="hidden">
+        </div>
+        <div className="flex w-full gap-2 overflow-hidden">
           <Skeleton w="100%" maxWidth={200} height={14} borderRadius="$1" />
-        </XStack>
-      </YStack>
+        </div>
+      </div>
       <Skeleton w="100%" maxWidth={80} height={20} borderRadius="$1" />
 
-      <XStack>
+      <div className="flex">
         <Skeleton width={24} height={24} borderRadius={100} />
         <Skeleton width={24} height={24} borderRadius={100} marginLeft={-8} />
-      </XStack>
+      </div>
     </Button>
   )
 }
 
-function Skeleton(props: ViewProps) {
-  return <View {...props} bg="$color6" />
+function Skeleton(
+  props: React.HTMLAttributes<HTMLDivElement> & {
+    w?: string | number
+    width?: number
+    height?: number
+    maxWidth?: number
+    borderRadius?: number | string
+    marginLeft?: number
+  },
+) {
+  const {
+    w,
+    width,
+    height,
+    maxWidth,
+    borderRadius,
+    marginLeft,
+    className,
+    style,
+    ...rest
+  } = props
+  return (
+    <div
+      className={cn('bg-muted-foreground/20', className)}
+      style={{
+        width: w || (width ? `${width}px` : undefined),
+        height: height ? `${height}px` : undefined,
+        maxWidth: maxWidth ? `${maxWidth}px` : undefined,
+        borderRadius:
+          typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius,
+        marginLeft: marginLeft ? `${marginLeft}px` : undefined,
+        ...style,
+      }}
+      {...rest}
+    />
+  )
 }
 
 export function BlankQueryBlockMessage({message}: {message: string}) {
   return (
-    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
+    <div className="bg-muted flex items-center rounded-lg p-4">
       <SizableText size="lg" color="muted" weight="bold" className="italic">
         {message}
       </SizableText>
-    </YStack>
+    </div>
   )
 }

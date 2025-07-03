@@ -1729,7 +1729,6 @@ export function getBlockNodeById(
 }
 
 export function BlockContentFile({block}: BlockContentProps) {
-  const {hover, ...hoverProps} = useHover()
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
@@ -1739,9 +1738,8 @@ export function BlockContentFile({block}: BlockContentProps) {
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
       data-size={getBlockAttribute(block.attributes, 'size')}
-      {...hoverProps}
       className={cn(
-        'block-content block-file border-muted dark:border-muted overflow-hidden rounded-md border p-4',
+        'block-content group block-file border-muted dark:border-muted relative overflow-hidden rounded-md border p-4',
       )}
     >
       <div className="relative flex w-full flex-1 items-center gap-2">
@@ -1754,45 +1752,37 @@ export function BlockContentFile({block}: BlockContentProps) {
             {formatBytes(parseInt(getBlockAttribute(block.attributes, 'size')))}
           </SizableText>
         )}
-
-        {fileCid && (
-          <Tooltip
-            content={`Download ${
-              getBlockAttribute(block.attributes, 'name') || 'File'
-            }`}
-          >
-            <Button
-              variant="brand"
-              className="absolute top-1/2 right-0 -translate-y-1/2"
-              size="sm"
-              style={{
-                opacity: hover ? 1 : 0,
-              }}
-              disabled={!hover}
-              {...(saveCidAsFile
-                ? {
-                    onClick: () => {
-                      saveCidAsFile(
-                        fileCid,
-                        getBlockAttribute(block.attributes, 'name') || 'File',
-                      )
-                    },
-                  }
-                : {
-                    tag: 'a',
-                    download:
-                      getBlockAttribute(block.attributes, 'name') || true,
-                    href: getDaemonFileUrl(fileCid),
-                    style: {
-                      textDecoration: 'none',
-                    },
-                  })}
-            >
-              Download
-            </Button>
-          </Tooltip>
-        )}
       </div>
+      {fileCid && (
+        <Button
+          variant="brand"
+          className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+          size="sm"
+          asChild
+        >
+          <a
+            download
+            {...(saveCidAsFile
+              ? {
+                  onClick: () => {
+                    saveCidAsFile(
+                      fileCid,
+                      getBlockAttribute(block.attributes, 'name') || 'File',
+                    )
+                  },
+                }
+              : {
+                  download: getBlockAttribute(block.attributes, 'name') || true,
+                  href: getDaemonFileUrl(fileCid),
+                  style: {
+                    textDecoration: 'none',
+                  },
+                })}
+          >
+            Download
+          </a>
+        </Button>
+      )}
     </div>
   )
 }

@@ -23,7 +23,6 @@ import {
   Copy,
   PartyPopper,
 } from '@tamagui/lucide-icons'
-import {XStack, YStack} from '@tamagui/stacks'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './components/checkbox'
@@ -159,9 +158,9 @@ function DonateInvoice({
     return (
       <>
         <DialogTitle>Thank You!</DialogTitle>
-        <YStack ai="center" padding="$4">
+        <div className="flex flex-col items-center p-4">
           <PartyPopper size={120} />
-        </YStack>
+        </div>
         <DialogDescription>
           {invoice.amount} SATS has been sent to the{' '}
           {authors.length > 1 ? 'authors' : 'author'}.
@@ -175,7 +174,7 @@ function DonateInvoice({
       <DialogTitle>
         Pay Invoice to {authors.length > 1 ? 'Authors' : 'Author'}
       </DialogTitle>
-      <YStack ai="center" gap="$4">
+      <div className="flex flex-col items-center gap-4">
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
@@ -190,10 +189,10 @@ function DonateInvoice({
             Copy Invoice
           </Button>
         </Tooltip>
-        <XStack jc="flex-end">
+        <div className="flex justify-end">
           <AlertCircle opacity={isError ? 1 : 0} color="$red10" />
-        </XStack>
-      </YStack>
+        </div>
+      </div>
       <Button onPress={onClose}>Cancel</Button>
     </>
   )
@@ -223,12 +222,12 @@ function DonateForm({
   const {fee, recipients, total, isEven} = getAllocations(paymentAllocation)
   if (createInvoice.isLoading)
     return (
-      <YStack ai="center" gap="$4">
+      <div className="flex flex-col items-center gap-4">
         <h2 className="text-lg font-bold">Creating Invoice</h2>
         <div className="flex items-center justify-center">
           <Spinner />
         </div>
-      </YStack>
+      </div>
     )
   return (
     <>
@@ -252,20 +251,20 @@ function DonateForm({
       >
         Divide Evenly
       </CheckboxField>
-      <YStack>
+      <div className="flex flex-col">
         {authors.map((author) => {
           if (!author.metadata) return null
           const isAllowedRecipient = allowed.has(author.id.uid)
           const recieveAmount =
             recipients.find((r) => r.account === author.id.uid)?.amount || 0
           return (
-            <XStack key={author.id.uid} jc="space-between">
-              <XStack ai="center" gap="$4">
+            <div key={author.id.uid} className="flex justify-between">
+              <div className="flex items-center gap-4">
                 <HMIcon id={author.id} metadata={author.metadata} />
                 <SizableText color={isAllowedRecipient ? 'default' : 'muted'}>
                   {getMetadataName(author.metadata)}
                 </SizableText>
-              </XStack>
+              </div>
               {isAllowedRecipient ? (
                 <Input
                   value={String(recieveAmount)}
@@ -281,10 +280,10 @@ function DonateForm({
               ) : (
                 <SizableText>Donations Disabled</SizableText>
               )}
-            </XStack>
+            </div>
           )
         })}
-      </YStack>
+      </div>
       <DialogDescription>Fee: {fee} SAT</DialogDescription>
       <DialogDescription>Total: {total} SAT</DialogDescription>
       <Button

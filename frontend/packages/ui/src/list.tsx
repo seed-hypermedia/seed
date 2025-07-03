@@ -1,6 +1,5 @@
-import {ReactNode, forwardRef, useState} from 'react'
+import {ReactNode, forwardRef, useEffect, useRef, useState} from 'react'
 import {Virtuoso, VirtuosoHandle} from 'react-virtuoso'
-import {View, XStack, YStack} from 'tamagui'
 
 export type ListHandle = VirtuosoHandle
 
@@ -24,15 +23,27 @@ export const List = forwardRef(function ListComponent<Item>(
 ) {
   const [containerWidth, setContainerWidth] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const {width, height} = entry.contentRect
+        setContainerWidth(width)
+        setContainerHeight(height)
+      }
+    })
+
+    resizeObserver.observe(containerRef.current)
+    return () => resizeObserver.disconnect()
+  }, [])
+
   return (
-    <YStack
-      f={1}
-      alignSelf="stretch"
-      height={'100%'}
-      onLayout={(e) => {
-        setContainerHeight(e.nativeEvent.layout.height)
-        setContainerWidth(e.nativeEvent.layout.width)
-      }}
+    <div
+      ref={containerRef}
+      className="flex h-full flex-1 flex-col self-stretch"
     >
       <Virtuoso
         ref={ref}
@@ -52,7 +63,7 @@ export const List = forwardRef(function ListComponent<Item>(
         }}
         components={{
           Header: () => header || null,
-          Footer: () => footer || <View style={{height: 30}} />,
+          Footer: () => footer || <div style={{height: 30}} />,
         }}
         className="main-scroll-wrapper"
         totalCount={items?.length || 0}
@@ -60,16 +71,18 @@ export const List = forwardRef(function ListComponent<Item>(
           const item = items?.[index]
           if (!item) return null
           return (
-            <XStack
-              jc="center"
-              width={containerWidth}
-              height={fixedItemHeight || undefined}
+            <div
+              className="flex justify-center"
+              style={{
+                width: containerWidth,
+                height: fixedItemHeight || undefined,
+              }}
             >
               {renderItem({item, containerWidth})}
-            </XStack>
+            </div>
           )
         }}
       />
-    </YStack>
+    </div>
   )
 })

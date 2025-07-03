@@ -146,7 +146,7 @@ const InputImpl = InputFrame.styleable((props, ref) => {
   const {size} = InputContext.useStyledContext()
   const {...rest} = props
   return (
-    <View flex={1}>
+    <div className="flex-1">
       <InputFrame
         ref={ref}
         onFocus={() => {
@@ -156,7 +156,7 @@ const InputImpl = InputFrame.styleable((props, ref) => {
         size={size}
         {...rest}
       />
-    </View>
+    </div>
   )
 })
 

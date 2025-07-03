@@ -102,9 +102,6 @@ import {
   TabsProps,
   Text,
   TextArea,
-  View,
-  XStack,
-  YStack,
 } from 'tamagui'
 import {z} from 'zod'
 
@@ -661,7 +658,7 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
   return (
     <SettingsSection title="Email Notifications">
       {emailNotifs.data?.account ? (
-        <YStack gap="$3">
+        <div className="flex flex-col gap-3">
           <SizableText>
             Recipient Email:{' '}
             <Text fontWeight="bold">{emailNotifs.data.account.email}</Text>
@@ -679,14 +676,14 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
             />
           )}
           {hasNoNotifs ? (
-            <XStack gap="$3" ai="center">
+            <div className="flex items-center gap-3">
               <X color="$color9" size={24} />
               <SizableText color="$color9">
                 No notifications enabled
               </SizableText>
-            </XStack>
+            </div>
           ) : null}
-        </YStack>
+        </div>
       ) : null}
       <div className="flex">
         <Button
@@ -778,7 +775,7 @@ function LinkDeviceDialog({
     linkDeviceStatus.data?.secretToken === linkSession.secretToken
   ) {
     return (
-      <YStack gap="$4">
+      <div className="flex flex-col gap-4">
         <Heading>Device Linked!</Heading>
         <Paragraph>
           You have signed in to{' '}
@@ -796,7 +793,7 @@ function LinkDeviceDialog({
             <Check className="ml-2 h-4 w-4" />
           </Button>
         </div>
-      </YStack>
+      </div>
     )
   }
   return (
@@ -913,17 +910,14 @@ function KeyItem({
   const entity = useEntity(id)
   return (
     <ListItem
+      active={isActive}
       icon={
         <HMIcon id={id} metadata={entity.data?.document?.metadata} size={24} />
       }
       title={entity.data?.document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}
-      hoverTheme
-      pressTheme
       backgroundColor={isActive ? '$brand12' : undefined}
       onPress={onSelect}
-      cursor="default"
-      hoverStyle={{cursor: 'default', backgroundColor: '$color6'}}
     />
   )
 }
@@ -968,54 +962,44 @@ export function ExperimentSection({
 }) {
   const isDark = useIsDark()
   return (
-    <XStack
-      alignItems="center"
-      gap="$6"
-      paddingHorizontal="$6"
-      borderWidth={1}
-      borderRadius="$3"
-      borderColor="$borderColor"
-      padding="$3"
-      bg={isDark ? '$background' : '$backgroundStrong'}
+    <div
+      className={cn(
+        'flex items-center gap-6 rounded border p-3 px-6',
+        isDark ? 'bg-background' : 'bg-muted',
+      )}
     >
       <Heading fontSize={42}>{experiment.emoji}</Heading>
-      <YStack gap="$3" flex={1}>
-        <XStack gap="$3" flex={1}>
+      <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-1 gap-3">
           <Heading size="$6" marginVertical={0}>
             {experiment.label}
           </Heading>
-        </XStack>
+        </div>
         <SizableText>{experiment.description}</SizableText>
-        <XStack alignItems="center" jc="space-between">
-          {value ? <EnabledTag /> : <View />}
+        <div className="flex items-center justify-between">
+          {value ? <EnabledTag /> : <div />}
           <Button
-            theme={value ? 'red' : 'green'}
-            onPress={() => {
+            variant={value ? 'destructive' : 'default'}
+            onClick={() => {
               onValue(!value)
             }}
           >
             {value ? 'Disable Feature' : `Enable Feature`}
           </Button>
-        </XStack>
-      </YStack>
-    </XStack>
+        </div>
+      </div>
+    </div>
   )
 }
 
 function EnabledTag() {
   return (
-    <XStack
-      padding="$1"
-      paddingHorizontal="$3"
-      gap="$3"
-      alignItems="center"
-      borderRadius="$2"
-    >
+    <div className="flex items-center gap-3 rounded-sm px-3 py-1">
       <Check size="$1" color="$brand5" />
       <SizableText size="$1" color="$brand5" fontWeight="bold">
         Enabled
       </SizableText>
-    </XStack>
+    </div>
   )
 }
 
@@ -1062,7 +1046,7 @@ function GatewaySettings({}: {}) {
   }, [gatewayUrl.data])
 
   return (
-    <YStack gap="$3">
+    <div className="flex flex-col gap-3">
       <TableList>
         <InfoListHeader title="URL" />
         <TableList.Item>
@@ -1083,7 +1067,7 @@ function GatewaySettings({}: {}) {
 
       <PushOnPublishSetting />
       <PushOnCopySetting />
-    </YStack>
+    </div>
   )
 }
 
@@ -1286,8 +1270,8 @@ function ExperimentsSettings({}: {}) {
   const experiments = useExperiments()
   const writeExperiments = useWriteExperiments()
   return (
-    <YStack gap="$3">
-      <YStack space marginVertical="$4" alignSelf="stretch">
+    <div className="flex flex-col gap-3">
+      <div className="my-4 flex flex-col space-y-4 self-stretch">
         {EXPERIMENTS.map((experiment) => {
           return (
             <ExperimentSection
@@ -1302,8 +1286,8 @@ function ExperimentsSettings({}: {}) {
             />
           )
         })}
-      </YStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -1379,8 +1363,8 @@ function AppSettings() {
           <SizableText size="$1" flex={0} minWidth={140} width={140}>
             Check for updates?
           </SizableText>
-          <XStack f={1}>
-            <XStack f={1}>
+          <div className="flex flex-1">
+            <div className="flex flex-1">
               <Checkbox
                 id="auto-update"
                 checked={autoUpdate.data == 'true'}
@@ -1390,16 +1374,13 @@ function AppSettings() {
                   setAutoUpdate(val as 'true' | 'false')
                 }}
               />
-            </XStack>
+            </div>
             <Tooltip content="Check for app updates automatically on Launch">
-              <Button
-                size="$1"
-                chromeless
-                bg="$backgroundTransparent"
-                icon={Info}
-              />
+              <Button size="sm" variant="ghost" className="bg-transparent">
+                <Info className="h-4 w-4" />
+              </Button>
             </Tooltip>
-          </XStack>
+          </div>
         </TableList.Item>
       </TableList>
       <TableList>
@@ -1409,13 +1390,13 @@ function AppSettings() {
             addrs ? (
               <Tooltip content="Copy routing info so others can connect to you">
                 <Button
-                  size="$2"
-                  icon={Copy}
-                  onPress={() => {
+                  size="sm"
+                  onClick={() => {
                     navigator.clipboard.writeText(addrs)
                     toast.success('Copied Routing Address successfully')
                   }}
                 >
+                  <Copy className="mr-2 h-4 w-4" />
                   Copy Addresses
                 </Button>
               </Tooltip>
@@ -1469,9 +1450,8 @@ function AppSettings() {
           right={
             <Tooltip content="Copy App Info for Developers">
               <Button
-                size="$2"
-                icon={Copy}
-                onPress={() => {
+                size="sm"
+                onClick={() => {
                   copyTextToClipboard(`
                     App Version: ${VERSION}
                     Electron Version: ${versions.electron}
@@ -1483,6 +1463,7 @@ function AppSettings() {
                   toast.success('Copied Build Info successfully')
                 }}
               >
+                <Copy className="mr-2 h-4 w-4" />
                 Copy Debug Info
               </Button>
             </Tooltip>
@@ -1525,9 +1506,9 @@ const TabsContent = (props: TabsContentProps) => {
       {...props}
     >
       <ScrollArea>
-        <YStack gap="$4" padding="$4" paddingBottom="$5" f={1}>
+        <div className="flex flex-1 flex-col gap-4 p-4 pb-5">
           {props.children}
-        </YStack>
+        </div>
       </ScrollArea>
     </Tabs.Content>
   )
@@ -1563,14 +1544,14 @@ function SettingsSection({
 }: React.PropsWithChildren<{title: string}>) {
   const isDark = useIsDark()
   return (
-    <YStack
-      gap="$3"
-      p="$3"
-      borderRadius="$3"
-      bg={isDark ? '$background' : '$backgroundStrong'}
+    <div
+      className={cn(
+        'flex flex-col gap-3 rounded p-3',
+        isDark ? 'bg-background' : 'bg-muted',
+      )}
     >
       <Heading size="$7">{title}</Heading>
       {children}
-    </YStack>
+    </div>
   )
 }

@@ -13,7 +13,6 @@ import {
   Button,
   Popover,
   Text,
-  View,
   createStyledContext,
   isWeb,
   styled,
@@ -23,6 +22,7 @@ import {
 import {useEffect, useRef} from 'react'
 import {Input} from './datepicker-inputparts'
 import {useDateAnimation} from './datepicker-usedateanimation'
+import {cn} from './utils'
 
 /** rehookify internally return `onClick` and that's incompatible with native */
 export function swapOnClick<D>(d: D) {
@@ -143,7 +143,7 @@ export const DatePickerInput = Input.Area.styleable<DatePickerInputProps>(
   (props, ref) => {
     const {value, onButtonPress, size = '$3', onReset, ...rest} = props
     return (
-      <View $platform-native={{minWidth: '100%'}}>
+      <div className="min-w-full sm:min-w-0">
         <Input size={size}>
           <Input.Box>
             <Input.Section>
@@ -173,7 +173,7 @@ export const DatePickerInput = Input.Area.styleable<DatePickerInputProps>(
             </Input.Section>
           </Input.Box>
         </Input>
-      </View>
+      </div>
     )
   },
 )
@@ -196,18 +196,13 @@ export function MonthPicker({
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
-      <View
+      <div
         {...prevNextAnimation()}
-        flexDirection="row"
-        flexWrap="wrap"
-        gap="$2"
-        animation="100ms"
-        flexGrow={0}
-        $platform-native={{
-          justifyContent: 'space-between',
-          width: '100%',
-        }}
-        $gtXs={{width: 285}}
+        className={cn(
+          'flex flex-grow-0 flex-row flex-wrap gap-2',
+          'sm:w-full sm:justify-between',
+          'xs:w-[285px]',
+        )}
       >
         {months.map((month) => (
           <Button
@@ -230,7 +225,7 @@ export function MonthPicker({
             </Button.Text>
           </Button>
         ))}
-      </View>
+      </div>
     </AnimatePresence>
   )
 }
@@ -252,15 +247,9 @@ export function YearPicker({
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
-      <View
+      <div
         {...prevNextAnimation()}
-        animation={'quick'}
-        flexDirection="row"
-        flexWrap="wrap"
-        gap="$2"
-        width={'100%'}
-        maxWidth={280}
-        justifyContent="space-between"
+        className="flex w-full max-w-[280px] flex-row flex-wrap justify-between gap-2"
       >
         {years.map((year) => (
           <Button
@@ -287,7 +276,7 @@ export function YearPicker({
             </Button.Text>
           </Button>
         ))}
-      </View>
+      </div>
     </AnimatePresence>
   )
 }
@@ -298,28 +287,23 @@ export function YearRangeSlider() {
   } = useDatePickerContext()
 
   return (
-    <View
-      flexDirection="row"
-      width="100%"
-      alignItems="center"
-      justifyContent="space-between"
-    >
+    <div className="flex w-full flex-row items-center justify-between">
       <Button circular size="$4" {...swapOnClick(previousYearsButton())}>
         <Button.Icon scaleIcon={1.5}>
           <ChevronLeft />
         </Button.Icon>
       </Button>
-      <View y={2} flexDirection="column" alignItems="center">
+      <div className="flex translate-y-0.5 flex-col items-center">
         <SizableText size="$5">
           {`${years[0].year} - ${years[years.length - 1].year}`}
         </SizableText>
-      </View>
+      </div>
       <Button circular size="$4" {...swapOnClick(nextYearsButton())}>
         <Button.Icon scaleIcon={1.5}>
           <ChevronRight />
         </Button.Icon>
       </Button>
-    </View>
+    </div>
   )
 }
 
@@ -331,13 +315,7 @@ export function YearSlider() {
   const {setHeader} = useHeaderType()
   const {year} = calendars[0]
   return (
-    <View
-      flexDirection="row"
-      width="100%"
-      height={50}
-      alignItems="center"
-      justifyContent="space-between"
-    >
+    <div className="flex h-[50px] w-full flex-row items-center justify-between">
       <Button circular size="$3" {...swapOnClick(subtractOffset({months: 12}))}>
         <Button.Icon scaleIcon={1.5}>
           <ChevronLeft />
@@ -365,7 +343,7 @@ export function YearSlider() {
           <ChevronRight />
         </Button.Icon>
       </Button>
-    </View>
+    </div>
   )
 }
 

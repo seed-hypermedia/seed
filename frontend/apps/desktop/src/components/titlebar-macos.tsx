@@ -1,6 +1,5 @@
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
-import {View} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
   NavMenuButton,
@@ -41,8 +40,8 @@ export default function TitleBarMacos(props: TitleBarProps) {
           >
             <NavMenuButton
               left={
-                <View
-                  width={72} // this width to stay away from the macOS window traffic lights
+                <div
+                  className="w-[72px]" // this width to stay away from the macOS window traffic lights
                 />
               }
             />

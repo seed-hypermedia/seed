@@ -1,38 +1,60 @@
-import {styled, XStack, YStack} from 'tamagui'
 import {SizableText} from './text'
+import {cn} from './utils'
 
 export const onboardingColor = '#755EFF'
 
-export const Title = styled(SizableText, {
-  size: '3xl',
-  weight: 'bold',
-})
+export const Title = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof SizableText>) => (
+  <SizableText size="3xl" weight="bold" className={cn(className)} {...props} />
+)
 
-export const Text = styled(SizableText, {})
+export const Text = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof SizableText>) => (
+  <SizableText className={cn(className)} {...props} />
+)
 
-export const AccentSection = styled(YStack, {
-  w: 220,
-  flex: 'none',
-  flexGrow: 0,
-  flexShrink: 0,
-  bg: '$brand5',
-  paddingHorizontal: '$4',
-  paddingVertical: '$6',
-  gap: '$4',
-  borderRadius: '$4',
-})
+export const AccentSection = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'bg-primary/10 flex w-[220px] flex-none flex-col gap-4 rounded-lg px-4 py-6',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+)
 
-export const MainSection = styled(YStack, {
-  f: 1,
-  bg: '$background',
-  p: '$6',
-  gap: '$4',
-})
+export const MainSection = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn('bg-background flex flex-1 flex-col gap-4 p-6', className)}
+    {...props}
+  >
+    {children}
+  </div>
+)
 
-export const Wrapper = styled(XStack, {
-  jc: 'stretch',
-  f: 1,
-})
+export const Wrapper = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-1 justify-stretch', className)} {...props}>
+    {children}
+  </div>
+)
 
 export const SuccessIcon = (props: any) => (
   <svg

@@ -1,7 +1,5 @@
 import {Button} from '@tamagui/button'
-import {YGroup} from '@tamagui/group'
 import {MoreHorizontal} from '@tamagui/lucide-icons'
-import {XStack} from '@tamagui/stacks'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
@@ -10,6 +8,7 @@ import {MenuItem} from './menu-item'
 import {Separator} from './separator'
 import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
+import {cn} from './utils'
 
 export type MenuItemType = {
   key: string
@@ -34,11 +33,13 @@ export function OptionsDropdown({
 }) {
   const popoverState = usePopoverState()
   return (
-    <XStack
-      opacity={!popoverState.open && hiddenUntilItemHover ? 0 : 1}
-      $group-item-hover={{
-        opacity: 1,
-      }}
+    <div
+      className={cn(
+        'flex group-hover/item:opacity-100',
+        !popoverState.open && hiddenUntilItemHover
+          ? 'opacity-0'
+          : 'opacity-100',
+      )}
     >
       <Popover {...popoverState} placement={placement}>
         <Popover.Trigger asChild>
@@ -74,14 +75,14 @@ export function OptionsDropdown({
           exitStyle={{y: -10, opacity: 0}}
           elevate={true}
         >
-          <YGroup>
+          <div className="flex flex-col">
             {menuItems.flatMap((item, index) =>
               item
                 ? [
                     index > 0 ? (
                       <Separator key={`${item.key}-separator`} />
                     ) : null,
-                    <YGroup.Item key={item.key}>
+                    <div key={item.key}>
                       <MenuItem
                         onPress={(e: GestureResponderEvent) => {
                           e.stopPropagation()
@@ -93,13 +94,13 @@ export function OptionsDropdown({
                         icon={item.icon}
                         color={item.color}
                       />
-                    </YGroup.Item>,
+                    </div>,
                   ]
                 : [],
             )}
-          </YGroup>
+          </div>
         </Popover.Content>
       </Popover>
-    </XStack>
+    </div>
   )
 }

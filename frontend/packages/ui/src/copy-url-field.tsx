@@ -1,5 +1,5 @@
 import {useUniversalAppContext} from '@shm/shared/routing'
-import {Copy, ExternalLink} from '@tamagui/lucide-icons'
+import {Copy, ExternalLink} from '@shm/ui/icons'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {Text} from './text'
@@ -23,12 +23,12 @@ export function CopyUrlField({url, label}: {url: string; label: string}) {
             })
           }}
         >
-          <Copy size={16} />
+          <Copy className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip content="Open URL">
         <Button onClick={() => openUrl(url)} variant="ghost" size="sm">
-          <ExternalLink size={16} />
+          <ExternalLink className="size-4" />
         </Button>
       </Tooltip>
     </div>

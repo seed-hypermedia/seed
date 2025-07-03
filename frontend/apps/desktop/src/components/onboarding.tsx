@@ -21,22 +21,12 @@ import {
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Prev as ArrowLeft} from '@shm/ui/icons'
+import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {
-  Button,
-  ButtonFrame,
-  Form,
-  H2,
-  Input,
-  SizableText,
-  Text,
-  TextArea,
-  View,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {Button, ButtonFrame, Form, H2, Input, Label, TextArea} from 'tamagui'
 import {
   cleanupOnboardingFormData,
   getOnboardingState,
@@ -335,7 +325,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   }
 
   return (
-    <YStack flex={1} backgroundColor="$background" className="window-drag">
+    <div className="bg-background window-drag flex flex-1 flex-col">
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep
@@ -372,7 +362,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       )}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
       <OnboardingProgress currentStep={currentStep} />
-    </YStack>
+    </div>
   )
 }
 
@@ -383,72 +373,42 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
     <StepWrapper>
       <FullLogoIcon />
       <StepTitle>WELCOME TO THE OPEN WEB</StepTitle>
-      <XStack
-        gap="$6"
-        width="100%"
-        paddingHorizontal={0}
-        flex={1}
-        alignItems="center"
-      >
-        <YStack
-          padding="$2"
-          borderRadius="$4"
-          flex={1}
-          gap="$4"
-          alignItems="center"
-          justifyContent="flex-start"
-          width={200}
-        >
-          <YStack flex={1} justifyContent="center">
+      <div className="flex w-full flex-1 items-center gap-6 px-0">
+        <div className="flex w-[200px] flex-1 flex-col items-center justify-start gap-4 rounded-lg p-2">
+          <div className="flex flex-1 justify-center">
             <CollabIcon />
-          </YStack>
-          <YStack height={80} justifyContent="flex-start">
-            <Text fontSize="$5" textAlign="center">
+          </div>
+          <div className="flex h-20 justify-start">
+            <Text size="lg" className="text-center">
               Collaborate With Your Peers
             </Text>
-          </YStack>
-        </YStack>
+          </div>
+        </div>
 
-        <YStack
-          padding="$2"
-          width={200}
-          borderRadius="$4"
-          flex={1}
-          gap="$4"
-          alignItems="center"
-          justifyContent="flex-start"
-        >
-          <YStack flex={1} justifyContent="center">
+        <div className="flex w-[200px] flex-1 flex-col items-center justify-start gap-4 rounded-lg p-2">
+          <div className="flex flex-1 justify-center">
             <PublishIcon />
-          </YStack>
-          <YStack height={80} justifyContent="flex-start">
-            <Text fontSize="$5" textAlign="center">
+          </div>
+          <div className="flex h-20 justify-start">
+            <Text size="lg" className="text-center">
               Publish To The Web
             </Text>
-          </YStack>
-        </YStack>
+          </div>
+        </div>
 
-        <YStack
-          padding="$2"
-          width={200}
-          borderRadius="$4"
-          flex={1}
-          gap="$4"
-          alignItems="center"
-          justifyContent="flex-start"
-        >
-          <YStack flex={1} justifyContent="center">
+        <div className="flex w-[200px] flex-1 flex-col items-center justify-start gap-4 rounded-lg p-2">
+          <div className="flex flex-1 justify-center">
             <ArchiveIcon />
-          </YStack>
-          <YStack height={80} justifyContent="flex-start">
-            <Text fontSize="$5" textAlign="center">
+          </div>
+          <div className="flex h-20 justify-start">
+            <Text size="lg" className="text-center">
               Archive Content, Available Offline
             </Text>
-          </YStack>
-        </YStack>
-      </XStack>
+          </div>
+        </div>
+      </div>
 
-      <YStack gap="$4" alignItems="center" className="no-window-drag">
+      <div className="no-window-drag flex flex-col items-center gap-4">
         {/* <Button
           variant="outlined"
           onPress={() => openUrl('https://seed.hyper.media')}
@@ -478,7 +438,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
         >
           NEXT
         </Button>
-      </YStack>
+      </div>
     </StepWrapper>
   )
 }
@@ -554,7 +514,7 @@ function ProfileStep({
   return (
     <StepWrapper onPrev={onPrev}>
       <StepTitle>CREATE YOUR SITE</StepTitle>
-      <Text fontSize="$5" textAlign="center" color="$gray11">
+      <Text size="lg" className="text-muted-foreground text-center">
         Your site is more than just a collection of pages, it's a reflection of
         who you are or what your brand stands for. Whether it's personal,
         professional, or creative, this is your space to shine.
@@ -567,30 +527,20 @@ function ProfileStep({
         className="no-window-drag"
         flex={1}
       >
-        <YStack
-          gap="$4"
-          width="100%"
-          className="no-window-drag"
-          flex={1}
-          paddingTop="$4"
-        >
-          <Input
-            size="$4"
-            placeholder="Site name"
-            value={formData.name}
-            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
-          />
+        <div className="no-window-drag flex w-full flex-1 flex-col gap-4 pt-4">
+          <div className="flex flex-col">
+            <Label htmlFor="account-name">Account Name</Label>
+            <Input
+              id="account-name"
+              value={formData.name}
+              onChangeText={(text) => updateFormData({name: text})}
+              placeholder="Enter your account name"
+            />
+          </div>
 
-          <XStack gap="$4" width="100%">
-            <YStack
-              gap="$2"
-              flex={0}
-              minWidth={100}
-              minHeight={100}
-              w="100%"
-              maxWidth={100}
-            >
-              <Text fontSize="$2" color="$gray11">
+          <div className="flex w-full gap-4">
+            <div className="flex min-h-[100px] w-full max-w-[100px] min-w-[100px] flex-none flex-col gap-2">
+              <Text size="sm" className="text-muted-foreground">
                 Site Icon
               </Text>
               <ImageForm
@@ -606,10 +556,10 @@ function ProfileStep({
                 }}
                 onRemove={() => handleImageRemove('icon')}
               />
-            </YStack>
+            </div>
 
-            <YStack gap="$2" flex={1} minHeight={72}>
-              <Text fontSize="$2" color="$gray11">
+            <div className="flex min-h-[72px] flex-1 flex-col gap-2">
+              <Text size="sm" className="text-muted-foreground">
                 Site Logo
               </Text>
               <ImageForm
@@ -625,12 +575,11 @@ function ProfileStep({
                 }}
                 onRemove={() => handleImageRemove('seedExperimentalLogo')}
               />
-            </YStack>
-          </XStack>
-        </YStack>
-        <YStack gap="$4" className="no-window-drag" alignSelf="center">
+            </div>
+          </div>
+        </div>
+        <div className="no-window-drag flex flex-col gap-4 self-center">
           <Button
-            type="button"
             id="profile-existing"
             chromeless
             size="$3"
@@ -647,13 +596,7 @@ function ProfileStep({
           >
             I already have a Site
           </Button>
-          <XStack
-            marginTop="$8"
-            gap="$4"
-            className="no-window-drag"
-            alignItems="center"
-            justifyContent="center"
-          >
+          <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
             <Button onPress={onSkip} bg="$brand11" id="profile-skip">
               SKIP
             </Button>
@@ -670,8 +613,8 @@ function ProfileStep({
             >
               NEXT
             </Button>
-          </XStack>
-        </YStack>
+          </div>
+        </div>
       </Form>
     </StepWrapper>
   )
@@ -765,26 +708,42 @@ function ExistingStep({
   return (
     <StepWrapper onPrev={onPrev}>
       <StepTitle>ADD EXISTING KEY</StepTitle>
-      <Text fontSize="$5" textAlign="center" color="$gray11">
+      <Text size="lg" className="text-muted-foreground text-center">
         Add the keys to your existing site.
       </Text>
 
       <Form onSubmit={handleSubmit} w={400} flex={1}>
-        <YStack gap="$4">
-          <YStack gap="$2">
-            <Text fontSize="$2" color="$gray11">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Text size="sm" className="text-muted-foreground">
               Secret Recovery Phrase
             </Text>
             <TextArea
               size="$4"
               placeholder="Enter or paste your Secret Recovery Phrase here..."
               value={secretWords}
-              onChange={(e) => setSecretWords(e.nativeEvent.text)}
-              minHeight={120}
-              backgroundColor="white"
+              onChangeText={setSecretWords}
+              borderColor="$gray6"
               borderRadius="$4"
+              paddingHorizontal="$4"
+              paddingVertical="$4"
+              minHeight={200}
+              fontFamily="$mono"
+              fontSize="$2"
+              lineHeight="$1"
+              textAlignVertical="top"
+              backgroundColor="$gray2"
+              focusStyle={{
+                borderColor: '$brand8',
+                backgroundColor: '$gray3',
+              }}
+              hoverStyle={{
+                borderColor: '$gray8',
+                backgroundColor: '$gray3',
+              }}
+              className="no-window-drag"
             />
-          </YStack>
+          </div>
 
           <CheckboxField
             id="save-existing-wordss"
@@ -796,15 +755,9 @@ function ExistingStep({
           >
             Store the Secret Recovery Phrase securely on this device.
           </CheckboxField>
-        </YStack>
-        <View f={1} />
-        <XStack
-          marginTop="$8"
-          gap="$4"
-          className="no-window-drag"
-          alignItems="center"
-          justifyContent="center"
-        >
+        </div>
+        <div className="flex-1" />
+        <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
           <Button
             disabled={!secretWords.trim()}
             onPress={handleSubmit}
@@ -817,7 +770,7 @@ function ExistingStep({
           >
             NEXT
           </Button>
-        </XStack>
+        </div>
       </Form>
     </StepWrapper>
   )
@@ -1078,22 +1031,14 @@ function RecoveryStep({
     <StepWrapper onPrev={onPrev}>
       <StepTitle>SAVE YOUR ACCOUNT</StepTitle>
       <Text
-        fontSize="$6"
-        textAlign="center"
-        color="$gray11"
-        className="no-window-drag"
+        size="xl"
+        className="no-window-drag text-muted-foreground text-center"
       >
         Store this Secret Recover Phrase somewhere safe. You'll need it to
         recover your account if you lose access.
       </Text>
 
-      <YStack
-        gap="$4"
-        width="100%"
-        maxWidth={400}
-        className="no-window-drag"
-        flex={1}
-      >
+      <div className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4">
         <TextArea
           flex={1}
           disabled
@@ -1104,7 +1049,7 @@ function RecoveryStep({
           }
         />
 
-        <XStack gap="$4">
+        <div className="flex gap-4">
           <Button size="$2" flex={1} onPress={() => mnemonics.refetch()}>
             Regenerate
           </Button>
@@ -1125,7 +1070,7 @@ function RecoveryStep({
           >
             Copy
           </Button>
-        </XStack>
+        </div>
 
         <CheckboxField
           checked={shouldSaveWords}
@@ -1136,8 +1081,8 @@ function RecoveryStep({
         >
           Store the Secret Recovery Phrase on this device
         </CheckboxField>
-        <View f={1} />
-        <XStack marginTop="$4" gap="$4" justifyContent="center">
+        <div className="flex-1" />
+        <div className="mt-4 flex justify-center gap-4">
           <Button
             onPress={handleSubmit}
             borderRadius="$2"
@@ -1149,8 +1094,8 @@ function RecoveryStep({
           >
             NEXT
           </Button>
-        </XStack>
-      </YStack>
+        </div>
+      </div>
     </StepWrapper>
   )
 }
@@ -1161,7 +1106,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
   return (
     <StepWrapper>
       <StepTitle>READY TO GO</StepTitle>
-      <YStack marginTop="$8" gap="$4" className="no-window-drag" maxWidth={400}>
+      <div className="no-window-drag mt-8 flex max-w-[400px] flex-col gap-4">
         <ButtonFrame
           h="auto"
           padding="$4"
@@ -1171,33 +1116,33 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
           onPress={() => openUrl('https://discord.gg/7Y7DrhQZFs')}
         >
           <DiscordIcon />
-          <YStack flex={1}>
+          <div className="flex flex-1 flex-col">
             <SizableText>Join our Discord</SizableText>
-            <SizableText size="$2" color="$gray11">
+            <SizableText size="sm" className="text-muted-foreground">
               Here you will be able to get support and send feedback.
             </SizableText>
-          </YStack>
+          </div>
         </ButtonFrame>
-        <XStack gap="$4" h="auto" padding="$4" borderRadius="$4" bg="$brand11">
+        <div className="bg-primary flex h-auto gap-4 rounded-lg p-4">
           <ContentIcon />
-          <YStack flex={1}>
+          <div className="flex flex-1 flex-col">
             <SizableText>All Content is Public</SizableText>
-            <SizableText size="$2" color="$gray11">
+            <SizableText size="sm" className="text-muted-foreground">
               all content created using Seed Hypermedia is public by default,
               meaning it can be accessed and shared by others within the network
             </SizableText>
-          </YStack>
-        </XStack>
-        <XStack gap="$4" h="auto" padding="$4" borderRadius="$4" bg="$brand11">
+          </div>
+        </div>
+        <div className="bg-primary flex h-auto gap-4 rounded-lg p-4">
           <AnalyticsIcon />
-          <YStack flex={1}>
+          <div className="flex flex-1 flex-col">
             <SizableText>Analytics</SizableText>
-            <SizableText size="$2" color="$gray11">
+            <SizableText size="sm" className="text-muted-foreground">
               We collect anonymous analytics to improve your experience and
               enhance the platform.
             </SizableText>
-          </YStack>
-        </XStack>
+          </div>
+        </div>
 
         <Button
           onPress={onComplete}
@@ -1211,7 +1156,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
         >
           DONE
         </Button>
-      </YStack>
+      </div>
     </StepWrapper>
   )
 }
@@ -1231,44 +1176,28 @@ export function OnboardingDebugBox() {
   if (IS_PROD_DESKTOP) return null
 
   return (
-    <YStack
-      position="absolute"
-      top={16}
-      right={16}
-      backgroundColor="$background"
-      padding="$2"
-      borderRadius="$4"
-      borderWidth={1}
-      borderColor="$border"
-      opacity={0.8}
-      elevation={4}
-      zIndex={1000}
-      className="no-window-drag"
-      width={300}
-      maxHeight={300}
-    >
+    <div className="bg-background border-border no-window-drag absolute top-4 right-4 z-[1000] max-h-[300px] w-[300px] rounded-lg border p-2 opacity-80 shadow-lg">
       <ScrollArea>
         <div className="p-3">
-          <Text fontSize="$3" fontFamily="$mono">
+          <Text size="md" style={{fontFamily: 'monospace'}}>
             Debug: Onboarding State
           </Text>
-          <Text fontSize="$2" fontFamily="$mono" color="$gray11">
+          <Text
+            size="sm"
+            style={{fontFamily: 'monospace'}}
+            className="text-muted-foreground"
+          >
             {JSON.stringify(state, null, 2)}
           </Text>
         </div>
       </ScrollArea>
-    </YStack>
+    </div>
   )
 }
 
 function StepTitle({children}: {children: React.ReactNode}) {
   return (
-    <Text
-      fontSize="$9"
-      color="$brand5"
-      textAlign="center"
-      className="no-window-drag"
-    >
+    <Text size="4xl" className="no-window-drag text-primary text-center">
       {children}
     </Text>
   )
@@ -1283,32 +1212,10 @@ function StepWrapper({
 }) {
   return (
     <>
-      <YStack
-        className="window-drag"
-        flex={1}
-        padding="$4"
-        gap="$4"
-        alignItems="center"
-        justifyContent="center"
-        backgroundColor="$brand12"
-        backgroundImage="linear-gradient(to bottom, $green3, $green4)"
-      >
-        <YStack
-          gap="$6"
-          alignItems="center"
-          justifyContent="center"
-          width={600}
-          height={600}
-          className="no-window-drag"
-        >
+      <div className="window-drag bg-primary flex flex-1 flex-col items-center justify-center gap-4 bg-gradient-to-b from-green-50 to-green-100 p-4">
+        <div className="no-window-drag flex h-[600px] w-[600px] flex-col items-center justify-center gap-6">
           {onPrev ? (
-            <View
-              position="absolute"
-              top={-60}
-              left={-100}
-              zIndex="$zIndex.9"
-              className="no-window-drag"
-            >
+            <div className="no-window-drag absolute top-[-60px] left-[-100px] z-[900]">
               <Button
                 size="$5"
                 onPress={onPrev}
@@ -1323,11 +1230,11 @@ function StepWrapper({
                   borderColor: 'transparent',
                 }}
               />
-            </View>
+            </div>
           ) : null}
           {children}
-        </YStack>
-      </YStack>
+        </div>
+      </div>
     </>
   )
 }
@@ -1336,14 +1243,7 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
   const showExistingStep = currentStep === 'existing'
 
   return (
-    <XStack
-      gap="$2"
-      paddingTop="$4"
-      position="absolute"
-      bottom="$4"
-      left="50%"
-      transform="translateX(-50%)"
-    >
+    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 transform gap-2 pt-4">
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
       {showExistingStep ? (
@@ -1352,17 +1252,17 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
         <OnboardingProgressStep active={currentStep === 'recovery'} />
       )}
       <OnboardingProgressStep active={currentStep === 'ready'} />
-    </XStack>
+    </div>
   )
 }
 
 function OnboardingProgressStep({active}: {active: boolean}) {
   return (
-    <YStack
-      width={8}
-      height={8}
-      backgroundColor={active ? '$brand5' : '$gray8'}
-      borderRadius={8}
+    <div
+      className={cn(
+        'h-2 w-2 rounded-full',
+        active ? 'bg-primary' : 'bg-gray-300',
+      )}
     />
   )
 }
@@ -1417,14 +1317,7 @@ export function ResetOnboardingButton() {
   if (IS_PROD_DESKTOP) return null
 
   return (
-    <XStack
-      className="no-window-drag"
-      zIndex="$zIndex.9"
-      position="absolute"
-      bottom={10}
-      right={10}
-      gap="$2"
-    >
+    <div className="no-window-drag absolute right-2.5 bottom-2.5 z-[900] flex gap-2">
       <Button
         size="$2"
         opacity={0.7}
@@ -1457,7 +1350,7 @@ export function ResetOnboardingButton() {
       >
         Reset Onboarding
       </Button>
-    </XStack>
+    </div>
   )
 }
 
@@ -1473,19 +1366,13 @@ export function CreateAccountBanner() {
   if (!show) return null
 
   return (
-    <YStack
-      gap="$4"
-      padding="$4"
-      borderRadius="$4"
-      elevation="$3"
-      marginBottom="$6"
-    >
+    <div className="mb-6 flex flex-col gap-4 rounded-lg p-4 shadow-lg">
       <H2 fontWeight="bold">Let's Get Started!</H2>
       <SizableText>
         Create an account to get started. It's free and takes less than a
         minute.
       </SizableText>
-      <YStack gap="$2">
+      <div className="flex flex-col gap-2">
         <Button
           bg="$brand5"
           color="white"
@@ -1500,7 +1387,7 @@ export function CreateAccountBanner() {
         {/* <Button size="#3" chromeless hoverStyle={{bg: '$color44}}>
           I already have a Site
         </Button> */}
-      </YStack>
-    </YStack>
+      </div>
+    </div>
   )
 }

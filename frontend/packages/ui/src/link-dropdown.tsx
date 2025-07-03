@@ -6,7 +6,6 @@ import {
 } from '@shm/ui/components/popover'
 import {Button} from '@tamagui/button'
 import {MoreHorizontal} from '@tamagui/lucide-icons'
-import {XStack} from '@tamagui/stacks'
 import {ComponentProps} from 'react'
 import {PopoverProps} from 'tamagui'
 import {MenuItem} from './menu-item'
@@ -23,12 +22,7 @@ export function LinkDropdown({
 }) {
   // const popoverState = usePopoverState()
   return (
-    <XStack
-    // opacity={!popoverState.open && hiddenUntilItemHover ? 0 : 1}
-    // $group-item-hover={{
-    //   opacity: 1,
-    // }}
-    >
+    <div className="flex">
       <Popover
       //{...popoverState}
       >
@@ -70,7 +64,7 @@ export function LinkDropdown({
           )}
         </PopoverContent>
       </Popover>
-    </XStack>
+    </div>
   )
 }
 

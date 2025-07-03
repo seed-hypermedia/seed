@@ -1,42 +1,55 @@
 // @ts-nocheck
-import {ButtonText, styled, XStack, YStack} from 'tamagui'
+import {ButtonText} from 'tamagui'
 import {SizableText} from './text'
+import {cn} from './utils'
 
-export const TitlebarWrapper = styled(YStack, {
-  name: 'TitlebarWrapper',
-  // className: "window-drag",
-  // theme: 'gray',
-  paddingVertical: 0,
-  padding: 0,
-  margin: 0,
-  paddingHorizontal: 0,
-  width: '100%',
-  minHeight: 40,
-  backgroundColor: '$backgroundTransparent',
-  borderWidth: 0,
-  borderBottomColor: '$color5',
-  alignItems: 'stretch',
-  justifyContent: 'center',
-  borderStyle: 'solid',
-  flex: 'none',
-})
+export const TitlebarWrapper = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'border-border m-0 flex min-h-[40px] w-full flex-none flex-col items-stretch justify-center border-0 border-b border-solid bg-transparent px-0 py-0',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+)
 
-export const TitlebarRow = styled(XStack, {
-  name: 'TitlebarRow',
-  className: 'window-drag',
-  paddingRight: '$2',
-  flex: 'none',
-  flexShrink: 0,
-  flexGrow: 0,
-})
+export const TitlebarRow = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'window-drag flex flex-none flex-shrink-0 flex-grow-0 pr-2',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+)
 
-export const TitlebarSection = styled(XStack, {
-  name: 'TitlebarSection',
-  className: 'no-window-drag',
-  ai: 'center',
-  gap: '$2',
-  userSelect: 'none',
-})
+export const TitlebarSection = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'no-window-drag flex items-center gap-2 select-none',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+)
 
 export const TitleText = (props) => (
   <SizableText
@@ -62,22 +75,18 @@ export const TitleText = (props) => (
 //   borderRadius: '$1',
 // })
 
-export const TitleTextButton = styled(ButtonText, {
-  whiteSpace: 'nowrap',
-  flexShrink: 0,
-  overflow: 'hidden',
-  fontWeight: 'bold',
-  textOverflow: 'ellipsis',
-  name: 'TitlebarLink',
-  color: '$color12',
-  fontSize: '$4',
-  userSelect: 'none',
-  padding: 0,
-  margin: 0,
-  textTransform: 'none',
-  hoverStyle: {
-    textDecorationLine: 'underline',
-    textDecorationColor: 'currentColor',
-    cursor: 'default',
-  },
-})
+export const TitleTextButton = ({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ButtonText>) => (
+  <ButtonText
+    className={cn(
+      'text-foreground m-0 flex-shrink-0 cursor-default overflow-hidden p-0 text-base font-bold text-ellipsis whitespace-nowrap normal-case select-none hover:underline hover:decoration-current',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </ButtonText>
+)

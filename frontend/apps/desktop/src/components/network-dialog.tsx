@@ -8,19 +8,11 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import {Route} from 'lucide-react'
 import React from 'react'
 import {ColorValue} from 'react-native'
-import {
-  ButtonText,
-  Dialog,
-  SizableText,
-  useTheme,
-  View,
-  XStack,
-  XStackProps,
-  YStack,
-} from 'tamagui'
+import {ButtonText, Dialog, SizableText, useTheme} from 'tamagui'
 import {HMPeerInfo, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
@@ -40,13 +32,13 @@ export function NetworkDialog() {
   return (
     <>
       <Dialog.Title>Network Connections</Dialog.Title>
-      <XStack jc="flex-end">
+      <div className="flex justify-end">
         <Button onClick={() => connectDialog.open(true)} size="sm">
           <Route className="size-3" />
           Add Connection
         </Button>
-      </XStack>
-      <View flexDirection="column" minHeight={500}>
+      </div>
+      <div className="flex min-h-[500px] flex-col">
         {peers.data && peers.data.length ? (
           <List
             items={peers.data}
@@ -55,21 +47,21 @@ export function NetworkDialog() {
                 <PeerRow
                   key={peer.id}
                   peer={peer}
-                  myProtocol={deviceInfo?.protocolId}
+                  myProtocol={deviceInfo?.protocolId || ''}
                 />
               )
             }}
           />
         ) : (
-          <YStack padding="$4" jc="center" ai="center" gap="$4" f={1}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
             <NoConnection color={theme.color7.val} />
             <SizableText color="$color7" fontWeight="500" size="$5">
               there are no active connections
             </SizableText>
-          </YStack>
+          </div>
         )}
         {connectDialog.content}
-      </View>
+      </div>
     </>
   )
 }
@@ -109,27 +101,19 @@ const PeerRow = React.memo(function PeerRow({
   const isConnected =
     connectionStatus === ConnectionStatus.CONNECTED && protocol === myProtocol
   return (
-    <XStack
-      jc="space-between"
-      f={1}
-      p="$2"
-      minHeight={'$2'}
-      ai="center"
-      group="item"
-    >
-      <XStack gap="$2" ai="center">
+    <div className="group flex min-h-8 flex-1 items-center justify-between p-2">
+      <div className="flex items-center gap-2">
         <Tooltip
           content={
             getPeerStatus(connectionStatus) +
             getProtocolMessage(peer, myProtocol)
           }
         >
-          <XStack
-            borderRadius={6}
-            height={12}
-            width={12}
-            {...getPeerStatusIndicator(peer, myProtocol)}
-            space="$4"
+          <div
+            className={cn(
+              'h-3 w-3 rounded-md',
+              getPeerStatusIndicator(peer, myProtocol),
+            )}
           />
         </Tooltip>
         <Tooltip content="Copy Peer ID">
@@ -137,8 +121,8 @@ const PeerRow = React.memo(function PeerRow({
             {id.substring(id.length - 10)}
           </ButtonText>
         </Tooltip>
-      </XStack>
-      <XStack gap="$3" marginHorizontal="$3">
+      </div>
+      <div className="mx-3 flex gap-3">
         {/* <XStack gap="$2">
           {account && !isSite ? (
             <UIAvatar
@@ -207,8 +191,8 @@ const PeerRow = React.memo(function PeerRow({
             },
           ]}
         />
-      </XStack>
-    </XStack>
+      </div>
+    </div>
   )
 })
 
@@ -220,50 +204,26 @@ function getPeerStatus(status: ConnectionStatus) {
   return 'Unknown'
 }
 
-function getPeerStatusIndicator(
-  peer: HMPeerInfo,
-  myProtocol: string,
-): XStackProps {
+function getPeerStatusIndicator(peer: HMPeerInfo, myProtocol: string): string {
   if (peer.connectionStatus === ConnectionStatus.CONNECTED) {
-    if (peer.protocol && peer.protocol !== myProtocol)
-      return {backgroundColor: '$yellow10'}
-    return {
-      backgroundColor: '$green10',
-    }
+    if (peer.protocol && peer.protocol !== myProtocol) return 'bg-yellow-500'
+    return 'bg-green-500'
   }
   if (peer.connectionStatus === ConnectionStatus.CAN_CONNECT)
-    return {
-      backgroundColor: '$backgroundTransparent',
-      borderWidth: 1,
-      borderStyle: 'dotted',
-      borderColor: '$green10',
-    }
+    return 'bg-transparent border border-dotted border-green-500'
   if (peer.connectionStatus === ConnectionStatus.CANNOT_CONNECT)
-    return {
-      backgroundColor: '$backgroundTransparent',
-      borderWidth: 1,
-      borderStyle: 'dotted',
-      borderColor: '$red10',
-    }
+    return 'bg-transparent border border-dotted border-red-500'
   if (peer.connectionStatus === ConnectionStatus.LIMITED)
-    return {
-      backgroundColor: '$backgroundTransparent',
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: '$green10',
-    }
+    return 'bg-transparent border border-dashed border-green-500'
 
-  return {backgroundColor: '$gray8'}
+  return 'bg-muted-foreground'
 }
 
 function IndicationStatus({color}: {color: ColorValue}) {
   return (
-    <XStack
-      backgroundColor={color}
-      borderRadius={6}
-      height={12}
-      width={12}
-      space="$4"
+    <div
+      className="h-3 w-3 rounded-md"
+      style={{backgroundColor: color as string}}
     />
   )
 }

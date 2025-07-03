@@ -13,7 +13,6 @@ import {
   RiMenuLine,
   RiText,
 } from 'react-icons/ri'
-import {XStack} from 'tamagui'
 import {CopyLinkToBlockButton} from './DefaultButtons/CopyLinkToBlockButton'
 import {RemoveBlockButton} from './DefaultButtons/RemoveBlockButton'
 import {DragHandleMenu, DragHandleMenuProps} from './DragHandleMenu'
@@ -89,13 +88,13 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
     >
       <Menu opened={opened} position="right">
         <Menu.Target>
-          <XStack gap="$2">
+          <div className="flex gap-2">
             <RefreshCcw size={14} />
             <div style={{flex: 1}}>Turn into</div>
             <Box style={{display: 'flex', alignItems: 'center'}}>
               <Forward size={12} />
             </Box>
-          </XStack>
+          </div>
         </Menu.Target>
         <Menu.Dropdown
           onMouseLeave={startMenuCloseTimer}

@@ -20,14 +20,7 @@ import {Separator} from '@shm/ui/separator'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
-import {
-  ListItem,
-  ListItemProps,
-  Popover,
-  SizableText,
-  XStack,
-  YGroup,
-} from 'tamagui'
+import {ListItem, ListItemProps, Popover, SizableText, YGroup} from 'tamagui'
 
 export function WindowsLinuxTitleBar({
   left,
@@ -48,42 +41,21 @@ export function WindowsLinuxTitleBar({
         <TitlebarSection>
           <SystemMenu />
         </TitlebarSection>
-        <XStack flex={1} className="window-drag" />
+        <div className="window-drag flex flex-1" />
         <TitlebarSection>
           <WindowsLinuxWindowControls />
         </TitlebarSection>
       </TitlebarRow>
       <TitlebarRow className="window-drag">
-        <XStack
-          flex={1}
-          minWidth={'min-content'}
-          flexBasis={0}
-          alignItems="center"
-          className="window-drag"
-        >
+        <div className="window-drag flex min-w-min flex-1 flex-none items-center">
           {left}
-        </XStack>
-        <XStack
-          f={1}
-          alignItems="center"
-          justifyContent="center"
-          pointerEvents="none"
-          height="100%"
-          ai="center"
-          jc="center"
-        >
+        </div>
+        <div className="pointer-events-none flex h-full flex-1 items-center justify-center">
           {title}
-        </XStack>
-        <XStack
-          flex={1}
-          justifyContent="flex-end"
-          minWidth={'min-content'}
-          flexBasis={0}
-          className="window-drag"
-          alignItems="center"
-        >
+        </div>
+        <div className="window-drag flex min-w-min flex-1 flex-none items-center justify-end">
           {right}
-        </XStack>
+        </div>
       </TitlebarRow>
     </TitlebarWrapper>
   )
@@ -269,7 +241,7 @@ export function SystemMenu() {
   )
 
   return (
-    <XStack className="no-window-drag" paddingLeft="$2">
+    <div className="no-window-drag flex pl-2">
       {menuItems.map((item) => (
         <Popover key={item.id} placement="bottom-start">
           <Popover.Trigger asChild>
@@ -346,7 +318,7 @@ export function SystemMenu() {
           </Popover.Content>
         </Popover>
       ))}
-    </XStack>
+    </div>
   )
 }
 

@@ -1,13 +1,6 @@
 import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
 import {ComponentProps, ReactNode} from 'react'
-import {
-  Select,
-  SizableText,
-  SizeTokens,
-  XStack,
-  XStackProps,
-  YStack,
-} from 'tamagui'
+import {Select, SizableText, SizeTokens} from 'tamagui'
 
 export type SelectOptions = Array<{
   label: string
@@ -21,7 +14,7 @@ export type SelectDropdownProps<Options extends SelectOptions> = {
   onValue: (value: Options[number]['value']) => void
   size?: SizeTokens
   placeholder?: string
-  width?: XStackProps['width']
+  width?: number | string
   triggerProps?: ComponentProps<typeof Select.Trigger>
 }
 
@@ -53,11 +46,11 @@ export function SelectDropdown<Options extends SelectOptions>({
         borderColor="$borderColor"
         {...triggerProps}
       >
-        <XStack gap="$2" ai="center" w="100%">
+        <div className="flex w-full items-center gap-2">
           {selectedOption ? (
             <>
               {selectedOption.icon}
-              <XStack f={1}>
+              <div className="flex flex-1">
                 <SizableText
                   textOverflow="ellipsis"
                   whiteSpace="nowrap"
@@ -65,7 +58,7 @@ export function SelectDropdown<Options extends SelectOptions>({
                 >
                   {selectedOption.label}
                 </SizableText>
-              </XStack>
+              </div>
               <ChevronDown size={16} />
             </>
           ) : (
@@ -77,7 +70,7 @@ export function SelectDropdown<Options extends SelectOptions>({
               {placeholder}
             </SizableText>
           )}
-        </XStack>
+        </div>
       </Select.Trigger>
       <Select.Content
         // @horacio will fix this to use tokens. make sure the dropdown still works in dialog boxes
@@ -90,9 +83,9 @@ export function SelectDropdown<Options extends SelectOptions>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex="$zIndex.1">
+          <div className="relative z-10">
             <ChevronUp size={20} />
-          </YStack>
+          </div>
         </Select.ScrollUpButton>
 
         <Select.Viewport
@@ -107,10 +100,10 @@ export function SelectDropdown<Options extends SelectOptions>({
           {options.map((item, i) => {
             return (
               <Select.Item index={i} key={item.value} value={item.value}>
-                <XStack gap="$2" ai="center">
+                <div className="flex items-center gap-2">
                   {item.icon}
                   <Select.ItemText>{item.label}</Select.ItemText>
-                </XStack>
+                </div>
                 <Select.ItemIndicator marginLeft="auto">
                   <Check size={16} />
                 </Select.ItemIndicator>
@@ -126,9 +119,9 @@ export function SelectDropdown<Options extends SelectOptions>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex="$zIndex.1">
+          <div className="relative z-10">
             <ChevronDown size={20} />
-          </YStack>
+          </div>
         </Select.ScrollDownButton>
       </Select.Content>
     </Select>
