@@ -1,0 +1,295 @@
+syntax = "proto3";
+
+package accounts.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "accounts/v1/prices.proto";
+
+option go_package = "pay/genproto/accounts/v1;accountsv1";
+
+// Accounts service provides functionality to create and manage user accounts.
+service Accounts {
+  // Creates a new connected account. This account should later be linked
+  // to the platform so that the platform can route payments to users.
+  // The caller must provide proof of ownership of the account uid by signing a message
+  // with the private key associated with the account uid and attaching the signature
+  // to the request. as a `signature` field. in the request header.
+  rpc NewAccount(NewAccountRequest) returns (AccountResponse);
+
+  // Creates an account session to be used with embedded components.
+  // We recommend that you create a session each time one needs to display 
+  // an embedded component to the user. Do not save account sessions in any
+  // database as they expire relatively quickly, and cannot be used more than once. 
+  rpc CreateAccountSession(AccountSessionRequest) returns (AccountSessionResponse);
+
+  // Creates an account link to redirect the user to the payment provider's platform.
+  rpc CreateAccountLink(AccountLinkRequest) returns (AccountLinkResponse);
+
+  // Get a link for the Express dashboard to manage the account.
+  // The caller must provide proof of ownership of the account uid by signing a message
+  // with the private key associated with the account uid and attaching the signature
+  // to the request as a `signature` field. in the request header.
+  rpc GetDashboardCredentials(AccountRequest) returns (AccountLinkResponse);
+
+  // Get an account information.
+  rpc GetAccount(AccountRequest) returns (AccountResponse);
+}
+
+// Status service is unauthorized and 
+// provides functionality to check the status of accounts.
+service Status {
+  // Check whether the accounts are valid and can be used.
+  rpc CheckAccounts(CheckAccountsRequest) returns (CheckAccountsResponse);
+}
+
+service Payments{
+  // Get the balances of the account.
+  // The caller must provide proof of ownership of the account uid by signing a message
+  // with the private key associated with the account uid and attaching the signature
+  // to the request as a `signature` field. in the request header.
+  rpc GetAccountBalance(AccountRequest) returns (AccountBalanceResponse);
+
+  // List all transactions for the account. Both incoming and outgoing.
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+}
+
+message CheckAccountsRequest {
+  // Required. The list of accounts to check
+  repeated string uids = 1;
+}
+
+message CheckAccountsResponse {
+  // From the list of CheckAccountsRequest.uids, we return
+  // only the accounts from that list that are valid and
+  // can be used.
+  repeated string uids = 1;
+}
+
+// We define the absolute minimum required to create an account.
+// the rest of the information will be collected by the service 
+// provider during the onboarding process. 
+message NewAccountRequest {
+  // Required. The user identificator to create the account for.
+  // It must exist in hyper.media protocol. The user must provide proof
+  // of ownership of this ID by signing a message with the private key.
+  string uid = 1;
+
+  // Required. The URL that the user will try to monetize. We will check 
+  // <url>/hm/api/config and make sure the `registeredAccountUid` seen 
+  // matches the provided uid. If the URL is a free url, it should be in the 
+  // form of <domain>/hm/<uid> in which case we will only check that URL exists.
+  // If the user upgrades and gets a custom domain later, they can update the account
+  // with the new URL using CreateAccountSession or CreateAccountLink.
+  string url = 2;
+
+  // Optional. The public facing name of the business no monetize. If its a blog,
+  // it could be the blog name. If its a business, it could be the business name.
+  // This is used for display purposes to the customer and does not need to be unique.
+  // If not provided, it will be set to the uid of the account.
+  string name = 3;
+}
+
+// The response with the list of events.
+message AccountResponse {
+  // The newly created account.
+  Account account = 1;
+}
+
+// The account request.
+message AccountRequest {
+  // Required. The id of the account.
+  string uid = 1;
+}
+
+// The request to create an account link.
+message AccountLinkRequest {
+  // Required. The id of the account to create a link for.
+  string uid = 1;
+
+  // Required. The URL the user will be redirected to if the account link is expired, 
+  // has been previously-visited, or is otherwise invalid
+  string refresh_url = 2;
+
+  // Required. The URL the user will be redirected to after completing the account link.
+  string return_url = 3;
+
+  // Required. The type of the account link to create.
+  // Can be either account_onboarding or account_update.
+  enum AccountLinkType {
+    account_onboarding = 0; // For onboarding the account.
+    account_update = 1; // For updating the account information.
+  }
+  AccountLinkType type = 4;
+}
+
+message AccountBalanceResponse {
+  // The current balance of the account. One item per currency.
+  repeated accounts.v1.price_info available = 1;
+
+  // The pending balance of the account. 
+  // This is the amount that is not yet available.
+  // One item per currency.
+  repeated accounts.v1.price_info pending = 2;
+
+  // The reserved balance of the account.
+  // This is the amount that is reserved.
+  // Used to offset negative balances or to cover future payments.
+  // One item per currency.
+  repeated accounts.v1.price_info reserved = 3;
+}
+
+message ListTransactionsRequest {
+  // Required. The id of the account to list transactions for.
+  string uid = 1;
+
+  // Optional. The maximum number of transactions to return. Default is 100.
+  int32 page_size = 2;
+
+  // Optional. The page token to use for pagination. 
+  // If not provided, all transactions will be returned.
+  string page_token = 3;
+}
+
+// The request to list transactions for the account.
+message ListTransactionsResponse {
+  // The list of transactions for the account.
+  repeated transaction transactions = 1;
+
+  // The token to be used for requesting the next page of transactions.
+  string next_page_token = 2; 
+}
+
+message transaction{
+  // The amount of the transaction.
+  float amount = 1;
+
+  // The currency of the transaction.
+  string currency = 2;
+
+  // The description of the transaction.
+  string description = 3;
+
+  // The status of the transaction.
+  string status = 4;
+
+  // The id of the account that send the transaction.
+  string payer_uid = 5; 
+
+  // The id of the account that receives the transaction.
+  string payee_uid = 6;
+
+  // The time when the transaction was settled.
+  google.protobuf.Timestamp settled = 7;
+
+  // The URL to the receipt of the transaction.
+  string receipt_url = 8;
+
+  // Where the transaction was originated, document, comment, ...
+  // If available it shoudl be a hypermedia URL
+  string source = 9;
+  // The fee charged for the transaction.
+  // This is the amount that the payment provider charges for processing the transaction.
+  float application_fee = 10;
+}
+
+// The response with the account link information.
+message AccountLinkResponse {
+  // The link that the user will be redirected to in order to complete the account link.
+  // This link will open the payment provider's platform in the user's browser.
+  // The user will be able to complete the onboarding or update process there.
+  // After the user completes the process, they will be redirected to the return_url
+  // provided in the AccountLinkRequest.
+  string url = 1;
+
+  // When the link will expire. After this time, the user will have to create a new
+  // account link
+  google.protobuf.Timestamp link_expiration = 2;
+}
+
+// The capabilities that the user can interact with using the account session.
+enum SessionCapabilities {
+  SES_ACCOUNT_MANAGEMENT = 0;
+  SES_ACCOUNT_ONBOARDING = 1;
+  SES_BALANCES = 2;
+  SES_DOCUMENTS = 3;
+  SES_FINANCIAL_ACCOUNT = 4;
+  SES_FINANCIAL_ACCOUNT_TRANSACTION = 5;
+  SES_FINANCIAL_ISSUING_CARD = 6;
+  SES_FINANCIAL_CARDS_LIST = 7;
+  SES_FINANCIAL_NOTIFICATION_BANNER = 8;
+  SES_FINANCIAL_PAYMENT_DETAILS = 9;
+  SES_FINANCIAL_PAYMENTS = 10;
+  SES_FINANCIAL_PAYOUTS = 11;
+  SES_FINANCIAL_PAYOUTS_LIST = 12;
+  SES_FINANCIAL_TAX_REGISTRATIONS = 13;
+  SES_FINANCIAL_TAX_SETTINGS = 14;
+  
+}
+// Request an account session secret to be used with embedded components.
+message AccountSessionRequest {
+  // Required. The id of the account to create a session for.
+  string uid = 1;
+
+  // Required. What components the user will be able to interact with using this session.
+  // Usually, you only interact with one component at a time, but you can request multiple
+  // components to be available in the session.
+  repeated SessionCapabilities components = 2;
+}
+
+// The response with the account session information.
+message AccountSessionResponse {
+  // The session secret that the user will use to interact with the embedded
+  // components. This secret should be used only once and is valid for a short
+  // period of time. After the session expires, the user will need to create a
+  // new session to interact with the embedded components.
+  string secret = 1;
+
+  // The account uid to be managed. For reconciliation purposes.
+  string uid = 2;
+
+  // When the session will expire. After this time, the secret will no longer
+  // be valid and the user will need to start a new account session.
+  google.protobuf.Timestamp session_expiration = 3;
+
+  // If the account session is for production or not. If false, the
+  // session is for testing purposes and will not affect real payments.
+  bool is_production = 4;
+}
+
+// Account represents a user account on the platform.
+message Account {
+  // The unique identifyer of the account
+  string uid = 1;
+
+  // The site of the account. This will be used to check if the account
+  // has a valid and real hyper.media home page.
+  // It must be a subdomain, a custom domain. or a free hyper.media url.
+  // Also, this URL will be used when creating the automatic donation 
+  // product for the account.
+  // If the user later upgrades and gets a custom domain, they can update the account
+  // with the new URL using CreateAccountSession or CreateAccountLink.
+  string url = 2;
+
+  // Whether the account is fully onboarded or not.
+  // If false, the account is not yet ready to accept payments.
+  bool details_submitted = 3;
+
+  // Country of the account. Blank if the account has not
+  // been onboarded yet.
+  string country = 4;
+
+  // The currency the account is denominated in.
+  string currency = 5;
+
+  // A list of capabilities enabled for the account.
+  repeated string capabilities = 6;
+
+  // Whether the account has payouts enabled or not.
+  // If false, the account is not yet ready to take money to external bank accounts.
+  bool payouts_enabled = 7;
+
+  // When the account was actually created.
+  google.protobuf.Timestamp created_time = 8;
+  
+}
