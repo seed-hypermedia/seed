@@ -3,9 +3,9 @@ import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
   EditorText,
-  entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
+  getCommentTargetId,
   getParentPaths,
   HMBlock,
   HMBlockChildrenType,
@@ -213,7 +213,7 @@ export async function loadDocument(
 }
 
 async function loadResourcePayload(
-  resourceId: UnpackedHypermediaId,
+  docId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   payload: {
     document: HMDocument
@@ -244,7 +244,7 @@ async function loadResourcePayload(
   let supportQueries: HMQueryResult[] = []
 
   const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId(resourceId.uid)
+  const homeId = hmId(docId.uid)
   const homeDocument = await getDocument(homeId)
   supportDocuments.push({
     id: homeId,
@@ -252,7 +252,7 @@ async function loadResourcePayload(
   })
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
-  const directoryResults = await getDirectory(resourceId)
+  const directoryResults = await getDirectory(docId)
   const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
   const supportAuthorsUidsToFetch = new Set<string>()
   const queryBlockQueries = await Promise.all(
@@ -300,10 +300,10 @@ async function loadResourcePayload(
       )
     ).filter((doc) => !!doc),
   )
-  const crumbs = getParentPaths(resourceId.path).slice(0, -1)
+  const crumbs = getParentPaths(docId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
-      const id = hmId(resourceId.uid, {path: crumbPath})
+      const id = hmId(docId.uid, {path: crumbPath})
       const metadataPayload = await getMetadata(id)
       return {
         ...metadataPayload,
@@ -311,7 +311,7 @@ async function loadResourcePayload(
     }),
   )
   breadcrumbs.push({
-    id: resourceId,
+    id: docId,
     metadata: document.metadata,
   })
 
@@ -324,7 +324,7 @@ async function loadResourcePayload(
       authors.map((author) => [author.id.uid, author]),
     ),
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: {...resourceId, version: document.version},
+    id: {...docId, version: document.version},
     breadcrumbs,
     ...getOriginRequestData(parsedRequest),
   }
@@ -339,11 +339,11 @@ export async function loadResource(
   })
   if (resource.kind.case === 'comment') {
     const comment = prepareHMComment(resource.kind.value)
-    const targetDocId = hmId(comment.targetAccount, {
-      path: entityQueryPathToHmIdPath(comment.targetPath),
-    })
+    const targetDocId = getCommentTargetId(comment)
+    if (!targetDocId) throw new Error('targetDocId not found')
     const document = await getDocument(targetDocId, {discover: true})
-    return await loadResourcePayload(id, parsedRequest, {
+    console.log({targetDocId, document})
+    return await loadResourcePayload(targetDocId, parsedRequest, {
       document,
       comment,
     })
