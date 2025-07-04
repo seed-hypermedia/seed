@@ -20,7 +20,7 @@ import {
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -82,12 +82,16 @@ export function LocationPicker({
     }
   }, [location, account])
 
-  const newDestinationAlreadyDocument = useEntity(location)
+  const newDestinationAlreadyResource = useResource(location)
+  const newDestinationAlreadyDocument =
+    newDestinationAlreadyResource.data?.type === 'document'
+      ? newDestinationAlreadyResource.data.document
+      : undefined
   useEffect(() => {
     if (onAvailable) {
-      onAvailable(!newDestinationAlreadyDocument?.data?.document)
+      onAvailable(!newDestinationAlreadyDocument)
     }
-  }, [!newDestinationAlreadyDocument?.data?.document])
+  }, [!newDestinationAlreadyDocument])
   const parentId = useParentId(location)
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
   return (
@@ -175,7 +179,7 @@ export function LocationPicker({
       {location && (
         <URLPreview
           location={location}
-          isUnavailable={!!newDestinationAlreadyDocument?.data?.document}
+          isUnavailable={!!newDestinationAlreadyDocument}
           actionLabel={actionLabel}
         />
       )}
@@ -292,7 +296,11 @@ function LocationPreview({
 }) {
   const newUrlPath = location?.path?.at(-1) || ''
   const siteId = hmId(location.uid, {latest: true})
-  const site = useEntity(siteId)
+  const siteResource = useResource(siteId)
+  const siteDocument =
+    siteResource.data?.type === 'document'
+      ? siteResource.data.document
+      : undefined
   const locationBreadcrumbIds = useMemo(() => {
     if (!location) return []
     return (
@@ -303,10 +311,10 @@ function LocationPreview({
         ) || []
     )
   }, [location.uid, location.path])
-  const locationBreadcrumbs = useEntities(locationBreadcrumbIds)
+  const locationBreadcrumbs = useResources(locationBreadcrumbIds)
   return (
     <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
-      <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
+      <HMIcon id={siteId} metadata={siteDocument?.metadata} />
       <SizableText
         weight="bold"
         className="hover:underline"
@@ -314,7 +322,7 @@ function LocationPreview({
           setLocation(hmId(location.uid, {path: [newUrlPath]}))
         }}
       >
-        {site?.data?.document?.metadata.name}
+        {siteDocument?.metadata.name}
       </SizableText>
       {locationBreadcrumbs.map((b, index) => {
         return (
@@ -330,7 +338,7 @@ function LocationPreview({
               )
             }}
           >
-            {b.data?.document?.metadata.name}
+            {b.data?.type === 'document' ? b.data.document?.metadata.name : ''}
           </SizableText>
         )
       })}
@@ -340,9 +348,11 @@ function LocationPreview({
 
 function useDocumentUrl(location: UnpackedHypermediaId) {
   const gatewayUrl = useGatewayUrl()
-  const {data: site} = useEntity(hmId(location.uid, {latest: true}))
-  if (!site || !gatewayUrl.data) return null
-  const siteUrl = site.document?.metadata.siteUrl
+  const {data: siteResource} = useResource(hmId(location.uid, {latest: true}))
+  const siteDocument =
+    siteResource?.type === 'document' ? siteResource.document : undefined
+  if (!siteDocument || !gatewayUrl.data) return null
+  const siteUrl = siteDocument.metadata.siteUrl
   if (siteUrl) {
     return createSiteUrl({
       path: location.path,

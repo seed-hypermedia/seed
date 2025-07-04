@@ -134,7 +134,7 @@ export function useSaveContact() {
       accountUid: string
       name: string
       subjectUid: string
-      editId: string
+      editId?: string
     }) => {
       if (contact.editId) {
         await grpcClient.documents.updateContact({

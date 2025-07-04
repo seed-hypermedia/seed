@@ -33,7 +33,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -104,7 +104,9 @@ export default function DraftPage() {
     return undefined
   }, [locationId, editId])
 
-  const homeEntity = useEntity(homeId)
+  const homeEntity = useResource(homeId)
+  const homeDocument =
+    homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
   const {accessory, accessoryOptions} = useDocumentAccessory({
     docId: editId,
@@ -195,7 +197,7 @@ export default function DraftPage() {
                   siteHomeEntity={homeEntity.data}
                   isEditingHomeDoc={isEditingHomeDoc}
                   docId={headerDocId}
-                  document={homeEntity.data?.document || undefined}
+                  document={homeDocument}
                   draftMetadata={state.context.metadata}
                   onDocNav={(navigation) => {
                     send({
@@ -782,7 +784,7 @@ function DraftCover({
 function DraftRebaseBanner() {
   const [isRebasing, setIsRebasing] = useState(false)
   // const willEditDocId = getDraftEditId(draftData)
-  // const latestDoc = useSubscribedEntity(willEditDocId)
+  // const latestDoc = useSubscribedResource(willEditDocId)
 
   async function performRebase() {
     //   setIsRebasing(true)

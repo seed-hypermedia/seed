@@ -35,7 +35,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -129,7 +129,7 @@ export function useDocumentEmbeds(
   const docRefs = useMemo(() => {
     return extractRefs(doc?.content || [], opts?.skipCards)
   }, [doc, enabled])
-  const entities = useEntities(docRefs.map((r) => r.refId))
+  const entities = useResources(docRefs.map((r) => r.refId))
   return entities
     .map((entity) => {
       return entity.data
@@ -181,7 +181,9 @@ export function usePublishDraft(
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
-  const editEntity = useEntity(editId)
+  const editEntity = useResource(editId)
+  const editDocument =
+    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   return useMutation<HMDocument, any, PublishDraftInput>({
     mutationFn: async ({
@@ -195,10 +197,10 @@ export function usePublishDraft(
         )
       }
       console.log('~ draft', draft)
-      console.log('~ document', editEntity.data?.document)
+      console.log('~ document', editDocument)
 
       const blocksMap = editId
-        ? createBlocksMap(editEntity.data?.document?.content || [], '')
+        ? createBlocksMap(editDocument?.content || [], '')
         : {}
       const newContent = removeTrailingBlocks(draft.content || [])
 
@@ -426,7 +428,7 @@ export function useDraftEditor() {
     })
   }, [route])
 
-  const locationEntity = useEntity(locationId)
+  const locationEntity = useResource(locationId)
 
   const editId = useMemo(() => {
     if (data?.editUid)
@@ -440,8 +442,9 @@ export function useDraftEditor() {
     return undefined
   }, [route, data])
 
-  const editEntity = useEntity(editId)
-
+  const editEntity = useResource(editId)
+  const editDocument =
+    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -580,13 +583,10 @@ export function useDraftEditor() {
                 navigation: event.payload.data.navigation,
               }
             } else if (event.payload.type == 'edit') {
-              if (context.editUid && editEntity.data?.document?.content) {
-                content = hmBlocksToEditorContent(
-                  editEntity.data.document.content || [],
-                  {
-                    childrenType: 'Group',
-                  },
-                )
+              if (context.editUid && editDocument?.content) {
+                content = hmBlocksToEditorContent(editDocument.content || [], {
+                  childrenType: 'Group',
+                })
                 editor.replaceBlocks(editor.topLevelBlocks, content as any)
                 const tiptap = editor?._tiptapEditor
                 // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
@@ -1474,7 +1474,6 @@ export function useSiteNavigationItems(
             metadata: {
               name: itemBlock.block.text || '?',
             },
-            sortTime: new Date(),
           } satisfies DocNavigationItem
         })
         .filter((b) => !!b) || []

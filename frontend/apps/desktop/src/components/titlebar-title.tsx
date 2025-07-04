@@ -21,7 +21,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
 import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -163,7 +163,7 @@ function BreadcrumbTitle({
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const contacts = useSelectedAccountContacts()
-  const latestDoc = useEntity({...entityId, version: null, latest: true})
+  const latestDoc = useResource({...entityId, version: null, latest: true})
   const isLatest =
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
@@ -411,7 +411,7 @@ function PendingDomainStatus({
 
 function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   const hostSession = useHostSession()
-  const site = useEntity(id)
+  const site = useResource(id)
   if (id.path?.length) return null
   const pendingDomain = hostSession.pendingDomains?.find(
     (domain) => domain.siteUid === id.uid,

@@ -18,7 +18,7 @@ import {
   useSetSubscription,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {FullCheckbox} from '@shm/ui/form-input'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -145,18 +145,14 @@ export function EmailNotificationsContent() {
 }
 
 function AccountTitle({accountId}: {accountId: string}) {
-  const {data: entity} = useEntity(hmId(accountId))
-  console.log('entity', entity?.document?.metadata)
+  const {data: entity} = useResource(hmId(accountId))
+  const document = entity?.type === 'document' ? entity.document : undefined
   return (
     <div className="flex gap-2">
       {entity?.id ? (
-        <HMIcon
-          size={24}
-          id={entity?.id}
-          metadata={entity?.document?.metadata}
-        />
+        <HMIcon size={24} id={entity?.id} metadata={document?.metadata} />
       ) : null}
-      <SizableText weight="bold">{entity?.document?.metadata.name}</SizableText>
+      <SizableText weight="bold">{document?.metadata.name}</SizableText>
     </div>
   )
 }

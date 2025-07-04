@@ -7,7 +7,7 @@ import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
@@ -54,14 +54,17 @@ export default function PublishDraftButton() {
     : draft.data?.editId
     ? draft.data?.editId
     : null
+
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
   const rootDraftUid = prevId?.uid
-  const rootEntity = useEntity(rootDraftUid ? hmId(rootDraftUid) : undefined)
-  const siteUrl = rootEntity.data?.document?.metadata.siteUrl
+  const rootEntity = useResource(rootDraftUid ? hmId(rootDraftUid) : undefined)
+  const document =
+    rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
+  const siteUrl = document?.metadata.siteUrl
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL

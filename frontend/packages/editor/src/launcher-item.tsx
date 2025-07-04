@@ -1,6 +1,6 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {highlightSearchMatch, useCollapsedPath} from '@shm/ui/search'
@@ -125,8 +125,12 @@ export function RecentLauncherItem({
   if (item.id) {
     const homeId = `hm://${item.id.uid}`
     const unpacked = unpackHmId(homeId)
-    const homeEntity = useEntity(unpacked!)
-    const homeTitle = getDocumentTitle(homeEntity.data?.document)
+    const homeEntity = useResource(unpacked!)
+    const doc =
+      homeEntity.data?.type === 'document'
+        ? homeEntity.data.document
+        : undefined
+    const homeTitle = getDocumentTitle(doc)
 
     if (homeTitle && homeTitle !== item.title) {
       path = [homeTitle, ...path]

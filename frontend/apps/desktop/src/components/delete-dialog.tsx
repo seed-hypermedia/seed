@@ -9,7 +9,7 @@ import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
@@ -52,7 +52,7 @@ export function DeleteEntityDialog({
     },
   })
   const cap = useSelectedAccountCapability(id)
-  const doc = useEntity(id)
+  const doc = useResource(id)
 
   if (doc.isLoading)
     return (

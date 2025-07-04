@@ -11,7 +11,7 @@ import {
 import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {loadEntity, useEntity} from '@shm/shared/models/entity'
+import {loadResource, useResource} from '@shm/shared/models/entity'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
@@ -494,10 +494,7 @@ const PlanTitle = ({className, ...props}: TextProps) => {
     <Text
       weight="bold"
       size="lg"
-      className={cn(
-        'text-muted-foreground text-muted-foreground mb-3 text-center',
-        className,
-      )}
+      className={cn('text-muted-foreground mb-3 text-center', className)}
       {...props}
     />
   )
@@ -1098,9 +1095,11 @@ export function useSeedHostDialog() {
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
           return
         }
-        loadEntity(hmId(watchingDomain.siteUid))
+        loadResource(hmId(watchingDomain.siteUid))
           .then((entity) => {
-            const siteUrl = entity?.document?.metadata?.siteUrl
+            const siteDocument =
+              entity?.type === 'document' ? entity.document : undefined
+            const siteUrl = siteDocument?.metadata?.siteUrl
             if (siteUrl && siteUrl === `https://${watchingDomain.hostname}`) {
               open({
                 id: hmId(watchingDomain.siteUid),
@@ -1189,12 +1188,14 @@ function SeedHostRegisterCustomDomain({
   } = useForm<RegisterCustomDomainFields>({
     resolver: zodResolver(RegisterCustomDomainSchema),
   })
-  const entity = useEntity({...id, version: null, latest: true})
+  const entity = useResource({...id, version: null, latest: true})
   const [localPendingDomain, setPendingDomain] = useState<{
     hostname: string
     domainId: string
   } | null>(null)
-  const siteUrl = entity.data?.document?.metadata?.siteUrl
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
+  const siteUrl = document?.metadata?.siteUrl
   function onSubmit({domain}: RegisterCustomDomainFields) {
     if (!siteUrl) throw new Error('Site URL not found')
     createDomain
@@ -1501,7 +1502,9 @@ function PublishWithUrl({
   onComplete: () => void
   onBack?: () => void
 }) {
-  const entity = useEntity(id)
+  const entity = useResource(id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   const replace = useNavigate('replace')
   const register = useSiteRegistration(id.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
@@ -1532,7 +1535,7 @@ function PublishWithUrl({
   return (
     <PublishDialogContainer
       heading={`Publish "${getDocumentTitle(
-        entity.data?.document,
+        document,
       )}" with a Hosting Setup URL`}
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >

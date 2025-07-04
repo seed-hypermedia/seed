@@ -226,16 +226,15 @@ export function useSiteLibrary(
     .filter((commentId) => commentId.length)
   const comments = useComments(commentIds || [])
 
-  const data: HMLibraryDocument[] = siteDocuments.data?.documents.map(
-    (doc) => ({
+  const data: HMLibraryDocument[] =
+    siteDocuments.data?.documents.map((doc) => ({
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,
-    }),
-  )
+    })) || []
 
   return {
     ...siteDocuments,

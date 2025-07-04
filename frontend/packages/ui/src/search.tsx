@@ -1,18 +1,26 @@
 import {
   getDocumentTitle,
+  idToUrl,
+  packHmId,
   SearchResult,
   UnpackedHypermediaId,
   unpackHmId,
+  useRouteLink,
+  useSearch,
+  useUniversalAppContext,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
+import {Popover} from '@shm/ui/TamaguiPopover'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
+  Fragment,
   PropsWithChildren,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react'
-import {Button as TButton} from 'tamagui'
+import {Input, InputProps, Button as TButton} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -20,17 +28,6 @@ import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
 
-import {
-  idToUrl,
-  packHmId,
-  useRouteLink,
-  useSearch,
-  useUniversalAppContext,
-} from '@shm/shared'
-import {Popover} from '@shm/ui/TamaguiPopover'
-import {usePopoverState} from '@shm/ui/use-popover-state'
-import {Fragment} from 'react'
-import {Input, InputProps} from './components/input'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -405,8 +402,12 @@ export function RecentSearchResultItem({
   if (item.id) {
     const homeId = `hm://${item.id.uid}`
     const unpacked = unpackHmId(homeId)
-    const homeEntity = useEntity(unpacked!)
-    const homeTitle = getDocumentTitle(homeEntity.data?.document)
+    const homeEntity = useResource(unpacked!)
+    const doc =
+      homeEntity.data?.type === 'document'
+        ? homeEntity.data.document
+        : undefined
+    const homeTitle = getDocumentTitle(doc)
 
     if (homeTitle && homeTitle !== item.title) {
       path = [homeTitle, ...path]
