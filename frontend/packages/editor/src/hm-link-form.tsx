@@ -1,5 +1,5 @@
 import {LauncherItem, SwitcherItem} from '@/launcher-item'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {SwitchField} from '@shm/ui/form-fields'
@@ -389,10 +389,14 @@ const SearchInput = ({
   const portalRoot = document.body
 
   const unpackedId = unpackHmId(link)
-  const currentEntity = useEntity(unpackedId)
+  const currentEntity = useResource(unpackedId)
+  const document =
+    currentEntity.data?.type === 'document'
+      ? currentEntity.data.document
+      : undefined
 
   const [search, setSearch] = useState(() => {
-    return currentEntity.data?.document?.metadata.name ?? link
+    return document?.metadata.name ?? link
   })
 
   // const recents = useRecents()

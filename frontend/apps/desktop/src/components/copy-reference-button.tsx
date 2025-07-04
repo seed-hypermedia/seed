@@ -7,7 +7,7 @@ import {
   ExpandedBlockRange,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -35,10 +35,10 @@ export function useDocumentUrl({
   ) => void
   content: ReactNode
 } | null {
-  const docEntity = useEntity(docId)
+  const docEntity = useResource(docId)
   if (!docId?.uid) return null
   const accountId = hmId(docId.uid)
-  const accountEntity = useEntity(accountId)
+  const accountEntity = useResource(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
   const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(

@@ -25,6 +25,7 @@ import {
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
+  packHmId,
   SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
@@ -35,6 +36,10 @@ import {
   HMAccountsMetadata,
   HMComment,
   HMCommentSchema,
+  HMResourceComment,
+  HMResourceDocument,
+  HMResourceNotFound,
+  HMResourceRedirect,
 } from '@shm/shared/hm-types'
 import {
   getDiretoryWithClient,
@@ -94,6 +99,7 @@ export async function getAccount(
       metadata,
     } as HMMetadataPayload
   } catch (e) {
+    console.error('Error getting account ' + accountUid, e)
     return {id: hmId(accountUid), metadata: {}}
   }
 }
@@ -327,6 +333,41 @@ async function loadResourcePayload(
     id: {...docId, version: document.version},
     breadcrumbs,
     ...getOriginRequestData(parsedRequest),
+  }
+}
+
+export async function getResource(id: UnpackedHypermediaId) {
+  try {
+    const resource = await queryClient.resources.getResource({
+      iri: packHmId(id),
+    })
+    if (resource.kind.case === 'comment') {
+      return {
+        type: 'comment',
+        id,
+        comment: prepareHMComment(resource.kind.value),
+      } satisfies HMResourceComment
+    }
+    if (resource.kind.case === 'document') {
+      return {
+        type: 'document',
+        id,
+        document: prepareHMDocument(resource.kind.value),
+      } satisfies HMResourceDocument
+    }
+    throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
+  } catch (e) {
+    if (e instanceof HMRedirectError) {
+      return {
+        type: 'redirect',
+        id,
+        redirectTarget: e.target,
+      } satisfies HMResourceRedirect
+    }
+    return {
+      type: 'not-found',
+      id,
+    } satisfies HMResourceNotFound
   }
 }
 

@@ -4,20 +4,20 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import { useEntity } from '@shm/shared/models/entity'
-import { SizableText } from '@shm/ui/text'
-import { Fragment, Node } from '@tiptap/pm/model'
-import { useEffect, useMemo, useState } from 'react'
-import { Button, XStack, YStack } from 'tamagui'
-import { Pencil } from '../../ui/src/icons'
+import {useResource} from '@shm/shared/models/entity'
+import {SizableText} from '@shm/ui/text'
+import {Fragment, Node} from '@tiptap/pm/model'
+import {useEffect, useMemo, useState} from 'react'
+import {Button, XStack, YStack} from 'tamagui'
+import {Pencil} from '../../ui/src/icons'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
   HyperlinkToolbarProps,
 } from './blocknote'
-import { getNodeById } from './blocknote/core/api/util/nodeUtil'
-import { HypermediaLinkForm } from './hm-link-form'
-import { HMBlockSchema } from './schema'
+import {getNodeById} from './blocknote/core/api/util/nodeUtil'
+import {HypermediaLinkForm} from './hm-link-form'
+import {HMBlockSchema} from './schema'
 
 export function HypermediaLinkPreview(
   props: HyperlinkToolbarProps & {
@@ -37,7 +37,9 @@ export function HypermediaLinkPreview(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
-  const entity = useEntity(unpackedRef || undefined)
+  const entity = useResource(unpackedRef || undefined)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   useEffect(() => {
     if (props.stopEditing && isEditing) {
       setIsEditing(false)
@@ -52,7 +54,7 @@ export function HypermediaLinkPreview(
 
     const getTitle = () => {
       if (['inline-embed', 'embed'].includes(props.type)) {
-        const title = getTitleFromEntity(unpackedRef, entity.data?.document)
+        const title = getTitleFromEntity(unpackedRef, document)
         return title || props.text || props.url
       }
       return props.text || props.url
@@ -184,11 +186,9 @@ export function HypermediaLinkPreview(
             <SizableText
               size="lg"
               color="brand"
-              className="overflow-hidden flex-1 truncate whitespace-nowrap"
+              className="flex-1 truncate overflow-hidden whitespace-nowrap"
             >
-              {!!unpackedRef
-                ? entity.data?.document?.metadata.name ?? props.url
-                : props.url}
+              {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
             </SizableText>
           </XStack>
 

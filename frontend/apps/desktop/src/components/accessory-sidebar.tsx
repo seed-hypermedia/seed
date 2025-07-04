@@ -1,7 +1,7 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSortedCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
 import {
@@ -117,7 +117,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('All')
   }
 
-  const entity = useSubscribedEntity(docId)
+  const entity = useSubscribedResource(docId)
   const allDocumentCapabilities = useAllDocumentCapabilities(docId)
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
@@ -126,7 +126,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const comments = useAllDocumentComments(docId)
   const commentCount = comments.data?.length || undefined
   const citations = useSortedCitations(docId, {
-    enabled: !!entity.data?.document,
+    enabled: entity.data?.type === 'document',
   })
   const citationCount = citations.docCitations.length || undefined
   const childrenActivity = useChildrenActivity(docId)

@@ -14,7 +14,7 @@ import {
   useChildrenList,
   useCitations,
   useComments,
-  useEntity,
+  useResource,
 } from '../models'
 import {CopyTextButton} from './CopyTextButton'
 import {ExternalOpenButton, OpenInAppButton} from './ExternalOpenButton'
@@ -37,11 +37,11 @@ export default function HM() {
 
   const apiHost = useApiHost()
   const navigate = useNavigate()
-  const id = hmId(type, uid, {
+  const id = hmId(uid, {
     path: hmPath,
     version: searchParams.get('v') ? searchParams.get('v') : undefined,
   })
-  const {data, isLoading} = useEntity(id)
+  const {data, isLoading} = useResource(id)
   const {data: comments, isLoading: commentsLoading} = useComments(id)
   const {data: authoredComments, isLoading: authoredCommentsLoading} =
     useAuthoredComments(id)
@@ -125,7 +125,7 @@ export default function HM() {
     //   return flattenSingleItemArrays(cleaned)
     // }
     return null
-  }, [data, type])
+  }, [data])
 
   // Render tab content based on current tab
   const renderTabContent = () => {

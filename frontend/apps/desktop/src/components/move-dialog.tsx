@@ -2,7 +2,7 @@ import {useMoveDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -20,7 +20,8 @@ export function MoveDialog({
     id: UnpackedHypermediaId
   }
 }) {
-  const {data: entity} = useEntity(input.id)
+  const {data: resource} = useResource(input.id)
+  const document = resource?.type === 'document' ? resource.document : undefined
   const moveDoc = useMoveDocument()
   const navigate = useNavigate()
   const selectedAccount = useSelectedAccount()
@@ -35,7 +36,7 @@ export function MoveDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
-  if (!entity)
+  if (!document)
     return (
       <div className="flex items-center justify-center">
         <Spinner />
@@ -43,13 +44,13 @@ export function MoveDialog({
     )
   return (
     <div className="flex flex-col">
-      <DialogTitle>Move "{entity?.document?.metadata.name}"</DialogTitle>
-      {entity ? (
+      <DialogTitle>Move "{document?.metadata.name}"</DialogTitle>
+      {document ? (
         <>
           <LocationPicker
             location={location}
             setLocation={setLocation}
-            newName={entity?.document?.metadata.name || 'Untitled'}
+            newName={document?.metadata.name || 'Untitled'}
             account={selectedAccount.id.uid}
             actionLabel="move"
             onAvailable={(isAvail) => {

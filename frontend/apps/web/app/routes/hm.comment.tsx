@@ -32,7 +32,6 @@ import {
   unpackHmId,
   useRouteLink,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
 import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {SmallSiteHeader} from '@shm/ui/site-header'
@@ -43,6 +42,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
 
 import {defaultSiteIcon} from '@/meta'
+import {useResource} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {cn} from '@shm/ui/utils'
@@ -419,7 +419,9 @@ function PublishedComment({
       signerId,
     }
   }, [comment])
-  const author = useEntity(rawComment.signerId)
+  const author = useResource(rawComment.signerId)
+  const authorDocument =
+    author.data?.type === 'document' ? author.data.document : undefined
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -444,7 +446,7 @@ function PublishedComment({
       )}
       renderCommentContent={renderCommentContent}
       isLast={isLast}
-      authorMetadata={author.data?.document?.metadata ?? undefined}
+      authorMetadata={authorDocument?.metadata ?? undefined}
     />
   )
 }

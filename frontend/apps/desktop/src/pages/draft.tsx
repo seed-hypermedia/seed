@@ -33,7 +33,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -105,7 +105,9 @@ export default function DraftPage() {
     return undefined
   }, [locationId, editId])
 
-  const homeEntity = useEntity(homeId)
+  const homeEntity = useResource(homeId)
+  const homeDocument =
+    homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
   const {accessory, accessoryOptions} = useDocumentAccessory({
     docId: editId,
@@ -171,7 +173,7 @@ export default function DraftPage() {
   const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <div className="flex flex-1 h-full">
+      <div className="flex h-full flex-1">
         <AccessoryLayout
           accessory={accessory}
           accessoryKey={accessoryKey}
@@ -186,7 +188,7 @@ export default function DraftPage() {
           <div
             className={cn(
               panelContainerStyles,
-              'flex flex-col bg-white dark:bg-background',
+              'dark:bg-background flex flex-col bg-white',
             )}
           >
             <DraftRebaseBanner />
@@ -196,7 +198,7 @@ export default function DraftPage() {
                   siteHomeEntity={homeEntity.data}
                   isEditingHomeDoc={isEditingHomeDoc}
                   docId={headerDocId}
-                  document={homeEntity.data?.document || undefined}
+                  document={homeDocument}
                   draftMetadata={state.context.metadata}
                   onDocNav={(navigation) => {
                     send({
@@ -327,7 +329,7 @@ function DocumentEditor({
         }}
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex overflow-hidden flex-col flex-1"
+        className="flex flex-1 flex-col overflow-hidden"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
@@ -342,7 +344,7 @@ function DocumentEditor({
               setShow={setShowCover}
               showOutline={showOutline}
             />
-            <div ref={elementRef} className="flex-1 w-full draft-editor">
+            <div ref={elementRef} className="draft-editor w-full flex-1">
               <div {...wrapperProps}>
                 {showSidebars ? (
                   <div
@@ -646,7 +648,7 @@ function DraftMetadataEditor({
         bg={isDark ? '$background' : '$backgroundStrong'}
         borderRadius="$2"
       >
-        <div className="flex flex-col gap-4 group-header">
+        <div className="group-header flex flex-col gap-4">
           <Input
             disabled={disabled}
             // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -773,7 +775,7 @@ function DraftCover({
 function DraftRebaseBanner() {
   const [isRebasing, setIsRebasing] = useState(false)
   // const willEditDocId = getDraftEditId(draftData)
-  // const latestDoc = useSubscribedEntity(willEditDocId)
+  // const latestDoc = useSubscribedResource(willEditDocId)
 
   async function performRebase() {
     //   setIsRebasing(true)
@@ -786,7 +788,7 @@ function DraftRebaseBanner() {
 
   if (isRebasing) {
     return (
-      <div className="flex p-4 text-black bg-yellow-100 border-0 border-b border-solid">
+      <div className="flex border-0 border-b border-solid bg-yellow-100 p-4 text-black">
         <div className="mr-2">
           <Spinner className="size-4" />
         </div>

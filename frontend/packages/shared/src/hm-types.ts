@@ -1046,6 +1046,47 @@ export const HMDocumentSchema = z.object({
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>
 
+export const HMResourceDocumentSchema = HMDocumentSchema.extend({
+  type: z.literal('document'),
+  document: HMDocumentSchema,
+  id: unpackedHmIdSchema,
+})
+export type HMResourceDocument = z.infer<typeof HMResourceDocumentSchema>
+
+export const HMResourceCommentSchema = z.object({
+  type: z.literal('comment'),
+  comment: HMCommentSchema,
+  id: unpackedHmIdSchema,
+})
+export type HMResourceComment = z.infer<typeof HMResourceCommentSchema>
+
+export const HMResourceRedirectSchema = z.object({
+  type: z.literal('redirect'),
+  id: unpackedHmIdSchema,
+  redirectTarget: unpackedHmIdSchema,
+})
+export type HMResourceRedirect = z.infer<typeof HMResourceRedirectSchema>
+
+export const HMResourceNotFoundSchema = z.object({
+  type: z.literal('not-found'),
+  id: unpackedHmIdSchema,
+})
+export type HMResourceNotFound = z.infer<typeof HMResourceNotFoundSchema>
+
+export const HMResourceSchema = z.discriminatedUnion('type', [
+  HMResourceDocumentSchema,
+  HMResourceCommentSchema,
+  HMResourceRedirectSchema,
+  HMResourceNotFoundSchema,
+])
+export type HMResource = z.infer<typeof HMResourceSchema>
+
+export const HMResolvedResourceSchema = z.discriminatedUnion('type', [
+  HMResourceDocumentSchema,
+  HMResourceCommentSchema,
+])
+export type HMResolvedResource = z.infer<typeof HMResolvedResourceSchema>
+
 export const DeviceLinkSessionSchema = z.object({
   accountId: z.string(),
   secretToken: z.string(),

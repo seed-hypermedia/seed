@@ -16,7 +16,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
@@ -107,13 +107,13 @@ export function EmbedInline(props: EntityComponentProps) {
 }
 
 function DocInlineEmbed(props: EntityComponentProps) {
-  const pubId = props?.type == 'd' ? props.id : undefined
-  if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
-  const doc = useEntity(props)
-  const document = doc.data?.document
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const ctx = useDocContentContext()
   const {supportDocuments, supportQueries} = ctx || {}
-  const entity = pubId ? supportDocuments?.find((d) => d.id.id === pubId) : null
+  const entity = props.id
+    ? supportDocuments?.find((d) => d.id.id === props.id)
+    : null
   const renderDocument = document || entity?.document
   // basiclly we are willing to get the document from either ajax request or supportDocuments
   // supportDocuments is there for initial load, while the ajax will have up-to-date info
@@ -132,10 +132,9 @@ function DocInlineEmbed(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
-  const doc = useEntity(props)
-  const authors = useEntities(
-    doc.data?.document?.authors.map((uid) => hmId(uid)) || [],
-  )
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const authors = useResources(document?.authors.map((uid) => hmId(uid)) || [])
   if (doc.isLoading)
     return (
       <div className="flex items-center justify-center">
@@ -150,7 +149,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         isWeb
         entity={{
           id,
-          document: doc.data.document,
+          document: document,
         }}
         docId={id}
         accountsMetadata={Object.fromEntries(
@@ -161,7 +160,10 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
               authorDoc.id.uid,
               {
                 id: authorDoc.id,
-                metadata: authorDoc.document?.metadata,
+                metadata:
+                  authorDoc.type === 'document'
+                    ? authorDoc.document?.metadata
+                    : undefined,
               },
             ])
             .filter(([_, metadata]) => !!metadata),
@@ -173,7 +175,8 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
-  const doc = useEntity(props)
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const {entityId} = useDocContentContext()
   if (props.id && entityId && props.id === entityId.id) {
     return (
@@ -188,7 +191,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       isLoading={doc.isLoading}
       showReferenced={showReferenced}
       onShowReferenced={setShowReferenced}
-      document={doc.data?.document}
+      document={document}
       EmbedWrapper={EmbedWrapper}
       parentBlockId={props.parentBlockId}
       renderOpenButton={

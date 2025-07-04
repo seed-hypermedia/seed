@@ -37,7 +37,7 @@ import {
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -112,7 +112,7 @@ export default function Settings() {
     <div
       className={cn(
         windowContainerStyles,
-        'overflow-hidden pt-0 w-full h-full min-h-0 max-h-full',
+        'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
       )}
     >
       <div className={cn(panelContainerStyles)}>
@@ -212,7 +212,7 @@ export function DeleteDraftLogs() {
           })
         }}
       >
-        <Trash className="mr-2 w-4 h-4" />
+        <Trash className="mr-2 h-4 w-4" />
         Confirm Delete Draft Log Folder?
       </Button>
     )
@@ -224,7 +224,7 @@ export function DeleteDraftLogs() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 w-4 h-4" />
+      <Trash className="mr-2 h-4 w-4" />
       Delete All Draft Logs
     </Button>
   )
@@ -309,7 +309,7 @@ export function DeveloperSettings() {
               openDraftLogs.mutate()
             }}
           >
-            <ExternalLink className="mr-2 w-4 h-4" />
+            <ExternalLink className="mr-2 h-4 w-4" />
             Open Draft Log Folder
           </Button>
           <DeleteDraftLogs />
@@ -335,10 +335,10 @@ export function ProfileForm({
   return (
     <>
       <div className="flex gap-4">
-        <div className="flex flex-col flex-grow-0 flex-shrink-0 items-center">
+        <div className="flex flex-shrink-0 flex-grow-0 flex-col items-center">
           <IconForm url={getDaemonFileUrl(profile?.icon)} />
         </div>
-        <div className="flex flex-col flex-1 gap-3">
+        <div className="flex flex-1 flex-col gap-3">
           <div className="flex flex-col">
             <Label size="$3" htmlFor="accountid">
               Account Id
@@ -359,7 +359,7 @@ export function ProfileForm({
               />
               <Tooltip content="Copy your account id">
                 <Button size="sm" onClick={onCopy} className="rounded-l-none">
-                  <Copy className="w-4 h-4" />
+                  <Copy className="h-4 w-4" />
                 </Button>
               </Tooltip>
             </div>
@@ -370,7 +370,7 @@ export function ProfileForm({
                 editProfileDialog.open(true)
               }}
             >
-              <Pencil className="mr-2 w-4 h-4" />
+              <Pencil className="mr-2 h-4 w-4" />
               Edit My Profile
             </Button>
           </div>
@@ -401,7 +401,9 @@ function AccountKeys() {
 
   const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
-  const {data: profile} = useEntity(selectedAccountId)
+  const {data: profile} = useResource(selectedAccountId)
+  const profileDocument =
+    profile?.type === 'document' ? profile.document : undefined
 
   const [showWords, setShowWords] = useState<boolean>(false)
 
@@ -435,9 +437,9 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <div className="flex overflow-hidden flex-1 gap-3">
+    <div className="flex flex-1 gap-3 overflow-hidden">
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-1 flex-col">
           <ScrollArea>
             {keys.data?.map((key) => (
               <KeyItem
@@ -451,25 +453,25 @@ function AccountKeys() {
       </div>
       <div
         className={cn(
-          'flex flex-col rounded-lg border border-border flex-[3]',
+          'border-border flex flex-[3] flex-col rounded-lg border',
           isDark ? 'bg-background' : 'bg-muted',
         )}
       >
         <ScrollArea>
           <div className="flex flex-col gap-4 p-4">
-            <div className="flex gap-4 mb-4">
+            <div className="mb-4 flex gap-4">
               {selectedAccountId ? (
                 <HMIcon
                   id={selectedAccountId}
-                  metadata={profile?.document?.metadata}
+                  metadata={profileDocument?.metadata}
                   size={80}
                 />
               ) : null}
-              <div className="flex flex-col flex-1 gap-3 mt-2">
+              <div className="mt-2 flex flex-1 flex-col gap-3">
                 <Field id="username" label="Profile Name">
                   <Input
                     disabled
-                    value={getMetadataName(profile?.document?.metadata)}
+                    value={getMetadataName(profileDocument?.metadata)}
                   />
                 </Field>
                 <Field id="accountid" label="Account ID">
@@ -499,9 +501,9 @@ function AccountKeys() {
                         onClick={() => setShowWords((v) => !v)}
                       >
                         {showWords ? (
-                          <EyeOff className="w-4 h-4" />
+                          <EyeOff className="h-4 w-4" />
                         ) : (
-                          <Eye className="w-4 h-4" />
+                          <Eye className="h-4 w-4" />
                         )}
                       </Button>
                       <Button
@@ -513,14 +515,14 @@ function AccountKeys() {
                           toast.success('Words copied to clipboard')
                         }}
                       >
-                        <Copy className="w-4 h-4" />
+                        <Copy className="h-4 w-4" />
                       </Button>
 
                       <AlertDialog>
                         <Tooltip content="Delete words from device">
                           <AlertDialogTrigger asChild>
                             <Button size="sm" variant="destructive">
-                              <Trash className="w-4 h-4" />
+                              <Trash className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
                         </Tooltip>
@@ -534,7 +536,7 @@ function AccountKeys() {
                               words after you delete them. please save them
                               securely in another place before you delete
                             </AlertDialogDescription>
-                            <div className="flex gap-3 justify-end">
+                            <div className="flex justify-end gap-3">
                               <AlertDialogCancel asChild>
                                 <Button variant="ghost">Cancel</Button>
                               </AlertDialogCancel>
@@ -569,7 +571,7 @@ function AccountKeys() {
               <Tooltip content="Delete account from device">
                 <AlertDialogTrigger asChild>
                   <Button size="sm" variant="destructive" className="self-end">
-                    <Trash className="mr-2 w-4 h-4" />
+                    <Trash className="mr-2 h-4 w-4" />
                     Delete Account
                   </Button>
                 </AlertDialogTrigger>
@@ -584,7 +586,7 @@ function AccountKeys() {
                     have saved the Secret Recovery Phrase for this account if
                     you want to recover it later.
                   </AlertDialogDescription>
-                  <div className="flex gap-3 justify-end">
+                  <div className="flex justify-end gap-3">
                     <AlertDialogCancel asChild>
                       <Button variant="ghost">Cancel</Button>
                     </AlertDialogCancel>
@@ -610,7 +612,7 @@ function AccountKeys() {
             <SettingsSection title="Linked Devices">
               <LinkedDevices
                 accountUid={selectedAccount}
-                accountName={getMetadataName(profile?.document?.metadata)}
+                accountName={getMetadataName(profileDocument?.metadata)}
               />
             </SettingsSection>
             <EmailNotificationSettings
@@ -622,8 +624,8 @@ function AccountKeys() {
       </div>
     </div>
   ) : (
-    <div className="flex flex-col flex-1 gap-4 justify-center items-center p-6 h-full">
-      <div className="flex justify-center items-center w-20 h-20 rounded-lg bg-muted">
+    <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
         <UserRoundPlus size={50} className="text-muted-foreground" />
       </div>
       <Heading>No Accounts Found</Heading>
@@ -639,7 +641,7 @@ function AccountKeys() {
           console.log('Create new profile clicked')
         }}
       >
-        <Plus className="mr-2 w-4 h-4" />
+        <Plus className="mr-2 h-4 w-4" />
         Create a new Profile
       </Button>
     </div>
@@ -688,7 +690,7 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           size="sm"
           onClick={() => notifSettingsDialog.open({accountUid})}
         >
-          <Pencil className="mr-2 w-4 h-4" />
+          <Pencil className="mr-2 h-4 w-4" />
           Edit Notification Settings
         </Button>
       </div>
@@ -699,7 +701,7 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
 
 function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (
-    <div className="flex gap-3 items-center">
+    <div className="flex items-center gap-3">
       <div className="w-6">
         {checked ? <Check className="text-primary" /> : null}
       </div>
@@ -747,7 +749,7 @@ function LinkedDevices({
           variant="default"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <Plus className="mr-2 w-4 h-4" />
+          <Plus className="mr-2 h-4 w-4" />
           Link Web Session
         </Button>
       </div>
@@ -788,7 +790,7 @@ function LinkDeviceDialog({
             }}
           >
             Close
-            <Check className="ml-2 w-4 h-4" />
+            <Check className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -863,7 +865,7 @@ function DeviceLabelForm({
 
   if (linkDevice.isLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -905,14 +907,14 @@ function KeyItem({
   onSelect: () => void
 }) {
   const id = hmId(item)
-  const entity = useEntity(id)
+  const entity = useResource(id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   return (
     <ListItem
       active={isActive}
-      icon={
-        <HMIcon id={id} metadata={entity.data?.document?.metadata} size={24} />
-      }
-      title={entity.data?.document?.metadata.name || item}
+      icon={<HMIcon id={id} metadata={document?.metadata} size={24} />}
+      title={document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}
       backgroundColor={isActive ? '$brand12' : undefined}
       onPress={onSelect}
@@ -1048,7 +1050,7 @@ function GatewaySettings({}: {}) {
       <TableList>
         <InfoListHeader title="URL" />
         <TableList.Item>
-          <div className="flex gap-3 w-full">
+          <div className="flex w-full gap-3">
             <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
             <Button
               size="sm"
@@ -1147,7 +1149,7 @@ function PushOnCopySetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex gap-2 items-center" key={option.value}>
+              <div className="flex items-center gap-2" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
@@ -1246,7 +1248,7 @@ function PushOnPublishSetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex gap-2 items-center" key={option.value}>
+              <div className="flex items-center gap-2" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}

@@ -114,7 +114,7 @@ export function AllDiscussions({
   let panelContent = null
   if (allDiscussions.isLoading && !allDiscussions.data) {
     panelContent = (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -196,7 +196,7 @@ function BlockDiscussions({
   }
   return (
     <div className="flex flex-col gap-4 px-2">
-      <div className="p-3 rounded-md">
+      <div className="rounded-md p-3">
         <AccessoryBackButton
           onPress={handleBack}
           label={tx('All Discussions')}
@@ -259,7 +259,7 @@ function CommentDiscussion(
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <div className="flex flex-col mx-3 mb-0">
+      <div className="mx-3 mb-0 flex flex-col">
         <AccessoryBackButton
           onPress={handleBack}
           label={tx('All Discussions')}
@@ -267,7 +267,7 @@ function CommentDiscussion(
       </div>
 
       {rootCommentId && thread ? (
-        <div className="p-3 rounded-md">
+        <div className="rounded-md p-3">
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
@@ -302,7 +302,7 @@ export function EmptyDiscussions({
 }) {
   const tx = useTxString()
   return (
-    <div className="flex flex-col gap-4 items-center py-4">
+    <div className="flex flex-col items-center gap-4 py-4">
       <MessageSquareOff className="size-25" size={48} color="$color8" />
       <SizableText size="md">{tx('No discussions')}</SizableText>
       <Button

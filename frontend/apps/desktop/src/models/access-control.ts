@@ -11,7 +11,7 @@ import {
   HMRole,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
@@ -159,7 +159,7 @@ export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
     addWritableId(hmId(selectedAccountId))
   }
 
-  const writableDocuments = useEntities(writableDocumentIds)
+  const writableDocuments = useResources(writableDocumentIds)
     .map((doc) => doc.data)
     .filter((doc) => !!doc)
   if (!accountsCaps) return []
@@ -301,7 +301,7 @@ export function useMyAccountsWithWriteAccess(
   })
   const accountsWithCapabilities =
     myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
-  return useEntities(accountsWithCapabilities)
+  return useResources(accountsWithCapabilities)
 }
 
 export function useAllDocumentCapabilities(

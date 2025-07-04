@@ -41,7 +41,7 @@ export function PageHeader({
           paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
-        className="bg-white dark:bg-background"
+        className="dark:bg-background bg-white"
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
@@ -55,14 +55,14 @@ export function PageHeader({
           <SizableText size="4xl" weight="bold">
             {docMetadata?.name}
           </SizableText>
-          <div className="flex flex-wrap flex-1 gap-4 items-center">
+          <div className="flex flex-1 flex-wrap items-center gap-4">
             {authors?.length ? (
-              <div className="flex flex-wrap gap-1 items-center max-w-full">
+              <div className="flex max-w-full flex-wrap items-center gap-1">
                 {authors.flatMap((a, index) => [
                   <a
                     key={a.id.id}
                     href={getHref(originHomeId, a.id)}
-                    className="text-sm font-bold cursor-pointer"
+                    className="cursor-pointer text-sm font-bold"
                   >
                     {getMetadataName(a.metadata)}
                   </a>,
@@ -80,7 +80,7 @@ export function PageHeader({
                 ])}
               </div>
             ) : null}
-            {authors?.length ? <div className="w-px h-6 bg-border" /> : null}
+            {authors?.length ? <div className="bg-border h-6 w-px" /> : null}
             {updateTime ? (
               <DocumentDate
                 metadata={docMetadata || undefined}
@@ -123,9 +123,9 @@ function Breadcrumbs({
   const [first, ...rest] = breadcrumbs
 
   return (
-    <div className="flex flex-1 gap-2 items-center">
+    <div className="flex flex-1 items-center gap-2">
       {first ? (
-        <div className="flex gap-1 items-center">
+        <div className="flex items-center gap-1">
           <Home className="text-foreground size-3" />
           <SizableText
             color="muted"

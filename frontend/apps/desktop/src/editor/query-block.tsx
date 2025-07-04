@@ -17,7 +17,7 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {DocumentCardGrid} from '@shm/ui/document-content'
@@ -117,7 +117,7 @@ function Render(
     }
     return null
   })
-  const entity = useEntity(queryId, {
+  const entity = useResource(queryId, {
     enabled: !!queryId,
   })
   const directoryItems = useListDirectory(queryId, {
@@ -136,7 +136,7 @@ function Render(
     return []
   }, [directoryItems, querySort, block.props.queryLimit])
 
-  const docResults = useEntities(
+  const docResults = useResources(
     sortedItems.map((item) =>
       hmId(item.account, {
         path: item.path,
@@ -316,7 +316,7 @@ function ListView({
 function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
   const queryIncludesData = queryIncludes ? JSON.parse(queryIncludes) : null
   const queryIncludesFirst = queryIncludesData?.[0]
-  const includesEntity = useEntity(
+  const includesEntity = useResource(
     queryIncludesFirst
       ? hmId(queryIncludesFirst.space, {
           path: entityQueryPathToHmIdPath(queryIncludesFirst.path),

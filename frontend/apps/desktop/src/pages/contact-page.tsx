@@ -7,7 +7,7 @@ import {
   useSaveContact,
   useSelectedAccountContacts,
 } from '@/models/contacts'
-import {useSubscribedEntities} from '@/models/entities'
+import {useSubscribedResources} from '@/models/entities'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -416,7 +416,7 @@ function AccountContacts({
   contact: HMContact
   ownerLabel: string
 }) {
-  const subjectAccounts = useSubscribedEntities(
+  const subjectAccounts = useSubscribedResources(
     contact.contacts?.map((c) => ({id: hmId(c.subject)})) || [],
   )
   const navigate = useNavigate()
@@ -433,7 +433,10 @@ function AccountContacts({
             (a) => a.data?.id?.uid === contact.subject,
           )?.data
           const contactName = contact.name
-          const subjectName = subjectAccount?.document?.metadata?.name
+          const subjectName =
+            subjectAccount?.type === 'document'
+              ? subjectAccount.document?.metadata?.name
+              : undefined
 
           return (
             <div
@@ -448,7 +451,11 @@ function AccountContacts({
               {subjectAccount ? (
                 <HMIcon
                   id={subjectAccount.id}
-                  metadata={subjectAccount.document?.metadata}
+                  metadata={
+                    subjectAccount.type === 'document'
+                      ? subjectAccount.document?.metadata
+                      : undefined
+                  }
                   size={32}
                 />
               ) : null}

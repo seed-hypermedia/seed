@@ -2,7 +2,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {
   Check,
   ChevronDown,
@@ -180,8 +180,10 @@ function UnsubscribeParentDialog({
   onClose: () => void
   input: {id: UnpackedHypermediaId; onConfirm: () => void}
 }) {
-  const entity = useEntity(input.id)
-  const title = getDocumentTitle(entity.data?.document)
+  const entity = useResource(input.id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
+  const title = getDocumentTitle(document)
 
   return (
     <YStack space backgroundColor="$background" padding="$4" borderRadius="$3">
@@ -218,8 +220,10 @@ function UnsubscribeParentDialog({
 }
 
 function ParentSubscription({sub}: {sub: HMSubscription}) {
-  const entity = useEntity(sub.id)
-  const title = getDocumentTitle(entity.data?.document)
+  const entity = useResource(sub.id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
+  const title = getDocumentTitle(document)
   if (!title) return
   return (
     <SubscriptionOptionButton

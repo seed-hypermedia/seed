@@ -16,7 +16,7 @@ export function useRootDocuments() {
   })
 }
 
-export function useEntity(hmId: UnpackedHypermediaId) {
+export function useResource(hmId: UnpackedHypermediaId) {
   let url = `entity/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
   if (hmId.version) {
     url += `?v=${hmId.version}`

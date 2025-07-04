@@ -10,7 +10,7 @@ import {
   HMMetadataPayload,
   unpackHmId,
 } from '@shm/shared'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
@@ -33,7 +33,7 @@ export default function DraftsPage() {
     })
     return allLocationParents
   }, [drafts.data])
-  const entities = useEntities(
+  const entities = useResources(
     Array.from(allLocationParents)
       .map((id) => unpackHmId(id))
       .filter((id) => !!id),
