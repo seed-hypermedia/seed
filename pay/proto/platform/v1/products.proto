@@ -1,0 +1,164 @@
+syntax = "proto3";
+
+package platform.v1;
+
+import "google/protobuf/empty.proto";
+import "platform/v1/prices.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "pay/genproto/platform/v1;productsv1";
+
+// Products service provides functionality to create and manage platform products.
+service Products {
+  // Creates a product for the platform. This product represents a 
+  // service that the platform can offer to their customers.
+  rpc CreateProduct(CreateProductRequest) returns (Product);
+
+  // Updates an existing product for the platform.
+  rpc UpdateProduct(UpdateProductRequest) returns (Product);
+
+  // Deletes a product for the platform .
+  // This will remove the product from the account and it will no longer be available
+  // to sell to customers. The donation product cannot be deleted, but it can be updated
+  // to change its properties.
+  rpc DeleteProduct(DeleteProductRequest) returns (google.protobuf.Empty);
+
+  // List all products for the platform.
+  rpc ListProducts(ListProductRequest) returns (ListProductsResponse);
+}
+
+// The Create product Request used to create a new product for a platform
+// to be monetized. The caller must provide proof of ownership of the platform
+// uid by signing a message with the private key associated with the platform uid
+// and attaching the signature to the request as a `signature` field in the request header.
+message CreateProductRequest {
+  // Required. The name of the product.
+  // This is the name that will be displayed to the customers. Must be 22
+  // Characters long at most
+  string name = 1;
+
+  // Required. A brief description of the product. This will help
+  // customers understand what the product is about and what it offers.
+  // This is the description that will be displayed to the customers.
+  string description = 2;
+
+  // Required. The URL that the user will try to monetize. We will check 
+  // <url>/hm/api/config and make sure the `registeredAccountUid` seen 
+  // matches the provided uid. If the URL is a free url, it should be in the 
+  // form of <domain>/hm/<uid> in which case we will only check that URL exists.
+  // If the user upgrades and gets a custom domain later, they can update the account
+  // with the new URL using CreateAccountSession or CreateAccountLink.
+  string url = 3;
+
+  // Required. The price id to be associated with the product. The price must exist
+  // Before creating the product. The user will later be able to update the price
+  // using the prices service. A price can be attached to multiple products.
+  // This is the price that will be charged to the customers when they purchase the product.
+  // It can be an open price, a fixed price, or a subscription price.
+  string price_id = 4;
+
+  // Optional. The statement description of the product.
+  // This is an arbitrary string to be displayed on your customer's credit card or bank statement.
+  // While most banks display this information consistently, some may display it incorrectly or not at all.
+  // This may be up to 22 characters. The statement description may not include `<`, `>`, `\`, `"`, `'` 
+  // characters, and will appear on your customer's statement in capital letters.
+  // Non-ASCII characters are automatically stripped. If not set, the name of the product 
+  // will be used as the statement description.
+  string statement_description = 5;
+
+  // Optional. The image URL of the product.
+  // This is the image that will be displayed to the customers.
+  string image_url = 6;
+}
+
+enum ProductType {
+  // The product type is unknown.
+  PRODUCT_TYPE_UNKNOWN = 0;
+
+  // The product is a subscription product. This product can be used to charge
+  // customers on a recurring basis. Invoices will be generated for this product.
+  SUBSCRIPTION = 1;
+
+  // The product is a one-time purchase product. This product can be used to charge
+  // customers for a one-time purchase. This can be used in paywalls, for example.
+  // Invoices will be generated for this product.
+  ONE_TIME_PURCHASE = 2;
+}
+
+// Product represents a product that can be monetized by the user.
+message Product {
+  // The unique identifyer of the product
+  string id = 1;
+
+  // The URL of the product. This is the URL that the user will try to monetize.
+  // It must be a subdomain, a custom domain. or a free hyper.media url
+  string url = 2;
+
+  // The type of the product. 
+  ProductType type = 3;
+  
+  // The price of the product.
+  platform.v1.Price price = 4;
+
+}
+
+// The request to update an existing product for the connected account.
+// Only the fields that are set will be updated. If a field is not set, it will
+// not be updated. The product must exist before updating it.
+// The caller must provide proof of ownership of the platform
+// uid by signing a message with the private key associated with the platform uid
+// and attaching the signature to the request as a `signature` field in the request header.
+message UpdateProductRequest {
+  // Required. The id of the product to update.
+  string id = 1;
+
+  // Optional. The new name of the product.
+  string name = 2;
+
+  // Optional. The new URL that the user will try to monetize. Checks will be made
+  // the same as in CreateProductRequest.
+  string url = 3;
+
+  // Required. The price id to be associated with the product. The price must exist
+  // Before creating the product. The user will later be able to update the price
+  // using the prices service. A price can be attached to multiple products.
+  string price_id = 4;
+
+  // Optional. The description of the product.
+  // This is the description that will be displayed to the customers.
+  string description = 5;
+
+  // Optional. The image URL of the product.
+  // This is the image that will be displayed to the customers.
+  string image_url = 6;
+}
+
+// The request to delete a product for the connected account.
+// The caller must provide proof of ownership of the platform
+// uid by signing a message with the private key associated with the platform uid
+// and attaching the signature to the request as a `signature` field in the request header.
+message DeleteProductRequest {
+  // Required. The id of the product to delete.
+  string id = 1;
+}
+
+// The request to list all products for the connected account.
+// The caller must provide proof of ownership of the platform
+// uid by signing a message with the private key associated with the platform uid
+// and attaching the signature to the request as a `signature` field in the request header.
+message ListProductRequest {
+  // Optional. The size of the page. The default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. The page token for requesting next pages.
+  string page_token = 2;
+}
+
+// The response with the list of products for the connected account.
+message ListProductsResponse {
+  // The list of the products.
+  repeated Product products = 1;
+
+  // The token to request the next page.
+  string next_page_token = 2;
+}
