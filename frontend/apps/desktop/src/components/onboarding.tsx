@@ -368,8 +368,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 }
 
 function WelcomeStep({onNext}: {onNext: () => void}) {
-  const openUrl = useOpenUrl()
-
   return (
     <StepWrapper>
       <FullLogoIcon />
@@ -380,7 +378,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
             <CollabIcon />
           </div>
           <div className="flex h-20 justify-start">
-            <Text size="lg" className="text-center">
+            <Text size="lg" className="text-secondary-foreground text-center">
               Collaborate With Your Peers
             </Text>
           </div>
@@ -391,7 +389,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
             <PublishIcon />
           </div>
           <div className="flex h-20 justify-start">
-            <Text size="lg" className="text-center">
+            <Text size="lg" className="text-secondary-foreground text-center">
               Publish To The Web
             </Text>
           </div>
@@ -402,7 +400,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
             <ArchiveIcon />
           </div>
           <div className="flex h-20 justify-start">
-            <Text size="lg" className="text-center">
+            <Text size="lg" className="text-secondary-foreground text-center">
               Archive Content, Available Offline
             </Text>
           </div>
@@ -1219,11 +1217,16 @@ function StepWrapper({
       <div className="window-drag bg-primary flex flex-1 flex-col items-center justify-center gap-4 bg-gradient-to-b from-green-50 to-green-100 p-4">
         <div className="no-window-drag flex h-[600px] w-[600px] flex-col items-center justify-center gap-6">
           {onPrev ? (
-            <div className="no-window-drag absolute top-[-60px] left-[-100px] z-[900]">
+            <div className="no-window-drag absolute top-10 left-15 z-[900]">
               <Button
                 size="$5"
                 onPress={onPrev}
-                icon={ArrowLeft}
+                icon={
+                  <ArrowLeft
+                    color="black"
+                    className="text-secondary-foreground size-5"
+                  />
+                }
                 chromeless
                 hoverStyle={{
                   backgroundColor: 'transparent',

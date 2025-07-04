@@ -24,7 +24,6 @@ import {
   globalShortcut,
   ipcMain,
   Menu,
-  nativeTheme,
   OpenDialogOptions,
   shell,
 } from 'electron'
@@ -307,18 +306,8 @@ function initializeIpcHandlers() {
     })
   })
 
-  // Dark mode handlers
-  ipcMain.handle('dark-mode:toggle', () => {
-    if (nativeTheme.shouldUseDarkColors) {
-      nativeTheme.themeSource = 'light'
-    } else {
-      nativeTheme.themeSource = 'dark'
-    }
-    return nativeTheme.shouldUseDarkColors
-  })
-
-  ipcMain.handle('dark-mode:system', () => {
-    nativeTheme.themeSource = 'system'
+  ipcMain.on('find_in_page_cancel', (_event) => {
+    getFocusedWindow()?.webContents?.stopFindInPage('clearSelection')
   })
 
   // File and system operation handlers

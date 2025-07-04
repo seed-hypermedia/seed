@@ -1,6 +1,6 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
-import {tamaguiPlugin} from '@tamagui/vite-plugin'
+
 import react from '@vitejs/plugin-react'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
@@ -30,19 +30,7 @@ export default defineConfig(({command, mode}) => {
         },
       },
     },
-    plugins: [
-      tsConfigPaths(),
-      react(),
-      tamaguiPlugin({
-        components: ['@shm/ui', 'tamagui'],
-        config: './tamagui.config.ts',
-        themeBuilder: {
-          input: '../../packages/ui/src/themes/theme.ts',
-          output: '../../packages/ui/src/themes-generated.ts',
-        },
-      }),
-      tailwindcss(),
-    ],
+    plugins: [tsConfigPaths(), react(), tailwindcss()],
     resolve: {
       extensions,
     },

@@ -2,7 +2,6 @@ import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Theme} from 'tamagui'
 import {AccessoryContent} from './components/accessory-sidebar'
 
 export function EntityVersionsAccessory({
@@ -25,34 +24,32 @@ export function EntityVersionsAccessory({
   if (!id) return null
   return (
     <>
-      <Theme name="subtle">
-        <AccessoryContent>
-          <div className="border-b-border flex flex-col border-b px-4 py-2 pb-6">
-            {changes.map((item, index) => {
-              const change = item?.change
-              const authorQ = change?.author
-                ? authorAccounts.find((d) => d.data?.id?.uid === change?.author)
-                : null
-              const author = authorQ?.data
-                ? {
-                    id: authorQ.data.id,
-                    metadata: authorQ.data.document?.metadata,
-                  }
-                : null
-              if (!change || !author) return null
-              return null
-              // <ChangeItem
-              //   prevListedChange={changes[index - 1]}
-              //   entityId={id.id}
-              //   key={change.id}
-              //   change={change}
-              //   activeVersion={activeVersion}
-              //   author={author}
-              // />
-            })}
-          </div>
-        </AccessoryContent>
-      </Theme>
+      <AccessoryContent>
+        <div className="border-b-border flex flex-col border-b px-4 py-2 pb-6">
+          {changes.map((item, index) => {
+            const change = item?.change
+            const authorQ = change?.author
+              ? authorAccounts.find((d) => d.data?.id?.uid === change?.author)
+              : null
+            const author = authorQ?.data
+              ? {
+                  id: authorQ.data.id,
+                  metadata: authorQ.data.document?.metadata,
+                }
+              : null
+            if (!change || !author) return null
+            return null
+            // <ChangeItem
+            //   prevListedChange={changes[index - 1]}
+            //   entityId={id.id}
+            //   key={change.id}
+            //   change={change}
+            //   activeVersion={activeVersion}
+            //   author={author}
+            // />
+          })}
+        </div>
+      </AccessoryContent>
     </>
   )
 }

@@ -101,6 +101,7 @@ ipcMain.on('find_in_page_query', (_event, _info) => {
 })
 
 ipcMain.on('find_in_page_cancel', () => {
+  console.log('Cancelling search - empty query')
   let focusedWindow = getFocusedWindow()
   focusedWindow?.webContents?.stopFindInPage('keepSelection')
   let findInPageView = focusedWindow?.contentView.children[0] as

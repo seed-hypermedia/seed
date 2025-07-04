@@ -56,8 +56,8 @@ export const buttonVariants = cva(
           'bg-black text-white shadow-xs hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
       },
       size: {
-        xs: 'h-6 rounded-md gap-1.5 px-2 has-[>svg]:px-1.5',
-        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
+        xs: 'h-6 rounded-md gap-1.5 px-2 has-[>svg]:px-1.5 text-xs',
+        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 text-sm',
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',
         lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
         icon: 'h-6 min-w-6 rounded-md has-[>svg]:px-2',
