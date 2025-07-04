@@ -32,6 +32,10 @@ export const loader = async ({
   const commentId = url.searchParams.get('commentId')
   if (!targetId) throw new Error('targetId is required')
   if (!commentId) throw new Error('commentId is required')
+  console.log({
+    targetId,
+    commentId,
+  })
   let result: HMDiscussionPayload | {error: string}
   try {
     const data = await queryClient.comments.listComments({
@@ -39,6 +43,7 @@ export const loader = async ({
       targetPath: hmIdPathToEntityQueryPath(targetId.path),
       pageSize: BIG_INT,
     })
+    console.log({data: data.toJson({emitDefaultValues: true})})
 
     const allComments = data.comments.map(
       (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,

@@ -123,15 +123,15 @@ export function useInteractionSummary(
 }
 
 export function useDiscussion(
-  targetId: UnpackedHypermediaId,
+  targetId: UnpackedHypermediaId | undefined,
   commentId?: string,
   opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<HMDiscussionPayload>(
-    `/hm/api/discussion?targetId=${targetId.id}&commentId=${commentId}`,
+    `/hm/api/discussion?targetId=${targetId?.id}&commentId=${commentId}`,
     {
-      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId.id, commentId],
-      enabled: opts.enabled,
+      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId?.id, commentId],
+      enabled: opts.enabled && !!targetId && !!commentId,
     },
   )
   return response

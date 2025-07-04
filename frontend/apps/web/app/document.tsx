@@ -297,7 +297,6 @@ function InnerDocumentPage(
   const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
     return {type: 'discussions', comment: comment}
   })
-  console.log('active panel', activePanel)
 
   const onActivateBlock = useCallback((blockId: string) => {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
