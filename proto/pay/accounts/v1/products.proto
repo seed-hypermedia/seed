@@ -3,14 +3,12 @@ syntax = "proto3";
 package accounts.v1;
 
 import "google/protobuf/empty.proto";
-import "accounts/v1/prices.proto";
-import "google/protobuf/timestamp.proto";
+import "pay/accounts/v1/prices.proto";
 
-option go_package = "pay/genproto/accounts/v1;productsv1";
-
-// Products service provides functionality to create and manage account products.
+// Products service provides functionality to create and manage account
+// products.
 service Products {
-  // Creates a product for the connected account. This product represents a 
+  // Creates a product for the connected account. This product represents a
   // service that the connected account can offer to their customers.
   rpc CreateProduct(CreateProductRequest) returns (Product);
 
@@ -18,9 +16,9 @@ service Products {
   rpc UpdateProduct(UpdateProductRequest) returns (Product);
 
   // Deletes a product for the connected account.
-  // This will remove the product from the account and it will no longer be available
-  // To sell to customers. The donation product cannot be deleted, but it can be updated
-  // to change its properties.
+  // This will remove the product from the account and it will no longer be
+  // available To sell to customers. The donation product cannot be deleted, but
+  // it can be updated to change its properties.
   rpc DeleteProduct(DeleteProductRequest) returns (google.protobuf.Empty);
 
   // List all products for the connected account.
@@ -29,9 +27,9 @@ service Products {
 
 // The Create product Request used to create a new product for an account
 // to be monetized.
-// The user must provide proof of ownership of the product uid by signing a message
-// with the private key associated with the product uid and attaching the signature
-// to the request as a `signature` field in the request header.
+// The user must provide proof of ownership of the product uid by signing a
+// message with the private key associated with the product uid and attaching
+// the signature to the request as a `signature` field in the request header.
 message CreateProductRequest {
   // Required. The id of the account the new product will belong to.
   string uid = 1;
@@ -46,28 +44,30 @@ message CreateProductRequest {
   // This is the description that will be displayed to the customers.
   string description = 3;
 
-  // Required. The URL that the user will try to monetize. We will check 
-  // <url>/hm/api/config and make sure the `registeredAccountUid` seen 
-  // matches the provided uid. If the URL is a free url, it should be in the 
+  // Required. The URL that the user will try to monetize. We will check
+  // <url>/hm/api/config and make sure the `registeredAccountUid` seen
+  // matches the provided uid. If the URL is a free url, it should be in the
   // form of <domain>/hm/<uid> in which case we will only check that URL exists.
-  // If the user upgrades and gets a custom domain later, they can update the account
-  // with the new URL using CreateAccountSession or CreateAccountLink.
+  // If the user upgrades and gets a custom domain later, they can update the
+  // account with the new URL using CreateAccountSession or CreateAccountLink.
   string url = 4;
 
-  // Required. The price id to be associated with the product. The price must exist
-  // Before creating the product. The user will later be able to update the price
-  // using the prices service. A price can be attached to multiple products.
-  // This is the price that will be charged to the customers when they purchase the product.
-  // It can be an open price, a fixed price, or a subscription price.
+  // Required. The price id to be associated with the product. The price must
+  // exist Before creating the product. The user will later be able to update
+  // the price using the prices service. A price can be attached to multiple
+  // products. This is the price that will be charged to the customers when they
+  // purchase the product. It can be an open price, a fixed price, or a
+  // subscription price.
   string price_id = 5;
 
   // Optional. The statement description of the product.
-  // This is an arbitrary string to be displayed on your customer's credit card or bank statement.
-  // While most banks display this information consistently, some may display it incorrectly or not at all.
-  // This may be up to 22 characters. The statement description may not include `<`, `>`, `\`, `"`, `'` 
-  // characters, and will appear on your customer's statement in capital letters.
-  // Non-ASCII characters are automatically stripped. If not set, the name of the product 
-  // will be used as the statement description.
+  // This is an arbitrary string to be displayed on your customer's credit card
+  // or bank statement. While most banks display this information consistently,
+  // some may display it incorrectly or not at all. This may be up to 22
+  // characters. The statement description may not include `<`, `>`, `\`, `"`,
+  // `'` characters, and will appear on your customer's statement in capital
+  // letters. Non-ASCII characters are automatically stripped. If not set, the
+  // name of the product will be used as the statement description.
   string statement_description = 6;
 
   // Optional. The image URL of the product.
@@ -81,17 +81,18 @@ enum ProductType {
 
   // The product is a donation product. This is the default product that
   // is created for the account and cannot be deleted. This product is used to
-  // allow users to receive donations from their customers. Users won't be able to
-  // get invoices for this product.
+  // allow users to receive donations from their customers. Users won't be able
+  // to get invoices for this product.
   DONATION = 1;
 
   // The product is a subscription product. This product can be used to charge
-  // customers on a recurring basis. Invoices will be generated for this product.
+  // customers on a recurring basis. Invoices will be generated for this
+  // product.
   SUBSCRIPTION = 2;
 
-  // The product is a one-time purchase product. This product can be used to charge
-  // customers for a one-time purchase. This can be used in paywalls, for example.
-  // Invoices will be generated for this product.
+  // The product is a one-time purchase product. This product can be used to
+  // charge customers for a one-time purchase. This can be used in paywalls, for
+  // example. Invoices will be generated for this product.
   ONE_TIME_PURCHASE = 3;
 }
 
@@ -104,20 +105,19 @@ message Product {
   // It must be a subdomain, a custom domain. or a free hyper.media url
   string url = 2;
 
-  // The type of the product. 
+  // The type of the product.
   ProductType type = 3;
-  
+
   // The price of the product.
   accounts.v1.Price price = 4;
-
 }
 
 // The request to update an existing product for the connected account.
 // Only the fields that are set will be updated. If a field is not set, it will
 // not be updated. The product must exist before updating it.
-// The user must provide proof of ownership of the product uid by signing a message
-// with the private key associated with the product uid and attaching the signature
-// to the request as a `signature` field in the request header.
+// The user must provide proof of ownership of the product uid by signing a
+// message with the private key associated with the product uid and attaching
+// the signature to the request as a `signature` field in the request header.
 message UpdateProductRequest {
   // Required. The uid of the account the product belongs to.
   string uid = 1;
@@ -128,13 +128,14 @@ message UpdateProductRequest {
   // Optional. The new name of the product.
   string name = 3;
 
-  // Optional. The new URL that the user will try to monetize. Checks will be made
-  // the same as in CreateProductRequest.
+  // Optional. The new URL that the user will try to monetize. Checks will be
+  // made the same as in CreateProductRequest.
   string url = 4;
 
-  // Required. The price id to be associated with the product. The price must exist
-  // Before creating the product. The user will later be able to update the price
-  // using the prices service. A price can be attached to multiple products.
+  // Required. The price id to be associated with the product. The price must
+  // exist Before creating the product. The user will later be able to update
+  // the price using the prices service. A price can be attached to multiple
+  // products.
   string price_id = 5;
 
   // Optional. The description of the product.
@@ -147,9 +148,9 @@ message UpdateProductRequest {
 }
 
 // The request to delete a product for the connected account.
-// The user must provide proof of ownership of the product uid by signing a message
-// with the private key associated with the product uid and attaching the signature
-// to the request as a `signature` field in the request header.
+// The user must provide proof of ownership of the product uid by signing a
+// message with the private key associated with the product uid and attaching
+// the signature to the request as a `signature` field in the request header.
 message DeleteProductRequest {
   // Required. The uid of the account the product belongs to.
   string uid = 1;
@@ -161,7 +162,8 @@ message DeleteProductRequest {
 // The request to list all products for the connected account.
 // The user must provide proof of ownership of the account
 // uid by signing a message with the private key associated with the account uid
-// and attaching the signature to the request as a `signature` field in the request header.
+// and attaching the signature to the request as a `signature` field in the
+// request header.
 message ListProductRequest {
   // Required. The uid of the account to list products for.
   string uid = 1;

@@ -3,9 +3,7 @@ syntax = "proto3";
 package platform.v1;
 
 import "google/protobuf/empty.proto";
-import "accounts/v1/accounts.proto";
-
-option go_package = "pay/genproto/platform/v1;platformv1";
+import "pay/accounts/v1/accounts.proto";
 
 // Service management provides functionality fo manage the platform.
 service Accounts {
