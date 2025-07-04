@@ -178,7 +178,7 @@ function _CommentBox({
     )
   }
   return (
-    <div className="min-h-[105px] rounded-lg" onClick={onPress}>
+    <div className="rounded-lg" onClick={onPress}>
       {content}
     </div>
   )
@@ -283,7 +283,7 @@ function _CommentDraftEditor({
         <div className="flex flex-1 items-center">
           <AutosaveIndicator isSaved={isSaved} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Tooltip
             content={`Publish Comment as "${account?.document?.metadata.name}"`}
           >
@@ -300,7 +300,7 @@ function _CommentDraftEditor({
                 <HMIcon
                   id={account.id}
                   metadata={account.document?.metadata}
-                  size={20}
+                  size={16}
                 />
               ) : null}
               Publish
@@ -308,14 +308,15 @@ function _CommentDraftEditor({
           </Tooltip>
           <Tooltip content="Discard Comment Draft">
             <Button
-              size="iconSm"
+              size="icon"
+              className="size-7"
               onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation()
                 onDiscard()
               }}
               variant="destructive"
             >
-              <Trash />
+              <Trash className="size-4" />
             </Button>
           </Tooltip>
         </div>
