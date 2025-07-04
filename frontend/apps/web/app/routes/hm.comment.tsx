@@ -32,7 +32,6 @@ import {
   unpackHmId,
   useRouteLink,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
 import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {SmallSiteHeader} from '@shm/ui/site-header'
@@ -43,6 +42,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
 
 import {defaultSiteIcon} from '@/meta'
+import {useResource} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {cn} from '@shm/ui/utils'
@@ -100,7 +100,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     targetId && (await resolveHMDocument(targetId, {discover: true}))
   const targetAuthors = await Promise.all(
     targetDocument?.authors.map(async (authorUid) => {
-      return await getMetadata(hmId('d', authorUid))
+      return await getMetadata(hmId(authorUid))
     }) ?? [],
   )
   if (!targetDocument || !targetId) {
@@ -114,7 +114,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     )
   }
   const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId('d', config.registeredAccountUid))
+    ? await getMetadata(hmId(config.registeredAccountUid))
     : undefined
   const replyComment = replyCommentId
     ? await getComment(replyCommentId)
@@ -128,11 +128,11 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     replyComment: replyComment
       ? {
           comment: replyComment,
-          author: await getMetadata(hmId('d', replyComment.author)),
+          author: await getMetadata(hmId(replyComment.author)),
         }
       : undefined,
     originHomeId: config?.registeredAccountUid
-      ? hmId('d', config.registeredAccountUid)
+      ? hmId(config.registeredAccountUid)
       : undefined,
     ...getOriginRequestData(parsedRequest),
     originHomeMetadata: originHome?.metadata ?? undefined,
@@ -413,13 +413,15 @@ function PublishedComment({
 }) {
   const rawComment = useMemo(() => {
     const c = cborDecode<SignedComment>(comment.comment)
-    const signerId = hmId('d', base58btc.encode(c.signer))
+    const signerId = hmId(base58btc.encode(c.signer))
     return {
       c,
       signerId,
     }
   }, [comment])
-  const author = useEntity(rawComment.signerId)
+  const author = useResource(rawComment.signerId)
+  const authorDocument =
+    author.data?.type === 'document' ? author.data.document : undefined
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -444,7 +446,7 @@ function PublishedComment({
       )}
       renderCommentContent={renderCommentContent}
       isLast={isLast}
-      authorMetadata={author.data?.document?.metadata ?? undefined}
+      authorMetadata={authorDocument?.metadata ?? undefined}
     />
   )
 }

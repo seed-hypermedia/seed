@@ -146,7 +146,7 @@ export function getSiteNavDirectory({
         )
       })
       ?.map((item) => {
-        const id = hmId('d', item.account, {path: item.path, latest: true})
+        const id = hmId(item.account, {path: item.path, latest: true})
         const sortTime = normalizeDate(item.createTime)
         if (!sortTime) return null
         return {

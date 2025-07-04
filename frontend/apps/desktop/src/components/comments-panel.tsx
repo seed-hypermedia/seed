@@ -1,11 +1,11 @@
-import {useEntityCitations} from '@/models/citations'
+import {useDocumentCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
@@ -115,7 +115,7 @@ function CommentBlockAccessory({
   onBack: () => void
 }) {
   const tx = useTxString()
-  const citations = useEntityCitations(docId)
+  const citations = useDocumentCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (
       citation.targetFragment?.blockId === blockId &&
@@ -126,7 +126,7 @@ function CommentBlockAccessory({
   citationsForBlock?.forEach((citation) => {
     citation.source.author && accountIds.add(citation.source.author)
   })
-  const doc = useEntity(docId)
+  const doc = useResource(docId)
   const accounts = useContactsMetadata(Array.from(accountIds))
   let quotedContent = null
   if (doc.data?.document) {

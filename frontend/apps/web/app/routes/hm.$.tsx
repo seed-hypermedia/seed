@@ -1,10 +1,10 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage, documentPageHeaders, documentPageMeta} from '@/document'
-import {loadComment, loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
 import {Params, useLoaderData} from '@remix-run/react'
-import {hmId, HMIDTypeSchema} from '@shm/shared'
+import {hmId} from '@shm/shared'
 
 export const meta = documentPageMeta
 
@@ -31,17 +31,7 @@ export const loader = async ({
     targetDocUid,
     targetDocPath,
   })
-  if (id.type === 'c') {
-    const comment = await loadComment(id)
-    const docId =
-      id.targetDocUid &&
-      hmId('d', id.targetDocUid, {
-        path: id.targetDocPath,
-      })
-    if (!docId) throw new Error('Document not found')
-    return await loadSiteDocument(parsedRequest, docId, {comment})
-  }
-  return await loadSiteDocument(parsedRequest, id, {
+  return await loadSiteResource(parsedRequest, id, {
     prefersLanguages: parsedRequest.prefersLanguages,
   })
 }
@@ -55,17 +45,7 @@ function produceHmId(
     targetDocPath?: string[]
   },
 ) {
-  const typeParsed = HMIDTypeSchema.safeParse(pathParts[1])
-  if (typeParsed.success) {
-    return hmId(typeParsed.data, pathParts[2], {
-      path: pathParts.slice(3),
-      version: options.version,
-      latest: options.latest,
-      targetDocUid: options.targetDocUid,
-      targetDocPath: options.targetDocPath,
-    })
-  }
-  return hmId('d', pathParts[1], {
+  return hmId(pathParts[1], {
     path: pathParts.slice(2),
     version: options.version,
     latest: options.latest,

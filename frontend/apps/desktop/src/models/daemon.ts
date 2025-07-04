@@ -7,7 +7,7 @@ import {
   RegisterKeyRequest,
 } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -94,7 +94,7 @@ export function useMyAccountIds() {
 
 export function useMyAccounts() {
   const {data = []} = useMyAccountIds()
-  return useEntities(data?.map((k) => hmId('d', k)))
+  return useResources(data?.map((k) => hmId(k)))
 }
 
 /**

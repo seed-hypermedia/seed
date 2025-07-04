@@ -23,7 +23,7 @@ import {
   HMDocumentMetadataSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -151,7 +151,7 @@ export function useCommentEditor(
   } = {},
 ) {
   const selectedAccount = useSelectedAccount()
-  const targetEntity = useEntity(targetDocId)
+  const targetEntity = useResource(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const write = trpc.comments.writeCommentDraft.useMutation({

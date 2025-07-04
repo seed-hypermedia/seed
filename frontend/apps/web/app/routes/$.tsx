@@ -1,6 +1,6 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage, documentPageHeaders, documentPageMeta} from '@/document'
-import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap} from '@/wrapping'
@@ -28,9 +28,9 @@ export const loader = async ({
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid) throw new Error('No registered account uid')
   const path = (params['*'] || '').split('/')
-  return await loadSiteDocument(
+  return await loadSiteResource(
     parsedRequest,
-    hmId('d', registeredAccountUid, {path, version, latest}),
+    hmId(registeredAccountUid, {path, version, latest}),
     {prefersLanguages: parsedRequest.prefersLanguages},
   )
 }

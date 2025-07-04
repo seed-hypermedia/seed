@@ -13,12 +13,17 @@ type UniversalAppContextValue = {
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
   originHomeId?: UnpackedHypermediaId | undefined
-  origin?: string
+
+  // the web URL in the current context. If null, the hm URL should be used.
+  // on desktop its the gateway URL, on mobile its the web site host.
+  origin?: string | null
+
   openUrl: (url: string) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   hmUrlHref?: boolean
+
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
@@ -34,7 +39,7 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
 export function UniversalAppProvider(props: {
   children: React.ReactNode
   originHomeId?: UnpackedHypermediaId
-  origin?: string
+  origin?: string | null
   ipfsFileUrl?: string
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string

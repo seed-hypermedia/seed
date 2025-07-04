@@ -1,19 +1,16 @@
 import {queryClient} from '@/client'
-import {getHMDocument} from '@/loaders'
+import {getDocument} from '@/loaders'
 import {
   BIG_INT,
   DAEMON_HTTP_URL,
   HMBlockNode,
   HMCommentSchema,
-  HMDocumentSchema,
+  HMDocument,
   hmId,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared'
-import {
-  documentMetadataParseAdjustments,
-  getErrorMessage,
-  HMRedirectError,
-} from '@shm/shared/models/entity'
+import {prepareHMDocument} from '@shm/shared/document-utils'
+import {getErrorMessage, HMRedirectError} from '@shm/shared/models/entity'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findtIpfsUrlCid} from '@shm/ui/get-file-url'
 
@@ -22,7 +19,7 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
-) {
+): Promise<HMDocument> {
   await queryClient.entities.discoverEntity({
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
@@ -39,13 +36,8 @@ export async function discoverDocument(
       })
       const versionMatch =
         !version || apiDoc.version === version || (latest && !!apiDoc.version)
-      // console.log('discover getDocument', versionMatch, apiDoc.version, version)
       if (versionMatch) {
-        const docJSON = apiDoc.toJson() as any
-        documentMetadataParseAdjustments(docJSON.metadata)
-        const document = HMDocumentSchema.parse(docJSON)
-        // console.log('discover getDocument complete', document)
-        return document
+        return prepareHMDocument(apiDoc)
       }
       return null
     },
@@ -83,7 +75,7 @@ export async function discoverMedia(
     })
   }
 
-  const doc = await getHMDocument(hmId('d', uid, {path, version}))
+  const doc = await getDocument(hmId(uid, {path, version}))
   extractIpfsCids(doc.content)
   const comments = await queryClient.comments.listComments({
     targetAccount: uid,

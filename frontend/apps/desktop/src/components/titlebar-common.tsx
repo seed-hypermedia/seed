@@ -7,7 +7,7 @@ import {
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList, useCreateDraft} from '@/models/documents'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {SidebarContext} from '@/sidebar-context'
@@ -22,7 +22,7 @@ import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {
   displayHostname,
@@ -91,22 +91,24 @@ export function DocOptionsButton({
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const doc = useEntity(route.id)
-  const rootEntity = useEntity(hmId('d', route.id.uid))
-  const siteUrl = rootEntity.data?.document?.metadata.siteUrl
+  const resource = useResource(route.id)
+  const doc =
+    resource.data?.type === 'document' ? resource.data.document : undefined
+  const rootEntity = useResource(hmId(route.id.uid))
+  const rootDocument =
+    rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
+  const siteUrl = rootDocument?.metadata.siteUrl
   const copyLatest =
-    route.id.latest ||
-    !route.id.version ||
-    doc.data?.document?.version === route.id.version
+    route.id.latest || !route.id.version || doc?.version === route.id.version
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
-    siteUrl ? hmId('d', route.id.uid) : undefined,
+    siteUrl ? hmId(route.id.uid) : undefined,
   )
   const copyUrlId = {
     ...route.id,
     latest: copyLatest,
-    version: doc.data?.document?.version || null,
+    version: doc?.version || null,
   }
   const removeSite = useRemoveSiteDialog()
   const capability = useSelectedAccountCapability(route.id)
@@ -132,14 +134,15 @@ export function DocOptionsButton({
       label: 'Export Document',
       icon: Download,
       onPress: async () => {
-        const title = doc.data?.document?.metadata.name || 'document'
-        const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
+        if (!doc) return
+        const title = doc?.metadata.name || 'document'
+        const blocks: HMBlockNode[] | undefined = doc?.content || undefined
         const editorBlocks = hmBlocksToEditorContent(blocks, {
           childrenType: 'Group',
         })
         const markdownWithFiles = await convertBlocksToMarkdown(
           editorBlocks,
-          doc.data?.document,
+          doc,
         )
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
@@ -183,8 +186,7 @@ export function DocOptionsButton({
       },
     })
   }
-  const document = doc.data?.document
-  if (document && canEditDoc && route.id.path?.length && !route.id.version) {
+  if (doc && canEditDoc && route.id.path?.length && !route.id.version) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
@@ -197,7 +199,7 @@ export function DocOptionsButton({
               type: 'backplace',
               route: {
                 key: 'document',
-                id: hmId('d', route.id.uid, {
+                id: hmId(route.id.uid, {
                   path: route.id.path?.slice(0, -1),
                 }),
               } as any,
@@ -208,10 +210,8 @@ export function DocOptionsButton({
     })
   }
   if (!route.id.path?.length && canEditDoc) {
-    if (doc.data?.document?.metadata?.siteUrl) {
-      const siteHost = hostnameStripProtocol(
-        doc.data?.document?.metadata?.siteUrl,
-      )
+    if (doc?.metadata?.siteUrl) {
+      const siteHost = hostnameStripProtocol(doc?.metadata?.siteUrl)
       const gwHost = hostnameStripProtocol(gwUrl)
       if (siteHost.endsWith(gwHost) && !pendingDomain) {
         menuItems.push({
@@ -244,7 +244,7 @@ export function DocOptionsButton({
   }
   const createDraft = useCreateDraft({
     locationUid: route.id.uid,
-    locationPath: route.id.path,
+    locationPath: route.id.path || undefined,
   })
   const importDialog = useImportDialog()
   const importing = useImporting(route.id)
@@ -314,11 +314,7 @@ function useExistingDraft(route: DocumentRoute) {
   const existingDraft = drafts.data?.find((d) => {
     const id = d.editId
     if (!id) return false
-    return (
-      id.type === route.id.type &&
-      id.uid === route.id.uid &&
-      pathMatches(id.path, route.id.path)
-    )
+    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
   })
   return existingDraft
 }
@@ -448,7 +444,7 @@ export function PageActionButtons(props: TitleBarProps) {
       <DiscardDraftButton key="discard-draft" />,
       <AccessorySidebarToggle />,
     ]
-  } else if (route.key === 'document' && route.id.type === 'd') {
+  } else if (route.key === 'document') {
     return <DocumentTitlebarButtons route={route} />
   }
   return <TitlebarSection>{buttonGroup}</TitlebarSection>
@@ -456,7 +452,7 @@ export function PageActionButtons(props: TitleBarProps) {
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const {id} = route
-  const latestDoc = useSubscribedEntity(latestId(id))
+  const latestDoc = useSubscribedResource(latestId(id))
   const isLatest =
     !route.id.version ||
     route.id.latest ||
@@ -465,7 +461,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const isHomeDoc = !id.path?.length
   const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
-  const entity = useEntity(id)
+  const entity = useResource(id)
   const showPublishSiteButton =
     isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
   return (
@@ -696,4 +692,18 @@ function AccessorySidebarToggle() {
     )
   }
   return null
+}
+
+export function TitlebarTitle() {
+  const route = useNavRoute()
+  if (route.key !== 'document') return null
+  return (
+    <View userSelect="none" minWidth={100}>
+      <DocumentTitle
+        id={hmId(route.id.uid, {
+          path: route.id.path,
+        })}
+      />
+    </View>
+  )
 }

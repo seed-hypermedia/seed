@@ -135,7 +135,7 @@ export type ChangeBlob<EntitySchema> = {
   // action: 'Update', // seems to appear on group changes but not account changes
   delegation: IPLDRef
   deps: IPLDRef[]
-  entity: string // entity id like hm://d/123
+  entity: string // entity id like hm://123
   hlcTime: number
   patch: Partial<EntitySchema>
   sig: IPLDBytes

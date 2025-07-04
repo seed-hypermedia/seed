@@ -35,7 +35,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -129,7 +129,7 @@ export function useDocumentEmbeds(
   const docRefs = useMemo(() => {
     return extractRefs(doc?.content || [], opts?.skipCards)
   }, [doc, enabled])
-  const entities = useEntities(docRefs.map((r) => r.refId))
+  const entities = useResources(docRefs.map((r) => r.refId))
   return entities
     .map((entity) => {
       return entity.data
@@ -181,7 +181,9 @@ export function usePublishDraft(
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
-  const editEntity = useEntity(editId)
+  const editEntity = useResource(editId)
+  const editDocument =
+    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   return useMutation<HMDocument, any, PublishDraftInput>({
     mutationFn: async ({
@@ -195,10 +197,10 @@ export function usePublishDraft(
         )
       }
       console.log('~ draft', draft)
-      console.log('~ document', editEntity.data?.document)
+      console.log('~ document', editDocument)
 
       const blocksMap = editId
-        ? createBlocksMap(editEntity.data?.document?.content || [], '')
+        ? createBlocksMap(editDocument?.content || [], '')
         : {}
       const newContent = removeTrailingBlocks(draft.content || [])
 
@@ -278,7 +280,7 @@ export function usePublishDraft(
       variables: PublishDraftInput,
       context: unknown,
     ) => {
-      const resultDocId = hmId('d', result.account, {
+      const resultDocId = hmId(result.account, {
         path: entityQueryPathToHmIdPath(result.path),
       })
       opts?.onSuccess?.(result, variables, context)
@@ -421,27 +423,28 @@ export function useDraftEditor() {
 
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
-    return hmId('d', route.locationUid, {
+    return hmId(route.locationUid, {
       path: route.locationPath,
     })
   }, [route])
 
-  const locationEntity = useEntity(locationId)
+  const locationEntity = useResource(locationId)
 
   const editId = useMemo(() => {
     if (data?.editUid)
-      return hmId('d', data.editUid, {
+      return hmId(data.editUid, {
         path: data.editPath,
       })
     if (route.editUid)
-      return hmId('d', route.editUid, {
+      return hmId(route.editUid, {
         path: route.editPath,
       })
     return undefined
   }, [route, data])
 
-  const editEntity = useEntity(editId)
-
+  const editEntity = useResource(editId)
+  const editDocument =
+    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -580,13 +583,10 @@ export function useDraftEditor() {
                 navigation: event.payload.data.navigation,
               }
             } else if (event.payload.type == 'edit') {
-              if (context.editUid && editEntity.data?.document?.content) {
-                content = hmBlocksToEditorContent(
-                  editEntity.data.document.content || [],
-                  {
-                    childrenType: 'Group',
-                  },
-                )
+              if (context.editUid && editDocument?.content) {
+                content = hmBlocksToEditorContent(editDocument.content || [], {
+                  childrenType: 'Group',
+                })
                 editor.replaceBlocks(editor.topLevelBlocks, content as any)
                 const tiptap = editor?._tiptapEditor
                 // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
@@ -794,7 +794,7 @@ export function usePublishToSite() {
               if (results) {
                 await Promise.all(
                   results.results.map(async (result) => {
-                    const id = hmId('d', result.account, {
+                    const id = hmId(result.account, {
                       path: result.path,
                       version: result.version,
                     })
@@ -854,7 +854,7 @@ export function usePublishToSite() {
       if (authors.has(id.uid) && path.length === 0) {
         return
       }
-      syncParentIds.push(hmId('d', id.uid, {path}))
+      syncParentIds.push(hmId(id.uid, {path}))
     })
     const authorIds = (
       await Promise.all(
@@ -864,7 +864,7 @@ export function usePublishToSite() {
             const authorDoc = await grpcClient.documents.getDocument({
               account: authorUid,
             })
-            const authorId = hmId('d', authorUid, {version: authorDoc.version})
+            const authorId = hmId(authorUid, {version: authorDoc.version})
             if (authorId.uid === id.uid && authorId.version === doc.version) {
               // we are already discovering this doc, so it does not need to be included in the list of authorIds
               return null
@@ -930,7 +930,7 @@ export function queryListDirectory(
         .map((d) => ({
           ...toPlainMessage(d),
           type: 'document',
-          id: hmId('d', d.account, {
+          id: hmId(d.account, {
             path: entityQueryPathToHmIdPath(d.path),
           }).id,
           metadata: HMDocumentMetadataSchema.parse(
@@ -1439,7 +1439,7 @@ export function getDraftEditId(
   } else if (!draftData.destinationUid) {
     return undefined
   } else {
-    return hmId('d', draftData.destinationUid, {
+    return hmId(draftData.destinationUid, {
       path: draftData.destinationPath,
     })
   }
@@ -1474,7 +1474,6 @@ export function useSiteNavigationItems(
             metadata: {
               name: itemBlock.block.text || '?',
             },
-            sortTime: new Date(),
           } satisfies DocNavigationItem
         })
         .filter((b) => !!b) || []

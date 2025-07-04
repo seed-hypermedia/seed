@@ -122,7 +122,6 @@ class HeadingBoxPlugin {
     this.box.style.display = ''
     this.box.style.opacity = '0'
     view.dom.parentNode?.appendChild(this.box)
-    console.log('view.dom', view.dom.parentNode)
     this.update(view, null)
   }
 

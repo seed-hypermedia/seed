@@ -1,6 +1,6 @@
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
-import {useSubscribedEntity} from '@/models/entities'
+import {useAccountsMetadata, useSubscribedResource} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
 import {getContactMetadata, queryBlockSortedItems} from '@shm/shared/content'
@@ -11,7 +11,7 @@ import {
   HMDocumentInfo,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
@@ -260,7 +260,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       </SizableText>
     )
   }
-  const doc = useSubscribedEntity(props)
+  const doc = useSubscribedResource(props)
   const navigate = useNavigate()
   return (
     <ContentEmbed
@@ -268,7 +268,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       isLoading={doc.isInitialLoading}
       showReferenced={showReferenced}
       onShowReferenced={setShowReferenced}
-      document={doc.data?.document}
+      document={doc.data?.type === 'document' ? doc.data.document : undefined}
       EmbedWrapper={EmbedWrapper}
       parentBlockId={props.parentBlockId}
       renderOpenButton={() => (
@@ -297,9 +297,9 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
   const route = useNavRoute()
-  const doc = useSubscribedEntity(props)
-  const authors = useEntities(
-    doc.data?.document?.authors?.map((uid) => hmId('d', uid)) || [],
+  const doc = useSubscribedResource(props)
+  const authors = useAccountsMetadata(
+    doc.data?.type === 'document' ? doc.data.document?.authors || [] : [],
   )
   const view =
     (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
@@ -323,12 +323,11 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         <DocumentCard
           entity={{
             id,
-            document: doc.data.document,
+            document:
+              doc.data.type === 'document' ? doc.data.document : undefined,
           }}
           docId={id}
-          accountsMetadata={authors
-            .map((author) => author.data)
-            .filter((d) => !!d)}
+          accountsMetadata={authors}
           navigate={route.key === 'document'}
         />
       </div>
@@ -337,11 +336,13 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 }
 
 export function EmbedComment(props: EntityComponentProps) {
-  if (props?.type !== 'c')
-    throw new Error('Invalid props as ref for EmbedComment')
-  const comment = useComment(hmId('c', props.uid), {
-    enabled: !!props,
-  })
+  const comment = useComment(
+    hmId(props.uid, {
+      path: props.path,
+      blockRef: props.blockRef,
+    }),
+    {enabled: !!props.uid},
+  )
   let embedBlocks = useMemo(() => {
     const selectedBlock =
       props.blockRef && comment.data?.content
@@ -352,24 +353,22 @@ export function EmbedComment(props: EntityComponentProps) {
 
     return embedBlocks
   }, [props.blockRef, comment.data])
-  const account = useSubscribedEntity(
-    comment.data?.author ? hmId('d', comment.data?.author) : null,
+  const account = useSubscribedResource(
+    comment.data?.author ? hmId(comment.data?.author) : null,
   )
+  const accountMetadata =
+    account.data?.type === 'document'
+      ? account.data.document?.metadata
+      : undefined
   if (comment.isLoading) return null
   return (
     <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
       <div className="flex flex-wrap justify-between p-3">
         <div className="flex items-center gap-2">
           {account.data?.id && (
-            <HMIcon
-              size={24}
-              id={account.data.id}
-              metadata={account.data?.document?.metadata}
-            />
+            <HMIcon size={24} id={account.data.id} metadata={accountMetadata} />
           )}
-          <SizableText weight="bold">
-            {account.data?.document?.metadata?.name}
-          </SizableText>
+          <SizableText weight="bold">{accountMetadata?.name}</SizableText>
         </div>
         {comment.data?.createTime ? (
           <SizableText size="sm" color="muted">
@@ -401,26 +400,15 @@ export function EmbedComment(props: EntityComponentProps) {
 
 export function EmbedInline(props: EntityComponentProps) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
-  if (props?.type == 'd') {
-    return (
-      <DocInlineEmbed
-        {...props}
-        onHoverIn={onHoverIn}
-        onHoverOut={onHoverOut}
-      />
-    )
-  } else {
-    console.error('Inline Embed Error', JSON.stringify(props))
-    return <SizableText>??</SizableText>
-  }
+  return (
+    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
+  )
 }
 
 function DocInlineEmbed(props: EntityComponentProps) {
-  const pubId = props?.type == 'd' ? props.id : undefined
   const contacts = useSelectedAccountContacts()
-  if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
-  const doc = useSubscribedEntity(props)
-  const document = doc.data?.document
+  const doc = useSubscribedResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
   return (
     <InlineEmbedButton
       entityId={narrowHmId(props)}
@@ -444,7 +432,7 @@ export function QueryBlockDesktop({
   block: HMBlockQuery
   id: UnpackedHypermediaId
 }) {
-  useSubscribedEntity(id, true)
+  useSubscribedResource(id, true)
 
   const directoryItems = useListDirectory(id, {
     mode: block.attributes.query.includes[0].mode,
@@ -475,7 +463,7 @@ export function QueryBlockDesktop({
 
   const docIds =
     sortedItems.map((item) =>
-      hmId('d', item.account, {
+      hmId(item.account, {
         path: item.path,
         latest: true,
       }),
@@ -486,9 +474,9 @@ export function QueryBlockDesktop({
     item.authors.forEach((authorId) => authorIds.add(authorId)),
   )
 
-  const documents = useEntities([
+  const documents = useResources([
     ...docIds,
-    ...Array.from(authorIds).map((uid) => hmId('d', uid)),
+    ...Array.from(authorIds).map((uid) => hmId(uid)),
   ])
 
   function getEntity(path: string[]) {
@@ -503,7 +491,7 @@ export function QueryBlockDesktop({
     documents
       .map((document) => {
         const d = document.data
-        if (!d || !d.document) return null
+        if (!d || d.type !== 'document') return null
         if (d.id.path && d.id.path.length !== 0) return null
         return [
           d.id.uid,
@@ -550,7 +538,7 @@ function QueryStyleCard({
 }) {
   const docs = useMemo(() => {
     return items.map((item) => {
-      const id = hmId('d', item.account, {
+      const id = hmId(item.account, {
         path: item.path,
         latest: true,
       })
@@ -586,7 +574,7 @@ function QueryStyleList({
   const entries = useMemo(
     () =>
       items.map((item) => {
-        const id = hmId('d', item.account, {
+        const id = hmId(item.account, {
           path: item.path,
           latest: true,
         })

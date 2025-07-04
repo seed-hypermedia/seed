@@ -1,11 +1,10 @@
-import {useEntityCitations} from '@/models/citations'
+import {useDocumentCitations} from '@/models/citations'
 import {useComment, useCommentReplies} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   DocumentCitationsAccessory,
   deduplicateCitations,
-  entityQueryPathToHmIdPath,
   hmId,
   unpackHmId,
 } from '@shm/shared'
@@ -17,7 +16,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity, useResolvedEntities} from '@shm/shared/models/entity'
+import {useResolvedResources, useResource} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/discussion'
@@ -37,7 +36,7 @@ export function CitationsPanel({
   accessory: DocumentCitationsAccessory
   onAccessory: (accessory: DocumentCitationsAccessory) => void
 }) {
-  const citations = useEntityCitations(entityId)
+  const citations = useDocumentCitations(entityId)
   if (!entityId) return null
 
   const distinctCitations = useMemo(() => {
@@ -70,7 +69,7 @@ export function CitationsPanel({
         .filter(Boolean) as UnpackedHypermediaId[],
     [distinctCitations],
   )
-  const documents = useResolvedEntities(documentIds)
+  const documents = useResolvedResources(documentIds)
   const accounts = useContactsMetadata(accountsToLoad)
   return (
     <AccessoryContent>
@@ -108,7 +107,7 @@ function DocumentPreview({
   metadata?: HMMetadata | null
   docId: UnpackedHypermediaId
 }) {
-  const doc = useEntity(docId)
+  const doc = useResource(docId)
   if (doc.isInitialLoading) {
     return (
       <div className="flex items-center justify-center">
@@ -169,12 +168,7 @@ export function CommentCitationEntry({
     }
     return comment.data
   }, [comment.data, citationTargetFragment, citationTarget])
-  const docId = comment.data
-    ? hmId('d', comment.data.targetAccount, {
-        path: entityQueryPathToHmIdPath(comment.data.targetPath),
-        version: comment.data.targetVersion,
-      })
-    : undefined
+  const docId = comment.data ? hmId(comment.data.targetAccount) : undefined
   const replies = useCommentReplies(citation.source.id.uid, docId)
 
   if (!comment.data || !docId) return null

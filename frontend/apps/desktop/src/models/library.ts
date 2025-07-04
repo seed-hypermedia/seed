@@ -110,7 +110,7 @@ export function useLibrary({
         (doc) =>
           subscriptions.data?.find((sub) =>
             isSubscribedBy(
-              hmId('d', doc.account, {
+              hmId(doc.account, {
                 path: doc.path,
               }),
               sub,
@@ -124,7 +124,7 @@ export function useLibrary({
             return (
               fav &&
               fav.id ===
-                hmId('d', doc.account, {
+                hmId(doc.account, {
                   path: doc.path,
                 }).id
             )
@@ -198,7 +198,6 @@ export function useSiteLibrary(
 ) {
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
-    enabled,
     queryFn: async () => {
       if (!siteUid) return {documents: []}
       const res = await grpcClient.documents.listDocuments({
@@ -219,7 +218,7 @@ export function useSiteLibrary(
         }),
       }
     },
-    enabled: !!siteUid,
+    enabled: enabled && !!siteUid,
   })
   const commentIds = siteDocuments.data?.documents
     .map((doc) => doc.activitySummary?.latestCommentId)
@@ -227,16 +226,15 @@ export function useSiteLibrary(
     .filter((commentId) => commentId.length)
   const comments = useComments(commentIds || [])
 
-  const data: HMLibraryDocument[] = siteDocuments.data?.documents.map(
-    (doc) => ({
+  const data: HMLibraryDocument[] =
+    siteDocuments.data?.documents.map((doc) => ({
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,
-    }),
-  )
+    })) || []
 
   return {
     ...siteDocuments,

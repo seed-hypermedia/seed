@@ -1,5 +1,4 @@
 import {queryClient} from '@/client'
-import {WebBaseDocumentPayload} from '@/loaders'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -18,7 +17,7 @@ async function getAccount(accountUid: string) {
   const serverMetadata = grpcAccount.metadata?.toJson() || {}
   const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
   return {
-    id: hmId('d', accountUid),
+    id: hmId(accountUid),
     metadata,
   } as HMMetadataPayload
 }
@@ -29,7 +28,7 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<WebBaseDocumentPayload>> => {
+}): Promise<WrappedResponse<HMMetadataPayload>> => {
   const parsedRequest = parseRequest(request)
   const {url} = parsedRequest
   const accountUid = params['*']

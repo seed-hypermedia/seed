@@ -2,22 +2,22 @@ import {ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {RedirectErrorDetails} from '../client'
 import {
-  HMDocument,
-  HMDocumentSchema,
-  HMEntityContent,
   HMMetadataPayload,
+  HMResolvedResource,
+  HMResource,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {queryKeys} from './query-keys'
 
-let queryEntity: ((hmId: UnpackedHypermediaId) => Promise<HMDocument>) | null =
-  null
+let queryResource:
+  | ((hmId: UnpackedHypermediaId) => Promise<HMResource>)
+  | null = null
 
-export function setEntityQuery(
-  handler: (hmId: UnpackedHypermediaId) => Promise<HMDocument>,
+export function setResourceQuery(
+  handler: (hmId: UnpackedHypermediaId) => Promise<HMResource>,
 ) {
-  queryEntity = handler
+  queryResource = handler
 }
 
 let queryAccount: ((accountUid: string) => Promise<HMMetadataPayload>) | null =
@@ -39,38 +39,41 @@ export function documentParseAdjustments(document: any) {
   documentMetadataParseAdjustments(document?.metadata)
 }
 
-export async function loadEntity(
+export async function loadResource(
   id: UnpackedHypermediaId,
-): Promise<HMEntityContent | null> {
-  try {
-    if (!queryEntity) throw new Error('queryEntity not injected')
+): Promise<HMResource | null> {
+  if (!queryResource) throw new Error('queryResource not injected')
+  return await queryResource(id)
 
-    const serverDocument = await queryEntity(id)
+  // try {
+  //   if (!queryResource) throw new Error('queryResource not injected')
 
-    documentParseAdjustments(serverDocument)
-    // console.log('serverDocument', serverDocument.toJson())
-    const result = HMDocumentSchema.safeParse(serverDocument)
-    if (result.success) {
-      const document = result.data
-      return {
-        id: {...id, version: document.version},
-        document,
-      }
-    } else {
-      console.error('Invalid Document Data', serverDocument, result.error)
-      return {id, document: undefined}
-    }
-  } catch (e) {
-    const error = getErrorMessage(e)
-    if (error instanceof HMRedirectError) {
-      return {
-        id,
-        redirectTarget: error.target,
-        document: undefined,
-      }
-    }
-    return {id, document: undefined}
-  }
+  //   return await queryResource(id)
+
+  //   documentParseAdjustments(serverDocument)
+  //   // console.log('serverDocument', serverDocument.toJson())
+  //   const result = HMDocumentSchema.safeParse(serverDocument)
+  //   if (result.success) {
+  //     const document = result.data
+  //     return {
+  //       id: {...id, version: document.version},
+  //       document,
+  //     }
+  //   } else {
+  //     console.error('Invalid Document Data', serverDocument, result.error)
+  //     return {id, document: undefined}
+  //   }
+  // } catch (e) {
+  //   const error = getErrorMessage(e)
+  //   if (error instanceof HMRedirectError) {
+  //     return {
+  //       id,
+  //       redirectTarget: error.target,
+  //       document: undefined,
+  //     }
+  //   }
+  //   return {id, document: undefined}
+  // }
 }
 
 export async function loadAccount(
@@ -80,28 +83,28 @@ export async function loadAccount(
   return await queryAccount(accountUid)
 }
 
-export async function loadResolvedEntity(
+export async function loadResolvedResource(
   id: UnpackedHypermediaId,
-): Promise<HMEntityContent | null> {
-  let entity = await loadEntity(id)
-  while (entity?.redirectTarget) {
-    entity = await loadEntity(entity.redirectTarget)
+): Promise<HMResolvedResource | null> {
+  let resource = await loadResource(id)
+  if (resource?.type === 'redirect') {
+    return await loadResolvedResource(resource.redirectTarget)
   }
-  return entity
+  return resource
 }
 
-export function getEntityQuery(
+export function getResourceQuery(
   id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
-): UseQueryOptions<HMEntityContent | null> {
+  options?: UseQueryOptions<HMResource | null>,
+): UseQueryOptions<HMResource | null> {
   const version = id?.latest ? undefined : id?.version || undefined
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
     queryKey: [queryKeys.ENTITY, id?.id, version],
-    queryFn: async (): Promise<HMEntityContent | null> => {
+    queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      return await loadEntity(id)
+      return await loadResource(id)
     },
   }
 }
@@ -121,27 +124,27 @@ export function getAccountQuery(
   }
 }
 
-export function getResolvedEntityQuery(
+export function getResolvedResourceQuery(
   id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
-): UseQueryOptions<HMEntityContent | null> {
+  options?: UseQueryOptions<HMResolvedResource | null>,
+): UseQueryOptions<HMResolvedResource | null> {
   const version = id?.latest ? undefined : id?.version || undefined
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
     queryKey: [queryKeys.RESOLVED_ENTITY, id?.id, version],
-    queryFn: async (): Promise<HMEntityContent | null> => {
+    queryFn: async (): Promise<HMResolvedResource | null> => {
       if (!id) return null
-      return await loadResolvedEntity(id)
+      return await loadResolvedResource(id)
     },
   }
 }
 
-export function useEntity(
+export function useResource(
   id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
+  options?: UseQueryOptions<HMResource | null>,
 ) {
-  return useQuery(getEntityQuery(id, options))
+  return useQuery(getResourceQuery(id, options))
 }
 
 export function useAccount(
@@ -151,19 +154,19 @@ export function useAccount(
   return useQuery(getAccountQuery(id, options))
 }
 
-export function useResolvedEntity(
+export function useResolvedResource(
   id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
+  options?: UseQueryOptions<HMResolvedResource | null>,
 ) {
-  return useQuery(getResolvedEntityQuery(id, options))
+  return useQuery(getResolvedResourceQuery(id, options))
 }
 
-export function useEntities(
+export function useResources(
   ids: (UnpackedHypermediaId | null | undefined)[],
-  options?: UseQueryOptions<HMEntityContent | null>,
+  options?: UseQueryOptions<HMResource | null>,
 ) {
   return useQueries({
-    queries: ids.map((id) => getEntityQuery(id)),
+    queries: ids.map((id) => getResourceQuery(id)),
     ...(options || {}),
   })
 }
@@ -178,12 +181,12 @@ export function useAccounts(
   })
 }
 
-export function useResolvedEntities(
+export function useResolvedResources(
   ids: (UnpackedHypermediaId | null | undefined)[],
-  options?: UseQueryOptions<HMEntityContent | null>,
+  options?: UseQueryOptions<HMResolvedResource | null>,
 ) {
   return useQueries({
-    queries: ids.map((id) => getResolvedEntityQuery(id)),
+    queries: ids.map((id) => getResolvedResourceQuery(id)),
     ...(options || {}),
   })
 }
@@ -193,7 +196,7 @@ export class HMRedirectError extends Error {
     super('Document Redirected')
   }
   public get target(): UnpackedHypermediaId {
-    return hmId('d', this.redirect.targetAccount, {
+    return hmId(this.redirect.targetAccount, {
       path: entityQueryPathToHmIdPath(this.redirect.targetPath),
     })
   }
