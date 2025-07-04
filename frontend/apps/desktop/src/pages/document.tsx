@@ -141,7 +141,7 @@ export default function DocumentPage() {
           })
         }}
       >
-        <div className="flex h-full flex-1 flex-col">
+        <div className="flex flex-col flex-1 h-full">
           <AccessoryLayout
             mainPanelRef={mainPanelRef}
             accessory={accessory}
@@ -288,7 +288,7 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
       />
       <div
-        className="relative flex flex-1 flex-col overflow-hidden"
+        className="flex overflow-hidden relative flex-col flex-1"
         ref={elementRef}
       >
         <DocInteractionsSummary docId={id} />
@@ -306,7 +306,7 @@ function _MainDocumentPage({
                 }}
               >
                 <div
-                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
+                  className="flex overflow-scroll flex-col h-full hide-scrollbar"
                   // paddingVertical="$4"
                 >
                   <DocNavigation showCollapsed={showCollapsed} />
@@ -319,7 +319,7 @@ function _MainDocumentPage({
               className={cn(mainContentProps.className, 'sm:mr-10 sm:ml-0')}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
+              <div className="flex-1 pl-4 mt-4 mb-16 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
@@ -519,11 +519,11 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        className="dark:bg-background bg-white"
+        className="bg-white dark:bg-background"
         data-docid={docId.id}
         borderRadius="$2"
       >
-        <div className="group flex flex-col gap-4" data-group="header">
+        <div className="flex flex-col gap-4 group" data-group="header">
           {hasIcon ? (
             <div
               className="flex"
@@ -547,17 +547,22 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               {getDocumentTitle(entity.data?.document)}
             </SeedHeading>
           </div>
+          {entity.data.document?.metadata?.summary ? (
+            <span className="text-xl font-body text-muted-foreground">
+              {entity.data.document?.metadata?.summary}
+            </span>
+          ) : null}
           <div className="flex flex-col gap-2">
             {entity.data?.document?.metadata.siteUrl ? (
               <SiteURLButton
                 siteUrl={entity.data?.document?.metadata.siteUrl}
               />
             ) : null}
-            <div className="flex flex-1 items-center justify-between gap-3">
-              <div className="flex flex-1 flex-wrap items-center gap-3">
+            <div className="flex flex-1 gap-3 justify-between items-center">
+              <div className="flex flex-wrap flex-1 gap-3 items-center">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <div className="flex max-w-full flex-wrap items-center gap-1">
+                    <div className="flex flex-wrap gap-1 items-center max-w-full">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -612,7 +617,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                         })
                         .filter(Boolean)}
                     </div>
-                    <div className="bg-border h-6 w-px" />
+                    <div className="w-px h-6 bg-border" />
                   </>
                 ) : null}
                 {entity.data?.document ? (
@@ -677,10 +682,10 @@ function DocMessageBox({
 }) {
   return (
     <div className={cn(panelContainerStyles)}>
-      <div className="mx-auto px-8 py-10">
-        <div className="border-border bg-background flex w-full max-w-lg flex-1 flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
+      <div className="px-8 py-10 mx-auto">
+        <div className="flex flex-col flex-1 flex-none gap-4 p-6 w-full max-w-lg rounded-lg border shadow-lg border-border bg-background dark:bg-black">
           {spinner ? (
-            <div className="flex items-center justify-start">
+            <div className="flex justify-start items-center">
               <Spinner className="size-6 fill-blue-500" />
             </div>
           ) : null}

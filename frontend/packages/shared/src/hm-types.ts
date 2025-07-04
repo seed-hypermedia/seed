@@ -533,6 +533,7 @@ export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
 
 export const HMDocumentMetadataSchema = z.object({
   name: z.string().optional(),
+  summary: z.string().optional(),
   icon: z.string().optional(),
   thumbnail: z.string().optional(), // DEPRECATED
   cover: z.string().optional(),

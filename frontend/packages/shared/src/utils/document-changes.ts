@@ -20,6 +20,8 @@ export function getDocAttributeChanges(metadata: HMMetadata) {
   const changes = []
   if (metadata.name !== undefined)
     changes.push(docAttributeChangeString(['name'], metadata.name))
+  if (metadata.summary !== undefined)
+    changes.push(docAttributeChangeString(['summary'], metadata.summary))
   if (metadata.icon !== undefined)
     changes.push(docAttributeChangeString(['icon'], metadata.icon))
   if (metadata.thumbnail !== undefined)

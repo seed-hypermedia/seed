@@ -10,7 +10,7 @@ import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {ButtonText, Input} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
@@ -47,7 +47,7 @@ export function OptionsPanel({
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
             <SizableText
-              className="mt-4 flex-1 px-1 select-none"
+              className="flex-1 px-1 mt-4 select-none"
               size="md"
               weight="semibold"
             >
@@ -65,6 +65,7 @@ export function OptionsPanel({
         ) : (
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
+            <SummaryInput metadata={metadata} onMetadata={onMetadata} />
             <DocumentIconForm
               draftId={draftId}
               metadata={metadata}
@@ -102,6 +103,58 @@ function NameInput({
         size="$"
         value={metadata.name}
         onChangeText={(name) => onMetadata({name})}
+      />
+    </div>
+  )
+}
+
+function SummaryInput({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const adjustHeight = (textarea: HTMLTextAreaElement) => {
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      adjustHeight(textareaRef.current)
+    }
+  }, [metadata.summary])
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // strip newlines:
+    const textarea = e.target
+    onMetadata({summary: textarea.value.replace(/\n/g, '')})
+
+    // adjustHeight(textarea)
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Label size="sm" className="text-muted-foreground">
+        Summary
+      </Label>
+      <textarea
+        ref={textareaRef}
+        className="p-2 px-4 w-full rounded-md bg-muted border-border border-1"
+        style={{
+          resize: 'none',
+          minHeight: '38px',
+          overflow: 'hidden',
+        }}
+        value={metadata.summary}
+        onChange={handleTextareaChange}
+        onInput={(e) => {
+          const textarea = e.target as HTMLTextAreaElement
+          adjustHeight(textarea)
+        }}
       />
     </div>
   )
