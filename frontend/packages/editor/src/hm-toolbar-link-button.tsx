@@ -7,6 +7,7 @@ import {
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {
   Popover,
   PopoverContent,
@@ -19,7 +20,6 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {Check, Link, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
-import {Input} from 'tamagui'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
@@ -165,17 +165,14 @@ function AddHyperlink({
       <Input
         value={_url}
         onChangeText={setUrl}
-        minWidth="15rem"
-        size="$2"
-        borderWidth={0}
+        className="min-w-[15rem] flex-1"
         placeholder="Enter a link"
-        onKeyPress={(e: any) => {
+        onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
             inputLink(_url)
           }
         }}
-        flex={1}
       />
 
       {isLoading ? (

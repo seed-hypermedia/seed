@@ -18,6 +18,7 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
+import {Input} from '@shm/ui/components/input'
 import {
   BlockContentEmbed,
   ErrorBlock,
@@ -27,10 +28,10 @@ import {ExternalLink} from '@shm/ui/icons'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Input, YStack} from 'tamagui'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -303,29 +304,11 @@ const EmbedLauncherInput = ({
   }, [focusedIndex, activeItems])
 
   let content = (
-    <YStack
-      display={focused ? 'flex' : 'none'}
-      gap="$2"
-      elevation={2}
-      opacity={1}
-      paddingVertical="$3"
-      paddingHorizontal="$3"
-      backgroundColor="$backgroundHover"
-      borderTopStartRadius={0}
-      borderTopEndRadius={0}
-      borderBottomLeftRadius={6}
-      borderBottomRightRadius={6}
-      position="absolute"
-      top="100%"
-      left={0}
-      width="100%"
-      zIndex={999}
-      maxHeight={300} // TODO, dynamically update based on window height?
-      overflow="auto"
-      style={{
-        overflowX: 'hidden',
-        scrollbarWidth: 'none',
-      }}
+    <div
+      className={cn(
+        'bg-muted border-t-none border-b-md absolute top-full z-[999] max-h-[300px] w-full gap-2 overflow-auto overflow-x-hidden p-3 opacity-100 shadow-sm',
+        focused ? 'flex flex-col' : 'hidden',
+      )}
     >
       {isDisplayingRecents && (
         <SizableText color="muted" className="mx-4">
@@ -355,24 +338,16 @@ const EmbedLauncherInput = ({
           </>
         )
       })}
-    </YStack>
+    </div>
   )
 
   return (
-    <YStack position="relative" flex={1}>
+    <div className="relative flex flex-1 flex-col">
       <Input
-        unstyled
-        backgroundColor={comment ? '$color6' : '$color4'}
-        outlineWidth="$0"
-        color="$color12"
-        borderColor="$color8"
-        borderWidth="$1"
-        borderRadius="$2"
-        paddingLeft="$3"
-        height="$3"
-        width="100%"
-        hoverStyle={{borderColor: '$color11'}}
-        focusStyle={{borderColor: '$color11'}}
+        style={{
+          backgroundColor: comment ? '$color6' : '$color4',
+        }}
+        className={cn('w-full pl-3', comment ? 'bg-muted/60' : 'bg-muted')}
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         autoFocus={false}
@@ -385,7 +360,7 @@ const EmbedLauncherInput = ({
           }
         }}
         placeholder="Query or input Embed URL..."
-        onKeyPress={(e: any) => {
+        onKeyDown={(e: any) => {
           if (!activeItems.length) return
 
           if (e.nativeEvent.key === 'Escape') {
@@ -405,6 +380,6 @@ const EmbedLauncherInput = ({
       />
 
       {content}
-    </YStack>
+    </div>
   )
 }

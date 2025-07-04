@@ -1,5 +1,6 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import {Button} from '@shm/ui/button'
 import {Textarea} from '@shm/ui/components/textarea'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {UserPlus} from '@shm/ui/icons'
@@ -7,7 +8,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {base58btc} from 'multiformats/bases/base58'
 import {useMemo, useState} from 'react'
-import {Button} from 'tamagui'
 import appError from '../errors'
 import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
@@ -80,16 +80,12 @@ export function AddConnectionDialog({
 
       <div className="flex justify-between">
         <Button
-          onPress={() => connect.mutate(peerText)}
+          onClick={() => connect.mutate(peerText)}
           disabled={!peerText}
-          icon={UserPlus}
-          bg="$secondary"
-          borderColor="$secondary"
-          hoverStyle={{
-            bg: '$secondary/80',
-            borderColor: '$secondary/80',
-          }}
+          variant="default"
+          size="sm"
         >
+          <UserPlus className="size-3" />
           Connect to Peer
         </Button>
         {connect.isLoading ? (

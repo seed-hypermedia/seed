@@ -1,4 +1,4 @@
-import {DialogTitle, useAppDialog} from '@/components/dialog'
+import {DialogDescription, DialogTitle, useAppDialog} from '@/components/dialog'
 import {useCurrencyComparisons} from '@/models/compare-currencies'
 import {
   useCreateLocalInvoice,
@@ -19,6 +19,9 @@ import {useEntity} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {Badge} from '@shm/ui/components/badge'
+import {Input} from '@shm/ui/components/input'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {
@@ -29,25 +32,16 @@ import {
   ChevronUp,
   Copy,
   Download,
-  Trash,
   Upload,
 } from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, TableList} from '@shm/ui/table-list'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
-import {
-  ButtonText,
-  DialogDescription,
-  Form,
-  Heading,
-  Input,
-  SizableText,
-} from 'tamagui'
 
 export function AccountWallet({
   accountUid,
@@ -82,8 +76,8 @@ export function AccountWallet({
   return (
     <>
       <Button
-        themeInverse
-        onPress={() => {
+        variant="inverse"
+        onClick={() => {
           createWallet.mutateAsync({accountUid}).catch((e) => {
             console.error(e)
             toast.error(`Failed to create wallet: ${e.message}`)
@@ -96,16 +90,6 @@ export function AccountWallet({
   )
 }
 
-function Tag({label}: {label: string}) {
-  return (
-    <div className="border-primary rounded-sm border px-2">
-      <SizableText size="$1" color="$brand5">
-        {label}
-      </SizableText>
-    </div>
-  )
-}
-
 function WalletButton({
   walletId,
   onOpen,
@@ -115,26 +99,26 @@ function WalletButton({
 }) {
   const wallet = useWallet(walletId)
   return (
-    <Button onPress={onOpen}>
+    <Button onClick={onOpen}>
       <div className="flex flex-1 items-center justify-between">
-        <SizableText fontFamily="$mono">
+        <SizableText family="mono">
           x{walletId.slice(-8).toUpperCase()}
         </SizableText>
         <div className="flex items-center gap-3">
-          <Tag label="Account Wallet" />
+          <Badge variant="outline">Account Wallet</Badge>
           {wallet.isLoading ? (
             <div className="flex items-center justify-center">
               <Spinner />
             </div>
           ) : wallet.data ? (
             <SizableText
-              fontFamily="$mono"
-              fontWeight="bold"
+              family="mono"
+              weight="bold"
             >{`${wallet.data?.balance} SAT`}</SizableText>
           ) : wallet.isError ? (
-            <AlertCircle color="$red10" size={16} />
+            <AlertCircle className="text-destructive size-4" />
           ) : null}
-          <ChevronRight color="$brand5" size={16} />
+          <ChevronRight className="text-primary size-4" />
         </div>
       </div>
     </Button>
@@ -159,7 +143,8 @@ export function WalletPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-between">
-        <Button icon={ChevronLeft} size="$2" onPress={onClose}>
+        <Button size="sm" onClick={onClose}>
+          <ChevronLeft className="size-4" />
           Profile
         </Button>
         <div className="flex gap-3">
@@ -169,17 +154,15 @@ export function WalletPage({
             onDeleted={onClose}
             /> */}
           <Button
-            size="$2"
-            onPress={() =>
+            size="sm"
+            onClick={() =>
               exportWallet.mutateAsync().then((exportedWallet) => {
                 // toast.success('Wallet exported: ' + exportedWallet)
                 exportDialog.open(exportedWallet)
               })
             }
-            color="$brand5"
-            borderColor="$brand5"
-            borderWidth={1}
-            hoverStyle={{borderColor: '$brand3'}}
+            variant="outline"
+            className="text-primary border-primary border"
           >
             Export
           </Button>
@@ -193,9 +176,9 @@ export function WalletPage({
           </div>
         ) : wallet.isError ? (
           <div className="m-4 flex flex-col">
-            <Heading fontWeight="bold" color="$red10">
+            <SizableText weight="bold" size="2xl" className="text-destructive">
               Error Loading Wallet
-            </Heading>
+            </SizableText>
           </div>
         ) : wallet.data ? (
           <WalletDetails
@@ -212,7 +195,7 @@ export function WalletPage({
           <WalletTransactions invoices={invoices.data} />
         ) : invoices.isError ? (
           <div className="m-4 flex flex-col">
-            <SizableText color="$red10">
+            <SizableText className="text-destructive">
               Error Loading Transaction History. May be disconnected from Seed
               Lightning Server.
             </SizableText>
@@ -239,7 +222,7 @@ function WalletTransactions({
   if (invoices.all.length === 0)
     return (
       <div className="m-4 flex flex-col">
-        <SizableText color="$color9">No transactions yet.</SizableText>
+        <SizableText className="text-muted">No transactions yet.</SizableText>
       </div>
     )
   return (
@@ -268,55 +251,53 @@ function WalletDetails({
   return (
     <>
       <div className="flex items-center justify-between">
-        <Heading fontWeight="bold">{walletName}</Heading>
+        <SizableText weight="bold" size="2xl">
+          {walletName}
+        </SizableText>
         <div className="flex items-center gap-4">
-          <Heading fontFamily="$mono"></Heading>
           <WalletValue amount={Number(wallet.balance)} />
         </div>
       </div>
       <div className="flex justify-between">
         <Tooltip content="Click to Copy Lightning Address">
           <Button
-            icon={Copy}
-            padding="$0"
-            size="$2"
-            chromeless
-            fontFamily="$mono"
-            color="$blue10"
-            onPress={() => {
+            size="sm"
+            onClick={() => {
               copyTextToClipboard(walletId)
               toast.success('Copied Lightning Address to Clipboard')
             }}
+            className="text-blue-500"
           >
-            {`x${wallet.id.slice(-8).toUpperCase()}`}
+            <Copy className="size-4" />
+            <SizableText family="mono" className="text-current">{`x${wallet.id
+              .slice(-8)
+              .toUpperCase()}`}</SizableText>
           </Button>
         </Tooltip>
-        <SizableText fontFamily="$mono" fontSize="$7">
+        <SizableText family="mono" size="2xl">
           {wallet.balance ? Number(wallet.balance) : '0'} SATS
         </SizableText>
       </div>
       <div className="flex gap-4">
         <Button
-          icon={Download}
-          themeInverse
-          f={1}
-          size="$3"
-          onPress={() => {
+          className="flex-1"
+          size="sm"
+          onClick={() => {
             addFundsDialog.open({walletId, accountUid, walletName})
           }}
         >
+          <Download className="size-4" />
           Add Funds
         </Button>
         {addFundsDialog.content}
         <Button
-          icon={Upload}
-          themeInverse
-          f={1}
-          size="$3"
-          onPress={() => {
+          className="flex-1"
+          size="sm"
+          onClick={() => {
             withdrawDialog.open({walletId, accountUid, walletName})
           }}
         >
+          <Upload className="size-4" />
           Withdraw
         </Button>
         {withdrawDialog.content}
@@ -363,8 +344,8 @@ function WithdrawDialog({
         </div>
         <div className="flex gap-4">
           <Button
-            f={1}
-            onPress={() => {
+            className="flex-1"
+            onClick={() => {
               reset()
               setPayreqInput('')
             }}
@@ -372,9 +353,8 @@ function WithdrawDialog({
             Cancel
           </Button>
           <Button
-            f={1}
-            themeInverse
-            onPress={() => {
+            className="flex-1"
+            onClick={() => {
               payInvoice
                 .mutateAsync({
                   walletId,
@@ -407,10 +387,10 @@ function WithdrawDialog({
         <Input value={payreqInput} onChangeText={setPayreqInput} />
       </Field>
       <div className="flex gap-4">
-        <Button f={1} onPress={onClose}>
+        <Button className="flex-1" onClick={onClose}>
           Cancel
         </Button>
-        <Button f={1} themeInverse disabled>
+        <Button className="flex-1" disabled>
           Send Funds
         </Button>
       </div>
@@ -419,15 +399,15 @@ function WithdrawDialog({
 }
 
 function AmountSats({amount}: {amount: number}) {
-  return <SizableText fontFamily="$mono">{amount} SATS</SizableText>
+  return <SizableText family="mono">{amount} SATS</SizableText>
 }
 
 function DestWallet({walletIds}: {walletIds: string[]}) {
   return (
     <Tooltip content="Copy Wallet Address">
-      <ButtonText
-        fontFamily="$mono"
-        onPress={() => {
+      <Button
+        variant="link"
+        onClick={() => {
           copyTextToClipboard(walletIds.join(', '))
           toast.success('Copied Destination Wallet Address to Clipboard')
         }}
@@ -435,7 +415,7 @@ function DestWallet({walletIds}: {walletIds: string[]}) {
         {walletIds
           .map((walletId) => `x${walletId.slice(-8).toUpperCase()}`)
           .join(', ')}
-      </ButtonText>
+      </Button>
     </Tooltip>
   )
 }
@@ -475,7 +455,7 @@ function AddFundsDialog({
   return (
     <>
       <DialogTitle>Add Funds to {walletName}</DialogTitle>
-      <Form onSubmit={submit}>
+      <form onSubmit={submit}>
         <div className="flex flex-col gap-4">
           <Field id="amount" label="Amount (Sats)">
             <Input
@@ -486,24 +466,23 @@ function AddFundsDialog({
                 if (Number.isNaN(Number(text))) return
                 setAmount(Number(text))
               }}
-              onSubmitEditing={submit}
+              // onSubmitEditing={submit}
             />
           </Field>
           <div className="flex justify-center">
             <Spinner hide={!createInvoice.isLoading} />
           </div>
           <div className="flex gap-4">
-            <Button f={1} onPress={onClose}>
+            <Button className="flex-1" onClick={onClose}>
               Cancel
             </Button>
-            <Form.Trigger asChild>
-              <Button f={1} themeInverse onPress={submit}>
-                Create Invoice
-              </Button>
-            </Form.Trigger>
+
+            <Button type="submit" className="flex-1" onClick={submit}>
+              Create Invoice
+            </Button>
           </div>
         </div>
-      </Form>
+      </form>
     </>
   )
 }
@@ -529,7 +508,7 @@ function InvoiceInfo({
         <DialogDescription>
           {invoice.amount} SATS have been transferred to {walletName}.
         </DialogDescription>
-        <Button onPress={onCancel}>Done</Button>
+        <Button onClick={onCancel}>Done</Button>
       </>
     )
   }
@@ -545,19 +524,18 @@ function InvoiceInfo({
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
-            onPress={() => {
+            onClick={() => {
               copyTextToClipboard(invoice.payload)
               toast.success('Copied Invoice to Clipboard')
             }}
-            icon={Copy}
-            size="$2"
-            themeInverse
+            size="sm"
           >
+            <Copy className="size-4" />
             Copy Invoice
           </Button>
         </Tooltip>
       </div>
-      <Button onPress={onCancel}>Cancel</Button>
+      <Button onClick={onCancel}>Cancel</Button>
     </>
   )
 }
@@ -575,7 +553,7 @@ function ExportWalletDialog({
       <DialogDescription>
         Your wallet has been exported. Here is the credentials: {input}
       </DialogDescription>
-      <Button onPress={onClose}>Done</Button>
+      <Button onClick={onClose}>Done</Button>
     </>
   )
 }
@@ -592,9 +570,8 @@ function DeleteWalletButton({
   const deleteWallet = useDeleteWallet()
   return (
     <Button
-      theme="red"
-      icon={Trash}
-      onPress={() =>
+      variant="destructive"
+      onClick={() =>
         deleteWallet
           .mutateAsync({walletId, accountUid})
           .then(() => {
@@ -624,25 +601,24 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
         </SizableText>
         <SizableText>
           {invoice.description ? (
-            <SizableText fontWeight="bold">{invoice.description} </SizableText>
+            <SizableText weight="bold">{invoice.description} </SizableText>
           ) : null}
           <Tooltip content="Click to Copy Destination Address">
-            <ButtonText
-              color="$blue10"
-              fontFamily="$mono"
-              onPress={() => {
+            <Button
+              variant="blue"
+              onClick={() => {
                 copyTextToClipboard(invoice.destination)
                 toast.success('Copied Destination Address to Clipboard')
               }}
             >
               {`x${invoice.destination.slice(-8).toUpperCase()}`}
-            </ButtonText>
+            </Button>
           </Tooltip>
         </SizableText>
       </div>
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <SizableText fontFamily="$mono" color={paymentColor}>
+          <SizableText family="mono" style={{color: paymentColor}}>
             {Number(invoice.amount)} SATS
           </SizableText>
           <Chevron color={paymentColor} size={18} />
@@ -664,7 +640,10 @@ function WalletValue({amount}: {amount: number}) {
 
   return (
     <div className="flex items-center gap-3">
-      <Heading fontFamily={'$mono'}>{`${character}${displayValue}`}</Heading>
+      <SizableText
+        size="2xl"
+        family="mono"
+      >{`${character}${displayValue}`}</SizableText>
       <SelectDropdown
         value={activeCurrency}
         onValue={setActiveCurrency}

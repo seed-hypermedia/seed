@@ -9,7 +9,7 @@ export function PanelContainer({
     <div className="h-full w-full px-2">
       <div
         className={cn(
-          'dark:bg-background sm:border-border h-full overflow-hidden bg-white sm:rounded-md sm:border',
+          'bg-panel sm:border-border h-full overflow-hidden sm:rounded-md sm:border',
           className,
         )}
         {...props}
@@ -45,9 +45,9 @@ export const Container = ({
 }
 
 export const windowContainerStyles = cn(
-  'flex flex-col w-screen h-screen min-h-svh bg-background dark:bg-black p-2',
+  'flex flex-col w-screen h-screen min-h-svh bg-panel-background p-2',
 )
 
 export const panelContainerStyles = cn(
-  'flex flex-col w-full h-full bg-background dark:bg-black border border-border rounded-md overflow-hidden bg-white dark:bg-background',
+  'flex flex-col w-full h-full border border-border rounded-md overflow-hidden bg-panel',
 )

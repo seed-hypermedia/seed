@@ -22,6 +22,8 @@
   --brand: var(--brand-5);
   --highlight: hsl(123, 50%, 93%);
   --background: oklch(1 0 0);
+  --panel: white;
+  --panel-background: var(--background);
   --foreground: oklch(0.2686 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.2686 0 0);
@@ -91,6 +93,8 @@
   --brand: var(--brand-8);
   --highlight: hsl(180, 41%, 8%);
   --background: oklch(0.2046 0 0);
+  --panel-background: black;
+  --panel: var(--background);
   --foreground: oklch(0.9219 0 0);
   --card: oklch(0.2686 0 0);
   --card-foreground: oklch(0.9219 0 0);
@@ -161,6 +165,8 @@
   --color-highlight: var(--highlight);
 
   --color-background: var(--background);
+  --color-panel: var(--panel);
+  --color-panel-background: var(--panel-background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);

@@ -26,6 +26,7 @@ export function ListItem({
   menuItems = [],
   theme,
   backgroundColor,
+  active,
 }: {
   accessory?: ReactElement
   icon?: ReactElement
@@ -35,6 +36,7 @@ export function ListItem({
   menuItems?: (MenuItemType | null)[] | (() => (MenuItemType | null)[])
   theme?: ComponentProps<typeof Button>['theme']
   backgroundColor?: ComponentProps<typeof Button>['backgroundColor']
+  active?: boolean
 }) {
   let {hover, ...hoverProps} = useHover()
   const [currentMenuItems, setMenuItems] = useState(
@@ -49,7 +51,7 @@ export function ListItem({
             setMenuItems(menuItems())
           }
         }}
-        variant="ghost"
+        variant={active ? 'secondary' : 'ghost'}
         onClick={onPress}
         {...hoverProps}
         className="hover:bg-accent hover:border-background w-full max-w-[600px] flex-1 justify-start"

@@ -219,7 +219,6 @@ export function useSiteLibrary(
         }),
       }
     },
-    enabled: !!siteUid,
   })
   const commentIds = siteDocuments.data?.documents
     .map((doc) => doc.activitySummary?.latestCommentId)

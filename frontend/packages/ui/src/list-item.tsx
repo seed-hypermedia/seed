@@ -1,8 +1,7 @@
-import {Button} from '@tamagui/button'
 import {useTheme, View} from '@tamagui/core'
 import {ListItem, ListItemProps} from '@tamagui/list-item'
-import {ArrowDownRight, ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
 import {XStack} from '@tamagui/stacks'
+import {ArrowDownRight, ChevronDown, ChevronRight} from 'lucide-react'
 import {
   ComponentProps,
   createElement,
@@ -10,7 +9,7 @@ import {
   ReactNode,
   useState,
 } from 'react'
-import {type GestureResponderEvent} from 'react-native'
+import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {SizableText} from './text'
@@ -26,15 +25,14 @@ export function FocusButton({
   return (
     <Tooltip content={label ? `Focus ${label}` : 'Focus'}>
       <Button
-        icon={ArrowDownRight}
-        onPress={(e: GestureResponderEvent) => {
+        onClick={(e) => {
           e.stopPropagation()
           onPress()
         }}
-        chromeless
-        backgroundColor={'$colorTransparent'}
-        size="$1"
-      />
+        size="sm"
+      >
+        <ArrowDownRight className="size-3" />
+      </Button>
     </Tooltip>
   )
 }
@@ -169,18 +167,20 @@ export function SmallListItem({
         </XStack>
         {isCollapsed != null ? (
           <Button
-            position="absolute"
-            left={-24}
-            size="$1"
-            chromeless
-            backgroundColor={'$colorTransparent'}
-            onPress={(e: GestureResponderEvent) => {
+            className="absolute -left-6"
+            size="sm"
+            onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
               onSetCollapsed?.(!isCollapsed)
             }}
-            icon={isCollapsed ? ChevronRight : ChevronDown}
-          />
+          >
+            {isCollapsed ? (
+              <ChevronRight className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            )}
+          </Button>
         ) : null}
       </XStack>
     </ListItem>

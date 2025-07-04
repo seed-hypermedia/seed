@@ -1,9 +1,9 @@
 import {ipc} from '@/ipc'
 import type {AppWindowEvent} from '@/utils/window-events'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {ChevronDown, ChevronUp, Close} from '@shm/ui/icons'
 import {useEffect, useRef, useState} from 'react'
-import {NativeSyntheticEvent, TextInputKeyPressEventData} from 'react-native'
-import {Button, Input, XGroup} from 'tamagui'
 
 export function FindInPage() {
   const size = '$2'
@@ -35,7 +35,6 @@ export function FindInPage() {
       queryInput.current?.select()
     }
 
-    // @ts-expect-error
     const unsubscribe = window.appWindowEvents?.subscribe(
       (event: AppWindowEvent) => {
         if (event === 'find_in_page') {
@@ -50,9 +49,7 @@ export function FindInPage() {
     return () => unsubscribe?.()
   }, [])
 
-  function handleKeyPress(
-    event: NativeSyntheticEvent<TextInputKeyPressEventData>,
-  ) {
+  function handleKeyPress(event) {
     const key = event.nativeEvent.key
     if (key === 'Escape') {
       event.preventDefault()
@@ -75,70 +72,45 @@ export function FindInPage() {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center">
-      <XGroup
-        elevation="$4"
-        borderWidth={1}
-        borderColor="$color8"
-        animation="fast"
-        bg="$backgroundStrong"
-        p="$1.5"
-        borderRadius="$2"
-        overflow="hidden"
-      >
-        <XGroup.Item>
-          <Input
-            ref={queryInput}
-            unstyled
-            bg="$backgroundStrong"
-            size={size}
-            placeholder="Find in page..."
-            borderWidth={0}
-            value={query}
-            onChangeText={setQuery}
-            onKeyPress={handleKeyPress}
-          />
-        </XGroup.Item>
+      <Input
+        ref={queryInput}
+        placeholder="Find in page..."
+        value={query}
+        onChangeText={setQuery}
+        onKeyDown={handleKeyPress}
+      />
 
-        <XGroup.Item>
-          <Button
-            chromeless
-            bg="$backgroundStrong"
-            size={size}
-            icon={ChevronUp}
-            onPress={() =>
-              ipc.send('find_in_page_query', {
-                query,
-                findNext: false,
-                forward: false,
-              })
-            }
-          />
-        </XGroup.Item>
-        <XGroup.Item>
-          <Button
-            chromeless
-            bg="$backgroundStrong"
-            size={size}
-            icon={ChevronDown}
-            onPress={() =>
-              ipc.send('find_in_page_query', {
-                query,
-                findNext: false,
-                forward: true,
-              })
-            }
-          />
-        </XGroup.Item>
-        <XGroup.Item>
-          <Button
-            chromeless
-            bg="$backgroundStrong"
-            size={size}
-            icon={Close}
-            onPress={clearFind}
-          />
-        </XGroup.Item>
-      </XGroup>
+      <Button
+        chromeless
+        bg="$backgroundStrong"
+        size={size}
+        icon={ChevronUp}
+        onPress={() =>
+          ipc.send('find_in_page_query', {
+            query,
+            findNext: false,
+            forward: false,
+          })
+        }
+      />
+
+      <Button
+        chromeless
+        bg="$backgroundStrong"
+        size={size}
+        icon={ChevronDown}
+        onPress={() =>
+          ipc.send('find_in_page_query', {
+            query,
+            findNext: false,
+            forward: true,
+          })
+        }
+      />
+
+      <Button onClick={clearFind}>
+        <Close className="size-4" />
+      </Button>
     </div>
   )
 }

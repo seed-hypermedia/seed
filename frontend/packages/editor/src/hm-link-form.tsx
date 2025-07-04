@@ -7,8 +7,12 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
 import {SwitchField} from '@shm/ui/form-fields'
 import {Separator} from '@shm/ui/separator'
+import {SizableText} from '@shm/ui/text'
 import {
   CircleDot,
   File,
@@ -19,15 +23,7 @@ import {
 } from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {
-  Button,
-  Input,
-  Label,
-  SizableText,
-  SizeTokens,
-  XStack,
-  YStack,
-} from 'tamagui'
+import {SizeTokens, XStack, YStack} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {
   AlignCenter,
@@ -85,7 +81,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
     setSelectedType(props.type)
   }, [props.type])
 
-  function handleKeydown(event: KeyboardEvent) {
+  function handleKeydown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Escape' || event.key == 'Enter') {
       event.preventDefault()
       props.updateLink(_url, _text, true)
@@ -117,17 +113,11 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         >
           <TextCursorInput size={16} />
           <Input
-            unstyled
-            flex={1}
-            size={formSize}
+            className="flex-1"
             placeholder={`${props.type} text`}
-            background="$background"
-            borderWidth="$0"
-            outlineWidth="$0"
-            color="$color12"
             id="link-text"
             value={_text}
-            onKeyPress={handleKeydown}
+            onKeyDown={handleKeydown}
             onChangeText={(val) => {
               setText(val)
               props.updateLink(_url, val, false)
@@ -213,7 +203,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             label="Show Latest Version"
             id="latest"
             defaultChecked={isLatestVersion}
-            opacity={isLatestVersion ? 1 : 0.4}
+            style={{
+              opacity: isLatestVersion ? 1 : 0.4,
+            }}
             onCheckedChange={(checked) => {
               const newUrl = packHmId({...unpacked, latest: checked})
               setUrl(newUrl)
@@ -225,7 +217,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               label="Expand Block"
               id="expand"
               checked={!collapsedBlocks.has(props.id)}
-              opacity={!collapsedBlocks.has(props.id) ? 1 : 0.4}
+              style={{
+                opacity: !collapsedBlocks.has(props.id) ? 1 : 0.4,
+              }}
               onCheckedChange={(checked) => {
                 setCollapsedBlocks(props.id, !checked)
               }}
@@ -240,67 +234,56 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           justifyContent="space-between"
           marginTop="$2"
         >
-          <Label fontSize="$2">Alignment</Label>
+          <Label>Alignment</Label>
           <XStack gap="$3">
             <Button
-              size="$2"
-              height="$3"
-              borderRadius="$3"
-              onPress={() => {
+              size="icon"
+              onClick={() => {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'flex-start'},
                 })
               }}
-              borderColor="$brand5"
-              backgroundColor={
+              variant={
                 props.toolbarProps.alignment === 'flex-start'
-                  ? '$brand5'
-                  : '$colorTransparent'
+                  ? 'default'
+                  : 'ghost'
               }
             >
-              <AlignLeft size="$1.5" />
+              <AlignLeft className="size-3" />
             </Button>
             <Button
-              size="$2"
-              height="$3"
-              borderRadius="$3"
-              onPress={() => {
+              size="icon"
+              onClick={() => {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'center'},
                 })
               }}
-              borderColor="$brand5"
-              backgroundColor={
-                props.toolbarProps.alignment === 'center'
-                  ? '$brand5'
-                  : '$colorTransparent'
+              variant={
+                props.toolbarProps.alignment === 'center' ? 'default' : 'ghost'
               }
             >
-              <AlignCenter size="$1.5" />
+              <AlignCenter className="size-3" />
             </Button>
             <Button
-              size="$2"
-              height="$3"
-              borderRadius="$3"
-              onPress={() => {
+              size="icon"
+              onClick={() => {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'flex-end'},
                 })
               }}
-              borderColor="$brand5"
-              backgroundColor={
+              variant={
                 props.toolbarProps.alignment === 'flex-end'
-                  ? '$brand5'
-                  : '$colorTransparent'
+                  ? 'default'
+                  : 'ghost'
               }
             >
-              <AlignRight size="$1.5" />
+              <AlignRight className="size-3" />
             </Button>
           </XStack>
         </XStack>
       )}
 
-      <SizableText fontSize="$2" color="$brand5">
+      <SizableText size="sm" className="text-primary">
         {!!props.seedEntityType
           ? `Seed ${HYPERMEDIA_ENTITY_TYPES[props.seedEntityType]}`
           : 'Web Address'}
@@ -312,12 +295,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       <XStack justifyContent="flex-end">
         <Button
-          size="$3"
-          icon={
-            props.type === 'link' ? <Unlink size={14} /> : <Trash size={16} />
-          }
-          chromeless
-          onPress={() => {
+          size="icon"
+          onClick={() => {
             if (props.type === 'link') {
               const {state, view} = props.editor._tiptapEditor
               let tr = state.tr
@@ -369,7 +348,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             } else props.editor.removeBlocks([props.id])
             props.resetLink()
           }}
-        />
+        >
+          {props.type === 'link' ? <Unlink size={14} /> : <Trash size={16} />}
+        </Button>
       </XStack>
     </YStack>
   )
@@ -491,9 +472,7 @@ const SearchInput = ({
       zIndex={99999}
     >
       {isDisplayingRecents ? (
-        <SizableText color="$color10" marginHorizontal="$4">
-          Recent Resources
-        </SizableText>
+        <SizableText className="mx-4">Recent Resources</SizableText>
       ) : null}
       {activeItems?.map((item, itemIndex) => {
         return (
@@ -516,14 +495,8 @@ const SearchInput = ({
   return (
     <>
       <Input
-        unstyled
-        background="$background"
-        borderWidth="$0"
-        outlineWidth="$0"
-        color="$color12"
         ref={inputRef}
-        flex={1}
-        size="$2"
+        className="flex-1"
         onFocus={() => {
           setFocused(true)
         }}
@@ -534,7 +507,7 @@ const SearchInput = ({
         }}
         autoFocus={false}
         value={search}
-        onChangeText={(val: string) => {
+        onChangeText={(val) => {
           setSearch(val)
           setLink(val)
           if (type === 'link' || type === 'button') {
@@ -542,8 +515,7 @@ const SearchInput = ({
           }
         }}
         placeholder="Open Seed Document..."
-        // disabled={!!actionPromise}
-        onKeyPress={(e: any) => {
+        onKeyDown={(e) => {
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)
             e.preventDefault()
@@ -658,9 +630,7 @@ export function LinkTypeDropdown({
         gap="$2"
       >
         {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
-        <SizableText size="$2" marginLeft="$1.5">
-          {selectedTypeObj?.label}
-        </SizableText>
+        <SizableText className="ml-1.5">{selectedTypeObj?.label}</SizableText>
         <ChevronDown size={16} />
       </XStack>
       {focused && inputPosition && createPortal(dropdown, portalRoot)}

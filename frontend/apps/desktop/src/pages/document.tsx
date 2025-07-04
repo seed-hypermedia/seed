@@ -141,7 +141,7 @@ export default function DocumentPage() {
           })
         }}
       >
-        <div className="flex flex-col flex-1 h-full">
+        <div className="flex h-full flex-1 flex-col">
           <AccessoryLayout
             mainPanelRef={mainPanelRef}
             accessory={accessory}
@@ -288,7 +288,7 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
       />
       <div
-        className="flex overflow-hidden relative flex-col flex-1"
+        className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
         <DocInteractionsSummary docId={id} />
@@ -306,7 +306,7 @@ function _MainDocumentPage({
                 }}
               >
                 <div
-                  className="flex overflow-scroll flex-col h-full hide-scrollbar"
+                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
                   // paddingVertical="$4"
                 >
                   <DocNavigation showCollapsed={showCollapsed} />
@@ -319,7 +319,7 @@ function _MainDocumentPage({
               className={cn(mainContentProps.className, 'sm:mr-10 sm:ml-0')}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="flex-1 pl-4 mt-4 mb-16 sm:pl-0">
+              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
@@ -519,11 +519,11 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}
-        className="bg-white dark:bg-background"
+        className="dark:bg-background bg-white"
         data-docid={docId.id}
         borderRadius="$2"
       >
-        <div className="flex flex-col gap-4 group" data-group="header">
+        <div className="group flex flex-col gap-4" data-group="header">
           {hasIcon ? (
             <div
               className="flex"
@@ -548,7 +548,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
             </SeedHeading>
           </div>
           {entity.data.document?.metadata?.summary ? (
-            <span className="text-xl font-body text-muted-foreground">
+            <span className="font-body text-muted-foreground text-xl">
               {entity.data.document?.metadata?.summary}
             </span>
           ) : null}
@@ -558,11 +558,11 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                 siteUrl={entity.data?.document?.metadata.siteUrl}
               />
             ) : null}
-            <div className="flex flex-1 gap-3 justify-between items-center">
-              <div className="flex flex-wrap flex-1 gap-3 items-center">
+            <div className="flex flex-1 items-center justify-between gap-3">
+              <div className="flex flex-1 flex-wrap items-center gap-3">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <div className="flex flex-wrap gap-1 items-center max-w-full">
+                    <div className="flex max-w-full flex-wrap items-center gap-1">
                       {authors
                         ?.map((a, index) => {
                           const contact = authorContacts[a]
@@ -617,7 +617,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                         })
                         .filter(Boolean)}
                     </div>
-                    <div className="w-px h-6 bg-border" />
+                    <div className="bg-border h-6 w-px" />
                   </>
                 ) : null}
                 {entity.data?.document ? (
@@ -682,10 +682,10 @@ function DocMessageBox({
 }) {
   return (
     <div className={cn(panelContainerStyles)}>
-      <div className="px-8 py-10 mx-auto">
-        <div className="flex flex-col flex-1 flex-none gap-4 p-6 w-full max-w-lg rounded-lg border shadow-lg border-border bg-background dark:bg-black">
+      <div className="mx-auto px-8 py-10">
+        <div className="border-border bg-background flex w-full max-w-lg flex-1 flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
           {spinner ? (
-            <div className="flex justify-start items-center">
+            <div className="flex items-center justify-start">
               <Spinner className="size-6 fill-blue-500" />
             </div>
           ) : null}

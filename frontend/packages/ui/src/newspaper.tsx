@@ -75,13 +75,13 @@ export function DocumentCard({
             )}
           >
             <img
-              className="object-cover absolute top-0 left-0 w-full h-full"
+              className="absolute top-0 left-0 h-full w-full object-cover"
               src={imageUrl(coverImage, 'L')}
               alt=""
             />
           </div>
         )}
-        <div className={cn('flex flex-col flex-1 justify-between')}>
+        <div className={cn('flex flex-1 flex-col justify-between')}>
           <div className="p-4">
             <p
               className={cn(
@@ -100,7 +100,7 @@ export function DocumentCard({
               {textContent}
             </p>
           </div>
-          <div className="flex justify-between items-center py-1 pr-2 pl-4">
+          <div className="flex items-center justify-between py-1 pr-2 pl-4">
             {(entity?.document?.metadata?.displayPublishTime ||
               entity?.document?.updateTime) && (
               <SizableText

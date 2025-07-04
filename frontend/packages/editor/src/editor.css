@@ -544,3 +544,7 @@ ul[data-list-type='Unordered']
   ) {
   margin-top: -1em; /* Cancel out the previous element's margin */
 }
+
+.bn-focused-heading-block {
+  background-color: red !important;
+}

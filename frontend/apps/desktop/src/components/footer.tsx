@@ -16,7 +16,7 @@ export default function Footer({children}: {children?: ReactNode}) {
   return (
     <FooterWrapper className="flex-none">
       <FooterNetworkingButton />
-      <div className="flex items-center gap-4 px-2">
+      <div className="flex items-center gap-4 px-1">
         <SizableText
           size="xs"
           className="text-muted-foreground cursor-default opacity-50 select-none"
@@ -74,13 +74,12 @@ function FooterNetworkingButton() {
   return (
     <div className="flex items-center gap-2">
       <Button
-        size="sm"
-        variant={route.key == 'contacts' ? 'default' : 'ghost'}
+        size="xs"
         className={cn('px-2', route.key == 'contacts' && 'text-primary')}
         onClick={() => networkDialog.open(true)}
       >
         <OnlineIndicator online={summary.online} />
-        <Cable size={12} />
+        <Cable className="size-3" />
         <SizableText size="xs">{summary.connectedCount}</SizableText>
       </Button>
       {networkDialog.content}

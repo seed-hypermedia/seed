@@ -7,10 +7,11 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
-import {Text, TextArea} from 'tamagui'
 import {Checkbox, CheckboxProps} from './components/checkbox'
 import {Input} from './components/input'
 import {Label} from './components/label'
+import {Textarea} from './components/textarea'
+import {Text} from './text'
 
 export function FormInput<Fields extends FieldValues>({
   control,
@@ -68,12 +69,12 @@ export function FormTextArea<Fields extends FieldValues>({
   control,
   name,
   ...props
-}: React.ComponentProps<typeof TextArea> & {
+}: React.ComponentProps<typeof Textarea> & {
   control: Control<Fields>
   name: Path<Fields>
 }) {
   const c = useController({control, name})
-  return <TextArea {...c.field} {...props} />
+  return <Textarea {...c.field} {...props} />
 }
 
 export function FormError<TFieldValues extends Record<string, string>>({
@@ -86,8 +87,8 @@ export function FormError<TFieldValues extends Record<string, string>>({
   const error = errors?.[name]
   if (!error) return null
   return (
-    <Text fontFamily="$body" color="$red9">
-      {error.message}
+    <Text family="default" className="text-destructive">
+      {error.message as string}
     </Text>
   )
 }

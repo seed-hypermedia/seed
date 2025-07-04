@@ -4,23 +4,18 @@ import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
 import {HMBlockSchema} from '@/schema'
 import {getNodesInSelection} from '@/utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {
-  ChangeEvent,
-  FunctionComponent,
-  SetStateAction,
-  useEffect,
-  useState,
-} from 'react'
-import {Input, Label} from 'tamagui'
+import {ChangeEvent, FunctionComponent, useEffect, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 
@@ -162,13 +157,9 @@ export const MediaRender: React.FC<RenderProps> = ({
     // this means we have a URL in the props.url that is not starting with `ipfs://`, which means we are uploading the image to IPFS
     return (
       <Button
-        // @ts-ignore
         contentEditable={false}
-        borderRadius={0}
-        size="$5"
-        justifyContent="flex-start"
-        backgroundColor="$color4"
-        width="100%"
+        size="lg"
+        className="w-full justify-start"
       >
         uploading...
       </Button>
@@ -420,35 +411,22 @@ function MediaForm({
                 />
               ) : (
                 <Input
-                  unstyled
-                  backgroundColor={comment ? '$color6' : '$color4'}
-                  borderColor="$color8"
-                  color="$color12"
-                  borderWidth="$1"
-                  borderRadius="$2"
-                  paddingLeft="$3"
-                  height="$3"
-                  width="100%"
+                  className={cn(
+                    'w-full pl-3',
+                    comment ? 'bg-muted/60' : 'bg-muted',
+                  )}
                   placeholder={`Input ${
                     mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType
                   } URL here...`}
-                  hoverStyle={{
-                    borderColor: '$color11',
-                  }}
-                  focusStyle={{
-                    borderColor: '$color11',
-                  }}
-                  onChange={(e: {
-                    nativeEvent: {text: SetStateAction<string>}
-                  }) => {
-                    setUrl(e.nativeEvent.text)
+                  onChangeText={(text) => {
+                    setUrl(text)
                     if (fileName.color)
                       setFileName({
                         name: 'Upload File',
                         color: undefined,
                       })
                   }}
-                  autoFocus={true}
+                  autoFocus
                 />
               )}
               {['image', 'video'].includes(mediaType) ? (
@@ -458,24 +436,15 @@ function MediaForm({
                     side="top"
                   >
                     <Button
-                      alignItems="center"
-                      justifyContent="center"
-                      width="$12"
-                      borderRadius="$2"
-                      fontWeight="normal"
-                      size="$3"
-                      backgroundColor={
-                        fileName.color === 'red' ? '$color5' : '$color7'
-                      }
+                      className="w-12"
+                      style={{
+                        backgroundColor:
+                          fileName.color === 'red'
+                            ? 'text-muted-foreground/60'
+                            : 'text-muted-foreground',
+                      }}
                       disabled={fileName.color === 'red'}
-                      hoverStyle={
-                        fileName.color !== 'red'
-                          ? {
-                              backgroundColor: '$color5',
-                            }
-                          : {cursor: 'auto'}
-                      }
-                      onClick={(event: any) => {
+                      onClick={() => {
                         if (url) {
                           // Submit the form if the input is not empty
                           submit!(url, assign, setFileName, setLoading)
@@ -488,11 +457,7 @@ function MediaForm({
                       }}
                     >
                       {loading ? (
-                        <Spinner
-                          size="small"
-                          color="$green9"
-                          paddingHorizontal="$3"
-                        />
+                        <Spinner size="small" className="text-primary" />
                       ) : (
                         'UPLOAD'
                       )}
@@ -515,35 +480,22 @@ function MediaForm({
                 </>
               ) : (
                 <Button
-                  alignItems="center"
-                  justifyContent="center"
-                  width="$12"
-                  borderRadius="$2"
-                  fontWeight="normal"
-                  size="$3"
-                  backgroundColor={
-                    fileName.color === 'red' ? '$color5' : '$color7'
-                  }
+                  className="w-12"
+                  style={{
+                    backgroundColor:
+                      fileName.color === 'red'
+                        ? 'text-muted-foreground/60'
+                        : 'text-muted-foreground',
+                  }}
                   disabled={fileName.color === 'red'}
-                  hoverStyle={
-                    fileName.color !== 'red'
-                      ? {
-                          backgroundColor: '$color5',
-                        }
-                      : {cursor: 'auto'}
-                  }
-                  onClick={(event: any) => {
+                  onClick={() => {
                     if (url) {
                       submit!(url, assign, setFileName, setLoading)
                     }
                   }}
                 >
                   {loading ? (
-                    <Spinner
-                      size="small"
-                      color="$green9"
-                      paddingHorizontal="$3"
-                    />
+                    <Spinner size="small" className="text-primary" />
                   ) : (
                     'UPLOAD'
                   )}
@@ -558,21 +510,10 @@ function MediaForm({
           </div>
         ) : (
           <div className="bg-background flex h-12 w-full items-center">
-            <Label
-              htmlFor={'file-upload' + block.id}
-              borderColor="$color12"
-              borderWidth="$0.5"
-              width="100%"
-              height="$3"
-              justifyContent="center"
-              hoverStyle={{
-                backgroundColor: '$borderColorHover',
-              }}
-              gap={3}
-            >
+            <Label htmlFor={'file-upload' + block.id}>
               {!drag && (
                 <>
-                  <Upload size={18} />
+                  <Upload className="size-4" />
                   <SizableText className="truncate overflow-hidden p-2 whitespace-nowrap">
                     Upload File
                   </SizableText>

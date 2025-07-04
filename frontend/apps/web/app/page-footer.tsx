@@ -29,7 +29,7 @@ export function PageFooter({
               {
                 seedLink: (
                   <a
-                    className="text-sm"
+                    className="text-xs"
                     href="https://seed.hyper.media"
                     target="_blank"
                   >

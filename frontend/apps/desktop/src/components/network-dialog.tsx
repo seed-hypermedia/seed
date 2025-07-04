@@ -1,9 +1,9 @@
 import {useDaemonInfo} from '@/models/daemon'
 import {ConnectionStatus} from '@shm/shared/client/grpc-types'
 import {Button} from '@shm/ui/button'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Copy, NoConnection} from '@shm/ui/icons'
-import {List} from '@shm/ui/list'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -38,20 +38,15 @@ export function NetworkDialog() {
           Add Connection
         </Button>
       </div>
-      <div className="flex min-h-[500px] flex-col">
+      <ScrollArea>
         {peers.data && peers.data.length ? (
-          <List
-            items={peers.data}
-            renderItem={({item: peer}: {item: HMPeerInfo}) => {
-              return (
-                <PeerRow
-                  key={peer.id}
-                  peer={peer}
-                  myProtocol={deviceInfo?.protocolId || ''}
-                />
-              )
-            }}
-          />
+          peers.data.map((peer) => (
+            <PeerRow
+              key={peer.id}
+              peer={peer}
+              myProtocol={deviceInfo?.protocolId || ''}
+            />
+          ))
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
             <NoConnection color={theme.color7.val} />
@@ -61,7 +56,7 @@ export function NetworkDialog() {
           </div>
         )}
         {connectDialog.content}
-      </div>
+      </ScrollArea>
     </>
   )
 }

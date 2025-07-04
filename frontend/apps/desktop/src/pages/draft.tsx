@@ -39,7 +39,6 @@ import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
-import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator} from '@shm/ui/separator'
@@ -52,7 +51,6 @@ import {useSelector} from '@xstate/react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Input} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -550,7 +548,7 @@ function DraftMetadataEditor({
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
-  const {textUnit} = useDocContentContext()
+
   const [showIcon, setShowIcon] = useState(false)
 
   const isDark = useIsDark()
@@ -619,42 +617,33 @@ function DraftMetadataEditor({
       }}
     >
       <Container
-        animation="fast"
-        marginTop={showCover ? -40 : 0}
-        paddingTop={!showCover ? 60 : '$6'}
-        // bg="$background"
-        bg={isDark ? '$background' : '$backgroundStrong'}
-        borderRadius="$2"
+        className={cn(
+          showCover &&
+            'relative z-0 after:absolute after:inset-0 after:rounded-md after:bg-white after:dark:bg-black',
+        )}
+        style={{
+          marginTop: showCover ? '-40px' : '0',
+          paddingTop: !showCover ? '60px' : '24px',
+        }}
       >
-        <div className="group-header flex flex-col gap-4">
-          <Input
+        <div className="group-header z-1 flex flex-col gap-4">
+          <textarea
             disabled={disabled}
-            // we use multiline so that we can avoid horizontal scrolling for long titles
-            multiline
             id="draft-name-input"
             ref={input}
-            onKeyPress={(e: any) => {
-              if (e.nativeEvent.key == 'Enter') {
+            rows={1}
+            onKeyDown={(e: any) => {
+              if (e.key == 'Enter') {
                 e.preventDefault()
                 onEnter()
               }
             }}
-            size="$9"
-            borderRadius="$1"
-            borderWidth={0}
-            overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
-            flex={1}
-            backgroundColor="transparent"
-            fontWeight="bold"
-            fontFamily="$body"
-            onChange={(e: any) => {
-              applyTitleResize(e.target as HTMLTextAreaElement)
-            }}
-            outlineColor="transparent"
-            borderColor="transparent"
+            className="w-full resize-none border-none border-transparent text-4xl font-bold shadow-none ring-0 ring-transparent" // trying to hide extra content that flashes when pasting multi-line text into the title
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
-            onChangeText={(newName: string) => {
+            onChange={(e) => {
+              applyTitleResize(e.target as any)
+              let newName = e.target.value
               // Replace two hyphens with a long dash
               if (name && newName.length > name.length) {
                 const isHyphen =
@@ -670,7 +659,6 @@ function DraftMetadataEditor({
               })
             }}
             placeholder="Document Title"
-            padding={0}
           />
           <Separator />
         </div>
@@ -779,6 +767,9 @@ function DraftRebaseBanner() {
 }
 
 function applyTitleResize(target: HTMLTextAreaElement) {
+  // Reset height to auto to get accurate scrollHeight
   target.style.height = 'auto'
+
+  // Set height to match content with no limit
   target.style.height = target.scrollHeight + 'px'
 }

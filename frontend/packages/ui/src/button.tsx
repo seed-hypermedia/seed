@@ -51,6 +51,9 @@ export const buttonVariants = cva(
           'bg-brand-12 shadow-xs hover:bg-brand-11 active:bg-brand-10',
         blue: 'bg-blue-700 text-white shadow-xs hover:bg-blue-800',
         green: 'bg-green-700 text-white shadow-xs hover:bg-green-800',
+        orange: 'bg-orange-700 text-white shadow-xs hover:bg-orange-800',
+        inverse:
+          'bg-black text-white shadow-xs hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
       },
       size: {
         xs: 'h-6 rounded-md gap-1.5 px-2 has-[>svg]:px-1.5',

@@ -1,5 +1,5 @@
 import 'katex/dist/katex.min.css'
-import {Button} from 'tamagui'
+import {Button} from './button'
 import './document-content.css'
 import {SizableText} from './text'
 import {cn} from './utils'
@@ -91,16 +91,7 @@ function TextPlaceholder({
 
 export function ListItemSkeleton() {
   return (
-    <Button
-      borderWidth={1}
-      borderColor="$borderColor"
-      paddingHorizontal={16}
-      paddingVertical="$1"
-      bg="$backgroundHover"
-      h={60}
-      disabled
-      gap="$2"
-    >
+    <Button variant="ghost" disabled className="h-15">
       <Skeleton width={28} height={28} borderRadius={28} />
 
       <div className="flex flex-1 flex-col gap-2">

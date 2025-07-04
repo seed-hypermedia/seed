@@ -1,10 +1,17 @@
 import {createHmDocLink_DEPRECATED} from '@shm/shared'
-import {Check, ExternalLink, TextCursorInput, Unlink} from '@shm/ui/icons'
+import {Button} from '@shm/ui/button'
+import {Checkbox} from '@shm/ui/components/checkbox'
+import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
+import {
+  ExternalLink,
+  Link as LinkIcon,
+  TextCursorInput,
+  Unlink,
+} from '@shm/ui/icons'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Link as LinkIcon} from '@tamagui/lucide-icons'
 import {HTMLAttributes, forwardRef} from 'react'
-import {Button, Checkbox, Input, Label, XStack, YStack} from 'tamagui'
 
 export type EditHyperlinkMenuProps = {
   url: string
@@ -22,42 +29,30 @@ export const EditHyperlinkMenu = forwardRef<
   EditHyperlinkMenuProps & HTMLAttributes<HTMLDivElement>
 >(({url, text, update, className, ...props}, ref) => {
   return (
-    <YStack
-      p="$2"
-      gap="$2"
-      borderRadius="$4"
-      overflow="hidden"
-      bg="$backgroundStrong"
-      elevation="$3"
-      zIndex="$zIndex.5"
-      bottom="0"
-      position="absolute"
-    >
-      <XStack ai="center" gap="$2" p="$1">
-        <TextCursorInput size={12} />
+    <div className="bg-panel absolute bottom-0 z-10 flex flex-col gap-2 overflow-hidden rounded-md p-2 shadow-sm">
+      <div className="flex items-center gap-2 p-1">
+        <TextCursorInput className="size-4" />
         <Input
-          flex={1}
-          size={formSize}
+          className="flex-1"
           placeholder="link text"
           id="link-text"
           key={props.text}
           value={props.text}
         />
-      </XStack>
-      <XStack ai="center" gap="$2" p="$1">
-        <LinkIcon size={12} />
-        <Input flex={1} size="$2" key={props.url} value={props.url} />
-      </XStack>
+      </div>
+      <div className="flex items-center gap-2 p-1">
+        <LinkIcon className="size-4" />
+        <Input className="flex-1" key={props.url} value={props.url} />
+      </div>
       <Separator />
-      <YStack p="$1">
-        <XStack ai="center" gap="$2">
+      <div className="flex flex-col p-1">
+        <div className="flex items-center gap-2">
           {unpackedRef ? (
-            <XStack ai="center" minWidth={200} gap="$2">
+            <div className="flex min-w-40 items-center gap-2">
               <Checkbox
                 id="link-latest"
                 key={props.url}
-                size="$2"
-                defaultChecked={!!unpackedRef.latest}
+                defaultValue={!!unpackedRef.latest}
                 onCheckedChange={(newValue) => {
                   let newUrl = createHmDocLink_DEPRECATED({
                     documentId: unpackedRef?.id,
@@ -71,34 +66,27 @@ export const EditHyperlinkMenu = forwardRef<
 
                   props.editHyperlink(newUrl, props.text, true)
                 }}
-              >
-                <Checkbox.Indicator>
-                  <Check />
-                </Checkbox.Indicator>
-              </Checkbox>
-              <Label htmlFor="link-latest" size={formSize}>
+              />
+              <Label htmlFor="link-latest" size="sm">
                 Link to Latest Version
               </Label>
-            </XStack>
+            </div>
           ) : null}
           <Tooltip content="Remove link">
-            <Button
-              chromeless
-              size="$1"
-              icon={Unlink}
-              onPress={props.deleteHyperlink}
-            />
+            <Button size="iconSm" onClick={props.deleteHyperlink}>
+              <Unlink className="size-4" />
+            </Button>
           </Tooltip>
           <Tooltip content="Open in a new Window">
             <Button
-              chromeless
-              size="$1"
-              icon={ExternalLink}
-              onPress={() => props.openUrl(props.url, true)}
-            />
+              size="iconSm"
+              onClick={() => props.openUrl(props.url, true)}
+            >
+              <ExternalLink className="size-4" />
+            </Button>
           </Tooltip>
-        </XStack>
-      </YStack>
-    </YStack>
+        </div>
+      </div>
+    </div>
   )
 })

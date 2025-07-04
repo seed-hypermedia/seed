@@ -18,6 +18,7 @@ import {
   DialogOverlay,
   DialogPortal,
 } from '@shm/ui/components/dialog'
+import {Input} from '@shm/ui/components/input'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Prev as ArrowLeft} from '@shm/ui/icons'
@@ -26,7 +27,7 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {Button, ButtonFrame, Form, H2, Input, Label, TextArea} from 'tamagui'
+import {Button, ButtonFrame, Form, H2, Label, TextArea} from 'tamagui'
 import {
   cleanupOnboardingFormData,
   getOnboardingState,
@@ -533,7 +534,10 @@ function ProfileStep({
             <Input
               id="account-name"
               value={formData.name}
-              onChangeText={(text) => updateFormData({name: text})}
+              onChange={(e) => {
+                const text = e.target.value
+                updateFormData({name: text})
+              }}
               placeholder="Enter your account name"
             />
           </div>

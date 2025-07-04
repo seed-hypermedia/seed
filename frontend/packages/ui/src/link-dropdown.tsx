@@ -4,10 +4,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
-import {Button} from '@tamagui/button'
-import {MoreHorizontal} from '@tamagui/lucide-icons'
+import {MoreHorizontal} from 'lucide-react'
 import {ComponentProps} from 'react'
-import {PopoverProps} from 'tamagui'
+import {Button} from './button'
 import {MenuItem} from './menu-item'
 import {DocNavigationItem} from './navigation'
 
@@ -18,7 +17,7 @@ export function LinkDropdown({
   items: (DocNavigationItem | null)[]
   hover?: boolean
   button?: JSX.Element
-  placement?: PopoverProps['placement']
+  placement?: any
 }) {
   // const popoverState = usePopoverState()
   return (
@@ -28,15 +27,9 @@ export function LinkDropdown({
       >
         <PopoverTrigger>
           {button || (
-            <Button
-              size="$1"
-              chromeless
-              hoverStyle={{
-                bg: '$color6',
-              }}
-              circular
-              icon={MoreHorizontal}
-            />
+            <Button size="sm" variant="ghost" className="rounded-full">
+              <MoreHorizontal className="size-3" />
+            </Button>
           )}
         </PopoverTrigger>
         <PopoverContent className="max-h-[300px] overflow-y-scroll p-0">

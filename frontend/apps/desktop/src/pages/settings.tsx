@@ -52,8 +52,11 @@ import {
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
 import {Checkbox} from '@shm/ui/components/checkbox'
+import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
@@ -67,6 +70,7 @@ import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
@@ -90,24 +94,11 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
-import {
-  Form,
-  Heading,
-  Input,
-  Label,
-  Paragraph,
-  SizableText,
-  Tabs,
-  TabsContentProps,
-  TabsProps,
-  Text,
-  TextArea,
-} from 'tamagui'
+import {Tabs, TabsContentProps, TabsProps} from 'tamagui'
 import {z} from 'zod'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
-  const isDark = useIsDark()
   return (
     <div
       className={cn(
@@ -115,7 +106,7 @@ export default function Settings() {
         'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
       )}
     >
-      <div className={cn(panelContainerStyles)}>
+      <div className={panelContainerStyles}>
         <Tabs
           flex={1}
           height="50%"
@@ -234,10 +225,10 @@ function GeneralSettings() {
   const [theme, setTheme, isInitialLoading] = useSystemThemeWriter()
   return (
     <div className="flex flex-col gap-4">
-      <Heading>General Settings</Heading>
+      <SizableText size="2xl">General Settings</SizableText>
       {!isInitialLoading && (
         <div className="flex gap-4">
-          <Label>Theme</Label>
+          <Label size="sm">Theme</Label>
           <SelectDropdown
             value={theme || 'system'}
             onValue={setTheme}
@@ -263,7 +254,7 @@ export function DeveloperSettings() {
   return (
     <>
       <SettingsSection title="Developer Tools">
-        <SizableText fontSize="$4">
+        <SizableText>
           Adds features across the app for helping diagnose issues. Mostly
           useful for Seed Developers.
         </SizableText>
@@ -281,7 +272,7 @@ export function DeveloperSettings() {
         </div>
       </SettingsSection>
       <SettingsSection title="Publication Content Dev Tools">
-        <SizableText fontSize="$4">
+        <SizableText>
           Debug options for the formatting of all publication content
         </SizableText>
         <div className="flex justify-between">
@@ -340,26 +331,22 @@ export function ProfileForm({
         </div>
         <div className="flex flex-1 flex-col gap-3">
           <div className="flex flex-col">
-            <Label size="$3" htmlFor="accountid">
-              Account Id
-            </Label>
+            <Label htmlFor="accountid">Account Id</Label>
             <div className="flex">
               <Input
-                size="$3"
+                className="user-select-none flex-1 rounded-r-none"
                 id="accountid"
-                userSelect="none"
                 disabled
                 value={accountId}
                 data-testid="account-id"
-                flex={1}
-                hoverStyle={{
-                  cursor: 'default',
-                }}
-                className="flex-1 rounded-r-none"
               />
               <Tooltip content="Copy your account id">
-                <Button size="sm" onClick={onCopy} className="rounded-l-none">
-                  <Copy className="h-4 w-4" />
+                <Button
+                  size="iconSm"
+                  onClick={onCopy}
+                  className="rounded-l-none"
+                >
+                  <Copy className="size-4" />
                 </Button>
               </Tooltip>
             </div>
@@ -370,7 +357,7 @@ export function ProfileForm({
                 editProfileDialog.open(true)
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil className="mr-2 size-4" />
               Edit My Profile
             </Button>
           </div>
@@ -483,8 +470,9 @@ function AccountKeys() {
               <div className="flex flex-col gap-2">
                 <Field label="Secret Recovery Phrase" id="words">
                   <div className="flex gap-3">
-                    <TextArea
-                      f={1}
+                    <Textarea
+                      className="border-border flex-1 border"
+                      rows={4}
                       disabled
                       value={
                         showWords
@@ -628,11 +616,11 @@ function AccountKeys() {
       <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
         <UserRoundPlus size={50} className="text-muted-foreground" />
       </div>
-      <Heading>No Accounts Found</Heading>
-      <Paragraph textAlign="center" maxWidth={400} color="$color11">
+      <SizableText size="xl">No Accounts Found</SizableText>
+      <p className="text-muted-foreground max-w-lg text-center">
         Create a new profile to get started with Seed. You'll need to create a
         profile to use all the features.
-      </Paragraph>
+      </p>
       <Button
         className="mt-4"
         size="lg"
@@ -661,7 +649,9 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
         <div className="flex flex-col gap-3">
           <SizableText>
             Recipient Email:{' '}
-            <Text fontWeight="bold">{emailNotifs.data.account.email}</Text>
+            <SizableText weight="bold">
+              {emailNotifs.data.account.email}
+            </SizableText>
           </SizableText>
           {emailNotifs.data.account.notifyAllMentions && (
             <CheckmarkRow checked label="Notify when someone mentions me" />
@@ -677,8 +667,8 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           )}
           {hasNoNotifs ? (
             <div className="flex items-center gap-3">
-              <X color="$color9" size={24} />
-              <SizableText color="$color9">
+              <X className="text-muted-foreground size-6" />
+              <SizableText className="text-muted-foreground">
                 No notifications enabled
               </SizableText>
             </div>
@@ -703,11 +693,9 @@ function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (
     <div className="flex items-center gap-3">
       <div className="w-6">
-        {checked ? <Check className="text-primary" /> : null}
+        {checked ? <Check className="text-primary size-4" /> : null}
       </div>
-      <SizableText fontWeight={checked ? 'bold' : 'normal'}>
-        {label}
-      </SizableText>
+      <SizableText weight={checked ? 'bold' : 'normal'}>{label}</SizableText>
     </div>
   )
 }
@@ -776,11 +764,12 @@ function LinkDeviceDialog({
   ) {
     return (
       <div className="flex flex-col gap-4">
-        <Heading>Device Linked!</Heading>
-        <Paragraph>
+        <SizableText size="2xl">Device Linked!</SizableText>
+        <p>
           You have signed in to{' '}
-          <Text fontWeight="bold">{input.accountName}</Text> in the web browser.
-        </Paragraph>
+          <SizableText weight="bold">{input.accountName}</SizableText> in the
+          web browser.
+        </p>
         <div className="flex justify-center">
           <Button
             size="sm"
@@ -801,21 +790,22 @@ function LinkDeviceDialog({
       <DialogTitle>Link New Web Session</DialogTitle>
 
       {linkDeviceUrl ? (
-        <Paragraph>
+        <p>
           Open this URL to log in to{' '}
-          <Text fontWeight="bold">{input.accountName}</Text>
-        </Paragraph>
+          <SizableText weight="bold">{input.accountName}</SizableText>
+        </p>
       ) : (
-        <Paragraph>
-          You will sign in to <Text fontWeight="bold">{input.accountName}</Text>{' '}
-          from a web browser.
-        </Paragraph>
+        <p>
+          You will sign in to{' '}
+          <SizableText weight="bold">{input.accountName}</SizableText> from a
+          web browser.
+        </p>
       )}
       {linkDeviceUrl ? (
         <div className="flex flex-col gap-4">
           <CopyUrlField url={linkDeviceUrl} label="Device Login" />
           {linkDeviceUrl ? (
-            <Paragraph>Or, scan this code with your smartphone:</Paragraph>
+            <p>Or, scan this code with your smartphone:</p>
           ) : null}
           <QRCode value={linkDeviceUrl} size={465} />
         </div>
@@ -871,7 +861,7 @@ function DeviceLabelForm({
     )
   }
   return (
-    <Form
+    <form
       onSubmit={handleSubmit(async (data) => {
         const linkSession = await linkDevice.mutateAsync({
           label: data.label,
@@ -882,18 +872,19 @@ function DeviceLabelForm({
     >
       <div className="flex flex-col gap-4">
         {linkDevice.error ? (
-          <Paragraph color="$red10">
+          <p className="text-destructive">
             Error linking device: {linkDevice.error.message}
-          </Paragraph>
+          </p>
         ) : null}
         <FormField name="label" label="Device Label" errors={errors}>
           <FormInput control={control} name="label" placeholder="My Device" />
         </FormField>
-        <Form.Trigger asChild>
-          <Button>Link Device</Button>
-        </Form.Trigger>
+
+        <Button variant="inverse" type="submit" className="w-full">
+          Link Device
+        </Button>
       </div>
-    </Form>
+    </form>
   )
 }
 
@@ -922,34 +913,6 @@ function KeyItem({
   )
 }
 
-// function DevicesInfo() {
-//   const {data: deviceInfo} = useDaemonInfo()
-//   return (
-//     <YStack gap="$3">
-//       <Heading>My Device</Heading>
-
-//       {deviceInfo ? (
-//         <table>
-//           <tbody>
-//             <tr>
-//               <td>peerId</td>
-//               <td>{deviceInfo.}</td>
-//             </tr>
-//             <tr>
-//               <td>state</td>
-//               <td>{State[deviceInfo.state]}</td>
-//             </tr>
-//             <tr>
-//               <td>startTime</td>
-//               <td>{JSON.stringify(deviceInfo.startTime)}</td>
-//             </tr>
-//           </tbody>
-//         </table>
-//       ) : null}
-//     </YStack>
-//   )
-// }
-
 export function ExperimentSection({
   experiment,
   onValue,
@@ -968,12 +931,10 @@ export function ExperimentSection({
         isDark ? 'bg-background' : 'bg-muted',
       )}
     >
-      <Heading fontSize={42}>{experiment.emoji}</Heading>
+      <SizableText size="2xl">{experiment.emoji}</SizableText>
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-1 gap-3">
-          <Heading size="$6" marginVertical={0}>
-            {experiment.label}
-          </Heading>
+          <SizableText size="xl">{experiment.label}</SizableText>
         </div>
         <SizableText>{experiment.description}</SizableText>
         <div className="flex items-center justify-between">
@@ -995,8 +956,8 @@ export function ExperimentSection({
 function EnabledTag() {
   return (
     <div className="flex items-center gap-3 rounded-sm px-3 py-1">
-      <Check size="$1" color="$brand5" />
-      <SizableText size="$1" color="$brand5" fontWeight="bold">
+      <Check className="text-brand size-4" />
+      <SizableText size="sm" className="text-brand" weight="bold">
         Enabled
       </SizableText>
     </div>
@@ -1051,7 +1012,7 @@ function GatewaySettings({}: {}) {
         <InfoListHeader title="URL" />
         <TableList.Item>
           <div className="flex w-full gap-3">
-            <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
+            <Input className="flex-1" value={gwUrl} onChangeText={setGWUrl} />
             <Button
               size="sm"
               onClick={() => {
@@ -1100,7 +1061,7 @@ function PushOnCopySetting({}: {}) {
         <InfoListHeader title="Push on Copy" />
         <TableList.Item>
           <div className="flex flex-col">
-            <Paragraph theme="red">Error loading settings.</Paragraph>
+            <p className="text-destructive">Error loading settings.</p>
             <Button
               variant="destructive"
               size="sm"
@@ -1155,9 +1116,7 @@ function PushOnCopySetting({}: {}) {
                   id={`${id}-${option.value}`}
                 />
 
-                <Label size="$2" htmlFor={`${id}-${option.value}`}>
-                  {option.label}
-                </Label>
+                <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
               </div>
             )
           })}
@@ -1196,7 +1155,7 @@ function PushOnPublishSetting({}: {}) {
         <InfoListHeader title="Push on Publish" />
         <TableList.Item>
           <div className="flex flex-col">
-            <Paragraph theme="red">Error loading settings.</Paragraph>
+            <p className="text-destructive">Error loading settings.</p>
             <Button
               variant="destructive"
               size="sm"
@@ -1254,9 +1213,7 @@ function PushOnPublishSetting({}: {}) {
                   id={`${id}-${option.value}`}
                 />
 
-                <Label size="$2" htmlFor={`${id}-${option.value}`}>
-                  {option.label}
-                </Label>
+                <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
               </div>
             )
           })}
@@ -1360,7 +1317,7 @@ function AppSettings() {
       <TableList>
         <InfoListHeader title="Auto Update" />
         <TableList.Item className="items-center">
-          <SizableText size="$1" flex={0} minWidth={140} width={140}>
+          <SizableText size="sm" className="w-[140px] min-w-[140px] flex-none">
             Check for updates?
           </SizableText>
           <div className="flex flex-1">
@@ -1530,8 +1487,14 @@ function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
       hoverStyle={{cursor: 'default', bg: '$color6'}}
       {...rest}
     >
-      <Icon className={active ? 'text-brand-5' : 'text-color'} />
-      <SizableText flex={1} size="$1" color={active ? '$brand5' : '$color'}>
+      <Icon className={active ? 'text-primary' : 'text-muted-foreground'} />
+      <SizableText
+        size="xs"
+        className={cn(
+          'flex-1',
+          active ? 'text-primary' : 'text-muted-foreground',
+        )}
+      >
         {label}
       </SizableText>
     </Tabs.Tab>
@@ -1550,7 +1513,7 @@ function SettingsSection({
         isDark ? 'bg-background' : 'bg-muted',
       )}
     >
-      <Heading size="$7">{title}</Heading>
+      <SizableText size="2xl">{title}</SizableText>
       {children}
     </div>
   )

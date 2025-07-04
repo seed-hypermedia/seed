@@ -1,10 +1,14 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {getBlockInfoFromPos} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
-import {HMBlockSchema} from '@/schema'
+import {
+  Block,
+  BlockNoteEditor,
+  createReactBlockSpec,
+  defaultProps,
+  getBlockInfoFromPos,
+} from '@shm/editor/blocknote'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
+import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {
   Event as NostrEvent,
@@ -15,20 +19,9 @@ import {
   verifySignature,
 } from 'nostr-tools'
 import {useEffect, useState} from 'react'
-import {
-  Button,
-  Card,
-  Form,
-  H2,
-  Input,
-  Paragraph,
-  SizableText,
-  Tabs,
-  Text,
-  XStack,
-  YStack,
-  useTheme,
-} from 'tamagui'
+import {RiCloseCircleLine, RiRefreshLine} from 'react-icons/ri/index.js'
+import {Card, Tabs, useTheme} from 'tamagui'
+import {HMBlockSchema} from './schema'
 
 export const RELAY_LIST = [
   'wss://relayable.org',
@@ -123,7 +116,7 @@ const Render = (
   }
 
   return (
-    <YStack overflow="hidden">
+    <div className="flex flex-col overflow-hidden">
       {block.props.name ? (
         <NostrComponent
           block={block}
@@ -135,7 +128,7 @@ const Render = (
       ) : editor.isEditable ? (
         <NostrForm block={block} editor={editor} assign={assignNostr} />
       ) : null}
-    </YStack>
+    </div>
   )
 }
 
@@ -180,28 +173,22 @@ function NostrComponent({
   }
 
   return (
-    <YStack
+    <div
       // @ts-ignore
       contentEditable={false}
-      className={block.type}
-      onHoverIn={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      className={`flex flex-col ${block.type}`}
+      onMouseEnter={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         setReplace(true)
       }}
-      onHoverOut={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      onMouseLeave={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         setReplace(false)
       }}
-      borderWidth={0}
-      outlineWidth={0}
     >
       {replace && editor.isEditable ? (
         <Button
-          position="absolute"
-          top="$1.5"
-          right="$1.5"
-          zIndex="$zIndex.5"
-          size="$1"
-          width={60}
-          onPress={() =>
+          className="absolute top-1.5 right-1.5 z-20 w-[60px]"
+          size="sm"
+          onClick={() =>
             assign({
               props: {
                 url: '',
@@ -214,18 +201,15 @@ function NostrComponent({
               type: 'file',
             } as NostrType)
           }
-          hoverStyle={{
-            backgroundColor: '$backgroundTransparent',
-          }}
         >
           replace
         </Button>
       ) : null}
-      <XStack>
-        <Card elevate size="$4" bordered animation="bouncy" flex={1}>
+      <div className="flex">
+        <Card elevate size="$4" bordered flex={1}>
           <Card.Header padded>
-            <H2 marginTop={12}>
-              <XStack justifyContent="space-between">
+            <SizableText className="mt-2" size="2xl">
+              <div className="flex justify-between">
                 <Text>
                   {'Public Key: '}
                   {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
@@ -236,35 +220,32 @@ function NostrComponent({
                   }
                 >
                   <Button
-                    size="$2"
                     disabled
-                    theme={
+                    variant={
                       verified === undefined
                         ? 'blue'
                         : verified
                         ? 'green'
                         : 'orange'
                     }
-                    icon={undefined}
-                    // icon={
-                    //   verified === undefined
-                    //     ? RiRefreshLine
-                    //     : verified
-                    //     ? // ? RiCheckFill
-                    //       undefined
-                    //     : RiCloseCircleLine
-                    // }
-                  />
+                    size="sm"
+                  >
+                    {verified === undefined ? (
+                      <RiRefreshLine />
+                    ) : verified ? (
+                      <RiRefreshLine />
+                    ) : (
+                      <RiCloseCircleLine />
+                    )}
+                  </Button>
                 </Tooltip>
-              </XStack>
-            </H2>
-            <Paragraph theme="alt2" marginTop={12}>
-              {content}
-            </Paragraph>
+              </div>
+            </SizableText>
+            <p className="mt-4">{content}</p>
           </Card.Header>
         </Card>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -415,12 +396,8 @@ function NostrForm({
   }
 
   return (
-    <YStack
-      position="relative"
-      borderWidth={2.5}
-      borderColor="$color6"
-      borderRadius="$2"
-      outlineWidth={0}
+    <div
+      className="border-border relative flex flex-col rounded border-[2.5px] outline-none"
       // @ts-ignore
       contentEditable={false}
     >
@@ -457,7 +434,7 @@ function NostrForm({
               backgroundColor: '$borderColorHover',
             }}
           >
-            <SizableText size="$2">Search</SizableText>
+            <SizableText size="sm">Search</SizableText>
           </Tabs.Tab>
           <Tabs.Tab
             unstyled
@@ -471,124 +448,60 @@ function NostrForm({
               backgroundColor: '$borderColorHover',
             }}
           >
-            <SizableText size="$2">Manual</SizableText>
+            <SizableText size="sm">Manual</SizableText>
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Content value="search">
-          <XStack
-            padding="$4"
-            alignItems="center"
-            backgroundColor="$background"
-            borderRadius="$2"
-          >
-            <Form width="100%" onSubmit={() => searchNote()} borderWidth={0}>
-              <XStack flex={1} gap="$3">
+          <div className="bg-background flex items-center rounded p-4">
+            <form className="w-full" onSubmit={() => searchNote()}>
+              <div className="flex flex-1 gap-3">
                 <Input
-                  unstyled
-                  borderColor="$color8"
-                  borderWidth="$1"
-                  borderRadius="$2"
-                  paddingLeft="$3"
-                  height="$3"
-                  width="100%"
+                  className="w-full"
                   placeholder="Input nevent or note1"
-                  hoverStyle={{
-                    borderColor: '$color11',
-                  }}
-                  focusStyle={{
-                    borderColor: '$color11',
-                  }}
-                  onChange={(e) => setNevent(e.nativeEvent.text)}
+                  onChange={(e) => setNevent(e.target.value)}
                   autoFocus={true}
                 />
-                <Form.Trigger asChild>
-                  <Button
-                    unstyled
-                    alignItems="center"
-                    justifyContent="center"
-                    width="$12"
-                    flex={0}
-                    flexShrink={0}
-                    borderWidth="0"
-                    borderRadius="$2"
-                    size="$3"
-                    fontWeight="bold"
-                    backgroundColor="$color12"
-                    color="$color1"
-                    hoverStyle={{
-                      backgroundColor: '$color11',
-                    }}
-                  >
-                    SEARCH
-                  </Button>
-                </Form.Trigger>
-              </XStack>
+
+                <Button type="submit">SEARCH</Button>
+              </div>
               {state.name && (
-                <SizableText size="$2" color={state.color} paddingTop="$2">
+                <SizableText
+                  size="sm"
+                  style={{color: state.color}}
+                  className="pt-2"
+                >
                   {state.name}
                 </SizableText>
               )}
-            </Form>
-          </XStack>
+            </form>
+          </div>
         </Tabs.Content>
         <Tabs.Content value="manual">
-          <XStack
-            padding="$4"
-            alignItems="center"
-            backgroundColor="$background"
-            borderRadius="$2"
-          >
-            <Form width="100%" onSubmit={() => submitNote()} borderWidth={0}>
-              <XStack flex={1} gap="$3">
+          <div className="bg-background flex items-center rounded p-4">
+            <form className="w-full" onSubmit={() => submitNote()}>
+              <div className="flex flex-1 gap-3">
                 <Input
-                  unstyled
-                  borderColor="$color8"
-                  borderWidth="$1"
-                  borderRadius="$2"
-                  paddingLeft="$3"
-                  height="$3"
-                  width="100%"
+                  className="w-full"
                   placeholder="Input JSON note"
-                  hoverStyle={{
-                    borderColor: '$color11',
-                  }}
-                  focusStyle={{
-                    borderColor: '$color11',
-                  }}
-                  onChange={(e) => setRawNote(e.nativeEvent.text)}
+                  onChange={(e) => setRawNote(e.target.value)}
                   autoFocus={true}
                 />
-                <Form.Trigger asChild>
-                  <Button
-                    unstyled
-                    alignItems="center"
-                    justifyContent="center"
-                    width="$12"
-                    flex={0}
-                    flexShrink={0}
-                    borderWidth="0"
-                    borderRadius="$2"
-                    size="$3"
-                    fontWeight="bold"
-                    backgroundColor="$color12"
-                    color="$color1"
-                    hoverStyle={{
-                      backgroundColor: '$color11',
-                    }}
-                  >
-                    EMBED
-                  </Button>
-                </Form.Trigger>
-              </XStack>
+
+                <Button type="submit">EMBED</Button>
+              </div>
               {state.name && (
-                <SizableText size="$2" color={state.color} paddingTop="$2">
+                <SizableText
+                  size="sm"
+                  style={{color: state.color}}
+                  className="pt-2"
+                >
                   {state.name}
                 </SizableText>
               )}
-            </Form>
-          </XStack>
+            </form>
+          </div>
         </Tabs.Content>
       </Tabs>
-    </YStack>
+    </div>
   )
 }

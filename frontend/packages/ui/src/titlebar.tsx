@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {ButtonText} from 'tamagui'
+import * as React from 'react'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -10,7 +10,7 @@ export const TitlebarWrapper = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'border-border m-0 flex min-h-[40px] w-full flex-none flex-col items-stretch justify-center border-0 border-b border-solid bg-transparent px-0 py-0',
+      'm-0 flex min-h-[40px] w-full flex-none flex-col items-stretch justify-center bg-transparent px-0 py-0',
       className,
     )}
     {...props}
@@ -51,11 +51,14 @@ export const TitlebarSection = ({
   </div>
 )
 
+const titleTextClasses =
+  'text-foreground m-0 max-w-full cursor-default overflow-hidden rounded-sm text-sm font-bold text-ellipsis whitespace-nowrap normal-case select-none hover:underline hover:decoration-current'
+
 export const TitleText = (props) => (
   <SizableText
     name="TitlebarH1"
     size="sm"
-    className="text-foreground m-0 max-w-full cursor-default overflow-hidden rounded-sm font-bold text-ellipsis whitespace-nowrap"
+    className={titleTextClasses}
     {...props}
   />
 )
@@ -79,14 +82,8 @@ export const TitleTextButton = ({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof ButtonText>) => (
-  <ButtonText
-    className={cn(
-      'text-foreground m-0 flex-shrink-0 cursor-default overflow-hidden p-0 text-base font-bold text-ellipsis whitespace-nowrap normal-case select-none hover:underline hover:decoration-current',
-      className,
-    )}
-    {...props}
-  >
+}: React.ComponentProps<'button'>) => (
+  <button className={cn(titleTextClasses, className)} {...props}>
     {children}
-  </ButtonText>
+  </button>
 )

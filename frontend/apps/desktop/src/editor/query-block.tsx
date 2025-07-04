@@ -20,18 +20,18 @@ import {
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {DocumentCardGrid} from '@shm/ui/document-content'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
-import {Separator} from '@shm/ui/separator'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {ButtonFrame, Input, SizableText} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
@@ -338,12 +338,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
 function BlankQueryBlockMessage({message}: {message: string}) {
   return (
     <div className="bg-muted flex items-center rounded-lg p-4">
-      <SizableText
-        fontSize="$4"
-        color="$color9"
-        fontWeight="bold"
-        fontStyle="italic"
-      >
+      <SizableText weight="bold" className="text-muted-foreground italic">
         {message}
       </SizableText>
     </div>
@@ -408,11 +403,11 @@ function QuerySettings({
       >
         <Tooltip content="Edit Query">
           <Button
-            size="$2"
-            onPress={() => popoverState.onOpenChange(!popoverState.open)}
-            icon={Pencil}
-            elevation="$2"
-          />
+            size="icon"
+            onClick={() => popoverState.onOpenChange(!popoverState.open)}
+          >
+            <Pencil className="size-4" />
+          </Button>
         </Tooltip>
 
         {popoverState.open ? (
@@ -638,9 +633,7 @@ function QuerySettings({
               />
               {limit ? (
                 <Input
-                  keyboardType="numeric"
-                  inputMode="numeric"
-                  size="$2"
+                  type="number"
                   value={block.props.queryLimit}
                   onChangeText={(value) => {
                     onValuesChange({
@@ -654,18 +647,16 @@ function QuerySettings({
                   placeholder="Item Count"
                 />
               ) : null}
-              <div className="-mt-1 flex flex-col gap-2">
-                <Separator />
-
+              <div className="border-border -mt-1 flex flex-col gap-2 border-t">
                 <div className="flex justify-end">
                   <Button
-                    size="$3"
-                    icon={<Trash size={16} />}
-                    chromeless
-                    onPress={() => {
+                    size="icon"
+                    onClick={() => {
                       editor.removeBlocks([block.id])
                     }}
-                  />
+                  >
+                    <Trash className="size-4" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -703,27 +694,20 @@ export function QuerySearch({
 
   return (
     <div className="relative flex flex-col">
-      <ButtonFrame
-        onPress={() => setShowSearch(true)}
-        padding="$2"
-        h={38}
-        gap="$2"
-        ai="center"
-        borderWidth="$0.5"
-        borderColor="$brand5"
+      <Button
+        onClick={() => setShowSearch(true)}
+        className="border-border h-9 gap-2 overflow-hidden border-b"
       >
-        <Search flexShrink={0} size={16} />
+        <Search className="size-4 shrink-0" />
         <SizableText
-          f={1}
-          maxWidth="100%"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          color={selectedDocName ? '$color' : '$color9'}
+          className="max-w-full flex-1 truncate"
+          style={{
+            color: selectedDocName ? 'text-foreground' : 'muted-foreground',
+          }}
         >
           {selectedDocName || 'Search Hypermedia Document'}
         </SizableText>
-      </ButtonFrame>
+      </Button>
       {showSearch ? (
         <>
           <div

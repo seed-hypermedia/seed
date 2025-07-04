@@ -3,9 +3,9 @@ import * as React from 'react'
 
 import {cn} from '../utils'
 
-function Popover({
-  ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+export type PopoverProps = React.ComponentProps<typeof PopoverPrimitive.Root>
+
+function Popover({...props}: PopoverProps) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 

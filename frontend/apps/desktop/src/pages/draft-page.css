@@ -1,4 +1,16 @@
 #draft-name-input {
   /* border: none !important; */
   outline: none !important;
+
+  /* Ensure proper textarea auto-sizing */
+  overflow-y: hidden;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.2;
+
+  /* Prevent horizontal scrolling */
+  overflow-x: hidden;
+
+  /* Ensure proper min height */
+  min-height: 1.2em;
 }

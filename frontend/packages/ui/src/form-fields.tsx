@@ -1,7 +1,7 @@
 import {Label} from '@shm/ui/components/label'
-import {IconProps} from '@tamagui/helpers-icon'
-import {NamedExoticComponent, PropsWithChildren} from 'react'
-import {Input, InputProps, Switch, SwitchProps} from 'tamagui'
+import {PropsWithChildren} from 'react'
+import {Input} from './components/input'
+import {Switch, SwitchProps} from './components/switch'
 import {
   SelectDropdown,
   SelectDropdownProps,
@@ -28,24 +28,15 @@ export function TextField({
   Icon,
   id,
   ...props
-}: InputProps & {
+}: React.InputHTMLAttributes<HTMLInputElement> & {
   label?: string
-  Icon?: NamedExoticComponent<IconProps>
+  Icon?: any
   id: string
 }) {
   let content = (
     <div className="border-border flex items-center gap-2 rounded-sm border px-2">
       {Icon && <Icon className="size-3" size={14} />}
-      <Input
-        borderWidth={0}
-        // @ts-ignore
-        outline="none"
-        unstyled
-        w="100%"
-        autoFocus
-        size="$2"
-        {...props}
-      />
+      <Input autoFocus {...props} />
     </div>
   )
 
@@ -73,7 +64,7 @@ export function SelectField({
   ...props
 }: SelectDropdownProps<SelectOptions> & {
   label?: string
-  Icon?: NamedExoticComponent<IconProps>
+  Icon?: any
   id: string
 }) {
   let content = (
@@ -112,15 +103,7 @@ export function SwitchField({
       <Label htmlFor={id} size="sm" className="text-muted-foreground flex-1">
         {label}
       </Label>
-
-      <Switch size="$2" {...props} borderColor="$brand5">
-        <Switch.Thumb
-          animation="fast"
-          bg="$brand5"
-          borderColor="$background"
-          borderWidth={2}
-        />
-      </Switch>
+      <Switch {...props} />
     </div>
   )
 }

@@ -13,19 +13,14 @@ import {
   useCreateInvoice,
   useInvoiceStatus,
 } from '@shm/shared'
-import {Button} from '@tamagui/button'
+import {Button} from './button'
 
 import {Label} from '@shm/ui/components/label'
-import {Input} from '@tamagui/input'
-import {
-  AlertCircle,
-  CircleDollarSign,
-  Copy,
-  PartyPopper,
-} from '@tamagui/lucide-icons'
+import {AlertCircle, CircleDollarSign, Copy, PartyPopper} from 'lucide-react'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './components/checkbox'
+import {Input} from './components/input'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {Spinner} from './spinner'
@@ -58,7 +53,7 @@ export function DonateButton({
   if (allowedRecipients.isError)
     return (
       <Tooltip content="Failed to query Seed server to check payment recipients">
-        <AlertCircle color="$yellow11" size={16} />
+        <AlertCircle className="size-4 text-yellow-700" />
       </Tooltip>
     )
   if (allowedRecipients.isLoading) return null
@@ -67,23 +62,18 @@ export function DonateButton({
     <>
       <Tooltip content="Donate">
         <Button
-          icon={
-            <CircleDollarSign
-              color="$brand9"
-              $group-icon-hover={{color: '$brand8'}}
-            />
-          }
-          group="icon"
-          chromeless
-          onPress={() => {
+          variant="ghost"
+          size="icon"
+          onClick={() => {
             donateDialog.open({
               docId,
               authors,
               allowedRecipients: allowedRecipients.data,
             })
           }}
-          size="$2"
-        />
+        >
+          <CircleDollarSign className="text-brand-9 group-hover:text-brand-8 size-4" />
+        </Button>
       </Tooltip>
       {donateDialog.content}
     </>
@@ -143,7 +133,7 @@ function DonateDialog({
 
 function DonateInvoice({
   invoice,
-  onReset,
+
   onClose,
 }: {
   invoice: HMInvoice
@@ -165,7 +155,9 @@ function DonateInvoice({
           {invoice.amount} SATS has been sent to the{' '}
           {authors.length > 1 ? 'authors' : 'author'}.
         </DialogDescription>
-        <Button onPress={onClose}>Done</Button>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Done
+        </Button>
       </>
     )
   }
@@ -178,14 +170,13 @@ function DonateInvoice({
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
-            onPress={() => {
+            onClick={() => {
               copyTextToClipboard(invoice.payload)
               toast.success('Copied Invoice to Clipboard')
             }}
-            icon={Copy}
-            size="$2"
-            themeInverse
+            size="sm"
           >
+            <Copy className="size-4" />
             Copy Invoice
           </Button>
         </Tooltip>
@@ -193,7 +184,9 @@ function DonateInvoice({
           <AlertCircle opacity={isError ? 1 : 0} color="$red10" />
         </div>
       </div>
-      <Button onPress={onClose}>Cancel</Button>
+      <Button variant="ghost" size="sm" onClick={onClose}>
+        Cancel
+      </Button>
     </>
   )
 }
@@ -287,9 +280,8 @@ function DonateForm({
       <DialogDescription>Fee: {fee} SAT</DialogDescription>
       <DialogDescription>Total: {total} SAT</DialogDescription>
       <Button
-        themeInverse
-        theme="green"
-        onPress={() => {
+        variant="default"
+        onClick={() => {
           createInvoice
             .mutateAsync({
               amountSats: total,

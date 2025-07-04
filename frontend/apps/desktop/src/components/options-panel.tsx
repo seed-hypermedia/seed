@@ -4,6 +4,8 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {SimpleDatePicker} from '@shm/ui/datepicker'
 import {SwitchField} from '@shm/ui/form-fields'
@@ -11,7 +13,6 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useRef, useState} from 'react'
-import {ButtonText, Input} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
@@ -47,7 +48,7 @@ export function OptionsPanel({
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
             <SizableText
-              className="flex-1 px-1 mt-4 select-none"
+              className="mt-4 flex-1 px-1 select-none"
               size="md"
               weight="semibold"
             >
@@ -100,9 +101,11 @@ function NameInput({
         Name
       </Label>
       <Input
-        size="$"
         value={metadata.name}
-        onChangeText={(name) => onMetadata({name})}
+        onChange={(e) => {
+          const name = e.target.value
+          onMetadata({name})
+        }}
       />
     </div>
   )
@@ -143,7 +146,7 @@ function SummaryInput({
       </Label>
       <textarea
         ref={textareaRef}
-        className="p-2 px-4 w-full rounded-md bg-muted border-border border-1"
+        className="bg-muted border-border w-full rounded-md border-1 p-2 px-4"
         style={{
           resize: 'none',
           minHeight: '38px',
@@ -341,9 +344,9 @@ function OriginalPublishDate({
   const [isAdding, setIsAdding] = useState(false)
   if (!isAdding && !metadata.displayPublishTime) {
     return (
-      <ButtonText size="$1" color="$brand5" onPress={() => setIsAdding(true)}>
+      <Button size="sm" variant="link" onClick={() => setIsAdding(true)}>
         Set Publication Display Date
-      </ButtonText>
+      </Button>
     )
   }
   return (
@@ -384,7 +387,9 @@ function OutlineVisibility({
         label="Show Outline"
         id="outline"
         defaultChecked={checked}
-        opacity={checked ? 1 : 0.4}
+        style={{
+          opacity: checked ? 1 : 0.4,
+        }}
         onCheckedChange={(value) => {
           onMetadata({showOutline: value})
         }}
@@ -406,7 +411,9 @@ function ActivityVisibility({
         label="Enable Web Activity Panel"
         id="activity"
         checked={metadata.showActivity !== false}
-        opacity={metadata.showActivity !== false ? 1 : 0.4}
+        style={{
+          opacity: metadata.showActivity !== false ? 1 : 0.4,
+        }}
         onCheckedChange={(value) => {
           onMetadata({showActivity: value})
         }}

@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Input, InputProps, Button as TButton} from 'tamagui'
+import {Button as TButton} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -31,7 +31,7 @@ import {
 import {Popover} from '@shm/ui/TamaguiPopover'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Fragment} from 'react'
-import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
+import {Input, InputProps} from './components/input'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -79,22 +79,12 @@ export function MobileSearch({
       .filter(Boolean) ?? []
 
   return (
-    <div
-      className="w-full p-2"
-      gap="$2"
-      padding="$2"
-      position="relative"
-      borderRadius="$4"
-      h="100%"
-      maxHeight="50%"
-    >
+    <div className="relative max-h-1/2 w-full gap-2 rounded-md p-2">
       <Input
-        className="w-full"
+        className="w-full flex-1"
         value={searchValue}
-        size="$3"
-        flex={1}
-        onChange={(e: NativeSyntheticEvent<TextInputChangeEventData>) => {
-          setSearchValue(e.nativeEvent.target.value)
+        onChange={(e) => {
+          setSearchValue(e.target.value)
         }}
         placeholder="Search Documents"
       />
@@ -136,7 +126,6 @@ export function HeaderSearch({
     true,
     48 - searchValue.length,
   )
-  const MIN_INPUT_WIDTH = 500
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
 
@@ -195,14 +184,11 @@ export function HeaderSearch({
               <Search className="size-4" />
               <Input
                 value={searchValue}
-                size="$3"
-                f={1}
-                onChange={(
-                  e: NativeSyntheticEvent<TextInputChangeEventData>,
-                ) => {
-                  setSearchValue(e.nativeEvent.target.value)
+                className="flex-1"
+                onChange={(e) => {
+                  setSearchValue(e.target.value)
                 }}
-                onKeyPress={(e: any) => {
+                onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     e.preventDefault()
                     popoverState.onOpenChange(false)
@@ -486,21 +472,12 @@ export function SearchInput({
         </div>
 
         <Input
-          size="$3"
-          unstyled
+          variant="unstyled"
           placeholder="Search Hypermedia documents"
-          borderWidth={0}
-          // @ts-ignore
-          outline="none"
-          w="100%"
-          autoFocus
-          style={{
-            outline: 'none',
-          }}
-          paddingHorizontal="$1"
+          className="w-full px-1"
           {...inputProps}
-          onKeyPress={(e: any) => {
-            if (e.nativeEvent.key === 'Escape') {
+          onKeyUp={(e) => {
+            if (e.key === 'Escape') {
               e.preventDefault()
               onEscape()
             }

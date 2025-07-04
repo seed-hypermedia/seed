@@ -44,6 +44,7 @@ import {TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
+import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {
@@ -88,7 +89,7 @@ export function TitleContent({
   if (route.key === 'contacts') {
     return (
       <>
-        <Contact size={12} />
+        <Contact className="size-4" />
         <TitleText {...titleProps}>Contacts</TitleText>
       </>
     )
@@ -96,7 +97,7 @@ export function TitleContent({
   if (route.key === 'explore') {
     return (
       <>
-        <Sparkles size={12} />
+        <Sparkles className="size-4" />
         <TitleText {...titleProps}>Explore</TitleText>
       </>
     )
@@ -104,7 +105,7 @@ export function TitleContent({
   if (route.key === 'favorites') {
     return (
       <>
-        <Star size={12} />
+        <Star className="size-4" />
         <TitleText {...titleProps}>Favorites</TitleText>
       </>
     )
@@ -112,7 +113,7 @@ export function TitleContent({
   if (route.key === 'library') {
     return (
       <>
-        <Library size={12} />
+        <Library className="size-4" />
         <TitleText {...titleProps}>Library</TitleText>
       </>
     )
@@ -120,14 +121,8 @@ export function TitleContent({
   if (route.key === 'drafts') {
     return (
       <>
-        <File size={12} />
-        <TitleTextButton
-          fontWeight={'bold'}
-          className="no-window-drag"
-          hoverStyle={{textDecorationLine: 'none'}}
-        >
-          Drafts
-        </TitleTextButton>
+        <File className="size-4" />
+        <TitleTextButton className="no-window-drag">Drafts</TitleTextButton>
       </>
     )
   }
@@ -492,7 +487,7 @@ function BreadcrumbEllipsis({
             if (!crumb) return null
             return (
               <TitleTextButton
-                onPress={() => {
+                onClick={() => {
                   if (crumb.id) navigate({key: 'document', id: crumb.id})
                 }}
               >
@@ -545,10 +540,8 @@ function BreadcrumbItem({
       return (
         <Tooltip content="Failed to Load this Document">
           <TitleTextButton
-            fontWeight={'bold'}
-            color="$red10"
-            className="no-window-drag"
-            onPress={() => {
+            className="no-window-drag text-destructive"
+            onClick={() => {
               if (details.id) navigate({key: 'document', id: details.id})
             }}
           >
@@ -589,13 +582,10 @@ function BreadcrumbItem({
   ) : (
     <TitleTextButton
       ref={observerRef}
-      alignItems="center"
-      justifyContent="center"
-      className="no-window-drag"
-      onPress={() => {
+      onClick={() => {
         if (details.id) navigate({key: 'document', id: details.id})
       }}
-      fontWeight={isActive ? 'bold' : 'normal'}
+      className={cn('no-window-drag', isActive ? 'font-bold' : 'font-normal')}
     >
       {details.name}
     </TitleTextButton>
@@ -828,11 +818,11 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
         // className="no-window-drag"
         height="100%"
       >
-        <File size={12} />
+        <File className="size-4" />
         <TitleTextButton
           fontWeight={'bold'}
           className="no-window-drag"
-          onPress={() => {
+          onClick={() => {
             navigate({key: 'drafts'})
           }}
         >
@@ -862,10 +852,10 @@ function ContactTitle({route}: {route: ContactRoute}) {
 
   return (
     <>
-      <Contact size={12} />
+      <Contact className="size-4" />
       <TitleTextButton
         className="no-window-drag"
-        onPress={() => {
+        onClick={() => {
           navigate({key: 'contacts'})
         }}
       >

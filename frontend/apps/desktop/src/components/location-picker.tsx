@@ -23,15 +23,22 @@ import {
 import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Search, Undo2} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
 import {useEffect, useMemo, useState} from 'react'
-import {Input, Popover, SizableText} from 'tamagui'
 
 export function LocationPicker({
   location,
@@ -137,14 +144,8 @@ export function LocationPicker({
                     className="h-auto min-h-[40px] justify-start"
                   >
                     <div className="flex flex-1 flex-wrap justify-between">
-                      <SizableText numberOfLines={1}>
-                        {d.metadata.name}
-                      </SizableText>
-                      <SizableText
-                        numberOfLines={1}
-                        color="$color8"
-                        textAlign="right"
-                      >
+                      <SizableText>{d.metadata.name}</SizableText>
+                      <SizableText className="text-muted-foreground text-right">
                         {d.path?.at(-1)}
                       </SizableText>
                     </div>
@@ -159,7 +160,8 @@ export function LocationPicker({
         <Input
           id="url-path"
           value={newUrlPath}
-          onChangeText={(text: string) => {
+          onChange={(e) => {
+            const text = e.target.value
             if (!location) return
             handleSetLocation(
               hmId('d', location?.uid, {
@@ -195,13 +197,10 @@ function LocationSearch({
   const popover = usePopoverState()
   return (
     <Popover {...popover}>
-      <Popover.Trigger className="no-window-drag">
-        <Button size="sm">
-          <Search className="size-4" />
-        </Button>
-      </Popover.Trigger>
-      <Popover.Content bg="$backgroundStrong">
-        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+      <PopoverTrigger className="no-window-drag">
+        <Search className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent className="p-2">
         <SearchContent
           writableDocuments={writableDocuments}
           onLocationSelected={(newParent) => {
@@ -213,7 +212,7 @@ function LocationSearch({
             )
           }}
         />
-      </Popover.Content>
+      </PopoverContent>
     </Popover>
   )
 }
@@ -251,14 +250,17 @@ function SearchContent({
   }
   return (
     <div className="flex flex-col">
-      <div className="relative mb-2">
+      <div className={cn('relative', searchedLocations.length && 'mb-2')}>
         <div className="absolute top-[11px] left-3">
           <Search className="size-3" />
         </div>
         <Input
-          paddingLeft="$7"
+          className="pl-7"
           value={searchQ}
-          onChangeText={setSearchQ}
+          onChange={(e) => {
+            const text = e.target.value
+            setSearchQ(text)
+          }}
           placeholder="Find Locations..."
         />
       </div>
@@ -308,14 +310,11 @@ function LocationPreview({
     <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
       <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
       <SizableText
-        fontWeight="bold"
-        hoverStyle={{
-          textDecorationLine: 'underline',
-        }}
-        onPress={() => {
+        weight="bold"
+        className="hover:underline"
+        onClick={() => {
           setLocation(hmId('d', location.uid, {path: [newUrlPath]}))
         }}
-        className="cursor-pointer hover:underline"
       >
         {site?.data?.document?.metadata.name}
       </SizableText>
@@ -323,10 +322,8 @@ function LocationPreview({
         return (
           <SizableText
             key={index}
-            hoverStyle={{
-              textDecorationLine: 'underline',
-            }}
-            onPress={() => {
+            className="hover:underline"
+            onClick={() => {
               const path = b.data?.id?.path || []
               setLocation(
                 hmId('d', location?.uid, {
@@ -334,13 +331,11 @@ function LocationPreview({
                 }),
               )
             }}
-            className="cursor-pointer hover:underline"
           >
             {b.data?.document?.metadata.name}
           </SizableText>
         )
       })}
-      {/* <SizableText>{location.path?.at(-1) || ''}</SizableText> */}
     </div>
   )
 }
@@ -405,7 +400,13 @@ function URLPreview({
             <AlertCircle className="color-destructive size-3" />
           ) : null}
         </div>
-        <SizableText color={isError ? '$red11' : '$blue11'} size="$3">
+        <SizableText
+          size="sm"
+          className={cn(
+            'break-all',
+            isError ? 'text-destructive' : 'text-blue-500',
+          )}
+        >
           {url}
         </SizableText>
       </div>

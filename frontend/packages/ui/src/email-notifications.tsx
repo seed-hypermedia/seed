@@ -5,9 +5,8 @@ import {FormField} from '@shm/ui/forms'
 import {Spinner} from '@shm/ui/spinner'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
-import {Form} from 'tamagui'
 import {z} from 'zod'
-import {Button} from './legacy/button'
+import {Button} from './button'
 import {SizableText} from './text'
 
 const emailNotificationsSchema = z.object({
@@ -62,7 +61,7 @@ export function UIEmailNotificationsForm({
     setFocus('email')
   }, [setFocus])
   return (
-    <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <FormField
         name="email"
         label={tx('Notification Email')}
@@ -97,21 +96,21 @@ export function UIEmailNotificationsForm({
       <div className="flex items-center justify-end gap-3">
         <Spinner hide={!isLoading} />
         <Button
-          // @ts-expect-error
+          variant="ghost"
+          size="sm"
           type="button" // Prevent form submission
-          onPress={() => {
+          onClick={() => {
             onClose()
           }}
         >
           {tx('Cancel')}
         </Button>
-        <Form.Trigger asChild>
-          <Button bg="$brand5" color="white">
-            {tx('Save Notification Settings')}
-          </Button>
-        </Form.Trigger>
+
+        <Button variant="default" type="submit">
+          {tx('Save Notification Settings')}
+        </Button>
       </div>
-    </Form>
+    </form>
   )
 }
 

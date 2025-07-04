@@ -172,3 +172,7 @@ Tippy popups that are appended to document.body directly
     }
   }
 }
+
+.bn-focused-heading-block {
+  background-color: red !important;
+}

@@ -5,9 +5,9 @@ export function OnlineIndicator({
   ...props
 }: {online: boolean} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="flex w-5 items-center justify-center" {...props}>
+    <div className="flex w-4 items-center justify-center" {...props}>
       <div
-        className={`h-2 w-2 rounded-full ${
+        className={`size-2 rounded-full ${
           online
             ? 'bg-green-600 dark:bg-green-400'
             : 'bg-gray-400 dark:bg-gray-600'
