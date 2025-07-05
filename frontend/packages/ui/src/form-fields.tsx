@@ -68,15 +68,13 @@ export function SelectField({
   id: string
 }) {
   let content = (
-    <div className="border-border flex items-center gap-2 rounded-sm border px-2">
-      <SelectDropdown
-        width="100%"
-        options={options}
-        value={value}
-        onValue={onValue}
-        {...props}
-      />
-    </div>
+    <SelectDropdown
+      width="100%"
+      options={options}
+      value={value}
+      onValue={onValue}
+      {...props}
+    />
   )
 
   if (label) {

@@ -38,15 +38,7 @@ import {
 } from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {
-  AlertDialog,
-  ButtonText,
-  Form,
-  Heading,
-  Theme,
-  ThemeName,
-  XGroup,
-} from 'tamagui'
+import {AlertDialog, ButtonText, Form, Theme, ThemeName, XGroup} from 'tamagui'
 import {z} from 'zod'
 
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -124,12 +116,16 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <div className="flex flex-col gap-6 bg-red-500">
-      {heading ? <Heading size="$2">{heading}</Heading> : null}
+    <div className="flex max-w-xl flex-col gap-6">
+      {heading ? (
+        <SizableText size="3xl" weight="bold" className="text-center">
+          {heading}
+        </SizableText>
+      ) : null}
       {backButton ? (
         <div className="absolute top-4 left-4">{backButton}</div>
       ) : null}
-      <div>{children}</div>
+      <div className="flex flex-col justify-center gap-2">{children}</div>
     </div>
   )
 }
@@ -263,7 +259,7 @@ function PublishSiteDialog({
   return (
     <PublishDialogContainer heading="Set Up Web Domain">
       <DialogInner>
-        <SizableText className="text-muted-foreground text-center">
+        <SizableText size="3xl" className="text-muted-foreground text-center">
           How would you like to publish to the web?
         </SizableText>
         <div className="bg-muted flex flex-col gap-2 rounded-lg p-2">
@@ -439,7 +435,7 @@ function SelectPlanButton({
 }) {
   const label = active ? 'Get Started' : comingSoon ? 'Coming Soon' : 'Select'
 
-  const disabled = active || comingSoon
+  const disabled = !active || comingSoon
   return (
     <div className="flex justify-center p-3">
       <Button
@@ -1473,7 +1469,7 @@ function SelfHostContent({
       backButton={<BackButton onPress={onBack} />}
     >
       <DialogInner>
-        <SizableText className="text-muted-foreground">
+        <SizableText className="text-muted-foreground text-center">
           You will need your own server and domain. Follow this guide to get
           started, and return when the setup script has printed the setup URL.
         </SizableText>
@@ -1541,7 +1537,7 @@ function PublishWithUrl({
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >
       {/* <DialogDescription>description</DialogDescription> */}
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-muted-foreground w-full text-center">
         The{' '}
         <ButtonText
           onPress={() => {

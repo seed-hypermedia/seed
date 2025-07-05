@@ -386,7 +386,7 @@ function QuerySettings({
   return (
     <>
       <div
-        className={`query-settings absolute -left-8 flex h-full w-full items-start justify-end gap-2 p-2 ${
+        className={`query-settings absolute left-0 flex h-full w-full items-start justify-end gap-2 p-2 ${
           popoverState.open ? 'z-[999] opacity-100' : 'z-20 opacity-0'
         } group-hover:opacity-100`}
         onClick={
@@ -597,7 +597,6 @@ function QuerySettings({
                 label="Reverse"
                 defaultChecked={querySort[0].reverse}
                 id="sort-reverse"
-                opacity={querySort[0].reverse ? 1 : 0.4}
                 onCheckedChange={(value) => {
                   let newVal = [
                     {
@@ -619,7 +618,6 @@ function QuerySettings({
                 label="Limit Result Count"
                 id="limit"
                 defaultChecked={limit}
-                opacity={limit ? 1 : 0.4}
                 onCheckedChange={(value) => {
                   setLimit(value)
                   onValuesChange({
@@ -700,6 +698,7 @@ export function QuerySearch({
       >
         <Search className="size-4 shrink-0" />
         <SizableText
+          family="default"
           className="max-w-full flex-1 truncate"
           style={{
             color: selectedDocName ? 'text-foreground' : 'muted-foreground',

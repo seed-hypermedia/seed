@@ -211,7 +211,7 @@ export function SearchInput({
     <>
       {isDisplayingRecents ? (
         <div className="flex p-4">
-          <SizableText size="xs" color="muted" className="uppercase">
+          <SizableText size="xs" color="muted" className="text-sans uppercase">
             RECENT DOCUMENTS
           </SizableText>
         </div>

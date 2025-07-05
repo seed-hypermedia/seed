@@ -40,7 +40,7 @@ export function SelectDropdown<Options extends SelectOptions>({
         size={size}
         width={width}
         f={1}
-        iconAfter={ChevronDown}
+        // iconAfter={ChevronDown}
         borderRadius="$3"
         borderWidth={1}
         borderColor="$borderColor"

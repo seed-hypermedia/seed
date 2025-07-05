@@ -19,7 +19,9 @@ function DeleteDraftDialog({
   })
   return (
     <div className="flex flex-col gap-4 rounded-md p-4" style={{maxWidth: 400}}>
-      <Text className="text-lg font-semibold">Discard Draft</Text>
+      <Text className="text-foreground text-2xl font-semibold">
+        Discard Draft
+      </Text>
       <Text className="text-muted-foreground text-sm">
         Permanently delete this draft document?
       </Text>
