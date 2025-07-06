@@ -201,22 +201,24 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 
 		maxRef := generations[0]
 
-		if maxRef.IsTombstone {
-			if maxRef.RedirectTarget == "" {
-				outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
-			} else {
-				space, path, err := maxRef.RedirectTarget.SpacePath()
-				if err != nil {
-					outErr = err
-					return
-				}
+		if maxRef.IsTombstone && maxRef.RedirectTarget == "" {
+			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+			return
+		}
 
-				outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s", resource, maxRef.RedirectTarget).
-					WithDetails(&documents.RedirectErrorDetails{
-						TargetAccount: space.String(),
-						TargetPath:    path,
-					})).Err()
+		if maxRef.RedirectTarget != "" {
+			space, path, err := maxRef.RedirectTarget.SpacePath()
+			if err != nil {
+				outErr = err
+				return
 			}
+			republish := !maxRef.IsTombstone // If it's a tombstone it's not a republish.
+			outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s (republish = %v)", resource, maxRef.RedirectTarget, republish).
+				WithDetails(&documents.RedirectErrorDetails{
+					TargetAccount: space.String(),
+					TargetPath:    path,
+					Republish:     republish,
+				})).Err()
 			return
 		}
 
@@ -1341,6 +1343,11 @@ func NewLookupCache(conn *sqlite.Conn) *LookupCache {
 		documentTitles: make(map[IRI]string),
 		recordIDs:      make(map[cid.Cid]RecordID),
 	}
+}
+
+// Conn returns the underlying database connection of the LookupCache.
+func (l *LookupCache) Conn() *sqlite.Conn {
+	return l.conn
 }
 
 // CID looks up a CID of a blob.

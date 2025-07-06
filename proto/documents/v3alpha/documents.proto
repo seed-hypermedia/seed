@@ -22,6 +22,14 @@ service Documents {
   // Retrieves an existing document.
   rpc GetDocument(GetDocumentRequest) returns (Document);
 
+  // Retrieves the lightweight metadata about the document.
+  // Unlike GetDocument it also returns the information about republishes instead of failing.
+  // Also, unlike GetDocument, the DocumentInfo is only returned for the latest version of the document.
+  rpc GetDocumentInfo(GetDocumentInfoRequest) returns (DocumentInfo);
+
+  // Same as GetDocumentInfo but for multiple documents at once.
+  rpc BatchGetDocumentInfo(BatchGetDocumentInfoRequest) returns (BatchGetDocumentInfoResponse);
+
   // Creates a new Document Change.
   rpc CreateDocumentChange(CreateDocumentChangeRequest) returns (Document);
 
@@ -113,6 +121,29 @@ message RedirectErrorDetails {
 
   // Path of the target document within the target account.
   string target_path = 2;
+
+  // Optional. If true, the redirect is a republishing redirect.
+  bool republish = 3;
+}
+
+// Request to get document info.
+message GetDocumentInfoRequest {
+  // Required. Account ID where the document is located.
+  string account = 1;
+
+  // Required. Path of the document.
+  // Empty string means root document.
+  string path = 2;
+}
+
+// Request to get document info for multiple documents.
+message BatchGetDocumentInfoRequest {
+  repeated GetDocumentInfoRequest requests = 1;
+}
+
+// Response for getting document info for multiple documents.
+message BatchGetDocumentInfoResponse {
+  repeated DocumentInfo documents = 1;
 }
 
 // Request to create a new document change.
@@ -610,6 +641,9 @@ message DocumentInfo {
 
   // Information about the generation of the document.
   GenerationInfo generation_info = 12;
+
+  // Output only. Redirect information if the document is a republish or a redirect.
+  RefTarget.Redirect redirect_info = 13;
 }
 
 // Information about the generation of a document.
@@ -690,7 +724,7 @@ message Document {
   // Output only. Current version of the document.
   string version = 10;
 
-  // Information about the generation of the document.
+  // Output only. Information about the generation of the document.
   GenerationInfo generation_info = 13;
 }
 
@@ -900,6 +934,11 @@ message RefTarget {
     // Empty string means root document.
     // Must not be the same as the Ref itself.
     string path = 2;
+
+    // Optional. If true, the Ref becomes a republishing Ref,
+    // in which case instead of explicitly redirecting to the target resource
+    // it will display the target document right away, using the most recent version available.
+    bool republish = 3;
   }
 
   message Tombstone {}

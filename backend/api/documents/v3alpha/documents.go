@@ -95,6 +95,68 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 	return doc.Hydrate(ctx)
 }
 
+// GetDocumentInfo implements Documents API v3.
+func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumentInfoRequest) (*documents.DocumentInfo, error) {
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
+		ns, err := core.DecodePrincipal(in.Account)
+		if err != nil {
+			return nil, err
+		}
+		lookup := blob.NewLookupCache(conn)
+		iri, err := blob.NewIRI(ns, in.Path)
+		if err != nil {
+			return nil, err
+		}
+		return getDocumentInfo(conn, lookup, iri)
+	})
+}
+
+// BatchGetDocumentInfo implements Documents API v3.
+func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.BatchGetDocumentInfoRequest) (*documents.BatchGetDocumentInfoResponse, error) {
+	if len(in.Requests) == 0 {
+		return &documents.BatchGetDocumentInfoResponse{}, nil
+	}
+
+	visited := make(map[blob.IRI]struct{}, len(in.Requests))
+	iris := make([]blob.IRI, len(in.Requests))
+	{
+		for i, req := range in.Requests {
+			ns, err := core.DecodePrincipal(req.Account)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", req.Account, err)
+			}
+
+			iri, err := blob.NewIRI(ns, req.Path)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "failed to create IRI for account %s and path %s: %v", req.Account, req.Path, err)
+			}
+			if _, ok := visited[iri]; ok {
+				return nil, status.Errorf(codes.InvalidArgument, "duplicate request for account %s and path %s", req.Account, req.Path)
+			}
+			visited[iri] = struct{}{}
+			iris[i] = iri
+		}
+	}
+
+	out := &documents.BatchGetDocumentInfoResponse{
+		Documents: make([]*documents.DocumentInfo, len(in.Requests)),
+	}
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		lookup := blob.NewLookupCache(conn)
+		for i, iri := range iris {
+			info, err := getDocumentInfo(conn, lookup, iri)
+			if err != nil {
+				return fmt.Errorf("failed to get document info for %s: %w", iri, err)
+			}
+			out.Documents[i] = info
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreateDocumentChange implements Documents API v3.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
 	{
@@ -993,6 +1055,19 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	return out, nil
 }
 
+func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
+	q := baseListDocumentsQuery().Where("r.iri = ?").String()
+	rows, check := sqlitex.Query(conn, q, iri, 0) // 0 is the page size parameter.
+	defer func() {
+		err = errors.Join(err, check())
+	}()
+	for row := range rows {
+		return documentInfoFromRow(lookup, row)
+	}
+
+	return nil, status.Errorf(codes.NotFound, "document with IRI %s is not found", iri)
+}
+
 func baseListDocumentsQuery() *dqb.SelectQuery {
 	// Page size must be the last binding parameter.
 	return dqb.
@@ -1052,8 +1127,24 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 
 	metadata := make(map[string]any, len(attrs))
 	for k, v := range attrs {
+		// Skip metadata that is internal to the database index.
+		if strings.HasPrefix(k, "$db.") {
+			continue
+		}
 		if v.Value != nil {
 			colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
+		}
+	}
+	var redirectInfo *documents.RefTarget_Redirect
+	if redirect, ok := attrs["$db.redirect"]; ok {
+		space, path, err := blob.IRI(redirect.Value.(string)).SpacePath()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse redirect target %v: %v", redirect.Value, err)
+		}
+		redirectInfo = &documents.RefTarget_Redirect{
+			Account:   space.String(),
+			Path:      path,
+			Republish: true,
 		}
 	}
 
@@ -1157,6 +1248,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			Genesis:    genesis,
 			Generation: generation,
 		},
+		RedirectInfo: redirectInfo,
 	}
 
 	return out, nil
@@ -1229,17 +1321,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 		ts = cclock.New().MustNow()
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, nil, true)
-	if err != nil {
-		return nil, err
-	}
-
-	if in.Generation == 0 {
-		in.Generation = doc.Generation.Value()
-	}
-
 	var refBlob blob.Encoded[*blob.Ref]
-
 	switch rt := in.Target.Target.(type) {
 	case *documents.RefTarget_Version_:
 		heads, err := blob.Version(rt.Version.Version).Parse()
@@ -1252,10 +1334,19 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
 		}
 
+		doc, err := srv.loadDocumentInfo(ctx, ns, in.Path)
+		if err != nil && status.Code(err) != codes.NotFound {
+			return nil, err
+		}
+
+		if doc != nil && in.Generation == 0 {
+			in.Generation = doc.GenerationInfo.Generation
+		}
+
 		// If there's an existing document, we want to make sure the genesis of the ref we are creating is the same.
-		if len(doc.Heads()) > 0 {
-			if !doc.Genesis().Equals(genesis) && in.Generation <= doc.Generation.Value() {
-				return nil, status.Errorf(codes.FailedPrecondition, "There's already a Ref for this path with a different genesis. Provide an explicit generation number higher than %d to overwrite.", doc.Generation.Value())
+		if doc != nil {
+			if doc.Genesis != rt.Version.Genesis && in.Generation <= doc.GenerationInfo.Generation {
+				return nil, status.Errorf(codes.FailedPrecondition, "There's already a Ref for this path with a different genesis. Provide an explicit generation number higher than %d to overwrite.", doc.GenerationInfo.Generation)
 			}
 		}
 
@@ -1264,10 +1355,25 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, err
 		}
 	case *documents.RefTarget_Tombstone_:
-		refBlob, err = blob.NewRef(kp, in.Generation, doc.Genesis(), ns, in.Path, nil, ts)
+		doc, err := srv.loadDocumentInfo(ctx, ns, in.Path)
 		if err != nil {
 			return nil, err
 		}
+
+		if doc != nil && in.Generation == 0 {
+			in.Generation = doc.GenerationInfo.Generation
+		}
+
+		genesis, err := cid.Decode(doc.Genesis)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
+		}
+
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts)
+		if err != nil {
+			return nil, err
+		}
+
 	case *documents.RefTarget_Redirect_:
 		var targetSpace core.Principal
 		if rt.Redirect.Account == "" {
@@ -1279,16 +1385,36 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			}
 		}
 
+		if in.Generation == 0 {
+			clock := cclock.New()
+			in.Generation = clock.MustNow().UnixMilli()
+		}
+
 		if _, err := blob.NewIRI(targetSpace, rt.Redirect.Path); err != nil {
 			return nil, err
 		}
 
-		target := blob.RedirectTarget{
-			Space: targetSpace,
-			Path:  rt.Redirect.Path,
+		doc, err := srv.loadDocumentInfo(ctx, targetSpace, rt.Redirect.Path)
+		if err != nil {
+			return nil, err
 		}
 
-		refBlob, err = blob.NewRefRedirect(kp, in.Generation, doc.Genesis(), ns, in.Path, target, ts)
+		if doc != nil && in.Generation == 0 {
+			in.Generation = doc.GenerationInfo.Generation
+		}
+
+		genesis, err := cid.Decode(doc.Genesis)
+		if err != nil {
+			return nil, err
+		}
+
+		target := blob.RedirectTarget{
+			Space:     targetSpace,
+			Path:      rt.Redirect.Path,
+			Republish: rt.Redirect.Republish,
+		}
+
+		refBlob, err = blob.NewRefRedirect(kp, in.Generation, genesis, ns, in.Path, target, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -1449,6 +1575,18 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) e
 
 func makeIRI(account core.Principal, path string) (blob.IRI, error) {
 	return blob.NewIRI(account, path)
+}
+
+func (srv *Server) loadDocumentInfo(ctx context.Context, account core.Principal, path string) (*documents.DocumentInfo, error) {
+	iri, err := blob.NewIRI(account, path)
+	if err != nil {
+		return nil, err
+	}
+
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
+		lookup := blob.NewLookupCache(conn)
+		return getDocumentInfo(conn, lookup, iri)
+	})
 }
 
 func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, heads []cid.Cid, ensurePath bool) (*docmodel.Document, error) {

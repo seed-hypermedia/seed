@@ -126,6 +126,13 @@ export class RedirectErrorDetails extends Message<RedirectErrorDetails> {
    */
   targetPath = "";
 
+  /**
+   * Optional. If true, the redirect is a republishing redirect.
+   *
+   * @generated from field: bool republish = 3;
+   */
+  republish = false;
+
   constructor(data?: PartialMessage<RedirectErrorDetails>) {
     super();
     proto3.util.initPartial(data, this);
@@ -136,6 +143,7 @@ export class RedirectErrorDetails extends Message<RedirectErrorDetails> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "republish", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedirectErrorDetails {
@@ -152,6 +160,134 @@ export class RedirectErrorDetails extends Message<RedirectErrorDetails> {
 
   static equals(a: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined, b: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined): boolean {
     return proto3.util.equals(RedirectErrorDetails, a, b);
+  }
+}
+
+/**
+ * Request to get document info.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetDocumentInfoRequest
+ */
+export class GetDocumentInfoRequest extends Message<GetDocumentInfoRequest> {
+  /**
+   * Required. Account ID where the document is located.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the document.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  constructor(data?: PartialMessage<GetDocumentInfoRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetDocumentInfoRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDocumentInfoRequest | PlainMessage<GetDocumentInfoRequest> | undefined, b: GetDocumentInfoRequest | PlainMessage<GetDocumentInfoRequest> | undefined): boolean {
+    return proto3.util.equals(GetDocumentInfoRequest, a, b);
+  }
+}
+
+/**
+ * Request to get document info for multiple documents.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
+ */
+export class BatchGetDocumentInfoRequest extends Message<BatchGetDocumentInfoRequest> {
+  /**
+   * @generated from field: repeated com.seed.documents.v3alpha.GetDocumentInfoRequest requests = 1;
+   */
+  requests: GetDocumentInfoRequest[] = [];
+
+  constructor(data?: PartialMessage<BatchGetDocumentInfoRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetDocumentInfoRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "requests", kind: "message", T: GetDocumentInfoRequest, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetDocumentInfoRequest | PlainMessage<BatchGetDocumentInfoRequest> | undefined, b: BatchGetDocumentInfoRequest | PlainMessage<BatchGetDocumentInfoRequest> | undefined): boolean {
+    return proto3.util.equals(BatchGetDocumentInfoRequest, a, b);
+  }
+}
+
+/**
+ * Response for getting document info for multiple documents.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
+ */
+export class BatchGetDocumentInfoResponse extends Message<BatchGetDocumentInfoResponse> {
+  /**
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
+   */
+  documents: DocumentInfo[] = [];
+
+  constructor(data?: PartialMessage<BatchGetDocumentInfoResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetDocumentInfoResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetDocumentInfoResponse | PlainMessage<BatchGetDocumentInfoResponse> | undefined, b: BatchGetDocumentInfoResponse | PlainMessage<BatchGetDocumentInfoResponse> | undefined): boolean {
+    return proto3.util.equals(BatchGetDocumentInfoResponse, a, b);
   }
 }
 
@@ -2143,6 +2279,13 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   generationInfo?: GenerationInfo;
 
+  /**
+   * Output only. Redirect information if the document is a republish or a redirect.
+   *
+   * @generated from field: com.seed.documents.v3alpha.RefTarget.Redirect redirect_info = 13;
+   */
+  redirectInfo?: RefTarget_Redirect;
+
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2162,6 +2305,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 10, name: "breadcrumbs", kind: "message", T: Breadcrumb, repeated: true },
     { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
     { no: 12, name: "generation_info", kind: "message", T: GenerationInfo },
+    { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
@@ -2441,7 +2585,7 @@ export class Document extends Message<Document> {
   version = "";
 
   /**
-   * Information about the generation of the document.
+   * Output only. Information about the generation of the document.
    *
    * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 13;
    */
@@ -3237,6 +3381,15 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
    */
   path = "";
 
+  /**
+   * Optional. If true, the Ref becomes a republishing Ref,
+   * in which case instead of explicitly redirecting to the target resource
+   * it will display the target document right away, using the most recent version available.
+   *
+   * @generated from field: bool republish = 3;
+   */
+  republish = false;
+
   constructor(data?: PartialMessage<RefTarget_Redirect>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3247,6 +3400,7 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "republish", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Redirect {

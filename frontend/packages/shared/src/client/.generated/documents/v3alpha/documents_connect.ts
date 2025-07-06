@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -23,6 +23,30 @@ export const Documents = {
       name: "GetDocument",
       I: GetDocumentRequest,
       O: Document,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Retrieves the lightweight metadata about the document.
+     * Unlike GetDocument it also returns the information about republishes instead of failing.
+     * Also, unlike GetDocument, the DocumentInfo is only returned for the latest version of the document.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.GetDocumentInfo
+     */
+    getDocumentInfo: {
+      name: "GetDocumentInfo",
+      I: GetDocumentInfoRequest,
+      O: DocumentInfo,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Same as GetDocumentInfo but for multiple documents at once.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo
+     */
+    batchGetDocumentInfo: {
+      name: "BatchGetDocumentInfo",
+      I: BatchGetDocumentInfoRequest,
+      O: BatchGetDocumentInfoResponse,
       kind: MethodKind.Unary,
     },
     /**

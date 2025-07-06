@@ -11,18 +11,21 @@ import (
 	"rsc.io/ordered"
 )
 
+// Path represents a path in the nested map/object.
+type Path = []string
+
 // Map is a CRDT map with Last-Writer-Wins semantics.
 // It's backed by a B-Tree that stores the values as key-value pairs.
 // Nested objects are flattened into a single key with multiple parts.
 type Map struct {
 	maxTs int64
-	m     *btree.Map[[]string, Value]
+	m     *btree.Map[Path, Value]
 }
 
 // New creates a new CRDT map.
 func New() *Map {
 	return &Map{
-		m: btree.New[[]string, Value](8, func(a, b []string) int {
+		m: btree.New[Path, Value](8, func(a, b Path) int {
 			return slices.Compare(a, b)
 		}),
 	}
@@ -30,14 +33,14 @@ func New() *Map {
 
 // ApplyPatch merges values from a flattened map iterator into the CRDT map,
 // using the provided timestamp for each value.
-func (m *Map) ApplyPatch(ts int64, seq iter.Seq2[[]string, any]) {
+func (m *Map) ApplyPatch(ts int64, seq iter.Seq2[Path, any]) {
 	for path, value := range seq {
 		m.Set(ts, path, value)
 	}
 }
 
 // Get the value at the given path in the CRDT map.
-func (m *Map) Get(path []string) (value any, ok bool) {
+func (m *Map) Get(path Path) (value any, ok bool) {
 	if node, ok := m.m.GetNode(path); ok {
 		return node.V.V, true
 	}
@@ -45,7 +48,7 @@ func (m *Map) Get(path []string) (value any, ok bool) {
 }
 
 // Set the value at the given path in the CRDT map.
-func (m *Map) Set(ts int64, unsafePath []string, value any) {
+func (m *Map) Set(ts int64, unsafePath Path, value any) {
 	newValue := Value{
 		Ts: ts,
 		V:  value,
@@ -66,7 +69,7 @@ func (m *Map) Set(ts int64, unsafePath []string, value any) {
 	// Checking parents. We can only insert the current value if all parents are older,
 	// or they are already a nested map (which means they don't have an entry in the map).
 	// Older entries would need to be removed later, when we know for sure we can insert our new value.
-	obsoleteEntries := make([][]string, 0, 32) // Arbitrary default size preallocated.
+	obsoleteEntries := make([]Path, 0, 32) // Arbitrary default size preallocated.
 	for prefix := range prefixes(unsafePath) {
 		old, ok := m.m.GetNode(prefix)
 		if !ok {
@@ -149,14 +152,14 @@ func (v Value) Compare(other Value) int {
 
 // clone creates a shallow copy of a slice of strings.
 // Not using [slices.Clone] here, because it may leave extra capacity in the resulting slice which we don't need.
-func clone(in []string) []string {
-	out := make([]string, len(in))
+func clone(in Path) Path {
+	out := make(Path, len(in))
 	copy(out, in)
 	return out
 }
 
-func prefixes(path []string) iter.Seq[[]string] {
-	return func(yield func([]string) bool) {
+func prefixes(path Path) iter.Seq[Path] {
+	return func(yield func(Path) bool) {
 		for i := 1; i < len(path); i++ {
 			if !yield(path[:i]) {
 				return

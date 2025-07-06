@@ -21,6 +21,8 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Documents_GetDocument_FullMethodName              = "/com.seed.documents.v3alpha.Documents/GetDocument"
+	Documents_GetDocumentInfo_FullMethodName          = "/com.seed.documents.v3alpha.Documents/GetDocumentInfo"
+	Documents_BatchGetDocumentInfo_FullMethodName     = "/com.seed.documents.v3alpha.Documents/BatchGetDocumentInfo"
 	Documents_CreateDocumentChange_FullMethodName     = "/com.seed.documents.v3alpha.Documents/CreateDocumentChange"
 	Documents_DeleteDocument_FullMethodName           = "/com.seed.documents.v3alpha.Documents/DeleteDocument"
 	Documents_ListAccounts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListAccounts"
@@ -51,6 +53,12 @@ const (
 type DocumentsClient interface {
 	// Retrieves an existing document.
 	GetDocument(ctx context.Context, in *GetDocumentRequest, opts ...grpc.CallOption) (*Document, error)
+	// Retrieves the lightweight metadata about the document.
+	// Unlike GetDocument it also returns the information about republishes instead of failing.
+	// Also, unlike GetDocument, the DocumentInfo is only returned for the latest version of the document.
+	GetDocumentInfo(ctx context.Context, in *GetDocumentInfoRequest, opts ...grpc.CallOption) (*DocumentInfo, error)
+	// Same as GetDocumentInfo but for multiple documents at once.
+	BatchGetDocumentInfo(ctx context.Context, in *BatchGetDocumentInfoRequest, opts ...grpc.CallOption) (*BatchGetDocumentInfoResponse, error)
 	// Creates a new Document Change.
 	CreateDocumentChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*Document, error)
 	// Deprecated: Do not use.
@@ -110,6 +118,26 @@ func (c *documentsClient) GetDocument(ctx context.Context, in *GetDocumentReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Document)
 	err := c.cc.Invoke(ctx, Documents_GetDocument_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) GetDocumentInfo(ctx context.Context, in *GetDocumentInfoRequest, opts ...grpc.CallOption) (*DocumentInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DocumentInfo)
+	err := c.cc.Invoke(ctx, Documents_GetDocumentInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) BatchGetDocumentInfo(ctx context.Context, in *BatchGetDocumentInfoRequest, opts ...grpc.CallOption) (*BatchGetDocumentInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetDocumentInfoResponse)
+	err := c.cc.Invoke(ctx, Documents_BatchGetDocumentInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +353,12 @@ func (c *documentsClient) GetRef(ctx context.Context, in *GetRefRequest, opts ..
 type DocumentsServer interface {
 	// Retrieves an existing document.
 	GetDocument(context.Context, *GetDocumentRequest) (*Document, error)
+	// Retrieves the lightweight metadata about the document.
+	// Unlike GetDocument it also returns the information about republishes instead of failing.
+	// Also, unlike GetDocument, the DocumentInfo is only returned for the latest version of the document.
+	GetDocumentInfo(context.Context, *GetDocumentInfoRequest) (*DocumentInfo, error)
+	// Same as GetDocumentInfo but for multiple documents at once.
+	BatchGetDocumentInfo(context.Context, *BatchGetDocumentInfoRequest) (*BatchGetDocumentInfoResponse, error)
 	// Creates a new Document Change.
 	CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error)
 	// Deprecated: Do not use.
@@ -381,6 +415,12 @@ type UnimplementedDocumentsServer struct{}
 
 func (UnimplementedDocumentsServer) GetDocument(context.Context, *GetDocumentRequest) (*Document, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDocument not implemented")
+}
+func (UnimplementedDocumentsServer) GetDocumentInfo(context.Context, *GetDocumentInfoRequest) (*DocumentInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentInfo not implemented")
+}
+func (UnimplementedDocumentsServer) BatchGetDocumentInfo(context.Context, *BatchGetDocumentInfoRequest) (*BatchGetDocumentInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetDocumentInfo not implemented")
 }
 func (UnimplementedDocumentsServer) CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDocumentChange not implemented")
@@ -476,6 +516,42 @@ func _Documents_GetDocument_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentsServer).GetDocument(ctx, req.(*GetDocumentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_GetDocumentInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDocumentInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).GetDocumentInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_GetDocumentInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).GetDocumentInfo(ctx, req.(*GetDocumentInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_BatchGetDocumentInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetDocumentInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).BatchGetDocumentInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_BatchGetDocumentInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).BatchGetDocumentInfo(ctx, req.(*BatchGetDocumentInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -850,6 +926,14 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDocument",
 			Handler:    _Documents_GetDocument_Handler,
+		},
+		{
+			MethodName: "GetDocumentInfo",
+			Handler:    _Documents_GetDocumentInfo_Handler,
+		},
+		{
+			MethodName: "BatchGetDocumentInfo",
+			Handler:    _Documents_BatchGetDocumentInfo_Handler,
 		},
 		{
 			MethodName: "CreateDocumentChange",

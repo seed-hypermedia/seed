@@ -58,7 +58,7 @@ CREATE TABLE structural_blobs (
     extra_attrs JSONB
 ) WITHOUT ROWID;
 
-CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
+CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource, type);
 CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, author);

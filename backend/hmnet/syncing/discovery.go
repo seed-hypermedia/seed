@@ -213,6 +213,20 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		}
 	}
 
+	// Follow all the redirect targets recursively.
+	{
+		const q = `WITH RECURSIVE t (id) AS (
+		    SELECT * FROM rbsr_iris
+		    UNION
+		    SELECT resources.id
+		    FROM structural_blobs sb, resources, t
+		    WHERE (t.id = sb.resource AND sb.type = 'Ref')
+		    AND sb.extra_attrs->>'redirect' IS NOT NULL
+		    AND sb.extra_attrs->>'redirect' = resources.iri
+		)
+		SELECT * FROM t;`
+	}
+
 	// Fill Refs.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -220,10 +234,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			FROM structural_blobs sb
 			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 			WHERE resource IN rbsr_iris
-			AND type = 'Ref'
-			GROUP BY resource, COALESCE(sb.extra_attrs->>'generation', 0), author
-			HAVING COALESCE(sb.extra_attrs->>'generation', 0) = MAX(COALESCE(sb.extra_attrs->>'generation', 0))
-				AND sb.ts = MAX(sb.ts);`
+			AND type = 'Ref'`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
@@ -252,7 +263,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		}
 	}
 
-	// Fill Capabilities and Comments and Contacts.
+	// Fill Capabilities and the rest of the related blob types.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
 			SELECT sb.id
@@ -302,10 +313,6 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 	}
 
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
-}
-
-func (s *Service) checkVersionExists(conn *sqlite.Conn, lookup *blob.LookupCache) {
-
 }
 
 var qGetEntity = dqb.Str(`

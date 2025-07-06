@@ -125,10 +125,19 @@ func (r *Ref) RedirectIRI() (IRI, error) {
 	return NewIRI(targetSpace, r.Redirect.Path)
 }
 
+// IsTombstone indicates whether a Ref is a tombstone Ref.
+func (r *Ref) IsTombstone() bool {
+	// A ref is a tombstone if it points to no heads, and it's not a republish.
+	// We don't treat republishes as tombstones,
+	// because they are still valid documents and should appear in lists and search results.
+	return len(r.Heads) == 0 && (r.Redirect == nil || !r.Redirect.Republish)
+}
+
 // RedirectTarget holds information about the redirect target.
 type RedirectTarget struct {
-	Space core.Principal `refmt:"space,omitempty"`
-	Path  string         `refmt:"path,omitempty"`
+	Space     core.Principal `refmt:"space,omitempty"`
+	Path      string         `refmt:"path,omitempty"`
+	Republish bool           `refmt:"republish,omitempty"`
 }
 
 func init() {
@@ -166,6 +175,7 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 		Tombstone      bool   `json:"tombstone,omitempty"`
 		Generation     int64  `json:"generation,omitempty"`
 		RedirectTarget string `json:"redirect,omitempty"`
+		Republish      bool   `json:"republish,omitempty"`
 	}
 
 	// We decided not to allow redirects or tombstones for home documents for now.
@@ -200,7 +210,7 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	case v.GenesisBlob.Defined() && len(v.Heads) > 0:
 	// A tombstone Ref must have Genesis and no Heads.
 	case v.GenesisBlob.Defined() && len(v.Heads) == 0:
-		meta.Tombstone = true
+		meta.Tombstone = v.IsTombstone()
 		if v.Redirect != nil {
 			redirectTarget, err := v.RedirectIRI()
 			if err != nil {
@@ -208,6 +218,7 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 			}
 
 			meta.RedirectTarget = string(redirectTarget)
+			meta.Republish = v.Redirect.Republish
 		}
 	// All the other cases are invalid.
 	default:
@@ -284,7 +295,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		return err
 	}
 
-	isTombstone := len(v.Heads) == 0
+	isTombstone := v.IsTombstone()
 
 	if !isTombstone {
 		var queue []int64
@@ -360,6 +371,15 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		slices.SortFunc(pendingChanges, func(a, b changeMetadata) int {
 			return cmp.Compare(a.Ts, b.Ts)
 		})
+
+		if v.Redirect != nil {
+			redirectTarget, err := v.RedirectIRI()
+			if err != nil {
+				return err
+			}
+
+			dg.Metadata.set("$db.redirect", redirectTarget, v.Ts.UnixMilli())
+		}
 
 		for _, cm := range pendingChanges {
 			dg.ensureChangeApplied(cm)

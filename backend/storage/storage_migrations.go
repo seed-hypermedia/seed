@@ -57,6 +57,13 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-07-03.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		// Add blob type to the index.
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS structural_blobs_by_resource;
+			CREATE INDEX IF NOT EXISTS structural_blobs_by_resource ON structural_blobs (resource, type);
+		`))
+	}},
 	{Version: "2025-06-30.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to fix comment causality issues.
 		return scheduleReindex(conn)
