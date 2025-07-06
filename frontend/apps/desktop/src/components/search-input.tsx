@@ -210,11 +210,9 @@ export function SearchInput({
   let content = (
     <>
       {isDisplayingRecents ? (
-        <div className="flex p-4">
-          <SizableText size="xs" color="muted" className="text-sans uppercase">
-            RECENT DOCUMENTS
-          </SizableText>
-        </div>
+        <SizableText size="xs" color="muted" className="text-sans! uppercase">
+          RECENT DOCUMENTS
+        </SizableText>
       ) : null}
       {activeItems.map((item, itemIndex) => {
         const isSelected = focusedIndex === itemIndex
@@ -227,9 +225,25 @@ export function SearchInput({
         return (
           <>
             {isDisplayingRecents ? (
-              <RecentSearchResultItem item={item} {...sharedProps} />
+              <RecentSearchResultItem
+                item={{
+                  ...item,
+                  path: item.path || [],
+                  onFocus: sharedProps.onFocus,
+                  onMouseEnter: sharedProps.onMouseEnter,
+                }}
+                selected={sharedProps.selected}
+              />
             ) : (
-              <SearchResultItem item={item} {...sharedProps} />
+              <SearchResultItem
+                item={{
+                  ...item,
+                  path: item.path || [],
+                  onFocus: sharedProps.onFocus,
+                  onMouseEnter: sharedProps.onMouseEnter,
+                }}
+                selected={sharedProps.selected}
+              />
             )}
 
             {itemIndex !== activeItems.length - 1 ? <Separator /> : null}

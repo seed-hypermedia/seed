@@ -386,7 +386,7 @@ function QuerySettings({
   return (
     <>
       <div
-        className={`query-settings absolute left-0 flex h-full w-full items-start justify-end gap-2 p-2 ${
+        className={`query-settings editor-controls absolute left-0 flex h-full w-full items-start justify-end gap-2 p-2 ${
           popoverState.open ? 'z-[999] opacity-100' : 'z-20 opacity-0'
         } group-hover:opacity-100`}
         onClick={
@@ -422,6 +422,7 @@ function QuerySettings({
               <QuerySearch
                 selectedDocName={queryDocName}
                 onSelect={({id, route}) => {
+                  console.log('query-block SELECT', id, route)
                   if (id) {
                     const newVal: HMQueryBlockIncludes = [
                       {

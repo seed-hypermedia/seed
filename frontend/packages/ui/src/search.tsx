@@ -295,12 +295,10 @@ export function SearchResultItem({
   item,
   originHomeId,
   selected = false,
-  onSelect,
 }: {
   item: SearchResult
   originHomeId?: UnpackedHypermediaId | null
   selected: boolean
-  onSelect?: () => void
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
@@ -312,19 +310,23 @@ export function SearchResultItem({
     }
   }, [selected])
 
-  const linkProps = useRouteLink(
+  const navigateProps = useRouteLink(
     unpackedId
       ? {
           key: 'document',
           id: unpackedId,
         }
       : null,
-    {...originHomeId, onPress: onSelect, handler: 'onClick'},
+    {...originHomeId, onPress: item.onSelect, handler: 'onClick'},
   )
+
+  const linkOrSelectProps = item.onSelect
+    ? {onClick: item.onSelect}
+    : navigateProps
   return (
     <Button
       variant="ghost"
-      {...linkProps}
+      {...linkOrSelectProps}
       className={cn(
         'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-center justify-start rounded-none py-2',
         selected && 'bg-brand-12',

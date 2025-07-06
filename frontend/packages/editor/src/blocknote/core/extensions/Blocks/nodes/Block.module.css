@@ -117,7 +117,7 @@ NESTED BLOCKS
 }
 
 .draft-editor .ProseMirror .inlineContent {
-  font-family: Georgia, serif !important;
+  font-family: Georgia, 'Times New Roman', Times, serif !important;
 }
 
 .comment-editor .ProseMirror .inlineContent {

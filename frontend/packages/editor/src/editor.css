@@ -39,6 +39,24 @@
   font-family: Georgia, 'Times New Roman', Times, serif !important;
 }
 
+.draft-editor .ProseMirror .editor-controls {
+  font-family:
+    'Inter',
+    'SF Pro Display',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Open Sans',
+    'Segoe UI',
+    'Roboto',
+    'Oxygen',
+    'Ubuntu',
+    'Cantarell',
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif !important;
+}
+
 .comment-editor .ProseMirror {
   font-family:
     'Inter',
