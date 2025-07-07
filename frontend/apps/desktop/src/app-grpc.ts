@@ -1,7 +1,7 @@
 import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
-import {createGRPCClient} from '@shm/shared/grpc-client'
+import {DAEMON_HTTP_URL, PAY_HTTP_URL} from '@shm/shared/constants'
+import {createGRPCClient, createPayGRPCClient} from '@shm/shared/grpc-client'
 
 let isGrpcReady = false
 
@@ -57,3 +57,11 @@ export const transport = createGrpcWebTransport({
 })
 
 export const grpcClient = createGRPCClient(transport)
+
+const payTransport = createGrpcWebTransport({
+  baseUrl: PAY_HTTP_URL,
+  httpVersion: '1.1',
+  interceptors: IS_DEV ? DEV_INTERCEPTORS : [prodInter],
+})
+
+export const payGrpcClient = createPayGRPCClient(payTransport)
