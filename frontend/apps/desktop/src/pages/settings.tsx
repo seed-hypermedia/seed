@@ -3,7 +3,7 @@ import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
-import {AccountWallet, WalletPage} from '@/components/payment-settings'
+import {AccountWallet, StripeAccount, WalletPage} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -34,6 +34,7 @@ import {
   LIGHTNING_API_URL,
   SEED_HOST_URL,
   VERSION,
+  DEFAULT_GATEWAY_URL,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
@@ -591,6 +592,12 @@ function AccountKeys() {
               </AlertDialogPortal>
             </AlertDialog>
             <Separator />
+            <SettingsSection title="Fiat Payments">
+              <StripeAccount
+                accountUid={selectedAccount}
+                url=""//{`${DEFAULT_GATEWAY_URL}/hm/${selectedAccount}`}
+              />
+            </SettingsSection>
             <SettingsSection title="Wallets">
               <AccountWallet
                 accountUid={selectedAccount}

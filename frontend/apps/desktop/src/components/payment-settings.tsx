@@ -10,7 +10,8 @@ import {
   useListWallets,
   usePayInvoice,
   useWallet,
-} from '@/models/payments'
+} from '@/models/crypto-payments'
+import {useNewConnectedAccount} from '@/models/fiat-payments'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
 import {getAccountName} from '@shm/shared/content'
@@ -34,13 +35,13 @@ import {
   Download,
   Upload,
 } from '@shm/ui/icons'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
-import {Spinner} from '@shm/ui/spinner'
-import {InfoListHeader, TableList} from '@shm/ui/table-list'
-import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useState} from 'react'
+import { SelectDropdown } from '@shm/ui/select-dropdown'
+import { Spinner } from '@shm/ui/spinner'
+import { InfoListHeader, TableList } from '@shm/ui/table-list'
+import { SizableText } from '@shm/ui/text'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { useState } from 'react'
 import QRCode from 'react-qr-code'
 
 export function AccountWallet({
@@ -87,6 +88,59 @@ export function AccountWallet({
         Create Account Wallet
       </Button>
     </>
+  )
+}
+
+export function StripeAccount({
+  accountUid,
+  url,
+}: {
+  accountUid: string
+  url: string
+}) {
+  const newAccount = useNewConnectedAccount()
+  /*
+  const wallets = useListWallets(accountUid)
+  if (!wallets.data?.wallets) return null
+  if (wallets.isLoading)
+    return (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  if (wallets.data.wallets.length) {
+    return wallets.data.wallets.map((wallet) => (
+      <WalletButton
+        walletId={wallet.id}
+        onOpen={() => onOpenWallet(wallet.id)}
+      />
+    ))
+  }
+    */
+  return (
+    <>
+      <Button
+        variant="inverse"
+        onClick={() => {
+          newAccount.mutateAsync({accountUid, url}).catch((e) => {
+            console.error(e)
+            toast.error(`Failed to create connected account: ${e.message}`)
+          })
+        }}
+      >
+        Create connected account
+      </Button>
+    </>
+  )
+}
+
+function Tag({label}: {label: string}) {
+  return (
+    <div className="border-primary rounded-sm border px-2">
+      <SizableText size="$1" color="$brand5">
+        {label}
+      </SizableText>
+    </div>
   )
 }
 
