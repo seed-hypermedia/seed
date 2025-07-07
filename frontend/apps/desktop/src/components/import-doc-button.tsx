@@ -4,6 +4,7 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {useNavigate} from '@/utils/useNavigate'
 import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
@@ -137,6 +138,7 @@ export function ImportDropdownButton({
 export function useImporting(parentId: UnpackedHypermediaId) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
+  const navigate = useNavigate()
   const signingAccount = useMemo(() => {
     return accts.length ? accts[0].data : undefined
   }, [accts])
@@ -213,7 +215,12 @@ export function useImporting(parentId: UnpackedHypermediaId) {
         documents,
         docMap,
         editor,
-      ),
+      ).then((draftIds) => {
+        if (draftIds.draftIds.length === 1) {
+          navigate({key: 'draft', id: draftIds.draftIds[0]})
+        }
+        return draftIds.draftIds.length
+      }),
       {
         loading: 'Importing documents...',
         success: `Imported ${documents.length} documents.`,
@@ -461,7 +468,8 @@ const ImportDocumentsWithFeedback = (
   editor: BlockNoteEditor,
 ) => {
   const pathCounter: {[key: string]: number} = {}
-  return new Promise(async (resolve, reject) => {
+  return new Promise<{draftIds: string[]}>(async (resolve, reject) => {
+    const draftIds: string[] = []
     try {
       for (const {markdownContent, title, directoryPath} of documents) {
         let {data: frontmatter, content: markdown} = matter(markdownContent)
@@ -567,8 +575,10 @@ const ImportDocumentsWithFeedback = (
 
         // const packedId = packHmId(newId)
 
+        const draftId = nanoid(10)
+
         await createDraft.mutateAsync({
-          id: nanoid(10),
+          id: draftId,
           locationUid: id.uid,
           locationPath: id.path ? id.path : [],
           content: blocks,
@@ -580,8 +590,10 @@ const ImportDocumentsWithFeedback = (
           },
           signingAccount: signingAccount?.document?.account || undefined,
         })
+        draftIds.push(draftId)
       }
-      resolve(`Imported ${documents.length} documents.`)
+      resolve({draftIds})
+      // `Imported ${documents.length} documents.`)
 
       invalidateQueries(['trpc.drafts.list'])
       invalidateQueries(['trpc.drafts.listAccount'])
