@@ -3,7 +3,7 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
-import {SITE_BASE_URL} from '@shm/shared'
+import {SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared'
 
 export const loader: LoaderFunction = async ({request}) => {
   const {hostname} = parseRequest(request)
@@ -19,5 +19,6 @@ export const loader: LoaderFunction = async ({request}) => {
     protocolId: daemonInfo.protocolId,
     addrs: peerInfo.addrs,
     hostname: SITE_BASE_URL,
+    isGateway: WEB_IS_GATEWAY,
   })
 }
