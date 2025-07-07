@@ -1,4 +1,4 @@
-import {useBranchDocument} from '@/models/documents'
+import {useRepublishDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
@@ -12,7 +12,7 @@ import {useMemo, useRef, useState} from 'react'
 import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 
-export function BranchDialog({
+export function RepublishDialog({
   onClose,
   input,
 }: {
@@ -20,7 +20,7 @@ export function BranchDialog({
   input: UnpackedHypermediaId
 }) {
   const {data: entity} = useEntity(input)
-  const branchDoc = useBranchDocument()
+  const republishDoc = useRepublishDocument()
   const navigate = useNavigate()
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)
   const isAvailable = useRef(true)
@@ -40,7 +40,7 @@ export function BranchDialog({
     )
   return (
     <div className="flex flex-col">
-      <DialogTitle>Branch from "{entity?.document?.metadata.name}"</DialogTitle>
+      <DialogTitle>Republish "{entity?.document?.metadata.name}"</DialogTitle>
       {entity ? (
         <>
           <LocationPicker
@@ -54,7 +54,7 @@ export function BranchDialog({
             }}
           />
           <div className="flex gap-2">
-            <Spinner hide={!branchDoc.isLoading} />
+            <Spinner hide={!republishDoc.isLoading} />
 
             {location && selectedAccount ? (
               <Button
@@ -69,7 +69,7 @@ export function BranchDialog({
                     toast.error(pathInvalid.error)
                     return
                   }
-                  branchDoc
+                  republishDoc
                     .mutateAsync({
                       from: input,
                       to: location,
@@ -86,7 +86,7 @@ export function BranchDialog({
                   metadata={selectedAccount.document?.metadata}
                   size={24}
                 />
-                Create Document Branch
+                Re-Publish Document
               </Button>
             ) : null}
           </div>

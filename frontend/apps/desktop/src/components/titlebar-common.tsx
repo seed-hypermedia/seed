@@ -49,6 +49,7 @@ import {useStream} from '@shm/ui/use-stream'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
+  FileInput,
   FilePlus,
   ForwardIcon,
   GitFork,
@@ -71,6 +72,7 @@ import {
   useRemoveSiteDialog,
   useSeedHostDialog,
 } from './publish-site'
+import {RepublishDialog} from './republish-dialog'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
@@ -113,6 +115,7 @@ export function DocOptionsButton({
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
+  const republishDialog = useAppDialog(RepublishDialog)
   const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find(
@@ -278,6 +281,14 @@ export function DocOptionsButton({
         branchDialog.open(route.id)
       },
     })
+    menuItems.push({
+      key: 'republish',
+      label: 'Republish Document',
+      icon: FileInput,
+      onPress: () => {
+        republishDialog.open(route.id)
+      },
+    })
   }
 
   if (canEditDoc && myAccountIds.data?.length && route.id.path?.length) {
@@ -303,6 +314,7 @@ export function DocOptionsButton({
       {importing.content}
       {seedHostDialog.content}
       {branchDialog.content}
+      {republishDialog.content}
       {moveDialog.content}
       <OptionsDropdown menuItems={menuItems} placement="bottom-start" />
     </>

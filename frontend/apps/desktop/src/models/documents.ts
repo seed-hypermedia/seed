@@ -1340,7 +1340,7 @@ export function useCreateDraft(
   }
 }
 
-export function useForkDocument() {
+export function useBranchDocument() {
   return useMutation({
     mutationFn: async ({
       from,
@@ -1368,6 +1368,43 @@ export function useForkDocument() {
             value: {
               genesis: generationInfo.genesis,
               version: document.version,
+            },
+          },
+        },
+      })
+    },
+  })
+}
+
+export function useRepublishDocument() {
+  return useMutation({
+    mutationFn: async ({
+      from,
+      to,
+      signingAccountId,
+    }: {
+      from: UnpackedHypermediaId
+      to: UnpackedHypermediaId
+      signingAccountId: string
+    }) => {
+      // const document = await grpcClient.documents.getDocument({
+      //   account: from.uid,
+      //   path: hmIdPathToEntityQueryPath(from.path),
+      //   version: from.latest ? undefined : from.version || undefined,
+      // })
+      // const {generationInfo} = document
+      // if (!generationInfo) throw new Error('No generation info for document')
+      await grpcClient.documents.createRef({
+        account: to.uid,
+        signingKeyName: signingAccountId,
+        path: hmIdPathToEntityQueryPath(to.path),
+        target: {
+          target: {
+            case: 'redirect',
+            value: {
+              republish: true,
+              account: from.uid,
+              path: hmIdPathToEntityQueryPath(from.path),
             },
           },
         },
