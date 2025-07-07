@@ -7,7 +7,6 @@ import {highlightSearchMatch, useCollapsedPath} from '@shm/ui/search'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useLayoutEffect, useRef} from 'react'
-import {XStack, YStack} from 'tamagui'
 import {getDaemonFileUrl} from '../../ui/src/get-file-url'
 
 export type SwitcherItem = {
@@ -43,22 +42,18 @@ export function LauncherItem({
   }, [selected])
 
   return (
-    <YStack paddingVertical="$1" ref={elm}>
+    <div className="flex flex-col py-1" ref={elm}>
       <Button
         key={item.key}
         onClick={() => {
           item.onSelect()
         }}
-        className={cn(selected && 'bg-brand-4 hover:bg-brand-4')}
+        className={cn(selected && 'bg-brand-4', 'hover:bg-brand-4')}
+        // className="bg-muted hover:bg-brand-4"
         onFocus={onFocus}
         onMouseEnter={onMouseEnter}
       >
-        <XStack
-          flex={1}
-          gap="$3"
-          justifyContent="flex-start"
-          alignItems="center"
-        >
+        <div className="flex flex-1 items-center justify-start gap-3">
           {item.icon ? (
             <UIAvatar
               label={item.title}
@@ -69,23 +64,14 @@ export function LauncherItem({
           ) : item.path?.length === 0 ? (
             <UIAvatar label={item.title} size={20} id={item.key} />
           ) : null}
-          <YStack flex={1} justifyContent="space-between">
-            <XStack
-              flex={1}
-              gap="$3"
-              justifyContent="flex-start"
-              alignItems="center"
-            >
+          <div className="flex flex-1 flex-col justify-between">
+            <div className="flex flex-1 items-center justify-start gap-3">
               <SizableText className="truncate" weight="semibold">
                 {highlightSearchMatch(item.title, item.searchQuery, {
                   fontWeight: 600,
                 })}
               </SizableText>
-              <YStack
-                flex={1}
-                justifyContent="flex-start"
-                alignItems="flex-end"
-              >
+              <div className="flex flex-1 flex-col items-end justify-start">
                 <SizableText
                   className="truncate"
                   weight="normal"
@@ -98,8 +84,8 @@ export function LauncherItem({
                     ? item.versionTime + ' Version'
                     : ''}
                 </SizableText>
-              </YStack>
-            </XStack>
+              </div>
+            </div>
 
             {!!item.path ? (
               <SizableText className="truncate" weight="normal" size="md">
@@ -107,10 +93,10 @@ export function LauncherItem({
               </SizableText>
             ) : null}
             {/* <SizableText color="$color10">{item.subtitle}</SizableText> */}
-          </YStack>
-        </XStack>
+          </div>
+        </div>
       </Button>
-    </YStack>
+    </div>
   )
 }
 

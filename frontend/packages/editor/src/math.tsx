@@ -6,9 +6,8 @@ import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/help
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
 import {Separator} from '@shm/ui/separator'
-import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {TextArea} from '@tamagui/input'
-import {XStack, YStack} from '@tamagui/stacks'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
@@ -183,58 +182,46 @@ const Render = (
   }, [measureContentAndContainer])
 
   return (
-    <YStack
-      backgroundColor={selected ? '$color3' : comment ? '$color6' : '$color4'}
-      borderColor={selected ? '$color8' : 'transparent'}
-      borderWidth={2}
-      borderRadius="$2"
-      overflow="hidden"
-      hoverStyle={{
-        backgroundColor: '$color3',
-      }}
-      // @ts-ignore
+    <div
       contentEditable={false}
-      className={block.type}
-      group="item"
-      outlineWidth="$0"
+      className={cn(
+        block.type,
+        'flex flex-col overflow-hidden rounded-md',
+        selected
+          ? 'border-border bg-background border-2'
+          : comment
+          ? 'bg-secondary'
+          : 'bg-muted',
+        'hover:bg-black/3 dark:hover:bg-white/3',
+      )}
     >
-      <YStack
-        minHeight="$7"
-        paddingVertical="10px"
-        position="relative"
-        userSelect="none"
-        overflow={isContentSmallerThanContainer ? 'hidden' : 'scroll'}
-        paddingHorizontal="$3"
-        width="100%"
+      <div
         ref={containerRef}
-        onPress={() => {
+        onClick={() => {
           if (selected && !opened) {
             const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
-            if (selectedNode && selectedNode.block.node.attrs.id) {
-              if (
-                selectedNode.block.node.attrs.id === block.id &&
-                selectedNode.block.beforePos + 1 === selection.$anchor.pos
-              ) {
-                setSelected(true)
-                setOpened(true)
-              }
+            if (
+              selectedNode?.block.node.attrs.id === block.id &&
+              selectedNode.block.beforePos + 1 === selection.$anchor.pos
+            ) {
+              setSelected(true)
+              setOpened(true)
             }
           }
         }}
-        ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
+        className={cn(
+          'relative flex min-h-7 w-full flex-col px-3 py-[10px] select-none',
+          isContentSmallerThanContainer
+            ? 'items-center overflow-hidden'
+            : 'items-start overflow-scroll',
+        )}
       >
-        <SizableText ref={mathRef} style={{userSelect: 'none'}} />
-      </YStack>
+        <p ref={mathRef} className="text-base select-none" />
+      </div>
       {opened && (
-        <YStack>
+        <div className="flex flex-col">
           <Separator />
-          <XStack
-            minHeight="$7"
-            paddingVertical="10px"
-            paddingHorizontal="16px"
-            position="relative"
-            ai="center"
-          >
+          <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">
             <TextArea
               ref={inputRef}
               onBlur={(e) => {
@@ -339,9 +326,9 @@ const Render = (
                   )
               }}
             />
-          </XStack>
-        </YStack>
+          </div>
+        </div>
       )}
-    </YStack>
+    </div>
   )
 }

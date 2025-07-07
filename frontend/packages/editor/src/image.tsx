@@ -11,7 +11,6 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
-import {useTheme} from 'tamagui'
 
 export const ImageBlock = createReactBlockSpec({
   type: 'image',
@@ -79,7 +78,6 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const theme = useTheme()
   const {importWebFile} = useDocContentContext()
 
   const submitImage = (
@@ -187,7 +185,7 @@ const Render = (
       mediaType="image"
       submit={submitImage}
       DisplayComponent={display}
-      icon={<RiImage2Line fill={theme.color12?.get()} />}
+      icon={<RiImage2Line className="text-black dark:text-white" />}
     />
   )
 }

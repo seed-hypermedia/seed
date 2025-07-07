@@ -306,9 +306,16 @@ const EmbedLauncherInput = ({
   let content = (
     <div
       className={cn(
-        'bg-muted border-t-none border-b-md absolute top-full z-[999] max-h-[300px] w-full gap-2 overflow-auto overflow-x-hidden p-3 opacity-100 shadow-sm',
-        focused ? 'flex flex-col' : 'hidden',
+        focused ? 'flex' : 'hidden',
+        'absolute top-full left-0 z-[999] max-h-[400px] w-full overflow-auto overflow-x-hidden',
+        'flex-col gap-2 px-3 py-3 opacity-100',
+        'bg-muted',
+        'rounded-br-md rounded-bl-md',
+        'scrollbar-none shadow-sm',
       )}
+      style={{
+        scrollbarWidth: 'none',
+      }}
     >
       {isDisplayingRecents && (
         <SizableText color="muted" className="mx-4">
@@ -334,7 +341,9 @@ const EmbedLauncherInput = ({
               <LauncherItem item={item} {...sharedProps} />
             )}
 
-            {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
+            {itemIndex !== activeItems.length - 1 ? (
+              <Separator className="bg-black/10 dark:bg-white/10" />
+            ) : null}
           </>
         )
       })}
@@ -344,15 +353,9 @@ const EmbedLauncherInput = ({
   return (
     <div className="relative flex flex-1 flex-col">
       <Input
-        style={{
-          backgroundColor: comment ? '$color6' : '$color4',
-        }}
-        className={cn('w-full pl-3', comment ? 'bg-muted/60' : 'bg-muted')}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
-        autoFocus={false}
         value={search}
-        onChangeText={(text: string) => {
+        onChange={(e) => {
+          const text = e.target.value
           setSearch(text)
           setUrl(text)
           if (fileName.color) {
@@ -360,23 +363,30 @@ const EmbedLauncherInput = ({
           }
         }}
         placeholder="Query or input Embed URL..."
-        onKeyDown={(e: any) => {
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        onKeyDown={(e) => {
           if (!activeItems.length) return
 
-          if (e.nativeEvent.key === 'Escape') {
+          if (e.key === 'Escape') {
             setFocused(false)
-          } else if (e.nativeEvent.key === 'Enter') {
+          } else if (e.key === 'Enter') {
             activeItems[focusedIndex]?.onSelect()
-          } else if (e.nativeEvent.key === 'ArrowDown') {
+          } else if (e.key === 'ArrowDown') {
             e.preventDefault()
             setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-          } else if (e.nativeEvent.key === 'ArrowUp') {
+          } else if (e.key === 'ArrowUp') {
             e.preventDefault()
             setFocusedIndex(
               (prev) => (prev - 1 + activeItems.length) % activeItems.length,
             )
           }
         }}
+        className={cn(
+          comment ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
+          'border-muted-foreground text-foreground h-9 w-full rounded-md border px-3',
+          'hover:border-black/10 focus:border-black/10 dark:hover:border-white/10 dark:focus:border-white/10',
+        )}
       />
 
       {content}

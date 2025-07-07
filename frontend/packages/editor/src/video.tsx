@@ -8,11 +8,10 @@ import {HMBlockSchema} from '@/schema'
 import {isValidUrl, youtubeParser} from '@/utils'
 import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
-import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
-import {XStack, useTheme} from 'tamagui'
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split('.')
@@ -80,7 +79,6 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const theme = useTheme()
   const submitVideo = (url: string, assign: any, setFileName: any) => {
     if (isValidUrl(url)) {
       let embedUrl = 'https://www.youtube.com/embed/'
@@ -130,7 +128,7 @@ const Render = (
       mediaType="video"
       submit={submitVideo}
       DisplayComponent={display}
-      icon={<RiVideoAddLine fill={theme.color12?.get()} />}
+      icon={<RiVideoAddLine className="text-black dark:text-white" />}
       validateFile={validateFile}
     />
   )
@@ -312,53 +310,41 @@ const display = ({
         </>
       )}
       {block.props.displaySrc ? (
-        <XStack
-          tag="video"
+        <video
           contentEditable={false}
           playsInline
           controls
           preload="metadata"
-          top={0}
-          left={0}
-          position="absolute"
-          width="100%"
-          height="100%"
+          className="absolute top-0 left-0 h-full w-full"
         >
           <source
-            src={block.props.displaySrc}
+            src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
             type={getSourceType(block.props.name)}
           />
-          <SizableText>Something is wrong with the video file.</SizableText>
-        </XStack>
+          <p>Error with the video file.</p>
+        </video>
       ) : isIpfsUrl(block.props.url) ? (
-        <XStack
-          tag="video"
+        <video
           contentEditable={false}
           playsInline
           controls
           preload="metadata"
-          top={0}
-          left={0}
-          position="absolute"
-          width="100%"
-          height="100%"
+          className="absolute top-0 left-0 h-full w-full"
         >
           <source
             src={getDaemonFileUrl(block.props.url)}
             type={getSourceType(block.props.name)}
           />
-          <SizableText>Something is wrong with the video file.</SizableText>
-        </XStack>
+          <p>Error with the video file.</p>
+        </video>
       ) : (
-        <XStack
-          pointerEvents={editor.isEditable ? 'none' : 'auto'}
-          tag="iframe"
-          position="absolute"
-          className="video-iframe"
-          top={0}
-          left={0}
-          bottom={0}
-          right={0}
+        <iframe
+          contentEditable={false}
+          className={cn(
+            'video-iframe absolute top-0 right-0 bottom-0 left-0',
+            !editor.isEditable && 'pointer-events-auto',
+            editor.isEditable && 'pointer-events-none',
+          )}
           src={block.props.url}
           frameBorder="0"
           allowFullScreen
