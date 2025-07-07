@@ -436,9 +436,9 @@ function _AppDocSiteHeader({
     }
     return q
   }, [docId, docDir.data])
+  const navItems = useSiteNavigationItems(siteHomeEntity)
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
-  const navItems = useSiteNavigationItems(siteHomeEntity)
   return (
     <SiteHeader
       originHomeId={hmId('d', siteHomeEntity.id.uid)}
