@@ -226,9 +226,6 @@ export async function discoverDocument(
     if (version && version === discoverResp.version) return true
     return false
   }
-  const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
-  if (checkDiscoverySuccess(discoverResp))
-    return {version: discoverResp.version}
   return await tryUntilSuccess(
     async () => {
       const discoverResp =
@@ -391,7 +388,7 @@ export function useIdEntities(
 }
 
 export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useEntities(ids.map((id) => hmId('d', id)))
+  const accounts = useSubscribedEntities(ids.map((id) => ({id: hmId('d', id)})))
   return Object.fromEntries(
     accounts
       .map((account) => {
