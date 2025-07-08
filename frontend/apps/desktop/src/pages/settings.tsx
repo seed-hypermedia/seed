@@ -596,7 +596,7 @@ function AccountKeys() {
               </AlertDialogPortal>
             </AlertDialog>
             <Separator />
-            <SettingsSection title="Fiat Payments">
+            <SettingsSection title="Stripe Payments">
               <StripeAccount
                 accountUid={selectedAccount}
                 url={`${DEFAULT_GATEWAY_URL}/hm/${selectedAccount}`}

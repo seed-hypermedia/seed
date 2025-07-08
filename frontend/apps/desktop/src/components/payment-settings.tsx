@@ -110,7 +110,9 @@ export function StripeAccount({
   const getAccount = useGetConnectedAccount()
   const getAccountBalance = useGetAccountBalance()
   const [accountExists, setAccountExists] = useState(false)
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
+    setLoading(true)
     getAccount
       .mutateAsync({accountUid})
       .then((res) => {
@@ -129,7 +131,17 @@ export function StripeAccount({
       .catch((e) => {
         setAccountExists(false)
       })
-  }, [accountUid, accountExists])
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [accountUid])
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
   if (accountExists) {
     return (
       <div className="flex flex-1 items-center justify-between">
@@ -158,8 +170,7 @@ export function StripeAccount({
           </SizableText>
           <SizableText size="$1" color="$brand5">
             {getAccountBalance.data?.available[0]?.amount.toFixed(2) || '0.00'}{' '}
-            {getAccountBalance.data?.available[0]?.currency.toUpperCase() ||
-              'USD'}
+            {getAccountBalance.data?.available[0]?.currency.toUpperCase() || 'USD'}
           </SizableText>
         </div>
       </div>
