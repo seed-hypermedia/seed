@@ -116,14 +116,16 @@ export function Comment({
     <div
       className={cn(
         'group relative flex gap-1 rounded-lg p-2',
-        highlight ? 'bg-secondary' : '',
+        highlight ? 'bg-secondary dark:bg-brand-10' : '', // TODO: review color for dark theme
       )}
     >
       {isLast ? (
         <div
           className={cn(
             'absolute z-1 w-3',
-            highlight ? 'bg-secondary' : 'dark:bg-background bg-white',
+            highlight
+              ? 'bg-secondary dark:bg-brand-10' // TODO: review color for dark theme
+              : 'dark:bg-background bg-white',
           )}
           style={{
             height: `calc(100% - ${avatarSize + 12}px)`,
