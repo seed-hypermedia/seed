@@ -34,13 +34,11 @@ export const loader = async ({request}: {request: Request}) => {
   if (!serviceConfig) return wrapJSON('no-site', {status: 404})
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid) return wrapJSON('unregistered', {status: 404})
-  const result = await loadSiteResource(
+  return await loadSiteResource(
     parsedRequest,
     hmId(registeredAccountUid, {version, path: [], latest}),
     {prefersLanguages: parsedRequest.prefersLanguages},
   )
-  debugTiming('homepage loader resolved')
-  return result
 }
 
 export default function SiteDocument() {

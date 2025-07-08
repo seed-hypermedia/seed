@@ -33,11 +33,10 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
-  const result = await loadSiteResource(
+  return await loadSiteResource(
     parsedRequest,
     hmId(registeredAccountUid, {path: [], latest: true}),
   )
-  return result
 }
 
 export default function EmailNotificationsPage() {

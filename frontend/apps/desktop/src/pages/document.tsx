@@ -572,9 +572,9 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               {getDocumentTitle(resource.data?.document)}
             </SeedHeading>
           </div>
-          {entity.data.document?.metadata?.summary ? (
+          {resource.data.document?.metadata?.summary ? (
             <span className="font-body text-muted-foreground text-xl">
-              {entity.data.document?.metadata?.summary}
+              {resource.data.document?.metadata?.summary}
             </span>
           ) : null}
           <div className="flex flex-col gap-2">

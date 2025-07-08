@@ -92,14 +92,13 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
-  const result = await loadSiteResource(
+  return await loadSiteResource(
     parsedRequest,
     hmId(registeredAccountUid, {path: [], latest: true}),
     {
       stableRelease: await loadStableRelease(),
     },
   )
-  return result
 }
 
 export const meta = defaultPageMeta('Download Seed Hypermedia')

@@ -22,7 +22,7 @@ import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
 import {queryClient} from './client'
 import {initDatabase} from './db'
 import {initEmailNotifier} from './email-notifier'
-import {getHMDocument} from './loaders'
+import {getDocument} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config'
@@ -267,8 +267,7 @@ async function handleOptionsRequest(request: Request) {
   try {
     const hmId = getHmIdOfRequest(parsedRequest, originAccountId)
     if (hmId) {
-      console.log('hmId', hmId)
-      const doc = await getHMDocument(hmId)
+      const doc = await getDocument(hmId)
       if (doc) {
         headers['X-Hypermedia-Id'] = hmId.id
         headers['X-Hypermedia-Version'] = doc.version

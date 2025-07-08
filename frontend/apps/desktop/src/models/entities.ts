@@ -366,7 +366,6 @@ export function useSubscribedResources(
   )
   useEffect(() => {
     if (!isAllEntitiesInitialLoaded) return
-    // console.log('[sync] useSubscribedEntities effect', subs)
     subs.forEach(addSubscribedEntity)
     return () => {
       // console.log('[sync] unsubscribing', subs)

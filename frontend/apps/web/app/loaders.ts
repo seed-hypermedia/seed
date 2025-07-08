@@ -357,11 +357,12 @@ export async function getResource(id: UnpackedHypermediaId) {
     }
     throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
   } catch (e) {
-    if (e instanceof HMRedirectError) {
+    const err = getErrorMessage(e)
+    if (err instanceof HMRedirectError) {
       return {
         type: 'redirect',
         id,
-        redirectTarget: e.target,
+        redirectTarget: err.target,
       } satisfies HMResourceRedirect
     }
     return {
@@ -375,28 +376,35 @@ export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
 ): Promise<WebResourcePayload> {
-  const resource = await queryClient.resources.getResource({
-    iri: id.id,
-  })
-  if (resource.kind.case === 'comment') {
-    const comment = prepareHMComment(resource.kind.value)
-    const targetDocId = getCommentTargetId(comment)
-    if (!targetDocId) throw new Error('targetDocId not found')
-    const document = await getDocument(targetDocId, {discover: true})
-    console.log({targetDocId, document})
-    return await loadResourcePayload(targetDocId, parsedRequest, {
-      document,
-      comment,
+  try {
+    const resource = await queryClient.resources.getResource({
+      iri: id.id,
     })
-  } else if (resource.kind.case === 'document') {
-    const document = prepareHMDocument(resource.kind.value)
-    const latestDocument = await getLatestDocument(id)
-    return await loadResourcePayload(id, parsedRequest, {
-      document,
-      latestDocument,
-    })
+    if (resource.kind.case === 'comment') {
+      const comment = prepareHMComment(resource.kind.value)
+      const targetDocId = getCommentTargetId(comment)
+      if (!targetDocId) throw new Error('targetDocId not found')
+      const document = await getDocument(targetDocId, {discover: true})
+      return await loadResourcePayload(targetDocId, parsedRequest, {
+        document,
+        comment,
+      })
+    } else if (resource.kind.case === 'document') {
+      const document = prepareHMDocument(resource.kind.value)
+      const latestDocument = await getLatestDocument(id)
+      return await loadResourcePayload(id, parsedRequest, {
+        document,
+        latestDocument,
+      })
+    }
+    throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
+  } catch (e) {
+    const err = getErrorMessage(e)
+    if (err instanceof HMRedirectError) {
+      throw err
+    }
+    throw e
   }
-  throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
 }
 
 function textNodeAttributes(
