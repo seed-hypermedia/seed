@@ -2,9 +2,9 @@ import {
   AutocompletePopup,
   createAutoCompletePlugin,
 } from '@shm/editor/autocomplete'
-import {getContactMetadata} from '@shm/shared/content'
+import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
@@ -96,7 +96,9 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef?.type == 'd') {
-    return <DocumentMention unpackedRef={unpackedRef} {...props} />
+    if (unpackedRef.path && unpackedRef.path.length > 0) {
+      return <DocumentMention unpackedRef={unpackedRef} {...props} />
+    } else return <ContactMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>
@@ -104,6 +106,24 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
 }
 
 function DocumentMention({
+  unpackedRef,
+  selected,
+}: {
+  unpackedRef: UnpackedHypermediaId
+  selected?: boolean
+}) {
+  const entity = useEntity(unpackedRef)
+
+  return (
+    <MentionText selected={selected}>
+      {entity.data?.document
+        ? getDocumentTitle(entity.data?.document)
+        : unpackedRef.id}
+    </MentionText>
+  )
+}
+
+function ContactMention({
   unpackedRef,
   selected,
 }: {
