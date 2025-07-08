@@ -154,7 +154,11 @@ export function StripeAccount({
                   accountUid,
                 })
                 .then((link) => {
-                  window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=600')
+                  window.open(
+                    link.url,
+                    '_blank',
+                    'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=600',
+                  )
                 })
                 .catch((e) => {
                   toast.error('Failed to retrieve express link')
@@ -170,7 +174,8 @@ export function StripeAccount({
           </SizableText>
           <SizableText size="$1" color="$brand5">
             {getAccountBalance.data?.available[0]?.amount.toFixed(2) || '0.00'}{' '}
-            {getAccountBalance.data?.available[0]?.currency.toUpperCase() || 'USD'}
+            {getAccountBalance.data?.available[0]?.currency.toUpperCase() ||
+              'USD'}
           </SizableText>
         </div>
       </div>
@@ -189,7 +194,11 @@ export function StripeAccount({
             })
             .then((link) => {
               if (link) {
-                window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800')
+                window.open(
+                  link.url,
+                  '_blank',
+                  'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800',
+                )
               } else {
                 toast.error('Failed to retrieve account link')
               }
@@ -206,7 +215,11 @@ export function StripeAccount({
                     })
                     .then((link) => {
                       if (link) {
-                        window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800')
+                        window.open(
+                          link.url,
+                          '_blank',
+                          'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800',
+                        )
                       } else {
                         toast.error('Failed to retrieve account link')
                       }
