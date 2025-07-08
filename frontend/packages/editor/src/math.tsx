@@ -189,9 +189,10 @@ const Render = (
         'flex flex-col overflow-hidden rounded-md',
         selected
           ? 'border-border bg-background border-2'
-          : comment
-          ? 'bg-secondary'
-          : 'bg-muted',
+          : // : comment
+            // ? 'bg-muted'
+            // : 'bg-muted',
+            'bg-muted',
         'hover:bg-black/3 dark:hover:bg-white/3',
       )}
     >
