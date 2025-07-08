@@ -8,6 +8,8 @@ import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
   HMAccountsMetadata,
   HMBlockQuery,
+  HMComment,
+  HMDocument,
   HMDocumentInfo,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -240,6 +242,9 @@ export function useSizeObserver(onRect: (rect: DOMRect) => void) {
 }
 
 export function EmbedDocument(props: EntityComponentProps) {
+  if (props.block.type !== 'Embed') {
+    return <BlockContentUnknown {...props} />
+  }
   if (props.block.attributes?.view == 'Card') {
     return <EmbedDocumentCard {...props} />
   } else {
@@ -249,9 +254,7 @@ export function EmbedDocument(props: EntityComponentProps) {
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
   console.log('== ~ EmbedDocumentContent ~ props:', props)
-  const [showReferenced, setShowReferenced] = useState(false)
   const {entityId} = useDocContentContext()
-  const route = useNavRoute()
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
@@ -260,15 +263,43 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       </SizableText>
     )
   }
-  const doc = useSubscribedResource(props)
+  const resource = useSubscribedResource(props)
   const navigate = useNavigate()
+  if (resource.data?.type === 'document') {
+    return (
+      <DocumentContentEmbed
+        {...props}
+        document={resource.data.document}
+        isLoading={resource.isInitialLoading}
+      />
+    )
+  } else if (resource.data?.type === 'comment') {
+    return (
+      <CommentContentEmbed
+        {...props}
+        comment={resource.data.comment}
+        isLoading={resource.isInitialLoading}
+      />
+    )
+  } else return <BlockContentUnknown {...props} />
+}
+
+function DocumentContentEmbed(
+  props: EntityComponentProps & {document: HMDocument; isLoading: boolean},
+) {
+  const {document, isLoading} = props
+  const navigate = useNavigate()
+  const [showReferenced, setShowReferenced] = useState(false)
+
+  const route = useNavRoute()
+
   return (
     <ContentEmbed
       props={props}
-      isLoading={doc.isInitialLoading}
+      isLoading={isLoading}
       showReferenced={showReferenced}
       onShowReferenced={setShowReferenced}
-      document={doc.data?.type === 'document' ? doc.data.document : undefined}
+      document={document}
       EmbedWrapper={EmbedWrapper}
       parentBlockId={props.parentBlockId}
       renderOpenButton={() => (
@@ -293,6 +324,83 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
       )}
     />
   )
+}
+
+function CommentContentEmbed(
+  props: EntityComponentProps & {comment: HMComment; isLoading: boolean},
+) {
+  const {comment, isLoading} = props
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const [showReferenced, setShowReferenced] = useState(false)
+  const account = useSubscribedResource(
+    comment?.author ? hmId(comment?.author) : null,
+  )
+  const accountMetadata =
+    account.data?.type === 'document'
+      ? account.data.document?.metadata
+      : undefined
+  let embedBlocks = useMemo(() => {
+    const selectedBlock =
+      props.blockRef && comment?.content
+        ? getBlockNodeById(comment.content, props.blockRef)
+        : null
+
+    const embedBlocks = selectedBlock ? [selectedBlock] : comment?.content
+
+    return embedBlocks
+  }, [props.blockRef, comment])
+  let content = null
+  if (isLoading) {
+    content = null
+  } else if (comment) {
+    content = (
+      <div className="flex flex-wrap justify-between p-3">
+        <div className="flex items-center gap-2">
+          {account.data?.id && (
+            <HMIcon size={24} id={account.data.id} metadata={accountMetadata} />
+          )}
+          <SizableText weight="bold">{accountMetadata?.name}</SizableText>
+        </div>
+        {comment?.createTime ? (
+          <SizableText size="sm" color="muted">
+            {formattedDateMedium(comment.createTime)}
+          </SizableText>
+        ) : null}
+      </div>
+    )
+    {
+      embedBlocks?.length ? (
+        <BlockNodeList childrenType="Group">
+          {embedBlocks.map((bn, idx) => (
+            <BlockNodeContent
+              isFirstChild={idx === 0}
+              key={bn.block?.id}
+              depth={1}
+              blockNode={bn}
+              childrenType="Group"
+              index={idx}
+              embedDepth={1}
+              parentBlockId={props.id}
+            />
+          ))}
+        </BlockNodeList>
+      ) : (
+        <BlockContentUnknown {...props} />
+      )
+    }
+  }
+  return (
+    <EmbedWrapper
+      viewType="Content"
+      depth={props.depth}
+      id={narrowHmId(props)}
+      parentBlockId={props.parentBlockId || ''}
+    >
+      {content}
+    </EmbedWrapper>
+  )
+  return <div>CommentContentEmbed</div>
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {

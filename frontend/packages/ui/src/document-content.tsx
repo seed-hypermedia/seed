@@ -1180,12 +1180,6 @@ function getVideoIframeSrc(link: string) {
 
 type LinkType = null | 'basic' | 'hypermedia'
 
-function hmTextColor(linkType: LinkType): string {
-  if (linkType === 'basic') return '$color11'
-  if (linkType === 'hypermedia') return '$brand5'
-  return '$color12'
-}
-
 function getInlineContentOffset(inline: HMInlineContent): number {
   if (inline.type === 'link') {
     return inline.content.map(getInlineContentOffset).reduce((a, b) => a + b, 0)
@@ -1347,14 +1341,15 @@ function InlineContentView({
 
         if (content.type === 'inline-embed') {
           const unpackedRef = unpackHmId(content.link)
-          return (
-            <InlineEmbed
-              key={content.link}
-              comment={comment}
-              {...unpackedRef}
-              style={dynamicStyles}
-            />
-          )
+          if (unpackedRef)
+            return (
+              <InlineEmbed
+                key={content.link}
+                style={dynamicStyles}
+                {...unpackedRef}
+              />
+            )
+          else return <span>!?!</span>
         }
 
         if (content.type === 'range') {
@@ -1416,6 +1411,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (props.block.type !== 'Embed')
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.link)
+  console.log('~', props.block, id)
   if (id) return <EmbedTypes.Document {...props} {...id} />
   return <BlockContentUnknown {...props} />
 }
@@ -1653,20 +1649,20 @@ export function ContentEmbed({
     )
   }
   return (
-    <DocContentProvider
-      {...context}
-      layoutUnit={context.comment ? 18 : context.layoutUnit}
-      textUnit={context.comment ? 12 : context.textUnit}
+    // <DocContentProvider
+    //   {...context}
+    //   layoutUnit={context.comment ? 18 : context.layoutUnit}
+    //   textUnit={context.comment ? 12 : context.textUnit}
+    // >
+    <EmbedWrapper
+      embedView={props.block.attributes?.view}
+      depth={props.depth}
+      id={narrowHmId(props)}
+      parentBlockId={parentBlockId || ''}
     >
-      <EmbedWrapper
-        embedView={props.block.attributes?.view}
-        depth={props.depth}
-        id={narrowHmId(props)}
-        parentBlockId={parentBlockId || ''}
-      >
-        {content}
-      </EmbedWrapper>
-    </DocContentProvider>
+      {content}
+    </EmbedWrapper>
+    // </DocContentProvider>
   )
 }
 
