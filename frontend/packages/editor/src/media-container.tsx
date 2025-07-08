@@ -5,10 +5,11 @@ import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
 import {MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {Button} from '@shm/ui/legacy/button'
+import {Button} from '@shm/ui/button'
+import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
 import {useState} from 'react'
-import {Text, XStack, YStack} from 'tamagui'
 
 interface ContainerProps {
   editor: BlockNoteEditor<HMBlockSchema>
@@ -159,13 +160,8 @@ export const MediaContainer = ({
   }
 
   return (
-    <YStack
-      gap="$2"
-      group="item"
-      width="100%"
-      alignSelf="center"
-      alignItems="center"
-      borderWidth={0}
+    <div
+      className="relative flex w-full flex-col items-center gap-2 self-center"
       draggable="true"
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
@@ -180,9 +176,9 @@ export const MediaContainer = ({
         e.stopPropagation()
         editor.sideMenu.blockDragEnd()
       }}
-      onPress={
+      onClick={
         onPress
-          ? (e: MouseEvent) => {
+          ? (e) => {
               e.preventDefault()
               e.stopPropagation()
               onPress(e)
@@ -190,91 +186,55 @@ export const MediaContainer = ({
           : undefined
       }
     >
-      {drag && !isEmbed ? (
-        <XStack
-          position="absolute"
-          zIndex="$zIndex.5"
-          fullscreen
-          pointerEvents="none"
-          alignItems="center"
-          justifyContent="center"
-        >
-          <XStack
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-            backgroundColor="$backgroundColor"
-            borderWidth={2}
-            borderRadius="$2"
-            borderColor={'$color8'}
-          >
-            <Text fontFamily="$mono" fontSize="$3" zIndex={2}>
-              Drop to replace
-            </Text>
-          </XStack>
-          <XStack
-            opacity={0.75}
-            backgroundColor="$backgroundHover"
-            position="absolute"
-            fullscreen
-            zIndex={1}
-          />
-        </XStack>
-      ) : null}
-      <YStack
-        // backgroundColor={selected ? '$color4' : '$color3'}
-        borderColor={selected ? '$color8' : '$colorTransparent'}
-        borderWidth={3}
-        borderRadius="$2"
-        // hoverStyle={{
-        //   backgroundColor: '$color4',
-        // }}
+      {drag && !isEmbed && (
+        <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center">
+          <div className="bg-background border-muted relative flex rounded-md border-2 px-4 py-2">
+            <Text className="font-mono text-sm">Drop to replace</Text>
+          </div>
+          <div className="bg-muted absolute inset-0 flex opacity-75" />
+        </div>
+      )}
+      <div
+        className={cn(
+          'relative flex max-w-full flex-col rounded-md border-4',
+          selected ? 'border-muted' : 'border-transparent',
+          className ?? block.type,
+        )}
+        style={{width}}
         {...mediaProps}
-        // @ts-ignore
         contentEditable={false}
-        className={className ?? block.type}
-        group="item"
-        maxWidth="100%"
-        width={width}
       >
-        {(hover || selected) && mediaType !== 'embed'
-          ? editor.isEditable && (
-              <Button
-                position="absolute"
-                top="$1.5"
-                right="$1.5"
-                zIndex="$zIndex.4"
-                size="$1"
-                width={60}
-                onPress={() =>
-                  assign({
-                    props: {
-                      url: '',
-                      name: '',
-                      size: '0',
-                      displaySrc: '',
-                      width:
-                        mediaType === 'image' || mediaType === 'video'
-                          ? editor.domElement.firstElementChild!.clientWidth
-                          : undefined,
-                    },
-                    children: [],
-                    content: [],
-                    type: mediaType,
-                  } as MediaType)
-                }
-                hoverStyle={{
-                  backgroundColor: '$backgroundHover',
-                }}
-              >
-                replace
-              </Button>
-            )
-          : null}
+        {(hover || selected) && mediaType !== 'embed' && editor.isEditable && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="dark:bg-background bg-muted absolute top-2 right-2 z-[4] w-[60px]"
+            onClick={() =>
+              assign({
+                props: {
+                  url: '',
+                  name: '',
+                  size: '0',
+                  displaySrc: '',
+                  width:
+                    mediaType === 'image' || mediaType === 'video'
+                      ? editor.domElement.firstElementChild!.clientWidth
+                      : undefined,
+                },
+                children: [],
+                content: [],
+                type: mediaType,
+              } as MediaType)
+            }
+          >
+            replace
+          </Button>
+        )}
         {children}
-      </YStack>
+      </div>
       {mediaType === 'image' && (
         <InlineContent className="image-caption" contentEditable={true} />
       )}
-    </YStack>
+    </div>
   )
 }

@@ -1,8 +1,8 @@
-import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
+import {Button} from '@shm/ui/button'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
+import {Check, ChevronDown} from 'lucide-react'
 import {useState} from 'react'
-import {Select, XStack, YStack} from 'tamagui'
 
 export const CodeBlockView = ({
   props,
@@ -16,81 +16,61 @@ export const CodeBlockView = ({
   const [language, setLanguage] = useState(
     node.attrs.language ? node.attrs.language : 'plaintext',
   )
+  const [open, setOpen] = useState(false)
+
   const handleChange = (newLanguage: string) => {
     updateAttributes({language: newLanguage})
     setLanguage(newLanguage)
+    setOpen(false)
   }
 
   return (
-    <YStack
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
+    <div
+      className="flex flex-col"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false)
+        setOpen(false)
+      }}
     >
       {hovered && (
-        <XStack
-          position="absolute"
-          top={-8}
-          right={-12}
-          width={150}
-          zIndex="$zIndex.5"
-          alignItems="center"
-          justifyContent="flex-end"
-          padding="$1"
-          gap="$4"
-          // @ts-ignore
+        <div
+          className="absolute top-2 right-3 z-[5] flex w-[150px] items-center gap-4 p-1"
           contentEditable={false}
         >
-          <Select value={language} onValueChange={handleChange}>
-            <Select.Trigger iconAfter={ChevronDown} size="$2.5">
-              <Select.Value placeholder="plaintext" />
-            </Select.Trigger>
-
-            <Select.Content zIndex={200000}>
-              <Select.ScrollUpButton
-                alignItems="center"
-                justifyContent="center"
-                position="relative"
-                width="100%"
-                height="$3"
-              >
-                <YStack zIndex={10}>
-                  <ChevronUp size={20} />
-                </YStack>
-              </Select.ScrollUpButton>
-              <Select.Viewport minWidth={200}>
-                <Select.Group maxHeight={'60vh'}>
-                  {languages.map((item, i) => {
-                    return (
-                      <Select.Item index={i} key={item} value={item}>
-                        <Select.ItemText>{item}</Select.ItemText>
-                        <Select.ItemIndicator marginLeft="auto">
-                          <Check size={16} />
-                        </Select.ItemIndicator>
-                      </Select.Item>
-                    )
-                  })}
-                </Select.Group>
-              </Select.Viewport>
-              <Select.ScrollDownButton
-                alignItems="center"
-                justifyContent="center"
-                position="relative"
-                width="100%"
-                height="$3"
-              >
-                <YStack zIndex={10}>
-                  <ChevronDown size={20} />
-                </YStack>
-              </Select.ScrollDownButton>
-            </Select.Content>
-          </Select>
-        </XStack>
+          <div className="relative w-full">
+            <Button
+              className="border-input bg-background flex w-full items-center justify-between rounded-md border px-3 py-1.5 text-sm shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => setOpen(!open)}
+              type="button"
+            >
+              <span className="truncate">{language || 'plaintext'}</span>
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+            {open && (
+              <div className="border-muted bg-popover hide-scrollbar absolute left-0 z-[200000] mt-1 max-h-[60vh] w-full overflow-y-auto rounded-md border p-1 shadow-md">
+                {languages.map((item, i) => (
+                  <Button
+                    key={item}
+                    onClick={() => handleChange(item)}
+                    className="hover:bg-accent dark:hover:bg-accent flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm"
+                  >
+                    <span className="truncate">{item}</span>
+                    {language === item && (
+                      <Check className="text-primary h-4 w-4" />
+                    )}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
       <pre>
         <code className={`language-${language}`}>
           <NodeViewContent />
         </code>
       </pre>
-    </YStack>
+    </div>
   )
 }

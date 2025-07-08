@@ -5,9 +5,9 @@ import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks
 import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
 import {HMBlockSchema} from '@/schema'
+import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
-import {TextArea} from '@tamagui/input'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
@@ -222,24 +222,25 @@ const Render = (
         <div className="flex flex-col">
           <Separator />
           <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">
-            <TextArea
+            <Textarea
               ref={inputRef}
-              onBlur={(e) => {
-                // if (!selected)
-                setOpened(false)
-              }}
+              onBlur={() => setOpened(false)}
               onKeyDown={(e) => {
-                if (e.nativeEvent.key === 'ArrowUp') {
+                const key = e.key
+
+                if (key === 'ArrowUp') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
                   const prevBlockInfo = findPreviousBlock(
                     view,
                     state.selection.from,
                   )
+
                   if (prevBlockInfo) {
                     const {prevBlock, prevBlockPos} = prevBlockInfo
                     const prevNode = prevBlock.firstChild!
                     const prevNodePos = prevBlockPos + 1
+
                     if (selectableNodeTypes.includes(prevNode.type.name)) {
                       const selection = NodeSelection.create(
                         state.doc,
@@ -252,19 +253,23 @@ const Render = (
                         'end',
                       )
                     }
-                    // editor.focus()
+
                     view.focus()
                     setOpened(false)
                   }
-                  return
-                } else if (e.nativeEvent.key === 'ArrowDown') {
+                } else if (key === 'ArrowDown') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
-                  let nextBlockInfo = findNextBlock(view, state.selection.from)
+                  const nextBlockInfo = findNextBlock(
+                    view,
+                    state.selection.from,
+                  )
+
                   if (nextBlockInfo) {
                     const {nextBlock, nextBlockPos} = nextBlockInfo
                     const nextNode = nextBlock.firstChild!
                     const nextNodePos = nextBlockPos + 1
+
                     if (selectableNodeTypes.includes(nextNode.type.name)) {
                       const selection = NodeSelection.create(
                         state.doc,
@@ -277,11 +282,11 @@ const Render = (
                         'start',
                       )
                     }
+
                     view.focus()
                     setOpened(false)
                   }
-                  return
-                } else if (e.nativeEvent.key === 'Backspace') {
+                } else if (key === 'Backspace') {
                   const blockInfo = getBlockInfoFromSelection(
                     tiptapEditor.state,
                   )
@@ -298,17 +303,13 @@ const Render = (
                     )
                     editor.focus()
                   }
-                  return
                 }
               }}
-              width={'100%'}
               placeholder="E = mc^2"
-              value={block.content[0] ? block.content[0].text : ''}
+              value={block.content[0]?.text ?? ''}
               onChange={(e) => {
-                // @ts-ignore
-                const newText = e.target?.value ?? e.nativeEvent.text ?? ''
-
-                if (newText !== block.content?.[0]?.text)
+                const newText = e.target.value
+                if (newText !== block.content?.[0]?.text) {
                   editor.updateBlock(
                     block,
                     // @ts-ignore
@@ -324,7 +325,9 @@ const Render = (
                     },
                     true,
                   )
+                }
               }}
+              className="w-full"
             />
           </div>
         </div>
