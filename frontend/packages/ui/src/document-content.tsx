@@ -1434,13 +1434,13 @@ export function ErrorBlock({
     >
       <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex-start flex gap-2 rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
           }}
         >
-          <SizableText color="destructive">
+          <SizableText color="destructive" className="font-sans text-sm">
             {message ? message : 'Error'}
           </SizableText>
           <AlertCircle color="danger" className="size-3" />

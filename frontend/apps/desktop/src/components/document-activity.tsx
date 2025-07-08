@@ -153,7 +153,7 @@ export function ActivityList({
         return [
           uid,
           {
-            id: hmId('d', uid),
+            id: hmId(uid),
             metadata: accountMetadata,
           },
         ]
