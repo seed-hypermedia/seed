@@ -474,6 +474,7 @@ export function SearchInput({
         </div>
 
         <Input
+          autoFocus={true}
           variant="unstyled"
           placeholder="Search Hypermedia documents"
           className="w-full px-1"
