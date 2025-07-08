@@ -149,7 +149,7 @@ export function HeaderSearch({
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => {},
+          // onSelect: () => {}, Now it's assumed it can be undefined for query search?
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
           versionTime:
@@ -270,9 +270,9 @@ export function HeaderSearch({
                             item={item}
                             originHomeId={originHomeId}
                             selected={focusedIndex === index}
-                            onSelect={() => {
-                              popoverState.onOpenChange(false)
-                            }}
+                            // onSelect={() => {
+                            //   popoverState.onOpenChange(false)
+                            // }}
                           />
                         </div>
                         {index === searchItems.length - 1 ? undefined : (

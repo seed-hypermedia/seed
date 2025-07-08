@@ -1,4 +1,3 @@
-import {Timestamp} from '@bufbuild/protobuf'
 import {HMBlockChildrenType} from './hm-types'
 
 export type EditorBlock =
@@ -179,7 +178,7 @@ export type SearchResult = {
   path?: string[] | null
   versionTime?: string
   searchQuery?: string
-  onSelect: () => void | Promise<void>
+  onSelect?: () => void | Promise<void>
   onFocus: () => void
   onMouseEnter: () => void
 }
