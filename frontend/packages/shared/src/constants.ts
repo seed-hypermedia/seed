@@ -26,7 +26,6 @@ export const PAY_HTTP_PORT =
   process.env.VITE_PAY_HTTP_PORT ||
   46001
 
-  
 export const DAEMON_GRPC_PORT =
   (import.meta.env && import.meta.env.VITE_DESKTOP_GRPC_PORT) ||
   process.env.VITE_DESKTOP_GRPC_PORT ||
@@ -73,7 +72,7 @@ export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||
   `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
 
-  export const PAY_HTTP_URL =
+export const PAY_HTTP_URL =
   process.env.PAY_HTTP_URL ||
   `${PAY_HOSTNAME || 'http://localhost'}:${PAY_HTTP_PORT}`
 

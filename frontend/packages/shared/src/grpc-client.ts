@@ -49,24 +49,48 @@ export function createGRPCClient(transport: any): GRPCClient {
 
 export type PayGRPCClient = {
   connectedAccounts: PromiseClient<typeof ConnectedAccounts.Accounts>
+  connectedAccountsStatus: PromiseClient<typeof ConnectedAccounts.Status>
+  connectedAccountsPayments: PromiseClient<typeof ConnectedAccounts.Payments>
   connectedAccountsPrices: PromiseClient<typeof ConnectedAccountsPrices.Prices>
-  connectedAccountProducts: PromiseClient<typeof ConnectedAccountProducts.Products>
+  connectedAccountProducts: PromiseClient<
+    typeof ConnectedAccountProducts.Products
+  >
   customers: PromiseClient<typeof ConnectedCustomers.Customers>
-  platformAccounts: PromiseClient<typeof PlatformAccounts.Accounts>,
-  platformPrices: PromiseClient<typeof PlatformPrices.Prices>,
-  platformProducts: PromiseClient<typeof PlatformProducts.Products>,
-  
+  customersPayments: PromiseClient<typeof ConnectedCustomers.Payments>
+  platformAccounts: PromiseClient<typeof PlatformAccounts.Accounts>
+  platformPrices: PromiseClient<typeof PlatformPrices.Prices>
+  platformProducts: PromiseClient<typeof PlatformProducts.Products>
 }
 
 export function createPayGRPCClient(transport: any): PayGRPCClient {
   return {
-    connectedAccounts: createPromiseClient(ConnectedAccounts.Accounts, transport),
-    connectedAccountsPrices: createPromiseClient(ConnectedAccountsPrices.Prices, transport),
-    connectedAccountProducts: createPromiseClient(ConnectedAccountProducts.Products, transport),
+    connectedAccounts: createPromiseClient(
+      ConnectedAccounts.Accounts,
+      transport,
+    ),
+    connectedAccountsStatus: createPromiseClient(
+      ConnectedAccounts.Status,
+      transport,
+    ),
+    connectedAccountsPayments: createPromiseClient(
+      ConnectedAccounts.Payments,
+      transport,
+    ),
+    customersPayments: createPromiseClient(
+      ConnectedCustomers.Payments,
+      transport,
+    ),
+    connectedAccountsPrices: createPromiseClient(
+      ConnectedAccountsPrices.Prices,
+      transport,
+    ),
+    connectedAccountProducts: createPromiseClient(
+      ConnectedAccountProducts.Products,
+      transport,
+    ),
     customers: createPromiseClient(ConnectedCustomers.Customers, transport),
     platformAccounts: createPromiseClient(PlatformAccounts.Accounts, transport),
     platformPrices: createPromiseClient(PlatformPrices.Prices, transport),
     platformProducts: createPromiseClient(PlatformProducts.Products, transport),
-
   } as const
 }

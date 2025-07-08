@@ -11,7 +11,13 @@ import {
   usePayInvoice,
   useWallet,
 } from '@/models/crypto-payments'
-import {useNewConnectedAccount} from '@/models/fiat-payments'
+import {
+  useCreateAccountLink,
+  useCreateExpressPortalLink,
+  useGetAccountBalance,
+  useGetConnectedAccount,
+  useNewConnectedAccount,
+} from '@/models/fiat-payments'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
 import {getAccountName} from '@shm/shared/content'
@@ -35,13 +41,13 @@ import {
   Download,
   Upload,
 } from '@shm/ui/icons'
-import { SelectDropdown } from '@shm/ui/select-dropdown'
-import { Spinner } from '@shm/ui/spinner'
-import { InfoListHeader, TableList } from '@shm/ui/table-list'
-import { SizableText } from '@shm/ui/text'
-import { toast } from '@shm/ui/toast'
-import { Tooltip } from '@shm/ui/tooltip'
-import { useState } from 'react'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Spinner} from '@shm/ui/spinner'
+import {InfoListHeader, TableList} from '@shm/ui/table-list'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useEffect, useState} from 'react'
 import QRCode from 'react-qr-code'
 
 export function AccountWallet({
@@ -99,33 +105,110 @@ export function StripeAccount({
   url: string
 }) {
   const newAccount = useNewConnectedAccount()
-  /*
-  const wallets = useListWallets(accountUid)
-  if (!wallets.data?.wallets) return null
-  if (wallets.isLoading)
+  const createAccountLink = useCreateAccountLink()
+  const getExpressPortalLink = useCreateExpressPortalLink()
+  const getAccount = useGetConnectedAccount()
+  const getAccountBalance = useGetAccountBalance()
+  const [accountExists, setAccountExists] = useState(false)
+  useEffect(() => {
+    getAccount
+      .mutateAsync({accountUid})
+      .then((res) => {
+        if (res.account?.detailsSubmitted === true) {
+          setAccountExists(true)
+        } else {
+          setAccountExists(false)
+        }
+      })
+      .then(() => {
+        getAccountBalance.mutateAsync({accountUid}).catch((e) => {
+          console.error(e)
+          toast.error(`Failed to retrieve account balance: ${e.message}`)
+        })
+      })
+      .catch((e) => {
+        setAccountExists(false)
+      })
+  }, [accountUid, accountExists])
+  if (accountExists) {
     return (
-      <div className="flex items-center justify-center">
-        <Spinner />
+      //TODO Create two columns one for the account details and one for the button
+      <div className="flex flex-1 items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="inverse"
+            onClick={() => {
+              getExpressPortalLink
+                .mutateAsync({
+                  accountUid,
+                })
+                .then((link) => {
+                  window.open(link.url, '_blank')
+                })
+                .catch((e) => {
+                  toast.error('Failed to retrieve express link')
+                })
+            }}
+          >
+            Access Express Dashboard
+          </Button>
+        </div>
+        <div className="flex items-center gap-3">
+          <SizableText size="$1" color="$brand5">
+            Account Balance:
+          </SizableText>
+          <SizableText size="$1" color="$brand5">
+            {getAccountBalance.data?.available[0]?.amount.toFixed(2) || '0.00'}{' '}
+            {getAccountBalance.data?.available[0]?.currency.toUpperCase() ||
+              'USD'}
+          </SizableText>
+        </div>
       </div>
     )
-  if (wallets.data.wallets.length) {
-    return wallets.data.wallets.map((wallet) => (
-      <WalletButton
-        walletId={wallet.id}
-        onOpen={() => onOpenWallet(wallet.id)}
-      />
-    ))
   }
-    */
   return (
     <>
       <Button
         variant="inverse"
         onClick={() => {
-          newAccount.mutateAsync({accountUid, url}).catch((e) => {
-            console.error(e)
-            toast.error(`Failed to create connected account: ${e.message}`)
-          })
+          createAccountLink
+            .mutateAsync({
+              accountUid,
+              refreshUrl: `${url}`,
+              returnUrl: `${url}`,
+            })
+            .then((link) => {
+              if (link) {
+                window.open(link.url, '_blank')
+              } else {
+                toast.error('Failed to retrieve account link')
+              }
+            })
+            .catch((e) => {
+              newAccount
+                .mutateAsync({accountUid, url})
+                .then(() => {
+                  createAccountLink
+                    .mutateAsync({
+                      accountUid,
+                      refreshUrl: `${url}`,
+                      returnUrl: `${url}`,
+                    })
+                    .then((link) => {
+                      if (link) {
+                        window.open(link.url, '_blank')
+                      } else {
+                        toast.error('Failed to retrieve account link')
+                      }
+                    })
+                })
+                .catch((e) => {
+                  console.error(e)
+                  toast.error(
+                    `Failed to create connected account: ${e.message}`,
+                  )
+                })
+            })
         }}
       >
         Create connected account

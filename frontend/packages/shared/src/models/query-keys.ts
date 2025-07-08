@@ -65,6 +65,9 @@ export const queryKeys = {
   // lightning
   LIGHTNING_ACCOUNT_CHECK: 'LIGHTNING_ACCOUNT_CHECK', //, accountId: string
 
+  // fiat payments
+  ACCOUNT_CONNECTED_ACCOUNT: 'ACCOUNT_CONNECTED_ACCOUNT', //, uid: string
+
   // search
   SEARCH: 'SEARCH', //, accountUid: string|null, query: string
 

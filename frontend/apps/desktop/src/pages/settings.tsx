@@ -3,7 +3,11 @@ import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
 import {ListItem} from '@/components/list-item'
-import {AccountWallet, StripeAccount, WalletPage} from '@/components/payment-settings'
+import {
+  AccountWallet,
+  StripeAccount,
+  WalletPage,
+} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -595,7 +599,7 @@ function AccountKeys() {
             <SettingsSection title="Fiat Payments">
               <StripeAccount
                 accountUid={selectedAccount}
-                url=""//{`${DEFAULT_GATEWAY_URL}/hm/${selectedAccount}`}
+                url={`${DEFAULT_GATEWAY_URL}/hm/${selectedAccount}`}
               />
             </SettingsSection>
             <SettingsSection title="Wallets">
