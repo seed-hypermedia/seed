@@ -126,7 +126,7 @@ export async function getHMDocument(
 ) {
   const {version, uid, latest} = entityId
   if (discover) {
-    return await discoverDocument(
+    await discoverDocument(
       uid,
       entityId.path || [],
       version || undefined,

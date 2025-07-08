@@ -3,17 +3,12 @@ import {getHMDocument} from '@/loaders'
 import {
   BIG_INT,
   DAEMON_HTTP_URL,
+  DiscoverEntityResponse,
   HMBlockNode,
   HMCommentSchema,
-  HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared'
-import {
-  documentMetadataParseAdjustments,
-  getErrorMessage,
-  HMRedirectError,
-} from '@shm/shared/models/entity'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findtIpfsUrlCid} from '@shm/ui/get-file-url'
 
@@ -22,40 +17,37 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
-) {
-  await queryClient.entities.discoverEntity({
+): Promise<{version: string} | null> {
+  const discoverRequest = {
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
-    version,
+    version: version || undefined,
     recursive: true,
-  })
-  return await tryUntilSuccess(
-    async () => {
-      // console.log('discover will getDocument', uid, path, version)
-      const apiDoc = await queryClient.documents.getDocument({
-        account: uid,
-        path: hmIdPathToEntityQueryPath(path),
-        version: latest ? undefined : version || '',
+  } as const
+  function checkDiscoverySuccess(discoverResp: DiscoverEntityResponse) {
+    if (latest && discoverResp.version) return true
+    if (!version && discoverResp.version) return true
+    if (version && version === discoverResp.version) return true
+    return false
+  }
+  return await tryUntilSuccess(async () => {
+    console.log('will discoverEntity', discoverRequest)
+    const discoverResp = await queryClient.entities
+      .discoverEntity(discoverRequest)
+      .catch((e) => {
+        console.log('discoverEntity error', e)
+        console.warn(
+          `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
+            path,
+          )},  error: ${e}`,
+        )
+        return null
       })
-      const versionMatch =
-        !version || apiDoc.version === version || (latest && !!apiDoc.version)
-      // console.log('discover getDocument', versionMatch, apiDoc.version, version)
-      if (versionMatch) {
-        const docJSON = apiDoc.toJson() as any
-        documentMetadataParseAdjustments(docJSON.metadata)
-        const document = HMDocumentSchema.parse(docJSON)
-        // console.log('discover getDocument complete', document)
-        return document
-      }
-      return null
-    },
-    {
-      immediateCatch: (e) => {
-        const error = getErrorMessage(e)
-        return error instanceof HMRedirectError
-      },
-    },
-  )
+    if (!discoverResp) return null
+    if (checkDiscoverySuccess(discoverResp))
+      return {version: discoverResp.version}
+    return null
+  })
 }
 
 export async function discoverMedia(
