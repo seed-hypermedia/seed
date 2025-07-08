@@ -132,7 +132,6 @@ export function StripeAccount({
   }, [accountUid, accountExists])
   if (accountExists) {
     return (
-      //TODO Create two columns one for the account details and one for the button
       <div className="flex flex-1 items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
@@ -143,7 +142,7 @@ export function StripeAccount({
                   accountUid,
                 })
                 .then((link) => {
-                  window.open(link.url, '_blank')
+                  window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=600')
                 })
                 .catch((e) => {
                   toast.error('Failed to retrieve express link')
@@ -179,7 +178,7 @@ export function StripeAccount({
             })
             .then((link) => {
               if (link) {
-                window.open(link.url, '_blank')
+                window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800')
               } else {
                 toast.error('Failed to retrieve account link')
               }
@@ -196,7 +195,7 @@ export function StripeAccount({
                     })
                     .then((link) => {
                       if (link) {
-                        window.open(link.url, '_blank')
+                        window.open(link.url, '_blank', 'toolbar=no,location=no,menubar=no,status=no,scrollbars=yes,resizable=yes,width=800,height=800')
                       } else {
                         toast.error('Failed to retrieve account link')
                       }
