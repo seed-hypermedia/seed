@@ -608,7 +608,6 @@ export type HMNavigationItem = z.infer<typeof HMNavigationItemSchema>
 export const HMDraftContentSchema = z.object({
   content: z.array(z.any()), // EditorBlock validation is handled elsewhere
   deps: z.array(z.string().min(1)).default([]),
-  signingAccount: z.string().optional(),
   navigation: z.array(HMNavigationItemSchema).optional(),
 })
 

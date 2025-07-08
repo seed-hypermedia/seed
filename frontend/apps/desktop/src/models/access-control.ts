@@ -199,9 +199,9 @@ export function useSelectedAccountCapability(
   id?: UnpackedHypermediaId,
   minimumRole: HMRole = 'writer',
 ): HMCapability | null {
-  if (!id) return null
   const selectedAccount = useSelectedAccount()
   const capabilities = useAllDocumentCapabilities(id)
+  if (!id) return null
   if (selectedAccount?.id.uid === id.uid) {
     // owner is the highest role so we don't need to check for minimumRole
     return {

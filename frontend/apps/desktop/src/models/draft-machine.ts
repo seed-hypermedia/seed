@@ -28,7 +28,6 @@ export const draftMachine = setup({
       locationPath: HMDraft['locationPath']
       editUid: HMDraft['editUid']
       editPath: HMDraft['editPath']
-      signingAccount: HMDraft['signingAccount']
       navigation?: HMNavigationItem[]
       error: any // TODO: fix types
       changed: boolean
@@ -51,7 +50,6 @@ export const draftMachine = setup({
       | {
           type: 'change'
           metadata?: HMDraft['metadata']
-          signingAccount?: string
         }
       | {
           type: 'change.navigation'
@@ -93,17 +91,6 @@ export const draftMachine = setup({
           }
         }
         return context.metadata
-      },
-      signingAccount: ({context, event}) => {
-        if (event.type == 'fetch.success') {
-          if (
-            event.payload.type == 'draft' &&
-            event.payload.data.signingAccount
-          ) {
-            return event.payload.data.signingAccount
-          }
-        }
-        return context.signingAccount
       },
       deps: ({context, event}) => {
         if (event.type == 'fetch.success') {
@@ -160,23 +147,6 @@ export const draftMachine = setup({
         return context.metadata
       },
     }),
-    setSigningAccount: assign({
-      signingAccount: ({event, context}) => {
-        if (event.type == 'fetch.success') {
-          if (
-            event.payload.type == 'draft' &&
-            event.payload.data.signingAccount
-          ) {
-            return event.payload.data.signingAccount
-          } else {
-            return context.signingAccount
-          }
-        } else if (event.type == 'change' && event.signingAccount) {
-          return event.signingAccount
-        }
-        return context.signingAccount
-      },
-    }),
     resetContent: ({context}) => {
       return context
     },
@@ -221,7 +191,6 @@ export const draftMachine = setup({
       locationPath: input.locationPath ?? [],
       editUid: input.editUid ?? '',
       editPath: input.editPath ?? [],
-      signingAccount: '',
       navigation: undefined,
       nameRef: null,
       changed: false,
@@ -233,11 +202,7 @@ export const draftMachine = setup({
   initial: 'fetching',
   on: {
     change: {
-      actions: [
-        {
-          type: 'setSigningAccount',
-        },
-      ],
+      actions: [],
     },
   },
   states: {
@@ -305,7 +270,7 @@ export const draftMachine = setup({
           on: {
             change: {
               target: 'changed',
-              actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
+              actions: [{type: 'setAttributes'}],
             },
             'reset.content': {target: 'changed', actions: ['resetContent']},
           },
@@ -315,7 +280,7 @@ export const draftMachine = setup({
           on: {
             change: {
               target: 'changed',
-              actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
+              actions: [{type: 'setAttributes'}],
               reenter: true,
             },
             'reset.content': {
@@ -347,7 +312,6 @@ export const draftMachine = setup({
               actions: [
                 {type: 'setHasChangedWhileSaving'},
                 {type: 'setAttributes'},
-                {type: 'setSigningAccount'},
               ],
               reenter: false,
             },
@@ -366,7 +330,6 @@ export const draftMachine = setup({
             input: ({context}) => ({
               metadata: context.metadata,
               deps: context.deps,
-              signingAccount: context.signingAccount,
               navigation: context.navigation,
             }),
             onDone: [
@@ -422,7 +385,6 @@ export const draftMachine = setup({
               actions: [
                 {type: 'setHasChangedWhileSaving'},
                 {type: 'setAttributes'},
-                {type: 'setSigningAccount'},
               ],
               reenter: false,
             },
@@ -441,7 +403,6 @@ export const draftMachine = setup({
             input: ({context}) => ({
               metadata: context.metadata,
               deps: context.deps,
-              signingAccount: context.signingAccount,
               navigation: context.navigation,
             }),
             onDone: [
@@ -459,7 +420,6 @@ export const draftMachine = setup({
                   },
                   // {type: 'setDraft'},
                   {type: 'setAttributes'},
-                  {type: 'setSigningAccount'},
                   {
                     type: 'setDraftStatus',
                     params: {status: 'saved'},

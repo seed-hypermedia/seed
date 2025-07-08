@@ -1,5 +1,4 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
-import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client, trpc} from '@/trpc'
@@ -7,7 +6,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
@@ -20,8 +19,7 @@ import {
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
-import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {AlertCircle, Check} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -37,11 +35,7 @@ import {
   useState,
 } from 'react'
 import {useDraft} from '../models/accounts'
-import {
-  draftDispatch,
-  usePublishDraft,
-  usePublishToSite,
-} from '../models/documents'
+import {usePublishDraft, usePublishToSite} from '../models/documents'
 import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
@@ -53,22 +47,18 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
+  const selectedAccount = useSelectedAccount()
+  console.log('== ~~~ draft:', draft.data)
   const prevId = draftRoute.editUid
     ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
     : draft.data?.editId
     ? draft.data?.editId
     : null
-  // const prevEntity = useEntity(prevId)
-  const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
-    null,
-  )
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
-  const recentSigners = trpc.recentSigners.get.useQuery()
-  const accts = useMyAccountsWithWriteAccess(prevId)
   const rootDraftUid = prevId?.uid
   const rootEntity = useEntity(
     rootDraftUid ? hmId('d', rootDraftUid) : undefined,
@@ -126,44 +116,10 @@ export default function PublishDraftButton() {
     },
   )
 
-  useEffect(() => {
-    if (signingAccount && signingAccount.id.uid) {
-      draftDispatch({type: 'change', signingAccount: signingAccount.id.uid})
-    }
-  }, [signingAccount])
-
-  useEffect(() => {
-    let defaultSigner = null
-    if (recentSigners.data) {
-      const defaultSignerUid = recentSigners.data.recentSigners.find(
-        (s) => !!accts.find((c) => c.data?.id.uid == s),
-      )
-      defaultSigner = defaultSignerUid
-        ? accts.find((c) => c.data?.id.uid == defaultSignerUid)
-        : accts[0]
-    }
-    if (
-      draft.data?.signingAccount &&
-      signingAccount == null &&
-      draft.data?.signingAccount != signingAccount
-    ) {
-      const acc = accts.find(
-        (c) => c.data?.id.uid == draft.data?.signingAccount,
-      )
-      if (acc?.data) {
-        setSigningAccount(acc.data)
-      }
-    } else if (
-      defaultSigner?.data &&
-      !draft.data?.signingAccount &&
-      signingAccount == null &&
-      signingAccount != defaultSigner.data
-    ) {
-      setSigningAccount(defaultSigner.data)
-    }
-  }, [accts, draft.data])
-
   const firstPublishDialog = useFirstPublishDialog()
+
+  const signingAccount = useSelectedAccount()
+  const signingAccountId = signingAccount?.id.uid
 
   function handlePublishPress() {
     if (!draftId) throw new Error('No Draft ID?!')
@@ -220,8 +176,8 @@ export default function PublishDraftButton() {
           }
         })
     }
-    if (draft.data.editId && draft.data.signingAccount) {
-      handlePublish(draft.data.editId, draft.data.signingAccount)
+    if (draft.data.editId && signingAccountId) {
+      handlePublish(draft.data.editId, signingAccountId)
     } else {
       firstPublishDialog.open({
         newDefaultName: pathNameify(
@@ -231,7 +187,7 @@ export default function PublishDraftButton() {
           handlePublish(location, account)
         },
         defaultLocation: draft.data.locationId,
-        defaultAccount: draft.data.signingAccount,
+        defaultAccount: signingAccountId,
       })
     }
   }
@@ -260,39 +216,6 @@ export default function PublishDraftButton() {
             </Button>
           </Tooltip>
         </div>
-        {accts.length > 1 ? (
-          <div>
-            <OptionsDropdown
-              button={
-                <Button size="xs">
-                  <ChevronDown className="size-2" />
-                </Button>
-              }
-              menuItems={accts.map((acc) => {
-                if (acc.data) {
-                  return {
-                    key: acc.data.id.uid,
-                    label: acc.data.document?.metadata.name || acc.data?.id.uid,
-                    icon: (
-                      <HMIcon
-                        size={20}
-                        id={acc.data.id}
-                        metadata={acc.data.document?.metadata}
-                      />
-                    ),
-                    onPress: () => {
-                      if (acc.data?.id.uid) {
-                        setSigningAccount(acc.data)
-                      }
-                    },
-                  }
-                } else {
-                  return null
-                }
-              })}
-            />
-          </div>
-        ) : null}
       </div>
       {firstPublishDialog.content}
     </>

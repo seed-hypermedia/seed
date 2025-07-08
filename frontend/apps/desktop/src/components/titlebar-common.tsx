@@ -5,11 +5,13 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
+import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList, useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
+import {useSelectedAccount} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
@@ -23,13 +25,14 @@ import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
-import {DocumentRoute} from '@shm/shared/routes'
+import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import {
   displayHostname,
   hmId,
   latestId,
   pathMatches,
 } from '@shm/shared/utils/entity-id-url'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
   Back,
@@ -441,17 +444,55 @@ function EditDocButton() {
 
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
-  let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
-    buttonGroup = [
-      <PublishDraftButton key="publish-draft" />,
-      <DiscardDraftButton key="discard-draft" />,
-      <AccessorySidebarToggle />,
-    ]
+    return (
+      <TitlebarSection>
+        <DraftActionButtons route={route} />
+      </TitlebarSection>
+    )
   } else if (route.key === 'document' && route.id.type === 'd') {
     return <DocumentTitlebarButtons route={route} />
   }
-  return <TitlebarSection>{buttonGroup}</TitlebarSection>
+  return null
+}
+
+function DraftActionButtons({route}: {route: DraftRoute}) {
+  const selectedAccount = useSelectedAccount()
+  const draftId = route.id
+  const draft = useDraft(draftId)
+
+  const editId = draft.data?.editId
+  console.log('== ~ draft:', draft.data)
+  console.log('== ~ editId:', editId)
+  console.log('== ~ draftId:', draftId)
+  const editIdWriteCap = useSelectedAccountCapability(editId, 'writer')
+  if (!selectedAccount?.id) return null
+  if (!!editId && !editIdWriteCap)
+    return (
+      <div className="flex items-center gap-2">
+        <HMIcon
+          size={18}
+          id={selectedAccount?.id}
+          metadata={selectedAccount?.document?.metadata}
+        />
+        <SizableText size="$2">
+          <SizableText fontWeight="bold">
+            {selectedAccount?.document?.metadata.name}
+          </SizableText>
+          {' - '}
+          Not Allowed to Publish Here
+        </SizableText>
+        <AccessorySidebarToggle />
+      </div>
+    )
+
+  return (
+    <>
+      <PublishDraftButton key="publish-draft" />
+      <DiscardDraftButton key="discard-draft" />
+      <AccessorySidebarToggle />
+    </>
+  )
 }
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
