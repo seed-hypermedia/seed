@@ -445,7 +445,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			owners = append(owners, ownerID)
 			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
 			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
-				return nil
+				icon.Icon.Value = ""
 			}
 
 			if cType == "comment" {
@@ -453,7 +453,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			} else if cType == "contact" {
 				iris = append(iris, "hm://"+subjectID+"/"+tsid)
 				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
-					return nil
+					icon.Icon.Value = ""
 				}
 			} else {
 				iris = append(iris, iri)
