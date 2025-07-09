@@ -35,7 +35,6 @@ export async function discoverDocument(
     const discoverResp = await queryClient.entities
       .discoverEntity(discoverRequest)
       .catch((e) => {
-        console.log('discoverEntity error', e)
         console.warn(
           `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
             path,

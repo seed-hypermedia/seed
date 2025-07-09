@@ -621,16 +621,11 @@ export async function loadSiteDocument<T>(
     } catch (e) {}
   }
   try {
+    console.log('~~ will getDocument', id, parsedRequest)
     const docContent = await getDocument(id, parsedRequest)
     let supportQueries = docContent.supportQueries
-    if (
-      originHomeId &&
-      homeMetadata?.layout === 'Seed/Experimental/Newspaper' &&
-      !docContent.supportQueries?.find((q) => q.in.uid === originHomeId.uid)
-    ) {
-      const results = await getDirectory(originHomeId)
-      supportQueries = [...(supportQueries || []), {in: originHomeId, results}]
-    }
+    console.log('~ docContent', JSON.stringify(docContent))
+
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...docContent,
@@ -642,6 +637,7 @@ export async function loadSiteDocument<T>(
     const headers: Record<string, string> = {}
     headers['x-hypermedia-id'] = id.id
     headers['x-hypermedia-version'] = docContent.document.version
+    console.log('~~ loadedSiteDocument', id)
     return wrapJSON(loadedSiteDocument, {
       headers,
     })
