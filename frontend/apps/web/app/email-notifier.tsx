@@ -295,6 +295,7 @@ async function handleEventsForEmailNotifications(
         const parentComments = await getParentComments(comment)
         const parentAuthors: Set<string> = new Set()
         for (const parentComment of parentComments) {
+          if (parentComment.author === comment.targetAccount) continue
           parentAuthors.add(parentComment.author)
         }
         const resolvedParentAuthors: Set<string> = new Set()
