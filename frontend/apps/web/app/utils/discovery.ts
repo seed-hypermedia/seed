@@ -3,7 +3,6 @@ import {getHMDocument} from '@/loaders'
 import {
   BIG_INT,
   DAEMON_HTTP_URL,
-  DiscoverEntityResponse,
   HMBlockNode,
   HMCommentSchema,
   hmId,
@@ -24,19 +23,19 @@ export async function discoverDocument(
     version: version || undefined,
     recursive: true,
   } as const
-  function checkDiscoverySuccess(discoverResp: DiscoverEntityResponse) {
-    if (latest && discoverResp.version) return true
-    if (!version && discoverResp.version) return true
-    if (version && version === discoverResp.version) return true
+  function checkDiscoverySuccess(discoveredVersion: string) {
+    if (latest && discoveredVersion) return true
+    if (!version && discoveredVersion) return true
+    if (version && version === discoveredVersion) return true
     return false
   }
   return await tryUntilSuccess(async () => {
-    console.log('will discoverEntity', discoverRequest)
     try {
+      console.log('will discoverEntity', discoverRequest)
       const discoverResp =
         await queryClient.entities.discoverEntity(discoverRequest)
       console.log('~~ discoverEntity resp', discoverResp.toJson())
-      if (checkDiscoverySuccess(discoverResp))
+      if (checkDiscoverySuccess(discoverResp.version))
         return {version: discoverResp.version}
       return true
     } catch (e) {
@@ -45,6 +44,15 @@ export async function discoverDocument(
           path,
         )},  error: ${e}`,
       )
+      // becaue the discovery sometimes errors randomly, we still need to getDocument to get the equivalent of discoverResp.version
+      const doc = await queryClient.documents.getDocument({
+        account: uid,
+        path: hmIdPathToEntityQueryPath(path),
+        version: version || undefined,
+      })
+      if (checkDiscoverySuccess(doc.version)) {
+        return {version: doc.version}
+      }
       return null
     }
   })
