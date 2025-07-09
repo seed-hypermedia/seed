@@ -731,12 +731,12 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 	if lastCommentID != 0 {
 		lc, err := lookup.CID(lastCommentID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("accountFromRow: %w", err)
 		}
 
 		rid, err := lookup.RecordID(lc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("accountFromRow: %w", err)
 		}
 
 		latestCommentID = rid.String()

@@ -75,6 +75,52 @@ func SliceDeleteUnordered[T any](s []T, i int) []T {
 	return s[:len(s)-1]
 }
 
+// SlicePermutations generates all permutations of a given slice.
+// It uses Heap's algorithm and is generic, working with slices of any type.
+func SlicePermutations[T any](input []T) [][]T {
+	// Clone the input slice to avoid modifying the original data.
+	data := make([]T, len(input))
+	copy(data, input)
+
+	var result [][]T
+
+	// The recursive helper function that generates permutations.
+	// k is the size of the sub-array to be permuted.
+	var generate func(k int, arr []T)
+	generate = func(k int, arr []T) {
+		if k == 1 {
+			// Base case: a single element is a permutation of itself.
+			// We must copy the slice, otherwise we'd just have a slice of
+			// pointers to the same underlying array, which would all be
+			// the same by the end of the process.
+			permutation := make([]T, len(arr))
+			copy(permutation, arr)
+			result = append(result, permutation)
+			return
+		}
+
+		// Generate permutations for k-1 elements.
+		generate(k-1, arr)
+
+		// Generate permutations for the kth element.
+		for i := 0; i < k-1; i++ {
+			// Swap logic depends on whether k is even or odd.
+			if k%2 == 0 {
+				// If k is even, swap element i with the last element.
+				arr[i], arr[k-1] = arr[k-1], arr[i]
+			} else {
+				// If k is odd, swap the first element with the last element.
+				arr[0], arr[k-1] = arr[k-1], arr[0]
+			}
+			// Recursively generate permutations for the smaller set.
+			generate(k-1, arr)
+		}
+	}
+
+	generate(len(data), data)
+	return result
+}
+
 // CommonPrefix returns the number os elements that are equal in both slices.
 func CommonPrefix[E cmp.Ordered, S ~[]E](a, b S) int {
 	n := min(len(a), len(b))

@@ -7,7 +7,9 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
+	"seed/backend/util/colx"
 	"seed/backend/util/must"
+	"strings"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -40,10 +42,8 @@ func TestCommentOldEncoding(t *testing.T) {
 }
 
 func TestCommentCausality(t *testing.T) {
-	db := storage.MakeTestDB(t)
-	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
-	require.NoError(t, err)
 	alice := coretest.NewTester("alice")
+	bob := coretest.NewTester("bob")
 	c := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
 	clock := cclock.New()
 
@@ -55,16 +55,45 @@ func TestCommentCausality(t *testing.T) {
 	}, clock.MustNow())
 	require.NoError(t, err)
 
-	reply, err := NewComment(alice.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
+	reply, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
-			Text: "Hello World",
+			Text: "I reply",
 		}},
 	}, clock.MustNow())
 	require.NoError(t, err)
 
-	require.NoError(t, idx.Put(t.Context(), reply))
-	require.NoError(t, idx.Put(t.Context(), root))
+	reply2, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, reply.CID, []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "I reply to reply",
+		}},
+	}, clock.MustNow())
 
-	require.Equal(t, 0, countStashedBlobs(t, db), "must have no stashed blobs")
+	blobs := colx.SlicePermutations([]struct {
+		Name string
+		Encoded[*Comment]
+	}{
+		{"root", root},
+		{"reply", reply},
+		{"reply2", reply2},
+	})
+	for _, test := range blobs {
+		order := make([]string, len(test))
+		for i, b := range test {
+			order[i] = b.Name
+		}
+
+		t.Run(strings.Join(order, "+"), func(t *testing.T) {
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+			for _, blob := range test {
+				require.NoError(t, idx.Put(t.Context(), blob))
+			}
+			if countStashedBlobs(t, db) != 0 {
+				t.Fatal("must have no stashed blobs")
+			}
+		})
+	}
 }

@@ -6,7 +6,6 @@ import (
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
-	"seed/backend/util/debugx"
 	"slices"
 	"testing"
 
@@ -50,14 +49,6 @@ func TestComments_Smoke(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "bob must be allowed to create comments in alice's space")
-
-	{
-		cmt, err := alice.GetComment(ctx, &pb.GetCommentRequest{
-			Id: cmt.Id,
-		})
-		require.NoError(t, err)
-		debugx.Dump(cmt)
-	}
 
 	// Create a reply by Alice.
 	reply, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{

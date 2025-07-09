@@ -199,28 +199,31 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return fmt.Errorf("comments with replyParent must have threadRoot")
 	}
 
+	var missingBlobs []cid.Cid
 	if isReply {
-		bp, err := ictx.GetBlobPresence(threadRoot)
+		ok, err := ictx.IsBlobIndexed(threadRoot)
 		if err != nil {
 			return err
 		}
-		if bp != BlobPresenceHasData {
-			return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
-				MissingBlobs: []cid.Cid{threadRoot},
-			})
+		if !ok {
+			missingBlobs = append(missingBlobs, threadRoot)
 		}
 
 		if !threadRoot.Equals(replyParent) {
-			bp, err := ictx.GetBlobPresence(replyParent)
+			ok, err := ictx.IsBlobIndexed(replyParent)
 			if err != nil {
 				return err
 			}
-			if bp != BlobPresenceHasData {
-				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
-					MissingBlobs: []cid.Cid{replyParent},
-				})
+			if !ok {
+				missingBlobs = append(missingBlobs, replyParent)
 			}
 		}
+	}
+
+	if missingBlobs != nil {
+		return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
+			MissingBlobs: missingBlobs,
+		})
 	}
 
 	// Check if this is a tombstone (deleted comment)

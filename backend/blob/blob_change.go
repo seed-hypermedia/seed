@@ -385,12 +385,12 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 	// TODO(burdiyan): ensure deps are indexed, not just known.
 	// Although in practice deps must always be indexed first, but need to make sure.
 	for _, dep := range v.Deps {
-		bp, err := ictx.GetBlobPresence(dep)
+		ok, err := ictx.IsBlobIndexed(dep)
 		if err != nil {
 			return err
 		}
 
-		if bp != BlobPresenceHasData {
+		if !ok {
 			return fmt.Errorf("missing causal dependency %s of change %s", dep, c)
 		}
 

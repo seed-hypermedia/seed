@@ -33,8 +33,15 @@ var vars = sync.Map{}
 // You'd add a named flag some place in the code after which you want to do some printing,
 // and then you'd check if that flag is set in the code where you want to print.
 // It's basically a thread-safe global variable, scoped to this debugging package for convenience.
-func SetVar(name string) {
-	vars.Store(name, struct{}{})
+func SetVar[T any](name string, v T) {
+	vars.Store(name, v)
+}
+
+// GetVar returns the value of a named flag.
+// If the flag is not set, it returns the zero value of the type and false.
+func GetVar[T any](name string) (T, bool) {
+	val, ok := vars.Load(name)
+	return val.(T), ok
 }
 
 // CheckVar checks if a named flag is set.

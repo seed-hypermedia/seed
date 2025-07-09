@@ -133,6 +133,16 @@ func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data [
 		return err
 	}
 
+	ok, err := ictx.IsBlobIndexed(c)
+	if err != nil {
+		return err
+	}
+
+	// If blob is already indexed, return early.
+	if ok {
+		return nil
+	}
+
 	for _, fn := range indexersList {
 		if err := fn(ictx, id, c, data); err != nil {
 			return err
@@ -1028,34 +1038,28 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 	return nil
 }
 
-// BlobPresence defines the state of a blob in the database.
-type BlobPresence byte
+// IsBlobIndexed returns the current state of the blob.
+func (idx *indexingCtx) IsBlobIndexed(c cid.Cid) (indexed bool, err error) {
+	codec, hash := ipfs.DecodeCID(c)
+	rows, check := sqlitex.Query(idx.conn, qIsBlobIndexed(), codec, hash)
+	defer func() {
+		err = errors.Join(err, check())
+	}()
 
-// Blob presence values.
-// Each subsequent value indicates a more complete state of the blob.
-const (
-	BlobPresenceNotFound BlobPresence = 0
-	BlobPresenceKnown    BlobPresence = 1
-	BlobPresenceHasData  BlobPresence = 2
-)
-
-// GetBlobPresence returns the current state of the blob.
-func (idx *indexingCtx) GetBlobPresence(c cid.Cid) (bp BlobPresence, err error) {
-	delid, err := dbBlobsGetSize(idx.conn, c.Hash())
-	if err != nil {
-		return 0, err
+	for range rows {
+		indexed = true
+		break
 	}
 
-	if delid.BlobsID == 0 {
-		return BlobPresenceNotFound, nil
-	}
-
-	if delid.BlobsSize < 0 {
-		return BlobPresenceKnown, nil
-	}
-
-	return BlobPresenceHasData, nil
+	return indexed, err
 }
+
+var qIsBlobIndexed = dqb.Str(`
+	SELECT sb.id
+	FROM structural_blobs sb
+	JOIN blobs b INDEXED BY blobs_metadata_by_hash ON b.id = sb.id
+	WHERE (b.codec, b.multihash) = (:codec, :multihash)
+`)
 
 func (idx *indexingCtx) ensureAccount(key core.Principal) (aid, kid int64, err error) {
 	kid, err = idx.ensurePubKey(key)
@@ -1489,10 +1493,10 @@ var qLookupRecordID = dqb.Str(`
 
 func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger) (err error) {
 	rows, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match)
-	defer func() {
-		err = errors.Join(err, check())
-	}()
 
+	// We collect the stashed blobs into closures, to avoid nested SQLite queries,
+	// because the result set here would select and update the same table, which sometimes gives unexpected results.
+	var funcs []func() error
 	for row := range rows {
 		inc := sqlite.NewIncrementor(0)
 		var (
@@ -1503,14 +1507,26 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 			size    = row.ColumnInt64(inc())
 		)
 
-		data, err := bs.decompress(rawData, int(size))
-		if err != nil {
-			return err
+		data, xerr := bs.decompress(rawData, int(size))
+		if xerr != nil {
+			err = xerr
+			break
 		}
 
 		c := cid.NewCidV1(uint64(codec), hash)
 
-		if err := indexBlob(trackUnreads, conn, id, c, data, bs, log); err != nil {
+		funcs = append(funcs, func() error {
+			return indexBlob(trackUnreads, conn, id, c, data, bs, log)
+		})
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return err
+	}
+
+	for _, fn := range funcs {
+		if err := fn(); err != nil {
 			return err
 		}
 	}
