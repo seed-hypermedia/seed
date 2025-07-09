@@ -32,20 +32,25 @@ export async function discoverDocument(
   }
   return await tryUntilSuccess(async () => {
     console.log('will discoverEntity', discoverRequest)
-    const discoverResp = await queryClient.entities
-      .discoverEntity(discoverRequest)
-      .catch((e) => {
-        console.warn(
-          `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
-            path,
-          )},  error: ${e}`,
-        )
-        return null
-      })
-    if (!discoverResp) return null
-    if (checkDiscoverySuccess(discoverResp))
-      return {version: discoverResp.version}
-    return null
+    try {
+      const discoverResp = await queryClient.entities
+        .discoverEntity(discoverRequest)
+        .then((resp) => {
+          console.log('~~ discoverEntity resp', resp)
+          return resp
+        })
+      if (!discoverResp) return null
+      if (checkDiscoverySuccess(discoverResp))
+        return {version: discoverResp.version}
+      return null
+    } catch (e) {
+      console.warn(
+        `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
+          path,
+        )},  error: ${e}`,
+      )
+      return null
+    }
   })
 }
 

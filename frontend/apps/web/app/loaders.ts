@@ -132,6 +132,7 @@ export async function getHMDocument(
       version || undefined,
       latest,
     )
+    console.log('~ done with discovery.')
   }
   const path = hmIdPathToEntityQueryPath(entityId.path)
   const apiDoc = await queryClient.documents
