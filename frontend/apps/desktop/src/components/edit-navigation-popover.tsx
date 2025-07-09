@@ -235,14 +235,8 @@ function DraggableNavItem({
         </span>
       </div>
       <Popover {...popoverState}>
-        <PopoverTrigger asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e: any) => {
-              e.stopPropagation()
-            }}
-          >
+        <PopoverTrigger>
+          <Button size="sm" variant="ghost">
             <Pencil className="size-3" />
           </Button>
         </PopoverTrigger>

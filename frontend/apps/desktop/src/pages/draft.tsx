@@ -41,6 +41,7 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
+import {DocNavigationItem} from '@shm/ui/navigation'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -489,13 +490,32 @@ function DraftAppHeader({
   actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(docId, {mode: 'Children'})
+  const currentDocNav: HMNavigationItem[] | undefined = useSelector(
+    actor,
+    (s: any) => s.context.navigation,
+  )
+  const navItems = useSiteNavigationItems(siteHomeEntity)?.filter(
+    (item) => !item.draftId,
+  )
+  const displayNavItems =
+    currentDocNav !== undefined && isEditingHomeDoc
+      ? currentDocNav.map((navItem: HMNavigationItem): DocNavigationItem => {
+          const id = unpackHmId(navItem.link)
+          return {
+            key: navItem.id,
+            id: id || undefined,
+            webUrl: id ? undefined : navItem.link,
+            draftId: undefined,
+            metadata: {name: navItem.text},
+            isPublished: true,
+          }
+        })
+      : navItems
   if (!siteHomeEntity) return null
-
-  const navItems = useSiteNavigationItems(siteHomeEntity)
   return (
     <SiteHeader
       originHomeId={siteHomeEntity.id}
-      items={navItems}
+      items={displayNavItems}
       docId={docId}
       document={document}
       draftMetadata={draftMetadata}
@@ -504,22 +524,23 @@ function DraftAppHeader({
         siteHomeEntity.document?.metadata.layout ===
           'Seed/Experimental/Newspaper'
       }
-      nav={
-        !isEditingHomeDoc
-          ? () => (
-              <EditNavPopover
-                defaultNavigation={
-                  draftMetadata.navigation?.map((item) => ({
-                    type: 'Link',
-                    text: item.metadata.name || '',
-                    link: item.id ? packHmId(item.id) : item.webUrl || '',
-                  })) || []
-                }
-                editDocNav={onDocNav}
-                homeId={siteHomeEntity.id}
-              />
-            )
-          : null
+      editNavPane={
+        isEditingHomeDoc ? (
+          <EditNavPopover
+            docNav={
+              displayNavItems?.map(
+                (item): HMNavigationItem => ({
+                  id: item.key,
+                  type: 'Link',
+                  text: item.metadata.name || '',
+                  link: item.id ? packHmId(item.id) : item.webUrl || '',
+                }),
+              ) || []
+            }
+            editDocNav={onDocNav}
+            homeId={siteHomeEntity.id}
+          />
+        ) : null
       }
       supportQueries={[
         {

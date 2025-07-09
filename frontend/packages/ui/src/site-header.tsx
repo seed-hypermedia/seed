@@ -44,7 +44,7 @@ export function SiteHeader({
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
-  items?: DocNavigationItem[]
+  items?: DocNavigationItem[] | null
   isCenterLayout?: boolean
   document?: HMDocument | undefined
   supportDocuments?: HMEntityContent[]
@@ -411,7 +411,7 @@ export function SiteHeaderMenu({
   isCenterLayout = false,
   editNavPane,
 }: {
-  items?: DocNavigationItem[]
+  items?: DocNavigationItem[] | null
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
