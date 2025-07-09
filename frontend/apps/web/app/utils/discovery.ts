@@ -17,7 +17,7 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
-): Promise<{version: string} | null> {
+): Promise<{version: string} | true | null> {
   const discoverRequest = {
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
@@ -33,16 +33,12 @@ export async function discoverDocument(
   return await tryUntilSuccess(async () => {
     console.log('will discoverEntity', discoverRequest)
     try {
-      const discoverResp = await queryClient.entities
-        .discoverEntity(discoverRequest)
-        .then((resp) => {
-          console.log('~~ discoverEntity resp', resp)
-          return resp
-        })
-      if (!discoverResp) return null
+      const discoverResp =
+        await queryClient.entities.discoverEntity(discoverRequest)
+      console.log('~~ discoverEntity resp', discoverResp.toJson())
       if (checkDiscoverySuccess(discoverResp))
         return {version: discoverResp.version}
-      return null
+      return true
     } catch (e) {
       console.warn(
         `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
