@@ -178,21 +178,8 @@ const getQueryResults = getQueryResultsWithClient(queryClient)
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
-  {recursiveDiscover = true}: {recursiveDiscover?: boolean} = {},
 ): Promise<WebBaseDocumentPayload> {
   const {uid} = entityId
-  const path = hmIdPathToEntityQueryPath(entityId.path)
-  const discoverPromise = queryClient.entities
-    .discoverEntity({
-      account: uid,
-      path,
-      recursive: recursiveDiscover,
-      // version ommitted intentionally here. we want to discover the latest version
-    })
-    .then(() => {})
-    .catch((e) => {
-      // console.error('error discovering entity', entityId.id, e)
-    })
   const latestDocument =
     !!entityId.version && !entityId.latest
       ? await getHMDocument(
