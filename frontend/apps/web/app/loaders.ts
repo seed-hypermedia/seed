@@ -46,6 +46,7 @@ import {
   HMRedirectError,
 } from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
+import {serialize} from 'superjson'
 import {queryClient} from './client'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
@@ -605,6 +606,7 @@ export async function loadSiteDocument<T>(
   id: UnpackedHypermediaId,
   extraData?: T,
 ): Promise<WrappedResponse<SiteDocumentPayload & T>> {
+  console.log('~ loadSiteDocument', parsedRequest, id, extraData)
   const {hostname, origin} = parsedRequest
   const config = await getConfig(hostname)
   if (!config) {
@@ -625,7 +627,7 @@ export async function loadSiteDocument<T>(
     console.log('~~ will getDocument', id, parsedRequest)
     const docContent = await getDocument(id, parsedRequest)
     let supportQueries = docContent.supportQueries
-    console.log('~ docContent', JSON.stringify(docContent))
+    console.log('~ docContent', JSON.stringify(serialize(docContent.document)))
 
     const loadedSiteDocument = {
       ...(extraData || {}),
@@ -643,6 +645,7 @@ export async function loadSiteDocument<T>(
       headers,
     })
   } catch (e) {
+    console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
       const destRedirectUrl = createWebHMUrl(e.target.type, e.target.uid, {
         path: e.target.path,
