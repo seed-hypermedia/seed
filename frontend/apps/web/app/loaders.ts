@@ -77,7 +77,7 @@ export async function getAccount(
   {discover}: {discover?: boolean} = {},
 ): Promise<HMMetadataPayload> {
   try {
-    if (discover) {
+    if (discover && false) {
       await discoverDocument(accountUid, [], undefined)
     }
     const grpcAccount = await queryClient.documents.getAccount({
@@ -125,7 +125,7 @@ export async function getHMDocument(
   {discover}: {discover?: boolean} = {},
 ) {
   const {version, uid, latest} = entityId
-  if (discover) {
+  if (discover && false) {
     await discoverDocument(
       uid,
       entityId.path || [],
