@@ -3,16 +3,20 @@ import * as React from 'react'
 import {forwardRef} from 'react'
 import {cn} from '../utils'
 
-function _ScrollArea({
-  className,
-  children,
-  onScroll,
-  ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+function _ScrollArea(
+  {
+    className,
+    children,
+    onScroll,
+    ...props
+  }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>,
+  ref: React.Ref<HTMLDivElement>,
+) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
       className={cn('relative h-full overflow-hidden', className)}
+      ref={ref}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport

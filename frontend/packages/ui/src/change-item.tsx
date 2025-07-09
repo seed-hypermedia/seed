@@ -93,15 +93,18 @@ export function ChangeItem({
 }
 
 function AuthorName({author}: {author: HMMetadataPayload}) {
-  const linkProps = useRouteLink({key: 'document', id: author.id})
+  const linkProps = useRouteLink(
+    {key: 'document', id: author.id},
+    {
+      handler: 'onClick',
+    },
+  )
   return (
-    <Button
-      variant="ghost"
-      size="sm"
+    <a
       className="h-auto flex-shrink-1 truncate p-0 text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
       {...linkProps}
     >
       {getMetadataName(author.metadata)}
-    </Button>
+    </a>
   )
 }
