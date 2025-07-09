@@ -5,7 +5,12 @@ import {fileUpload} from '@/utils/file-upload'
 import {useNavRoute} from '@/utils/navigation'
 import {extractWords} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
-import {eventStream, UnpackedHypermediaId, useOpenUrl} from '@shm/shared'
+import {
+  eventStream,
+  UnpackedHypermediaId,
+  useOpenUrl,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -109,6 +114,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(
     undefined,
   )
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+
   const [wentThroughRecovery, setWentThroughRecovery] = useState(false)
 
   // Initialize local state based on whether we're in modal mode
@@ -343,6 +350,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
           onAccountCreate={(id) => {
             console.log('🔄 Setting account:', id)
             setAccount(id)
+            setSelectedIdentity?.(id.uid)
             handleSubscription(id)
             setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
           }}
@@ -354,8 +362,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
           onPrev={handlePrev}
           onAccountCreate={(id) => {
             console.log('🔄 Setting account:', id)
-
             setAccount(id)
+            setSelectedIdentity?.(id.uid)
             handleSubscription(id)
             setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
           }}
