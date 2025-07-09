@@ -32,7 +32,7 @@ import {
   unpackHmId,
   useRouteLink,
 } from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {Comment, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {SmallSiteHeader} from '@shm/ui/site-header'
@@ -419,7 +419,7 @@ function PublishedComment({
       signerId,
     }
   }, [comment])
-  const author = useEntity(rawComment.signerId)
+  const author = useAccount(rawComment.signerId.uid)
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -444,7 +444,7 @@ function PublishedComment({
       )}
       renderCommentContent={renderCommentContent}
       isLast={isLast}
-      authorMetadata={author.data?.document?.metadata ?? undefined}
+      authorMetadata={author.data?.metadata ?? undefined}
     />
   )
 }
