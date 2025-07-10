@@ -302,23 +302,26 @@ var qGetParentsMetadata = dqb.Str(`
 var qGetAccountID = dqb.Str(`
 SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)
 
+type searchResult struct {
+	content       string
+	rawContent    string
+	icon          string
+	iri           string
+	owner         string
+	blockID       string
+	tsid          string
+	docID         string
+	blobCID       string
+	blobID        int64
+	contentType   string
+	version       string
+	versionTime   *timestamppb.Timestamp
+	latestVersion string
+}
+
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
-	var contents []string
-	var rawContent []string
-	var icons []string
-	var iris []string
-	var owners []string
-	var blockIDs []string
-	var tsids []string
-	var docIDs []string
-	var blobCIDs []string
-	var blobIDs []int64
-	var contentType []string
-	var versions []string
-	var versionTimes []*timestamppb.Timestamp
-
-	var latestVersions []string
+	searchResults := []searchResult{}
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -381,20 +384,20 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var iriGlob string = "hm://" + in.AccountUid + "*"
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
-
+	var numResults int = 0
 	//before := time.Now()
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
+			var res searchResult
 			var icon icon
 			var heads []head
-			fullMatchStr := stmt.ColumnText(0)
-			rawContent = append(rawContent, fullMatchStr)
-			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(fullMatchStr, cleanQuery)
+			res.rawContent = stmt.ColumnText(0)
+			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(res.rawContent, cleanQuery)
 			if firstRuneOffset == -1 {
 				return nil
 			}
 			// before extracting matchStr, convert fullMatchStr to runes
-			fullRunes := []rune(fullMatchStr)
+			fullRunes := []rune(res.rawContent)
 			nRunes := len(fullRunes)
 
 			var contextStart, contextEndRune int
@@ -409,17 +412,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 
 			// build substring on rune boundaries
-			matchStr := string(fullRunes[contextStart:contextEndRune])
-			contents = append(contents, matchStr)
+			res.content = string(fullRunes[contextStart:contextEndRune])
 
-			blobCID := cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
-			blobCIDs = append(blobCIDs, blobCID)
-			blobIDs = append(blobIDs, stmt.ColumnInt64(4))
-			cType := stmt.ColumnText(1)
-			tsid := stmt.ColumnText(5)
-			tsids = append(tsids, tsid)
-			iri := stmt.ColumnText(6)
-			docIDs = append(docIDs, iri)
+			res.blobCID = cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
+
+			res.contentType = stmt.ColumnText(1)
+			res.blockID = stmt.ColumnText(2)
+			res.version = stmt.ColumnText(3)
+			res.blobID = stmt.ColumnInt64(4)
+			res.tsid = stmt.ColumnText(5)
+			res.docID = stmt.ColumnText(6)
+			res.owner = core.Principal(stmt.ColumnBytes(7)).String()
+			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
+			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
+				icon.Icon.Value = ""
+			}
 			if err := json.Unmarshal(stmt.ColumnBytes(13), &heads); err != nil {
 				return err
 			}
@@ -432,56 +439,64 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 			}
-			latestVersion := docmodel.NewVersion(cids...).String()
-			version := stmt.ColumnText(3)
-			latestVersions = append(latestVersions, latestVersion)
-			versions = append(versions, version)
+			res.latestVersion = docmodel.NewVersion(cids...).String()
+
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
-			versionTimes = append(versionTimes, timestamppb.New(ts))
+			res.versionTime = timestamppb.New(ts)
 
-			contentType = append(contentType, cType)
-			blockIDs = append(blockIDs, stmt.ColumnText(2))
-			ownerID := core.Principal(stmt.ColumnBytes(7)).String()
-			owners = append(owners, ownerID)
-			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
-			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
-				icon.Icon.Value = ""
-			}
-
-			if cType == "comment" {
-				iris = append(iris, "hm://"+ownerID+"/"+tsid)
-			} else if cType == "contact" {
-				iris = append(iris, "hm://"+subjectID+"/"+tsid)
+			if res.contentType == "comment" {
+				res.iri = "hm://" + res.owner + "/" + res.tsid
+			} else if res.contentType == "contact" {
+				res.iri = "hm://" + subjectID + "/" + res.tsid
 				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
 					icon.Icon.Value = ""
 				}
 			} else {
-				iris = append(iris, iri)
+				res.iri = res.docID
 			}
-			icons = append(icons, icon.Icon.Value)
+			res.icon = icon.Icon.Value
 			offsets := []int{firstRuneOffset}
 			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
 				offsets = append(offsets, i)
 			}
 			bodyMatches = append(bodyMatches, fuzzy.Match{
-				Str:            matchStr,
-				Index:          len(contents) - 1,
+				Str:            res.content,
+				Index:          numResults,
 				Score:          1,
 				MatchedIndexes: offsets,
 			})
+			searchResults = append(searchResults, res)
+			numResults++
 			return nil
 		}, ftsStr, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, loggedAccountID, iriGlob, resultsLmit)
 	}); err != nil {
 		return nil, err
 	}
-	//fmt.Println("Found", len(bodyMatches), "matches for query:", in.Query)
+
+	seen := make(map[string]struct{})
+	var uniqueResults []searchResult
+	var uniqueBodyMatches []fuzzy.Match
+	for i, res := range searchResults {
+		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.versionTime)
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			uniqueResults = append(uniqueResults, res)
+			bodymatch := bodyMatches[i]
+			bodymatch.Index = len(uniqueResults) - 1
+			uniqueBodyMatches = append(uniqueBodyMatches, bodymatch)
+		}
+	}
+
+	//bodyMatches = uniqueBodyMatches
+	//searchResults = uniqueResults
+
 	//after := time.Now()
 	//elapsed := after.Sub(before)
 	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
-		breadcrum := strings.Split(strings.TrimPrefix(iris[match.Index], "hm://"), "/")
+		breadcrum := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
 		var root string
 		for i, _ := range breadcrum {
 			parents["hm://"+strings.Join(breadcrum[:i+1], "/")] = nil
@@ -515,11 +530,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	//totalGetParentsTime := time.Duration(0)
 	//totalLatestBlockTime := time.Duration(0)
 	//var timesCalled int
+
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
 		var parentTitles []string
 		var err error
-		if contentType[match.Index] != "contact" {
+		if searchResults[match.Index].contentType != "contact" {
 			if parentTitles, err = getParentsFcn(match); err != nil {
 				return nil, err
 			}
@@ -530,11 +546,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		for j, off := range match.MatchedIndexes {
 			offsets[j] = int64(off)
 		}
-		id := iris[match.Index]
-		if versions[match.Index] != "" && contentType[match.Index] != "comment" {
+		id := searchResults[match.Index].iri
+		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
 			var version string
-			versions[match.Index] += "&l"
-			if latestVersions[match.Index]+"&l" != versions[match.Index] {
+			searchResults[match.Index].version += "&l"
+			if searchResults[match.Index].latestVersion+"&l" != searchResults[match.Index].version {
 				//startLatestBlocks := time.Now()
 				//timesCalled++
 				//versions[match.Index] = versions[match.Index][:len(versions[match.Index])-2]
@@ -543,40 +559,40 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
 						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
-						versionTimes[match.Index] = timestamppb.New(ts)
+						searchResults[match.Index].versionTime = timestamppb.New(ts)
 						return nil
-					}, blobIDs[match.Index], blockIDs[match.Index], rawContent[match.Index])
+					}, searchResults[match.Index].blobID, searchResults[match.Index].blockID, searchResults[match.Index].rawContent)
 				}); err != nil {
 					return nil, err
 				}
 
 				//totalLatestBlockTime += time.Since(startLatestBlocks)
 				if version != "" {
-					versions[match.Index] = version
+					searchResults[match.Index].version = version
 				}
 			}
 
-			if versions[match.Index] != "" {
-				id += "?v=" + versions[match.Index]
+			if searchResults[match.Index].version != "" {
+				id += "?v=" + searchResults[match.Index].version
 			}
 
-			if blockIDs[match.Index] != "" {
-				id += "#" + blockIDs[match.Index]
+			if searchResults[match.Index].blockID != "" {
+				id += "#" + searchResults[match.Index].blockID
 				if len(offsets) > 1 {
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
 			}
 		}
 		matchingEntities = append(matchingEntities, &entities.Entity{
-			DocId:       docIDs[match.Index],
+			DocId:       searchResults[match.Index].docID,
 			Id:          id,
-			BlobId:      blobCIDs[match.Index],
-			Type:        contentType[match.Index],
-			VersionTime: versionTimes[match.Index],
+			BlobId:      searchResults[match.Index].blobCID,
+			Type:        searchResults[match.Index].contentType,
+			VersionTime: searchResults[match.Index].versionTime,
 			Content:     match.Str,
 			ParentNames: parentTitles,
-			Icon:        icons[match.Index],
-			Owner:       owners[match.Index]})
+			Icon:        searchResults[match.Index].icon,
+			Owner:       searchResults[match.Index].owner})
 	}
 	//after = time.Now()
 
