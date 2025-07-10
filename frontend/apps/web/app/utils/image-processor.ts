@@ -3,7 +3,8 @@ import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 
-export async function processImage(imageCid: string): Promise<string> {
+export async function _processImage(imageCid: string): Promise<string> {
+  console.log('~ processImage', imageCid)
   try {
     // Fetch the image
     const response = await fetch(
@@ -43,3 +44,42 @@ export async function processImage(imageCid: string): Promise<string> {
     throw error
   }
 }
+
+function withTimeoutThrow<Input, PromiseResult>(
+  asyncHandler: (input: Input) => Promise<PromiseResult>,
+  label: string,
+  timeout: number = 4_000,
+): (input: Input) => Promise<PromiseResult> {
+  return (input: Input) => {
+    return Promise.race([
+      asyncHandler(input),
+      new Promise<PromiseResult>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`Timeout: ${label} (${timeout}ms)`)),
+          timeout,
+        )
+      }),
+    ])
+  }
+}
+
+function withTimeout<Input, PromiseResult>(
+  asyncHandler: (input: Input) => Promise<PromiseResult>,
+  label: string,
+  timeout: number = 4_000,
+): (input: Input) => Promise<PromiseResult | null> {
+  return (input: Input) => {
+    return Promise.race([
+      asyncHandler(input),
+      new Promise<PromiseResult | null>((resolve, reject) => {
+        setTimeout(() => resolve(null), timeout)
+      }),
+    ])
+  }
+}
+
+export const processImage = withTimeout(
+  _processImage,
+  'generating image for author',
+  4_000,
+)

@@ -7,6 +7,7 @@ import {
   UnpackedHypermediaId,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
+  getDocumentImage,
   getDocumentTitle,
   getParentPaths,
   hmId,
@@ -259,11 +260,13 @@ export const loader = async ({request}: {request: Request}) => {
   const space = url.searchParams.get('space')
   const path = url.searchParams.get('path')
   const version = url.searchParams.get('version')
+  console.log('LOL?!', url.searchParams)
   if (!space) throw new Error('Missing space')
   // if (path) throw new Error("Missing path");
   if (!version) throw new Error('Missing version')
   let content: null | JSX.Element = null
   const docId = hmId('d', space, {path: entityQueryPathToHmIdPath(path || '')})
+  console.log('will getDocument docId', docId)
   const rawDoc = await queryClient.documents.getDocument({
     account: space,
     version,
@@ -274,6 +277,7 @@ export const loader = async ({request}: {request: Request}) => {
     .reverse()
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
+      console.log('will get breadcrumb', crumbPath)
       const document = await queryClient.documents.getDocument({
         account: space,
         path: hmIdPathToEntityQueryPath(crumbPath),
@@ -308,7 +312,7 @@ export const loader = async ({request}: {request: Request}) => {
       return document.data
     }),
   )
-
+  console.log('~ authors', authors)
   let processedAuthors = await Promise.all(
     authors.map(async (author) => {
       const id = hmId('d', author.account)
@@ -331,6 +335,7 @@ export const loader = async ({request}: {request: Request}) => {
       return {document: author, icon: null, id}
     }),
   )
+  console.log('~ processedAuthors', processedAuthors)
 
   let iconId: string | null = null
   let iconValue: string | null = null
@@ -353,8 +358,9 @@ export const loader = async ({request}: {request: Request}) => {
   }
 
   let cover = null
-  if (document.metadata.cover) {
-    cover = await processImage(document.metadata.cover)
+  const docImage = getDocumentImage(document)
+  if (docImage) {
+    cover = await processImage(docImage)
   } else if (breadcrumbs.length > 0) {
     const breadcrumb = breadcrumbs.at(0)
     if (breadcrumb?.metadata?.cover) {

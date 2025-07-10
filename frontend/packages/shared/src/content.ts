@@ -1,6 +1,8 @@
 import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
 import {Contact} from './client'
 import {
+  HMBlock,
+  HMBlockImage,
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
@@ -229,4 +231,39 @@ export function plainTextOfContent(content?: HMBlockNode[]): string {
     }
   })
   return textContent
+}
+
+export function getDocumentImage(document: HMDocument): string | null {
+  const coverImage = document.metadata.cover
+  if (coverImage) return coverImage
+  const firstImageBlock = findFirstBlock<HMBlockImage>(
+    document.content,
+    // @ts-expect-error not sure what I'm supposed to be doing here...
+    (block) => block.type === 'Image' && !!block.link,
+  )
+  if (firstImageBlock) return firstImageBlock.link || null
+  return null
+}
+
+export function findFirstBlock<ResultBlockType extends HMBlock>(
+  content: HMBlockNode[],
+  test: (block: HMBlock) => block is ResultBlockType,
+): ResultBlockType | null {
+  let found: ResultBlockType | null = null
+  let index = 0
+  while (!found && index < content.length) {
+    const blockNode = content[index]
+    if (test(blockNode.block)) {
+      found = blockNode.block
+      break
+    }
+    const foundChild =
+      blockNode.children && findFirstBlock(blockNode.children, test)
+    if (foundChild) {
+      found = foundChild
+      break
+    }
+    index++
+  }
+  return found
 }
