@@ -1,18 +1,19 @@
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
-import {Button} from '@shm/ui/legacy/button'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {keymap} from 'prosemirror-keymap'
 import {NodeSelection, Plugin, PluginKey} from 'prosemirror-state'
 import React, {
+  MouseEventHandler,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import {ButtonProps, XStack, YStack} from 'tamagui'
 import {keyboardStack, useKeyboard} from './keyboard-helpers'
 
 export const autocompletePluginKey = new PluginKey('inline-embed')
@@ -335,7 +336,7 @@ function AutocompletePopupInner(
     )
   }, [suggestions])
 
-  console.log('groups', groups)
+  // console.log('groups', groups)
 
   useKeyboard({
     ArrowUp: (e) => {
@@ -433,39 +434,20 @@ function AutocompletePopupInner(
           onClose()
         }}
       />
-      <YStack
-        elevation="$5"
-        borderWidth={1}
-        borderColor="$color6"
-        style={{
-          position: 'absolute',
-          display: 'flex',
-          flexDirection: 'column',
-          width: '20em',
-          height: '10em',
-          borderRadius: 4,
-          overflow: 'scroll',
-        }}
-        className="dark:bg-background bg-white"
-      >
+      <div className="border-muted bg-background absolute z-[9999] flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
         {/* <div>Query: "{text}"</div> */}
         {isOptionsEmpty(suggestions) && (
-          <XStack
-            background="$backgroundStrong"
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-            gap="$2"
-          >
+          <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
             <SizableText size="sm" className="flex-1">
               No Results
             </SizableText>
-          </XStack>
+          </div>
         )}
         {groups.map((group) => {
           if (suggestions[group] && suggestions[group].length) {
             return (
               <div
-                className="border-border flex flex-col border shadow-lg"
+                className="border-border flex flex-col last:border-b-0"
                 key={group}
               >
                 <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
@@ -506,7 +488,7 @@ function AutocompletePopupInner(
           }
           return null
         })}
-      </YStack>
+      </div>
     </div>
   )
 }
@@ -558,13 +540,14 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
   title: string
   subtitle: string
   selected: boolean
-  onPress: ButtonProps['onPress']
-  onMouseEnter: ButtonProps['onMouseEnter']
+  onPress: MouseEventHandler<HTMLButtonElement>
+  onMouseEnter: MouseEventHandler<HTMLButtonElement>
 }) {
-  const elm = useRef<HTMLButtonElement | null>(null)
+  const elm = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
     if (props.selected) {
+      console.log(elm.current)
       elm.current?.scrollIntoView({block: 'nearest'})
     }
   }, [props.selected])
@@ -574,35 +557,29 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
   }
 
   return (
-    <Button
-      ref={elm}
-      onPress={props.onPress}
-      fontWeight="600"
-      size="$2"
-      justifyContent="flex-start"
-      borderRadius={0}
-      backgroundColor={props.selected ? '$brand11' : '$backgroundFocus'}
-      color="$color"
-      hoverStyle={{
-        backgroundColor: props.selected ? '$brand11' : '$backgroundFocus',
-        // borderColor: 'inherit',
-      }}
-      height="auto"
-      minHeight={28}
-      onMouseEnter={props.onMouseEnter}
-      // icon={<Avatar size={18} url={props.embedRef?.profile?.avatar} />} avatars make everything slooow
-    >
-      <SizableText
+    <div ref={elm}>
+      <Button
+        onClick={props.onPress}
+        onMouseEnter={props.onMouseEnter}
+        variant={props.selected ? 'brand-12' : 'ghost'}
         size="sm"
-        className="flex-1 p-0 text-left font-normal"
-        color="default"
+        className={cn(
+          'min-h-[28px] w-full justify-start px-3 py-1.5',
+          props.selected && 'bg-brand-11 hover:bg-brand-11 text-white',
+        )}
       >
-        {props.title}
-      </SizableText>
-      <SizableText className="p-0" size="xs" color="default">
-        {props.subtitle}
-      </SizableText>
-    </Button>
+        <SizableText
+          size="sm"
+          className="flex-1 p-0 text-left font-normal"
+          color="default"
+        >
+          {props.title}
+        </SizableText>
+        <SizableText className="p-0" size="xs" color="default">
+          {props.subtitle}
+        </SizableText>
+      </Button>
+    </div>
   )
 })
 
