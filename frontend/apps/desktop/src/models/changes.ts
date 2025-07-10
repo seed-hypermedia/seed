@@ -9,7 +9,7 @@ import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 
 export function useDocHistory(docId?: string, variantVersion?: string) {
-  const {data} = useEntityTimeline(docId)
+  const {data} = useDocumentTimeline(docId)
   const changes = useMemo(() => {
     const allVariantChanges = new Set<string>()
     const variantVersionChanges: TimelineChange[] = []
@@ -66,7 +66,7 @@ export type HMTimeline = {
   roots: string[]
 }
 
-export function useEntityTimeline(
+export function useDocumentTimeline(
   entityId?: string,
   includeDrafts: boolean = false,
   opts?: UseQueryOptions<unknown, unknown, HMTimeline>,

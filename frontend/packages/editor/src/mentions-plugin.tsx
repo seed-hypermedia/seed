@@ -4,7 +4,7 @@ import {
 } from '@shm/editor/autocomplete'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
@@ -112,7 +112,7 @@ function DocumentMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const entity = useEntity(unpackedRef)
+  const entity = useResource(unpackedRef)
 
   return (
     <MentionText selected={selected}>

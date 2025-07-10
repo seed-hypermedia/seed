@@ -49,7 +49,7 @@ export default function PublishDraftButton() {
   const pushOnPublish = usePushOnPublish()
   const selectedAccount = useSelectedAccount()
   console.log('== ~~~ draft:', draft.data)
-  const prevId = draftRoute.editUid
+  const editId = draftRoute.editUid
     ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
     : draft.data?.editId
     ? draft.data?.editId
@@ -60,11 +60,12 @@ export default function PublishDraftButton() {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
-  const rootDraftUid = prevId?.uid
-  const rootEntity = useResource(rootDraftUid ? hmId(rootDraftUid) : undefined)
-  const document =
-    rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
-  const siteUrl = document?.metadata.siteUrl
+  const editingResource = useResource(editId)
+  const editDocument =
+    editingResource.data?.type === 'document'
+      ? editingResource.data.document
+      : undefined
+  const siteUrl = editDocument?.metadata.siteUrl
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
@@ -177,8 +178,10 @@ export default function PublishDraftButton() {
           }
         })
     }
-    if (draft.data.editId && signingAccountId) {
-      handlePublish(draft.data.editId, signingAccountId)
+    console.log('== ~~~ editId:', editId)
+    console.log('== ~~~ signingAccountId:', signingAccountId)
+    if (editId && signingAccountId) {
+      handlePublish(editId, signingAccountId)
     } else {
       firstPublishDialog.open({
         newDefaultName: pathNameify(
