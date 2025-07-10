@@ -329,6 +329,13 @@ function AutocompletePopupInner(
       })
   }, [text])
 
+  useEffect(() => {
+    const firstGroup = groups.find((g) => suggestions[g].length > 0)
+    if (firstGroup) {
+      setIndex([firstGroup, 0])
+    }
+  }, [suggestions])
+
   const groupsOrder = ['Contacts', 'Recents', 'Sites', 'Documents'] as const
   const groups = useMemo(() => {
     return groupsOrder.filter(
