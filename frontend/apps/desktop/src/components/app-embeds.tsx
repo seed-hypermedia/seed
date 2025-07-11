@@ -23,6 +23,7 @@ import {
   BlockNodeContent,
   BlockNodeList,
   blockStyles,
+  CommentContentEmbed,
   ContentEmbed,
   DocumentCardGrid,
   ErrorBlock,
@@ -253,7 +254,6 @@ export function EmbedDocument(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
-  console.log('== ~ EmbedDocumentContent ~ props:', props)
   const {entityId} = useDocContentContext()
   if (props.id && entityId && props.id === entityId.id) {
     return (
@@ -275,7 +275,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
     )
   } else if (resource.data?.type === 'comment') {
     return (
-      <CommentContentEmbed
+      <CommentEmbed
         {...props}
         comment={resource.data.comment}
         isLoading={resource.isInitialLoading}
@@ -326,70 +326,17 @@ function DocumentContentEmbed(
   )
 }
 
-function CommentContentEmbed(
+function CommentEmbed(
   props: EntityComponentProps & {comment: HMComment; isLoading: boolean},
 ) {
   const {comment, isLoading} = props
   const route = useNavRoute()
   const navigate = useNavigate()
   const [showReferenced, setShowReferenced] = useState(false)
-  const account = useSubscribedResource(
-    comment?.author ? hmId(comment?.author) : null,
-  )
-  const accountMetadata =
-    account.data?.type === 'document'
-      ? account.data.document?.metadata
-      : undefined
-  let embedBlocks = useMemo(() => {
-    const selectedBlock =
-      props.blockRef && comment?.content
-        ? getBlockNodeById(comment.content, props.blockRef)
-        : null
-
-    const embedBlocks = selectedBlock ? [selectedBlock] : comment?.content
-
-    return embedBlocks
-  }, [props.blockRef, comment])
-  let content = null
-  if (isLoading) {
-    content = null
-  } else if (comment) {
-    content = (
-      <div className="flex flex-wrap justify-between p-3">
-        <div className="flex items-center gap-2">
-          {account.data?.id && (
-            <HMIcon size={24} id={account.data.id} metadata={accountMetadata} />
-          )}
-          <SizableText weight="bold">{accountMetadata?.name}</SizableText>
-        </div>
-        {comment?.createTime ? (
-          <SizableText size="sm" color="muted">
-            {formattedDateMedium(comment.createTime)}
-          </SizableText>
-        ) : null}
-      </div>
-    )
-    {
-      embedBlocks?.length ? (
-        <BlockNodeList childrenType="Group">
-          {embedBlocks.map((bn, idx) => (
-            <BlockNodeContent
-              isFirstChild={idx === 0}
-              key={bn.block?.id}
-              depth={1}
-              blockNode={bn}
-              childrenType="Group"
-              index={idx}
-              embedDepth={1}
-              parentBlockId={props.id}
-            />
-          ))}
-        </BlockNodeList>
-      ) : (
-        <BlockContentUnknown {...props} />
-      )
-    }
-  }
+  const authorId = comment?.author ? hmId(comment?.author) : null
+  const author = useSubscribedResource(authorId)
+  console.log('== ~ CommentEmbed ~ authorId:', authorId)
+  console.log('== ~ CommentEmbed ~ author:', author.data)
   return (
     <EmbedWrapper
       viewType="Content"
@@ -397,10 +344,15 @@ function CommentContentEmbed(
       id={narrowHmId(props)}
       parentBlockId={props.parentBlockId || ''}
     >
-      {content}
+      <CommentContentEmbed
+        props={props}
+        comment={comment}
+        EmbedWrapper={EmbedWrapper}
+        isLoading={isLoading}
+        author={author.data}
+      />
     </EmbedWrapper>
   )
-  return <div>CommentContentEmbed</div>
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {

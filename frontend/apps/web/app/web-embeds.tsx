@@ -19,6 +19,7 @@ import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
+  CommentContentEmbed,
   ContentEmbed,
   DocumentCardGrid,
   ErrorBlock,
@@ -172,14 +173,26 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
   const doc = useResource(props)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const comment = doc.data?.type === 'comment' ? doc.data.comment : undefined
   const {entityId} = useDocContentContext()
+  const author = useResource(comment?.author ? hmId(comment?.author) : null)
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
       <SizableText color="muted">Embed: Parent document (skipped)</SizableText>
     )
   }
-  // return <div>{JSON.stringify(doc.data)}</div>;
+  if (comment) {
+    return (
+      <CommentContentEmbed
+        props={props}
+        comment={comment}
+        isLoading={doc.isLoading}
+        author={author.data}
+        EmbedWrapper={EmbedWrapper}
+      />
+    )
+  }
   return (
     <ContentEmbed
       props={props}

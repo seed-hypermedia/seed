@@ -43,10 +43,10 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <div className="flex relative flex-col gap-2">
+    <div className="relative flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (
         <div
-          className="absolute w-px bg-border"
+          className="bg-border absolute w-px"
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,
@@ -118,17 +118,17 @@ export function Comment({
   return (
     <div
       className={cn(
-        'flex relative gap-1 p-2 rounded-lg group',
+        'group relative flex gap-1 rounded-lg p-2',
         highlight ? 'bg-secondary dark:bg-brand-10' : '', // TODO: review color for dark theme
       )}
     >
       {isLast ? (
         <div
           className={cn(
-            'absolute w-3 z-1',
+            'absolute z-1 w-3',
             highlight
               ? 'bg-secondary dark:bg-brand-10' // TODO: review color for dark theme
-              : 'bg-white dark:bg-background',
+              : 'dark:bg-background bg-white',
           )}
           style={{
             height: `calc(100% - ${avatarSize + 12}px)`,
@@ -140,10 +140,10 @@ export function Comment({
       <div className="relative mt-0.5 min-w-5">
         <div
           className={cn(
-            'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
+            'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
             highlight
               ? 'outline-secondary hover:outline-secondary'
-              : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
+              : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
           )}
           {...authorLink}
         />
@@ -153,12 +153,12 @@ export function Comment({
           </div>
         )}
       </div>
-      <div className="flex flex-col flex-1 gap-1">
-        <div className="flex gap-1 justify-between items-center group min-h-5">
-          <div className="flex gap-1 items-center">
+      <div className="flex flex-1 flex-col gap-1">
+        <div className="group flex min-h-5 items-center justify-between gap-1">
+          <div className="flex items-center gap-1">
             <button
               className={cn(
-                'px-1 h-5 text-sm font-bold rounded transition-colors hover:bg-accent',
+                'hover:bg-accent h-5 rounded px-1 text-sm font-bold transition-colors',
                 authorLink ? 'cursor-pointer' : '',
               )}
               {...authorLink}
@@ -169,7 +169,7 @@ export function Comment({
           </div>
           <Tooltip content={tx('Copy Comment Link')}>
             <button
-              className="opacity-0 transition-opacity duration-200 ease-in-out text-muted-foreground group-hover:opacity-100"
+              className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
               onClick={() => {
                 const url = getUrl(hmId(comment.id))
                 copyTextToClipboard(url)
@@ -182,7 +182,7 @@ export function Comment({
         </div>
         <div className="-ml-2">{renderCommentContent(comment)}</div>
         {!highlight && (
-          <div className="flex gap-2 items-center py-1 mb-2 -ml-1">
+          <div className="mb-2 -ml-1 flex items-center gap-2 py-1">
             {replyCount ? (
               <Button
                 variant="ghost"
@@ -243,7 +243,7 @@ function CommentDate({comment}: {comment: HMComment}) {
   return (
     <Tooltip content={formattedDateLong(comment.createTime)}>
       <a
-        className="h-6 text-xs underline rounded text-muted-foreground hover:text-muted-foreground"
+        className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs underline"
         {...link}
       >
         {formattedDateMedium(comment.createTime)}
@@ -267,8 +267,8 @@ export function QuotedDocBlock({
   }, [doc.content, blockId])
 
   return (
-    <div className="rounded-lg bg-brand-50 dark:bg-brand-950">
-      <div className="flex relative gap-1 p-2 rounded-lg transition-all duration-200 ease-in-out">
+    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
+      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>

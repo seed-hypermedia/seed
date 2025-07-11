@@ -6,13 +6,16 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMBlockQuery,
+  HMComment,
   HMDocument,
   HMDocumentInfo,
   HMEmbedView,
   HMInlineContent,
+  HMResolvedResource,
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
+  formattedDateMedium,
   getDocumentTitle,
   hmBlockToEditorBlock,
   hmId,
@@ -79,6 +82,7 @@ import {
   useImageUrl,
 } from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
+import {HMIcon} from './hm-icon'
 import {BlockQuote} from './icons'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
@@ -1450,6 +1454,82 @@ export function ErrorBlock({
         ) : null}
       </div>
     </Tooltip>
+  )
+}
+
+export function CommentContentEmbed({
+  props,
+  comment,
+  isLoading,
+  author,
+  EmbedWrapper,
+}: {
+  props: EntityComponentProps
+  isLoading?: boolean
+  comment: HMComment | null | undefined
+  author: HMResolvedResource | null | undefined
+  EmbedWrapper: React.ComponentType<
+    React.PropsWithChildren<{
+      id: UnpackedHypermediaId
+      depth: number
+      parentBlockId: string
+      embedView?: HMEmbedView
+    }>
+  >
+}) {
+  return (
+    <EmbedWrapper
+      embedView={props.block.attributes?.view}
+      depth={props.depth || 0}
+      id={narrowHmId(props)}
+      parentBlockId={props.parentBlockId || ''}
+    >
+      {comment && author && (
+        <CommentEmbedHeader comment={comment} author={author} />
+      )}
+      {comment?.content.map((bn, idx) => {
+        return (
+          <BlockNodeContent
+            key={bn.block?.id}
+            isFirstChild={idx == 0}
+            depth={1}
+            expanded={true}
+            embedId={props.block.id}
+            parentBlockId={props.parentBlockId || ''}
+            blockNode={bn}
+            childrenType="Group"
+            index={idx}
+            embedDepth={1}
+          />
+        )
+      })}
+    </EmbedWrapper>
+  )
+}
+
+function CommentEmbedHeader({
+  comment,
+  author,
+}: {
+  comment: HMComment
+  author: HMResolvedResource
+}) {
+  const authorMetadata =
+    author.type === 'document' ? author.document?.metadata : undefined
+  return (
+    <div className="flex flex-wrap justify-between p-3">
+      <div className="flex items-center gap-2">
+        {author.id && (
+          <HMIcon size={24} id={author.id} metadata={authorMetadata} />
+        )}
+        <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
+      </div>
+      {comment.createTime ? (
+        <SizableText size="sm" color="muted">
+          {formattedDateMedium(comment.createTime)}
+        </SizableText>
+      ) : null}
+    </div>
   )
 }
 
