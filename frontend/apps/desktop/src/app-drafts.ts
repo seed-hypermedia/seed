@@ -69,9 +69,7 @@ export async function initDrafts() {
     oldDraftPath: string,
   ) {
     // legacy draft ids might start with hm:// or nothing
-    const draftHmId = draftId
-      ? unpackHmId(draftId) || hmId('d', draftId)
-      : undefined
+    const draftHmId = draftId ? unpackHmId(draftId) || hmId(draftId) : undefined
     const lastPathTerm = draftHmId?.path?.at(-1)
     const isNewChild = !!lastPathTerm && lastPathTerm.startsWith('_')
     const newDraftId = nanoid(10)
@@ -179,10 +177,10 @@ export async function initDrafts() {
           ...item,
           metadata: fixDraftMetadata(item.metadata || {}),
           locationId: item.locationUid
-            ? hmId('d', item.locationUid, {path: item.locationPath})
+            ? hmId(item.locationUid, {path: item.locationPath})
             : undefined,
           editId: item.editUid
-            ? hmId('d', item.editUid, {path: item.editPath})
+            ? hmId(item.editUid, {path: item.editPath})
             : undefined,
         }
       }),
@@ -210,11 +208,9 @@ export const draftsApi = t.router({
       draftIndex?.map((d) => ({
         ...d,
         locationId: d.locationUid
-          ? hmId('d', d.locationUid, {path: d.locationPath})
+          ? hmId(d.locationUid, {path: d.locationPath})
           : undefined,
-        editId: d.editUid
-          ? hmId('d', d.editUid, {path: d.editPath})
-          : undefined,
+        editId: d.editUid ? hmId(d.editUid, {path: d.editPath}) : undefined,
       })) || []
     )
   }),
@@ -233,11 +229,9 @@ export const draftsApi = t.router({
           .map((d) => ({
             ...d,
             locationId: d.locationUid
-              ? hmId('d', d.locationUid, {path: d.locationPath})
+              ? hmId(d.locationUid, {path: d.locationPath})
               : undefined,
-            editId: d.editUid
-              ? hmId('d', d.editUid, {path: d.editPath})
-              : undefined,
+            editId: d.editUid ? hmId(d.editUid, {path: d.editPath}) : undefined,
           })) || []
       )
     }),
@@ -251,25 +245,15 @@ export const draftsApi = t.router({
         const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
         if (!draftIndexEntry) return null
         const fileContent = await fs.readFile(draftPath, 'utf-8')
-
-        const draft = JSON.parse(fileContent)
-        const resultDraft: HMDraft = {
+        const draftContent = HMDraftContentSchema.parse(JSON.parse(fileContent))
+        const draft: HMDraft = {
           ...draftIndexEntry,
-          ...draft,
-          editId: draftIndexEntry.editUid
-            ? hmId('d', draftIndexEntry.editUid, {
-                path: draftIndexEntry.editPath,
-              })
-            : undefined,
-          locationId: draftIndexEntry.locationUid
-            ? hmId('d', draftIndexEntry.locationUid, {
-                path: draftIndexEntry.locationPath,
-              })
-            : undefined,
+          ...draftContent,
+          id: draftId,
         }
-        return resultDraft
+        return draft
       } catch (e) {
-        error('[DRAFT]: Error when getting draft', {draftId, error: e})
+        console.error(`Failed to get draft ${draftId}`, e)
         return null
       }
     }),

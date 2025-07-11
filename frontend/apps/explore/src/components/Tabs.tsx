@@ -1,20 +1,20 @@
-import {labelOfEntityType, pluralS, UnpackedHypermediaId} from "@shm/shared";
-import React from "react";
+import {pluralS, UnpackedHypermediaId} from '@shm/shared'
+import React from 'react'
 
 export type TabType =
-  | "document"
-  | "changes"
-  | "comments"
-  | "citations"
-  | "capabilities"
-  | "children"
-  | "authored-comments";
+  | 'document'
+  | 'changes'
+  | 'comments'
+  | 'citations'
+  | 'capabilities'
+  | 'children'
+  | 'authored-comments'
 
 interface TabProps {
-  id: TabType;
-  label: string;
-  isActive: boolean;
-  onClick: (tab: TabType) => void;
+  id: TabType
+  label: string
+  isActive: boolean
+  onClick: (tab: TabType) => void
 }
 
 const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
@@ -23,8 +23,8 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
       <button
         className={`inline-block p-2 border-transparent whitespace-nowrap flex-shrink-0 ${
           isActive
-            ? "text-blue-600 border-b-2 border-blue-600 border-0 rounded-none"
-            : "hover:text-gray-600 border-none rounded-none"
+            ? 'text-blue-600 rounded-none border-0 border-b-2 border-blue-600'
+            : 'rounded-none border-none hover:text-gray-600'
         }`}
         onClick={() => onClick(id)}
         role="tab"
@@ -34,19 +34,19 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
         {label}
       </button>
     </li>
-  );
-};
+  )
+}
 
 interface TabsProps {
-  currentTab: TabType;
-  id: UnpackedHypermediaId;
-  onTabChange: (tab: TabType) => void;
-  changeCount: number | undefined;
-  commentCount: number | undefined;
-  citationCount: number | undefined;
-  capabilityCount: number | undefined;
-  childrenCount: number | undefined;
-  authoredCommentCount: number | undefined;
+  currentTab: TabType
+  id: UnpackedHypermediaId
+  onTabChange: (tab: TabType) => void
+  changeCount: number | undefined
+  commentCount: number | undefined
+  citationCount: number | undefined
+  capabilityCount: number | undefined
+  childrenCount: number | undefined
+  authoredCommentCount: number | undefined
 }
 
 const Tabs: React.FC<TabsProps> = ({
@@ -62,53 +62,49 @@ const Tabs: React.FC<TabsProps> = ({
 }) => {
   const tabs: {id: TabType; label: string}[] = [
     {
-      id: "document",
-      label: `${labelOfEntityType(id.type)} State${
-        id.version ? ` (Exact Version)` : ""
-      }`,
+      id: 'document',
+      label: `Document State${id.version ? ` (Exact Version)` : ''}`,
     },
-  ];
-  if (id.type === "d") {
+  ]
+  tabs.push({
+    id: 'changes',
+    label: `${changeCount} ${pluralS(changeCount, 'Change')}`,
+  })
+  tabs.push({
+    id: 'comments',
+    label: `${commentCount} ${pluralS(commentCount, 'Comment')}`,
+  })
+  tabs.push({
+    id: 'citations',
+    label: `${citationCount} ${pluralS(citationCount, 'Citation')}`,
+  })
+  tabs.push({
+    id: 'capabilities',
+    label: `${capabilityCount} ${pluralS(
+      capabilityCount,
+      'Capability',
+      'Capabilities',
+    )}`,
+  })
+  tabs.push({
+    id: 'children',
+    label: `${childrenCount} ${pluralS(childrenCount, 'Child', 'Children')}`,
+  })
+  if (!id.path?.filter((p) => !!p).length) {
     tabs.push({
-      id: "changes",
-      label: `${changeCount} ${pluralS(changeCount, "Change")}`,
-    });
-    tabs.push({
-      id: "comments",
-      label: `${commentCount} ${pluralS(commentCount, "Comment")}`,
-    });
-    tabs.push({
-      id: "citations",
-      label: `${citationCount} ${pluralS(citationCount, "Citation")}`,
-    });
-    tabs.push({
-      id: "capabilities",
-      label: `${capabilityCount} ${pluralS(
-        capabilityCount,
-        "Capability",
-        "Capabilities"
+      id: 'authored-comments',
+      label: `${authoredCommentCount} ${pluralS(
+        authoredCommentCount,
+        'Authored Comment',
+        'Authored Comments',
       )}`,
-    });
-    tabs.push({
-      id: "children",
-      label: `${childrenCount} ${pluralS(childrenCount, "Child", "Children")}`,
-    });
-    if (!id.path?.filter((p) => !!p).length) {
-      tabs.push({
-        id: "authored-comments",
-        label: `${authoredCommentCount} ${pluralS(
-          authoredCommentCount,
-          "Authored Comment",
-          "Authored Comments"
-        )}`,
-      });
-    }
+    })
   }
 
   return (
     <div className="mb-4 border-b border-gray-200">
       <ul
-        className="flex px-2 overflow-x-auto text-sm font-medium text-center flex-nowrap md:px-0"
+        className="flex overflow-x-auto flex-nowrap px-2 text-sm font-medium text-center md:px-0"
         role="tablist"
       >
         {tabs.map((tab) => (
@@ -122,7 +118,7 @@ const Tabs: React.FC<TabsProps> = ({
         ))}
       </ul>
     </div>
-  );
-};
+  )
+}
 
-export default Tabs;
+export default Tabs

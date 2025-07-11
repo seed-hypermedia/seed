@@ -1,7 +1,7 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSortedCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
 import {
@@ -117,19 +117,24 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('All')
   }
 
-  const entity = useSubscribedEntity(docId)
+  const resource = useSubscribedResource(docId)
+  const isDocument = resource.data?.type === 'document'
   const allDocumentCapabilities = useAllDocumentCapabilities(docId)
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
   const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
-  const comments = useAllDocumentComments(docId)
+  const comments = useAllDocumentComments(docId, {
+    enabled: isDocument,
+  })
   const commentCount = comments.data?.length || undefined
   const citations = useSortedCitations(docId, {
-    enabled: !!entity.data?.document,
+    enabled: isDocument,
   })
   const citationCount = citations.docCitations.length || undefined
-  const childrenActivity = useChildrenActivity(docId)
+  const childrenActivity = useChildrenActivity(docId, {
+    enabled: isDocument,
+  })
   const directoryCount = childrenActivity.data?.length || undefined
   return (
     <div className="flex h-full flex-1">

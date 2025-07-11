@@ -11,7 +11,6 @@ import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
   hmIdWithVersion,
-  HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
@@ -261,7 +260,7 @@ const EmbedLauncherInput = ({
           onMouseEnter: () => {},
           onSelect: () =>
             assign({props: {url: packHmId(sanitizedId)}} as MediaType),
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
@@ -277,7 +276,7 @@ const EmbedLauncherInput = ({
         title: name,
         id,
         path: id.path || [],
-        subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+        subtitle: 'Document',
         onFocus: () => {
           setFocusedIndex(index)
         },

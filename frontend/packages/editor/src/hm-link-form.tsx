@@ -1,12 +1,7 @@
 import {LauncherItem, SwitcherItem} from '@/launcher-item'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
-import {
-  HMEntityType,
-  HYPERMEDIA_ENTITY_TYPES,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
@@ -54,10 +49,10 @@ export type HypermediaLinkFormProps = {
   id: string
   url: string
   text: string
+  isHmLink: boolean
   type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
   updateLink: (url: string, text: string, hideMenu: boolean) => void
   resetLink: () => void
-  seedEntityType?: HMEntityType
   hasName?: boolean
   hasSearch?: boolean
   onChangeType?: (type: string) => void
@@ -97,7 +92,6 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           setSelectedType(val)
           props.onChangeType?.(val)
         }}
-        seedEntityType={props.seedEntityType}
       />
       {/* </XStack> */}
       {props.hasName && (
@@ -285,9 +279,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       )}
 
       <SizableText size="sm" className="text-primary">
-        {!!props.seedEntityType
-          ? `Seed ${HYPERMEDIA_ENTITY_TYPES[props.seedEntityType]}`
-          : 'Web Address'}
+        {!!props.isHmLink ? `Seed Resource` : 'Web Address'}
       </SizableText>
 
       {props.children}
@@ -379,10 +371,14 @@ const SearchInput = ({
   const portalRoot = document.body
 
   const unpackedId = unpackHmId(link)
-  const currentEntity = useEntity(unpackedId)
+  const currentEntity = useResource(unpackedId)
+  const document =
+    currentEntity.data?.type === 'document'
+      ? currentEntity.data.document
+      : undefined
 
   const [search, setSearch] = useState(() => {
-    return currentEntity.data?.document?.metadata.name ?? link
+    return document?.metadata.name ?? link
   })
 
   // const recents = useRecents()
@@ -404,7 +400,7 @@ const SearchInput = ({
             setSearch(item.id.id)
             updateLink(item.id.id, newText, true)
           },
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
         }
       })
       .filter(Boolean) || []
@@ -573,11 +569,9 @@ const SearchInput = ({
 export function LinkTypeDropdown({
   selected,
   onSelect,
-  seedEntityType,
 }: {
   selected: string
   onSelect: (value: string) => void
-  seedEntityType?: HMEntityType
 }) {
   const [focused, setFocused] = useState(false)
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
@@ -586,7 +580,7 @@ export function LinkTypeDropdown({
   const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
   const filteredTypes = LINK_TYPES.filter((t) => {
     if (t.value === 'link' || t.value === 'button') return true
-    return !!seedEntityType
+    return false
   })
 
   useEffect(() => {

@@ -27,10 +27,7 @@ export function PageHeader({
   docId: UnpackedHypermediaId | null
   authors: HMMetadataPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }>
+  breadcrumbs: HMMetadataPayload[]
   originHomeId: UnpackedHypermediaId | null
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])

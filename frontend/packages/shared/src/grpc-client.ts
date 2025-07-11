@@ -8,6 +8,7 @@ import {
   Entities,
   Invoices,
   Networking,
+  Resources,
   Subscriptions,
   Wallets,
 } from './client'
@@ -23,6 +24,7 @@ export type GRPCClient = {
   subscriptions: PromiseClient<typeof Subscriptions>
   wallets: PromiseClient<typeof Wallets>
   invoices: PromiseClient<typeof Invoices>
+  resources: PromiseClient<typeof Resources>
 }
 
 export function createGRPCClient(transport: any): GRPCClient {
@@ -37,5 +39,6 @@ export function createGRPCClient(transport: any): GRPCClient {
     subscriptions: createPromiseClient(Subscriptions, transport),
     wallets: createPromiseClient(Wallets, transport),
     invoices: createPromiseClient(Invoices, transport),
+    resources: createPromiseClient(Resources, transport),
   } as const
 }

@@ -3,15 +3,16 @@ import {trpc} from '@/trpc'
 import {hmId} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation} from '@tanstack/react-query'
 
 export function useSiteRegistration(accountUid: string) {
-  const accountId = hmId('d', accountUid)
-  const entity = useEntity(accountId)
-
+  const accountId = hmId(accountUid)
+  const entity = useResource(accountId)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   const registerSite = trpc.sites.registerSite.useMutation()
   const getSiteConfig = trpc.sites.getConfig.useMutation()
   return useMutation({
@@ -60,7 +61,7 @@ export function useSiteRegistration(accountUid: string) {
       await grpcClient.documents.createDocumentChange({
         account: accountUid,
         signingKeyName: accountUid,
-        baseVersion: entity.data?.document?.version,
+        baseVersion: document?.version,
         changes: [
           new DocumentChange({
             op: {
@@ -84,13 +85,15 @@ export function useSiteRegistration(accountUid: string) {
 }
 
 export function useRemoveSite(id: UnpackedHypermediaId) {
-  const entity = useEntity(id)
+  const entity = useResource(id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({
     mutationFn: async () => {
       await grpcClient.documents.createDocumentChange({
         account: id.uid,
         signingKeyName: id.uid,
-        baseVersion: entity.data?.document?.version,
+        baseVersion: document?.version,
         changes: [
           new DocumentChange({
             op: {

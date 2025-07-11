@@ -4,7 +4,7 @@
 
 export const HYPERMEDIA_SCHEME = 'hm'
 
-export const DEFAULT_GATEWAY_URL =
+export const DEFAULT_GATEWAY_URL: string =
   (import.meta.env && import.meta.env.VITE_GATEWAY_URL) ||
   process.env.VITE_GATEWAY_URL ||
   'https://hyper.media'

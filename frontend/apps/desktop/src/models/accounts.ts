@@ -42,7 +42,7 @@ export function useAccountList() {
           account.id,
           {
             metadata: account.metadata,
-            id: hmId('d', account.id),
+            id: hmId(account.id),
           },
         ]),
       )

@@ -1,13 +1,13 @@
 import {
   HMCitationsPayload,
-  HMDocument,
   HMMetadataPayload,
+  HMResource,
   packHmId,
   queryKeys,
   setSearchQuery,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {setAccountQuery, setEntityQuery} from '@shm/shared/models/entity'
+import {setAccountQuery, setResourceQuery} from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
@@ -129,15 +129,15 @@ export function useInteractionSummary(
 }
 
 export function useDiscussion(
-  targetId: UnpackedHypermediaId,
+  targetId: UnpackedHypermediaId | undefined,
   commentId?: string,
   opts: {enabled?: boolean} = {},
 ) {
   const response = useAPI<HMDiscussionPayload>(
-    `/hm/api/discussion?targetId=${targetId.id}&commentId=${commentId}`,
+    `/hm/api/discussion?targetId=${targetId?.id}&commentId=${commentId}`,
     {
-      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId.id, commentId],
-      enabled: opts.enabled,
+      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId?.id, commentId],
+      enabled: opts.enabled && !!targetId && !!commentId,
     },
   )
   return response
@@ -172,20 +172,20 @@ export function useBlockDiscussions(
   return response
 }
 
-export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
+export function resourceQuery(id: UnpackedHypermediaId): Promise<HMResource> {
   const queryString = new URLSearchParams({
     v: id?.version || '',
     l: id?.latest ? 'true' : '',
   }).toString()
-  const url = `/hm/api/entity/${id?.uid}${
+  const url = `/hm/api/resource/${id?.uid}${
     id?.path ? `/${id.path.join('/')}` : ''
   }?${queryString}`
-  return queryAPI<HMDocument>(url)
+  return queryAPI<HMResource>(url)
 }
 
 export function injectModels() {
   setSearchQuery(searchQuery)
-  setEntityQuery(entityQuery)
+  setResourceQuery(resourceQuery)
   setRecentsQuery(getRecents)
   setDeleteRecents(deleteRecent)
   setAccountQuery(accountQuery)

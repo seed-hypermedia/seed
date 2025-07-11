@@ -1,5 +1,5 @@
 import {queryClient} from '@/client'
-import {getHMDocument} from '@/loaders'
+import {getDocument} from '@/loaders'
 import {
   BIG_INT,
   DAEMON_HTTP_URL,
@@ -83,7 +83,7 @@ export async function discoverMedia(
     })
   }
 
-  const doc = await getHMDocument(hmId('d', uid, {path, version}))
+  const doc = await getDocument(hmId(uid, {path, version}))
   extractIpfsCids(doc.content)
   const comments = await queryClient.comments.listComments({
     targetAccount: uid,

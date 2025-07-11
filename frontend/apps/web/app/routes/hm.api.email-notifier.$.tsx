@@ -102,7 +102,7 @@ export const action = cborApiAction<EmailNotifierAction, any>(
         notifyOwnedDocChange: restPayload.notifyOwnedDocChange,
       })
       if (restPayload.email && !email) {
-        const metadata = await getMetadata(hmId('d', accountId))
+        const metadata = await getMetadata(hmId(accountId))
         if (!metadata.metadata) {
           console.error(
             'Account not found. Cannot send welcome email. ',

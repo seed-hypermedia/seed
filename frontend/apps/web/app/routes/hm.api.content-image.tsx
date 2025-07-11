@@ -265,8 +265,7 @@ export const loader = async ({request}: {request: Request}) => {
   // if (path) throw new Error("Missing path");
   if (!version) throw new Error('Missing version')
   let content: null | JSX.Element = null
-  const docId = hmId('d', space, {path: entityQueryPathToHmIdPath(path || '')})
-  console.log('will getDocument docId', docId)
+  const docId = hmId(space, {path: entityQueryPathToHmIdPath(path || '')})
   const rawDoc = await queryClient.documents.getDocument({
     account: space,
     version,
@@ -283,7 +282,7 @@ export const loader = async ({request}: {request: Request}) => {
         path: hmIdPathToEntityQueryPath(crumbPath),
       })
       return {
-        id: hmId('d', space, {path: crumbPath}),
+        id: hmId(space, {path: crumbPath}),
         metadata: HMDocumentMetadataSchema.parse(
           document.metadata?.toJson({emitDefaultValues: true}) || {},
         ),
@@ -315,7 +314,7 @@ export const loader = async ({request}: {request: Request}) => {
   console.log('~ authors', authors)
   let processedAuthors = await Promise.all(
     authors.map(async (author) => {
-      const id = hmId('d', author.account)
+      const id = hmId(author.account)
       if (author.metadata.icon) {
         try {
           const processedImage = await processImage(author.metadata.icon)

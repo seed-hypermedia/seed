@@ -10,7 +10,7 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useEntityCitations, useSortedCitations} from '@/models/citations'
+import {useDocumentCitations, useSortedCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {
@@ -23,7 +23,7 @@ import {
   createNotifierRequester,
   getAccountNotifsSafe,
 } from '@/models/email-notifications'
-import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
@@ -34,16 +34,18 @@ import '@shm/editor/editor.css'
 import {
   BlockRange,
   DocumentRoute,
+  getCommentTargetId,
   getDocumentTitle,
   HMDocument,
   HMEntityContent,
   hmId,
   HMQueryResult,
+  HMResource,
   pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
-import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -223,7 +225,7 @@ function _MainDocumentPage({
     }
   }, [account.data])
 
-  const entity = useSubscribedEntity(
+  const resource = useSubscribedResource(
     id,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
     true,
@@ -234,16 +236,33 @@ function _MainDocumentPage({
       }
     },
   )
+  const loadedCommentResource =
+    resource.data?.type === 'comment' ? resource.data : undefined
+  useEffect(() => {
+    if (loadedCommentResource) {
+      const comment = loadedCommentResource.comment
+      const targetDocId = getCommentTargetId(comment)
+      if (targetDocId) {
+        replace({
+          key: 'document',
+          id: targetDocId,
+          accessory: {key: 'discussions', openComment: comment.id},
+        })
+      }
+    }
+  }, [loadedCommentResource])
 
-  const siteHomeEntity = useSubscribedEntity(
+  const siteHomeEntity = useSubscribedResource(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
-    id.path?.length ? hmId('d', id.uid) : id,
+    id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
 
     id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
   )
 
-  const metadata = entity.data?.document?.metadata
+  const document =
+    resource.data?.type === 'document' ? resource.data.document : undefined
+  const metadata = document?.metadata
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
@@ -265,25 +284,28 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  if (entity.isInitialLoading) return null
+  if (resource.isInitialLoading) return null
 
-  if (entity.data?.redirectTarget) {
+  if (resource.data?.type === 'redirect') {
     return (
-      <DocRedirected docId={id} redirectTarget={entity.data.redirectTarget} />
+      <DocRedirected docId={id} redirectTarget={resource.data.redirectTarget} />
     )
   }
 
-  if (entity.data?.document === undefined) {
-    return <DocDiscovery docId={id} />
+  if (resource.data?.type === 'not-found') {
+    return <DocDiscovery />
   }
 
+  if (loadedCommentResource) {
+    return null
+  }
   return (
     // this data attribute is used by the hypermedia highlight component
     <div data-docid={id.id} className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
-        document={entity.data?.document}
+        document={document}
         supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
@@ -302,7 +324,7 @@ function _MainDocumentPage({
                 className={`${sidebarProps.className || ''} flex flex-col`}
                 style={{
                   ...sidebarProps.style,
-                  marginTop: entity.data?.document?.metadata.cover ? 152 : 220,
+                  marginTop: document?.metadata.cover ? 152 : 220,
                 }}
               >
                 <div
@@ -323,7 +345,7 @@ function _MainDocumentPage({
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
-                  entity={entity.data}
+                  resource={resource.data}
                   isBlockFocused={isBlockFocused}
                 />
               </div>
@@ -439,7 +461,7 @@ function _AppDocSiteHeader({
   if (route.key !== 'document') return null
   return (
     <SiteHeader
-      originHomeId={hmId('d', siteHomeEntity.id.uid)}
+      originHomeId={hmId(siteHomeEntity.id.uid)}
       items={navItems}
       docId={docId}
       isCenterLayout={
@@ -493,24 +515,30 @@ export function NewSubDocumentButton({
 }
 
 function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
-  const entity = useEntity(docId)
+  const resource = useResource(docId)
   const hasCover = useMemo(
-    () => !!entity.data?.document?.metadata.cover,
-    [entity.data],
+    () =>
+      resource.data?.type === 'document' &&
+      !!resource.data.document?.metadata.cover,
+    [resource.data],
   )
   const hasIcon = useMemo(
-    () => !!entity.data?.document?.metadata.icon,
-    [entity.data],
+    () =>
+      resource.data?.type === 'document' &&
+      !!resource.data.document?.metadata.icon,
+    [resource.data],
   )
   const navigate = useNavigate()
-  const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
-  useSubscribedEntities(
-    entity.data?.document?.authors?.map((a) => ({id: hmId('d', a)})) || [],
+  const authors = useMemo(
+    () =>
+      resource.data?.type === 'document' ? resource.data.document?.authors : [],
+    [resource.data],
   )
+  useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
   const authorContacts = useContactsMetadata(authors || [])
 
-  if (entity.isLoading) return null
-  if (entity.data?.document === undefined) return null
+  if (resource.isLoading) return null
+  if (resource.data?.type !== 'document') return null
 
   return (
     <div>
@@ -532,7 +560,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               <HMIcon
                 size={100}
                 id={docId}
-                metadata={entity.data?.document?.metadata}
+                metadata={resource.data?.document?.metadata}
               />
             </div>
           ) : null}
@@ -542,23 +570,24 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               f={1}
               style={{fontWeight: 'bold', wordBreak: 'break-word'}}
             >
-              {getDocumentTitle(entity.data?.document)}
+              {getDocumentTitle(resource.data?.document)}
             </SeedHeading>
           </div>
-          {entity.data.document?.metadata?.summary ? (
+          {resource.data.document?.metadata?.summary ? (
             <span className="font-body text-muted-foreground text-xl">
-              {entity.data.document?.metadata?.summary}
+              {resource.data.document?.metadata?.summary}
             </span>
           ) : null}
           <div className="flex flex-col gap-2">
-            {entity.data?.document?.metadata.siteUrl ? (
+            {resource.data?.document?.metadata.siteUrl ? (
               <SiteURLButton
-                siteUrl={entity.data?.document?.metadata.siteUrl}
+                siteUrl={resource.data?.document?.metadata.siteUrl}
               />
             ) : null}
             <div className="flex flex-1 items-center justify-between gap-3">
               <div className="flex flex-1 flex-wrap items-center gap-3">
-                {entity.data?.document?.path.length || authors?.length !== 1 ? (
+                {resource.data?.document?.path.length ||
+                authors?.length !== 1 ? (
                   <>
                     <div className="flex max-w-full flex-wrap items-center gap-1">
                       {authors
@@ -618,17 +647,17 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                     <div className="bg-border h-6 w-px" />
                   </>
                 ) : null}
-                {entity.data?.document ? (
+                {resource.data?.document ? (
                   <DocumentDate
-                    metadata={entity.data.document.metadata}
-                    updateTime={entity.data.document.updateTime}
+                    metadata={resource.data.document.metadata}
+                    updateTime={resource.data.document.updateTime}
                     disableTooltip={false}
                   />
                 ) : null}
               </div>
-              {entity.data?.document && (
+              {resource.data?.document && (
                 <DocumentHeadItems
-                  document={entity.data.document}
+                  document={resource.data.document}
                   docId={docId}
                 />
               )}
@@ -732,19 +761,21 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
 }
 
 function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
-  const entity = useEntity(docId)
+  const resource = useResource(docId)
   const imageUrl = useImageUrl()
-  if (!entity.data?.document) return null
-  if (!entity.data.document.metadata.cover) return null
+  if (resource.data?.type !== 'document') return null
+  if (!resource.data.document.metadata.cover) return null
 
   return (
     <div
       className={`relative flex h-[25vh] w-full ${
-        entity.data.document.metadata.cover ? 'bg-transparent' : 'bg-secondary'
+        resource.data.document.metadata.cover
+          ? 'bg-transparent'
+          : 'bg-secondary'
       }`}
     >
       <img
-        src={imageUrl(entity.data.document.metadata.cover, 'XL')}
+        src={imageUrl(resource.data.document.metadata.cover, 'XL')}
         style={{
           width: '100%',
           height: '100%',
@@ -759,12 +790,12 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function DocPageContent({
-  entity,
+  resource,
   isBlockFocused,
   blockRef,
   blockRange,
 }: {
-  entity: HMEntityContent
+  resource: HMResource | null | undefined
   blockId?: string
   isBlockFocused: boolean
   blockRef?: string | null
@@ -772,14 +803,16 @@ function DocPageContent({
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
-  const citations = useEntityCitations(entity.id)
+  const citations = useDocumentCitations(resource?.id)
   const docRoute = route.key === 'document' ? route : null
-
+  if (!docRoute) return null
+  if (resource?.type !== 'document') return null
+  const document = resource.document
   return (
     <AppDocContentProvider
       routeParams={{
-        uid: route.id?.uid || undefined,
-        version: route.id?.version || undefined,
+        uid: docRoute.id?.uid || undefined,
+        version: docRoute.id?.version || undefined,
         blockRef: blockRef || undefined,
         blockRange: blockRange || undefined,
       }}
@@ -800,8 +833,10 @@ function DocPageContent({
                 comments: 0,
               })
             : null
-          if (sourceId.type === 'c' && blockCounts) blockCounts.comments += 1
-          if (sourceId.type === 'd' && blockCounts) blockCounts.citations += 1
+          if (citation.source.type === 'c' && blockCounts)
+            blockCounts.comments += 1
+          if (citation.source.type === 'd' && blockCounts)
+            blockCounts.citations += 1
         })
         return blockCitations
       }, [citations.data])}
@@ -820,7 +855,7 @@ function DocPageContent({
           },
         })
       }}
-      docId={entity.id}
+      docId={resource.id}
       onBlockCommentClick={(blockId, blockRangeInput) => {
         if (route.key !== 'document') return
         if (!blockId) return
@@ -848,7 +883,7 @@ function DocPageContent({
       isBlockFocused={isBlockFocused}
     >
       <DocContent
-        document={entity.document!}
+        document={document}
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         handleBlockReplace={() => {
           if (route.key === 'document') {

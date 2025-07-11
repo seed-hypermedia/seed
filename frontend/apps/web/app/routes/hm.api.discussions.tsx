@@ -69,58 +69,5 @@ export const loader = async ({
     result = {error: error.message}
   }
 
-  // try {
-  //   const res = await queryClient.entities.listEntityMentions({
-  //     id: targetId.id,
-  //     pageSize: BIG_INT,
-  //   })
-
-  //   const allComments: HMComment[] = []
-  //   const alreadyCommentIds = new Set<string>()
-  //   for (const mention of res.mentions) {
-  //     try {
-  //       const sourceId = unpackHmId(mention.source)
-  //       if (!sourceId) continue
-  //       if (sourceId.type !== 'c') continue
-  //       if (!mention.sourceBlob?.cid) continue
-  //       if (alreadyCommentIds.has(mention.sourceBlob?.cid)) continue
-  //       const comment = await queryClient.comments.getComment({
-  //         id: mention.sourceBlob.cid,
-  //       })
-  //       alreadyCommentIds.add(mention.sourceBlob.cid)
-  //       if (!comment) continue
-  //       allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
-  //     } catch (error) {
-  //       console.error('=== comment error', error)
-  //     }
-  //   }
-
-  //   const commentGroups = getCommentGroups(allComments, undefined)
-
-  //   const authorAccounts = new Set<string>()
-
-  //   commentGroups.forEach((group) => {
-  //     group.comments.forEach((comment) => {
-  //       authorAccounts.add(comment.author)
-  //     })
-  //   })
-
-  //   const authorAccountUids = Array.from(authorAccounts)
-  //   const accounts = await Promise.all(
-  //     authorAccountUids.map(async (accountUid) => {
-  //       return await getAccount(accountUid)
-  //     }),
-  //   )
-
-  //   result = {
-  //     commentGroups: commentGroups,
-  //     authors: Object.fromEntries(
-  //       authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
-  //     ),
-  //   } satisfies HMDiscussionsPayload
-  // } catch (e: any) {
-  //   result = {error: e.message}
-  // }
-
   return wrapJSON(result)
 }

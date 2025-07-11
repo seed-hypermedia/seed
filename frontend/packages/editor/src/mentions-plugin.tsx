@@ -4,7 +4,7 @@ import {
 } from '@shm/editor/autocomplete'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
@@ -95,10 +95,10 @@ function InlineEmbedNodeComponent(props: any) {
 export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
-  if (unpackedRef?.type == 'd') {
-    if (unpackedRef.path && unpackedRef.path.length > 0) {
-      return <DocumentMention unpackedRef={unpackedRef} {...props} />
-    } else return <ContactMention unpackedRef={unpackedRef} {...props} />
+  if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
+    return <DocumentMention unpackedRef={unpackedRef} {...props} />
+  } else if (unpackedRef) {
+    return <ContactMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>
@@ -112,7 +112,7 @@ function DocumentMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const entity = useEntity(unpackedRef)
+  const entity = useResource(unpackedRef)
 
   return (
     <MentionText selected={selected}>

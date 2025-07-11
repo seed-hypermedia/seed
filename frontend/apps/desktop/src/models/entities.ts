@@ -1,6 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
+import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
   HMDocument,
@@ -8,20 +9,25 @@ import {
   HMDocumentMetadataSchema,
   HMEntityContent,
   HMMetadataPayload,
+  HMResource,
+  HMResourceComment,
+  HMResourceDocument,
+  HMResourceNotFound,
+  HMResourceRedirect,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
   getErrorMessage,
   HMRedirectError,
   setAccountQuery,
-  setEntityQuery,
-  useEntities,
+  setResourceQuery,
+  useResources,
 } from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
-import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
@@ -89,14 +95,14 @@ export function useUndeleteEntity(
     },
     onSuccess: (result: void, variables: {id: string}, context) => {
       const hmId = unpackHmId(variables.id)
-      if (hmId?.type === 'd') {
+      if (hmId) {
         invalidateQueries([queryKeys.ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
         invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
         invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-      } else if (hmId?.type === 'c') {
+        // for comments
         invalidateQueries([queryKeys.COMMENT, variables.id])
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       }
@@ -125,10 +131,7 @@ export function getParentPaths(path?: string[] | null): string[][] {
 }
 
 function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
-  if (id.type === 'd') {
-    return getParentPaths(id.path).map((path) => hmId('d', id.uid, {path}))
-  }
-  return []
+  return getParentPaths(id.path).map((path) => hmId(id.uid, {path}))
 }
 
 export function useItemsFromId(
@@ -149,16 +152,39 @@ function catchNotFound<Result>(
   })
 }
 
-setEntityQuery(async (hmId) => {
-  const grpcDocument = await grpcClient.documents.getDocument({
-    account: hmId.uid,
-    path: hmIdPathToEntityQueryPath(hmId.path),
-    version: (hmId.latest ? undefined : hmId.version) || undefined,
-  })
-
-  const serverDocument = grpcDocument.toJson({emitDefaultValues: true})
-
-  return serverDocument as HMDocument // zod validation is done by the entity model
+setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
+  try {
+    const resource = await grpcClient.resources.getResource({
+      iri: packHmId(hmId),
+    })
+    if (resource.kind.case === 'document') {
+      return {
+        type: 'document',
+        id: hmId satisfies UnpackedHypermediaId,
+        document: prepareHMDocument(resource.kind.value) satisfies HMDocument,
+      } satisfies HMResourceDocument
+    }
+    if (resource.kind.case === 'comment') {
+      return {
+        type: 'comment',
+        id: hmId,
+        comment: prepareHMComment(resource.kind.value),
+      } satisfies HMResourceComment
+    }
+    throw new Error('Unsupported resource kind: ' + resource.kind.case)
+  } catch (e) {
+    if (e instanceof HMRedirectError) {
+      return {
+        type: 'redirect',
+        id: hmId,
+        redirectTarget: e.target,
+      } satisfies HMResourceRedirect
+    }
+    return {
+      type: 'not-found',
+      id: hmId,
+    } satisfies HMResourceNotFound
+  }
 })
 
 async function getAccount(accountUid: string) {
@@ -174,12 +200,12 @@ async function getAccount(accountUid: string) {
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata,
     } as HMMetadataPayload
   } catch (error) {
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata: {},
     } as HMMetadataPayload
   }
@@ -259,7 +285,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
               invalidateEntityWithVersion(
-                hmId('d', doc.account, {path: doc.path}),
+                hmId(doc.account, {path: doc.path}),
                 doc.version,
               )
             })
@@ -331,16 +357,15 @@ function removeSubscribedEntity(sub: EntitySubscription) {
   }
 }
 
-export function useSubscribedEntities(
+export function useSubscribedResources(
   subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
 ) {
-  const entities = useEntities(subs.map((sub) => sub.id))
+  const entities = useResources(subs.map((sub) => sub.id))
   const isAllEntitiesInitialLoaded = entities.every(
     (entity) => entity.isInitialLoading === false,
   )
   useEffect(() => {
     if (!isAllEntitiesInitialLoaded) return
-    // console.log('[sync] useSubscribedEntities effect', subs)
     subs.forEach(addSubscribedEntity)
     return () => {
       // console.log('[sync] unsubscribing', subs)
@@ -353,7 +378,7 @@ export function useSubscribedEntities(
   return entities
 }
 
-export function useSubscribedEntity(
+export function useSubscribedResource(
   id: UnpackedHypermediaId | null | undefined,
   recursive?: boolean,
   handleRedirectOrDeleted?: (opts: {
@@ -361,8 +386,7 @@ export function useSubscribedEntity(
     redirectTarget: UnpackedHypermediaId | null
   }) => void,
 ) {
-  const result = useSubscribedEntities([{id, recursive}])[0]
-
+  const result = useSubscribedResources([{id, recursive}])[0]
   useEffect(() => {
     if (result.data?.redirectTarget) {
       handleRedirectOrDeleted?.({
@@ -378,7 +402,7 @@ export function useSubscribedEntity(
 export function useIdEntities(
   ids: Array<UnpackedHypermediaId>,
 ): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
-  return useSubscribedEntities(
+  return useSubscribedResources(
     ids.map((id) => {
       return {id}
     }),
@@ -388,7 +412,7 @@ export function useIdEntities(
 }
 
 export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useSubscribedEntities(ids.map((id) => ({id: hmId('d', id)})))
+  const accounts = useSubscribedResources(ids.map((id) => ({id: hmId(id)})))
   return Object.fromEntries(
     accounts
       .map((account) => {

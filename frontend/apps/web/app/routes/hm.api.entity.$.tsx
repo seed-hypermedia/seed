@@ -1,8 +1,8 @@
-import {resolveHMDocument, WebBaseDocumentPayload} from '@/loaders'
+import {resolveHMDocument} from '@/loaders'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {hmId} from '@shm/shared'
+import {HMDocument, hmId} from '@shm/shared'
 
 export const loader = async ({
   request,
@@ -10,7 +10,7 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<WebBaseDocumentPayload>> => {
+}): Promise<WrappedResponse<HMDocument>> => {
   const parsedRequest = parseRequest(request)
   const {url} = parsedRequest
   const version = url.searchParams.get('v')
@@ -21,7 +21,7 @@ export const loader = async ({
   if (!uid) {
     throw new Error('No uid provided')
   }
-  const id = hmId('d', uid, {path: path || [], version, latest})
+  const id = hmId(uid, {path: path || [], version, latest})
   const loaded = await resolveHMDocument(id)
   return wrapJSON(loaded)
 }

@@ -1,5 +1,11 @@
 import {useMemo} from 'react'
-import {HMComment, HMCommentGroup} from '.'
+import {
+  entityQueryPathToHmIdPath,
+  HMComment,
+  HMCommentGroup,
+  hmId,
+  UnpackedHypermediaId,
+} from '.'
 
 export function getCommentGroups(
   comments?: Array<HMComment>,
@@ -91,4 +97,14 @@ export function useCommentGroups(
     }),
     [comments, targetCommentId],
   )
+}
+
+export function getCommentTargetId(
+  comment: HMComment | undefined,
+): UnpackedHypermediaId | undefined {
+  if (!comment) return undefined
+  return hmId(comment.targetAccount, {
+    path: entityQueryPathToHmIdPath(comment.targetPath || ''),
+    version: comment.targetVersion,
+  })
 }

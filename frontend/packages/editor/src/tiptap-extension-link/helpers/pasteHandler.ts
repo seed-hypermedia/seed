@@ -5,7 +5,6 @@ import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
-  HMDocumentSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
@@ -159,13 +158,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return false
         }
 
-        if (selection.empty && unpackedHmId?.uid && unpackedHmId.type) {
+        if (selection.empty && unpackedHmId?.uid) {
           let tr = view.state.tr
 
           let pos = tr.selection.from
-          const normalizedHmUrl = packHmId(
-            hmId(unpackedHmId.type, unpackedHmId.uid, unpackedHmId),
-          )
+          const normalizedHmUrl = packHmId(hmId(unpackedHmId.uid, unpackedHmId))
           if (options.grpcClient) {
             fetchEntityTitle(
               unpackedHmId,
@@ -541,59 +538,58 @@ async function fetchEntityTitle(
   grpcClient: GRPCClient,
   blockRef?: string | null,
 ) {
-  if (hmId.type == 'd') {
-    const document = await grpcClient.documents.getDocument({
-      account: hmId.uid,
-      path: hmIdPathToEntityQueryPath(hmId.path),
+  const document = await grpcClient.documents.getDocument({
+    account: hmId.uid,
+    path: hmIdPathToEntityQueryPath(hmId.path),
+  })
+  const doc = document
+  let title
+  if (blockRef) {
+    const block = doc.content.find((block) => {
+      if (block.block) {
+        return block.block.id === blockRef
+      }
     })
-    const doc = document
-    let title
-    if (blockRef) {
-      const block = doc.content.find((block) => {
-        if (block.block) {
-          return block.block.id === blockRef
-        }
-      })
-      if (block?.block?.type === 'Heading') {
-        title = block.block.text
-      }
-    }
-    if (!title) {
-      title = getDocumentTitle({
-        ...doc,
-        metadata: HMDocumentMetadataSchema.parse(
-          doc.metadata?.toJson({emitDefaultValues: true}),
-        ),
-      } as HMDocument)
-    }
-    return {
-      title,
-    }
-  } else if (hmId.type == 'c') {
-    try {
-      const comment = await grpcClient.comments.getComment({
-        id: hmId.uid,
-      })
-      if (comment) {
-        const authorHomeDocRaw = await grpcClient.documents.getDocument({
-          account: comment.author,
-        })
-        const authorHomeDoc = HMDocumentSchema.parse(authorHomeDocRaw.toJson())
-        return {
-          title: `Comment from ${
-            authorHomeDoc.metadata?.name ||
-            `${comment.author.slice(0, 5)}...${comment.author.slice(-5)}`
-          }`,
-        }
-      } else {
-        return {
-          title: null,
-        }
-      }
-    } catch (error) {
-      console.error(`fetchEntityTitle error: ${JSON.stringify(error)}`)
-      return {title: null}
+    if (block?.block?.type === 'Heading') {
+      title = block.block.text
     }
   }
+  if (!title) {
+    title = getDocumentTitle({
+      ...doc,
+      metadata: HMDocumentMetadataSchema.parse(
+        doc.metadata?.toJson({emitDefaultValues: true}),
+      ),
+    } as HMDocument)
+  }
+  return {
+    title,
+  }
+  // } else if (hmId.type == 'c') {
+  //   try {
+  //     const comment = await grpcClient.comments.getComment({
+  //       id: hmId.uid,
+  //     })
+  //     if (comment) {
+  //       const authorHomeDocRaw = await grpcClient.documents.getDocument({
+  //         account: comment.author,
+  //       })
+  //       const authorHomeDoc = HMDocumentSchema.parse(authorHomeDocRaw.toJson())
+  //       return {
+  //         title: `Comment from ${
+  //           authorHomeDoc.metadata?.name ||
+  //           `${comment.author.slice(0, 5)}...${comment.author.slice(-5)}`
+  //         }`,
+  //       }
+  //     } else {
+  //       return {
+  //         title: null,
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error(`fetchEntityTitle error: ${JSON.stringify(error)}`)
+  //     return {title: null}
+  //   }
+
   return {title: null}
 }

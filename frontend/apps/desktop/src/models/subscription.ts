@@ -67,7 +67,7 @@ export function useListSubscriptions() {
       })
       return resp.subscriptions.map(toPlainMessage).map((sub) => ({
         ...sub,
-        id: hmId('d', sub.account, {
+        id: hmId(sub.account, {
           path: entityQueryPathToHmIdPath(sub.path),
         }),
       }))
