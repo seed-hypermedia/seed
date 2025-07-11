@@ -13,7 +13,6 @@ import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {NavRoute} from '@shm/shared/routes'
 import {
   hmId,
-  HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   packHmId,
   parseCustomURL,
@@ -131,7 +130,7 @@ export function SearchInput({
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
-          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
+          subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
@@ -153,7 +152,7 @@ export function SearchInput({
           title: name,
           id,
           path: id.path || [],
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          subtitle: 'Document',
           onFocus: () => {
             setFocusedIndex(index)
           },
@@ -340,7 +339,7 @@ function useURLHandler() {
       const baseId = unpackHmId(result?.hypermedia_id)
       const fullHmId =
         baseId &&
-        hmId(baseId.type, baseId.uid, {
+        hmId(baseId.uid, {
           path: baseId.path,
           version: result.hypermedia_version,
           blockRef: fragment?.blockId,

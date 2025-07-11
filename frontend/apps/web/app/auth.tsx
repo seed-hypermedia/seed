@@ -9,7 +9,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
-import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
@@ -534,10 +534,14 @@ function EditProfileDialog({
 }) {
   console.log('EditProfileDialog', input)
   const keyPair = useLocalKeyPair()
-  const id = hmId('d', input.accountUid)
+  const id = hmId(input.accountUid)
   const tx = useTx()
   const account = useAccount(input.accountUid)
-  const accountDocument = useEntity(account?.data?.id)
+  const accountDocument = useResource(account?.data?.id)
+  const document =
+    accountDocument?.data?.type === 'document'
+      ? accountDocument.data.document
+      : undefined
   const queryClient = useQueryClient()
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
@@ -549,7 +553,7 @@ function EditProfileDialog({
       }
       return updateProfile({
         keyPair,
-        document: accountDocument?.data?.document,
+        document: document,
         updates,
       })
     },

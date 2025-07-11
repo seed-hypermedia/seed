@@ -34,7 +34,6 @@ export const loader = async ({
       try {
         const sourceId = unpackHmId(mention.source)
         if (!sourceId) continue
-        if (sourceId.type !== 'c') continue
         const comment = await queryClient.comments.getComment({
           id: mention.sourceBlob?.cid,
         })

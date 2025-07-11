@@ -16,6 +16,7 @@ import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
 
+import {getCommentTargetId} from '@shm/shared'
 import {useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {cn} from '@shm/ui/utils'
@@ -78,6 +79,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   if (comment) {
+    console.log('CommentDiscussion', comment)
     return (
       <CommentDiscussion
         {...props}
@@ -220,8 +222,8 @@ function CommentDiscussion(
 ) {
   const {comment, docId, renderCommentContent, handleBack} = props
   const tx = useTxString()
-  const discussion = useDiscussion(docId, comment?.id)
-
+  const discussion = useDiscussion(getCommentTargetId(comment), comment?.id)
+  console.log('Loading Discussion', props, discussion.data, discussion.error)
   if (!discussion.data) return null
   const {thread, authors, commentGroups} = discussion.data
 
@@ -360,7 +362,7 @@ export function CommentCitationEntry({
     return comment
   }, [comment, citationTargetFragment, citationTarget])
   const docId = comment
-    ? hmId('d', comment.targetAccount, {
+    ? hmId(comment.targetAccount, {
         path: entityQueryPathToHmIdPath(comment.targetPath || ''),
         version: comment.targetVersion,
       })

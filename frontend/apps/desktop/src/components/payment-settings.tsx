@@ -15,7 +15,7 @@ import {PlainMessage} from '@bufbuild/protobuf'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
 import {getAccountName} from '@shm/shared/content'
 import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -135,11 +135,13 @@ export function WalletPage({
   onClose: () => void
 }) {
   const wallet = useWallet(walletId)
-  const accountDoc = useEntity(hmId('d', accountUid))
+  const accountDoc = useResource(hmId(accountUid))
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)
-  const walletName = `${getAccountName(accountDoc.data?.document)} Main Wallet`
+  const document =
+    accountDoc.data?.type === 'document' ? accountDoc.data.document : undefined
+  const walletName = `${getAccountName(document)} Main Wallet`
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-between">

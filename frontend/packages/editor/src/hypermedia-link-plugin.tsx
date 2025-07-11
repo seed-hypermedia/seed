@@ -80,7 +80,7 @@ async function checkHyperLink(
       const url = new URL(entryUrl)
       const latest = url.searchParams.get('l') === ''
       const fragment = url.hash?.slice(1)
-      const fullHmId = hmId(baseId.type, baseId.uid, {
+      const fullHmId = hmId(baseId.uid, {
         path: baseId.path,
         latest,
       })

@@ -33,7 +33,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -56,6 +56,7 @@ import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
+
 export default function DraftPage() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
@@ -67,9 +68,9 @@ export default function DraftPage() {
     if (route.key != 'draft') return undefined
     if (data?.locationId) return data.locationId
     if (route.locationUid)
-      return hmId('d', route.locationUid, {path: route.locationPath})
+      return hmId(route.locationUid, {path: route.locationPath})
     if (data?.locationUid)
-      return hmId('d', data.locationUid, {
+      return hmId(data.locationUid, {
         path: data.locationPath,
       })
     return undefined
@@ -83,8 +84,8 @@ export default function DraftPage() {
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
     if (data?.editId) return data.editId
-    if (route.editUid) return hmId('d', route.editUid, {path: route.editPath})
-    if (data?.editUid) return hmId('d', data.editUid, {path: data.editPath})
+    if (route.editUid) return hmId(route.editUid, {path: route.editPath})
+    if (data?.editUid) return hmId(data.editUid, {path: data.editPath})
     return undefined
   }, [route, data])
 
@@ -95,15 +96,17 @@ export default function DraftPage() {
 
   const homeId = useMemo(() => {
     if (locationId) {
-      return hmId('d', locationId.uid, {path: []})
+      return hmId(locationId.uid, {path: []})
     }
     if (editId) {
-      return hmId('d', editId.uid, {path: []})
+      return hmId(editId.uid, {path: []})
     }
     return undefined
   }, [locationId, editId])
 
-  const homeEntity = useEntity(homeId)
+  const homeEntity = useResource(homeId)
+  const homeDocument =
+    homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
   const {accessory, accessoryOptions} = useDocumentAccessory({
     docId: editId,
@@ -194,7 +197,7 @@ export default function DraftPage() {
                   siteHomeEntity={homeEntity.data}
                   isEditingHomeDoc={isEditingHomeDoc}
                   docId={headerDocId}
-                  document={homeEntity.data?.document || undefined}
+                  document={homeDocument}
                   draftMetadata={state.context.metadata}
                   onDocNav={(navigation) => {
                     send({
@@ -272,7 +275,7 @@ function DocumentEditor({
       }
     }
     if (uId) {
-      return hmId('d', uId, {path})
+      return hmId(uId, {path})
     }
     return undefined
   }, [route, draftQuery.data])
@@ -470,6 +473,25 @@ function DocumentEditor({
 
     setIsDragging(false)
   }
+
+  // function onBlockCopy(
+  //   blockId: string,
+  //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+  // ) {
+  //   const gwUrl = useGatewayUrl()
+
+  //   if (!id) throw new Error('draft route id is missing')
+
+  //   if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+  //   copyUrlToClipboardWithFeedback(
+  //     createWebHMUrl(id.uid, {
+  //       blockRef: blockId,
+  //       blockRange,
+  //       hostname: gwUrl.data,
+  //     }),
+  //     'Block',
+  //   )
+  // }
 }
 
 function DraftAppHeader({
@@ -762,7 +784,7 @@ function DraftCover({
 function DraftRebaseBanner() {
   const [isRebasing, setIsRebasing] = useState(false)
   // const willEditDocId = getDraftEditId(draftData)
-  // const latestDoc = useSubscribedEntity(willEditDocId)
+  // const latestDoc = useSubscribedResource(willEditDocId)
 
   async function performRebase() {
     //   setIsRebasing(true)

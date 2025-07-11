@@ -9,11 +9,11 @@ import {
   useDocumentEmbeds,
   useListSite,
 } from '@/models/documents'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Add} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
@@ -30,9 +30,10 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   if (route.key !== 'document')
     throw new Error('DocNavigation only supports document route')
   const {id} = route
-  const entity = useSubscribedEntity(id, true) // recursive subscriptions to make sure children get loaded
+  const entity = useSubscribedResource(id, true) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
-  const document = entity.data?.document
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   const createDraft = useCreateDraft({
     locationUid: id.uid,
     locationPath: id.path || undefined,
@@ -65,7 +66,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
         onActivateBlock={(blockId) => {
           navigate({
             key: 'document',
-            id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+            id: hmId(id.uid, {blockRef: blockId, path: id.path}),
           })
           const targetElement = window.document.getElementById(blockId)
           if (targetElement) {
@@ -113,22 +114,26 @@ export function DocNavigationDraftLoader({
   //     }
   //   }
   //   if (uId) {
-  //     return hmId('d', uId, {path})
+  //     return hmId( uId, {path})
   //   }
   //   return undefined
   // }, [route, draftQuery.data])
 
-  const entity = useEntity(id)
+  const entity = useResource(id)
   const draft = draftQuery?.data
-  const metadata = draftQuery?.data?.metadata || entity.data?.document?.metadata
+  const metadata =
+    draftQuery?.data?.metadata ||
+    (entity.data?.type === 'document'
+      ? entity.data.document?.metadata
+      : undefined)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
 
-  const document = entity.data?.document
+  if (!document) return null
 
   const siteList = useListSite(id)
   const siteListQuery =
-    siteList?.data && id
-      ? {in: hmId('d', id.uid), results: siteList.data}
-      : null
+    siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
   const embeds = useDocumentEmbeds(document)
 
   if (!siteListQuery || !metadata) return null

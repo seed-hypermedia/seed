@@ -711,7 +711,7 @@ function ExistingStep({
       console.error('❌ Failed to save mnemonics:', error)
       throw new Error('Failed to save mnemonics: ' + (error as Error).message)
     }
-    onAccountCreate(hmId('d', createdAccount.accountId))
+    onAccountCreate(hmId(createdAccount.accountId))
     onNext()
   }
 
@@ -1005,7 +1005,7 @@ function RecoveryStep({
         if (doc) {
           console.log('✅ Document changes created:', doc)
           console.log('Invalidating queries...')
-          const id = hmId('d', createdAccount!.accountId)
+          const id = hmId(createdAccount!.accountId)
           invalidateQueries([queryKeys.ENTITY, id.id])
           invalidateQueries([queryKeys.ACCOUNT, id.uid])
           invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
@@ -1028,7 +1028,7 @@ function RecoveryStep({
 
       console.log('✅ Profile submission completed successfully')
       console.groupEnd()
-      onAccountCreate(hmId('d', createdAccount.accountId))
+      onAccountCreate(hmId(createdAccount.accountId))
       onNext()
     } catch (error) {
       console.error('❌ Profile submission failed:', error)

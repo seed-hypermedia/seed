@@ -9,7 +9,6 @@ describe('unpackHmId', () => {
       targetDocPath: null,
       targetDocUid: null,
       hostname: null,
-      type: 'd',
       uid: 'abc',
       version: null,
       blockRange: null,
@@ -23,7 +22,6 @@ describe('unpackHmId', () => {
       id: 'hm://foo',
       scheme: 'hm',
       hostname: null,
-      type: 'd',
       uid: 'foo',
       version: null,
       blockRange: {
@@ -41,7 +39,6 @@ describe('unpackHmId', () => {
       id: 'hm://foo',
       scheme: 'hm',
       hostname: null,
-      type: 'd',
       uid: 'foo',
       version: 'bar',
       blockRange: null,
@@ -58,7 +55,6 @@ describe('unpackHmId', () => {
       expect(unpackHmId('https://foobar.com/hm/a/b/c?v=2')).toEqual({
         scheme: 'https',
         hostname: 'foobar.com',
-        type: 'd',
         uid: 'a',
         version: '2',
         blockRef: null,
@@ -74,7 +70,6 @@ describe('unpackHmId', () => {
       expect(unpackHmId('http://foobar.com/hm/1#block')).toEqual({
         scheme: 'http',
         hostname: 'foobar.com',
-        type: 'd',
         uid: '1',
         version: null,
         blockRange: {
@@ -106,21 +101,17 @@ describe('parseCustomURL', () => {
 
 describe('packHmId', () => {
   test('creates hm://abc', () => {
-    expect(packHmId(hmId('d', 'abc'))).toEqual('hm://abc')
+    expect(packHmId(hmId('abc'))).toEqual('hm://abc')
   })
   test('creates hm://123?v=foo', () => {
-    expect(packHmId(hmId('d', '123', {version: 'foo'}))).toEqual(
-      'hm://123?v=foo',
-    )
+    expect(packHmId(hmId('123', {version: 'foo'}))).toEqual('hm://123?v=foo')
   })
   test('creates hm://123#block', () => {
-    expect(packHmId(hmId('d', '123', {blockRef: 'block'}))).toEqual(
-      'hm://123#block',
-    )
+    expect(packHmId(hmId('123', {blockRef: 'block'}))).toEqual('hm://123#block')
   })
   test('creates hm://123?v=foo#bar', () => {
-    expect(
-      packHmId(hmId('d', '123', {version: 'foo', blockRef: 'bar'})),
-    ).toEqual('hm://123?v=foo#bar')
+    expect(packHmId(hmId('123', {version: 'foo', blockRef: 'bar'}))).toEqual(
+      'hm://123?v=foo#bar',
+    )
   })
 })

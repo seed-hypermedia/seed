@@ -166,7 +166,7 @@ export function WebSiteProvider(props: {
         }
       }}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
-        const url = createWebHMUrl(hmId.type, hmId.uid, {
+        const url = createWebHMUrl(hmId.uid, {
           ...hmId,
           hostname: SITE_BASE_URL,
         })

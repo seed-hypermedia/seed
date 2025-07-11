@@ -18,7 +18,7 @@ import blogDark from '@/images/template-blog-dark.png'
 import blogLight from '@/images/template-blog-light.png'
 import documentationDark from '@/images/template-documentation-dark.png'
 import documentationLight from '@/images/template-documentation-light.png'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
@@ -38,10 +38,18 @@ export function SiteTemplate({
   const route = input
   const navigate = useNavigate('push')
   const openWindow = useNavigate('spawn')
-  const blogTemplate = useSubscribedEntity(hmId('d', templates.blog))
-  const documentationTemplate = useSubscribedEntity(
-    hmId('d', templates.documentation),
+  const blogTemplate = useSubscribedResource(hmId(templates.blog))
+  const documentationTemplate = useSubscribedResource(
+    hmId(templates.documentation),
   )
+  const blogTemplateDocument =
+    blogTemplate.data?.type === 'document'
+      ? blogTemplate.data.document
+      : undefined
+  const documentationTemplateDocument =
+    documentationTemplate.data?.type === 'document'
+      ? documentationTemplate.data.document
+      : undefined
   function confirmTemplate() {
     const targetId = route.id?.uid
     if (!targetId) return
@@ -49,7 +57,7 @@ export function SiteTemplate({
     onClose()
 
     setTimeout(() => {
-      const id = hmId('d', targetId)
+      const id = hmId(targetId)
       invalidateQueries([queryKeys.ENTITY, id.id])
       invalidateQueries([queryKeys.ACCOUNT, id.uid])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
@@ -98,7 +106,7 @@ export function SiteTemplate({
           label="Blog"
           isOnline={isOnline}
           onPress={
-            blogTemplate.data?.document
+            blogTemplateDocument
               ? () => {
                   if (!isOnline) return
                   setSelectedTemplate('blog')
@@ -110,7 +118,7 @@ export function SiteTemplate({
             e.preventDefault()
             openWindow({
               key: 'document',
-              id: hmId('d', templates.blog),
+              id: hmId(templates.blog),
             })
           }}
         />
@@ -121,7 +129,7 @@ export function SiteTemplate({
           label="Documentation"
           isOnline={isOnline}
           onPress={
-            documentationTemplate.data?.document
+            documentationTemplateDocument
               ? () => {
                   if (!isOnline) return
                   setSelectedTemplate('documentation')
@@ -133,7 +141,7 @@ export function SiteTemplate({
             e.preventDefault()
             openWindow({
               key: 'document',
-              id: hmId('d', templates.documentation),
+              id: hmId(templates.documentation),
             })
           }}
         />
@@ -229,12 +237,14 @@ function TemplateItem({
   onPress?: () => void
   onPressExternal?: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
-  const e = useSubscribedEntity(hmId('d', template))
+  const resource = useSubscribedResource(hmId(template))
+  const document =
+    resource.data?.type === 'document' ? resource.data.document : undefined
   return (
     <div
       className={cn(
         'relative flex cursor-pointer flex-col items-center gap-2 rounded-lg p-4 pb-2',
-        !!e.data?.document && isOnline ? 'opacity-100' : 'opacity-50',
+        !!document && isOnline ? 'opacity-100' : 'opacity-50',
         active
           ? 'bg-primary hover:bg-primary'
           : 'bg-transparent hover:bg-black/5 dark:hover:bg-white/10',
@@ -271,7 +281,7 @@ function TemplateItem({
           </Button>
         </Tooltip>
       </div>
-      {e.data?.document ? null : (
+      {document ? null : (
         <>
           <Tooltip content="Loading template..." side="top">
             <div

@@ -36,7 +36,7 @@ export function SubDocumentItem({
   hideIcon?: boolean
 }) {
   const metadata = item?.metadata
-  const id = hmId('d', item.account, {
+  const id = hmId(item.account, {
     path: item.path,
   })
   const isRead = markedAsRead || !item.activitySummary?.isUnread

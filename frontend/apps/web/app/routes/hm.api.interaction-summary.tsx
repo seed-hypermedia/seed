@@ -86,11 +86,11 @@ export const loader = async ({
           comments: 0,
         })
       : null
-    if (mention.source.id.type === 'c') {
+    if (mention.source.type === 'c') {
       if (blockCounts) blockCounts.comments += 1
       commentCount += 1
     }
-    if (mention.source.id.type === 'd' && blockCounts) {
+    if (mention.source.type === 'd' && blockCounts) {
       blockCounts.citations += 1
     }
   })

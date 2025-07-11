@@ -16,10 +16,8 @@ export function useRootDocuments() {
   })
 }
 
-export function useEntity(hmId: UnpackedHypermediaId) {
-  let url = `entity/${hmId.type}/${hmId.uid}${hmIdPathToEntityQueryPath(
-    hmId.path,
-  )}`
+export function useResource(hmId: UnpackedHypermediaId) {
+  let url = `entity/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
   if (hmId.version) {
     url += `?v=${hmId.version}`
   }
@@ -123,17 +121,17 @@ export function useComments(hmId: UnpackedHypermediaId) {
     queryKey: ['comments', hmId.id],
     queryFn: () =>
       getAPI<any>(
-        `comments/d/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`,
+        `comments/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`,
       ),
-    enabled: hmId.type === 'd',
+    enabled: !!hmId,
   })
 }
 
 export function useAuthoredComments(hmId: UnpackedHypermediaId) {
   return useQuery({
     queryKey: ['authored-comments', hmId.id],
-    queryFn: () => getAPI<any>(`authored-comments/d/${hmId.uid}`),
-    enabled: hmId.type === 'd' && !hmId.path?.filter((p) => !!p).length,
+    queryFn: () => getAPI<any>(`authored-comments/${hmId.uid}`),
+    enabled: !hmId.path?.filter((p) => !!p).length,
   })
 }
 
@@ -142,11 +140,9 @@ export function useCitations(hmId: UnpackedHypermediaId) {
     queryKey: ['citations', hmId.id],
     queryFn: () =>
       getAPI<any>(
-        `citations/${hmId.type}/${hmId.uid}${hmIdPathToEntityQueryPath(
-          hmId.path,
-        )}`,
+        `citations/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`,
       ),
-    enabled: hmId.type === 'd',
+    enabled: !!hmId,
   })
 }
 
@@ -155,7 +151,7 @@ export function useChanges(hmId: UnpackedHypermediaId) {
     queryKey: ['changes', hmId.id],
     queryFn: () =>
       getAPI<any>(`changes/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`),
-    enabled: hmId.type === 'd',
+    enabled: !!hmId,
   })
 }
 
@@ -166,7 +162,7 @@ export function useCapabilities(hmId: UnpackedHypermediaId) {
       getAPI<any>(
         `capabilities/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`,
       ),
-    enabled: hmId.type === 'd',
+    enabled: !!hmId,
   })
 }
 
@@ -220,6 +216,6 @@ export function useChildrenList(hmId: UnpackedHypermediaId) {
   return useQuery({
     queryKey: ['children-list', hmId.uid],
     queryFn: () => getAPI<any>(`list/${hmId.uid}`),
-    enabled: hmId.type === 'd',
+    enabled: !!hmId,
   })
 }

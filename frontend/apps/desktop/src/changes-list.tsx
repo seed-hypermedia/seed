@@ -1,6 +1,6 @@
 import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AccessoryContent} from './components/accessory-sidebar'
 
@@ -18,8 +18,8 @@ export function EntityVersionsAccessory({
   changes.forEach((item) => {
     item?.change?.author && authors.add(item?.change?.author)
   })
-  const authorAccounts = useEntities(
-    Array.from(authors).map((author) => hmId('d', author)),
+  const authorAccounts = useResources(
+    Array.from(authors).map((author) => hmId(author)),
   )
   if (!id) return null
   return (
