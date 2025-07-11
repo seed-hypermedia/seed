@@ -22,7 +22,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useAccount, useEntity} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -77,11 +77,11 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const config = await getConfig(parsedRequest.hostname)
 
   const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId('d', config.registeredAccountUid))
+    ? await getMetadata(hmId(config.registeredAccountUid))
     : undefined
   return wrapJSON({
     originHomeId: config?.registeredAccountUid
-      ? hmId('d', config.registeredAccountUid)
+      ? hmId(config.registeredAccountUid)
       : undefined,
     ...getOriginRequestData(parsedRequest),
     originHomeMetadata: originHome?.metadata ?? undefined,
@@ -237,13 +237,17 @@ export function HMDeviceLink() {
     }
   }, [])
 
-  const {data: desktopAccount} = useEntity(
-    session ? hmId('d', session.accountId) : undefined,
+  const {data: desktopAccount} = useResource(
+    session ? hmId(session.accountId) : undefined,
   )
   const localIdentity = useLocalKeyPair()
-  const localId = localIdentity ? hmId('d', localIdentity.id) : null
-  const {data: browserAccount} = useEntity(localId)
+  const localId = localIdentity ? hmId(localIdentity.id) : null
+  const {data: browserAccount} = useResource(localId)
   const {data: existingAccount} = useAccount(localIdentity?.id)
+  const browserAccountDocument =
+    browserAccount?.type === 'document' ? browserAccount.document : undefined
+  const desktopAccountDocument =
+    desktopAccount?.type === 'document' ? desktopAccount.document : undefined
   const isLinkedAlready =
     session && existingAccount && session.accountId === existingAccount.id.uid
   const [linkingState, setLinkingState] = useState<LinkingState>(null)
@@ -288,7 +292,7 @@ export function HMDeviceLink() {
   }
 
   const linkAccountName =
-    desktopAccount?.document?.metadata?.name || 'Unknown Account'
+    desktopAccountDocument?.metadata?.name || 'Unknown Account'
   let heading: React.ReactNode = (
     <>
       Sign in to <Text weight="bold">{linkAccountName}</Text>
@@ -296,17 +300,17 @@ export function HMDeviceLink() {
   )
   let description = `You can access your desktop account from this browser`
   let actionLabel = 'Approve Sign In'
-  let extraContent: React.ReactNode | null = desktopAccount?.document
-    ?.metadata ? (
-    <HMIcon
-      size={48}
-      metadata={desktopAccount.document.metadata}
-      id={desktopAccount.id}
-    />
-  ) : null
+  let extraContent: React.ReactNode | null =
+    desktopAccountDocument?.metadata && desktopAccount ? (
+      <HMIcon
+        size={48}
+        metadata={desktopAccountDocument.metadata}
+        id={desktopAccount.id}
+      />
+    ) : null
   if (localId) {
     const browserAccountName =
-      browserAccount?.document?.metadata?.name || 'Unknown Browser Account'
+      browserAccountDocument?.metadata?.name || 'Unknown Browser Account'
     heading = (
       <>
         Merge <Text weight="bold">{browserAccountName}</Text> to{' '}
@@ -319,13 +323,13 @@ export function HMDeviceLink() {
       browserAccount && desktopAccount ? (
         <div className="flex gap-4">
           <HMIcon
-            metadata={browserAccount.document?.metadata}
+            metadata={browserAccountDocument?.metadata}
             id={browserAccount?.id}
             size={36}
           />
           <ArrowRight size={36} />
           <HMIcon
-            metadata={desktopAccount.document?.metadata}
+            metadata={desktopAccountDocument?.metadata}
             id={desktopAccount?.id}
             size={36}
           />

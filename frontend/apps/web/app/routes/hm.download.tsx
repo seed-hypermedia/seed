@@ -1,6 +1,6 @@
 import downloadBg from '@/assets/download-bg.png'
 import {useFullRender} from '@/cache-policy'
-import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {WebSiteProvider} from '@/providers'
@@ -92,14 +92,13 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
-  const result = await loadSiteDocument(
+  return await loadSiteResource(
     parsedRequest,
-    hmId('d', registeredAccountUid, {path: [], latest: true}),
+    hmId(registeredAccountUid, {path: [], latest: true}),
     {
       stableRelease: await loadStableRelease(),
     },
   )
-  return result
 }
 
 export const meta = defaultPageMeta('Download Seed Hypermedia')

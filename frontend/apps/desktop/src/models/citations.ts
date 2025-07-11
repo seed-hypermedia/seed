@@ -10,12 +10,12 @@ import {
 import {HMCitation, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
 
-export function useEntityCitations(
+export function useDocumentCitations(
   docId?: UnpackedHypermediaId | null,
   {enabled}: {enabled?: boolean} = {},
 ) {
   return useQuery({
-    enabled,
+    enabled: enabled !== false && !!docId,
     queryKey: [queryKeys.DOC_CITATIONS, docId?.id],
     queryFn: async (): Promise<HMCitation[]> => {
       if (!docId) return []
@@ -34,7 +34,7 @@ export function useEntityCitations(
             ...restMention
           }) => {
             const sourceId = unpackHmId(source)
-            const targetId = hmId(docId.type, docId.uid, {
+            const targetId = hmId(docId.uid, {
               path: docId.path,
               version: targetVersion,
             })
@@ -77,7 +77,7 @@ export function useSortedCitations(
   docId?: UnpackedHypermediaId | null,
   {enabled}: {enabled?: boolean} = {},
 ) {
-  const citations = useEntityCitations(docId, {enabled})
+  const citations = useDocumentCitations(docId, {enabled})
   const dedupedCitations = deduplicateCitations(citations.data || [])
   const docCitations: HMCitation[] = []
   const commentCitations: HMCitation[] = []

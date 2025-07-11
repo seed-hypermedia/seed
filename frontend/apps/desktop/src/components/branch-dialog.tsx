@@ -2,7 +2,7 @@ import {useForkDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -19,7 +19,7 @@ export function BranchDialog({
   onClose: () => void
   input: UnpackedHypermediaId
 }) {
-  const {data: entity} = useEntity(input)
+  const {data: entity} = useResource(input)
   const forkDoc = useForkDocument()
   const navigate = useNavigate()
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(null)

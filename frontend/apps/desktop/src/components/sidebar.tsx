@@ -5,7 +5,7 @@ import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getContactMetadata} from '@shm/shared/content'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -138,7 +138,7 @@ function SidebarSection({
 function FavoritesSection() {
   const favorites = useFavorites()
   const contacts = useSelectedAccountContacts()
-  const favoriteEntities = useEntities(favorites || [])
+  const favoriteEntities = useResources(favorites || [])
   const navigate = useNavigate()
   const route = useNavRoute()
   if (!favoriteEntities.length) return null
@@ -171,9 +171,7 @@ function FavoritesSection() {
 
 function AccountsSection() {
   const accountIds = useMyAccountIds()
-  const accounts = useEntities(
-    accountIds.data?.map((uid) => hmId('d', uid)) || [],
-  )
+  const accounts = useResources(accountIds.data?.map((uid) => hmId(uid)) || [])
   const contacts = useSelectedAccountContacts()
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()

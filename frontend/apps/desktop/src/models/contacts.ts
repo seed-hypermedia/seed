@@ -24,7 +24,7 @@ import {
 } from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
-import {useAccountsMetadata, useSubscribedEntities} from './entities'
+import {useAccountsMetadata, useSubscribedResources} from './entities'
 import {useConnectedPeers} from './networking'
 
 function queryContactListOfSubject(accountUid: string | undefined) {
@@ -134,7 +134,7 @@ export function useSaveContact() {
       accountUid: string
       name: string
       subjectUid: string
-      editId: string
+      editId?: string
     }) => {
       if (contact.editId) {
         await grpcClient.documents.updateContact({
@@ -299,7 +299,7 @@ export function useSelectedAccountContacts() {
 export function useContacts(accountUids: string[]) {
   const accounts = useAccounts(accountUids)
   // we're currently relying on the account discovery here. we would ideally build it into useAccounts
-  useSubscribedEntities(accountUids.map((uid) => ({id: hmId('d', uid)})))
+  useSubscribedResources(accountUids.map((uid) => ({id: hmId(uid)})))
   const contacts = useSelectedAccountContacts()
 
   return accounts.map((account) => {

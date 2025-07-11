@@ -1,5 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
@@ -102,8 +102,10 @@ export function LoadedHMIcon({
   id: UnpackedHypermediaId
   size?: number
 }) {
-  const entity = useEntity(id)
-  return (
-    <HMIcon id={id} metadata={entity?.data?.document?.metadata} size={size} />
-  )
+  const entity = useResource(id)
+  const metadata =
+    entity.data?.type === 'document'
+      ? entity.data.document?.metadata
+      : undefined
+  return <HMIcon id={id} metadata={metadata} size={size} />
 }

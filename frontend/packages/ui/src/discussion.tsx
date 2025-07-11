@@ -9,10 +9,12 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useTx, useTxUtils} from '@shm/shared/translation'
-import {ChevronRight} from 'lucide-react'
+import {useTxString, useTxUtils} from '@shm/shared/translation'
+import {useResourceUrl} from '@shm/shared/url'
+import {Button} from '@tamagui/button'
+import {ChevronRight, Link} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
-import {Button} from './button'
+import {toast} from 'sonner'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
@@ -96,7 +98,7 @@ export function Comment({
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const discussionsContext = useDiscussionsContext()
   const authorHmId =
-    comment.author || authorId ? hmId('d', authorId || comment.author) : null
+    comment.author || authorId ? hmId(authorId || comment.author) : null
   const authorLink = useRouteLink(
     authorHmId ? {key: 'document', id: authorHmId} : null,
     {
@@ -104,14 +106,14 @@ export function Comment({
     },
   )
   const isDark = useIsDark()
-  const tx = useTx()
+  const tx = useTxString()
   const {formattedDateMedium, formattedDateLong} = useTxUtils()
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
       setShowReplies(defaultExpandReplies)
     }
   }, [defaultExpandReplies])
-
+  const getUrl = useResourceUrl()
   return (
     <div
       className={cn(
@@ -151,24 +153,40 @@ export function Comment({
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1">
-        <div className="flex min-h-5 items-center gap-1">
-          <button
-            className={cn(
-              'hover:bg-accent h-5 rounded px-1 text-sm font-bold transition-colors',
-              authorLink ? 'cursor-pointer' : '',
-            )}
-            {...authorLink}
-          >
-            {authorMetadata?.name || '...'}
-          </button>
-          <Tooltip content={formattedDateLong(comment.createTime)}>
+        <div className="flex min-h-5 items-center justify-between gap-1">
+          <div className="flex items-center gap-1">
             <button
-              className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs"
+              className={cn(
+                'hover:bg-accent h-5 rounded px-1 text-sm font-bold transition-colors',
+                authorLink ? 'cursor-pointer' : '',
+              )}
+              {...authorLink}
+            >
+              {authorMetadata?.name || '...'}
+            </button>
+            <Tooltip content={formattedDateLong(comment.createTime)}>
+              <button
+                className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs"
+                onClick={() => {
+                  // copyTextToClipboard(comment.id)
+                }}
+              >
+                {formattedDateMedium(comment.createTime)}
+              </button>
+            </Tooltip>
+          </div>
+          <Tooltip content={tx('Copy Comment Link')}>
+            <button
+              className="text-muted-foreground"
               onClick={() => {
-                copyTextToClipboard(comment.id)
+                const url = getUrl(hmId(comment.id))
+                console.log('~ url', url)
+
+                copyTextToClipboard(url)
+                toast.success('Copied Comment URL')
               }}
             >
-              {formattedDateMedium(comment.createTime)}
+              <Link size={12} />
             </button>
           </Tooltip>
         </div>

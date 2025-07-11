@@ -100,7 +100,7 @@ async function writeDNSActive(pendingDomain: PendingDomain) {
       }),
     ],
   })
-  const entityId = hmId('d', pendingDomain.siteUid).id
+  const entityId = hmId(pendingDomain.siteUid).id
   console.log('~~ Invalidating entity', entityId)
   appInvalidateQueries([queryKeys.ENTITY, entityId])
   appInvalidateQueries([queryKeys.RESOLVED_ENTITY, entityId])

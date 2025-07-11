@@ -1,10 +1,7 @@
 import {useDeletedContent, useUndeleteEntity} from '@/models/entities'
 import {HMDeletedEntity} from '@shm/shared/hm-types'
 import {formattedDateLong, formattedDateMedium} from '@shm/shared/utils/date'
-import {
-  HYPERMEDIA_ENTITY_TYPES,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {ShieldX} from '@shm/ui/icons'
 import {Button} from '@shm/ui/legacy/button'
 import {List} from '@shm/ui/list'
@@ -50,9 +47,7 @@ function UndeleteButton({item}: {item: HMDeletedEntity}) {
   if (!unpackedId) return null
   return (
     <Tooltip
-      content={`Allow this ${HYPERMEDIA_ENTITY_TYPES[
-        unpackedId.type
-      ].toLowerCase()} to be synced to your computer again.`}
+      content={`Allow this document to be synced to your computer again.`}
     >
       <Button
         size="$2"

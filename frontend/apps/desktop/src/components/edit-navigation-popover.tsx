@@ -7,7 +7,7 @@ import {
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {hmId, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
@@ -323,7 +323,7 @@ function HMDocURLInput({
   filterPresets: (item: {link: string}) => boolean
 }) {
   const id = unpackHmId(link)
-  const entity = useEntity(id)
+  const entity = useResource(id)
   let label = link || 'URL or Search Documents'
   let fontClass = 'text-muted-foreground'
   if (link === entity.data?.id.id && entity.data?.document?.metadata.name) {
@@ -387,7 +387,7 @@ function SearchUI({
       })) || []
     : dirList.data
         ?.map((d) => ({
-          link: hmId('d', d.account, {path: d.path}).id,
+          link: hmId(d.account, {path: d.path}).id,
           label: d.metadata.name || '?',
         }))
         .filter(filterPresets) || []

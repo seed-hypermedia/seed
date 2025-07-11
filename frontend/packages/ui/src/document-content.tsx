@@ -708,6 +708,32 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
+        {!hideCollapseButtons && bnChildren && !_expanded ? (
+          <Tooltip
+            content={tx(
+              'block_is_collapsed',
+              'This block is collapsed. you can expand it and see its children',
+            )}
+          >
+            <Button
+              size="icon"
+              variant="ghost"
+              className="rounded-sm opacity-0 select-none hover:opacity-100"
+              style={{
+                padding: layoutUnit / 4,
+                marginHorozontal: layoutUnit / 4,
+                opacity: hover ? 1 : 0,
+              }}
+              userSelect="none"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleBlockNodeToggle()
+              }}
+            >
+              <MoreHorizontal className="size-3" />
+            </Button>
+          </Tooltip>
+        ) : null}
         <div
           className={cn(
             'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
@@ -1154,12 +1180,6 @@ function getVideoIframeSrc(link: string) {
 
 type LinkType = null | 'basic' | 'hypermedia'
 
-function hmTextColor(linkType: LinkType): string {
-  if (linkType === 'basic') return '$color11'
-  if (linkType === 'hypermedia') return '$brand5'
-  return '$color12'
-}
-
 function getInlineContentOffset(inline: HMInlineContent): number {
   if (inline.type === 'link') {
     return inline.content.map(getInlineContentOffset).reduce((a, b) => a + b, 0)
@@ -1321,14 +1341,15 @@ function InlineContentView({
 
         if (content.type === 'inline-embed') {
           const unpackedRef = unpackHmId(content.link)
-          return (
-            <InlineEmbed
-              key={content.link}
-              comment={comment}
-              {...unpackedRef}
-              style={dynamicStyles}
-            />
-          )
+          if (unpackedRef)
+            return (
+              <InlineEmbed
+                key={content.link}
+                style={dynamicStyles}
+                {...unpackedRef}
+              />
+            )
+          else return <span>!?!</span>
         }
 
         if (content.type === 'range') {
@@ -1390,12 +1411,8 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (props.block.type !== 'Embed')
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.link)
-  if (id?.type == 'd') {
-    return <EmbedTypes.Document {...props} {...id} />
-  }
-  if (id?.type == 'c') {
-    return <EmbedTypes.Comment {...props} {...id} />
-  }
+  console.log('~', props.block, id)
+  if (id) return <EmbedTypes.Document {...props} {...id} />
   return <BlockContentUnknown {...props} />
 }
 
@@ -1413,13 +1430,13 @@ export function ErrorBlock({
     >
       <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex-start flex gap-2 rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
           }}
         >
-          <SizableText color="destructive">
+          <SizableText color="destructive" className="font-sans text-sm">
             {message ? message : 'Error'}
           </SizableText>
           <AlertCircle color="danger" className="size-3" />
@@ -1632,20 +1649,20 @@ export function ContentEmbed({
     )
   }
   return (
-    <DocContentProvider
-      {...context}
-      layoutUnit={context.comment ? 18 : context.layoutUnit}
-      textUnit={context.comment ? 12 : context.textUnit}
+    // <DocContentProvider
+    //   {...context}
+    //   layoutUnit={context.comment ? 18 : context.layoutUnit}
+    //   textUnit={context.comment ? 12 : context.textUnit}
+    // >
+    <EmbedWrapper
+      embedView={props.block.attributes?.view}
+      depth={props.depth}
+      id={narrowHmId(props)}
+      parentBlockId={parentBlockId || ''}
     >
-      <EmbedWrapper
-        embedView={props.block.attributes?.view}
-        depth={props.depth}
-        id={narrowHmId(props)}
-        parentBlockId={parentBlockId || ''}
-      >
-        {content}
-      </EmbedWrapper>
-    </DocContentProvider>
+      {content}
+    </EmbedWrapper>
+    // </DocContentProvider>
   )
 }
 
@@ -1670,7 +1687,7 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     return <ErrorBlockMessage message="Query block with nothing included" />
   const id =
     mainInclude.space &&
-    hmId('d', query.includes[0].space, {
+    hmId(query.includes[0].space, {
       path: query.includes[0].path ? query.includes[0].path.split('/') : null,
       latest: true,
     })

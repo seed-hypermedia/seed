@@ -1,6 +1,6 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage, documentPageHeaders, documentPageMeta} from '@/document'
-import {loadSiteDocument, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {logDebug, logDebugTiming} from '@/logger'
 import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
@@ -34,13 +34,11 @@ export const loader = async ({request}: {request: Request}) => {
   if (!serviceConfig) return wrapJSON('no-site', {status: 404})
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid) return wrapJSON('unregistered', {status: 404})
-  const result = await loadSiteDocument(
+  return await loadSiteResource(
     parsedRequest,
-    hmId('d', registeredAccountUid, {version, path: [], latest}),
+    hmId(registeredAccountUid, {version, path: [], latest}),
     {prefersLanguages: parsedRequest.prefersLanguages},
   )
-  debugTiming('homepage loader resolved')
-  return result
 }
 
 export default function SiteDocument() {

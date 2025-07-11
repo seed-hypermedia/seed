@@ -1,6 +1,6 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts, useSelectedAccountContacts} from '@/models/contacts'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useNavRoute} from '@/utils/navigation'
@@ -347,23 +347,24 @@ function CommentReference({reference}: {reference: string | null}) {
     return unpackHmId(reference)
   }, [reference])
 
-  const referenceData = useSubscribedEntity(referenceId)
+  const referenceData = useSubscribedResource(referenceId)
 
   const referenceContent = useMemo(() => {
+    const content =
+      referenceData.data?.type === 'document'
+        ? referenceData.data.document?.content
+        : undefined
     if (!referenceData.data) return null
     if (referenceId?.blockRef) {
-      let bn = getBlockNodeById(
-        referenceData.data.document?.content || [],
-        referenceId.blockRef,
-      )
+      let bn = getBlockNodeById(content || [], referenceId.blockRef)
       if (bn) {
         return [bn]
       } else {
-        return referenceData.data.document?.content || []
+        return content || []
       }
     }
 
-    return referenceData.data.document?.content || []
+    return content || []
   }, [referenceData.data])
 
   const highlight = useMemo(() => {

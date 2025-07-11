@@ -20,7 +20,7 @@ import {
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -75,19 +75,23 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!location && account) {
-      const id = hmId('d', account, {
+      const id = hmId(account, {
         path: [pathNameify(newName)],
       })
       setLocation(id)
     }
   }, [location, account])
 
-  const newDestinationAlreadyDocument = useEntity(location)
+  const newDestinationAlreadyResource = useResource(location)
+  const newDestinationAlreadyDocument =
+    newDestinationAlreadyResource.data?.type === 'document'
+      ? newDestinationAlreadyResource.data.document
+      : undefined
   useEffect(() => {
     if (onAvailable) {
-      onAvailable(!newDestinationAlreadyDocument?.data?.document)
+      onAvailable(!newDestinationAlreadyDocument)
     }
-  }, [!newDestinationAlreadyDocument?.data?.document])
+  }, [!newDestinationAlreadyDocument])
   const parentId = useParentId(location)
   const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
   return (
@@ -110,9 +114,7 @@ export function LocationPicker({
                         ...(location.path?.slice(0, -2) || []),
                         newUrlPath,
                       ]
-                      handleSetLocation(
-                        hmId('d', location.uid, {path: newPath}),
-                      )
+                      handleSetLocation(hmId(location.uid, {path: newPath}))
                     }}
                     size="sm"
                   >
@@ -135,7 +137,7 @@ export function LocationPicker({
                     key={index}
                     onClick={() => {
                       handleSetLocation(
-                        hmId('d', location.uid, {
+                        hmId(location.uid, {
                           path: [...d.path, newUrlPath],
                         }),
                       )
@@ -164,7 +166,7 @@ export function LocationPicker({
             const text = e.target.value
             if (!location) return
             handleSetLocation(
-              hmId('d', location?.uid, {
+              hmId(location?.uid, {
                 path: [
                   ...(location?.path?.slice(0, -1) || []),
                   pathNameify(text),
@@ -177,7 +179,7 @@ export function LocationPicker({
       {location && (
         <URLPreview
           location={location}
-          isUnavailable={!!newDestinationAlreadyDocument?.data?.document}
+          isUnavailable={!!newDestinationAlreadyDocument}
           actionLabel={actionLabel}
         />
       )}
@@ -206,7 +208,7 @@ function LocationSearch({
           onLocationSelected={(newParent) => {
             popover.onOpenChange(false)
             setLocation(
-              hmId('d', newParent.uid, {
+              hmId(newParent.uid, {
                 path: [...(newParent.path || []), location.path?.at(-1) || ''],
               }),
             )
@@ -293,30 +295,34 @@ function LocationPreview({
   setLocation: (location: UnpackedHypermediaId) => void
 }) {
   const newUrlPath = location?.path?.at(-1) || ''
-  const siteId = hmId('d', location.uid, {latest: true})
-  const site = useEntity(siteId)
+  const siteId = hmId(location.uid, {latest: true})
+  const siteResource = useResource(siteId)
+  const siteDocument =
+    siteResource.data?.type === 'document'
+      ? siteResource.data.document
+      : undefined
   const locationBreadcrumbIds = useMemo(() => {
     if (!location) return []
     return (
       location.path
         ?.slice(0, -1)
         ?.map((_path, index) =>
-          hmId('d', location.uid, {path: location.path?.slice(0, index + 1)}),
+          hmId(location.uid, {path: location.path?.slice(0, index + 1)}),
         ) || []
     )
   }, [location.uid, location.path])
-  const locationBreadcrumbs = useEntities(locationBreadcrumbIds)
+  const locationBreadcrumbs = useResources(locationBreadcrumbIds)
   return (
     <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
-      <HMIcon id={siteId} metadata={site?.data?.document?.metadata} />
+      <HMIcon id={siteId} metadata={siteDocument?.metadata} />
       <SizableText
         weight="bold"
         className="hover:underline"
         onClick={() => {
-          setLocation(hmId('d', location.uid, {path: [newUrlPath]}))
+          setLocation(hmId(location.uid, {path: [newUrlPath]}))
         }}
       >
-        {site?.data?.document?.metadata.name}
+        {siteDocument?.metadata.name}
       </SizableText>
       {locationBreadcrumbs.map((b, index) => {
         return (
@@ -326,13 +332,13 @@ function LocationPreview({
             onClick={() => {
               const path = b.data?.id?.path || []
               setLocation(
-                hmId('d', location?.uid, {
+                hmId(location?.uid, {
                   path: [...path, newUrlPath],
                 }),
               )
             }}
           >
-            {b.data?.document?.metadata.name}
+            {b.data?.type === 'document' ? b.data.document?.metadata.name : ''}
           </SizableText>
         )
       })}
@@ -342,16 +348,18 @@ function LocationPreview({
 
 function useDocumentUrl(location: UnpackedHypermediaId) {
   const gatewayUrl = useGatewayUrl()
-  const {data: site} = useEntity(hmId('d', location.uid, {latest: true}))
-  if (!site || !gatewayUrl.data) return null
-  const siteUrl = site.document?.metadata.siteUrl
+  const {data: siteResource} = useResource(hmId(location.uid, {latest: true}))
+  const siteDocument =
+    siteResource?.type === 'document' ? siteResource.document : undefined
+  if (!siteDocument || !gatewayUrl.data) return null
+  const siteUrl = siteDocument.metadata.siteUrl
   if (siteUrl) {
     return createSiteUrl({
       path: location.path,
       hostname: siteUrl,
     })
   }
-  const url = createWebHMUrl(location.type, location.uid, {
+  const url = createWebHMUrl(location.uid, {
     path: location.path,
     hostname: gatewayUrl.data,
   })
@@ -458,7 +466,7 @@ function useDefaultAccountId(
 function useParentId(id: UnpackedHypermediaId | null) {
   return useMemo(() => {
     if (!id) return null
-    return hmId('d', id.uid, {
+    return hmId(id.uid, {
       path: id.path?.slice(0, -1),
     })
   }, [id?.uid, id?.path?.slice(0, -1).join('/')])

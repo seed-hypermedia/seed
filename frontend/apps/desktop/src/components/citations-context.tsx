@@ -16,40 +16,6 @@ let citationsContext = createContext<CitationsContext>({
   highlights: [],
 } as any)
 
-// export function CitationsProvider({
-//   children,
-//   documentId,
-//   onCitationsOpen,
-// }: {
-//   children: ReactNode
-//   documentId: string
-//   onCitationsOpen: (citations: Array<Mention>) => void
-// }) {
-//   let queryResult = useEntityMentions(documentId)
-
-//   let [highlights, setHighlights] = useState<Array<Mention>>([])
-
-//   function onHighlightCitations(value: Array<Mention>) {
-//     setHighlights(value)
-//   }
-
-//   return (
-//     <citationsContext.Provider
-//       value={{
-//         citations: queryResult.data?.mentions,
-//         highlights,
-//         onCitationsOpen: (citations: Array<Mention>) => {
-//           onCitationsOpen(citations)
-//           setHighlights(citations)
-//         },
-//         onHighlightCitations,
-//       }}
-//     >
-//       {children}
-//     </citationsContext.Provider>
-//   )
-// }
-
 export function useCitations() {
   return useContext(citationsContext)
 }

@@ -17,7 +17,7 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -110,14 +110,14 @@ function Render(
 
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0]?.space) {
-      return hmId('d', queryIncludes[0].space, {
+      return hmId(queryIncludes[0].space, {
         path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
         latest: true,
       })
     }
     return null
   })
-  const entity = useEntity(queryId, {
+  const entity = useResource(queryId, {
     enabled: !!queryId,
   })
   const directoryItems = useListDirectory(queryId, {
@@ -136,9 +136,9 @@ function Render(
     return []
   }, [directoryItems, querySort, block.props.queryLimit])
 
-  const docResults = useEntities(
+  const docResults = useResources(
     sortedItems.map((item) =>
-      hmId('d', item.account, {
+      hmId(item.account, {
         path: item.path,
         latest: true,
         version: item.version,
@@ -316,9 +316,9 @@ function ListView({
 function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
   const queryIncludesData = queryIncludes ? JSON.parse(queryIncludes) : null
   const queryIncludesFirst = queryIncludesData?.[0]
-  const includesEntity = useEntity(
+  const includesEntity = useResource(
     queryIncludesFirst
-      ? hmId('d', queryIncludesFirst.space, {
+      ? hmId(queryIncludesFirst.space, {
           path: entityQueryPathToHmIdPath(queryIncludesFirst.path),
         })
       : null,
