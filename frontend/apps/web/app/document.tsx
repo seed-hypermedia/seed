@@ -202,7 +202,6 @@ export function DocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
   const {siteHost, origin, prefersLanguages, document} = props
-  console.log('~ DocumentPage', props)
   return (
     <WebSiteProvider
       origin={origin}
@@ -512,7 +511,6 @@ function InnerDocumentPage(
         enableWebSigning={enableWebSigning}
       />
     )
-
   return (
     <DiscussionsProvider
       onReplyClick={onReplyClick}

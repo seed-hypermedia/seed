@@ -260,29 +260,6 @@ async function loadResourcePayload(
   const directoryResults = await getDirectory(docId)
   const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
   const supportAuthorsUidsToFetch = new Set<string>()
-  // const queryBlockQueries = await Promise.all(
-  //   queryBlocks.map(async (block) => {
-  //     const query = block.attributes.query
-  //     const results = await getQueryResults(query)
-  //     const newResults = await Promise.all(
-  //       results?.results?.map(async (item) => {
-  //         const id = hmId(item.account, {path: item.path})
-  //         const document = await getDocument(id)
-  //         document.authors.forEach((author) => {
-  //           if (!alreadySupportDocIds.has(hmId(author).id)) {
-  //             supportAuthorsUidsToFetch.add(author)
-  //           }
-  //         })
-  //         return {...item, document}
-  //       }) || [],
-  //     )
-  //     return {
-  //       ...results,
-  //       query,
-  //       results: newResults,
-  //     }
-  //   }),
-  // )
   const queryBlockQueries = (
     await Promise.all(
       queryBlocks.map(async (block) => {
@@ -295,7 +272,25 @@ async function loadResourcePayload(
     {in: docId, results: directoryResults},
     ...queryBlockQueries,
   ]
-
+  supportDocuments.push(
+    ...(await Promise.all(
+      queryBlockQueries
+        .flatMap((item) => item.results)
+        .map(async (item) => {
+          const id = hmId(item.account, {path: item.path})
+          const document = await getDocument(id)
+          document.authors.forEach((author) => {
+            if (!alreadySupportDocIds.has(hmId(author).id)) {
+              supportAuthorsUidsToFetch.add(author)
+            }
+          })
+          return {
+            id,
+            document,
+          }
+        }),
+    )),
+  )
   // now we need to get the author content for queried docs
   supportDocuments.push(
     ...(

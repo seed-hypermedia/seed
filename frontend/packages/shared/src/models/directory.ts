@@ -77,7 +77,7 @@ export function getQueryResultsWithClient(client: GRPCClient) {
     if (includes.length !== 1) return null // only support one include for now
     const {path, mode, space} = includes[0]
     const inId = hmId(space, {
-      path: path ? path.split('/') : [] || undefined,
+      path: path ? path.split('/') : [],
     })
     const dir = await getDirectory(inId, mode)
     if (!inId) return null

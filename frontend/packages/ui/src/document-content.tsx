@@ -1411,7 +1411,6 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (props.block.type !== 'Embed')
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.link)
-  console.log('~', props.block, id)
   if (id) return <EmbedTypes.Document {...props} {...id} />
   return <BlockContentUnknown {...props} />
 }
