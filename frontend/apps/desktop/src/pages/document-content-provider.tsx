@@ -1,6 +1,5 @@
 import {useAppContext} from '@/app-context'
 import {
-  EmbedComment,
   EmbedDocument,
   EmbedInline,
   QueryBlockDesktop,
@@ -57,7 +56,6 @@ export function AppDocContentProvider({
         contacts={contacts}
         entityComponents={{
           Document: EmbedDocument,
-          Comment: EmbedComment,
           Inline: EmbedInline,
           Query: QueryBlockDesktop,
         }}

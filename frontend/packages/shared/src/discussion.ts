@@ -105,6 +105,7 @@ export function getCommentTargetId(
   if (!comment) return undefined
   return hmId(comment.targetAccount, {
     path: entityQueryPathToHmIdPath(comment.targetPath || ''),
-    version: comment.targetVersion,
+    // we don't really want to reference the version here, because it tends to cause UX issues.
+    // version: comment.targetVersion,
   })
 }

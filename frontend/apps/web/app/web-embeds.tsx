@@ -94,11 +94,6 @@ export function EmbedDocument(props: EntityComponentProps) {
   }
 }
 
-export function EmbedComment(props: EntityComponentProps) {
-  // return <DocInlineEmbed {...props} />
-  return <SizableText>Comment</SizableText>
-}
-
 export function EmbedInline(props: EntityComponentProps) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
   return (

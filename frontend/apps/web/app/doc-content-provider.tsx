@@ -8,12 +8,7 @@ import {
 import {DocContentProvider} from '@shm/ui/document-content'
 import {toast} from '@shm/ui/toast'
 import {getHref} from './href'
-import {
-  EmbedComment,
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockWeb,
-} from './web-embeds'
+import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 export function WebDocContentProvider({
   children,
@@ -60,7 +55,6 @@ export function WebDocContentProvider({
     <DocContentProvider
       entityComponents={{
         Document: EmbedDocument,
-        Comment: EmbedComment,
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}

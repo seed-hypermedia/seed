@@ -1,4 +1,7 @@
 import {
+  formattedDateLong,
+  formattedDateMedium,
+  getCommentTargetId,
   HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
@@ -162,24 +165,13 @@ export function Comment({
             >
               {authorMetadata?.name || '...'}
             </button>
-            <Tooltip content={formattedDateLong(comment.createTime)}>
-              <button
-                className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs"
-                onClick={() => {
-                  // copyTextToClipboard(comment.id)
-                }}
-              >
-                {formattedDateMedium(comment.createTime)}
-              </button>
-            </Tooltip>
+            <CommentDate comment={comment} />
           </div>
           <Tooltip content={tx('Copy Comment Link')}>
             <button
               className="text-muted-foreground"
               onClick={() => {
                 const url = getUrl(hmId(comment.id))
-                console.log('~ url', url)
-
                 copyTextToClipboard(url)
                 toast.success('Copied Comment URL')
               }}
@@ -229,6 +221,34 @@ export function Comment({
         )}
       </div>
     </div>
+  )
+}
+
+function CommentDate({comment}: {comment: HMComment}) {
+  const targetId = getCommentTargetId(comment)
+  const link = useRouteLink(
+    {
+      key: 'document',
+      id: targetId!,
+      accessory: {
+        key: 'discussions',
+        openComment: comment.id,
+      },
+    },
+    {
+      handler: 'onClick',
+    },
+  )
+  console.log('~ comment date url', link.href)
+  return (
+    <Tooltip content={formattedDateLong(comment.createTime)}>
+      <a
+        className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs underline"
+        {...link}
+      >
+        {formattedDateMedium(comment.createTime)}
+      </a>
+    </Tooltip>
   )
 }
 

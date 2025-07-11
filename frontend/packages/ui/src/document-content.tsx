@@ -50,6 +50,7 @@ import {
   File,
   Link,
   MessageSquare,
+  MoreHorizontal,
   Undo2,
 } from 'lucide-react'
 import React, {
