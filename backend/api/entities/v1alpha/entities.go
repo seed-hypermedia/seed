@@ -277,11 +277,7 @@ GROUP BY
   f.raw_content,
   f.type,
   f.block_id,
-  f.version,
-  f.blob_id,
-  f.tsid,
-  resources.iri,
-  author
+  resources.iri
 
 ORDER BY
   (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
@@ -472,24 +468,24 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}); err != nil {
 		return nil, err
 	}
-
-	seen := make(map[string]struct{})
-	var uniqueResults []searchResult
-	var uniqueBodyMatches []fuzzy.Match
-	for i, res := range searchResults {
-		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.versionTime)
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			uniqueResults = append(uniqueResults, res)
-			bodymatch := bodyMatches[i]
-			bodymatch.Index = len(uniqueResults) - 1
-			uniqueBodyMatches = append(uniqueBodyMatches, bodymatch)
+	/*
+		seen := make(map[string]struct{})
+		var uniqueResults []searchResult
+		var uniqueBodyMatches []fuzzy.Match
+		for i, res := range searchResults {
+			key := fmt.Sprintf("%s|%s|%s", res.iri, res.blockID, res.rawContent)
+			if _, ok := seen[key]; !ok {
+				seen[key] = struct{}{}
+				uniqueResults = append(uniqueResults, res)
+				bodymatch := bodyMatches[i]
+				bodymatch.Index = len(uniqueResults) - 1
+				uniqueBodyMatches = append(uniqueBodyMatches, bodymatch)
+			}
 		}
-	}
 
-	//bodyMatches = uniqueBodyMatches
-	//searchResults = uniqueResults
-
+		bodyMatches = uniqueBodyMatches
+		searchResults = uniqueResults
+	*/
 	//after := time.Now()
 	//elapsed := after.Sub(before)
 	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
@@ -549,12 +545,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		id := searchResults[match.Index].iri
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
 			var version string
-			searchResults[match.Index].version += "&l"
-			if searchResults[match.Index].latestVersion+"&l" != searchResults[match.Index].version {
+			if searchResults[match.Index].latestVersion != searchResults[match.Index].version {
 				//startLatestBlocks := time.Now()
 				//timesCalled++
-				//versions[match.Index] = versions[match.Index][:len(versions[match.Index])-2]
-
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
@@ -570,6 +563,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				if version != "" {
 					searchResults[match.Index].version = version
 				}
+			} else {
+				searchResults[match.Index].version += "&l"
 			}
 
 			if searchResults[match.Index].version != "" {
