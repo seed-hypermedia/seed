@@ -48,7 +48,7 @@ function _DiscussionsPanel({
   if (openBlockId) {
     return (
       <CommentBlockAccessory
-        docId={docId}
+        resourceId={docId}
         blockId={openBlockId}
         autoFocus={autoFocus}
         onBack={() => onAccessory({key: 'discussions'})}
@@ -104,17 +104,19 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function CommentBlockAccessory({
-  docId,
+  resourceId,
   blockId,
   autoFocus,
   onBack,
 }: {
-  docId: UnpackedHypermediaId
+  resourceId: UnpackedHypermediaId
   blockId: string
   autoFocus?: boolean
   onBack: () => void
 }) {
   const tx = useTxString()
+  const resource = useResource(resourceId)
+  const docId = resource.data?.type === 'document' ? resourceId : undefined
   const citations = useDocumentCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (

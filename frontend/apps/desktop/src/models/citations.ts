@@ -15,7 +15,7 @@ export function useDocumentCitations(
   {enabled}: {enabled?: boolean} = {},
 ) {
   return useQuery({
-    enabled,
+    enabled: enabled !== false && !!docId,
     queryKey: [queryKeys.DOC_CITATIONS, docId?.id],
     queryFn: async (): Promise<HMCitation[]> => {
       if (!docId) return []

@@ -296,6 +296,9 @@ function _MainDocumentPage({
     return <DocDiscovery />
   }
 
+  if (loadedCommentResource) {
+    return null
+  }
   return (
     // this data attribute is used by the hypermedia highlight component
     <div data-docid={id.id} className={cn(panelContainerStyles)}>

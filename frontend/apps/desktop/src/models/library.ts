@@ -244,8 +244,12 @@ export function useSiteLibrary(
 
 export function useChildrenActivity(
   docId: UnpackedHypermediaId | null | undefined,
+  opts?: {enabled?: boolean},
 ) {
-  const siteLibrary = useSiteLibrary(docId?.uid, true)
+  const siteLibrary = useSiteLibrary(
+    docId?.uid,
+    !!docId && opts?.enabled !== false,
+  )
   const path = docId?.path
   const pathPrefix = docId?.path?.join('/') || ''
   return {

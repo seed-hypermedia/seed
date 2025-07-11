@@ -17,14 +17,15 @@ export function useDocumentPublishedChanges(
   id: UnpackedHypermediaId | null | undefined,
 ) {
   const entity = useResource(id ? {...id, version: null} : null)
-  const version = entity.data?.document?.version
+  const version =
+    entity.data?.type === 'document' ? entity.data.document?.version : undefined
   const path = id ? hmIdPathToEntityQueryPath(id.path) : undefined
   return useQuery({
     queryKey: [queryKeys.ENTITY_CHANGES, id?.uid, path, version],
     queryFn: async () => {
       if (!version) return []
       const result = await grpcClient.documents.listDocumentChanges({
-        account: id.uid,
+        account: id?.uid,
         path,
         version,
         pageSize: BIG_INT,
@@ -35,7 +36,7 @@ export function useDocumentPublishedChanges(
 
       return changes
     },
-    enabled: !!id,
+    enabled: !!id && !!version,
   })
 }
 

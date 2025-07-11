@@ -111,6 +111,7 @@ export function useComments(commentIds: string[] = []) {
 
 export function useAllDocumentComments(
   docId: UnpackedHypermediaId | null | undefined,
+  opts?: {enabled?: boolean},
 ) {
   return useQuery({
     queryFn: async () => {
@@ -124,7 +125,7 @@ export function useAllDocumentComments(
         c.toJson({emitDefaultValues: true}),
       ) as HMComment[]
     },
-    enabled: !!docId,
+    enabled: !!docId && opts?.enabled !== false,
     refetchInterval: 10_000,
     queryKey: [
       queryKeys.DOCUMENT_DISCUSSION,
