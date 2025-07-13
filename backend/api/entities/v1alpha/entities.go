@@ -239,28 +239,27 @@ SELECT
   ) AS heads,
   structural_blobs.ts
 FROM fts_top100 AS f
-
   JOIN structural_blobs
-    ON (
-         (f.genesis_blob = structural_blobs.genesis_blob
+    ON structural_blobs.id = f.blob_id
+
+  JOIN blobs INDEXED BY blobs_metadata
+    ON blobs.id = f.blob_id
+
+  JOIN public_keys
+    ON public_keys.id = structural_blobs.author
+
+  LEFT JOIN resources
+    ON resources.id = (SELECT resource from structural_blobs WHERE 
+	     (f.blob_id       = structural_blobs.genesis_blob
            AND structural_blobs.type = 'Ref')
-      OR (f.blob_id       = structural_blobs.genesis_blob
+      OR (f.genesis_blob = structural_blobs.genesis_blob
            AND structural_blobs.type = 'Ref')
       OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Comment')
 	  OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Contact'
            AND structural_blobs.author = :loggedAccountID)
-     )
-
-  JOIN blobs INDEXED BY blobs_metadata
-    ON blobs.id = structural_blobs.id
-
-  JOIN public_keys
-    ON public_keys.id = structural_blobs.author
-
-  LEFT JOIN resources
-    ON resources.id = structural_blobs.resource
+     limit 1)
 
   JOIN document_generations
     ON document_generations.resource = resources.id
@@ -363,10 +362,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		entityTypeContact = "contact"
 	}
-	var resultsLmit int = 50
+	var resultsLmit int = 500
 
 	if len(cleanQuery) < 3 {
-		resultsLmit = 50
+		resultsLmit = 100
 	}
 	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
 	if ftsStr[len(ftsStr)-1] == '+' {
@@ -381,7 +380,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
-	//before := time.Now()
+	before := time.Now()
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var res searchResult
@@ -439,7 +438,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			res.versionTime = timestamppb.New(ts)
-
+			if res.version == "bafy2bzaceb75p7qvkkq47ie6quemr35vehpxbqbvgc4gt7226ooj6ucekzvsi" {
+				fmt.Println("ts!!", ts.String(), "cid", res.blobCID)
+			}
 			if res.contentType == "comment" {
 				res.iri = "hm://" + res.owner + "/" + res.tsid
 			} else if res.contentType == "contact" {
@@ -486,9 +487,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		bodyMatches = uniqueBodyMatches
 		searchResults = uniqueResults
 	*/
-	//after := time.Now()
-	//elapsed := after.Sub(before)
-	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
+	after := time.Now()
+	elapsed := after.Sub(before)
+	fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -524,8 +525,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	//before = time.Now()
 	//totalGetParentsTime := time.Duration(0)
-	//totalLatestBlockTime := time.Duration(0)
-	//var timesCalled int
+	totalLatestBlockTime := time.Duration(0)
+	var timesCalled int
 
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
@@ -543,15 +544,23 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			offsets[j] = int64(off)
 		}
 		id := searchResults[match.Index].iri
+
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
+
 			var version string
 			if searchResults[match.Index].latestVersion != searchResults[match.Index].version {
-				//startLatestBlocks := time.Now()
-				//timesCalled++
+				startLatestBlocks := time.Now()
+				timesCalled++
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
 						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
+						//fmt.Println("version!!!!!!!", searchResults[match.Index].version, "latest version!!!!!!", searchResults[match.Index].latestVersion, "type", searchResults[match.Index].contentType)
+						if searchResults[match.Index].version == "bafy2bzaceb75p7qvkkq47ie6quemr35vehpxbqbvgc4gt7226ooj6ucekzvsi" ||
+							searchResults[match.Index].version == "bafy2bzacechgngguv62jixyrxcifcbztgfhje4wcwujtabpcubbtjwmdta34o" {
+							fmt.Println("old ts", searchResults[match.Index].versionTime.AsTime().String(), "new ts", ts.String(), "old version", searchResults[match.Index].version, "new version", version, "latest version", searchResults[match.Index].latestVersion)
+							fmt.Println("blobID", searchResults[match.Index].blobID, "blockID", searchResults[match.Index].blockID, "rawContent", searchResults[match.Index].rawContent)
+						}
 						searchResults[match.Index].versionTime = timestamppb.New(ts)
 						return nil
 					}, searchResults[match.Index].blobID, searchResults[match.Index].blockID, searchResults[match.Index].rawContent)
@@ -559,9 +568,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					return nil, err
 				}
 
-				//totalLatestBlockTime += time.Since(startLatestBlocks)
+				totalLatestBlockTime += time.Since(startLatestBlocks)
 				if version != "" {
-					searchResults[match.Index].version = version
+					if version == searchResults[match.Index].latestVersion {
+						searchResults[match.Index].version = version + "&l"
+					} else {
+						searchResults[match.Index].version = version
+					}
 				}
 			} else {
 				searchResults[match.Index].version += "&l"
@@ -578,6 +591,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 			}
 		}
+
 		matchingEntities = append(matchingEntities, &entities.Entity{
 			DocId:       searchResults[match.Index].docID,
 			Id:          id,
@@ -593,7 +607,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	//fmt.Printf("getParentsFcn took %.9f s\n", after.Sub(before).Seconds())
 	//fmt.Printf("getParentsFcn took %.9f s\n", totalGetParentsTime.Seconds())
-	//fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
+	fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]
@@ -625,48 +639,20 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 }
 
 var qGetLatestBlockChange = dqb.Str(`
-WITH doc_changes AS (
 SELECT 
-blob_id,
-block_id,
-raw_content,
-version
-FROM fts
-WHERE blob_id in (
-SELECT
-id
-FROM structural_blobs
-WHERE (structural_blobs.genesis_blob IN (SELECT genesis_blob from structural_blobs WHERE resource in (
-WITH resource_data AS (
-SELECT
-    structural_blobs.resource,
-    structural_blobs.id,
-    structural_blobs.genesis_blob,
-    structural_blobs.type
-    
-FROM structural_blobs
-WHERE id = :blob_id
-)
-SELECT
-structural_blobs.resource
-FROM structural_blobs 
-JOIN resource_data ON (resource_data.genesis_blob = structural_blobs.genesis_blob OR resource_data.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref'
-WHERE structural_blobs.resource IS NOT NULL
-LIMIT 1
-)) OR structural_blobs.id = :blob_id ) AND structural_blobs.type = 'Change')
-), latest_changes AS(
-SELECT 
-version,
-blob_id
-FROM doc_changes 
-WHERE blob_id > :blob_id AND (block_id = :block_id OR raw_content = :raw_content)
-ORDER BY blob_id ASC LIMIT 1
-)
-SELECT version, blob_id, structural_blobs.ts
-FROM doc_changes
-JOIN structural_blobs ON structural_blobs.id = doc_changes.blob_id
-WHERE blob_id BETWEEN :blob_id and (select blob_id from latest_changes)-1
-ORDER BY blob_id DESC LIMIT 1;
+  f.version,
+  sb.id AS blob_id,
+  sb.ts
+FROM structural_blobs AS sb
+JOIN fts AS f
+  ON f.blob_id = sb.id
+WHERE sb.type = 'Change'
+  AND sb.id > :blob_id
+  AND (f.block_id != :block_id AND f.raw_content != :raw_content)
+  AND sb.genesis_blob = (SELECT genesis_blob from structural_blobs where id = :blob_id)
+ORDER BY f.blob_id DESC
+LIMIT 1;
+
 `)
 
 // DeleteEntity implements the corresponding gRPC method.
