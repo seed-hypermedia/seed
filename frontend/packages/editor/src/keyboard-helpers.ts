@@ -137,5 +137,10 @@ export function useKeyboard(bindings: KeyboardBindings) {
     [],
   )
 
-  useEffect(() => keyboardStack.add(callback), [])
+  useEffect(() => {
+    keyboardStack.add(callback)
+    return () => {
+      keyboardStack.remove(callback)
+    }
+  }, [])
 }
