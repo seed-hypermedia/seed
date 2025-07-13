@@ -548,34 +548,56 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
 
 			var version string
+			var blockID string
+			var content string
+			var blobID int64
+			var relatedSeen bool
 			if searchResults[match.Index].latestVersion != searchResults[match.Index].version {
 				startLatestBlocks := time.Now()
 				timesCalled++
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						version = stmt.ColumnText(0)
+						blobID = stmt.ColumnInt64(1)
 						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
-						//fmt.Println("version!!!!!!!", searchResults[match.Index].version, "latest version!!!!!!", searchResults[match.Index].latestVersion, "type", searchResults[match.Index].contentType)
-						if searchResults[match.Index].version == "bafy2bzaceb75p7qvkkq47ie6quemr35vehpxbqbvgc4gt7226ooj6ucekzvsi" ||
-							searchResults[match.Index].version == "bafy2bzacechgngguv62jixyrxcifcbztgfhje4wcwujtabpcubbtjwmdta34o" {
-							fmt.Println("old ts", searchResults[match.Index].versionTime.AsTime().String(), "new ts", ts.String(), "old version", searchResults[match.Index].version, "new version", version, "latest version", searchResults[match.Index].latestVersion)
-							fmt.Println("blobID", searchResults[match.Index].blobID, "blockID", searchResults[match.Index].blockID, "rawContent", searchResults[match.Index].rawContent)
+						blockID = stmt.ColumnText(3)
+						content = stmt.ColumnText(4)
+						if blockID == "aWSBrx62" {
+							fmt.Println("version", version, "content", content, "blobID", blobID, "ts", ts.String())
 						}
-						searchResults[match.Index].versionTime = timestamppb.New(ts)
+						if blockID != searchResults[match.Index].blockID && !relatedSeen {
+							if version != "" {
+								if version == searchResults[match.Index].latestVersion {
+									searchResults[match.Index].version = version + "&l"
+								} else {
+									searchResults[match.Index].version = version
+								}
+							}
+							searchResults[match.Index].versionTime = timestamppb.New(ts)
+							searchResults[match.Index].blobID = blobID
+						} else if blockID == searchResults[match.Index].blockID && content == searchResults[match.Index].rawContent {
+							if version != "" {
+								if version == searchResults[match.Index].latestVersion {
+									searchResults[match.Index].version = version + "&l"
+								} else {
+									searchResults[match.Index].version = version
+								}
+							}
+							searchResults[match.Index].versionTime = timestamppb.New(ts)
+							searchResults[match.Index].blobID = blobID
+							relatedSeen = false
+						} else if blockID == searchResults[match.Index].blockID && content != searchResults[match.Index].rawContent {
+							relatedSeen = true
+						}
+
 						return nil
-					}, searchResults[match.Index].blobID, searchResults[match.Index].blockID, searchResults[match.Index].rawContent)
+					}, searchResults[match.Index].blobID)
 				}); err != nil {
 					return nil, err
 				}
 
 				totalLatestBlockTime += time.Since(startLatestBlocks)
-				if version != "" {
-					if version == searchResults[match.Index].latestVersion {
-						searchResults[match.Index].version = version + "&l"
-					} else {
-						searchResults[match.Index].version = version
-					}
-				}
+
 			} else {
 				searchResults[match.Index].version += "&l"
 			}
@@ -642,16 +664,16 @@ var qGetLatestBlockChange = dqb.Str(`
 SELECT 
   f.version,
   sb.id AS blob_id,
-  sb.ts
+  sb.ts,
+  f.block_id,
+  f.raw_content
 FROM structural_blobs AS sb
 JOIN fts AS f
   ON f.blob_id = sb.id
 WHERE sb.type = 'Change'
   AND sb.id > :blob_id
-  AND (f.block_id != :block_id AND f.raw_content != :raw_content)
   AND sb.genesis_blob = (SELECT genesis_blob from structural_blobs where id = :blob_id)
-ORDER BY f.blob_id DESC
-LIMIT 1;
+ORDER BY sb.id ASC;
 
 `)
 
