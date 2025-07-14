@@ -4,7 +4,15 @@ import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
-import {Button} from '@shm/ui/button'
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarTrigger,
+} from '@shm/ui/components/menubar'
 import {
   AddSquare,
   Close,
@@ -16,11 +24,10 @@ import {
   Search,
   Settings,
 } from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
-import {ListItem, ListItemProps, Popover, SizableText, YGroup} from 'tamagui'
+import {ListItemProps} from 'tamagui'
 
 export function WindowsLinuxTitleBar({
   left,
@@ -33,11 +40,7 @@ export function WindowsLinuxTitleBar({
 }) {
   return (
     <TitlebarWrapper className="window-drag" style={{flex: 'none'}}>
-      <TitlebarRow
-        minHeight={28}
-        backgroundColor="$color3"
-        className="window-drag"
-      >
+      <TitlebarRow>
         <TitlebarSection>
           <SystemMenu />
         </TitlebarSection>
@@ -242,82 +245,35 @@ export function SystemMenu() {
 
   return (
     <div className="no-window-drag flex pl-2">
-      {menuItems.map((item) => (
-        <Popover key={item.id} placement="bottom-start">
-          <Popover.Trigger asChild>
-            <Button
-              size="sm"
-              className="rounded-none px-2"
-              style={{
-                fontWeight: item.id == 'seed' ? 'bold' : undefined,
-              }}
-            >
-              {item.title}
-            </Button>
-          </Popover.Trigger>
-          <Popover.Content
-            className="no-window-drag"
-            padding={0}
-            elevation="$2"
-            enterStyle={{y: -10, opacity: 0}}
-            exitStyle={{y: -10, opacity: 0}}
-            elevate
-            animation={[
-              'fast',
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-          >
-            <YGroup>
-              {item.children.map((p) => {
-                if (p.id == 'separator') {
-                  return (
-                    <YGroup.Item key={p.id}>
-                      <Separator />
-                    </YGroup.Item>
-                  )
-                } else {
-                  return (
-                    <YGroup.Item key={p.id}>
-                      <ListItem
-                        className="no-window-drag"
-                        icon={(p as SubMenuItemElement).icon}
-                        hoverTheme
-                        pressTheme
-                        hoverStyle={{
-                          backgroundColor: '$backgroundFocus',
-                        }}
-                        paddingHorizontal="$3"
-                        paddingVertical="$1"
-                        backgroundColor="transparent"
-                        onPress={(p as SubMenuItemElement).onSelect}
-                        size="$2"
-                        disabled={(p as SubMenuItemElement).disabled}
+      <Menubar>
+        {menuItems.map((item: MenuItemElement) => (
+          <MenubarMenu key={item.id}>
+            <MenubarTrigger className="font-bold">{item.title}</MenubarTrigger>
+            <MenubarContent>
+              {item.children.map(
+                (p: SubMenuItemElement | {id: 'separator'}) => {
+                  if (p.id == 'separator') {
+                    return <MenubarSeparator key={p.id} />
+                  } else {
+                    let item: SubMenuItemElement = p as SubMenuItemElement
+                    return (
+                      <MenubarItem
+                        onClick={item.onSelect}
+                        disabled={item.disabled}
                       >
-                        <SizableText fontSize="$1" flex={1}>
-                          {(p as SubMenuItemElement).title}
-                        </SizableText>
-                        {(p as SubMenuItemElement).accelerator && (
-                          <SizableText
-                            marginLeft="$2"
-                            fontSize="$1"
-                            color={'$color9'}
-                          >
-                            {(p as SubMenuItemElement).accelerator}
-                          </SizableText>
+                        {item.title}
+                        {item.accelerator && (
+                          <MenubarShortcut>{item.accelerator}</MenubarShortcut>
                         )}
-                      </ListItem>
-                    </YGroup.Item>
-                  )
-                }
-              })}
-            </YGroup>
-          </Popover.Content>
-        </Popover>
-      ))}
+                      </MenubarItem>
+                    )
+                  }
+                },
+              )}
+            </MenubarContent>
+          </MenubarMenu>
+        ))}
+      </Menubar>
     </div>
   )
 }
