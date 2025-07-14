@@ -230,12 +230,8 @@ jobs:
           echo "Debug: SM_CLIENT_CERT_PASSWORD length: ${#SM_CLIENT_CERT_PASSWORD}"
           echo "Debug: SM_CODE_SIGNING_CERT_SHA1_HASH length: ${#SM_CODE_SIGNING_CERT_SHA1_HASH}"
 
-          # Test authentication with DigiCert KeyManager
-          echo "Testing authentication..."
-          smctl.exe auth --method=key
-
-          # List available certificates
-          echo "Listing available certificates..."
+          # Verify connection and credentials
+          echo "Testing connection and credentials..."
           smctl.exe healthcheck
 
           # Find the .exe installer file in the out/make directory
