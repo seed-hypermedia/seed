@@ -368,7 +368,7 @@ const SearchInput = ({
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const viewportHeight = window.innerHeight
-  const portalRoot = document.body
+  const portalRoot = window.document.body
 
   const unpackedId = unpackHmId(link)
   const currentEntity = useResource(unpackedId)
