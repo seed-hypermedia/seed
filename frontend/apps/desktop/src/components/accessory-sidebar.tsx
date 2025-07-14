@@ -205,8 +205,8 @@ export function AccessoryContent({
         <div className="flex flex-col gap-2 p-3">{children}</div>
       </ScrollArea>
       {footer ? (
-        <div className="bg-background rounded-md py-2 dark:bg-black">
-          {footer}
+        <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">
+          <ScrollArea>{footer}</ScrollArea>
         </div>
       ) : null}
     </div>
