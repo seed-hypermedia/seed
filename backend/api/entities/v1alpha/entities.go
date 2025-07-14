@@ -272,12 +272,6 @@ FROM fts_top100 AS f
 
 WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
 
-GROUP BY
-  f.raw_content,
-  f.type,
-  f.block_id,
-  resources.iri
-
 ORDER BY
   (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
   f.rank ASC
@@ -362,7 +356,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		entityTypeContact = "contact"
 	}
-	var resultsLmit int = 500
+	var resultsLmit int = 1000
 
 	if len(cleanQuery) < 3 {
 		resultsLmit = 100
@@ -380,7 +374,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
-	before := time.Now()
+	//before := time.Now()
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var res searchResult
@@ -438,9 +432,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			res.versionTime = timestamppb.New(ts)
-			if res.version == "bafy2bzaceb75p7qvkkq47ie6quemr35vehpxbqbvgc4gt7226ooj6ucekzvsi" {
-				fmt.Println("ts!!", ts.String(), "cid", res.blobCID)
-			}
 			if res.contentType == "comment" {
 				res.iri = "hm://" + res.owner + "/" + res.tsid
 			} else if res.contentType == "contact" {
@@ -469,27 +460,36 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}); err != nil {
 		return nil, err
 	}
-	/*
-		seen := make(map[string]struct{})
-		var uniqueResults []searchResult
-		var uniqueBodyMatches []fuzzy.Match
-		for i, res := range searchResults {
-			key := fmt.Sprintf("%s|%s|%s", res.iri, res.blockID, res.rawContent)
-			if _, ok := seen[key]; !ok {
-				seen[key] = struct{}{}
-				uniqueResults = append(uniqueResults, res)
-				bodymatch := bodyMatches[i]
-				bodymatch.Index = len(uniqueResults) - 1
-				uniqueBodyMatches = append(uniqueBodyMatches, bodymatch)
-			}
-		}
 
-		bodyMatches = uniqueBodyMatches
-		searchResults = uniqueResults
-	*/
-	after := time.Now()
-	elapsed := after.Sub(before)
-	fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
+	seen := make(map[string]int)
+	var uniqueResults []searchResult
+	var uniqueBodyMatches []fuzzy.Match
+	for i, res := range searchResults {
+		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.contentType)
+		if idx, ok := seen[key]; ok {
+			// duplicate – compare blobID
+			if res.blobID > uniqueResults[idx].blobID {
+				uniqueResults[idx] = res
+				bm := bodyMatches[i]
+				bm.Index = idx
+				uniqueBodyMatches[idx] = bm
+			}
+		} else {
+			// first time seeing this key
+			seen[key] = len(uniqueResults)
+			uniqueResults = append(uniqueResults, res)
+			bm := bodyMatches[i]
+			bm.Index = len(uniqueResults) - 1
+			uniqueBodyMatches = append(uniqueBodyMatches, bm)
+		}
+	}
+
+	bodyMatches = uniqueBodyMatches
+	searchResults = uniqueResults
+
+	//after := time.Now()
+	//elapsed := after.Sub(before)
+	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -551,7 +551,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			var blockID string
 			var content string
 			var blobID int64
-			var relatedSeen bool
+			var modified bool
 			if searchResults[match.Index].latestVersion != searchResults[match.Index].version {
 				startLatestBlocks := time.Now()
 				timesCalled++
@@ -562,10 +562,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
 						blockID = stmt.ColumnText(3)
 						content = stmt.ColumnText(4)
-						if blockID == "aWSBrx62" {
-							fmt.Println("version", version, "content", content, "blobID", blobID, "ts", ts.String())
-						}
-						if blockID != searchResults[match.Index].blockID && !relatedSeen {
+						if blockID != searchResults[match.Index].blockID && !modified {
 							if version != "" {
 								if version == searchResults[match.Index].latestVersion {
 									searchResults[match.Index].version = version + "&l"
@@ -585,9 +582,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 							}
 							searchResults[match.Index].versionTime = timestamppb.New(ts)
 							searchResults[match.Index].blobID = blobID
-							relatedSeen = false
+							modified = false
 						} else if blockID == searchResults[match.Index].blockID && content != searchResults[match.Index].rawContent {
-							relatedSeen = true
+							modified = true
 						}
 
 						return nil
@@ -629,7 +626,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	//fmt.Printf("getParentsFcn took %.9f s\n", after.Sub(before).Seconds())
 	//fmt.Printf("getParentsFcn took %.9f s\n", totalGetParentsTime.Seconds())
-	fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
+	//fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]
@@ -672,7 +669,7 @@ JOIN fts AS f
   ON f.blob_id = sb.id
 WHERE sb.type = 'Change'
   AND sb.id > :blob_id
-  AND sb.genesis_blob = (SELECT genesis_blob from structural_blobs where id = :blob_id)
+  AND sb.genesis_blob = IFNULL((SELECT genesis_blob from structural_blobs where id = :blob_id), :blob_id)
 ORDER BY sb.id ASC;
 
 `)
