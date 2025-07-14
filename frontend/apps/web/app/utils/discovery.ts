@@ -37,7 +37,7 @@ export async function discoverDocument(
       console.log('~~ discoverEntity resp', discoverResp.toJson())
       if (checkDiscoverySuccess(discoverResp.version))
         return {version: discoverResp.version}
-      return true
+      return null
     } catch (e) {
       console.warn(
         `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
