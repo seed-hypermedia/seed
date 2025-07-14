@@ -150,13 +150,11 @@ export function WebSiteProvider(props: {
         }
 
         if (href !== null) {
-          console.log('href', href)
           if (
             // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.
-            // window.location.host == 'seed.hyper.media' &&
-            window.location.host == 'localhost:3000' &&
+            window.location.host == 'seed.hyper.media' &&
             typeof href == 'string' &&
-            href === ''
+            (href == '/' || href == '')
           ) {
             console.log('redirecting to seed.hyper.media')
             window.location.assign('https://seed.hyper.media')
