@@ -1,4 +1,5 @@
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -288,6 +289,7 @@ function AutocompletePopupInner(
     },
 ) {
   const {rect, text, onClose, range, onCreate, editor} = props
+  const debouncedText = useDebounce(text, 250)
   const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>([
     'Recents',
     0,
@@ -315,19 +317,29 @@ function AutocompletePopupInner(
   }, [rect])
 
   useEffect(() => {
+    let isActive = true
+
     editor.options
-      .onMentionsQuery(text)
+      .onMentionsQuery(debouncedText)
       .then((results: InlineMentionsResult) => {
+        if (!isActive) return
+
         console.log('~~ MENTIONS RESULTS', results)
-        setSuggestions((suggestions) => ({
-          ...suggestions,
+
+        setSuggestions((prev) => ({
+          ...prev,
           ...results,
         }))
-        if (isOptionsEmpty(results) && text.length > 5) {
+
+        if (isOptionsEmpty(results) && debouncedText.length > 5) {
           onClose()
         }
       })
-  }, [text])
+
+    return () => {
+      isActive = false
+    }
+  }, [debouncedText])
 
   useEffect(() => {
     const firstGroup = groups.find((g) => suggestions[g].length > 0)
