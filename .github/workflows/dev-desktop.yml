@@ -190,7 +190,7 @@ jobs:
         if: startsWith(matrix.config.os, 'windows')
         shell: bash
         run: |
-          echo "SM_HOST=${{ secrets.SM_HOST }}" >> "$GITHUB_ENV"
+          echo "SM_HOST=https://clientauth.one.digicert.com" >> "$GITHUB_ENV"
           echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> "$GITHUB_ENV"
           echo "SM_CLIENT_CERT_FILE_B64=${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" >> "$GITHUB_ENV"
           echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$GITHUB_ENV"
@@ -203,6 +203,21 @@ jobs:
         if: startsWith(matrix.config.os, 'windows')
         shell: bash
         run: |
+          # Debug environment variables
+          echo "Debug: SM_HOST=$SM_HOST"
+          echo "Debug: SM_API_KEY length: ${#SM_API_KEY}"
+          echo "Debug: SM_CLIENT_CERT_FILE_B64 length: ${#SM_CLIENT_CERT_FILE_B64}"
+          echo "Debug: SM_CLIENT_CERT_PASSWORD length: ${#SM_CLIENT_CERT_PASSWORD}"
+          echo "Debug: SM_CODE_SIGNING_CERT_SHA1_HASH length: ${#SM_CODE_SIGNING_CERT_SHA1_HASH}"
+
+          # Test authentication with DigiCert KeyManager
+          echo "Testing authentication..."
+          smctl.exe auth --method=key
+
+          # List available certificates
+          echo "Listing available certificates..."
+          smctl.exe healthcheck
+
           # Find the .exe installer file in the out/make directory
           EXE_FILE=$(find frontend/apps/desktop/out/make -name "*.exe" | head -1)
           if [ -n "$EXE_FILE" ]; then
