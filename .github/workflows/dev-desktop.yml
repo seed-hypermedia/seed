@@ -155,9 +155,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           SEED_P2P_TESTNET_NAME: "dev"
 
+      - name: Clean up problematic RELEASES file (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          # Clean up the RELEASES file and .nupkg files from S3 to force a fresh start
+          aws s3 rm s3://seedappdev/dev/win32/x64/RELEASES || echo "RELEASES file not found, continuing..."
+          aws s3 rm s3://seedappdev/dev/win32/x64/ --recursive --exclude "*" --include "*.nupkg" || echo "No .nupkg files found, continuing..."
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-west-2
+
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
         run: |
+          # Clear any existing out directory to force a clean build
+          if (Test-Path "frontend/apps/desktop/out") { Remove-Item -Recurse -Force "frontend/apps/desktop/out" }
           yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
