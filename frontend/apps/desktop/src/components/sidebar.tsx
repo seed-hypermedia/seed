@@ -88,7 +88,7 @@ function CreateDocumentButton() {
       <Button
         variant="default"
         onClick={() => createDraft()}
-        className="mb-5 w-full justify-start"
+        className="mb-5 w-full justify-center"
       >
         <FilePlus2 color="currentColor" size={16} />{' '}
         <span className="truncate">Create Document</span>
