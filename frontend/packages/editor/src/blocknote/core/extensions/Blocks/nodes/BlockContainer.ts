@@ -270,7 +270,7 @@ export const BlockContainer = Node.create<{
         mergeAttributes(
           {
             ...domAttributes,
-            class: mergeCSSClasses(styles.block, domAttributes.class, 'p-2'),
+            class: mergeCSSClasses(styles.block, domAttributes.class),
             'data-node-type': this.name,
           },
           HTMLAttributes,
