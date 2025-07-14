@@ -59,18 +59,18 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
-          - os: ubuntu-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-unknown-linux-gnu
+          # - os: macos-13-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          # - os: macos-13-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
+          # - os: ubuntu-latest
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-unknown-linux-gnu
           - os: windows-latest
             arch: x64
             goarch: amd64
@@ -181,6 +181,41 @@ jobs:
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           SEED_P2P_TESTNET_NAME: "dev"
+
+      - name: Install DigiCert Client tools (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        uses: digicert/ssm-code-signing@v1.0.0
+
+      - name: Set up DigiCert KeyManager environment (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          echo "SM_HOST=${{ secrets.SM_HOST }}" >> "$GITHUB_ENV"
+          echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> "$GITHUB_ENV"
+          echo "SM_CLIENT_CERT_FILE_B64=${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" >> "$GITHUB_ENV"
+          echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "SM_CODE_SIGNING_CERT_SHA1_HASH=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}" >> "$GITHUB_ENV"
+          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $GITHUB_PATH
+          echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $GITHUB_PATH
+          echo "C:\Program Files\DigiCert\DigiCert One Signing Manager Tools" >> $GITHUB_PATH
+
+      - name: Sign Windows application
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          # Find the .exe installer file in the out/make directory
+          EXE_FILE=$(find frontend/apps/desktop/out/make -name "*.exe" | head -1)
+          if [ -n "$EXE_FILE" ]; then
+            echo "Signing: $EXE_FILE"
+            # Use DigiCert's cloud-based signing with KeyManager
+            smctl.exe sign --fingerprint=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }} --input="$EXE_FILE" --verbose
+            echo "Verifying signature..."
+            signtool.exe verify /v /pa "$EXE_FILE"
+            echo "Successfully signed and verified: $EXE_FILE"
+          else
+            echo "No .exe file found to sign"
+            exit 1
+          fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
