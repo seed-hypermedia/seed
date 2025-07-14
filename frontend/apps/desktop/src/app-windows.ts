@@ -124,6 +124,8 @@ function getAWindow() {
   return window
 }
 
+let lastFocusedWindowId: string | null = null
+
 const windowNavState: Record<string, Omit<AppWindow, 'bounds'>> = {}
 
 let isExpectingQuit = false
@@ -185,15 +187,23 @@ export function dispatchAllWindowsAppEvent(event: AppWindowEvent) {
   })
 }
 
-export function getCurrentWindowSelectedIdentity() {
+export function getLastSelectedIdentity() {
   const focusedWindow = getFocusedWindow()
-  if (!focusedWindow) return null
+  if (!focusedWindow) {
+    if (lastFocusedWindowId) {
+      return getWindowSelectedIdentity(lastFocusedWindowId)
+    }
+    return null
+  }
   const foundEntry = Array.from(allWindows.entries()).find(
     ([id, window]) => window === focusedWindow,
   )
   if (!foundEntry) return null
   const customWindowId = foundEntry[0]
-  const windowState = getWindowsState()[customWindowId]
+  return getWindowSelectedIdentity(customWindowId)
+}
+function getWindowSelectedIdentity(windowId: string): string | null {
+  const windowState = getWindowsState()[windowId]
   return windowState?.selectedIdentity || null
 }
 
@@ -203,8 +213,7 @@ export function createAppWindow(
   if (!app.isReady()) {
     throw new Error('Cannot create BrowserWindow before app is ready')
   }
-  const selectedIdentity =
-    input.selectedIdentity || getCurrentWindowSelectedIdentity()
+  const selectedIdentity = input.selectedIdentity || getLastSelectedIdentity()
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const win = getAWindow()
   const prevWindowBounds = win?.getBounds()
@@ -402,14 +411,19 @@ export function createAppWindow(
   browserWindow.on('close', () => {
     releaseDaemonListener()
     allWindows.delete(windowId)
+    if (lastFocusedWindowId === windowId) {
+      lastFocusedWindowId = null
+    }
     if (!isExpectingQuit) {
       deleteWindowState(windowId)
     }
   })
   browserWindow.on('show', () => {
+    lastFocusedWindowId = windowId
     windowFocused(windowId)
   })
   browserWindow.on('focus', () => {
+    lastFocusedWindowId = windowId
     windowFocused(windowId)
     const navState = windowNavState[windowId]
     const activeRoute = navState
@@ -461,6 +475,7 @@ export function createAppWindow(
   })
 
   windowFocused(windowId)
+  lastFocusedWindowId = windowId
 
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
