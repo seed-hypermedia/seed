@@ -1,90 +1,41 @@
-import {Button} from '@shm/ui/button'
-import {X} from 'lucide-react'
-import {FC, HTMLAttributes, useMemo, useState} from 'react'
+import * as AlertDialog from '@shm/ui/components/alert-dialog'
+import * as Dialog from '@shm/ui/components/dialog'
+import {FC, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {AlertDialog, Dialog, Unspaced} from 'tamagui'
+export {AlertDialogContent} from '@shm/ui/components/alert-dialog'
+export {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogOverlay,
+  DialogTitle,
+} from '@shm/ui/components/dialog'
+
 import {
   NavContextProvider,
   NavigationContext,
   useNavigation,
 } from '../utils/navigation'
 
-export function DialogOverlay(props: any) {
-  // for somer reason this is required for the overlay to go behind the DialogContent. maybe because of the DialogContent position:fixed below
-  return (
-    <Dialog.Overlay
-      zIndex="$zIndex.8"
-      animation="medium"
-      enterStyle={{opacity: 0}}
-      exitStyle={{opacity: 0}}
-      {...props}
-    />
-  )
-}
-
 export const dialogBoxShadow =
   'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
-
-export function DialogContent(props: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className="bg-background z-[900] flex flex-col gap-4 rounded-md border-0 p-4"
-      style={{
-        backgroundColor: 'var(--background)',
-        boxShadow: dialogBoxShadow,
-        width: '90vw',
-        maxWidth: '500px',
-        maxHeight: '85vh',
-      }}
-      {...props}
-    />
-  )
-}
-
-export function AlertDialogContent(props: any) {
-  return <AlertDialog.Content borderWidth={0} {...props} />
-}
-
-export function DialogFooter(props: HTMLAttributes<HTMLDivElement>) {
-  return <div className="flex justify-end gap-4" {...props} />
-}
-export function DialogTitle(props: any) {
-  return <Dialog.Title className="text-lg font-bold" {...props} />
-}
-
-export function DialogCloseButton() {
-  return (
-    <Unspaced>
-      <Dialog.Close asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="absolute top-3 right-3 rounded-full"
-        >
-          <X className="size-4" />
-        </Button>
-      </Dialog.Close>
-    </Unspaced>
-  )
-}
-
-export const DialogDescription = Dialog.Description
 
 function getComponent(isAlert?: boolean) {
   const Component = isAlert
     ? {
-        Root: AlertDialog,
-        Trigger: AlertDialog.Trigger,
-        Portal: AlertDialog.Portal,
-        Overlay: AlertDialog.Overlay,
-        Content: AlertDialogContent,
+        Root: AlertDialog.AlertDialog,
+        Trigger: AlertDialog.AlertDialogTrigger,
+        Portal: AlertDialog.AlertDialogPortal,
+        Overlay: AlertDialog.AlertDialogOverlay,
+        Content: AlertDialog.AlertDialogContent,
       }
     : {
-        Root: Dialog,
-        Trigger: Dialog.Trigger,
-        Portal: Dialog.Portal,
-        Overlay: DialogOverlay,
-        Content: DialogContent,
+        Root: Dialog.Dialog,
+        Trigger: Dialog.DialogTrigger,
+        Portal: Dialog.DialogPortal,
+        Overlay: Dialog.DialogOverlay,
+        Content: Dialog.DialogContent,
       }
   return Component
 }
@@ -132,16 +83,7 @@ export function AppDialog<
       </Component.Trigger>
       <Component.Portal>
         <NavContextProvider value={nav}>
-          <Component.Overlay
-            height="100vh"
-            bg={'#00000088'}
-            width="100vw"
-            animation="fast"
-            opacity={0.8}
-            enterStyle={{opacity: 0}}
-            exitStyle={{opacity: 0}}
-            onPress={() => setIsOpen(false)}
-          />
+          <Component.Overlay onClick={() => setIsOpen(false)} />
           <Component.Content>
             <ContentComponent
               isOpen={isOpen}
@@ -197,16 +139,7 @@ export function useAppDialog<DialogInput>(
         >
           <Component.Portal>
             <NavContextProvider value={nav}>
-              <Component.Overlay
-                height="100vh"
-                bg={'#00000088'}
-                width="100vw"
-                animation="fast"
-                opacity={0.8}
-                enterStyle={{opacity: 0}}
-                exitStyle={{opacity: 0}}
-                onPress={close}
-              />
+              <Component.Overlay onClick={close} />
               <Component.Content>
                 {openState && (
                   <DialogContentComponent

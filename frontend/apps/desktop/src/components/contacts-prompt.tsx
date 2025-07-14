@@ -12,7 +12,7 @@ import appError from '../errors'
 import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
 import {usePeerInfo} from '../models/networking'
-import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
+import {DialogClose, DialogDescription, DialogTitle} from './dialog'
 
 export function AddConnectionDialog({
   input,
@@ -53,7 +53,7 @@ export function AddConnectionDialog({
   return (
     <>
       <DialogTitle>Direct Peer Connection</DialogTitle>
-      <DialogCloseButton />
+      <DialogClose />
 
       <DialogDescription>
         Share your device connection URL with someone who you want to connect

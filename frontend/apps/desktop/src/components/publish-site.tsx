@@ -723,7 +723,9 @@ function SeedHostIntro({
         <SizableText className="text-muted-foreground text-center">
           Please check your internet connection and try again.
         </SizableText>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <Button variant="inverse" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
       </div>
     )
   }
