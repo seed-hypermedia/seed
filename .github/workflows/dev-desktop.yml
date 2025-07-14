@@ -212,7 +212,9 @@ jobs:
         run: |
           echo "SM_HOST=https://clientauth.one.digicert.com" >> "$GITHUB_ENV"
           echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> "$GITHUB_ENV"
-          echo "SM_CLIENT_CERT_FILE_B64=${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" >> "$GITHUB_ENV"
+          # Decode the base64 certificate to a file
+          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /tmp/client_cert.p7b
+          echo "SM_CLIENT_CERT_FILE=/tmp/client_cert.p7b" >> "$GITHUB_ENV"
           echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$GITHUB_ENV"
           echo "SM_CODE_SIGNING_CERT_SHA1_HASH=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}" >> "$GITHUB_ENV"
           echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $GITHUB_PATH
@@ -226,7 +228,7 @@ jobs:
           # Debug environment variables
           echo "Debug: SM_HOST=$SM_HOST"
           echo "Debug: SM_API_KEY length: ${#SM_API_KEY}"
-          echo "Debug: SM_CLIENT_CERT_FILE_B64 length: ${#SM_CLIENT_CERT_FILE_B64}"
+          echo "Debug: SM_CLIENT_CERT_FILE=$SM_CLIENT_CERT_FILE"
           echo "Debug: SM_CLIENT_CERT_PASSWORD length: ${#SM_CLIENT_CERT_PASSWORD}"
           echo "Debug: SM_CODE_SIGNING_CERT_SHA1_HASH length: ${#SM_CODE_SIGNING_CERT_SHA1_HASH}"
 
