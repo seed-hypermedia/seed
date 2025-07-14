@@ -1,7 +1,12 @@
 import {useDeleteDraft} from '@/models/documents'
 import {Button} from '@shm/ui/button'
+import {
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from '@shm/ui/components/alert-dialog'
+
 import {Text} from '@shm/ui/text'
-import {useAppDialog} from './dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export function useDeleteDraftDialog() {
   return useAppDialog(DeleteDraftDialog, {isAlert: true})
@@ -18,15 +23,13 @@ function DeleteDraftDialog({
     onSettled: input.onSuccess,
   })
   return (
-    <div className="flex flex-col gap-4 rounded-md p-4" style={{maxWidth: 400}}>
-      <Text className="text-foreground text-2xl font-semibold">
-        Discard Draft
-      </Text>
+    <>
+      <AlertDialogTitle>Discard Draft</AlertDialogTitle>
       <Text className="text-muted-foreground text-sm">
         Permanently delete this draft document?
       </Text>
 
-      <div className="flex justify-end gap-3">
+      <AlertDialogFooter className="flex-col">
         <Button
           onClick={() => {
             onClose()
@@ -44,7 +47,7 @@ function DeleteDraftDialog({
         >
           Delete
         </Button>
-      </div>
-    </div>
+      </AlertDialogFooter>
+    </>
   )
 }

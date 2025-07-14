@@ -44,7 +44,7 @@ export const buttonVariants = cva(
         secondary:
           'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
         ghost:
-          'active:bg-black/5 text-foreground dark:active:bg-white/10 hover:text-foreground hover:bg-background dark:hover:bg-muted',
+          'active:bg-black/5 text-foreground dark:active:bg-white/10 hover:text-foreground hover:bg-black/5 dark:hover:bg-muted',
         link: 'text-primary underline-offset-4 hover:underline',
         brand: 'bg-brand text-white shadow-xs hover:bg-brand-4 active:brand-3',
         'brand-12':
