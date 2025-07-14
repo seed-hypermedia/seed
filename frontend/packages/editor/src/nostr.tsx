@@ -19,7 +19,6 @@ import {
   verifySignature,
 } from 'nostr-tools'
 import {useEffect, useState} from 'react'
-import {RiCloseCircleLine, RiRefreshLine} from 'react-icons/ri/index.js'
 import {Card, Tabs, useTheme} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
@@ -229,15 +228,7 @@ function NostrComponent({
                         : 'orange'
                     }
                     size="sm"
-                  >
-                    {verified === undefined ? (
-                      <RiRefreshLine />
-                    ) : verified ? (
-                      <RiRefreshLine />
-                    ) : (
-                      <RiCloseCircleLine />
-                    )}
-                  </Button>
+                  ></Button>
                 </Tooltip>
               </div>
             </SizableText>
