@@ -359,6 +359,14 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
     <div className="dark:bg-background absolute top-2 right-2 z-[999] rounded-md bg-white shadow-md">
       <div className="flex">
         <InteractionSummaryItem
+          label="version"
+          count={changes.data?.length || 0}
+          onPress={() => {
+            replace({...docRoute, accessory: {key: 'versions'}})
+          }}
+          icon={<HistoryIcon size={16} color="currentColor" />}
+        />
+        <InteractionSummaryItem
           label="citation"
           count={docCitations.length || 0}
           onPress={() => {
@@ -367,7 +375,6 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
           icon={<BlockQuote className="size-3" />}
         />
 
-        <Separator />
         <InteractionSummaryItem
           label="comment"
           count={comments.data?.length || 0}
@@ -375,15 +382,6 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
             replace({...docRoute, accessory: {key: 'discussions'}})
           }}
           icon={<MessageSquare className="size-3" />}
-        />
-        <Separator />
-        <InteractionSummaryItem
-          label="version"
-          count={changes.data?.length || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'versions'}})
-          }}
-          icon={<HistoryIcon size={16} color="currentColor" />}
         />
       </div>
     </div>

@@ -104,9 +104,20 @@ export function useDocumentAccessory({
       key: 'activity',
       label: 'All',
     })
+
     accessoryOptions.push({
       key: 'versions',
       label: 'Versions',
+    })
+
+    accessoryOptions.push({
+      key: 'citations',
+      label: 'Citations',
+    })
+
+    accessoryOptions.push({
+      key: 'discussions',
+      label: 'Discussions',
     })
 
     accessoryOptions.push({
@@ -114,14 +125,6 @@ export function useDocumentAccessory({
       label: 'Collaborators',
     })
 
-    accessoryOptions.push({
-      key: 'discussions',
-      label: 'Discussions',
-    })
-    accessoryOptions.push({
-      key: 'citations',
-      label: 'Citations',
-    })
     accessoryOptions.push({
       key: 'directory',
       label: 'Directory',

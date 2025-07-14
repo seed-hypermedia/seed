@@ -894,6 +894,22 @@ function _DocInteractionsSummary({
   const tx = useTxString()
   return (
     <div className="flex">
+      {onVersionOpen && changes && (
+        <InteractionSummaryItem
+          label={tx(
+            'version_count',
+            ({count}) => `${count} ${pluralS(count, 'version')}`,
+            {
+              count: changes || 0,
+            },
+          )}
+          active={activePanel?.type === 'versions'}
+          count={changes || 0}
+          onClick={onVersionOpen}
+          // @ts-ignore
+          icon={<HistoryIcon className="size-5" />}
+        />
+      )}
       {onCitationsOpen && (
         <InteractionSummaryItem
           label={tx(
@@ -927,23 +943,6 @@ function _DocInteractionsSummary({
           onClick={onCommentsOpen}
           // @ts-ignore
           icon={<MessageSquare className="size-3" />}
-        />
-      )}
-
-      {onVersionOpen && changes && (
-        <InteractionSummaryItem
-          label={tx(
-            'version_count',
-            ({count}) => `${count} ${pluralS(count, 'version')}`,
-            {
-              count: changes || 0,
-            },
-          )}
-          active={activePanel?.type === 'versions'}
-          count={changes || 0}
-          onClick={onVersionOpen}
-          // @ts-ignore
-          icon={<HistoryIcon className="size-5" />}
         />
       )}
     </div>
