@@ -226,7 +226,6 @@ function InnerDocumentPage(
 ) {
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
 
   let panel: any = null
@@ -297,17 +296,62 @@ function InnerDocumentPage(
     return {blockRef, blockRange}
   }, [location.hash])
 
-  const [activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    return {type: 'discussions', comment}
+  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
+    return {type: 'discussions', comment: undefined}
   })
-  useEffect(() => {
-    setActivePanel((activePanel) => {
-      if (comment) {
-        return {type: 'discussions', comment}
-      }
-      return activePanel
+
+  function setDocumentPanel(panel: WebAccessory | null) {
+    setActivePanel(panel)
+    setIsSheetOpen(!!panel)
+    const route = {
+      key: 'document',
+      id: {
+        uid: id.uid,
+        path: id.path,
+        version: id.version,
+        blockRef: id.blockRef,
+        blockRange: id.blockRange,
+      },
+    } as NavRoute
+    const href = routeToHref(route, context)
+    if (!href) return
+    replace(href, {
+      replace: true,
+      preventScrollReset: true,
     })
-  }, [comment])
+  }
+
+  function setCommentPanel(comment: HMComment) {
+    const [commentUid, commentTsid] = comment.id.split('/')
+    const route = {
+      key: 'document',
+      id: {
+        uid: commentUid,
+        path: [commentTsid],
+      },
+    } as NavRoute
+    const href = routeToHref(route, {
+      hmUrlHref: context.hmUrlHref,
+      originHomeId: context.originHomeId,
+    })
+    if (!href) return
+    replace(href, {
+      replace: true,
+    })
+    setActivePanel({
+      type: 'discussions',
+      comment: comment,
+    })
+    setIsSheetOpen(true)
+  }
+
+  // if the server is providing a comment
+  const activePanel: WebAccessory | null = comment
+    ? {type: 'discussions', comment}
+    : _activePanel
+
+  // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
+  const [isSheetOpen, setIsSheetOpen] = useState(!!comment)
 
   const context = useUniversalAppContext()
   const onActivateBlock = useCallback(
@@ -356,7 +400,7 @@ function InnerDocumentPage(
 
   const onBlockCitationClick = useCallback(
     (blockId?: string) => {
-      setActivePanel({type: 'citations', blockId: blockId})
+      setDocumentPanel({type: 'citations', blockId: blockId})
 
       if (!media.gtSm) {
         const mainPanel = mainPanelRef.current
@@ -380,7 +424,7 @@ function InnerDocumentPage(
           quotingBlockId: blockId,
         })
       }
-      setActivePanel({type: 'discussions', blockId: blockId || undefined})
+      setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
       if (!media.gtSm) {
         setIsSheetOpen(true)
       }
@@ -389,51 +433,13 @@ function InnerDocumentPage(
   )
 
   const onReplyCountClick = useCallback((comment: HMComment) => {
-    const [commentUid, commentTsid] = comment.id.split('/')
-    const route = {
-      key: 'document',
-      id: {
-        uid: commentUid,
-        path: [commentTsid],
-      },
-    } as NavRoute
-    const href = routeToHref(route, {
-      hmUrlHref: context.hmUrlHref,
-      originHomeId: context.originHomeId,
-    })
-    if (!href) return
-    replace(href, {
-      replace: true,
-    })
-    setActivePanel({
-      type: 'discussions',
-      comment: comment,
-    })
+    setCommentPanel(comment)
   }, [])
 
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (enableWebSigning) {
-        const [commentUid, commentTsid] = comment.id.split('/')
-        const route = {
-          key: 'document',
-          id: {
-            uid: commentUid,
-            path: [commentTsid],
-          },
-        } as NavRoute
-        const href = routeToHref(route, {
-          hmUrlHref: context.hmUrlHref,
-          originHomeId: context.originHomeId,
-        })
-        if (!href) return
-        replace(href, {
-          replace: true,
-        })
-        setActivePanel({
-          type: 'discussions',
-          comment: comment,
-        })
+        setCommentPanel(comment)
         if (!media.gtSm) {
           setIsSheetOpen(true)
         }
@@ -456,7 +462,7 @@ function InnerDocumentPage(
       comments={interactionSummary.data?.comments}
       changes={interactionSummary.data?.changes}
       onCitationsOpen={() => {
-        setActivePanel({
+        setDocumentPanel({
           type: 'citations',
           blockId: undefined,
         })
@@ -465,7 +471,7 @@ function InnerDocumentPage(
         }
       }}
       onCommentsOpen={() => {
-        setActivePanel({
+        setDocumentPanel({
           type: 'discussions',
           blockId: undefined,
         })
@@ -474,7 +480,7 @@ function InnerDocumentPage(
         }
       }}
       onVersionOpen={() => {
-        setActivePanel({type: 'versions'})
+        setDocumentPanel({type: 'versions'})
         if (!media.gtSm) {
           setIsSheetOpen(true)
         }
@@ -498,10 +504,7 @@ function InnerDocumentPage(
             quotingBlockId={activePanel.blockId}
             enableWebSigning={enableWebSigning || false}
             onSuccess={({response}) => {
-              setActivePanel({
-                ...activePanel,
-                comment: response.comment,
-              })
+              setCommentPanel(response.comment)
             }}
           />
         ) : null}
@@ -517,26 +520,8 @@ function InnerDocumentPage(
         blockId={activePanel.blockId}
         comment={activePanel.comment}
         handleBack={() => {
-          setActivePanel({
-            ...activePanel,
-            comment: undefined,
-            blockId: undefined,
-          })
-          const route = {
-            key: 'document',
-            id: {
-              uid: id.uid,
-              path: id.path,
-              version: id.version,
-              blockRef: id.blockRef,
-              blockRange: id.blockRange,
-            },
-          } as NavRoute
-          const href = routeToHref(route, context)
-          if (!href) return
-          replace(href, {
-            replace: true,
-            preventScrollReset: true,
+          setDocumentPanel({
+            type: 'discussions',
           })
         }}
         setBlockId={onBlockCommentClick}
@@ -562,29 +547,9 @@ function InnerDocumentPage(
         activitySummary={activitySummary}
         id={id}
         blockId={activePanel.blockId}
-        handleClose={() => {
-          setActivePanel(null)
-        }}
         handleBack={() => {
-          const route = {
-            key: 'document',
-            id: {
-              uid: id.uid,
-              path: id.path,
-              version: id.version,
-              blockRef: id.blockRef,
-              blockRange: id.blockRange,
-            },
-          } as NavRoute
-          const href = routeToHref(route, context)
-          if (!href) return
-          replace(href, {
-            replace: true,
-            preventScrollReset: true,
-          })
-          setActivePanel({
-            ...activePanel,
-            blockId: undefined,
+          setDocumentPanel({
+            type: 'citations',
           })
         }}
       />
@@ -706,23 +671,25 @@ function InnerDocumentPage(
                           <DocContent
                             document={document}
                             handleBlockReplace={() => {
-                              const route = {
-                                key: 'document',
-                                id: {
-                                  uid: id.uid,
-                                  path: id.path,
-                                  version: id.version,
-                                  blockRef: id.blockRef,
-                                  blockRange: id.blockRange,
-                                },
-                              } as NavRoute
-                              const href = routeToHref(route, context)
-                              if (!href) return false
-                              replace(href, {
-                                replace: true,
-                                preventScrollReset: true,
-                              })
+                              // setDocumentPanel(null)
                               return true
+                              // const route = {
+                              //   key: 'document',
+                              //   id: {
+                              //     uid: id.uid,
+                              //     path: id.path,
+                              //     version: id.version,
+                              //     blockRef: id.blockRef,
+                              //     blockRange: id.blockRange,
+                              //   },
+                              // } as NavRoute
+                              // const href = routeToHref(route, context)
+                              // if (!href) return false
+                              // replace(href, {
+                              //   replace: true,
+                              //   preventScrollReset: true,
+                              // })
+                              // return true
                             }}
                           />
                         </WebDocContentProvider>
@@ -759,7 +726,7 @@ function InnerDocumentPage(
                         size="icon"
                         className="flex-none"
                         onClick={() => {
-                          setActivePanel(null)
+                          setDocumentPanel(null)
                         }}
                       >
                         <X className="size-4" />
@@ -788,10 +755,7 @@ function InnerDocumentPage(
             <Drawer open={isSheetOpen} onOpenChange={setIsSheetOpen}>
               <MobileInteractionCardCollapsed
                 onClick={() => {
-                  // if (!panel) {
-                  setActivePanel({type: 'discussions', blockId: undefined})
-                  // }
-                  setIsSheetOpen(true)
+                  setDocumentPanel({type: 'discussions'})
                 }}
                 interactionSummary={
                   interactionSummary.data ? <>{activitySummary}</> : null
@@ -1074,13 +1038,11 @@ function WebCitationsPanel({
   id,
   blockId,
   handleBack,
-  handleClose,
 }: {
   activitySummary: React.ReactNode
   id: UnpackedHypermediaId
   blockId?: string
   handleBack: () => void
-  handleClose: () => void
 }) {
   const citations = useCitations(id)
   const displayCitations = useMemo(() => {

@@ -3,11 +3,13 @@ import {
   BlockRange,
   HMEntityContent,
   HMQueryResult,
+  NavRoute,
+  routeToHref,
   UnpackedHypermediaId,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {toast} from '@shm/ui/toast'
-import {getHref} from './href'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 export function WebDocContentProvider({
@@ -51,6 +53,7 @@ export function WebDocContentProvider({
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
   const navigate = useNavigate()
+  const context = useUniversalAppContext()
   return (
     <DocContentProvider
       entityComponents={{
@@ -64,30 +67,52 @@ export function WebDocContentProvider({
       onBlockCopy={
         id
           ? (blockId, blockRange) => {
-              const blockHref = getHref(
-                originHomeId,
-                {
-                  ...id,
-                  hostname: siteHost || null,
-                  blockRange: blockRange || null,
+              // const blockHref = getHref(
+              //   originHomeId,
+              //   {
+              //     ...id,
+              //     hostname: siteHost || null,
+              //     blockRange: blockRange || null,
+              //     blockRef: blockId,
+              //   },
+              //   id.version || undefined,
+              // )
+              // window.navigator.clipboard.writeText(blockHref)
+              // navigate(
+              //   window.location.pathname +
+              //     window.location.search +
+              //     `#${blockId}${
+              //       blockRange
+              //         ? 'start' in blockRange && 'end' in blockRange
+              //           ? `[${blockRange.start}:${blockRange.end}]`
+              //           : ''
+              //         : ''
+              //     }`,
+              //   {replace: true, preventScrollReset: true},
+              // )
+              const route = {
+                key: 'document',
+                id: {
+                  uid: id.uid,
+                  path: id.path,
+                  version: id.version,
                   blockRef: blockId,
+                  blockRange: blockRange,
                 },
-                id.version || undefined,
-              )
-              window.navigator.clipboard.writeText(blockHref)
-              navigate(
-                window.location.pathname +
-                  window.location.search +
-                  `#${blockId}${
-                    blockRange
-                      ? 'start' in blockRange && 'end' in blockRange
-                        ? `[${blockRange.start}:${blockRange.end}]`
-                        : ''
-                      : ''
-                  }`,
-                {replace: true, preventScrollReset: true},
-              )
-              toast.success('Block copied to clipboard')
+              } as NavRoute
+              const href = routeToHref(route, {
+                hmUrlHref: context.hmUrlHref,
+                originHomeId: context.originHomeId,
+              })
+              if (!href) {
+                toast.error('Failed to create block link')
+                return
+              }
+              window.navigator.clipboard.writeText(href)
+              navigate(href, {
+                replace: true,
+              })
+              toast.success('Block link copied to clipboard')
             }
           : null
       }
