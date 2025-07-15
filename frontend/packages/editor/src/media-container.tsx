@@ -148,11 +148,11 @@ export const MediaContainer = ({
   const mediaProps = {
     ...styleProps,
     ...(isEmbed ? {} : dragProps),
-    onHoverIn: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
       setHover(true)
     },
-    onHoverOut: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    onMouseLeave: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverOut) onHoverOut(e)
       setHover(false)
     },

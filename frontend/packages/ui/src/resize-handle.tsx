@@ -1,8 +1,12 @@
-export function ResizeHandle() {
+export function ResizeHandle({
+  style,
+  ...props
+}: React.HTMLProps<HTMLDivElement>) {
   return (
     <div
-      className="border-border bg-color absolute h-8 w-2 cursor-col-resize rounded-sm border hover:cursor-col-resize"
-      style={{top: 'calc(50% - 16px)'}}
+      className="border-border bg-foreground absolute z-[7] h-12 w-2 cursor-col-resize rounded-md border"
+      style={{top: 'calc(50% - 16px)', ...style}}
+      {...props}
     />
   )
 }

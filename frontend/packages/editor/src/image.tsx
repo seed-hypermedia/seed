@@ -364,7 +364,6 @@ const display = ({
     event: React.MouseEvent<HTMLDivElement>,
   ) => {
     event.preventDefault()
-
     setShowHandle(true)
 
     resizeParams = {
@@ -394,11 +393,11 @@ const display = ({
       {showHandle && (
         <>
           <ResizeHandle
-            left={4}
+            style={{left: 4}}
             onMouseDown={leftResizeHandleMouseDownHandler}
           />
           <ResizeHandle
-            right={4}
+            style={{right: 4}}
             onMouseDown={rightResizeHandleMouseDownHandler}
           />
         </>
