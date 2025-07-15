@@ -215,8 +215,12 @@ jobs:
           # Decode the base64 certificate to a file
           echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /tmp/client_cert.p7b
           echo "SM_CLIENT_CERT_FILE=/tmp/client_cert.p7b" >> "$GITHUB_ENV"
-          # Set password explicitly, even if empty
-          echo "SM_CLIENT_CERT_PASSWORD=' '" >> "$GITHUB_ENV"
+          # Set password - try space character if empty (SMCTL might expect this)
+          if [ -z "${{ secrets.SM_CLIENT_CERT_PASSWORD }}" ]; then
+            echo "SM_CLIENT_CERT_PASSWORD= " >> "$GITHUB_ENV"
+          else
+            echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$GITHUB_ENV"
+          fi
           echo "SM_CODE_SIGNING_CERT_SHA1_HASH=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}" >> "$GITHUB_ENV"
           echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $GITHUB_PATH
           echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $GITHUB_PATH
@@ -235,10 +239,8 @@ jobs:
           echo "Debug: SM_HOST=$SM_HOST"
           echo "Debug: SM_API_KEY length: ${#SM_API_KEY}"
           echo "Debug: SM_CLIENT_CERT_FILE=$SM_CLIENT_CERT_FILE"
-
-          # Try setting password to empty string explicitly
-          export SM_CLIENT_CERT_PASSWORD=" "
-          echo "Debug: Explicitly set SM_CLIENT_CERT_PASSWORD to empty string"
+          echo "Debug: SM_CLIENT_CERT_PASSWORD length: ${#SM_CLIENT_CERT_PASSWORD}"
+          echo "Debug: SM_CODE_SIGNING_CERT_SHA1_HASH length: ${#SM_CODE_SIGNING_CERT_SHA1_HASH}"
 
           # Verify connection and credentials
           echo "Testing connection and credentials..."
