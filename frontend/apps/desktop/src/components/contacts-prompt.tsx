@@ -6,13 +6,17 @@ import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {UserPlus} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
+import {
+  DialogClose,
+  DialogDescription,
+  DialogTitle,
+} from '@shm/ui/universal-dialog'
 import {base58btc} from 'multiformats/bases/base58'
 import {useMemo, useState} from 'react'
 import appError from '../errors'
 import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
 import {usePeerInfo} from '../models/networking'
-import {DialogClose, DialogDescription, DialogTitle} from './dialog'
 
 export function AddConnectionDialog({
   input,

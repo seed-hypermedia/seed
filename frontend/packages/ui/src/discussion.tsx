@@ -18,7 +18,6 @@ import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
 import {cn} from './utils'
 
 const avatarSize = 18
@@ -103,7 +102,6 @@ export function Comment({
       handler: 'onClick',
     },
   )
-  const isDark = useIsDark()
   const tx = useTx()
   const {formattedDateMedium, formattedDateLong} = useTxUtils()
   useEffect(() => {

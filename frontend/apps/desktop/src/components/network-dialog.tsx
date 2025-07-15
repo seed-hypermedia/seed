@@ -8,14 +8,14 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {Route} from 'lucide-react'
 import React from 'react'
 import {ColorValue} from 'react-native'
-import {ButtonText, Dialog, SizableText, useTheme} from 'tamagui'
+import {ButtonText, SizableText, useTheme} from 'tamagui'
 import {HMPeerInfo, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
-import {useAppDialog} from './dialog'
 
 export function useNetworkDialog() {
   return useAppDialog<true>(NetworkDialog)
@@ -31,32 +31,34 @@ export function NetworkDialog() {
 
   return (
     <>
-      <Dialog.Title>Network Connections</Dialog.Title>
+      <DialogTitle>Network Connections</DialogTitle>
       <div className="flex justify-end">
         <Button onClick={() => connectDialog.open(true)} size="sm">
           <Route className="size-3" />
           Add Connection
         </Button>
       </div>
-      <ScrollArea>
-        {peers.data && peers.data.length ? (
-          peers.data.map((peer) => (
-            <PeerRow
-              key={peer.id}
-              peer={peer}
-              myProtocol={deviceInfo?.protocolId || ''}
-            />
-          ))
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
-            <NoConnection color={theme.color7.val} />
-            <SizableText color="$color7" fontWeight="500" size="$5">
-              there are no active connections
-            </SizableText>
-          </div>
-        )}
-        {connectDialog.content}
-      </ScrollArea>
+      <div className="h-full max-h-[500px]">
+        <ScrollArea className="overflow-y-auto">
+          {peers.data && peers.data.length ? (
+            peers.data.map((peer) => (
+              <PeerRow
+                key={peer.id}
+                peer={peer}
+                myProtocol={deviceInfo?.protocolId || ''}
+              />
+            ))
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
+              <NoConnection color={theme.color7.val} />
+              <SizableText color="$color7" fontWeight="500" size="$5">
+                there are no active connections
+              </SizableText>
+            </div>
+          )}
+          {connectDialog.content}
+        </ScrollArea>
+      </div>
     </>
   )
 }
