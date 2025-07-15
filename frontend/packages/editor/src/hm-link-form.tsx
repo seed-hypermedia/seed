@@ -13,6 +13,7 @@ import {Label} from '@shm/ui/components/label'
 import {SwitchField} from '@shm/ui/form-fields'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {
   CircleDot,
   File,
@@ -444,7 +445,25 @@ const SearchInput = ({
   }, [focused, search])
 
   let dropdownContent = (
-    <YStack
+    <div
+      className={cn(
+        'search-dropdown-content',
+        'absolute z-[99999] flex max-h-[500px] flex-col gap-2 overflow-scroll',
+        'rounded-b-md border-t-transparent px-3 py-3',
+        'bg-muted shadow-md',
+        focused ? 'flex' : 'hidden',
+        activeItems.length > 0 ? 'opacity-100' : 'opacity-0',
+      )}
+      style={{
+        width:
+          inputPosition && inputPosition.width ? inputPosition.width + 37 : 300,
+        top: inputPosition
+          ? Math.min(inputPosition.bottom, viewportHeight - 200) + 5
+          : 0,
+        left: inputPosition ? inputPosition.left - 30 : 0,
+      }}
+    >
+      {/* <YStack
       className="search-dropdown-content"
       display={focused ? 'flex' : 'none'}
       gap="$2"
@@ -470,7 +489,7 @@ const SearchInput = ({
       maxHeight={500}
       overflow="scroll"
       zIndex={99999}
-    >
+    > */}
       {isDisplayingRecents ? (
         <SizableText className="mx-4">Recent Resources</SizableText>
       ) : null}
@@ -489,7 +508,8 @@ const SearchInput = ({
           />
         )
       })}
-    </YStack>
+      {/* </YStack> */}
+    </div>
   )
 
   return (
@@ -498,6 +518,7 @@ const SearchInput = ({
         ref={inputRef}
         className="flex-1"
         onFocus={() => {
+          console.log('focused????????', inputPosition, focused)
           setFocused(true)
         }}
         onBlur={() => {

@@ -1,6 +1,5 @@
-import * as React from 'react'
-
 import {cva, VariantProps} from 'class-variance-authority'
+import * as React from 'react'
 import {cn} from '../utils'
 
 export type InputProps = React.ComponentProps<'input'> & {
@@ -24,27 +23,26 @@ const inputVariants = cva(
   },
 )
 
-export function Input({
-  className,
-  type,
-  onChangeText,
-  onChange,
-  variant = 'default',
-  ...props
-}: InputProps) {
-  return (
-    <input
-      type={type}
-      data-slot="input"
-      className={cn(inputVariants({variant}), className)}
-      onChange={(e) => {
-        if (onChangeText) {
-          onChangeText(e.target.value)
-        } else {
-          onChange?.(e)
-        }
-      }}
-      {...props}
-    />
-  )
-}
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  (
+    {className, type, onChangeText, onChange, variant = 'default', ...props},
+    ref,
+  ) => {
+    return (
+      <input
+        ref={ref}
+        type={type}
+        data-slot="input"
+        className={cn(inputVariants({variant}), className)}
+        onChange={(e) => {
+          if (onChangeText) {
+            onChangeText(e.target.value)
+          } else {
+            onChange?.(e)
+          }
+        }}
+        {...props}
+      />
+    )
+  },
+)
