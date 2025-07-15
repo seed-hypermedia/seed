@@ -150,7 +150,7 @@ export function Comment({
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1">
+      <div className="flex w-full flex-1 flex-col gap-1">
         <div className="flex min-h-5 items-center gap-1">
           <button
             className={cn(
