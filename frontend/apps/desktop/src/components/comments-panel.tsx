@@ -131,6 +131,8 @@ function CommentBlockAccessory({
   const doc = useResource(docId)
   const accounts = useContactsMetadata(Array.from(accountIds))
   let quotedContent = null
+
+  if (!docId) return null
   if (doc.data?.document) {
     quotedContent = (
       <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />
