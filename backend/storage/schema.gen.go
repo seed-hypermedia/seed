@@ -192,6 +192,26 @@ const (
 	C_FtsIdxTerm  = "fts_idx.term"
 )
 
+// Table fts_index.
+const (
+	FtsIndex        sqlitegen.Table  = "fts_index"
+	FtsIndexBlobID  sqlitegen.Column = "fts_index.blob_id"
+	FtsIndexBlockID sqlitegen.Column = "fts_index.block_id"
+	FtsIndexRowid   sqlitegen.Column = "fts_index.rowid"
+	FtsIndexType    sqlitegen.Column = "fts_index.type"
+	FtsIndexVersion sqlitegen.Column = "fts_index.version"
+)
+
+// Table fts_index. Plain strings.
+const (
+	T_FtsIndex        = "fts_index"
+	C_FtsIndexBlobID  = "fts_index.blob_id"
+	C_FtsIndexBlockID = "fts_index.block_id"
+	C_FtsIndexRowid   = "fts_index.rowid"
+	C_FtsIndexType    = "fts_index.type"
+	C_FtsIndexVersion = "fts_index.version"
+)
+
 // Table kv.
 const (
 	KV      sqlitegen.Table  = "kv"
@@ -465,6 +485,11 @@ var Schema = sqlitegen.Schema{
 		FtsIdxPgno:                              {Table: FtsIdx, SQLType: ""},
 		FtsIdxSegid:                             {Table: FtsIdx, SQLType: ""},
 		FtsIdxTerm:                              {Table: FtsIdx, SQLType: ""},
+		FtsIndexBlobID:                          {Table: FtsIndex, SQLType: "INTEGER"},
+		FtsIndexBlockID:                         {Table: FtsIndex, SQLType: "TEXT"},
+		FtsIndexRowid:                           {Table: FtsIndex, SQLType: "INTEGER"},
+		FtsIndexType:                            {Table: FtsIndex, SQLType: "TEXT"},
+		FtsIndexVersion:                         {Table: FtsIndex, SQLType: "TEXT"},
 		KVKey:                                   {Table: KV, SQLType: "TEXT"},
 		KVValue:                                 {Table: KV, SQLType: "TEXT"},
 		PeersAddresses:                          {Table: Peers, SQLType: "TEXT"},

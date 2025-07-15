@@ -57,6 +57,42 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-07-15.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS fts5;
+		`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
+				raw_content,
+				type UNINDEXED,
+				blob_id UNINDEXED,
+				block_id UNINDEXED,
+				version UNINDEXED
+			);
+		`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS fts_index;
+		`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS fts_index (
+				rowid INTEGER PRIMARY KEY REFERENCES fts (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
+				blob_id INTEGER NOT NULL REFERENCES fts (blob_id) ON UPDATE CASCADE ON DELETE CASCADE,
+				version TEXT NOT NULL REFERENCES fts (version) ON UPDATE CASCADE ON DELETE CASCADE,
+				block_id TEXT NOT NULL REFERENCES fts (block_id) ON UPDATE CASCADE ON DELETE CASCADE,
+				type TEXT NOT NULL REFERENCES fts (type) ON UPDATE CASCADE ON DELETE CASCADE
+			) WITHOUT ROWID;
+			CREATE INDEX IF NOT EXISTS fts_index_by_doc_change ON fts_index (blob_id, version, block_id, type);
+		`)); err != nil {
+			return err
+		}
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-07-09.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to fix comment causality issues again.
 		return scheduleReindex(conn)

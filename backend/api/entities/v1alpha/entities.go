@@ -356,10 +356,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		entityTypeContact = "contact"
 	}
-	var resultsLmit int = 1000
+	var resultsLmit int = 2000
 
 	if len(cleanQuery) < 3 {
-		resultsLmit = 100
+		resultsLmit = 200
 	}
 	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
 	if ftsStr[len(ftsStr)-1] == '+' {
@@ -483,7 +483,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			uniqueBodyMatches = append(uniqueBodyMatches, bm)
 		}
 	}
-
+	//fmt.Println("unique results:", len(uniqueResults), "out of", len(searchResults))
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
 
@@ -525,8 +525,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	//before = time.Now()
 	//totalGetParentsTime := time.Duration(0)
-	totalLatestBlockTime := time.Duration(0)
-	var timesCalled int
+	//totalLatestBlockTime := time.Duration(0)
+	//var timesCalled int
 
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
@@ -546,56 +546,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		id := searchResults[match.Index].iri
 
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
-
-			var version string
-			var blockID string
-			var content string
-			var blobID int64
-			var modified bool
-			if searchResults[match.Index].latestVersion != searchResults[match.Index].version {
-				startLatestBlocks := time.Now()
-				timesCalled++
-				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
-						version = stmt.ColumnText(0)
-						blobID = stmt.ColumnInt64(1)
-						ts := hlc.Timestamp(stmt.ColumnInt64(2) * 1000).Time()
-						blockID = stmt.ColumnText(3)
-						content = stmt.ColumnText(4)
-						if blockID != searchResults[match.Index].blockID && !modified {
-							if version != "" {
-								if version == searchResults[match.Index].latestVersion {
-									searchResults[match.Index].version = version + "&l"
-								} else {
-									searchResults[match.Index].version = version
-								}
-							}
-							searchResults[match.Index].versionTime = timestamppb.New(ts)
-							searchResults[match.Index].blobID = blobID
-						} else if blockID == searchResults[match.Index].blockID && content == searchResults[match.Index].rawContent {
-							if version != "" {
-								if version == searchResults[match.Index].latestVersion {
-									searchResults[match.Index].version = version + "&l"
-								} else {
-									searchResults[match.Index].version = version
-								}
-							}
-							searchResults[match.Index].versionTime = timestamppb.New(ts)
-							searchResults[match.Index].blobID = blobID
-							modified = false
-						} else if blockID == searchResults[match.Index].blockID && content != searchResults[match.Index].rawContent {
-							modified = true
-						}
-
-						return nil
-					}, searchResults[match.Index].blobID)
-				}); err != nil {
-					return nil, err
-				}
-
-				totalLatestBlockTime += time.Since(startLatestBlocks)
-
-			} else {
+			if searchResults[match.Index].latestVersion == searchResults[match.Index].version {
 				searchResults[match.Index].version += "&l"
 			}
 
@@ -656,23 +607,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
-
-var qGetLatestBlockChange = dqb.Str(`
-SELECT 
-  f.version,
-  sb.id AS blob_id,
-  sb.ts,
-  f.block_id,
-  f.raw_content
-FROM structural_blobs AS sb
-JOIN fts AS f
-  ON f.blob_id = sb.id
-WHERE sb.type = 'Change'
-  AND sb.id > :blob_id
-  AND sb.genesis_blob = IFNULL((SELECT genesis_blob from structural_blobs where id = :blob_id), :blob_id)
-ORDER BY sb.id ASC;
-
-`)
 
 // DeleteEntity implements the corresponding gRPC method.
 // func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {

@@ -245,14 +245,32 @@ CREATE VIRTUAL TABLE fts USING fts5(
     raw_content,
     -- The type of the content being indexed. It could be
     -- a title, a document body, or a comment.
-    type,
+    type UNINDEXED,
     -- The id of the blob of the blob containting the change.
     -- With the raw_contnet in it.
-    blob_id,
+    blob_id UNINDEXED,
     -- The ID of the block that contains the content.
     -- Only relevant on type=document,comment.
-    block_id,
+    block_id UNINDEXED,
     -- The version of the document that contains
     -- the change. Only relevant on type=document,comment
-    version
+    version UNINDEXED
 );
+
+-- Since we cannot create indexes on virtual tables,
+-- we create a separate table to store the FTS index.
+-- This is needed to speed up the search of what FTSentries
+-- we have to update when a blob is updated.
+CREATE TABLE fts_index (
+    -- The rowid of the FTS entry.
+    rowid INTEGER PRIMARY KEY REFERENCES fts (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
+    -- The blob ID of the blob that contains the content.
+    blob_id INTEGER NOT NULL REFERENCES fts (blob_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    -- The version of the document that contains the content.
+    version TEXT NOT NULL REFERENCES fts (version) ON UPDATE CASCADE ON DELETE CASCADE,
+    -- The block ID of the block that contains the content.
+    block_id TEXT NOT NULL REFERENCES fts (block_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    -- The type of the content being indexed.
+    type TEXT NOT NULL REFERENCES fts (type) ON UPDATE CASCADE ON DELETE CASCADE
+) WITHOUT ROWID;
+CREATE INDEX fts_index_by_doc_change ON fts_index (blob_id, version, block_id, type);
