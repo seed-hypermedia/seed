@@ -12,6 +12,11 @@ import {
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
 import {BlockQuote} from '@shm/ui/icons'
@@ -19,6 +24,7 @@ import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
+  ChevronDown,
   Clock,
   Folder,
   MessageSquare,
@@ -26,7 +32,7 @@ import {
   Sparkle,
   Users,
 } from 'lucide-react'
-import {useEffect, useMemo, useRef} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -236,32 +242,221 @@ function AccessoryTabs({
   onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
   tabNumbers?: Partial<Record<DocAccessoryOption['key'], number>>
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const [visibleOptions, setVisibleOptions] = useState<DocAccessoryOption[]>([])
+  const [overflowOptions, setOverflowOptions] = useState<DocAccessoryOption[]>(
+    [],
+  )
+
+  // Calculate which items fit in the available space
+  const updateVisibility = useCallback(() => {
+    if (!containerRef.current || !options?.length) {
+      setVisibleOptions([])
+      setOverflowOptions([])
+      return
+    }
+
+    const container = containerRef.current
+    const containerWidth = container.getBoundingClientRect().width
+
+    // Reserve space for padding and potential dropdown button
+    const paddingWidth = 16 // p-2 on both sides
+    const dropdownButtonWidth = 36 // size-sm button width
+    const gapWidth = 20 // gap-1 between items
+    const reservedWidth = paddingWidth + dropdownButtonWidth + gapWidth
+    const availableWidth = containerWidth - reservedWidth
+
+    const visible: DocAccessoryOption[] = []
+    const overflow: DocAccessoryOption[] = []
+
+    // Create array of options with their measured widths
+    const optionWidths: Array<{
+      option: DocAccessoryOption
+      width: number
+      isActive: boolean
+    }> = []
+
+    for (const option of options) {
+      const element = itemRefs.current.get(option.key)
+      const isActive = accessoryKey === option.key
+      if (element) {
+        const width = element.getBoundingClientRect().width + gapWidth
+        optionWidths.push({option, width, isActive})
+      } else {
+        // If we can't measure, use an estimate
+        optionWidths.push({option, width: 60, isActive})
+      }
+    }
+
+    // Find the active option and reserve space for it first
+    const activeOptionData = optionWidths.find(({isActive}) => isActive)
+    let remainingWidth = availableWidth
+
+    if (activeOptionData) {
+      remainingWidth -= activeOptionData.width
+    }
+
+    // Now go through options in original order and add them if they fit
+    for (const {option, width, isActive} of optionWidths) {
+      if (isActive) {
+        // Always include the active option (space already reserved)
+        visible.push(option)
+      } else {
+        // For non-active options, only add if there's remaining space
+        if (width <= remainingWidth) {
+          visible.push(option)
+          remainingWidth -= width
+        } else {
+          overflow.push(option)
+        }
+      }
+    }
+
+    // Ensure we show at least one option (fallback)
+    if (visible.length === 0 && options.length > 0) {
+      visible.push(options[0])
+      const firstOverflowIndex = overflow.findIndex(
+        (option) => option.key === options[0].key,
+      )
+      if (firstOverflowIndex !== -1) {
+        overflow.splice(firstOverflowIndex, 1)
+      }
+    }
+
+    setVisibleOptions(visible)
+    setOverflowOptions(overflow)
+  }, [options, accessoryKey])
+
+  // Update visibility when options change
+  useEffect(() => {
+    updateVisibility()
+
+    // Second update after render to ensure accurate measurements
+    const timer = setTimeout(() => {
+      updateVisibility()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [options, updateVisibility])
+
+  // Setup resize observer
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const observer = new ResizeObserver(() => {
+      updateVisibility()
+    })
+
+    observer.observe(containerRef.current)
+    window.addEventListener('resize', updateVisibility)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateVisibility)
+    }
+  }, [updateVisibility])
+
   return (
-    <div className="flex items-center justify-center gap-1 p-2 px-3">
-      {options.map((option) => {
-        const isActive = accessoryKey === option.key
-        const Icon = accessoryKey ? iconNames[option.key] : undefined
-        return (
-          <Tooltip content={option.label} key={option.key}>
-            <span>
-              <Button
-                size="sm"
-                variant={isActive ? 'brand-12' : 'ghost'}
-                onClick={() => {
-                  if (isActive) return
-                  // if (isActive) onAccessorySelect(undefined)
-                  onAccessorySelect(option.key)
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="flex items-center justify-center gap-1 p-2 px-3"
+      >
+        {/* Hidden measurement container */}
+        <div className="pointer-events-none absolute flex items-center gap-1 opacity-0">
+          {options?.map((option) => {
+            const isActive = accessoryKey === option.key
+            const Icon = iconNames[option.key]
+            return (
+              <div
+                key={`measure-${option.key}`}
+                ref={(el) => {
+                  if (el) {
+                    itemRefs.current.set(option.key, el)
+                  } else {
+                    itemRefs.current.delete(option.key)
+                  }
                 }}
               >
-                {Icon ? <Icon className="size-4" /> : null}
-                {tabNumbers?.[option.key]
-                  ? String(tabNumbers[option.key])
-                  : null}
+                <Button size="sm" variant={isActive ? 'brand-12' : 'ghost'}>
+                  {Icon ? <Icon className="size-4" /> : null}
+                  {tabNumbers?.[option.key]
+                    ? String(tabNumbers[option.key])
+                    : null}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Visible options */}
+        {visibleOptions.map((option) => {
+          const isActive = accessoryKey === option.key
+          const Icon = iconNames[option.key]
+          return (
+            <Tooltip content={option.label} key={option.key}>
+              <span>
+                <Button
+                  size="sm"
+                  variant={isActive ? 'brand-12' : 'ghost'}
+                  onClick={() => {
+                    if (isActive) return
+                    onAccessorySelect(option.key)
+                  }}
+                >
+                  {Icon ? <Icon className="size-4" /> : null}
+                  {tabNumbers?.[option.key]
+                    ? String(tabNumbers[option.key])
+                    : null}
+                </Button>
+              </span>
+            </Tooltip>
+          )
+        })}
+
+        {/* Overflow dropdown */}
+        {overflowOptions.length > 0 && (
+          <Popover>
+            <PopoverTrigger>
+              <Button size="sm" variant="ghost" className="rounded-full">
+                <ChevronDown className="size-5" />
               </Button>
-            </span>
-          </Tooltip>
-        )
-      })}
+            </PopoverTrigger>
+            <PopoverContent
+              className="max-h-[300px] overflow-y-scroll p-0"
+              align="end"
+              side="bottom"
+            >
+              {overflowOptions.map((option) => {
+                const isActive = accessoryKey === option.key
+                const Icon = iconNames[option.key]
+                return (
+                  <div
+                    key={option.key}
+                    className={cn(
+                      'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
+                      isActive && 'bg-accent',
+                    )}
+                    onClick={() => {
+                      if (isActive) return
+                      onAccessorySelect(option.key)
+                    }}
+                  >
+                    {Icon ? <Icon className="size-4" /> : null}
+                    <span className="text-sm">{option.label}</span>
+                    {tabNumbers?.[option.key] ? (
+                      <span className="text-muted-foreground text-xs">
+                        {String(tabNumbers[option.key])}
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
     </div>
   )
 }

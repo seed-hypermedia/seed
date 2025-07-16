@@ -425,6 +425,8 @@ export function SiteHeaderMenu({
   // Measure the actual width of each element and calculate visibility
   const updateVisibility = useCallback(() => {
     if (!containerRef.current || !items?.length) {
+      setVisibleItems([])
+      setOverflowItems([])
       return
     }
 
@@ -439,52 +441,106 @@ export function SiteHeaderMenu({
     const reservedWidth =
       editNavPaneWidth +
       8 + // padding-2 size
-      18 + // width of expand button
+      32 + // width of expand button (more realistic)
       20 // gap to expand button
     const availableWidth = containerWidth - reservedWidth
 
-    let currentWidth = 0
+    console.log('SiteHeaderMenu measurements:', {
+      containerWidth,
+      availableWidth,
+      itemsLength: items.length,
+      editNavPaneWidth,
+    })
+
     const visible: DocNavigationItem[] = []
     const overflow: DocNavigationItem[] = []
 
-    // Create array of items with their measured widths
-    const itemWidths: Array<{item: DocNavigationItem; width: number}> = []
+    // Create array of items with their measured widths and active status
+    const itemWidths: Array<{
+      item: DocNavigationItem
+      width: number
+      isActive: boolean
+    }> = []
 
     for (const item of items) {
       const key = item.key
       const element = itemRefs.current.get(key)
 
+      // Determine if this item is active using the same logic as in render
+      const isActive =
+        !!item.id &&
+        !!docId &&
+        item.id.uid === docId.uid &&
+        !!docId?.path &&
+        !!item.id?.path &&
+        docId.path.join('/').startsWith(item.id.path.join('/'))
+
       if (element) {
         const width = element.getBoundingClientRect().width + 20 // add 20 because of the gap-5
-        itemWidths.push({item, width})
+        itemWidths.push({item, width, isActive})
+        console.log(`Item ${key}: width=${width}, isActive=${isActive}`)
       } else {
         // If we can't measure, use an estimate
-        itemWidths.push({item, width: 150})
+        itemWidths.push({item, width: 150, isActive})
+        console.log(
+          `Item ${key}: using estimated width=150, isActive=${isActive}`,
+        )
       }
     }
 
-    // Add items until we run out of space
-    // The key change: we check if adding this item would overflow
-    // That way, we avoid partially visible items
-    for (const {item, width} of itemWidths) {
-      // Check if adding this item would overflow
-      if (currentWidth + width < availableWidth) {
+    // Find the active item and reserve space for it first
+    const activeItemData = itemWidths.find(({isActive}) => isActive)
+    let remainingWidth = availableWidth
+
+    if (activeItemData) {
+      remainingWidth -= activeItemData.width
+      console.log(
+        `Reserved ${activeItemData.width}px for active item ${activeItemData.item.key}`,
+      )
+    }
+
+    // Now go through items in original order and add them if they fit
+    for (const {item, width, isActive} of itemWidths) {
+      if (isActive) {
+        // Always include the active item (space already reserved)
         visible.push(item)
-        currentWidth += width
+        console.log(`Adding active item ${item.key}`)
       } else {
-        overflow.push(item)
+        // For non-active items, only add if there's remaining space
+        if (width <= remainingWidth) {
+          visible.push(item)
+          remainingWidth -= width
+          console.log(
+            `Adding item ${item.key}, remainingWidth=${remainingWidth}`,
+          )
+        } else {
+          overflow.push(item)
+          console.log(`Moving item ${item.key} to overflow`)
+        }
       }
     }
 
-    // Ensure we show at least one item
+    // Ensure we show at least one item (fallback)
     if (visible.length === 0 && items.length > 0) {
       visible.push(items[0])
-      overflow.splice(0, 1)
+      const firstOverflowIndex = overflow.findIndex(
+        (item) => item.key === items[0].key,
+      )
+      if (firstOverflowIndex !== -1) {
+        overflow.splice(firstOverflowIndex, 1)
+      }
     }
+
+    console.log('Final result:', {
+      visible: visible.length,
+      overflow: overflow.length,
+      visibleKeys: visible.map((i) => i.key),
+      overflowKeys: overflow.map((i) => i.key),
+    })
 
     setVisibleItems(visible)
     setOverflowItems(overflow)
-  }, [items, editNavPane])
+  }, [items, editNavPane, docId])
 
   // Measure on mount and when items change
   useEffect(() => {
@@ -516,51 +572,18 @@ export function SiteHeaderMenu({
     }
   }, [updateVisibility])
 
-  // Build menu items for dropdown
-  // const linkDropdownItems: DocNavigationItem[] = useMemo(() => {
-  //   return overflowItems
-  //     .map((item) => {
-  //       const isActive =
-  //         !!docId?.path &&
-  //         !!item.id?.path &&
-  //         item.id.path?.[0] === docId.path[0]
-
-  //       const route: NavRoute | null | undefined = item.draftId
-  //         ? ({
-  //             key: 'draft',
-  //             id: item.draftId,
-  //           } as const)
-  //         : item.id
-  //         ? ({key: 'document', id: item.id} as const)
-  //         : item.webUrl
-  //       if (!route) return null
-  //       return {
-  //         key: item.id?.id || item.draftId || '?',
-  //         label: getMetadataName(item.metadata) || 'Untitled',
-  //         icon: () => null,
-  //         route,
-  //         color: isActive
-  //           ? '$color'
-  //           : item.isPublished === false
-  //           ? '$color9'
-  //           : '$color10',
-  //       }
-  //     })
-  //     .filter((item) => !!item)
-  // }, [overflowItems, docId])
-
   return (
     <div
       ref={containerRef}
       className={cn(
-        'hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
+        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
         'md:flex md:p-2',
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
       {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
-      <div className="pointer-events-none absolute flex items-center gap-5 bg-red-500 p-0 opacity-0 md:flex md:p-2">
+      <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
         {items?.map((item) => {
           return (
             <div
