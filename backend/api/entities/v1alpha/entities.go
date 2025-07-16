@@ -265,7 +265,7 @@ FROM fts_top100 AS f
     ON document_generations.resource = resources.id
   
   LEFT JOIN document_generations dg_subject
-	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = structural_blobs.id and structural_blobs.type = 'Contact') order by id limit 1)
+	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = f.blob_id) order by id limit 1)
 
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
