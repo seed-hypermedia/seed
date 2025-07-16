@@ -1205,7 +1205,7 @@ function InlineContentView({
     if (styles.italic) classes.push('italic')
     if (styles.code)
       classes.push(
-        'font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700',
+        'text-code font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700',
       )
     if (styles.underline) classes.push('underline')
     if (styles.strike) classes.push('line-through')

@@ -7,12 +7,12 @@
 }
 
 p.block-paragraph,
-p.block-paragraph * :not(code) {
+p.block-paragraph * :not(.text-code) {
   font-family: Georgia, 'Times New Roman', Times, serif !important;
 }
 
 p.block-paragraph.is-comment,
-p.block-paragraph.is-comment *:not(code) {
+p.block-paragraph.is-comment *:not(.text-code) {
   font-family:
     'Inter',
     'SF Pro Display',
