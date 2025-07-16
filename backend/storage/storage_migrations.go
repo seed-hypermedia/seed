@@ -158,10 +158,10 @@ var migrations = []migration{
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
 				raw_content,
-				type UNINDEXED,
-				blob_id UNINDEXED,
-				block_id UNINDEXED,
-				version UNINDEXED
+				type,
+				blob_id,
+				block_id,
+				version
 			);
 		`)); err != nil {
 			return err
