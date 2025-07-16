@@ -29,7 +29,7 @@ import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 export function SearchInput({
   onClose,
@@ -55,6 +55,7 @@ export function SearchInput({
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const searchResults = useSearch(search, {}, true, 48 - search.length)
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
   let queryItem: null | SearchResult = useMemo(() => {
     if (
@@ -121,15 +122,19 @@ export function SearchInput({
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
-      ?.map((item) => {
+      ?.map((item, index) => {
         const title = item.title || item.id.uid
         return {
           key: packHmId(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
-          onFocus: () => {},
-          onMouseEnter: () => {},
+          onFocus: () => {
+            setFocusedIndex(index)
+          },
+          onMouseEnter: () => {
+            setFocusedIndex(index)
+          },
           onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
           searchQuery: item.searchQuery,
@@ -181,31 +186,50 @@ export function SearchInput({
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
   }, [focusedIndex, activeItems])
 
+  // useEffect(() => {
+  //   console.log('here1')
+  //   const keyPressHandler = (e: KeyboardEvent) => {
+  //     console.log('here2')
+  //     if (e.key === 'Escape') {
+  //       onClose?.()
+  //     }
+  //     if (e.key === 'Enter') {
+  //       e.preventDefault()
+  //       e.stopPropagation()
+  //       const item = activeItems[focusedIndex]
+  //       if (item) {
+  //         item.onSelect()
+  //       }
+  //     }
+  //     if (e.key === 'ArrowDown') {
+  //       e.preventDefault()
+  //       e.stopPropagation()
+  //       console.log('arrow down???')
+  //       setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+  //     }
+  //     if (e.key === 'ArrowUp') {
+  //       e.preventDefault()
+  //       e.stopPropagation()
+  //       setFocusedIndex(
+  //         (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+  //       )
+  //     }
+  //   }
+  //   window.addEventListener('keydown', keyPressHandler)
+  //   return () => {
+  //     window.removeEventListener('keydown', keyPressHandler)
+  //   }
+  // }, [])
+
   useEffect(() => {
-    const keyPressHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose?.()
-      }
-      if (e.key === 'Enter') {
-        const item = activeItems[focusedIndex]
-        if (item) {
-          item.onSelect()
-        }
-      }
-      if (e.key === 'ArrowDown') {
-        setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-      }
-      if (e.key === 'ArrowUp') {
-        setFocusedIndex(
-          (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-        )
-      }
+    const el = itemRefs.current[focusedIndex]
+    if (el) {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
     }
-    window.addEventListener('keydown', keyPressHandler)
-    return () => {
-      window.removeEventListener('keydown', keyPressHandler)
-    }
-  }, [])
+  }, [focusedIndex])
 
   let content = (
     <>
@@ -223,7 +247,11 @@ export function SearchInput({
         }
 
         return (
-          <>
+          <div
+            ref={(el) => (itemRefs.current[itemIndex] = el)}
+            key={item.key}
+            className="focus:outline-none"
+          >
             {isDisplayingRecents ? (
               <RecentSearchResultItem
                 item={{
@@ -245,9 +273,8 @@ export function SearchInput({
                 selected={sharedProps.selected}
               />
             )}
-
             {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
-          </>
+          </div>
         )
       })}
     </>
@@ -282,7 +309,7 @@ export function SearchInput({
       onEnter={() => {
         const item = activeItems[focusedIndex]
         if (item) {
-          item.onSelect()
+          item.onSelect?.()
         }
       }}
       focusedIndex={focusedIndex}
