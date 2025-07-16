@@ -387,9 +387,6 @@ function OutlineVisibility({
         label="Show Outline"
         id="outline"
         defaultChecked={checked}
-        style={{
-          opacity: checked ? 1 : 0.4,
-        }}
         onCheckedChange={(value) => {
           onMetadata({showOutline: value})
         }}
@@ -411,9 +408,6 @@ function ActivityVisibility({
         label="Enable Web Activity Panel"
         id="activity"
         checked={metadata.showActivity !== false}
-        style={{
-          opacity: metadata.showActivity !== false ? 1 : 0.4,
-        }}
         onCheckedChange={(value) => {
           onMetadata({showActivity: value})
         }}
