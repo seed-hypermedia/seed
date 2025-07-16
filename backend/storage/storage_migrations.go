@@ -59,11 +59,8 @@ type migration struct {
 var migrations = []migration{
 	{Version: "2025-07-15.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
-			DROP TABLE IF EXISTS fts5;
-		`)); err != nil {
-			return err
-		}
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS fts;
+
 			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
 				raw_content,
 				type UNINDEXED,
@@ -71,15 +68,9 @@ var migrations = []migration{
 				block_id UNINDEXED,
 				version UNINDEXED
 			);
-		`)); err != nil {
-			return err
-		}
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
+
 			DROP TABLE IF EXISTS fts_index;
-		`)); err != nil {
-			return err
-		}
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
+
 			CREATE TABLE IF NOT EXISTS fts_index (
 				rowid INTEGER PRIMARY KEY,
 				blob_id INTEGER NOT NULL,
@@ -94,6 +85,7 @@ var migrations = []migration{
 		`)); err != nil {
 			return err
 		}
+
 		return scheduleReindex(conn)
 	}},
 	{Version: "2025-07-09.01", Run: func(_ *Store, conn *sqlite.Conn) error {
