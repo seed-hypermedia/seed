@@ -81,13 +81,16 @@ var migrations = []migration{
 		}
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE TABLE IF NOT EXISTS fts_index (
-				rowid INTEGER PRIMARY KEY REFERENCES fts (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
-				blob_id INTEGER NOT NULL REFERENCES fts (blob_id) ON UPDATE CASCADE ON DELETE CASCADE,
-				version TEXT NOT NULL REFERENCES fts (version) ON UPDATE CASCADE ON DELETE CASCADE,
-				block_id TEXT NOT NULL REFERENCES fts (block_id) ON UPDATE CASCADE ON DELETE CASCADE,
-				type TEXT NOT NULL REFERENCES fts (type) ON UPDATE CASCADE ON DELETE CASCADE
+				rowid INTEGER PRIMARY KEY,
+				blob_id INTEGER NOT NULL,
+				version TEXT NOT NULL,
+				block_id TEXT NOT NULL,
+				type TEXT NOT NULL
 			) WITHOUT ROWID;
-			CREATE INDEX IF NOT EXISTS fts_index_by_doc_change ON fts_index (blob_id, version, block_id, type);
+			CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
+			CREATE INDEX fts_index_by_version ON fts_index (version);
+			CREATE INDEX fts_index_by_block ON fts_index (block_id);
+			CREATE INDEX fts_index_by_type ON fts_index (type);
 		`)); err != nil {
 			return err
 		}
@@ -155,10 +158,10 @@ var migrations = []migration{
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
 				raw_content,
-				type,
-				blob_id,
-				block_id,
-				version
+				type UNINDEXED,
+				blob_id UNINDEXED,
+				block_id UNINDEXED,
+				version UNINDEXED
 			);
 		`)); err != nil {
 			return err

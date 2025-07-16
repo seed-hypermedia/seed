@@ -78,7 +78,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 
 	err = sqlitegen.ExecStmt(conn, qFTSIndexInsert(), before, onStep)
 	if err != nil {
-		err = fmt.Errorf("failed query: FTSCheck: %w", err)
+		err = fmt.Errorf("failed query: FTSIndexInsert: %w", err)
 		return err
 	}
 

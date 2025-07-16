@@ -263,14 +263,17 @@ CREATE VIRTUAL TABLE fts USING fts5(
 -- we have to update when a blob is updated.
 CREATE TABLE fts_index (
     -- The rowid of the FTS entry.
-    rowid INTEGER PRIMARY KEY REFERENCES fts (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
+    rowid INTEGER PRIMARY KEY,
     -- The blob ID of the blob that contains the content.
-    blob_id INTEGER NOT NULL REFERENCES fts (blob_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    blob_id INTEGER NOT NULL,
     -- The version of the document that contains the content.
-    version TEXT NOT NULL REFERENCES fts (version) ON UPDATE CASCADE ON DELETE CASCADE,
+    version TEXT NOT NULL,
     -- The block ID of the block that contains the content.
-    block_id TEXT NOT NULL REFERENCES fts (block_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    block_id TEXT NOT NULL,
     -- The type of the content being indexed.
-    type TEXT NOT NULL REFERENCES fts (type) ON UPDATE CASCADE ON DELETE CASCADE
+    type TEXT NOT NULL
 ) WITHOUT ROWID;
-CREATE INDEX fts_index_by_doc_change ON fts_index (blob_id, version, block_id, type);
+CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
+CREATE INDEX fts_index_by_version ON fts_index (version);
+CREATE INDEX fts_index_by_block ON fts_index (block_id);
+CREATE INDEX fts_index_by_type ON fts_index (type);
