@@ -22,6 +22,7 @@ import {panelContainerStyles} from '@shm/ui/container'
 import {BlockQuote} from '@shm/ui/icons'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
 import {
   ChevronDown,
@@ -32,7 +33,7 @@ import {
   Sparkle,
   Users,
 } from 'lucide-react'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -40,6 +41,8 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+
+// Remove the local hook definition since it's now imported
 
 export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
@@ -231,6 +234,9 @@ const iconNames = {
   contacts: Sparkle,
 } as const
 
+// Stable width estimator function
+const getAccessoryItemWidth = () => 60
+
 function AccessoryTabs({
   options,
   accessoryKey,
@@ -242,120 +248,19 @@ function AccessoryTabs({
   onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
   tabNumbers?: Partial<Record<DocAccessoryOption['key'], number>>
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const [visibleOptions, setVisibleOptions] = useState<DocAccessoryOption[]>([])
-  const [overflowOptions, setOverflowOptions] = useState<DocAccessoryOption[]>(
-    [],
-  )
+  const paddingWidth = 16 // p-2 on both sides
+  const dropdownButtonWidth = 36 // size-sm button width
+  const gapWidth = 20 // gap-1 between items
+  const reservedWidth = paddingWidth + dropdownButtonWidth + gapWidth
 
-  // Calculate which items fit in the available space
-  const updateVisibility = useCallback(() => {
-    if (!containerRef.current || !options?.length) {
-      setVisibleOptions([])
-      setOverflowOptions([])
-      return
-    }
-
-    const container = containerRef.current
-    const containerWidth = container.getBoundingClientRect().width
-
-    // Reserve space for padding and potential dropdown button
-    const paddingWidth = 16 // p-2 on both sides
-    const dropdownButtonWidth = 36 // size-sm button width
-    const gapWidth = 20 // gap-1 between items
-    const reservedWidth = paddingWidth + dropdownButtonWidth + gapWidth
-    const availableWidth = containerWidth - reservedWidth
-
-    const visible: DocAccessoryOption[] = []
-    const overflow: DocAccessoryOption[] = []
-
-    // Create array of options with their measured widths
-    const optionWidths: Array<{
-      option: DocAccessoryOption
-      width: number
-      isActive: boolean
-    }> = []
-
-    for (const option of options) {
-      const element = itemRefs.current.get(option.key)
-      const isActive = accessoryKey === option.key
-      if (element) {
-        const width = element.getBoundingClientRect().width + gapWidth
-        optionWidths.push({option, width, isActive})
-      } else {
-        // If we can't measure, use an estimate
-        optionWidths.push({option, width: 60, isActive})
-      }
-    }
-
-    // Find the active option and reserve space for it first
-    const activeOptionData = optionWidths.find(({isActive}) => isActive)
-    let remainingWidth = availableWidth
-
-    if (activeOptionData) {
-      remainingWidth -= activeOptionData.width
-    }
-
-    // Now go through options in original order and add them if they fit
-    for (const {option, width, isActive} of optionWidths) {
-      if (isActive) {
-        // Always include the active option (space already reserved)
-        visible.push(option)
-      } else {
-        // For non-active options, only add if there's remaining space
-        if (width <= remainingWidth) {
-          visible.push(option)
-          remainingWidth -= width
-        } else {
-          overflow.push(option)
-        }
-      }
-    }
-
-    // Ensure we show at least one option (fallback)
-    if (visible.length === 0 && options.length > 0) {
-      visible.push(options[0])
-      const firstOverflowIndex = overflow.findIndex(
-        (option) => option.key === options[0].key,
-      )
-      if (firstOverflowIndex !== -1) {
-        overflow.splice(firstOverflowIndex, 1)
-      }
-    }
-
-    setVisibleOptions(visible)
-    setOverflowOptions(overflow)
-  }, [options, accessoryKey])
-
-  // Update visibility when options change
-  useEffect(() => {
-    updateVisibility()
-
-    // Second update after render to ensure accurate measurements
-    const timer = setTimeout(() => {
-      updateVisibility()
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [options, updateVisibility])
-
-  // Setup resize observer
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const observer = new ResizeObserver(() => {
-      updateVisibility()
+  const {containerRef, itemRefs, visibleItems, overflowItems} =
+    useResponsiveItems({
+      items: options,
+      activeKey: accessoryKey,
+      getItemWidth: getAccessoryItemWidth,
+      reservedWidth,
+      gapWidth,
     })
-
-    observer.observe(containerRef.current)
-    window.addEventListener('resize', updateVisibility)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updateVisibility)
-    }
-  }, [updateVisibility])
 
   return (
     <div className="relative">
@@ -391,7 +296,7 @@ function AccessoryTabs({
         </div>
 
         {/* Visible options */}
-        {visibleOptions.map((option) => {
+        {visibleItems.map((option) => {
           const isActive = accessoryKey === option.key
           const Icon = iconNames[option.key]
           return (
@@ -416,7 +321,7 @@ function AccessoryTabs({
         })}
 
         {/* Overflow dropdown */}
-        {overflowOptions.length > 0 && (
+        {overflowItems.length > 0 && (
           <Popover>
             <PopoverTrigger>
               <Button size="sm" variant="ghost" className="rounded-full">
@@ -428,7 +333,7 @@ function AccessoryTabs({
               align="end"
               side="bottom"
             >
-              {overflowOptions.map((option) => {
+              {overflowItems.map((option) => {
                 const isActive = accessoryKey === option.key
                 const Icon = iconNames[option.key]
                 return (

@@ -9,12 +9,13 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {useMemo, useRef, useState} from 'react'
 import {Button} from './button'
+import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
-import {ArrowRight, Close, Menu, X} from './icons'
-import {LinkDropdown} from './link-dropdown'
+import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
+import {useResponsiveItems} from './use-responsive-items'
 
 import {
   DocNavigationItem,
@@ -27,6 +28,9 @@ import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+
+// Stable width estimator functions
+const getNavItemWidth = () => 150
 
 export function SiteHeader({
   originHomeId,
@@ -314,6 +318,168 @@ function HeaderLinkItem({
   )
 }
 
+function DropdownLinkItem({
+  item,
+  docId,
+}: {
+  item: DocNavigationItem
+  docId: UnpackedHypermediaId | null
+}) {
+  const isActive =
+    !!item.id &&
+    !!docId &&
+    item.id.uid === docId.uid &&
+    !!docId?.path &&
+    !!item.id?.path &&
+    docId.path.join('/').startsWith(item.id.path.join('/'))
+
+  const linkProps = useRouteLink(
+    item.draftId
+      ? {key: 'draft', id: item.draftId}
+      : item.id
+      ? {key: 'document', id: item.id}
+      : item.webUrl || '',
+    {handler: 'onClick'},
+  )
+
+  return (
+    <div
+      className={cn(
+        'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
+        isActive && 'bg-accent',
+      )}
+      {...linkProps}
+    >
+      <span className="text-sm">{getMetadataName(item.metadata)}</span>
+      {item.draftId && <DraftBadge />}
+    </div>
+  )
+}
+
+export function SiteHeaderMenu({
+  items,
+  docId,
+  isCenterLayout = false,
+  editNavPane,
+}: {
+  items?: DocNavigationItem[] | null
+  docId: UnpackedHypermediaId | null
+  isCenterLayout?: boolean
+  editNavPane?: React.ReactNode
+}) {
+  const editNavPaneRef = useRef<HTMLDivElement>(null)
+
+  // Calculate reserved width for the dropdown button and edit pane
+  const editNavPaneWidth =
+    editNavPaneRef.current?.getBoundingClientRect().width || 0
+  const reservedWidth = editNavPaneWidth + 8 + 32 + 20 // padding + button + gap
+
+  // Determine active key based on current docId
+  const activeKey = useMemo(() => {
+    if (!docId || !items?.length) return undefined
+
+    const activeItem = items.find(
+      (item) =>
+        !!item.id &&
+        item.id.uid === docId.uid &&
+        !!docId?.path &&
+        !!item.id?.path &&
+        docId.path.join('/').startsWith(item.id.path.join('/')),
+    )
+
+    return activeItem?.key
+  }, [docId, items])
+
+  const {containerRef, itemRefs, visibleItems, overflowItems} =
+    useResponsiveItems({
+      items: items || [],
+      activeKey,
+      getItemWidth: getNavItemWidth,
+      reservedWidth,
+      gapWidth: 20,
+    })
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
+        'md:flex md:p-2',
+        isCenterLayout ? 'justify-center' : 'justify-end',
+      )}
+    >
+      {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
+      {/* Hidden measurement container */}
+      <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
+        {items?.map((item) => {
+          return (
+            <div
+              key={`measure-${item.key}`}
+              ref={(el) => {
+                if (el) {
+                  itemRefs.current.set(item.key, el)
+                } else {
+                  itemRefs.current.delete(item.key)
+                }
+              }}
+            >
+              <HeaderLinkItem
+                id={item.id}
+                metadata={item.metadata}
+                draftId={item.draftId}
+                active={true}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Visible items */}
+      {visibleItems.map((item) => {
+        return (
+          <HeaderLinkItem
+            key={item.key}
+            id={item.id}
+            metadata={item.metadata}
+            draftId={item.draftId}
+            webUrl={item.webUrl}
+            active={
+              !!item.id &&
+              !!docId &&
+              item.id.uid === docId.uid &&
+              !!docId?.path &&
+              !!item.id?.path &&
+              docId.path.join('/').startsWith(item.id.path.join('/'))
+            }
+          />
+        )
+      })}
+
+      {/* Overflow dropdown */}
+      {overflowItems.length > 0 && (
+        <Tooltip content="More Menu items">
+          <Popover>
+            <PopoverTrigger>
+              <Button size="sm" variant="ghost" className="rounded-full">
+                <ChevronDown className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="max-h-[300px] overflow-y-scroll p-0"
+              side="bottom"
+              align="end"
+            >
+              {overflowItems.map((item) => (
+                <DropdownLinkItem key={item.key} item={item} docId={docId} />
+              ))}
+            </PopoverContent>
+          </Popover>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
 export function MobileMenu({
   renderContent,
   open,
@@ -392,9 +558,13 @@ function GotoLatestBanner({
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
         <p className="text-muted-foreground text-sm">
-          {tx('version_from', ({date}) => `Version from ${date}`, {
-            date: formattedDateLong(document.updateTime),
-          })}
+          {tx(
+            'version_from',
+            ({date}: {date: string}) => `Version from ${date}`,
+            {
+              date: formattedDateLong(document.updateTime),
+            },
+          )}
         </p>
         <Button variant="outline" size="sm" {...latestLinkProps}>
           <span className="text-muted-foreground">{tx('Go to Latest')}</span>
@@ -403,238 +573,6 @@ function GotoLatestBanner({
       </div>
     </div>
   ) : null
-}
-
-export function SiteHeaderMenu({
-  items,
-  docId,
-  isCenterLayout = false,
-  editNavPane,
-}: {
-  items?: DocNavigationItem[] | null
-  docId: UnpackedHypermediaId | null
-  isCenterLayout?: boolean
-  editNavPane?: React.ReactNode
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRefs = useRef<Map<string, any>>(new Map())
-  const editNavPaneRef = useRef<HTMLDivElement>(null)
-  const [visibleItems, setVisibleItems] = useState<DocNavigationItem[]>([])
-  const [overflowItems, setOverflowItems] = useState<DocNavigationItem[]>([])
-
-  // Measure the actual width of each element and calculate visibility
-  const updateVisibility = useCallback(() => {
-    if (!containerRef.current || !items?.length) {
-      setVisibleItems([])
-      setOverflowItems([])
-      return
-    }
-
-    const container = containerRef.current
-    const containerWidth = container.getBoundingClientRect().width
-
-    // Get editNavPane width if it exists
-    const editNavPaneWidth =
-      editNavPaneRef.current?.getBoundingClientRect().width || 0
-
-    // Reserve space for dropdown button plus editNavPane plus a small buffer
-    const reservedWidth =
-      editNavPaneWidth +
-      8 + // padding-2 size
-      32 + // width of expand button (more realistic)
-      20 // gap to expand button
-    const availableWidth = containerWidth - reservedWidth
-
-    console.log('SiteHeaderMenu measurements:', {
-      containerWidth,
-      availableWidth,
-      itemsLength: items.length,
-      editNavPaneWidth,
-    })
-
-    const visible: DocNavigationItem[] = []
-    const overflow: DocNavigationItem[] = []
-
-    // Create array of items with their measured widths and active status
-    const itemWidths: Array<{
-      item: DocNavigationItem
-      width: number
-      isActive: boolean
-    }> = []
-
-    for (const item of items) {
-      const key = item.key
-      const element = itemRefs.current.get(key)
-
-      // Determine if this item is active using the same logic as in render
-      const isActive =
-        !!item.id &&
-        !!docId &&
-        item.id.uid === docId.uid &&
-        !!docId?.path &&
-        !!item.id?.path &&
-        docId.path.join('/').startsWith(item.id.path.join('/'))
-
-      if (element) {
-        const width = element.getBoundingClientRect().width + 20 // add 20 because of the gap-5
-        itemWidths.push({item, width, isActive})
-        console.log(`Item ${key}: width=${width}, isActive=${isActive}`)
-      } else {
-        // If we can't measure, use an estimate
-        itemWidths.push({item, width: 150, isActive})
-        console.log(
-          `Item ${key}: using estimated width=150, isActive=${isActive}`,
-        )
-      }
-    }
-
-    // Find the active item and reserve space for it first
-    const activeItemData = itemWidths.find(({isActive}) => isActive)
-    let remainingWidth = availableWidth
-
-    if (activeItemData) {
-      remainingWidth -= activeItemData.width
-      console.log(
-        `Reserved ${activeItemData.width}px for active item ${activeItemData.item.key}`,
-      )
-    }
-
-    // Now go through items in original order and add them if they fit
-    for (const {item, width, isActive} of itemWidths) {
-      if (isActive) {
-        // Always include the active item (space already reserved)
-        visible.push(item)
-        console.log(`Adding active item ${item.key}`)
-      } else {
-        // For non-active items, only add if there's remaining space
-        if (width <= remainingWidth) {
-          visible.push(item)
-          remainingWidth -= width
-          console.log(
-            `Adding item ${item.key}, remainingWidth=${remainingWidth}`,
-          )
-        } else {
-          overflow.push(item)
-          console.log(`Moving item ${item.key} to overflow`)
-        }
-      }
-    }
-
-    // Ensure we show at least one item (fallback)
-    if (visible.length === 0 && items.length > 0) {
-      visible.push(items[0])
-      const firstOverflowIndex = overflow.findIndex(
-        (item) => item.key === items[0].key,
-      )
-      if (firstOverflowIndex !== -1) {
-        overflow.splice(firstOverflowIndex, 1)
-      }
-    }
-
-    console.log('Final result:', {
-      visible: visible.length,
-      overflow: overflow.length,
-      visibleKeys: visible.map((i) => i.key),
-      overflowKeys: overflow.map((i) => i.key),
-    })
-
-    setVisibleItems(visible)
-    setOverflowItems(overflow)
-  }, [items, editNavPane, docId])
-
-  // Measure on mount and when items change
-  useEffect(() => {
-    // Initial update
-    updateVisibility()
-
-    // Second update after render to ensure accurate measurements
-    const timer = setTimeout(() => {
-      updateVisibility()
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [items, updateVisibility])
-
-  // Setup resize observer
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const observer = new ResizeObserver(() => {
-      updateVisibility()
-    })
-
-    observer.observe(containerRef.current)
-    window.addEventListener('resize', updateVisibility)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updateVisibility)
-    }
-  }, [updateVisibility])
-
-  return (
-    <div
-      ref={containerRef}
-      className={cn(
-        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
-        'md:flex md:p-2',
-        isCenterLayout ? 'justify-center' : 'justify-end',
-      )}
-    >
-      {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
-      {/* Hidden measurement container */}
-      <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
-        {items?.map((item) => {
-          return (
-            <div
-              key={`measure-${item.key}`}
-              ref={(el) => {
-                if (el) {
-                  itemRefs.current.set(item.key, el)
-                } else {
-                  itemRefs.current.delete(item.key)
-                }
-              }}
-            >
-              <HeaderLinkItem
-                id={item.id}
-                metadata={item.metadata}
-                draftId={item.draftId}
-                active={true}
-              />
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Visible items */}
-      {visibleItems.map((item) => {
-        return (
-          <HeaderLinkItem
-            key={item.key}
-            id={item.id}
-            metadata={item.metadata}
-            draftId={item.draftId}
-            webUrl={item.webUrl}
-            active={
-              !!item.id &&
-              !!docId &&
-              item.id.uid === docId.uid &&
-              !!docId?.path &&
-              !!item.id?.path &&
-              docId.path.join('/').startsWith(item.id.path.join('/'))
-            }
-          />
-        )
-      })}
-
-      {overflowItems.length > 0 && (
-        <Tooltip content="More Menu items">
-          <LinkDropdown items={overflowItems} />
-        </Tooltip>
-      )}
-    </div>
-  )
 }
 
 function HypermediaHostBanner({origin}: {origin?: string}) {
