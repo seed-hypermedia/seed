@@ -60,7 +60,7 @@ export function getDiretoryWithClient(client: GRPCClient) {
         return {
           ...doc,
           path,
-          id: hmId('d', doc.account, {path, version: doc.version}),
+          id: hmId(doc.account, {path, version: doc.version}),
         }
       })
   }
@@ -76,8 +76,8 @@ export function getQueryResultsWithClient(client: GRPCClient) {
     const {includes, limit, sort} = query
     if (includes.length !== 1) return null // only support one include for now
     const {path, mode, space} = includes[0]
-    const inId = hmId('d', space, {
-      path: path ? path.split('/') : [] || undefined,
+    const inId = hmId(space, {
+      path: path ? path.split('/') : [],
     })
     const dir = await getDirectory(inId, mode)
     if (!inId) return null

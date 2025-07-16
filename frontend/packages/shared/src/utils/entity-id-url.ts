@@ -1,4 +1,3 @@
-import {z} from 'zod'
 import {
   ExactBlockRange,
   ExpandedBlockRange,
@@ -7,15 +6,6 @@ import {
 } from '..'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
 import {StateStream} from './stream'
-
-export const HYPERMEDIA_ENTITY_TYPES = {
-  d: 'Document', // the default type
-  c: 'Comment',
-} as const
-
-export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
-
-export const HMIDTypeSchema = z.union([z.literal('d'), z.literal('c')])
 
 export function createSiteUrl({
   path,
@@ -48,7 +38,6 @@ export function createSiteUrl({
 }
 
 export function createHMUrl({
-  type,
   uid,
   path,
   version,
@@ -58,12 +47,8 @@ export function createHMUrl({
   targetDocUid,
   targetDocPath,
 }: UnpackedHypermediaId) {
-  let res = 'hm://'
-  if (type === 'd') {
-    res += `${uid}`
-  } else {
-    res += `${type}/${uid}`
-  }
+  let res = `hm://${uid}`
+
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
@@ -76,7 +61,6 @@ export function createHMUrl({
 }
 
 export function createWebHMUrl(
-  type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
   uid: string,
   {
     version,
@@ -100,7 +84,7 @@ export function createWebHMUrl(
     targetDocPath?: string[] | null
   } = {},
 ) {
-  let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
+  let webPath = `/hm/${uid}`
   if (originHomeId?.uid === uid) {
     webPath = ''
   }
@@ -151,19 +135,13 @@ function getHMQueryString({
   return serializeQueryString(query)
 }
 
-function packBaseId(
-  type: UnpackedHypermediaId['type'],
-  uid: string,
-  path?: string[] | null,
-) {
+function packBaseId(uid: string, path?: string[] | null) {
   const restPath = path?.length ? `/${path.join('/')}` : ''
-  if (type === 'd') return `${HYPERMEDIA_SCHEME}://${uid}${restPath}`
-  return `${HYPERMEDIA_SCHEME}://${type}/${uid}${restPath}`
+  return `${HYPERMEDIA_SCHEME}://${uid}${restPath}`
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
   const {
-    type,
     path,
     version,
     latest,
@@ -174,7 +152,7 @@ export function packHmId(hmId: UnpackedHypermediaId): string {
     targetDocPath,
   } = hmId
   if (!uid) throw new Error('uid is required')
-  let responseUrl = packBaseId(type, uid, path)
+  let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
@@ -187,8 +165,8 @@ export function packHmId(hmId: UnpackedHypermediaId): string {
   return responseUrl
 }
 
-export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[2]) {
-  return hmId('d', uid, opts)
+export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[1]) {
+  return hmId(uid, opts)
 }
 
 type ParsedURL = {
@@ -241,7 +219,6 @@ function inKeys<V extends string>(
 export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
   return {
     id: id.id,
-    type: id.type,
     uid: id.uid,
     path: id.path,
     version: id.version,
@@ -256,7 +233,6 @@ export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
 }
 
 export function hmId(
-  type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
   uid: string,
   opts: {
     version?: string | null
@@ -272,9 +248,8 @@ export function hmId(
   if (!uid) throw new Error('uid is required')
   return {
     ...opts,
-    type,
     uid,
-    id: packBaseId(type, uid, opts.path),
+    id: packBaseId(uid, opts.path),
     path: opts.path || null,
     version: opts.version || null,
     blockRef: opts.blockRef || null,
@@ -290,31 +265,20 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
   const parsed = parseCustomURL(hypermediaId)
   if (!parsed) return null
-  let uidOrType
+  let uid
   let path: string[]
   let hostname = null
   if (parsed.scheme === 'https' || parsed.scheme === 'http') {
     if (parsed.path[1] !== 'hm') return null
     hostname = parsed.path[0]
-    uidOrType = parsed.path[2]
+    uid = parsed.path[2]
     path = parsed.path.slice(3)
   } else if (parsed.scheme === HYPERMEDIA_SCHEME) {
-    uidOrType = parsed.path[0]
+    uid = parsed.path[0]
     path = parsed.path.slice(1)
   } else {
     return null
   }
-  let type = inKeys(uidOrType, HYPERMEDIA_ENTITY_TYPES)
-  let restPath = path
-  let uid
-  if (type) {
-    uid = path[0]
-    restPath = path.slice(1)
-  } else {
-    uid = uidOrType
-    type = 'd'
-  }
-  if (restPath.length === 1 && restPath[0] === '') restPath = []
   const version = parsed.query.v || null
   const latest = parsed.query.l === null || parsed.query.l === ''
   const fragment = parseFragment(parsed.fragment)
@@ -333,10 +297,9 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     }
   }
   return {
-    id: packBaseId(type, uid, restPath),
-    type,
+    id: packBaseId(uid, path),
     uid,
-    path: restPath || null,
+    path: path || null,
     version,
     blockRef: fragment ? fragment.blockId : null,
     blockRange,
@@ -363,8 +326,7 @@ export function idToUrl(
     originHomeId?: UnpackedHypermediaId
   },
 ) {
-  if (!hmId?.type) return null
-  return createWebHMUrl(hmId.type, hmId.uid, {
+  return createWebHMUrl(hmId.uid, {
     version: hmId.version,
     blockRef: hmId.blockRef,
     blockRange: hmId.blockRange,
@@ -381,9 +343,9 @@ export function normalizeHmId(
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
     const unpacked = unpackHmId(urlMaybe)
-    if (unpacked?.uid && unpacked.type) {
+    if (unpacked?.uid) {
       return packHmId(
-        hmId(unpacked.type, unpacked.uid, {
+        hmId(unpacked.uid, {
           blockRange: unpacked.blockRange,
           blockRef: unpacked.blockRef,
           version: unpacked.version,
@@ -432,10 +394,6 @@ function serializeQueryString(query: Record<string, string | null>) {
   return `?${queryString}`
 }
 
-export function labelOfEntityType(type: keyof typeof HYPERMEDIA_ENTITY_TYPES) {
-  return HYPERMEDIA_ENTITY_TYPES[type]
-}
-
 export function hmIdWithVersion(
   id: string | null | undefined,
   version: string | null | undefined,
@@ -446,7 +404,7 @@ export function hmIdWithVersion(
   const unpacked = unpackHmId(id)
   if (!unpacked) return null
   return packHmId(
-    hmId(unpacked.type, unpacked.uid, {
+    hmId(unpacked.uid, {
       path: unpacked.path,
       version: version || unpacked.version,
       blockRef,
@@ -595,7 +553,7 @@ export function getParent(
 ): UnpackedHypermediaId | null {
   if (!id) return null
   const parentPath = id.path?.slice(0, -1) || []
-  return hmId(id.type, id.uid, {
+  return hmId(id.uid, {
     path: parentPath,
   })
 }

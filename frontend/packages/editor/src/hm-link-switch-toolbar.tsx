@@ -1,6 +1,6 @@
 import {HMDocument, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -37,8 +37,9 @@ export function HypermediaLinkSwitchToolbar(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
-  const entity = useEntity(unpackedRef)
-
+  const entity = useResource(unpackedRef)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   useEffect(() => {
     if (props.stopEditing && isEditing) {
       setIsEditing(false)
@@ -88,7 +89,7 @@ export function HypermediaLinkSwitchToolbar(
             type={props.type}
             hasName={props.type !== 'embed' && props.type !== 'mention'}
             hasSearch={props.type !== 'link'}
-            seedEntityType={unpackedRef?.type}
+            isHmLink={!!unpackedRef}
           />
         </YStack>
       ) : (
@@ -120,7 +121,7 @@ export function HypermediaLinkSwitchToolbar(
             onPress={() => {
               let title = props.text ? props.text : props.url
               if (['mention', 'embed'].includes(props.type)) {
-                const linkTitle = getTitle(unpackedRef, entity.data?.document)
+                const linkTitle = getTitle(unpackedRef, document)
                 if (linkTitle) title = linkTitle
               }
               if (props.type === 'mention') {
@@ -202,7 +203,7 @@ export function HypermediaLinkSwitchToolbar(
             onPress={() => {
               let title = props.text ? props.text : props.url
               if (['mention', 'embed'].includes(props.type)) {
-                const buttonTitle = getTitle(unpackedRef, entity.data?.document)
+                const buttonTitle = getTitle(unpackedRef, document)
                 if (buttonTitle) title = buttonTitle
               }
               const schema = props.editor._tiptapEditor.state.schema

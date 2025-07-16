@@ -37,7 +37,7 @@ import {
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {DeviceLinkSession} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -386,11 +386,11 @@ function AccountKeys() {
   const {data: mnemonics, refetch: mnemonicsRefetch} =
     useSavedMnemonics(selectedAccount)
 
-  const selectedAccountId = selectedAccount
-    ? hmId('d', selectedAccount)
-    : undefined
+  const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
-  const {data: profile} = useEntity(selectedAccountId)
+  const {data: profile} = useResource(selectedAccountId)
+  const profileDocument =
+    profile?.type === 'document' ? profile.document : undefined
 
   const [showWords, setShowWords] = useState<boolean>(false)
 
@@ -450,7 +450,7 @@ function AccountKeys() {
               {selectedAccountId ? (
                 <HMIcon
                   id={selectedAccountId}
-                  metadata={profile?.document?.metadata}
+                  metadata={profileDocument?.metadata}
                   size={80}
                 />
               ) : null}
@@ -458,7 +458,7 @@ function AccountKeys() {
                 <Field id="username" label="Profile Name">
                   <Input
                     disabled
-                    value={getMetadataName(profile?.document?.metadata)}
+                    value={getMetadataName(profileDocument?.metadata)}
                   />
                 </Field>
                 <Field id="accountid" label="Account ID">
@@ -600,7 +600,7 @@ function AccountKeys() {
             <SettingsSection title="Linked Devices">
               <LinkedDevices
                 accountUid={selectedAccount}
-                accountName={getMetadataName(profile?.document?.metadata)}
+                accountName={getMetadataName(profileDocument?.metadata)}
               />
             </SettingsSection>
             <EmailNotificationSettings
@@ -708,7 +708,7 @@ function LinkedDevices({
   accountName: string
 }) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId('d', accountUid))
+  const {data: capabilities} = useAllDocumentCapabilities(hmId(accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <div className="flex flex-col gap-3">
@@ -720,7 +720,7 @@ function LinkedDevices({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  copyTextToClipboard(hmId('d', d.accountUid).id)
+                  copyTextToClipboard(hmId(d.accountUid).id)
                   toast('Device ID copied to clipboard')
                 }}
                 className="justify-start"
@@ -897,15 +897,15 @@ function KeyItem({
   isActive: boolean
   onSelect: () => void
 }) {
-  const id = hmId('d', item)
-  const entity = useEntity(id)
+  const id = hmId(item)
+  const entity = useResource(id)
+  const document =
+    entity.data?.type === 'document' ? entity.data.document : undefined
   return (
     <ListItem
       active={isActive}
-      icon={
-        <HMIcon id={id} metadata={entity.data?.document?.metadata} size={24} />
-      }
-      title={entity.data?.document?.metadata.name || item}
+      icon={<HMIcon id={id} metadata={document?.metadata} size={24} />}
+      title={document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}
       backgroundColor={isActive ? '$brand12' : undefined}
       onPress={onSelect}

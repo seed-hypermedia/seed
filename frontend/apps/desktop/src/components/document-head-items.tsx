@@ -1,6 +1,6 @@
+import {hmId} from '@shm/shared'
 import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntities} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useResources} from '@shm/shared/models/entity'
 import {DonateButton} from '@shm/ui/donate-button'
 
 export function DocumentHeadItems({
@@ -10,8 +10,8 @@ export function DocumentHeadItems({
   docId: UnpackedHypermediaId
   document: HMDocument
 }) {
-  const authors = useEntities(
-    document.authors.map((author) => hmId('d', author)) || [],
+  const authors = useResources(
+    document.authors.map((author) => hmId(author)) || [],
   )
   return (
     <>

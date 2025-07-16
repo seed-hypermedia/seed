@@ -1,11 +1,11 @@
-import {useEntityCitations} from '@/models/citations'
+import {useDocumentCitations} from '@/models/citations'
 import {useAllDocumentComments} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
@@ -48,7 +48,7 @@ function _DiscussionsPanel({
   if (openBlockId) {
     return (
       <CommentBlockAccessory
-        docId={docId}
+        resourceId={docId}
         blockId={openBlockId}
         autoFocus={autoFocus}
         onBack={() => onAccessory({key: 'discussions'})}
@@ -104,18 +104,20 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function CommentBlockAccessory({
-  docId,
+  resourceId,
   blockId,
   autoFocus,
   onBack,
 }: {
-  docId: UnpackedHypermediaId
+  resourceId: UnpackedHypermediaId
   blockId: string
   autoFocus?: boolean
   onBack: () => void
 }) {
   const tx = useTxString()
-  const citations = useEntityCitations(docId)
+  const resource = useResource(resourceId)
+  const docId = resource.data?.type === 'document' ? resourceId : undefined
+  const citations = useDocumentCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (
       citation.targetFragment?.blockId === blockId &&
@@ -126,9 +128,11 @@ function CommentBlockAccessory({
   citationsForBlock?.forEach((citation) => {
     citation.source.author && accountIds.add(citation.source.author)
   })
-  const doc = useEntity(docId)
+  const doc = useResource(docId)
   const accounts = useContactsMetadata(Array.from(accountIds))
   let quotedContent = null
+
+  if (!docId) return null
   if (doc.data?.document) {
     quotedContent = (
       <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />

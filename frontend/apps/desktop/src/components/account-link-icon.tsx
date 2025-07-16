@@ -1,5 +1,5 @@
 import {UnpackedHypermediaId} from '@shm/shared'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 
 import {Link} from '@shm/ui/icons'
 import {FontSizeTokens} from 'tamagui'
@@ -11,7 +11,7 @@ export function EntityLinkIcon({
   id?: UnpackedHypermediaId
   size?: FontSizeTokens | number
 }) {
-  const entity = useEntity(id)
+  const entity = useResource(id)
   if (!id) return null
   return (
     <Link

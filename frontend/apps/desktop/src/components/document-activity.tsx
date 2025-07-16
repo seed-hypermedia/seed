@@ -13,7 +13,6 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
-import {useEntity} from '@shm/shared/models/entity'
 import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
@@ -22,6 +21,7 @@ import {CommentGroup} from '@shm/ui/discussion'
 import {ChevronUp} from '@shm/ui/icons'
 
 import {hmId} from '@shm/shared'
+import {useResource} from '@shm/shared/models/entity'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {Sparkle} from 'lucide-react'
@@ -71,7 +71,7 @@ export function ActivityList({
   docId: UnpackedHypermediaId
   onCommentFocus?: (commentId: string, isReplying?: boolean) => void
 }) {
-  const latestDoc = useEntity({...docId, version: null, latest: true})
+  const latestDoc = useResource({...docId, version: null, latest: true})
   const latestDocChanges = new Set<string>(
     latestDoc?.data?.document?.version?.split('.') || [],
   )
@@ -153,7 +153,7 @@ export function ActivityList({
         return [
           uid,
           {
-            id: hmId('d', uid),
+            id: hmId(uid),
             metadata: accountMetadata,
           },
         ]

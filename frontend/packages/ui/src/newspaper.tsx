@@ -34,9 +34,6 @@ export function DocumentCard({
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
 }) {
-  // Early return BEFORE any hooks to ensure consistent hook call order
-  if (!entity?.document) return null
-
   const {onHoverIn, onHoverOut} = useDocContentContext()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null, {
     handler: 'onClick',
@@ -50,7 +47,9 @@ export function DocumentCard({
     return plainTextOfContent(entity?.document?.content)
   }, [entity?.document])
 
-  const coverImage = getDocumentImage(entity?.document)
+  const coverImage = entity?.document
+    ? getDocumentImage(entity?.document)
+    : undefined
 
   return (
     <div

@@ -183,7 +183,7 @@ export function useRouteDocId(): UnpackedHypermediaId | null {
   }
   if (route.key === 'draft') {
     if (route.editUid) {
-      return hmId('d', route.editUid, {
+      return hmId(route.editUid, {
         path: route.editPath,
       })
     }
@@ -213,17 +213,9 @@ export type NavMode = 'push' | 'replace' | 'spawn' | 'backplace'
 
 export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
   let navRoute: NavRoute | undefined = undefined
-  if (id?.type === 'd') {
-    navRoute = {
-      key: 'document',
-      id,
-    }
-  } else if (id.type === 'c' && id.targetDocUid) {
-    navRoute = {
-      key: 'document',
-      id: hmId('d', id.targetDocUid, {path: id.targetDocPath}),
-      accessory: {key: 'discussions', openComment: id.uid},
-    }
+  navRoute = {
+    key: 'document',
+    id,
   }
   return navRoute
 }

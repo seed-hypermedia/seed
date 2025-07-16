@@ -3,10 +3,10 @@ import {
   createWebHMUrl,
   DAEMON_FILE_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
-  idToUrl,
   LIGHTNING_API_URL,
   NavRoute,
   OptimizedImageSize,
+  routeToHref,
   SITE_BASE_URL,
   UniversalAppProvider,
   UnpackedHypermediaId,
@@ -142,14 +142,11 @@ export function WebSiteProvider(props: {
         window.open(url, '_blank')
       }}
       openRoute={(route: NavRoute, replace?: boolean) => {
-        let href: null | string = null
-        if (route.key === 'document') {
-          href = idToUrl(route.id, {
-            originHomeId: props.originHomeId,
-          })
-        }
-
-        if (href !== null) {
+        let href: undefined | string = undefined
+        href = routeToHref(route, {
+          originHomeId: props.originHomeId,
+        })
+        if (href !== undefined) {
           if (
             // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.
             window.location.host == 'seed.hyper.media' &&
@@ -168,7 +165,7 @@ export function WebSiteProvider(props: {
         }
       }}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
-        const url = createWebHMUrl(hmId.type, hmId.uid, {
+        const url = createWebHMUrl(hmId.uid, {
           ...hmId,
           hostname: SITE_BASE_URL,
         })

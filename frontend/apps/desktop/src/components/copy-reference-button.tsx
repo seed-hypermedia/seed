@@ -7,7 +7,7 @@ import {
   ExpandedBlockRange,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -16,7 +16,7 @@ import {
 import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink, Link} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {PropsWithChildren, ReactNode, useState} from 'react'
+import React, {PropsWithChildren, ReactNode, useCallback, useState} from 'react'
 
 export function useDocumentUrl({
   docId,
@@ -35,10 +35,10 @@ export function useDocumentUrl({
   ) => void
   content: ReactNode
 } | null {
-  const docEntity = useEntity(docId)
+  const docEntity = useResource(docId)
   if (!docId?.uid) return null
-  const accountId = hmId('d', docId.uid)
-  const accountEntity = useEntity(accountId)
+  const accountId = hmId(docId.uid)
+  const accountEntity = useResource(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
   const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
@@ -53,7 +53,7 @@ export function useDocumentUrl({
         version: docEntity.data?.document?.version,
         latest,
       })
-    : createWebHMUrl('d', docId.uid, {
+    : createWebHMUrl(docId.uid, {
         version: docEntity.data?.document?.version,
         hostname: gwUrl,
         path: docId.path,
@@ -163,4 +163,22 @@ export function CopyReferenceButton({
       {reference.content}
     </>
   )
+}
+
+export function useCopyReferenceButton(docId?: UnpackedHypermediaId) {
+  const [isCopied, setIsCopied] = useState(false)
+
+  const onCopy = useCallback(() => {
+    if (isCopied) return
+    if (docId) {
+      const accountId = hmId(docId.uid)
+      copy(accountId)
+      setIsCopied(true)
+      setTimeout(() => {
+        setIsCopied(false)
+      }, 5000)
+    }
+  }, [docId])
+
+  return {onCopy}
 }

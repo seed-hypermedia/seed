@@ -101,7 +101,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     targetId && (await resolveHMDocument(targetId, {discover: true}))
   const targetAuthors = await Promise.all(
     targetDocument?.authors.map(async (authorUid) => {
-      return await getMetadata(hmId('d', authorUid))
+      return await getMetadata(hmId(authorUid))
     }) ?? [],
   )
   if (!targetDocument || !targetId) {
@@ -115,7 +115,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     )
   }
   const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId('d', config.registeredAccountUid))
+    ? await getMetadata(hmId(config.registeredAccountUid))
     : undefined
   const replyComment = replyCommentId
     ? await getComment(replyCommentId)
@@ -129,11 +129,11 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     replyComment: replyComment
       ? {
           comment: replyComment,
-          author: await getMetadata(hmId('d', replyComment.author)),
+          author: await getMetadata(hmId(replyComment.author)),
         }
       : undefined,
     originHomeId: config?.registeredAccountUid
-      ? hmId('d', config.registeredAccountUid)
+      ? hmId(config.registeredAccountUid)
       : undefined,
     ...getOriginRequestData(parsedRequest),
     originHomeMetadata: originHome?.metadata ?? undefined,
@@ -427,7 +427,7 @@ function PublishedComment({
 }) {
   const rawComment = useMemo(() => {
     const c = cborDecode<SignedComment>(comment.comment)
-    const signerId = hmId('d', base58btc.encode(c.signer))
+    const signerId = hmId(base58btc.encode(c.signer))
     return {
       c,
       signerId,

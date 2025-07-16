@@ -64,7 +64,7 @@ export type DocContentContextValue = {
 export type EntityComponentsRecord = {
   Document: React.FC<EntityComponentProps>
   Comment: React.FC<EntityComponentProps>
-  Inline: React.FC<EntityComponentProps>
+  Inline: React.FC<UnpackedHypermediaId & {style?: React.CSSProperties}>
   Query: React.FC<{
     id: UnpackedHypermediaId
     block: HMBlockQuery
@@ -74,7 +74,7 @@ export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
 export type BlockContentProps = {
   block: HMBlock
   parentBlockId: string | null
-  depth: number
+  depth?: number
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
   style?: React.CSSProperties

@@ -5,14 +5,15 @@ import {
   useAllDocumentCapabilities,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useSubscribedEntity} from '@/models/entities'
+import {useSelectedAccountContacts} from '@/models/contacts'
+import {useSubscribedResource} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {Role} from '@shm/shared/client/grpc-types'
-import {getDocumentTitle} from '@shm/shared/content'
+import {getContactMetadata} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -37,11 +38,14 @@ export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
 
 function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   const navigate = useNavigate('push')
-  const pubId = id ? hmId('d', id.uid) : null
-  const entity = useEntity(pubId)
+  const pubId = id ? hmId(id.uid) : null
+  const resource = useResource(pubId)
 
-  if (!id || !entity.data) return null
-
+  if (!id || !resource.data) return null
+  const metadata =
+    resource.data.type === 'document'
+      ? resource.data.document?.metadata
+      : undefined
   return (
     <div className="flex flex-col">
       <ListItem
@@ -54,20 +58,14 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
         borderRadius="$2"
         paddingHorizontal="$3"
         paddingVertical={0}
-        icon={
-          <HMIcon
-            metadata={entity.data?.document?.metadata}
-            id={id?.uid}
-            size={24}
-          />
-        }
+        icon={<HMIcon metadata={metadata} id={id} size={24} />}
         onPress={() => {
-          navigate({key: 'document', id: hmId('d', id.uid)})
+          navigate({key: 'document', id: hmId(id.uid)})
         }}
       >
         <div className="flex flex-1 items-center gap-2">
           <SizableText size="$2" f={1}>
-            {getDocumentTitle(entity.data?.document)}
+            {metadata?.name}
           </SizableText>
           <SizableText size="$1" color="$color9">
             Publisher
@@ -109,7 +107,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
           if (
             capabilities.data?.find(
-              (capability) => capability.delegate === result.id.uid,
+              (capability) => capability.grantId.uid === result.id.uid,
             )
           )
             return false // already added
@@ -165,7 +163,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                 onClick={() => {
                   console.log('Add new member', search)
                   let hmUrl = unpackHmId(search)
-                  let result = hmUrl ? createHMUrl(hmId('d', hmUrl.uid)) : null
+                  let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
                   if (result && hmUrl) {
                     setSelectedCollaborators((v) => [
                       ...v,
@@ -312,8 +310,13 @@ function CollaboratorItem({
   id: UnpackedHypermediaId
 }) {
   const navigate = useNavigate('push')
-  const collaboratorId = hmId('d', capability.accountUid)
-  const entity = useSubscribedEntity(collaboratorId)
+  const myContacts = useSelectedAccountContacts()
+  const collaboratorId = hmId(capability.accountUid)
+  const collaborator = useSubscribedResource(collaboratorId)
+  const collaboratorMetadata =
+    collaborator.data?.type === 'document'
+      ? collaborator.data.document?.metadata
+      : undefined
   if (capability.role === 'owner') return null
   return (
     <ListItem
@@ -327,17 +330,19 @@ function CollaboratorItem({
       paddingHorizontal="$3"
       paddingVertical={0}
       icon={
-        <HMIcon
-          metadata={entity.data?.document?.metadata}
-          id={collaboratorId}
-          size={24}
-        />
+        <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
       }
       onPress={() => navigate({key: 'document', id: collaboratorId})}
     >
       <div className="flex flex-1 items-center gap-2">
         <SizableText size="$2" f={1}>
-          {getDocumentTitle(entity.data?.document)}
+          {
+            getContactMetadata(
+              capability.accountUid,
+              collaboratorMetadata,
+              myContacts.data,
+            )?.name
+          }
         </SizableText>
         <SizableText size="$1" color="$color9">
           {getRoleName(capability.role)}{' '}
@@ -535,8 +540,12 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
 )
 
 function UnresolvedItem({value}: {value: SearchResult}) {
-  const entity = useEntity(value.id)
-  let label = entity.data?.document?.metadata.name || '...'
+  const resource = useResource(value.id)
+  const metadata =
+    resource.data?.type === 'document'
+      ? resource.data.document?.metadata
+      : undefined
+  let label = metadata?.name || '...'
   return (
     <>
       <UIAvatar label={label} id={value.id.id} />
@@ -552,7 +561,11 @@ export interface TagInputItemProps extends Ariakit.SelectItemProps {
 
 export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
   function TagInputItem(props, ref) {
-    const entity = useEntity(props.member?.id)
+    const resource = useResource(props.member?.id)
+    const metadata =
+      resource.data?.type === 'document'
+        ? resource.data.document?.metadata
+        : undefined
     return (
       <Ariakit.SelectItem
         ref={ref}
@@ -570,12 +583,8 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
       >
         <div className="flex flex-1 justify-start gap-2">
           {/* <Ariakit.SelectItemCheck /> */}
-          {entity.data?.document?.metadata && props.member?.id ? (
-            <HMIcon
-              size={16}
-              metadata={entity.data?.document?.metadata}
-              id={props.member?.id}
-            />
+          {metadata && props.member?.id ? (
+            <HMIcon size={16} metadata={metadata} id={props.member?.id} />
           ) : null}
           <div className="flex flex-1">
             <SizableText size="$2" textColor="currentColor">

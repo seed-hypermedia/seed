@@ -6,16 +6,23 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
   useRouteError,
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+import {hmId} from '@shm/shared'
 import {SizableText} from '@shm/ui/text'
 import {isClient} from '@tamagui/core'
 import Tamagui from '../tamagui.config'
+import {DocumentPage} from './document'
+import {loadSiteResource, WebResourcePayload} from './loaders'
 import {Providers} from './providers'
+import {parseRequest} from './request'
+import {getConfig} from './site-config'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 import globalTamaguiStyles from './tamagui.css?url'
+import {unwrap, wrapJSON} from './wrapping'
 
 export const links: LinksFunction = () => {
   return [
@@ -23,6 +30,44 @@ export const links: LinksFunction = () => {
     {rel: 'stylesheet', href: globalTamaguiStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
   ]
+}
+
+export const loader = async ({request}: {request: Request}) => {
+  const parsedRequest = parseRequest(request)
+  const {url, hostname, pathParts} = parsedRequest
+  if (pathParts.length !== 0) return null
+  const version = url.searchParams.get('v')
+  const latest = url.searchParams.get('l') === ''
+  console.log('~~ url', url)
+  const serviceConfig = await getConfig(hostname)
+  if (!serviceConfig) return wrapJSON('no-site', {status: 404})
+  const {registeredAccountUid} = serviceConfig
+  if (!registeredAccountUid) return wrapJSON('unregistered', {status: 404})
+
+  let documentId
+
+  // Determine document type based on URL pattern
+  if (pathParts[0] === 'hm' && pathParts.length > 1) {
+    // Hypermedia document (/hm/uid/path...)
+    const commentTarget = url.searchParams.get('target')?.split('/')
+    const targetDocUid = !!commentTarget?.[0] ? commentTarget?.[0] : undefined
+    const targetDocPath = targetDocUid ? commentTarget?.slice(1) : undefined
+
+    documentId = hmId(pathParts[1], {
+      path: pathParts.slice(2),
+      version,
+      latest,
+      targetDocUid,
+    })
+  } else {
+    // Site document (regular path)
+    const path = url.pathname.split('/').filter(Boolean)
+    documentId = hmId(registeredAccountUid, {path, version, latest})
+  }
+
+  return await loadSiteResource(parsedRequest, documentId, {
+    prefersLanguages: parsedRequest.prefersLanguages,
+  })
 }
 
 // onQueryInvalidation(queryClient.invalidateQueries);
@@ -110,11 +155,21 @@ export function ErrorBoundary({}: {}) {
   )
 }
 
-function App() {
-  return <Outlet />
+// function App(props: any) {
+//   const lolerData = useLoaderData<typeof loader>()
+//   console.log('~~ lolerData', lolerData)
+//   return <Outlet />
+// }
+
+export function AppWithDocument() {
+  const wrappedData = useLoaderData()
+  if (wrappedData === null) return <Outlet />
+  const data = unwrap<WebResourcePayload>(wrappedData)
+  console.log('~~ root data', data)
+  return <DocumentPage {...data} />
 }
 
-export default withSentry(App)
+export default withSentry(AppWithDocument)
 
 export const Styles = () => {
   if (isClient) {

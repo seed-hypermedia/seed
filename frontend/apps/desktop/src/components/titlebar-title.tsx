@@ -21,7 +21,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
 import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -163,7 +163,7 @@ function BreadcrumbTitle({
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const contacts = useSelectedAccountContacts()
-  const latestDoc = useEntity({...entityId, version: null, latest: true})
+  const latestDoc = useResource({...entityId, version: null, latest: true})
   const isLatest =
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
@@ -411,7 +411,7 @@ function PendingDomainStatus({
 
 function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   const hostSession = useHostSession()
-  const site = useEntity(id)
+  const site = useResource(id)
   if (id.path?.length) return null
   const pendingDomain = hostSession.pendingDomains?.find(
     (domain) => domain.siteUid === id.uid,
@@ -751,7 +751,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     let uId = draft.data?.locationUid || route.locationUid
     let path = draft.data?.locationPath || route.locationPath
     if (uId) {
-      return hmId('d', uId, {
+      return hmId(uId, {
         path,
       })
     } else {
@@ -769,7 +769,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     let uId = draft.data?.editUid || route.editUid
     let path = draft.data?.editPath || route.editPath
     if (uId) {
-      return hmId('d', uId, {
+      return hmId(uId, {
         path,
       })
     }

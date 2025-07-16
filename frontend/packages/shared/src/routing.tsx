@@ -3,7 +3,7 @@ import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import {createHMUrl, idToUrl, StateStream, unpackHmId} from './utils'
+import {createHMUrl, hmId, idToUrl, StateStream, unpackHmId} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -13,12 +13,17 @@ type UniversalAppContextValue = {
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
   originHomeId?: UnpackedHypermediaId | undefined
-  origin?: string
+
+  // the web URL in the current context. If null, the hm URL should be used.
+  // on desktop its the gateway URL, on mobile its the web site host.
+  origin?: string | null
+
   openUrl: (url: string) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   hmUrlHref?: boolean
+
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
@@ -34,7 +39,7 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
 export function UniversalAppProvider(props: {
   children: React.ReactNode
   originHomeId?: UnpackedHypermediaId
-  origin?: string
+  origin?: string | null
   ipfsFileUrl?: string
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
@@ -111,6 +116,42 @@ type UseRouteLinkOpts = {
   handler?: 'onClick' | 'onPress'
 }
 
+export function routeToHref(
+  route: NavRoute | string,
+  options: {
+    hmUrlHref?: boolean
+    originHomeId?: UnpackedHypermediaId
+    origin?: string | null
+  },
+) {
+  const docRoute =
+    typeof route !== 'string' && route.key === 'document' ? route : null
+  const docId =
+    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
+  const activeCommentId =
+    docRoute?.accessory?.key === 'discussions'
+      ? docRoute.accessory?.openComment
+      : null
+  let href: string | undefined = undefined
+  if (typeof route === 'string') {
+    href = route
+  } else if (activeCommentId) {
+    const [accountUid, commentTsid] = activeCommentId.split('/')
+    const commentId = hmId(accountUid, {path: [commentTsid]})
+    href = options.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
+  } else if (docRoute && docId) {
+    href = options.hmUrlHref
+      ? createHMUrl(docId)
+      : idToUrl(
+          {...docId, hostname: null},
+          {
+            originHomeId: options.originHomeId,
+          },
+        )
+  }
+  return href
+}
+
 export function useRouteLink(
   route: NavRoute | string | null,
   opts?: UseRouteLinkOpts,
@@ -128,19 +169,10 @@ export function useRouteLink(
   if (!context)
     throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
 
-  function getDocHref(docId: UnpackedHypermediaId | null) {
-    if (!docId) return undefined
-    if (context.hmUrlHref) {
-      return createHMUrl(docId)
-    }
-    return idToUrl(docId, {
-      originHomeId: context.originHomeId,
-    })
-  }
-  const docId =
-    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
-
-  const href = typeof route === 'string' ? route : getDocHref(docId)
+  const href = routeToHref(route, {
+    hmUrlHref: context.hmUrlHref,
+    originHomeId: context.originHomeId,
+  })
 
   const clickHandler = context.openRoute
     ? (e: {

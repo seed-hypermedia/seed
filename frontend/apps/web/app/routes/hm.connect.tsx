@@ -53,11 +53,11 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const config = await getConfig(parsedRequest.hostname)
 
   const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId('d', config.registeredAccountUid))
+    ? await getMetadata(hmId(config.registeredAccountUid))
     : undefined
   return wrapJSON({
     originHomeId: config?.registeredAccountUid
-      ? hmId('d', config.registeredAccountUid)
+      ? hmId(config.registeredAccountUid)
       : undefined,
     ...getOriginRequestData(parsedRequest),
     originHomeMetadata: originHome?.metadata ?? undefined,

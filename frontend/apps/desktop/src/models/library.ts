@@ -110,7 +110,7 @@ export function useLibrary({
         (doc) =>
           subscriptions.data?.find((sub) =>
             isSubscribedBy(
-              hmId('d', doc.account, {
+              hmId(doc.account, {
                 path: doc.path,
               }),
               sub,
@@ -124,7 +124,7 @@ export function useLibrary({
             return (
               fav &&
               fav.id ===
-                hmId('d', doc.account, {
+                hmId(doc.account, {
                   path: doc.path,
                 }).id
             )
@@ -226,16 +226,15 @@ export function useSiteLibrary(
     .filter((commentId) => commentId.length)
   const comments = useComments(commentIds || [])
 
-  const data: HMLibraryDocument[] = siteDocuments.data?.documents.map(
-    (doc) => ({
+  const data: HMLibraryDocument[] =
+    siteDocuments.data?.documents.map((doc) => ({
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,
-    }),
-  )
+    })) || []
 
   return {
     ...siteDocuments,
@@ -245,8 +244,12 @@ export function useSiteLibrary(
 
 export function useChildrenActivity(
   docId: UnpackedHypermediaId | null | undefined,
+  opts?: {enabled?: boolean},
 ) {
-  const siteLibrary = useSiteLibrary(docId?.uid, true)
+  const siteLibrary = useSiteLibrary(
+    docId?.uid,
+    !!docId && opts?.enabled !== false,
+  )
   const path = docId?.path
   const pathPrefix = docId?.path?.join('/') || ''
   return {

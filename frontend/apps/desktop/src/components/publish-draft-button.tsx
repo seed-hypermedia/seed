@@ -7,7 +7,7 @@ import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useEntity} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
@@ -49,21 +49,23 @@ export default function PublishDraftButton() {
   const pushOnPublish = usePushOnPublish()
   const selectedAccount = useSelectedAccount()
   console.log('== ~~~ draft:', draft.data)
-  const prevId = draftRoute.editUid
-    ? hmId('d', draftRoute.editUid, {path: draftRoute.editPath})
+  const editId = draftRoute.editUid
+    ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
     : draft.data?.editId
     ? draft.data?.editId
     : null
+
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
-  const rootDraftUid = prevId?.uid
-  const rootEntity = useEntity(
-    rootDraftUid ? hmId('d', rootDraftUid) : undefined,
-  )
-  const siteUrl = rootEntity.data?.document?.metadata.siteUrl
+  const editingResource = useResource(editId)
+  const editDocument =
+    editingResource.data?.type === 'document'
+      ? editingResource.data.document
+      : undefined
+  const siteUrl = editDocument?.metadata.siteUrl
   const gatewayUrl = useGatewayUrl()
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
@@ -85,7 +87,7 @@ export default function PublishDraftButton() {
         if (draft.id && resultDoc.version) {
           const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
           let publishPromise = publishToSite(
-            hmId('d', resultDoc.account, {
+            hmId(resultDoc.account, {
               path: resultPath,
               version: resultDoc.version,
             }),
@@ -143,7 +145,7 @@ export default function PublishDraftButton() {
           accountId,
         })
         .then(async (res) => {
-          const resultDocId = hmId('d', res.account, {
+          const resultDocId = hmId(res.account, {
             path: entityQueryPathToHmIdPath(res.path),
           })
           if (resultDocId && draftId)
@@ -176,8 +178,10 @@ export default function PublishDraftButton() {
           }
         })
     }
-    if (draft.data.editId && signingAccountId) {
-      handlePublish(draft.data.editId, signingAccountId)
+    console.log('== ~~~ editId:', editId)
+    console.log('== ~~~ signingAccountId:', signingAccountId)
+    if (editId && signingAccountId) {
+      handlePublish(editId, signingAccountId)
     } else {
       firstPublishDialog.open({
         newDefaultName: pathNameify(
@@ -239,7 +243,7 @@ function FirstPublishDialog({
 }) {
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(
     input.defaultLocation
-      ? hmId('d', input.defaultLocation.uid, {
+      ? hmId(input.defaultLocation.uid, {
           path: [
             ...(input.defaultLocation.path || []),
             pathNameify(input.newDefaultName),

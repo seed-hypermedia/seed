@@ -31,9 +31,8 @@ export const loader = async ({
     for (const mention of res.mentions) {
       const sourceId = unpackHmId(mention.source)
       if (!sourceId) continue
-      if (sourceId.type !== 'd') continue
       const targetFragment = parseFragment(mention.targetFragment)
-      const targetId = hmId(id.type, id.uid, {
+      const targetId = hmId(id.uid, {
         path: id.path,
         version: mention.targetVersion,
       })

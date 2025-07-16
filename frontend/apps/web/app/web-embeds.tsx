@@ -16,9 +16,10 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
-import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
+  CommentContentEmbed,
   ContentEmbed,
   DocumentCardGrid,
   ErrorBlock,
@@ -28,7 +29,7 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText, Text} from '@shm/ui/text'
+import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useState} from 'react'
 
@@ -62,7 +63,7 @@ function EmbedWrapper({
         if (hasSelection) {
           return
         }
-        const destUrl = createWebHMUrl(id.type, id.uid, {
+        const destUrl = createWebHMUrl(id.uid, {
           hostname: null,
           blockRange: id.blockRange,
           blockRef: id.blockRef,
@@ -94,35 +95,21 @@ export function EmbedDocument(props: EntityComponentProps) {
   }
 }
 
-export function EmbedComment(props: EntityComponentProps) {
-  // return <DocInlineEmbed {...props} />
-  return <SizableText>Comment</SizableText>
-}
-
 export function EmbedInline(props: EntityComponentProps) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
-  if (props?.type == 'd') {
-    return (
-      <DocInlineEmbed
-        {...props}
-        onHoverIn={onHoverIn}
-        onHoverOut={onHoverOut}
-      />
-    )
-  } else {
-    console.error('Inline Embed Error', JSON.stringify(props))
-    return <Text>?</Text>
-  }
+  return (
+    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
+  )
 }
 
 function DocInlineEmbed(props: EntityComponentProps) {
-  const pubId = props?.type == 'd' ? props.id : undefined
-  if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
-  const doc = useEntity(props)
-  const document = doc.data?.document
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const ctx = useDocContentContext()
   const {supportDocuments, supportQueries} = ctx || {}
-  const entity = pubId ? supportDocuments?.find((d) => d.id.id === pubId) : null
+  const entity = props.id
+    ? supportDocuments?.find((d) => d.id.id === props.id)
+    : null
   const renderDocument = document || entity?.document
   // basiclly we are willing to get the document from either ajax request or supportDocuments
   // supportDocuments is there for initial load, while the ajax will have up-to-date info
@@ -141,10 +128,9 @@ function DocInlineEmbed(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
-  const doc = useEntity(props)
-  const authors = useEntities(
-    doc.data?.document?.authors.map((uid) => hmId('d', uid)) || [],
-  )
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const authors = useResources(document?.authors.map((uid) => hmId(uid)) || [])
   if (doc.isLoading)
     return (
       <div className="flex items-center justify-center">
@@ -159,7 +145,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         isWeb
         entity={{
           id,
-          document: doc.data.document,
+          document: document,
         }}
         docId={id}
         accountsMetadata={Object.fromEntries(
@@ -170,7 +156,10 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
               authorDoc.id.uid,
               {
                 id: authorDoc.id,
-                metadata: authorDoc.document?.metadata,
+                metadata:
+                  authorDoc.type === 'document'
+                    ? authorDoc.document?.metadata
+                    : undefined,
               },
             ])
             .filter(([_, metadata]) => !!metadata),
@@ -182,22 +171,35 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
-  const doc = useEntity(props)
+  const doc = useResource(props)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const comment = doc.data?.type === 'comment' ? doc.data.comment : undefined
   const {entityId} = useDocContentContext()
+  const author = useResource(comment?.author ? hmId(comment?.author) : null)
   if (props.id && entityId && props.id === entityId.id) {
     return (
       // avoid recursive embeds!
       <SizableText color="muted">Embed: Parent document (skipped)</SizableText>
     )
   }
-  // return <div>{JSON.stringify(doc.data)}</div>;
+  if (comment) {
+    return (
+      <CommentContentEmbed
+        props={props}
+        comment={comment}
+        isLoading={doc.isLoading}
+        author={author.data}
+        EmbedWrapper={EmbedWrapper}
+      />
+    )
+  }
   return (
     <ContentEmbed
       props={props}
       isLoading={doc.isLoading}
       showReferenced={showReferenced}
       onShowReferenced={setShowReferenced}
-      document={doc.data?.document}
+      document={document}
       EmbedWrapper={EmbedWrapper}
       parentBlockId={props.parentBlockId}
       renderOpenButton={
@@ -302,7 +304,7 @@ function QueryStyleCard({
 
   const docs = useMemo(() => {
     return items.map((item) => {
-      const id = hmId('d', item.account, {
+      const id = hmId(item.account, {
         path: item.path,
         latest: true,
       })
@@ -336,7 +338,7 @@ function QueryListStyle({
   return (
     <div className="flex w-full flex-col gap-3">
       {items?.map((item) => {
-        const id = hmId('d', item.account, {
+        const id = hmId(item.account, {
           path: item.path,
           latest: true,
         })
@@ -350,7 +352,7 @@ function QueryListStyle({
             variant="outline"
             onClick={() => {
               navigate(
-                createWebHMUrl(id.type, id.uid, {
+                createWebHMUrl(id.uid, {
                   hostname: null,
                   blockRange: id.blockRange,
                   blockRef: id.blockRef,

@@ -5,6 +5,7 @@ import {
   EditorText,
   extractQueryBlocks,
   extractRefs,
+  getCommentTargetId,
   getParentPaths,
   HMBlock,
   HMBlockChildrenType,
@@ -12,13 +13,11 @@ import {
   hmBlockToEditorBlock,
   HMDocument,
   HMDocumentMetadataSchema,
-  HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
   HMInlineContent,
   HMLoadedBlock,
   HMLoadedBlockNode,
-  HMLoadedDocument,
   HMLoadedInlineEmbedNode,
   HMLoadedLinkNode,
   HMLoadedText,
@@ -26,15 +25,21 @@ import {
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
+  packHmId,
   SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared'
+import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
   HMComment,
   HMCommentSchema,
+  HMResourceComment,
+  HMResourceDocument,
+  HMResourceNotFound,
+  HMResourceRedirect,
 } from '@shm/shared/hm-types'
 import {
   getDiretoryWithClient,
@@ -90,11 +95,12 @@ export async function getAccount(
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
-      id: hmId('d', accountUid),
+      id: hmId(accountUid),
       metadata,
     } as HMMetadataPayload
   } catch (e) {
-    return {id: hmId('d', accountUid), metadata: {}}
+    console.error('Error getting account ' + accountUid, e)
+    return {id: hmId(accountUid), metadata: {}}
   }
 }
 
@@ -105,35 +111,40 @@ export async function getComment(id: string): Promise<HMComment> {
   return HMCommentSchema.parse(rawDoc.toJson())
 }
 
-export type WebBaseDocumentPayload = {
-  document: HMDocument
-  accountsMetadata: HMAccountsMetadata
+export type WebResourcePayload = {
+  // ID refers to the primary resource that is loaded.
   id: UnpackedHypermediaId
+
+  // if the resource is a comment, it will be present
+  comment?: HMComment | null
+
+  // if the resource is a comment, this is the target document. Otherwise, it is the doc identified by the resource ID
+  document: HMDocument
+
+  // supporting metadata for referenced accounts
+  accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
   supportQueries?: HMQueryResult[]
   enableWebSigning?: boolean
   isLatest: boolean
+  breadcrumbs: Array<HMMetadataPayload>
 }
 
-export type WebDocumentPayload = WebBaseDocumentPayload & {
-  breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>
-}
-
-export async function getHMDocument(
-  entityId: UnpackedHypermediaId,
+export async function getDocument(
+  resourceId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
-) {
-  const {version, uid, latest} = entityId
+): Promise<HMDocument> {
+  const {version, uid, latest} = resourceId
   if (discover && false) {
-    await discoverDocument(
+    return await discoverDocument(
       uid,
-      entityId.path || [],
+      resourceId.path || [],
       version || undefined,
       latest,
     )
   }
-  const path = hmIdPathToEntityQueryPath(entityId.path)
+  const path = hmIdPathToEntityQueryPath(resourceId.path)
   const apiDoc = await queryClient.documents
     .getDocument({
       account: uid,
@@ -151,46 +162,75 @@ export async function getHMDocument(
   if (apiDoc instanceof HMRedirectError) {
     throw apiDoc
   }
-  const docJSON = apiDoc.toJson() as any
-  documentMetadataParseAdjustments(docJSON.metadata)
-  const document = HMDocumentSchema.parse(docJSON)
-  return document
+  return prepareHMDocument(apiDoc)
 }
 
 export async function resolveHMDocument(
-  entityId: UnpackedHypermediaId,
+  resourceId: UnpackedHypermediaId,
   {discover}: {discover?: boolean} = {},
-) {
+): Promise<HMDocument> {
   try {
-    const document = await getHMDocument(entityId, {discover})
+    const document = await getDocument(resourceId, {discover})
     return document
   } catch (e) {
     if (e instanceof HMRedirectError) {
       return await resolveHMDocument(e.target, {discover})
     }
-    if (e) throw e
+    throw e
   }
 }
 
 const getDirectory = getDiretoryWithClient(queryClient)
 const getQueryResults = getQueryResultsWithClient(queryClient)
 
-export async function getBaseDocument(
-  entityId: UnpackedHypermediaId,
-  parsedRequest: ParsedRequest,
-): Promise<WebBaseDocumentPayload> {
-  const {uid} = entityId
+export function getOriginRequestData(parsedRequest: ParsedRequest) {
+  const enableWebSigning =
+    WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
+
+  return {
+    enableWebSigning,
+    siteHost: parsedRequest.origin,
+    origin: parsedRequest.origin,
+  }
+}
+
+async function getLatestDocument(resourceId: UnpackedHypermediaId) {
   const latestDocument =
-    !!entityId.version && !entityId.latest
-      ? await getHMDocument(
-          {...entityId, latest: true, version: null},
+    !!resourceId.version && !resourceId.latest
+      ? await getDocument(
+          {...resourceId, latest: true, version: null},
           {discover: true},
         )
       : null
-  const document = await getHMDocument(entityId, {discover: true})
+  return latestDocument
+}
+
+export async function loadDocument(
+  resourceId: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+): Promise<WebResourcePayload> {
+  const document = await getDocument(resourceId, {discover: true})
+
+  const latestDocument = await getLatestDocument(resourceId)
+  return await loadResourcePayload(resourceId, parsedRequest, {
+    document,
+    latestDocument,
+  })
+}
+
+async function loadResourcePayload(
+  docId: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+  payload: {
+    document: HMDocument
+    latestDocument?: HMDocument | null
+    comment?: HMComment
+  },
+): Promise<WebResourcePayload> {
+  const {document, latestDocument, comment} = payload
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
-      return await getMetadata(hmId('d', authorUid))
+      return await getMetadata(hmId(authorUid))
     }),
   )
   const refs = extractRefs(document.content)
@@ -207,18 +247,19 @@ export async function getBaseDocument(
       }),
     )
   ).filter((doc) => !!doc)
-  let supportQueries: HMQueryResult[] = []
 
   const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId('d', uid)
-  const homeDocument = await getHMDocument(homeId)
+  const homeId = hmId(docId.uid)
+  const homeDocument = await getDocument(homeId)
   supportDocuments.push({
     id: homeId,
     document: homeDocument,
   })
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
-  const directoryResults = await getDirectory(entityId)
+  const directoryResults = await getDirectory(docId)
+  const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
+  const supportAuthorsUidsToFetch = new Set<string>()
   const queryBlockQueries = (
     await Promise.all(
       queryBlocks.map(async (block) => {
@@ -226,28 +267,20 @@ export async function getBaseDocument(
       }),
     )
   ).filter((result) => !!result)
-  supportQueries = [
+  const supportQueries: HMQueryResult[] = [
     homeDirectoryQuery,
-    {in: entityId, results: directoryResults},
+    {in: docId, results: directoryResults},
     ...queryBlockQueries,
   ]
-  const alreadySupportDocIds = new Set<string>()
-  supportDocuments.forEach((doc) => {
-    if (doc.id.latest || doc.id.version == null) {
-      alreadySupportDocIds.add(doc.id.id)
-    }
-  })
-  const supportAuthorsUidsToFetch = new Set<string>()
-
   supportDocuments.push(
     ...(await Promise.all(
       queryBlockQueries
         .flatMap((item) => item.results)
         .map(async (item) => {
-          const id = hmId('d', item.account, {path: item.path})
-          const document = await getHMDocument(id)
+          const id = hmId(item.account, {path: item.path})
+          const document = await getDocument(id)
           document.authors.forEach((author) => {
-            if (!alreadySupportDocIds.has(hmId('d', author).id)) {
+            if (!alreadySupportDocIds.has(hmId(author).id)) {
               supportAuthorsUidsToFetch.add(author)
             }
           })
@@ -258,18 +291,17 @@ export async function getBaseDocument(
         }),
     )),
   )
-
   // now we need to get the author content for queried docs
   supportDocuments.push(
     ...(
       await Promise.all(
         Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
           try {
-            const document = await getHMDocument(hmId('d', uid), {
+            const document = await getDocument(hmId(uid), {
               discover: true,
             })
             return {
-              id: hmId('d', uid),
+              id: hmId(uid),
               document,
             }
           } catch (e) {
@@ -280,50 +312,104 @@ export async function getBaseDocument(
       )
     ).filter((doc) => !!doc),
   )
+  const crumbs = getParentPaths(docId.path).slice(0, -1)
+  const breadcrumbs = await Promise.all(
+    crumbs.map(async (crumbPath) => {
+      const id = hmId(docId.uid, {path: crumbPath})
+      const metadataPayload = await getMetadata(id)
+      return {
+        ...metadataPayload,
+      }
+    }),
+  )
+  breadcrumbs.push({
+    id: docId,
+    metadata: document.metadata,
+  })
 
   return {
     document,
+    comment,
     supportDocuments,
     supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: {...entityId, version: document.version},
+    id: {...docId, version: document.version},
+    breadcrumbs,
     ...getOriginRequestData(parsedRequest),
   }
 }
 
-export function getOriginRequestData(parsedRequest: ParsedRequest) {
-  const enableWebSigning =
-    WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
-
-  return {
-    enableWebSigning,
-    siteHost: parsedRequest.origin,
-    origin: parsedRequest.origin,
+export async function getResource(id: UnpackedHypermediaId) {
+  try {
+    const resource = await queryClient.resources.getResource({
+      iri: packHmId(id),
+    })
+    if (resource.kind.case === 'comment') {
+      return {
+        type: 'comment',
+        id,
+        comment: prepareHMComment(resource.kind.value),
+      } satisfies HMResourceComment
+    }
+    if (resource.kind.case === 'document') {
+      return {
+        type: 'document',
+        id,
+        document: prepareHMDocument(resource.kind.value),
+      } satisfies HMResourceDocument
+    }
+    throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
+  } catch (e) {
+    const err = getErrorMessage(e)
+    if (err instanceof HMRedirectError) {
+      return {
+        type: 'redirect',
+        id,
+        redirectTarget: err.target,
+      } satisfies HMResourceRedirect
+    }
+    return {
+      type: 'not-found',
+      id,
+    } satisfies HMResourceNotFound
   }
 }
 
-export async function getDocument(
-  entityId: UnpackedHypermediaId,
+export async function loadResource(
+  id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
-): Promise<WebDocumentPayload> {
-  const document = await getBaseDocument(entityId, parsedRequest)
-  const crumbs = getParentPaths(entityId.path).slice(0, -1)
-  const breadcrumbs = await Promise.all(
-    crumbs.map(async (crumbPath) => {
-      const id = hmId(entityId.type, entityId.uid, {path: crumbPath})
-      const metadataPayload = await getMetadata(id)
-      return {
-        id,
-        metadata: metadataPayload.metadata || {},
-      }
-    }),
-  )
-  return {
-    ...document,
-    breadcrumbs,
+): Promise<WebResourcePayload> {
+  try {
+    const resource = await queryClient.resources.getResource({
+      iri: id.id,
+    })
+    if (resource.kind.case === 'comment') {
+      const comment = prepareHMComment(resource.kind.value)
+      const targetDocId = getCommentTargetId(comment)
+      if (!targetDocId) throw new Error('targetDocId not found')
+      const document = await getDocument(targetDocId, {discover: true})
+      return await loadResourcePayload(targetDocId, parsedRequest, {
+        document,
+        comment,
+      })
+    } else if (resource.kind.case === 'document') {
+      const document = prepareHMDocument(resource.kind.value)
+      const latestDocument = await getLatestDocument(id)
+      return await loadResourcePayload(id, parsedRequest, {
+        document,
+        latestDocument,
+      })
+    }
+    throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
+  } catch (e) {
+    const err = getErrorMessage(e)
+    if (err instanceof HMRedirectError) {
+      throw err
+    }
+    throw e
   }
 }
 
@@ -354,7 +440,7 @@ async function loadEditorNodes(
             id: null,
           } satisfies HMLoadedInlineEmbedNode
         try {
-          const document = await getHMDocument(id)
+          const document = await getDocument(id)
           return {
             type: 'InlineEmbed',
             ref: editorNode.link,
@@ -440,7 +526,7 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       }
     }
     try {
-      const document = await getHMDocument(id)
+      const document = await getDocument(id)
       const selectedBlock = id.blockRef
         ? getBlockNodeById(document.content, id.blockRef)
         : null
@@ -568,37 +654,30 @@ async function loadDocumentContent(
 export async function loadAuthors(
   authors: string[],
 ): Promise<HMAccountsMetadata> {
+  const accountMetas = await Promise.all(
+    authors.map(async (author) => {
+      const metadata = await getMetadata(hmId(author))
+      return {
+        [author]: metadata,
+      }
+    }),
+  )
   return Object.fromEntries(
-    await Promise.all(
-      authors.map(async (author) => {
-        const metadata = await getMetadata(hmId('d', author))
-        return [author, metadata]
-      }),
-    ),
+    accountMetas.map((meta) => {
+      const key = Object.keys(meta)[0]
+      return [key, meta[key]]
+    }),
   )
 }
 
-export async function loadDocument(
-  entityId: UnpackedHypermediaId,
-): Promise<HMLoadedDocument> {
-  const doc = await getHMDocument(entityId)
-  return {
-    id: entityId,
-    version: doc.version,
-    content: await loadDocumentContent(doc.content),
-    metadata: doc.metadata,
-    authors: await loadAuthors(doc.authors),
-  }
-}
-
-export type SiteDocumentPayload = WebDocumentPayload & {
+export type SiteDocumentPayload = WebResourcePayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
   comment?: HMComment
 }
 
-export async function loadSiteDocument<T>(
+export async function loadSiteResource<T>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T,
@@ -613,19 +692,18 @@ export async function loadSiteDocument<T>(
   if (config.registeredAccountUid) {
     try {
       const {id, metadata} = await getMetadata(
-        hmId('d', config.registeredAccountUid),
+        hmId(config.registeredAccountUid),
       )
       homeMetadata = metadata
       originHomeId = id
     } catch (e) {}
   }
   try {
-    const docContent = await getDocument(id, parsedRequest)
-    let supportQueries = docContent.supportQueries
-
+    const resourceContent = await loadResource(id, parsedRequest)
+    let supportQueries = resourceContent.supportQueries
     const loadedSiteDocument = {
       ...(extraData || {}),
-      ...docContent,
+      ...resourceContent,
       homeMetadata,
       supportQueries,
       origin,
@@ -633,14 +711,14 @@ export async function loadSiteDocument<T>(
     }
     const headers: Record<string, string> = {}
     headers['x-hypermedia-id'] = id.id
-    headers['x-hypermedia-version'] = docContent.document.version
+    headers['x-hypermedia-version'] = resourceContent.document.version
     return wrapJSON(loadedSiteDocument, {
       headers,
     })
   } catch (e) {
     console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
-      const destRedirectUrl = createWebHMUrl(e.target.type, e.target.uid, {
+      const destRedirectUrl = createWebHMUrl(e.target.uid, {
         path: e.target.path,
         version: e.target.version,
         latest: e.target.latest,

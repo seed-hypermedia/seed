@@ -112,6 +112,7 @@ export function NavigationContainer({
       openUrl={(url: string) => {
         externalOpen(url)
       }}
+      origin={gwUrl}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
         onCopyReference(hmId)
       }}

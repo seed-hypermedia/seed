@@ -1,10 +1,6 @@
 import {usePublishToSite} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {
-  createWebHMUrl,
-  HYPERMEDIA_ENTITY_TYPES,
-  packHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, packHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
@@ -34,7 +30,7 @@ export function useCopyReferenceUrl(
   const pushOnCopy = usePushOnCopy()
   const publishToSite = usePublishToSite()
   function onCopy(input: UnpackedHypermediaId) {
-    const url = createWebHMUrl(input.type, input.uid, {
+    const url = createWebHMUrl(input.uid, {
       version: input.version,
       blockRef: input.blockRef,
       blockRange: input.blockRange,
@@ -47,10 +43,6 @@ export function useCopyReferenceUrl(
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
-      return
-    }
-    if (input.type !== 'd') {
-      toast('Comment link copied to clipboard')
       return
     }
     const [setIsPublished, isPublished] =
@@ -141,9 +133,7 @@ export function PushToGatewayDialog({
   const [shouldDoAlways, setShouldDoAlways] = useState(false)
   const setPushOnCopy = useSetPushOnCopy()
   const setPushOnPublish = useSetPushOnPublish()
-  const entityType = input?.type
-    ? HYPERMEDIA_ENTITY_TYPES[input.type]
-    : 'Entity'
+  const entityType = 'Document'
   function setDoEveryTime(everyTime: 'always' | 'never') {
     if (input.context === 'copy') {
       setPushOnCopy.mutate(everyTime)

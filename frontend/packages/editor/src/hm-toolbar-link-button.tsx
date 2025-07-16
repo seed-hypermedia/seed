@@ -138,7 +138,7 @@ function AddHyperlink({
             const u = new URL(url)
             const latest = u.searchParams.get('l')
             const blockRef = u.hash?.slice(1)
-            const id = hmId(baseId.type, baseId.uid, {
+            const id = hmId(baseId.uid, {
               path: baseId.path,
               latest: latest === '',
             })

@@ -10,7 +10,7 @@ import {
   HMMetadataPayload,
   unpackHmId,
 } from '@shm/shared'
-import {useEntities} from '@shm/shared/models/entity'
+import {useResources} from '@shm/shared/models/entity'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
@@ -27,13 +27,13 @@ export default function DraftsPage() {
         const uid = contextId.uid
         const parentPaths = getParentPaths(contextId.path)
         parentPaths.forEach((path) => {
-          allLocationParents.add(hmId('d', uid, {path}).id)
+          allLocationParents.add(hmId(uid, {path}).id)
         })
       }
     })
     return allLocationParents
   }, [drafts.data])
-  const entities = useEntities(
+  const entities = useResources(
     Array.from(allLocationParents)
       .map((id) => unpackHmId(id))
       .filter((id) => !!id),
@@ -48,7 +48,7 @@ export default function DraftsPage() {
         breadcrumbs = (
           contextId === item.editId ? parentPaths.slice(0, -1) : parentPaths
         ).map((path) => {
-          const id = hmId('d', uid, {path})
+          const id = hmId(uid, {path})
           return {
             id,
             metadata:

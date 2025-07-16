@@ -141,7 +141,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           <div
             className={cn(
               'flex w-full items-end',
-              // isLocked ? '' : 'pb-2 pr-1',
+              // isLocked ? '':'pb-2 pr-1',
             )}
           >
             <IdentitySelector />
@@ -160,10 +160,11 @@ function IdentitySelector() {
   const accountOptions = myAccounts
     ?.map((a) => {
       const id = a.data?.id
+      const doc = a.data?.type === 'document' ? a.data.document : undefined
       if (id) {
         return {
           id,
-          metadata: a.data?.document?.metadata,
+          metadata: doc?.metadata,
         }
       }
       return null
@@ -179,6 +180,10 @@ function IdentitySelector() {
   const selectedAccount = myAccounts?.find(
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
+  const selectedAccountDoc =
+    selectedAccount?.data?.type === 'document'
+      ? selectedAccount.data.document
+      : undefined
   const [isOpen, setIsOpen] = useState(false)
 
   if (!selectedIdentityValue) {
@@ -194,18 +199,18 @@ function IdentitySelector() {
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3">
           <>
-            {/* <Button className="pl-2 rounded-sm w-full items-center justify-start pr-3 bg-transparent hover:bg-gray-200 bg-blue-500 min-w-0"> */}
+            {/* <Button className="justify-start items-center pr-3 pl-2 w-full min-w-0 bg-transparent bg-blue-500 rounded-sm hover:bg-gray-200"> */}
             {selectedAccount?.data ? (
               <HMIcon
                 key={selectedAccount.data?.id?.uid}
                 id={selectedAccount.data?.id}
-                metadata={selectedAccount.data?.document?.metadata}
+                metadata={selectedAccountDoc?.metadata}
                 size={24}
               />
             ) : null}
 
             <p className="truncate text-sm select-none">
-              {selectedAccount?.data?.document?.metadata?.name ||
+              {selectedAccountDoc?.metadata?.name ||
                 `?${selectedIdentityValue.slice(-8)}`}
             </p>
 
