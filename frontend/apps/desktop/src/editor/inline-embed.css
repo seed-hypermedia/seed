@@ -1,11 +1,9 @@
 .node-inline-embed,
 .inline-embed-token {
   display: inline;
-  /* padding-inline: 1px; */
-  border-bottom: 3px solid transparent;
+  box-shadow: 0 2px 0 0 transparent;
 }
 
 .inline-embed-token.selected {
-  border-color: var(--brand5);
-  border-bottom: 3px solid var(--brand5);
+  box-shadow: 0 2px 0 0 var(--brand5);
 }
