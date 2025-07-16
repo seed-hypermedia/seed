@@ -25,6 +25,7 @@ var derivedTables = []string{
 	storage.T_DocumentGenerations,
 	storage.T_StashedBlobs,
 	storage.T_Fts,
+	storage.T_FtsIndex,
 }
 
 // Reindex forces deletes all the information derived from the blobs and reindexes them.
