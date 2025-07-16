@@ -1,7 +1,6 @@
 import {createHMUrl, UnpackedHypermediaId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
-import {Container} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {ExternalLink} from 'lucide-react'
 import {ReactNode} from 'react'
@@ -16,8 +15,8 @@ export function PageFooter({
 }) {
   const tx = useTx()
   return (
-    <Container className="mb-10 shrink-0 md:mb-0">
-      <div className="mb-4 flex flex-row-reverse flex-wrap items-center justify-between gap-4">
+    <div className="border-border mb-11 border-t p-4 sm:mb-0 sm:p-5">
+      <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
         {enableWebSigning ? <AccountFooterActionsLazy /> : <div />}
         <div className="flex items-center gap-4">
           <SizableText size="xs">
@@ -57,6 +56,6 @@ export function PageFooter({
           ) : null}
         </div>
       </div>
-    </Container>
+    </div>
   )
 }

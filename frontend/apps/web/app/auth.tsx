@@ -601,19 +601,19 @@ export function AccountFooterActions() {
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
       {ENABLE_EMAIL_NOTIFICATIONS && (
-        <Button size="sm" onClick={() => notifSettingsDialog.open({})}>
+        <Button size="xs" onClick={() => notifSettingsDialog.open({})}>
           <Megaphone className="size-4" />
           {tx('Notification Settings')}
         </Button>
       )}
       <Button
-        size="sm"
+        size="xs"
         onClick={() => editProfileDialog.open({accountUid: userKeyPair.id})}
       >
         <Pencil className="size-4" />
         {tx('Edit Profile')}
       </Button>
-      <Button size="sm" onClick={() => logoutDialog.open({})}>
+      <Button size="xs" onClick={() => logoutDialog.open({})}>
         <LogOut className="size-4" />
         {tx('Logout')}
       </Button>
