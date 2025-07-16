@@ -53,7 +53,6 @@ import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
-import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 export default function DraftPage() {
@@ -576,37 +575,38 @@ function DraftMetadataEditor({
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
   })
+  const summary = useSelector(draftActor, (s) => {
+    return s.context.metadata.summary
+  })
+
   const icon = useSelector(draftActor, (s) => {
     return s.context.metadata.icon
   })
   const stateEditUid = useSelector(draftActor, (s) => {
     return s.context.editUid
   })
-  const input = useRef<HTMLTextAreaElement | null>(null)
-  const editUid = route.editUid || stateEditUid
-
-  useShowTitleObserver(input.current)
+  const inputName = useRef<HTMLTextAreaElement | null>(null)
+  const inputSummary = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
-    // handle the initial size of the title
-    const target = input.current
-    if (!target) return
-    applyTitleResize(target)
-    draftActor.send({
-      type: 'set.nameRef',
-      nameRef: target,
-    })
-  }, [input.current])
-
-  useEffect(() => {
-    const target = input.current
+    const target = inputName.current
     if (!target) return
     if (target.value !== name) {
       // handle cases where the model has a different title. this happens when pasting multiline text into the title
       target.value = name || ''
-      applyTitleResize(target)
+      applyInputResize(target)
     }
   }, [name])
+
+  useEffect(() => {
+    const target = inputSummary.current
+    if (!target) return
+    if (target.value !== summary) {
+      // handle cases where the model has a different title. this happens when pasting multiline text into the title
+      target.value = summary || ''
+      applyInputResize(target)
+    }
+  }, [summary])
 
   useEffect(() => {
     let val = !!icon
@@ -625,11 +625,14 @@ function DraftMetadataEditor({
 
     function handleResize() {
       // handle the resize size of the title, responsive size may be changed
-      const target = input.current
-      if (!target) return
-      applyTitleResize(target)
+      const targetName = inputName.current
+      if (!targetName) return
+      applyInputResize(targetName)
+      const targetSummary = inputSummary.current
+      if (!targetSummary) return
+      applyInputResize(targetSummary)
     }
-  }, [input.current])
+  }, [inputName.current, inputSummary.current])
 
   return (
     <div
@@ -651,7 +654,7 @@ function DraftMetadataEditor({
           <textarea
             disabled={disabled}
             id="draft-name-input"
-            ref={input}
+            ref={inputName}
             rows={1}
             onKeyDown={(e: any) => {
               if (e.key == 'Enter') {
@@ -663,7 +666,7 @@ function DraftMetadataEditor({
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
             onChange={(e) => {
-              applyTitleResize(e.target as any)
+              applyInputResize(e.target as any)
               let newName = e.target.value
               // Replace two hyphens with a long dash
               if (name && newName.length > name.length) {
@@ -681,6 +684,40 @@ function DraftMetadataEditor({
             }}
             placeholder="Document Title"
           />
+          <textarea
+            disabled={disabled}
+            id="draft-summary-input"
+            ref={inputSummary}
+            rows={1}
+            onKeyDown={(e: any) => {
+              if (e.key == 'Enter') {
+                e.preventDefault()
+                onEnter()
+              }
+            }}
+            className="text-muted-foreground w-full resize-none border-none border-transparent font-serif! text-xl font-normal shadow-none ring-0 ring-transparent outline-none" // trying to hide extra content that flashes when pasting multi-line text into the title
+            defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
+            // value={title}
+            onChange={(e) => {
+              applyInputResize(e.target as any)
+              let newSummary = e.target.value
+              // Replace two hyphens with a long dash
+              if (summary && newSummary.length > summary.length) {
+                const isHyphen =
+                  summary.slice(-1) === '-' && newSummary.slice(-1) === '-'
+                if (isHyphen) newSummary = newSummary.slice(0, -2) + '—'
+              }
+
+              draftActor.send({
+                type: 'change',
+                metadata: {
+                  summary: newSummary,
+                },
+              })
+            }}
+            placeholder="Document Summary"
+          />
+          {}
           <Separator />
         </div>
       </Container>
@@ -690,7 +727,6 @@ function DraftMetadataEditor({
 
 function DraftCover({
   draftActor,
-  disabled = false,
   show = false,
   showOutline = true,
   setShowOutline,
@@ -708,21 +744,6 @@ function DraftCover({
   const cover = useSelector(draftActor, (s) => {
     return s.context.metadata.cover
   })
-
-  const input = useRef<HTMLTextAreaElement | null>(null)
-
-  useShowTitleObserver(input.current)
-
-  useEffect(() => {
-    // handle the initial size of the title
-    const target = input.current
-    if (!target) return
-    applyTitleResize(target)
-    draftActor.send({
-      type: 'set.nameRef',
-      nameRef: target,
-    })
-  }, [input.current])
 
   return (
     <div
@@ -787,7 +808,7 @@ function DraftRebaseBanner() {
   return null
 }
 
-function applyTitleResize(target: HTMLTextAreaElement) {
+function applyInputResize(target: HTMLTextAreaElement) {
   // Reset height to auto to get accurate scrollHeight
   target.style.height = 'auto'
 

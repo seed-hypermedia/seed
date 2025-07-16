@@ -20,7 +20,6 @@ export const draftMachine = setup({
       deps?: string[]
     },
     context: {} as {
-      nameRef: null | HTMLTextAreaElement
       id: string
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
@@ -57,10 +56,6 @@ export const draftMachine = setup({
         }
       | {
           type: 'reset.content'
-        }
-      | {
-          type: 'set.nameRef'
-          nameRef: HTMLTextAreaElement
         },
   },
   actions: {
@@ -153,14 +148,7 @@ export const draftMachine = setup({
     setDraftStatus: function (_, params: {status: DraftStatus}) {
       dispatchDraftStatus(params.status)
     },
-    setNameRef: assign({
-      nameRef: ({event}) => {
-        if (event.type == 'set.nameRef') {
-          return event.nameRef
-        }
-        return null
-      },
-    }),
+
     resetChangeWhileSaving: assign({
       hasChangedWhileSaving: false,
     }),
@@ -192,7 +180,7 @@ export const draftMachine = setup({
       editUid: input.editUid ?? '',
       editPath: input.editPath ?? [],
       navigation: undefined,
-      nameRef: null,
+
       changed: false,
       hasChangedWhileSaving: false,
       draftCreated: !!input.id,
