@@ -33,6 +33,10 @@ BASIC STYLES
   */
 }
 
+:global(.comment-editor) .blockContent {
+  padding: 3px 0;
+}
+
 .blockContent::before {
   /* content: ""; */
   transition: all 0.2s;
