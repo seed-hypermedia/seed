@@ -57,6 +57,37 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-07-15.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS fts;
+
+			CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
+				raw_content,
+				type UNINDEXED,
+				blob_id UNINDEXED,
+				block_id UNINDEXED,
+				version UNINDEXED
+			);
+
+			DROP TABLE IF EXISTS fts_index;
+
+			CREATE TABLE IF NOT EXISTS fts_index (
+				rowid INTEGER PRIMARY KEY,
+				blob_id INTEGER NOT NULL,
+				version TEXT NOT NULL,
+				block_id TEXT NOT NULL,
+				type TEXT NOT NULL
+			) WITHOUT ROWID;
+			CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
+			CREATE INDEX fts_index_by_version ON fts_index (version);
+			CREATE INDEX fts_index_by_block ON fts_index (block_id);
+			CREATE INDEX fts_index_by_type ON fts_index (type);
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-07-09.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to fix comment causality issues again.
 		return scheduleReindex(conn)
