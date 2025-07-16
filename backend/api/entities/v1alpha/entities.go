@@ -356,7 +356,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		entityTypeContact = "contact"
 	}
-	var resultsLmit int = 2000
+	resultsLmit := 2000
 
 	if len(cleanQuery) < 3 {
 		resultsLmit = 200

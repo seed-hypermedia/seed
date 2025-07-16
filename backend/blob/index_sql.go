@@ -65,6 +65,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 	err := sqlitegen.ExecStmt(conn, qFTSInsert(), before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: FTSInsert: %w", err)
+		return err
 	}
 
 	before = func(stmt *sqlite.Stmt) {
@@ -78,6 +79,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 	err = sqlitegen.ExecStmt(conn, qFTSIndexInsert(), before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: FTSCheck: %w", err)
+		return err
 	}
 
 	before = func(stmt *sqlite.Stmt) {
@@ -94,9 +96,10 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 	err = sqlitegen.ExecStmt(conn, qFTSCheck(), before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: FTSCheck: %w", err)
+		return err
 	}
 
-	var idx int = 0
+	var idx int
 	if len(rowsToUpdate) > 0 {
 		before := func(stmt *sqlite.Stmt) {
 			stmt.SetInt64(":FTSBlobID", FTSBlobID)
@@ -111,10 +114,11 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 		err = sqlitegen.ExecStmt(conn, qFTSUpdate(), before, onStep)
 		if err != nil {
 			err = fmt.Errorf("failed query: FTSUpdate: %w", err)
+			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 var qFTSCheck = dqb.Str(`
