@@ -1,5 +1,4 @@
 import {
-  formattedDateLong,
   formattedDateMedium,
   getCommentTargetId,
   HMAccountsMetadata,
@@ -153,22 +152,25 @@ export function Comment({
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1">
-        <div className="group flex min-h-5 items-center justify-between gap-1">
-          <div className="flex items-center gap-1">
+      <div className="flex w-full flex-1 flex-col gap-1">
+        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+          <div className="flex items-baseline gap-1 overflow-hidden">
             <button
               className={cn(
-                'hover:bg-accent h-5 rounded px-1 text-sm font-bold transition-colors',
+                'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
                 authorLink ? 'cursor-pointer' : '',
               )}
               {...authorLink}
             >
               {authorMetadata?.name || '...'}
             </button>
+
             <CommentDate comment={comment} />
           </div>
           <Tooltip content={tx('Copy Comment Link')}>
-            <button
+            <Button
+              size="iconSm"
+              variant="ghost"
               className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
               onClick={() => {
                 const url = getUrl(hmId(comment.id))
@@ -176,8 +178,8 @@ export function Comment({
                 toast.success('Copied Comment URL')
               }}
             >
-              <Link size={12} />
-            </button>
+              <Link className="size-3" />
+            </Button>
           </Tooltip>
         </div>
         <div className="-ml-2">{renderCommentContent(comment)}</div>
@@ -240,14 +242,12 @@ function CommentDate({comment}: {comment: HMComment}) {
     },
   )
   return (
-    <Tooltip content={formattedDateLong(comment.createTime)}>
-      <a
-        className="text-muted-foreground hover:text-muted-foreground h-6 rounded text-xs underline"
-        {...link}
-      >
-        {formattedDateMedium(comment.createTime)}
-      </a>
-    </Tooltip>
+    <a
+      className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"
+      {...link}
+    >
+      {formattedDateMedium(comment.createTime)}
+    </a>
   )
 }
 
