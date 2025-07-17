@@ -14,8 +14,6 @@ export function createSiteUrl({
   latest,
   blockRef,
   blockRange,
-  targetDocUid,
-  targetDocPath,
 }: {
   path: string[] | null | undefined
   hostname: string
@@ -23,14 +21,12 @@ export function createSiteUrl({
   latest?: boolean
   blockRef?: string | null | undefined
   blockRange?: ExactBlockRange | ExpandedBlockRange | null
-  targetDocUid?: string | null
-  targetDocPath?: string[] | null
 }) {
   let res = `${hostname}/`
   if (path && path.length) {
     res += path.join('/')
   }
-  res += getHMQueryString({latest, version, targetDocUid, targetDocPath})
+  res += getHMQueryString({latest, version})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -44,15 +40,13 @@ export function createHMUrl({
   latest,
   blockRef,
   blockRange,
-  targetDocUid,
-  targetDocPath,
 }: UnpackedHypermediaId) {
   let res = `hm://${uid}`
 
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  res += getHMQueryString({version, latest, targetDocUid, targetDocPath})
+  res += getHMQueryString({version, latest})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -70,8 +64,6 @@ export function createWebHMUrl(
     latest,
     path,
     originHomeId,
-    targetDocUid,
-    targetDocPath,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -80,8 +72,6 @@ export function createWebHMUrl(
     latest?: boolean | null
     path?: string[] | null
     originHomeId?: UnpackedHypermediaId
-    targetDocUid?: string | null
-    targetDocPath?: string[] | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -99,7 +89,7 @@ export function createWebHMUrl(
     res += `/${path.join('/')}`
   }
   if (res === '') res = '/'
-  res += getHMQueryString({latest, version, targetDocUid, targetDocPath})
+  res += getHMQueryString({latest, version})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -109,13 +99,9 @@ export function createWebHMUrl(
 function getHMQueryString({
   version,
   latest,
-  targetDocUid,
-  targetDocPath,
 }: {
   version?: string | null
   latest?: boolean | null
-  targetDocUid?: string | null
-  targetDocPath?: string[] | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -123,14 +109,6 @@ function getHMQueryString({
   }
   if (latest) {
     query.l = null
-  }
-  if (targetDocUid) {
-    query.target = targetDocUid
-    if (targetDocPath) {
-      targetDocPath.forEach((pathTerm) => {
-        query.target += `/${pathTerm}`
-      })
-    }
   }
   return serializeQueryString(query)
 }
@@ -141,23 +119,12 @@ function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {
-    path,
-    version,
-    latest,
-    blockRef,
-    blockRange,
-    uid,
-    targetDocUid,
-    targetDocPath,
-  } = hmId
+  const {path, version, latest, blockRef, blockRange, uid} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
-    targetDocUid,
-    targetDocPath,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -174,8 +141,6 @@ type ParsedURL = {
   path: string[]
   query: Record<string, string>
   fragment: string | null
-  targetDocUid: string | null
-  targetDocPath: string[] | null
 }
 
 export function parseCustomURL(url: string): ParsedURL | null {
@@ -186,22 +151,11 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [path, queryString] = pathAndQuery.split('?')
   const query = new URLSearchParams(queryString)
   const queryObject = Object.fromEntries(query.entries())
-  let targetDocUid = null
-  let targetDocPath = null
-  if (queryObject.target) {
-    const target = queryObject.target.split('/')
-    if (target[0]) {
-      targetDocUid = target[0]
-      targetDocPath = target.slice(1)
-    }
-  }
   return {
     scheme,
     path: path.split('/'),
     query: queryObject,
     fragment,
-    targetDocUid,
-    targetDocPath,
   }
 }
 
@@ -227,8 +181,6 @@ export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
     hostname: id.hostname,
     scheme: id.scheme,
     latest: id.latest,
-    targetDocUid: id.targetDocUid,
-    targetDocPath: id.targetDocPath,
   }
 }
 
@@ -241,8 +193,6 @@ export function hmId(
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
-    targetDocUid?: string | null
-    targetDocPath?: string[] | null
   } = {},
 ): UnpackedHypermediaId {
   if (!uid) throw new Error('uid is required')
@@ -256,8 +206,6 @@ export function hmId(
     blockRange: opts.blockRange || null,
     hostname: opts.hostname || null,
     scheme: null,
-    targetDocUid: opts.targetDocUid || null,
-    targetDocPath: opts.targetDocPath || null,
   }
 }
 
@@ -306,8 +254,6 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     hostname,
     latest,
     scheme: parsed.scheme,
-    targetDocUid: parsed.targetDocUid || null,
-    targetDocPath: parsed.targetDocPath || null,
   }
 }
 
@@ -349,8 +295,6 @@ export function normalizeHmId(
           blockRange: unpacked.blockRange,
           blockRef: unpacked.blockRef,
           version: unpacked.version,
-          targetDocUid: unpacked.targetDocUid,
-          targetDocPath: unpacked.targetDocPath,
         }),
       )
     }
@@ -365,19 +309,15 @@ export function createHmDocLink_DEPRECATED({
   blockRef,
   blockRange,
   latest,
-  targetDocUid,
-  targetDocPath,
 }: {
   documentId: string
   version?: string | null
   blockRef?: string | null
   blockRange?: ExactBlockRange | ExpandedBlockRange | null
   latest?: boolean
-  targetDocUid?: string | null
-  targetDocPath?: string[] | null
 }): string {
   let res = documentId
-  res += getHMQueryString({version, latest, targetDocUid, targetDocPath})
+  res += getHMQueryString({version, latest})
   if (blockRef) {
     res += `${
       !blockRef.startsWith('#') ? '#' : ''

@@ -6,8 +6,6 @@ describe('unpackHmId', () => {
     expect(unpackHmId('hm://abc')).toEqual({
       id: 'hm://abc',
       scheme: 'hm',
-      targetDocPath: null,
-      targetDocUid: null,
       hostname: null,
       uid: 'abc',
       version: null,
@@ -30,8 +28,6 @@ describe('unpackHmId', () => {
       blockRef: 'bar',
       path: [],
       latest: false,
-      targetDocPath: null,
-      targetDocUid: null,
     })
   })
   test('unpacks hm://foo?v=bar', () => {
@@ -45,8 +41,6 @@ describe('unpackHmId', () => {
       blockRef: null,
       path: [],
       latest: false,
-      targetDocPath: null,
-      targetDocUid: null,
     })
   })
 
@@ -62,8 +56,6 @@ describe('unpackHmId', () => {
         id: 'hm://a/b/c',
         path: ['b', 'c'],
         latest: false,
-        targetDocPath: null,
-        targetDocUid: null,
       })
     })
     test('unpacks http://foobar.com/hm/1#block', () => {
@@ -79,8 +71,6 @@ describe('unpackHmId', () => {
         blockRef: 'block',
         id: 'hm://1',
         path: [],
-        targetDocPath: null,
-        targetDocUid: null,
       })
     })
   })
@@ -93,8 +83,6 @@ describe('parseCustomURL', () => {
       path: ['a', 'b'],
       query: {foo: '1', bar: '2'},
       fragment: 'block',
-      targetDocPath: null,
-      targetDocUid: null,
     })
   })
 })
