@@ -53,7 +53,6 @@ import {
   File,
   Link,
   MessageSquare,
-  MoreHorizontal,
   Undo2,
   X,
 } from 'lucide-react'
@@ -715,32 +714,6 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
-        {!hideCollapseButtons && bnChildren && !_expanded ? (
-          <Tooltip
-            content={tx(
-              'block_is_collapsed',
-              'This block is collapsed. you can expand it and see its children',
-            )}
-          >
-            <Button
-              size="icon"
-              variant="ghost"
-              className="rounded-sm opacity-0 select-none hover:opacity-100"
-              style={{
-                padding: layoutUnit / 4,
-                marginHorozontal: layoutUnit / 4,
-                opacity: hover ? 1 : 0,
-              }}
-              userSelect="none"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleBlockNodeToggle()
-              }}
-            >
-              <MoreHorizontal className="size-3" />
-            </Button>
-          </Tooltip>
-        ) : null}
         <div
           className={cn(
             'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
