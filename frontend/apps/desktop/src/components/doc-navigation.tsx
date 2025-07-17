@@ -12,7 +12,7 @@ import {
 import {useSubscribedResource} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {getDraftNodesOutline, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Add} from '@shm/ui/icons'
@@ -23,7 +23,7 @@ import {
   DraftOutline,
   useNodesOutline,
 } from '@shm/ui/navigation'
-import {ReactNode} from 'react'
+import {ReactNode, useMemo} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   const route = useNavRoute()
@@ -40,7 +40,6 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   })
   const capability = useSelectedAccountCapability(id)
   const siteList = useListSite(id)
-  const isHome = !id.path?.length
   const siteListQuery = siteList?.data ? {in: id, results: siteList.data} : null
 
   const embeds = useDocumentEmbeds(document)
@@ -58,10 +57,13 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
     )
   }
   const outline = useNodesOutline(document, id, embeds)
+
   if (!document || !siteListQuery || !outline.length) return null
 
+  if (outline.length <= 1) return null
+
   return (
-    <DocNavigationWrapper showCollapsed={showCollapsed}>
+    <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
       <DocumentOutline
         onActivateBlock={(blockId) => {
           navigate({
@@ -136,19 +138,22 @@ export function DocNavigationDraftLoader({
     siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
   const embeds = useDocumentEmbeds(document)
 
+  const outline = useMemo(() => {
+    if (!draft?.content) return []
+    return getDraftNodesOutline(draft.content, id, embeds)
+  }, [id, draft, embeds])
+
   if (!siteListQuery || !metadata) return null
 
   return (
-    <DocNavigationWrapper showCollapsed={showCollapsed}>
+    <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
       {draft && id ? (
         <DraftOutline
+          outline={outline}
           onActivateBlock={(blockId: string) => {
             focusDraftBlock(id?.id, blockId)
           }}
-          draft={draft}
           id={id}
-          supportDocuments={embeds}
-          onPress={() => {}}
         />
       ) : null}
     </DocNavigationWrapper>

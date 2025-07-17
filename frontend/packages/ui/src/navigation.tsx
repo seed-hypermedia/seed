@@ -1,9 +1,7 @@
 import {
-  getDraftNodesOutline,
   getMetadataName,
   getNodesOutline,
   HMDocument,
-  HMDraft,
   HMEntityContent,
   hmId,
   HMListedDraft,
@@ -22,6 +20,7 @@ import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {Popover} from './TamaguiPopover'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
+import {cn} from './utils'
 
 export function DocumentSmallListItem({
   metadata,
@@ -301,23 +300,18 @@ export function DocumentOutline({
 }
 
 export function DraftOutline({
-  draft,
   id,
-  supportDocuments,
   onActivateBlock,
   indented,
   onPress,
+  outline = [],
 }: {
-  draft: HMDraft
   id: UnpackedHypermediaId
-  supportDocuments: HMEntityContent[]
   onActivateBlock: (blockId: string) => void
   indented?: number
   onPress?: () => void
+  outline: NodeOutline[]
 }) {
-  const outline = useMemo(() => {
-    return getDraftNodesOutline(draft.content, id, supportDocuments)
-  }, [id, draft.content, supportDocuments])
   return outline.map((node) => (
     <OutlineNode
       node={node}
@@ -410,9 +404,11 @@ function OutlineNode({
 export function DocNavigationWrapper({
   children,
   showCollapsed,
+  outline,
 }: {
   children: ReactNode
   showCollapsed: boolean
+  outline: Array<NodeOutline>
 }) {
   const popoverState = usePopoverState()
   const media = useMedia()
@@ -427,7 +423,6 @@ export function DocNavigationWrapper({
       <Popover placement="right" {...popoverState} hoverable>
         <Popover.Trigger
           opacity={popoverState.open ? 0 : 1}
-          bg="$color6"
           x={0}
           paddingVertical="$3"
           paddingHorizontal={3}
@@ -438,13 +433,14 @@ export function DocNavigationWrapper({
           enterStyle={{opacity: 0}}
           exitStyle={{opacity: 0}}
           animation="fast"
-          maxWidth={12}
+          maxWidth={20}
+          bg="$backgroundTransparent"
         >
-          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
-          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
-          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
-          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
-          <div className="bg-muted-foreground/40 h-0.5 w-[90%] rounded-full" />
+          {outline?.length
+            ? outline.map((node) => (
+                <CollapsedOutlineNode key={node.id} node={node} />
+              ))
+            : null}
         </Popover.Trigger>
         <Popover.Content
           minWidth={280}
@@ -468,5 +464,33 @@ export function DocNavigationWrapper({
     >
       {children}
     </div>
+  )
+}
+
+function CollapsedOutlineNode({
+  node,
+  level = 1,
+}: {
+  node: NodeOutline
+  level?: number
+}) {
+  return (
+    <>
+      <div
+        key={node.id}
+        className="bg-muted-foreground/40 h-0.5 w-full rounded-full"
+      />
+      {node.children?.length ? (
+        <div className={cn('flex flex-col gap-3', level < 3 && 'pl-[3px]')}>
+          {node.children.map((child) => (
+            <CollapsedOutlineNode
+              key={child.id}
+              node={child}
+              level={level + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
   )
 }

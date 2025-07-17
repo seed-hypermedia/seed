@@ -156,7 +156,6 @@ export const MediaContainer = ({
       if (onHoverOut) onHoverOut(e)
       setHover(false)
     },
-    outlineWidth: 0,
   }
 
   return (

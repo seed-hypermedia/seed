@@ -918,7 +918,7 @@ function WebDocumentOutline({
   const outline = useNodesOutline(document, id, supportDocuments)
   if (!outline.length) return null
   return (
-    <DocNavigationWrapper showCollapsed={showCollapsed}>
+    <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
       <DocumentOutline
         onActivateBlock={onActivateBlock}
         id={id}

@@ -158,7 +158,7 @@ export const useDocumentLayout = (
       showCollapsed: layoutState.showCollapsed,
       contentMaxWidth,
       sidebarProps: {
-        className: `document-aside flex-1 w-full ${
+        className: `document-aside flex-1 w-full pt-4 ${
           layoutState.showCollapsed ? 'pr-0' : 'pr-10'
         }`,
         style: {

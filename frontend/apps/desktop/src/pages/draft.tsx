@@ -665,7 +665,7 @@ function DraftMetadataEditor({
       <Container
         className={cn(
           showCover &&
-            'relative z-0 after:absolute after:inset-0 after:rounded-md after:bg-white after:dark:bg-black',
+            'relative z-0 after:absolute after:inset-0 after:rounded-md after:bg-white after:content-[""] after:dark:bg-black',
         )}
         style={{
           marginTop: showCover ? '-40px' : '0',
