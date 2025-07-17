@@ -49,22 +49,17 @@ export const loader = async ({request}: {request: Request}) => {
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
-    const commentTarget = url.searchParams.get('target')?.split('/')
-    const targetDocUid = !!commentTarget?.[0] ? commentTarget?.[0] : undefined
-    const targetDocPath = targetDocUid ? commentTarget?.slice(1) : undefined
-
     documentId = hmId(pathParts[1], {
       path: pathParts.slice(2),
       version,
       latest,
-      targetDocUid,
     })
   } else {
     // Site document (regular path)
     const path = url.pathname.split('/').filter(Boolean)
     documentId = hmId(registeredAccountUid, {path, version, latest})
   }
-
+  console.log('~~ willLoadSiteResource, documentId', documentId)
   return await loadSiteResource(parsedRequest, documentId, {
     prefersLanguages: parsedRequest.prefersLanguages,
   })
@@ -82,7 +77,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-muted min-h-screen font-sans antialiased">
+      <body className="min-h-screen font-sans antialiased bg-muted">
         <Providers>{children}</Providers>
 
         <ScrollRestoration />
@@ -125,9 +120,9 @@ export function ErrorBoundary({}: {}) {
         <title>Oops! Something went wrong</title>
       </head>
       <body>
-        <div className="flex h-screen w-screen flex-col">
-          <div className="flex flex-1 items-start justify-center px-4 py-12">
-            <div className="border-border dark:bg-background flex w-full max-w-lg flex-0 flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
+        <div className="flex flex-col w-screen h-screen">
+          <div className="flex flex-1 justify-center items-start px-4 py-12">
+            <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border dark:bg-background flex-0">
               <SizableText size="5xl">🤕</SizableText>
               <SizableText size="2xl" weight="bold">
                 Uh oh, it's not you, it's us...
