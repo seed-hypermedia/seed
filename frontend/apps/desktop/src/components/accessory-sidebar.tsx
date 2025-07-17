@@ -13,10 +13,12 @@ import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
 import {BlockQuote} from '@shm/ui/icons'
@@ -327,44 +329,34 @@ function AccessoryTabs({
 
         {/* Overflow dropdown */}
         {overflowItems.length > 0 && (
-          <Popover>
-            <PopoverTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger>
               <Button size="sm" variant="ghost" className="rounded-full">
                 <ChevronDown className="size-5" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="max-h-[300px] overflow-y-scroll p-0"
-              align="end"
-              side="bottom"
-            >
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end" className="w-50">
               {overflowItems.map((option) => {
-                const isActive = accessoryKey === option.key
                 const Icon = iconNames[option.key]
                 return (
-                  <div
+                  <DropdownMenuItem
                     key={option.key}
-                    className={cn(
-                      'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
-                      isActive && 'bg-accent',
-                    )}
                     onClick={() => {
-                      if (isActive) return
                       onAccessorySelect(option.key)
                     }}
                   >
                     {Icon ? <Icon className="size-4" /> : null}
-                    <span className="text-sm">{option.label}</span>
+                    {option.label}
                     {tabNumbers?.[option.key] ? (
-                      <span className="text-muted-foreground text-xs">
+                      <DropdownMenuShortcut>
                         {String(tabNumbers[option.key])}
-                      </span>
+                      </DropdownMenuShortcut>
                     ) : null}
-                  </div>
+                  </DropdownMenuItem>
                 )
               })}
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </div>

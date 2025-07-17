@@ -11,12 +11,17 @@ import {
 import {useTxString, useTxUtils} from '@shm/shared/translation'
 import React, {useMemo, useRef, useState} from 'react'
 import {Button} from './button'
-import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/dropdown-menu'
 import {
   DocNavigationItem,
   DocumentOutline,
@@ -458,22 +463,34 @@ export function SiteHeaderMenu({
       {/* Overflow dropdown */}
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
-          <Popover>
-            <PopoverTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger>
               <Button size="sm" variant="ghost" className="rounded-full">
                 <ChevronDown className="size-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="max-h-[300px] overflow-y-scroll p-0"
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="max-h-[300px] w-50 overflow-y-scroll"
               side="bottom"
               align="end"
             >
-              {overflowItems.map((item) => (
-                <DropdownLinkItem key={item.key} item={item} docId={docId} />
-              ))}
-            </PopoverContent>
-          </Popover>
+              {overflowItems.map((item) => {
+                const linkProps = useRouteLink(
+                  item.draftId
+                    ? {key: 'draft', id: item.draftId}
+                    : item.id
+                    ? {key: 'document', id: item.id}
+                    : item.webUrl || '',
+                  {handler: 'onClick'},
+                )
+                return (
+                  <DropdownMenuItem key={item.key} {...linkProps}>
+                    {item.metadata.name}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </Tooltip>
       )}
     </div>
