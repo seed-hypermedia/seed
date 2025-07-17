@@ -88,7 +88,7 @@ function CreateDocumentButton() {
       <Button
         variant="default"
         onClick={() => createDraft()}
-        className="justify-center mb-5 w-full"
+        className="mb-5 w-full justify-center"
       >
         <FilePlus2 color="currentColor" size={16} />{' '}
         <span className="truncate">Create Document</span>
@@ -108,10 +108,10 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <div className="flex flex-col mt-4">
-      <div className="flex justify-between items-center px-2">
+    <div className="mt-4 flex flex-col">
+      <div className="flex items-center justify-between px-2">
         <div
-          className="flex gap-1 justify-center items-center cursor-pointer group/header"
+          className="group/header flex cursor-pointer items-center justify-center gap-1"
           onClick={() => {
             setCollapsed(!collapsed)
           }}
@@ -120,11 +120,11 @@ function SidebarSection({
             weight="bold"
             size="xs"
             color="muted"
-            className="capitalize select-none group-hover/header:text-foreground"
+            className="group-hover/header:text-foreground capitalize select-none"
           >
             {title}
           </SizableText>
-          <div className="flex justify-center items-center w-4 h-5">
+          <div className="flex h-5 w-4 items-center justify-center">
             <Icon size={12} color="$color11" />
           </div>
         </div>
@@ -146,8 +146,9 @@ function FavoritesSection() {
     <SidebarSection title="Favorites">
       {favoriteEntities?.map((favorite) => {
         if (!favorite.data) return null
+        // @ts-expect-error TODO: fix this
         const {id, document} = favorite.data
-        const metadata = id.path.length
+        const metadata = id.path?.length
           ? document?.metadata
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         return (
