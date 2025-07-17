@@ -15,7 +15,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
-import {formattedDateMedium} from '@shm/shared/utils/date'
+import {formattedDate, formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {
@@ -51,7 +51,6 @@ import {
 } from 'react'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
-import {LibraryListItem} from './list-item'
 
 function EmbedWrapper({
   id,
@@ -620,17 +619,9 @@ function QueryStyleCard({
   )
 }
 
-function QueryStyleList({
-  items,
-  block,
-  getEntity,
-  accountsMetadata,
-}: {
-  items: any[]
-  block: HMBlockQuery
-  getEntity: any
-  accountsMetadata: any
-}) {
+function QueryStyleList({items}: {items: any[]}) {
+  const navigate = useNavigate()
+
   const entries = useMemo(
     () =>
       items.map((item) => {
@@ -658,14 +649,30 @@ function QueryStyleList({
       {entries.length ? (
         entries.map((item) => {
           return (
-            <LibraryListItem
-              key={item.id.id}
-              docId={item.id.id}
-              entry={item}
-              exportMode={false}
-              selected={false}
-              toggleDocumentSelection={(id) => {}}
-            />
+            <Button
+              className="h-15 h-auto shadow-md"
+              variant="outline"
+              onClick={() => {
+                navigate({
+                  key: 'document',
+                  id: item.id,
+                })
+              }}
+            >
+              <HMIcon
+                size={28}
+                id={item.id}
+                metadata={item.document?.metadata}
+              />
+              <div className="flex flex-1 items-center gap-2 overflow-hidden py-2">
+                <SizableText weight="bold" className="truncate">
+                  {item.document?.metadata.name}
+                </SizableText>
+              </div>
+              <SizableText size="xs" color="muted">
+                {formattedDate(item.document?.updateTime)}
+              </SizableText>
+            </Button>
           )
         })
       ) : (

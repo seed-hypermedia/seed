@@ -270,7 +270,7 @@ export function QueryBlockWeb({
   }
 
   const DataComponent =
-    block.attributes.style == 'List' ? QueryListStyle : QueryStyleCard
+    block.attributes.style == 'List' ? QueryStyleList : QueryStyleCard
 
   return <DataComponent block={block} items={sortedItems} />
 }
@@ -326,7 +326,7 @@ function QueryStyleCard({
   )
 }
 
-function QueryListStyle({
+function QueryStyleList({
   block,
   items,
 }: {
