@@ -1173,7 +1173,7 @@ function BlockContentImage({
               ? `${getBlockAttribute(block.attributes, 'width')}px`
               : undefined,
           }}
-          onDoubleClick={handleDoubleClick}
+          onClick={handleDoubleClick}
           title="Double-click to maximize"
         >
           <img
@@ -1186,7 +1186,7 @@ function BlockContentImage({
               objectFit: 'contain',
               transition: 'transform 0.2s ease-out',
             }}
-            onDoubleClick={(e) => {
+            onClick={(e) => {
               handleDoubleClick()
             }}
             className="transition-transform duration-200"
