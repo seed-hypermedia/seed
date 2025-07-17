@@ -11,11 +11,10 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useResources} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
-import {GestureResponderEvent} from 'react-native'
-import {Button} from 'tamagui'
 
 export default function DraftsPage() {
   const drafts = useDraftList()
@@ -66,7 +65,7 @@ export default function DraftsPage() {
   return (
     <PanelContainer>
       <MainWrapper scrollable>
-        <Container centered>
+        <Container centered className="gap-2">
           {draftItems?.map((item) => {
             return (
               <DraftItem
@@ -93,86 +92,54 @@ export function DraftItem({
   const metadata = item?.metadata
   return (
     <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: '$color5',
-      }}
-      bg="$backgroundStrong"
-      // elevation="$1"
-      paddingHorizontal="$3"
-      paddingVertical="$2"
-      onPress={() => {
+      className="h-auto"
+      onClick={() => {
         navigate({key: 'draft', id: item.id, accessory: {key: 'options'}})
       }}
-      h="auto"
-      ai="center"
     >
-      <div className="flex flex-1 items-center gap-4">
-        <div className="flex flex-1 flex-col gap-1">
-          <div className="flex overflow-hidden">
-            {breadcrumbs.map((breadcrumb, idx) => (
-              <>
-                <Button
-                  color="$color9"
-                  fontWeight="400"
-                  size="$1"
-                  textProps={{
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    hoverStyle: {
-                      color: '$color11',
-                    },
-                  }}
-                  margin={0}
-                  marginRight="$1"
-                  paddingHorizontal={0}
-                  hoverStyle={{
-                    bg: '$colorTransparent',
-                  }}
-                  borderWidth={0}
-                  bg="$colorTransparent"
-                  onPress={(e: GestureResponderEvent) => {
-                    e.stopPropagation()
-                    navigate({
-                      key: 'document',
-                      id: breadcrumb.id,
-                    })
-                  }}
-                >
-                  {breadcrumb.metadata?.name ??
-                    breadcrumb.id?.path?.at(-1) ??
-                    '?'}
-                </Button>
-                {idx === breadcrumbs.length - 1 ? null : (
-                  <SizableText size="xs" color="muted" className="mr-1">
-                    /
-                  </SizableText>
-                )}
-              </>
-            ))}
-          </div>
-          <SizableText
-            size="lg"
-            weight="bold"
-            className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"
-          >
-            {getMetadataName(metadata)}
-          </SizableText>
+      <div className="flex-1 items-center gap-4 overflow-hidden">
+        <div className="flex items-center gap-1 overflow-hidden">
+          {breadcrumbs.map((breadcrumb, idx) => (
+            <>
+              <Button
+                variant="link"
+                size="xs"
+                className="p-0"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  navigate({
+                    key: 'document',
+                    id: breadcrumb.id,
+                  })
+                }}
+              >
+                {breadcrumb.metadata?.name ??
+                  breadcrumb.id?.path?.at(-1) ??
+                  '?'}
+              </Button>
+              {idx === breadcrumbs.length - 1 ? null : (
+                <SizableText size="xs" color="muted">
+                  /
+                </SizableText>
+              )}
+            </>
+          ))}
         </div>
-        {/* <LibraryEntryAuthors
-            item={item}
-            accountsMetadata={accountsMetadata}
-          /> */}
         <SizableText
-          size="xs"
-          color="muted"
-          className="flex-shrink-0 flex-grow-0"
+          weight="bold"
+          className="block w-full flex-1 truncate overflow-hidden text-left whitespace-nowrap"
         >
-          {formattedDateMedium(new Date(item.lastUpdateTime))}
+          {getMetadataName(metadata)}
         </SizableText>
       </div>
+      <SizableText
+        size="xs"
+        color="muted"
+        className="flex-shrink-0 flex-grow-0"
+      >
+        {formattedDateMedium(new Date(item.lastUpdateTime))}
+      </SizableText>
     </Button>
   )
 }
