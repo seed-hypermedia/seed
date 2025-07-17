@@ -96,7 +96,10 @@ export function OnboardingDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPortal>
         <DialogOverlay />
-        <DialogContent className="no-window-drag h-8/10 max-h-[800px] w-9/10 max-w-6xl p-0">
+        <DialogContent
+          className="no-window-drag h-8/10 max-h-[800px] w-9/10 max-w-6xl p-0"
+          showCloseButton={false}
+        >
           <Onboarding
             modal={true}
             onComplete={() => {
