@@ -16,6 +16,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {
   Dialog,
@@ -24,15 +25,16 @@ import {
   DialogPortal,
 } from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {Prev as ArrowLeft} from '@shm/ui/icons'
+import {Prev as ArrowLeft, Copy, Reload} from '@shm/ui/icons'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {Button, ButtonFrame, Form, H2, Label, TextArea} from 'tamagui'
 import {
   cleanupOnboardingFormData,
   getOnboardingState,
@@ -334,10 +336,17 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 
   return (
     <div className="bg-background window-drag flex flex-1 flex-col">
+      <ReadyStep onComplete={handleNext} />
+      <OnboardingProgress currentStep={currentStep} />
+    </div>
+  )
+
+  return (
+    <div className="bg-background window-drag flex flex-1 flex-col">
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep
-          onSkip={handleSkip}
+          onSkip={modal ? handleSkip : undefined}
           onNext={handleNext}
           onPrev={handlePrev}
           onExistingSite={handleExistingSite}
@@ -432,17 +441,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
         >
           Getting Started Guides
         </Button> */}
-        <Button
-          onPress={onNext}
-          size="$4"
-          id="welcome-next"
-          borderRadius="$2"
-          backgroundColor="$brand5"
-          borderWidth={0}
-          color="white"
-          hoverStyle={{backgroundColor: '$brand4'}}
-          focusStyle={{backgroundColor: '$brand6'}}
-        >
+        <Button variant="default" onClick={onNext} id="welcome-next">
           NEXT
         </Button>
       </div>
@@ -456,7 +455,7 @@ function ProfileStep({
   onPrev,
   onExistingSite,
 }: {
-  onSkip: () => void
+  onSkip?: () => void
   onNext: () => void
   onPrev: () => void
   onExistingSite: () => void
@@ -527,12 +526,9 @@ function ProfileStep({
         professional, or creative, this is your space to shine.
       </Text>
 
-      <Form
-        width="100%"
-        maxWidth={400}
+      <form
         onSubmit={onNext}
-        className="no-window-drag"
-        flex={1}
+        className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4"
       >
         <div className="no-window-drag flex w-full flex-1 flex-col gap-4 pt-4">
           <div className="flex flex-col">
@@ -591,41 +587,29 @@ function ProfileStep({
         <div className="no-window-drag flex flex-col gap-4 self-center">
           <Button
             id="profile-existing"
-            chromeless
-            size="$3"
-            onPress={onExistingSite}
-            hoverStyle={{
-              cursor: 'pointer',
-              backgroundColor: 'transparent',
-              borderColor: 'transparent',
-            }}
-            focusStyle={{
-              backgroundColor: 'transparent',
-              borderColor: 'transparent',
-            }}
+            size="sm"
+            variant="link"
+            onClick={onExistingSite}
           >
             I already have a Site
           </Button>
           <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
-            <Button onPress={onSkip} bg="$brand11" id="profile-skip">
-              SKIP
-            </Button>
+            {onSkip && (
+              <Button onClick={onSkip} variant="link" id="profile-skip">
+                SKIP
+              </Button>
+            )}
             <Button
               id="profile-next"
-              borderRadius="$2"
-              backgroundColor="$brand5"
-              borderWidth={0}
-              color="white"
-              hoverStyle={{backgroundColor: '$brand6'}}
-              focusStyle={{backgroundColor: '$brand6'}}
               disabled={!formData.name.trim()}
-              onPress={onNext}
+              onClick={onNext}
+              variant="default"
             >
               NEXT
             </Button>
           </div>
         </div>
-      </Form>
+      </form>
     </StepWrapper>
   )
 }
@@ -722,36 +706,20 @@ function ExistingStep({
         Add the keys to your existing site.
       </Text>
 
-      <Form onSubmit={handleSubmit} w={400} flex={1}>
+      <form
+        onSubmit={handleSubmit}
+        className="flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4"
+      >
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Text size="sm" className="text-muted-foreground">
               Secret Recovery Phrase
             </Text>
-            <TextArea
-              size="$4"
+            <Textarea
               placeholder="Enter or paste your Secret Recovery Phrase here..."
               value={secretWords}
-              onChangeText={setSecretWords}
-              borderColor="$gray6"
-              borderRadius="$4"
-              paddingHorizontal="$4"
-              paddingVertical="$4"
-              minHeight={200}
-              fontFamily="$mono"
-              fontSize="$2"
-              lineHeight="$1"
-              textAlignVertical="top"
-              backgroundColor="$gray2"
-              focusStyle={{
-                borderColor: '$brand8',
-                backgroundColor: '$gray3',
-              }}
-              hoverStyle={{
-                borderColor: '$gray8',
-                backgroundColor: '$gray3',
-              }}
-              className="no-window-drag"
+              onChange={(e) => setSecretWords(e.target.value)}
+              className="no-window-drag resize-none bg-white opacity-100!"
             />
           </div>
 
@@ -769,19 +737,14 @@ function ExistingStep({
         <div className="flex-1" />
         <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
           <Button
+            variant="default"
             disabled={!secretWords.trim()}
-            onPress={handleSubmit}
-            borderRadius="$2"
-            backgroundColor="$brand5"
-            borderWidth={0}
-            color="white"
-            hoverStyle={{backgroundColor: '$brand6'}}
-            focusStyle={{backgroundColor: '$brand6'}}
+            onClick={handleSubmit}
           >
             NEXT
           </Button>
         </div>
-      </Form>
+      </form>
     </StepWrapper>
   )
 }
@@ -1049,8 +1012,8 @@ function RecoveryStep({
       </Text>
 
       <div className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4">
-        <TextArea
-          flex={1}
+        <Textarea
+          className="flex-1 resize-none bg-white opacity-100!"
           disabled
           value={
             Array.isArray(mnemonics.data)
@@ -1060,13 +1023,18 @@ function RecoveryStep({
         />
 
         <div className="flex gap-4">
-          <Button size="$2" flex={1} onPress={() => mnemonics.refetch()}>
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={() => mnemonics.refetch()}
+          >
+            <Reload className="size-4" />
             Regenerate
           </Button>
           <Button
-            size="$2"
-            flex={1}
-            onPress={() => {
+            size="sm"
+            className="flex-1"
+            onClick={() => {
               if (mnemonics.data) {
                 copyTextToClipboard(
                   Array.isArray(mnemonics.data)
@@ -1078,6 +1046,7 @@ function RecoveryStep({
               }
             }}
           >
+            <Copy className="size-4" />
             Copy
           </Button>
         </div>
@@ -1093,15 +1062,7 @@ function RecoveryStep({
         </CheckboxField>
         <div className="flex-1" />
         <div className="mt-4 flex justify-center gap-4">
-          <Button
-            onPress={handleSubmit}
-            borderRadius="$2"
-            backgroundColor="$brand5"
-            borderWidth={0}
-            color="white"
-            hoverStyle={{backgroundColor: '$brand6'}}
-            focusStyle={{backgroundColor: '$brand6'}}
-          >
+          <Button variant="default" onClick={handleSubmit}>
             NEXT
           </Button>
         </div>
@@ -1117,36 +1078,38 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
     <StepWrapper>
       <StepTitle>READY TO GO</StepTitle>
       <div className="no-window-drag mt-8 flex max-w-[400px] flex-col gap-4">
-        <ButtonFrame
-          h="auto"
-          padding="$4"
-          borderRadius="$4"
-          gap="$4"
-          bg="rgba(88,101,202,0.2)"
-          onPress={() => openUrl('https://discord.gg/7Y7DrhQZFs')}
+        <div
+          className="flex h-auto items-center gap-4 rounded-md bg-blue-200 p-4 transition-colors hover:bg-blue-300"
+          onClick={() => openUrl('https://discord.gg/7Y7DrhQZFs')}
         >
-          <DiscordIcon />
+          <DiscordIcon className="size-13 shrink-0" />
           <div className="flex flex-1 flex-col">
-            <SizableText>Join our Discord</SizableText>
+            <SizableText weight="light" className="text-secondary-foreground">
+              Join our Discord
+            </SizableText>
             <SizableText size="sm" className="text-muted-foreground">
               Here you will be able to get support and send feedback.
             </SizableText>
           </div>
-        </ButtonFrame>
-        <div className="bg-primary flex h-auto gap-4 rounded-lg p-4">
-          <ContentIcon />
+        </div>
+        <div className="bg-brand-8/20 dark:bg-brand-6/20 flex h-auto items-center gap-4 rounded-md p-4 transition-colors">
+          <ContentIcon className="size-13 shrink-0" />
           <div className="flex flex-1 flex-col">
-            <SizableText>All Content is Public</SizableText>
+            <SizableText weight="light" className="text-secondary-foreground">
+              All Content is Public
+            </SizableText>
             <SizableText size="sm" className="text-muted-foreground">
               all content created using Seed Hypermedia is public by default,
               meaning it can be accessed and shared by others within the network
             </SizableText>
           </div>
         </div>
-        <div className="bg-primary flex h-auto gap-4 rounded-lg p-4">
-          <AnalyticsIcon />
+        <div className="bg-brand-8/20 dark:bg-brand-6/20 flex h-auto items-center gap-4 rounded-md p-4 transition-colors">
+          <AnalyticsIcon className="size-13 shrink-0" />
           <div className="flex flex-1 flex-col">
-            <SizableText>Analytics</SizableText>
+            <SizableText weight="light" className="text-secondary-foreground">
+              Analytics
+            </SizableText>
             <SizableText size="sm" className="text-muted-foreground">
               We collect anonymous analytics to improve your experience and
               enhance the platform.
@@ -1154,16 +1117,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
           </div>
         </div>
 
-        <Button
-          onPress={onComplete}
-          backgroundColor="$brand5"
-          color="white"
-          size="$4"
-          borderRadius="$2"
-          borderWidth={0}
-          hoverStyle={{backgroundColor: '$brand4'}}
-          focusStyle={{backgroundColor: '$brand4'}}
-        >
+        <Button variant="default" onClick={onComplete}>
           DONE
         </Button>
       </div>
@@ -1226,25 +1180,9 @@ function StepWrapper({
         <div className="no-window-drag flex h-[600px] w-[600px] flex-col items-center justify-center gap-6">
           {onPrev ? (
             <div className="no-window-drag absolute top-10 left-15 z-[900]">
-              <Button
-                size="$5"
-                onPress={onPrev}
-                icon={
-                  <ArrowLeft
-                    color="black"
-                    className="text-secondary-foreground size-5"
-                  />
-                }
-                chromeless
-                hoverStyle={{
-                  backgroundColor: 'transparent',
-                  borderColor: 'transparent',
-                }}
-                focusStyle={{
-                  backgroundColor: 'transparent',
-                  borderColor: 'transparent',
-                }}
-              />
+              <Button size="icon" onClick={onPrev}>
+                <ArrowLeft className="text-secondary-foreground size-5" />
+              </Button>
             </div>
           ) : null}
           {children}
@@ -1333,36 +1271,18 @@ export function ResetOnboardingButton() {
 
   return (
     <div className="no-window-drag absolute right-2.5 bottom-2.5 z-[900] flex gap-2">
-      <Button
-        size="$2"
-        opacity={0.7}
-        onPress={() => dispatchEditPopover(true)}
-        bg="$brand5"
-        color="white"
-        hoverStyle={{opacity: 1, bg: '$brand4'}}
-      >
+      <Button size="sm" onClick={() => dispatchEditPopover(true)}>
         show Edit Dialog
       </Button>
       {route.key === 'document' ? (
         <Button
-          size="$2"
-          opacity={0.7}
-          onPress={() => replace({...route, immediatelyPromptTemplate: true})}
-          bg="$brand5"
-          color="white"
-          hoverStyle={{opacity: 1, bg: '$brand4'}}
+          size="sm"
+          onClick={() => replace({...route, immediatelyPromptTemplate: true})}
         >
           show template dialog
         </Button>
       ) : null}
-      <Button
-        size="$2"
-        backgroundColor="$red10"
-        color="white"
-        onPress={handleReset}
-        opacity={0.7}
-        hoverStyle={{opacity: 1, bg: '$red14'}}
-      >
+      <Button variant="destructive" size="sm" onClick={handleReset}>
         Reset Onboarding
       </Button>
     </div>
@@ -1382,18 +1302,17 @@ export function CreateAccountBanner() {
 
   return (
     <div className="mb-6 flex flex-col gap-4 rounded-lg p-4 shadow-lg">
-      <H2 fontWeight="bold">Let's Get Started!</H2>
+      <SizableText size="2xl" weight="bold">
+        Let's Get Started!
+      </SizableText>
       <SizableText>
         Create an account to get started. It's free and takes less than a
         minute.
       </SizableText>
       <div className="flex flex-col gap-2">
         <Button
-          bg="$brand5"
-          color="white"
-          hoverStyle={{bg: '$brand4'}}
-          onPress={() => {
-            console.log('== ~ onPress ~ create site:')
+          variant="default"
+          onClick={() => {
             dispatchOnboardingDialog(true)
           }}
         >

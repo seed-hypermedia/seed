@@ -607,7 +607,10 @@ export function ArchiveIcon({size = '151', ...props}: IconProps) {
   )
 }
 
-export function AnalyticsIcon({size = '52', ...props}: IconProps) {
+export function AnalyticsIcon({
+  size = '52',
+  ...props
+}: IconProps & {className?: string}) {
   return (
     <svg
       width={size}
@@ -627,7 +630,10 @@ export function AnalyticsIcon({size = '52', ...props}: IconProps) {
   )
 }
 
-export function ContentIcon({size = '52', ...props}: IconProps) {
+export function ContentIcon({
+  size = '52',
+  ...props
+}: IconProps & {className?: string}) {
   return (
     <svg viewBox="0 0 53 45" fill="none" width={130} {...props}>
       <path
@@ -640,7 +646,10 @@ export function ContentIcon({size = '52', ...props}: IconProps) {
   )
 }
 
-export function DiscordIcon({size = '53', ...props}: IconProps) {
+export function DiscordIcon({
+  size = '53',
+  ...props
+}: IconProps & {className?: string}) {
   return (
     <svg
       width={size}
