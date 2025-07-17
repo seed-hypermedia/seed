@@ -88,7 +88,7 @@ function CreateDocumentButton() {
       <Button
         variant="default"
         onClick={() => createDraft()}
-        className="mb-5 w-full justify-center"
+        className="justify-center mb-5 w-full"
       >
         <FilePlus2 color="currentColor" size={16} />{' '}
         <span className="truncate">Create Document</span>
@@ -108,10 +108,10 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <div className="mt-4 flex flex-col">
-      <div className="flex items-center justify-between px-2">
+    <div className="flex flex-col mt-4">
+      <div className="flex justify-between items-center px-2">
         <div
-          className="group/header flex cursor-pointer items-center justify-center gap-1"
+          className="flex gap-1 justify-center items-center cursor-pointer group/header"
           onClick={() => {
             setCollapsed(!collapsed)
           }}
@@ -120,11 +120,11 @@ function SidebarSection({
             weight="bold"
             size="xs"
             color="muted"
-            className="group-hover/header:text-foreground capitalize select-none"
+            className="capitalize select-none group-hover/header:text-foreground"
           >
             {title}
           </SizableText>
-          <div className="flex h-5 w-4 items-center justify-center">
+          <div className="flex justify-center items-center w-4 h-5">
             <Icon size={12} color="$color11" />
           </div>
         </div>
@@ -147,11 +147,9 @@ function FavoritesSection() {
       {favoriteEntities?.map((favorite) => {
         if (!favorite.data) return null
         const {id, document} = favorite.data
-        const metadata = getContactMetadata(
-          id.uid,
-          document?.metadata,
-          contacts.data,
-        )
+        const metadata = id.path.length
+          ? document?.metadata
+          : getContactMetadata(id.uid, document?.metadata, contacts.data)
         return (
           <SmallListItem
             key={id.id}
