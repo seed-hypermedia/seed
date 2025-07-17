@@ -55,6 +55,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Undo2,
+  X,
 } from 'lucide-react'
 import React, {
   ComponentProps,
@@ -69,6 +70,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
+import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
@@ -1060,46 +1062,149 @@ function BlockContentImage({
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
   const {textUnit} = useDocContentContext()
   const imageUrl = useImageUrl()
+  const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
+    'closed',
+  )
+  const imageRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   if (block.type !== 'Image') return null
   if (!block?.link) return null
-  return (
+
+  const handleDoubleClick = useCallback(() => {
+    setModalState('opening')
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setModalState('closed')
+  }, [])
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalState === 'open') {
+        handleClose()
+      }
+    },
+    [modalState, handleClose],
+  )
+
+  const handleAnimationEnd = useCallback(() => {
+    if (modalState === 'opening') {
+      setModalState('open')
+    }
+  }, [modalState])
+
+  useEffect(() => {
+    if (modalState !== 'closed') {
+      document.addEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'unset'
+    }
+  }, [modalState, handleKeyDown])
+
+  const maximizedContent = modalState !== 'closed' && (
     <div
-      {...props}
       className={cn(
-        'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
-        blockStyles,
+        'fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm',
+        modalState === 'opening' ? 'animate-in fade-in duration-300' : '',
       )}
-      data-content-type="image"
-      data-url={block?.link}
-      data-name={block?.attributes?.name}
-      data-width={getBlockAttribute(block.attributes, 'width')}
+      onClick={handleClose}
     >
       <div
-        className={cn('max-w-full')}
-        style={{
-          width: getBlockAttribute(block.attributes, 'width')
-            ? `${getBlockAttribute(block.attributes, 'width')}px`
-            : undefined,
+        className="relative flex size-full items-center justify-center"
+        onClick={(e) => {
+          e.stopPropagation()
+          handleClose()
         }}
       >
         <img
           alt={block?.attributes?.name}
           src={imageUrl(block?.link, 'L')}
+          className={cn(
+            'object-contain',
+            modalState === 'opening'
+              ? 'animate-in zoom-in-50 duration-300'
+              : '',
+          )}
           style={{
+            maxWidth: '90vw',
+            maxHeight: '90vh',
             width: '100%',
-            maxHeight: '600px',
-            objectFit: 'contain',
+            height: '100%',
           }}
+          onAnimationEnd={handleAnimationEnd}
         />
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          aria-label="Close"
+        >
+          <X size={20} />
+        </button>
       </div>
-      {inline.length ? (
-        <InlineContentView
-          inline={inline}
-          fontSize={textUnit * 0.85}
-          className="text-muted-foreground"
-        />
-      ) : null}
     </div>
+  )
+
+  return (
+    <>
+      <div
+        {...props}
+        ref={containerRef}
+        className={cn(
+          'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
+          blockStyles,
+        )}
+        data-content-type="image"
+        data-url={block?.link}
+        data-name={block?.attributes?.name}
+        data-width={getBlockAttribute(block.attributes, 'width')}
+      >
+        <div
+          className={cn('max-w-full cursor-pointer')}
+          style={{
+            width: getBlockAttribute(block.attributes, 'width')
+              ? `${getBlockAttribute(block.attributes, 'width')}px`
+              : undefined,
+          }}
+          onDoubleClick={handleDoubleClick}
+          title="Double-click to maximize"
+        >
+          <img
+            ref={imageRef}
+            alt={block?.attributes?.name}
+            src={imageUrl(block?.link, 'L')}
+            style={{
+              width: '100%',
+              maxHeight: '600px',
+              objectFit: 'contain',
+              transition: 'transform 0.2s ease-out',
+            }}
+            onDoubleClick={(e) => {
+              handleDoubleClick()
+            }}
+            className="transition-transform duration-200"
+          />
+        </div>
+        {inline.length ? (
+          <InlineContentView
+            inline={inline}
+            fontSize={textUnit * 0.85}
+            className="text-muted-foreground"
+          />
+        ) : null}
+      </div>
+      {typeof window !== 'undefined' &&
+        (() => {
+          return createPortal(maximizedContent, document.body)
+        })()}
+    </>
   )
 }
 
