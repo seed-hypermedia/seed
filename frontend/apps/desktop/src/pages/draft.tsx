@@ -1,4 +1,5 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {triggerCommentDraftFocus} from '@/components/commenting'
 import {CoverImage} from '@/components/cover-image'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
@@ -26,6 +27,7 @@ import {
   chromiumSupportedVideoMimeTypes,
   generateBlockId,
 } from '@shm/editor/utils'
+import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {
   HMDocument,
   HMEntityContent,
@@ -171,41 +173,74 @@ export default function DraftPage() {
   const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <div className="flex h-full flex-1">
-        <AccessoryLayout
-          accessory={accessory}
-          accessoryKey={accessoryKey}
-          onScroll={() => dispatchScroll(true)}
-          onAccessorySelect={(key) => {
-            if (!key) return
-            replace({...route, accessory: {key: key as any}}) // TODO: fix this type
-          }}
-          accessoryOptions={accessoryOptions}
-          isNewDraft={editId == undefined}
-        >
-          <div
-            className={cn(
-              panelContainerStyles,
-              'dark:bg-background flex flex-col bg-white',
-            )}
+      <DiscussionsProvider
+        onReplyClick={(replyComment) => {
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+          triggerCommentDraftFocus(route.id, replyComment.id)
+        }}
+        onReplyCountClick={(replyComment) => {
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+            },
+          })
+        }}
+      >
+        <div className="flex h-full flex-1">
+          <AccessoryLayout
+            accessory={accessory}
+            accessoryKey={accessoryKey}
+            onScroll={() => dispatchScroll(true)}
+            onAccessorySelect={(key) => {
+              if (!key) return
+              replace({...route, accessory: {key: key as any}}) // TODO: fix this type
+            }}
+            accessoryOptions={accessoryOptions}
+            isNewDraft={editId == undefined}
           >
-            <DraftRebaseBanner />
-            {headerDocId ? (
-              <>
-                <DraftAppHeader
-                  siteHomeEntity={homeEntity.data}
-                  isEditingHomeDoc={isEditingHomeDoc}
-                  docId={headerDocId}
-                  document={homeDocument}
-                  draftMetadata={state.context.metadata}
-                  onDocNav={(navigation) => {
-                    send({
-                      type: 'change.navigation',
-                      navigation,
-                    })
-                  }}
-                  actor={actor}
-                />
+            <div
+              className={cn(
+                panelContainerStyles,
+                'dark:bg-background flex flex-col bg-white',
+              )}
+            >
+              <DraftRebaseBanner />
+              {headerDocId ? (
+                <>
+                  <DraftAppHeader
+                    siteHomeEntity={homeEntity.data}
+                    isEditingHomeDoc={isEditingHomeDoc}
+                    docId={headerDocId}
+                    document={homeDocument}
+                    draftMetadata={state.context.metadata}
+                    onDocNav={(navigation) => {
+                      send({
+                        type: 'change.navigation',
+                        navigation,
+                      })
+                    }}
+                    actor={actor}
+                  />
+                  <DocumentEditor
+                    editor={editor}
+                    state={state}
+                    actor={actor}
+                    data={data}
+                    send={send}
+                    handleFocusAtMousePos={handleFocusAtMousePos}
+                    isHomeDoc={isEditingHomeDoc}
+                  />
+                </>
+              ) : (
                 <DocumentEditor
                   editor={editor}
                   state={state}
@@ -215,21 +250,11 @@ export default function DraftPage() {
                   handleFocusAtMousePos={handleFocusAtMousePos}
                   isHomeDoc={isEditingHomeDoc}
                 />
-              </>
-            ) : (
-              <DocumentEditor
-                editor={editor}
-                state={state}
-                actor={actor}
-                data={data}
-                send={send}
-                handleFocusAtMousePos={handleFocusAtMousePos}
-                isHomeDoc={isEditingHomeDoc}
-              />
-            )}
-          </div>
-        </AccessoryLayout>
-      </div>
+              )}
+            </div>
+          </AccessoryLayout>
+        </div>
+      </DiscussionsProvider>
     </ErrorBoundary>
   )
 }
