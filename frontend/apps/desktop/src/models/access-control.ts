@@ -1,6 +1,5 @@
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
   Role,
@@ -316,9 +315,12 @@ export function useAllDocumentCapabilities(
         path: hmIdPathToEntityQueryPath(id.path),
         pageSize: BIG_INT,
       })
-      const capabilities = result.capabilities.map(toPlainMessage)
+      // @ts-expect-error TODO: add proper zod schema for this type
+      const capabilities: Array<Capability> = result.capabilities.map((cap) =>
+        cap.toJson({emitDefaultValues: true}),
+      )
       const alreadyCapKeys = new Set<string>()
-      const outputCaps: PlainMessage<Capability>[] = []
+      const outputCaps: Array<Capability> = []
       for (const cap of capabilities) {
         const key = `${cap.delegate}-${cap.role}`
         if (alreadyCapKeys.has(key)) continue

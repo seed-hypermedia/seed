@@ -9,5 +9,5 @@ export const loader = apiGetter(async ({pathParts}) => {
     path: hmIdPathToEntityQueryPath(restPath),
     pageSize: BIG_INT,
   })
-  return result.toJson()
+  return result.toJson({emitDefaultValues: true})
 })
