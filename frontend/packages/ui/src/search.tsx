@@ -479,7 +479,13 @@ export function SearchInput({
           placeholder="Search Hypermedia documents"
           className="w-full px-1"
           {...inputProps}
-          onKeyUp={(e) => {
+          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.nativeEvent.key === 'Enter') {
+              e.preventDefault()
+              onEnter()
+            }
+          }}
+          onKeyUp={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {
               e.preventDefault()
               onEscape()
