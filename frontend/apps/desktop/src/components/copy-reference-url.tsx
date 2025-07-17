@@ -38,8 +38,6 @@ export function useCopyReferenceUrl(
       path: input.path,
       latest: input.latest,
       originHomeId,
-      targetDocUid: input.targetDocUid,
-      targetDocPath: input.targetDocPath,
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
