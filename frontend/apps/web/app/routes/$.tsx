@@ -74,6 +74,7 @@ export default function UnifiedDocumentPage() {
   if (data === 'no-site') {
     return <NoSitePage />
   }
+  console.log('~~ UnifiedDocumentPage, data', data)
 
   return <DocumentPage {...data} />
 }
