@@ -1,8 +1,8 @@
 import {UpdateStatus} from '@/types/updater-types'
 import {Button} from '@shm/ui/button'
+import {Progress} from '@shm/ui/components/progress'
 import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {Progress} from 'tamagui'
 
 import {useEffect} from 'react'
 
@@ -74,13 +74,8 @@ export function AutoUpdater() {
         </div>
       ) : updateStatus?.type == 'downloading' ? (
         <div className="flex flex-col gap-2">
-          <Progress
-            key="download-progress"
-            size="$1"
-            value={updateStatus.progress}
-          >
-            <Progress.Indicator animation="medium" bg="$primary" />
-          </Progress>
+          <Progress key="download-progress" value={updateStatus.progress} />
+
           {/* <Button size="$2" onPress={handleLater}>
             Cancel
           </Button> */}
