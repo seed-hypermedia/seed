@@ -3,9 +3,11 @@ import {PropsWithChildren} from 'react'
 import {Input} from './components/input'
 import {Switch, SwitchProps} from './components/switch'
 import {
-  SelectDropdown,
-  SelectDropdownProps,
-  SelectOptions,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from './select-dropdown'
 
 export function Field({
@@ -61,20 +63,32 @@ export function SelectField({
   options,
   value,
   onValue,
+  className,
+  placeholder,
   ...props
-}: SelectDropdownProps<SelectOptions> & {
+}: {
   label?: string
   Icon?: any
   id: string
-}) {
-  let content = (
-    <SelectDropdown
-      width="100%"
-      options={options}
-      value={value}
-      onValue={onValue}
-      {...props}
-    />
+  options: Array<{value: string; label: string}>
+  value?: string
+  onValue?: (value: string) => void
+  className?: string
+  placeholder?: string
+} & React.ComponentProps<typeof Select>) {
+  const content = (
+    <Select value={value} onValueChange={onValue} {...props}>
+      <SelectTrigger className={className}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 
   if (label) {

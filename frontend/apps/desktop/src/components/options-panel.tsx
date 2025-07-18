@@ -10,7 +10,13 @@ import {Label} from '@shm/ui/components/label'
 import {SimpleDatePicker} from '@shm/ui/datepicker'
 import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useRef, useState} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
@@ -247,20 +253,21 @@ function ContentWidth({
       <Label size="sm" className="text-muted-foreground">
         Content Width
       </Label>
-      <SelectDropdown
-        width="100%"
-        options={
-          [
-            {value: 'S', label: 'Small'},
-            {value: 'M', label: 'Medium'},
-            {value: 'L', label: 'Large'},
-          ] as const
+      <Select
+        onValueChange={(contentWidth: 'S' | 'M' | 'L') =>
+          onMetadata({contentWidth})
         }
         value={metadata.contentWidth || 'M'}
-        onValue={(contentWidth) => {
-          onMetadata({contentWidth})
-        }}
-      />
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Select a content width" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="S">Small</SelectItem>
+          <SelectItem value="M">Medium</SelectItem>
+          <SelectItem value="L">Large</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -277,17 +284,21 @@ function HeaderLayout({
       <Label size="sm" className="text-muted-foreground">
         Header Layout
       </Label>
-      <SelectDropdown
-        width="100%"
-        options={
-          [
-            {label: 'Default', value: ''},
-            {label: 'Centered', value: 'Center'},
-          ] as const
-        }
-        value={metadata.theme?.headerLayout || ''}
-        onValue={(headerLayout) => onMetadata({theme: {headerLayout}})}
-      />
+      <Select
+        onValueChange={(headerLayout: 'default' | 'Center') => {
+          const layoutValue = headerLayout === 'default' ? '' : headerLayout
+          onMetadata({theme: {headerLayout: layoutValue}})
+        }}
+        value={metadata.theme?.headerLayout || 'default'}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Select a header layout" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">Default</SelectItem>
+          <SelectItem value="Center">Centered</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

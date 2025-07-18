@@ -25,7 +25,13 @@ import {
   Underline,
   UnorderedList,
 } from '@shm/ui/icons'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
@@ -250,19 +256,18 @@ function FormatDropdown({
 }) {
   return (
     <div className="flex items-center">
-      <SelectDropdown
-        value={value}
-        options={options}
-        onValue={onChange}
-        width="100%"
-        size="$2"
-        triggerProps={{
-          backgroundColor: 'transparent',
-          borderRadius: '$2',
-          borderColor: 'transparent',
-          hoverStyle: {backgroundColor: '$color4'},
-        }}
-      />
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

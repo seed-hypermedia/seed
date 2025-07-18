@@ -66,7 +66,13 @@ import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
@@ -229,16 +235,16 @@ function GeneralSettings() {
       {!isInitialLoading && (
         <div className="flex gap-4">
           <Label size="sm">Theme</Label>
-          <SelectDropdown
-            value={theme || 'system'}
-            onValue={setTheme}
-            triggerProps={{style: {maxWidth: 200}}}
-            options={[
-              {label: 'System Default', value: 'system'},
-              {label: 'Light', value: 'light'},
-              {label: 'Dark', value: 'dark'},
-            ]}
-          />
+          <Select value={theme || 'system'} onValueChange={setTheme}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select a theme" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system">System Default</SelectItem>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">Dark</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
     </div>

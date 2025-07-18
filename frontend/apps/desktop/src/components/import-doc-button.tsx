@@ -22,7 +22,13 @@ import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -323,27 +329,31 @@ function WebImportInProgress({
         <DialogTitle>Ready to import from {hostname}</DialogTitle>
         <SizableText>{result.posts.length} posts ready for import</SizableText>
         {selectedAccount && (
-          <SelectDropdown
-            value={selectedAccount}
-            options={accounts
-              .map((a) => {
-                const id = a.data?.id
-                if (!id) return null
-                return {
-                  label: a.data?.document?.metadata.name || '',
-                  icon: (
-                    <HMIcon
-                      size={24}
-                      id={id}
-                      metadata={a.data?.document?.metadata}
-                    />
-                  ),
-                  value: id.uid,
-                }
-              })
-              .filter((a) => !!a)}
-            onValue={setSelectedAccount}
-          />
+          <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select Account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts
+                .map((a) => {
+                  const id = a.data?.id
+                  if (!id) return null
+                  return (
+                    <SelectItem key={id.uid} value={id.uid}>
+                      <div className="flex items-center gap-2">
+                        <HMIcon
+                          size={24}
+                          id={id}
+                          metadata={a.data?.document?.metadata}
+                        />
+                        {a.data?.document?.metadata.name || ''}
+                      </div>
+                    </SelectItem>
+                  )
+                })
+                .filter((a) => !!a)}
+            </SelectContent>
+          </Select>
         )}
 
         <Button

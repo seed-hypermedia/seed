@@ -34,7 +34,13 @@ import {
   Download,
   Upload,
 } from '@shm/ui/icons'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, TableList} from '@shm/ui/table-list'
 import {SizableText} from '@shm/ui/text'
@@ -646,19 +652,25 @@ function WalletValue({amount}: {amount: number}) {
         size="2xl"
         family="mono"
       >{`${character}${displayValue}`}</SizableText>
-      <SelectDropdown
-        value={activeCurrency}
-        onValue={setActiveCurrency}
-        options={
-          currencies?.map(({code, value, name, precision}) => {
-            return {
-              value: code,
-              // label: `${name} - ${displayValue}`,
-              label: name,
-            }
-          }) || []
+      <Select
+        onValueChange={(value) =>
+          setActiveCurrency(value as typeof activeCurrency)
         }
-      />
+        value={activeCurrency}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Select a currency" />
+        </SelectTrigger>
+        <SelectContent>
+          {currencies?.map(({code, value, name, precision}) => {
+            return (
+              <SelectItem key={code} value={code}>
+                {name}
+              </SelectItem>
+            )
+          })}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
