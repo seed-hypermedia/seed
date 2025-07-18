@@ -71,7 +71,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, MessageSquare, Plus} from 'lucide-react'
+import {AlertCircle, FilePlus, MessageSquare} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {ButtonText} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
@@ -499,8 +499,13 @@ export function NewSubDocumentButton({
   return (
     <>
       <Tooltip content="Create a new document">
-        <TWButton variant="outline" onClick={createDraft} size="xs">
-          <Plus className="size-4" />
+        <TWButton
+          size="sm"
+          variant="default"
+          className="w-full"
+          onClick={createDraft}
+        >
+          <FilePlus className="size-4" />
           Create
         </TWButton>
       </Tooltip>
