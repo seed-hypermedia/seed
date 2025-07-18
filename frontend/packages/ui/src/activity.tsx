@@ -21,6 +21,7 @@ import {ChangeItem} from './change-item'
 import {HMIcon} from './hm-icon'
 import {Version} from './icons'
 import {SizableText} from './text'
+import {cn} from './utils'
 
 const iconSize = 20
 
@@ -42,11 +43,7 @@ export function SubDocumentItem({
   const isRead = markedAsRead || !item.activitySummary?.isUnread
   const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
   return (
-    <Button
-      variant={isRead ? 'ghost' : 'outline'}
-      className="h-auto items-start justify-start"
-      {...linkProps}
-    >
+    <Button className={cn('h-auto items-start justify-start')} {...linkProps}>
       {!hideIcon && (
         <div
           className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
@@ -54,7 +51,7 @@ export function SubDocumentItem({
           <Version size={16} color="white" />
         </div>
       )}
-      <div className="flex flex-1 flex-col justify-start">
+      <div className="flex w-full flex-1 flex-col justify-start">
         <SizableText
           weight={isRead ? 'normal' : 'bold'}
           className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"

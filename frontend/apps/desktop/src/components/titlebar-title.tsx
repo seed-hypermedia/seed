@@ -603,7 +603,7 @@ function BreadcrumbItem({
       <HoverCard>
         <HoverCardTrigger>{content}</HoverCardTrigger>
         {draft ? null : (
-          <HoverCardContent className="p-0">
+          <HoverCardContent className="w-full max-w-lg p-1">
             <PathItemCard details={details} homeMetadata={homeMetadata} />
           </HoverCardContent>
         )}
@@ -638,7 +638,7 @@ function PathItemCard({
     drafts: drafts.data,
   })
   return (
-    <div className="border-border flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden rounded-md border p-2 shadow-md">
+    <div className="flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden p-2">
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       {directoryItems?.length || canEditDoc ? <Separator /> : null}
       {directoryItems?.length ? (
