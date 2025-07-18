@@ -118,7 +118,7 @@ function DocumentPreview({
   if (!doc.data) return null
 
   return (
-    <div className="flex max-h-96 w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-lg">
+    <div className="flex max-h-96 w-full max-w-xl flex-col gap-3 overflow-y-auto p-4">
       <SizableText size="2xl" weight="bold" className="px-2">
         {metadata?.name || 'Untitled'}
       </SizableText>

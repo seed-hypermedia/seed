@@ -619,22 +619,6 @@ export function BlockNodeContent({
     }
   }, [routeParams])
 
-  const contentH = useMemo(() => {
-    // this calculates the position the collapse button should be at, based on the height of the content
-    // and the height of the heading
-    if (elm.current) {
-      const contentNode = elm.current.querySelector('.block-content')
-
-      if (contentNode) {
-        const rect = contentNode.getBoundingClientRect()
-
-        return rect.height / 2 - (layoutUnit * 1) / 2
-      } else {
-        return 4
-      }
-    }
-  }, [elm.current, blockNode.block])
-
   const tx = useTxString()
 
   return (
@@ -1721,7 +1705,6 @@ export function ContentEmbed({
   } else if (embedData.data.embedBlocks) {
     content = (
       <>
-        {/* ADD SIDENOTE HERE */}
         <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
@@ -1764,6 +1747,7 @@ export function ContentEmbed({
             ))
           )}
         </BlockNodeList>
+
         {showReferenced ? (
           <div className="flex justify-end">
             <Tooltip content="The latest reference was not found. Click to try again.">
@@ -2090,7 +2074,8 @@ export function BlockContentWebEmbed({
       )}
       style={{
         padding: layoutUnit / 2,
-        marginHorizontal: (-1 * layoutUnit) / 2,
+        marginLeft: (-1 * layoutUnit) / 2,
+        marginRight: (-1 * layoutUnit) / 2,
       }}
       data-content-type="web-embed"
       data-url={block.link}

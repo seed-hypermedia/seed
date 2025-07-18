@@ -3,10 +3,15 @@ import {MoreHorizontal} from '@tamagui/lucide-icons'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {PopoverProps} from 'tamagui'
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuContentProps,
+  DropdownMenuTrigger,
+} from './components/dropdown-menu'
 import {MenuItem} from './menu-item'
 import {Separator} from './separator'
-import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
 
@@ -23,13 +28,15 @@ export function OptionsDropdown({
   menuItems,
   hiddenUntilItemHover,
   button,
-  placement = 'bottom-end',
+  side,
+  align,
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
   hover?: boolean
   button?: JSX.Element
-  placement?: PopoverProps['placement']
+  side?: DropdownMenuContentProps['side']
+  align?: DropdownMenuContentProps['align']
 }) {
   const popoverState = usePopoverState()
   return (
@@ -41,8 +48,8 @@ export function OptionsDropdown({
           : 'opacity-100',
       )}
     >
-      <Popover {...popoverState} placement={placement}>
-        <Popover.Trigger asChild>
+      <DropdownMenu>
+        <DropdownMenuTrigger>
           {button || (
             <Button
               size="$1"
@@ -59,22 +66,8 @@ export function OptionsDropdown({
               icon={MoreHorizontal}
             />
           )}
-        </Popover.Trigger>
-        <Popover.Content
-          padding={0}
-          elevation="$2"
-          animation={[
-            'fast',
-            {
-              opacity: {
-                overshootClamping: true,
-              },
-            },
-          ]}
-          enterStyle={{y: -10, opacity: 0}}
-          exitStyle={{y: -10, opacity: 0}}
-          elevate={true}
-        >
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="p-0" side={side} align={align}>
           <div className="flex flex-col">
             {menuItems.flatMap((item, index) =>
               item
@@ -99,8 +92,8 @@ export function OptionsDropdown({
                 : [],
             )}
           </div>
-        </Popover.Content>
-      </Popover>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

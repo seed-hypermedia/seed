@@ -307,7 +307,7 @@ export function DocOptionsButton({
       {seedHostDialog.content}
       {branchDialog.content}
       {moveDialog.content}
-      <OptionsDropdown menuItems={menuItems} placement="bottom-start" />
+      <OptionsDropdown menuItems={menuItems} align="start" side="bottom" />
     </>
   )
 }

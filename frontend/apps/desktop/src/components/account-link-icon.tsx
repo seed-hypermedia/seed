@@ -13,6 +13,7 @@ export function EntityLinkIcon({
 }) {
   const entity = useResource(id)
   if (!id) return null
+  // TODO: tamagui - refactor the size prop to be a class
   return (
     <Link
       metadata={entity.data?.document?.metadata}

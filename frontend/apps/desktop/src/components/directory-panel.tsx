@@ -38,7 +38,11 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   }
 
   return (
-    <AccessoryContent>
+    <AccessoryContent
+      header={
+        <NewSubDocumentButton locationId={docId} importDropdown={false} />
+      }
+    >
       <div className="flex h-full flex-col gap-2">
         {directory.map((activityItem) => {
           if (activityItem.type === 'document') {
@@ -53,9 +57,6 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
           }
           return null
         })}
-        <div className="mt-5 w-full">
-          <NewSubDocumentButton locationId={docId} importDropdown={false} />
-        </div>
       </div>
     </AccessoryContent>
   )

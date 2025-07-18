@@ -10,7 +10,6 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {Popover} from '@shm/ui/TamaguiPopover'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   Fragment,
@@ -28,6 +27,7 @@ import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
 
+import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -169,12 +169,11 @@ export function HeaderSearch({
         onOpenChange={(open) => {
           popoverState.onOpenChange(open)
         }}
-        placement="bottom-end"
       >
-        <Popover.Trigger asChild>
+        <PopoverTrigger asChild>
           <TButton size="$2" chromeless icon={<Search className="size-4" />} />
-        </Popover.Trigger>
-        <Popover.Content asChild>
+        </PopoverTrigger>
+        <PopoverContent align="end" side="bottom">
           <div className="border-borded dark:bg-background flex h-[calc(100vh-100px)] max-h-[600px] flex-col rounded-md border bg-white shadow-md">
             <div className="flex items-center gap-2 self-stretch p-2">
               <Search className="size-4" />
@@ -281,7 +280,7 @@ export function HeaderSearch({
               </ScrollArea>
             </div>
           </div>
-        </Popover.Content>
+        </PopoverContent>
       </Popover>
     </div>
   )

@@ -448,7 +448,6 @@ function QuerySettings({
               />
 
               <SelectField
-                size="$2"
                 value={queryIncludes[0]?.mode ?? 'Children'}
                 onValue={(value) => {
                   let newVal = [
@@ -479,7 +478,6 @@ function QuerySettings({
               />
 
               <SelectField
-                size="$2"
                 value={block.props.style}
                 onValue={(value) => {
                   onValuesChange({
@@ -501,7 +499,6 @@ function QuerySettings({
                 ]}
               />
               <SelectField
-                size="$2"
                 value={querySort[0].term}
                 onValue={(value) => {
                   console.log('SORT', querySort[0])
@@ -548,7 +545,6 @@ function QuerySettings({
               {block.props.style == 'Card' ? (
                 <>
                   <SelectField
-                    size="$2"
                     value={block.props.columnCount || '3'}
                     onValue={(value) => {
                       onValuesChange({
