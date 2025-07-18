@@ -1,41 +1,51 @@
-import {ComponentProps} from 'react'
-import {Popover} from './TamaguiPopover'
+import * as HoverCardPrimitive from '@radix-ui/react-hover-card'
+import * as React from 'react'
 
-export function HoverCard({
-  children,
-  content,
-  contentProps,
-  disabled = false,
-  placement = 'bottom-start',
-}: {
-  children: React.ReactNode
-  content: React.ReactNode
-  contentProps?: React.ComponentProps<typeof Popover.Content>
-  placement?: ComponentProps<typeof Popover>['placement']
-  disabled?: boolean
-}) {
-  if (!content) return children
+import {cn} from './utils'
+
+function HoverCard({
+  openDelay = 100,
+  ...props
+}: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
   return (
-    <Popover
-      hoverable
-      placement={placement}
-      open={disabled ? false : undefined}
-    >
-      <Popover.Trigger className="no-window-drag" asChild>
-        {children}
-      </Popover.Trigger>
-      <Popover.Content
-        borderColor="$borderColor"
-        backgroundColor="$backgroundStrong"
-        borderWidth={1}
-        elevation="$4"
-        gap="$2"
-        padding="$3"
-        ai="flex-start"
-        {...contentProps}
-      >
-        {content}
-      </Popover.Content>
-    </Popover>
+    <HoverCardPrimitive.Root
+      data-slot="hover-card"
+      openDelay={openDelay}
+      {...props}
+    />
   )
 }
+
+function HoverCardTrigger({
+  ...props
+}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
+  return (
+    <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
+  )
+}
+
+function HoverCardContent({
+  className,
+  align = 'center',
+  sideOffset = 4,
+  side = 'top',
+  ...props
+}: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
+  return (
+    <HoverCardPrimitive.Portal data-slot="hover-card-portal">
+      <HoverCardPrimitive.Content
+        data-slot="hover-card-content"
+        align={align}
+        sideOffset={sideOffset}
+        side={side}
+        className={cn(
+          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[999] w-64 origin-(--radix-hover-card-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden',
+          className,
+        )}
+        {...props}
+      />
+    </HoverCardPrimitive.Portal>
+  )
+}
+
+export {HoverCard, HoverCardContent, HoverCardTrigger}

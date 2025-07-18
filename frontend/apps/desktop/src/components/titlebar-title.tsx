@@ -23,10 +23,14 @@ import {
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@shm/ui//hover-card'
 import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
-import {HoverCard} from '@shm/ui/hover-card'
 import {
   AlertCircle,
   Contact,
@@ -419,11 +423,11 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   if (!pendingDomain) return null
   return (
     <View className="no-window-drag" padding="$2">
-      <HoverCard
-        contentProps={{
-          backgroundColor: '#1c1c1c',
-        }}
-        content={
+      <HoverCard>
+        <HoverCardTrigger>
+          <Spinner size="small" />
+        </HoverCardTrigger>
+        <HoverCardContent>
           <Theme name="dark_blue">
             <YStack className="no-window-drag" gap="$4" padding="$3">
               {pendingDomain.status === 'waiting-dns' ? (
@@ -454,9 +458,7 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
               </XStack>
             </YStack>
           </Theme>
-        }
-      >
-        <Spinner size="small" />
+        </HoverCardContent>
       </HoverCard>
     </View>
   )
@@ -598,15 +600,13 @@ function BreadcrumbItem({
       minHeight={40}
       justifyContent="center"
     >
-      <HoverCard
-        content={
-          draft ? null : (
+      <HoverCard>
+        <HoverCardTrigger>{content}</HoverCardTrigger>
+        {draft ? null : (
+          <HoverCardContent className="p-0">
             <PathItemCard details={details} homeMetadata={homeMetadata} />
-          )
-        }
-        contentProps={{padding: 0}}
-      >
-        {content}
+          </HoverCardContent>
+        )}
       </HoverCard>
     </View>
   )

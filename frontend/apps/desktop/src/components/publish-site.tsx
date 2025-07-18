@@ -16,7 +16,6 @@ import {Button, ButtonProps} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
-import {HoverCard} from '@shm/ui/hover-card'
 import {
   IconComponent,
   PasteSetupUrl,
@@ -41,6 +40,7 @@ import {SubmitHandler, useForm} from 'react-hook-form'
 import {AlertDialog, ButtonText, Form, Theme, ThemeName, XGroup} from 'tamagui'
 import {z} from 'zod'
 
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
@@ -900,8 +900,13 @@ function SeedHostRegisterSubdomain({
           <SizableText size="sm" className="text-muted-foreground">
             Logged in as{' '}
           </SizableText>
-          <HoverCard
-            content={
+          <HoverCard>
+            <HoverCardTrigger>
+              <SizableText className="text-blue-300" size="sm">
+                {email}
+              </SizableText>
+            </HoverCardTrigger>
+            <HoverCardContent>
               <div className="flex flex-col gap-2 p-2">
                 <SizableText size="sm" className="text-muted-foreground">
                   Logged into{' '}
@@ -922,11 +927,7 @@ function SeedHostRegisterSubdomain({
                   Log Out
                 </Button>
               </div>
-            }
-          >
-            <SizableText className="text-blue-300" size="sm">
-              {email}
-            </SizableText>
+            </HoverCardContent>
           </HoverCard>
         </div>
       }

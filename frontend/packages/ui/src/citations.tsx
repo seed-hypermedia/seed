@@ -8,8 +8,8 @@ import {
 import {useTx, useTxUtils} from '@shm/shared/translation'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {Button} from './button'
-import {HoverCard} from './hover-card'
 import {cn} from './utils'
 
 export function DocumentCitationEntry({
@@ -62,18 +62,23 @@ function DocumentCitationToken({
     'text-sm bg-gray-200 border border-gray-300 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all'
   if (DocPreview) {
     return (
-      <HoverCard content={<DocPreview metadata={metadata} docId={docId} />}>
-        <a
-          {...linkProps}
-          className={cn(
-            className,
-            'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 hover:dark:border-gray-600 hover:dark:text-white',
-            // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
-            'text-secondary-foreground',
-          )}
-        >
-          {metadata?.name}
-        </a>
+      <HoverCard>
+        <HoverCardTrigger>
+          <a
+            {...linkProps}
+            className={cn(
+              className,
+              'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 hover:dark:border-gray-600 hover:dark:text-white',
+              // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
+              'text-secondary-foreground',
+            )}
+          >
+            {metadata?.name}
+          </a>
+        </HoverCardTrigger>
+        <HoverCardContent className="w-full max-w-100 p-0" align="end">
+          <DocPreview metadata={metadata} docId={docId} />
+        </HoverCardContent>
       </HoverCard>
     )
   }

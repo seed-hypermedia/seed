@@ -15,9 +15,9 @@ import {
 } from '@shm/shared'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
 import {GestureResponderEvent} from 'react-native'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
-import {Popover} from './TamaguiPopover'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
@@ -420,42 +420,25 @@ export function DocNavigationWrapper({
 
   return showCollapsed ? (
     <div className="flex items-center justify-center">
-      <Popover placement="right" {...popoverState} hoverable>
-        <Popover.Trigger
-          opacity={popoverState.open ? 0 : 1}
-          x={0}
-          paddingVertical="$3"
-          paddingHorizontal={3}
-          borderRadius={100}
-          gap="$3"
-          jc="space-between"
-          w="100%"
-          enterStyle={{opacity: 0}}
-          exitStyle={{opacity: 0}}
-          animation="fast"
-          maxWidth={20}
-          bg="$backgroundTransparent"
-        >
+      <HoverCard openDelay={100}>
+        <HoverCardTrigger className="flex w-5 flex-col gap-3">
           {outline?.length
             ? outline.map((node) => (
                 <CollapsedOutlineNode key={node.id} node={node} />
               ))
             : null}
-        </Popover.Trigger>
-        <Popover.Content
-          minWidth={280}
-          maxWidth={600}
-          y={50}
-          enterStyle={{x: -10, y: 50, opacity: 0}}
-          exitStyle={{x: -10, y: 50, opacity: 0}}
-          animation="fast"
-          elevation="$4"
+        </HoverCardTrigger>
+        <HoverCardContent
+          side="right"
+          align="start"
+          sideOffset={12}
+          className="p-1"
         >
           <div className="h-full max-h-[80vh] w-full overflow-auto">
             {children}
           </div>
-        </Popover.Content>
-      </Popover>
+        </HoverCardContent>
+      </HoverCard>
     </div>
   ) : (
     <div
