@@ -208,17 +208,22 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
 export function AccessoryContent({
   children,
   footer,
+  header,
   title,
   ...props
 }: {
   children?: React.ReactNode
   footer?: React.ReactNode
+  header?: React.ReactNode
   title?: string
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden" {...props}>
+      {header ? <div className="p-3">{header}</div> : null}
       <ScrollArea>
-        <div className="flex flex-col gap-2 p-3">{children}</div>
+        <div className={cn('flex flex-col gap-2 p-3', header && 'pt-0')}>
+          {children}
+        </div>
       </ScrollArea>
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">
