@@ -10,11 +10,6 @@ import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {
-  Block,
-  DocumentChange,
-} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs} from '@shm/shared/content'
@@ -40,7 +35,9 @@ import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
+  compareBlocksWithMap,
   createBlocksMap,
+  extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -69,7 +66,6 @@ import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
-import {isBlocksEqual} from './blocks'
 import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
@@ -196,22 +192,21 @@ export function usePublishDraft(
           'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
         )
       }
-      console.log('~ draft', draft)
-      console.log('~ document', editDocument)
+
+      console.log('editDocument', editDocument?.content)
 
       const blocksMap = editId
         ? createBlocksMap(editDocument?.content || [], '')
         : {}
       const newContent = removeTrailingBlocks(draft.content || [])
-
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
+
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
       const navigationChanges = getNavigationChanges(
         draft.navigation,
         editEntity.data?.document?.detachedBlocks?.navigation,
       )
-      console.log('~ navigationChanges', navigationChanges)
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
       } else {
@@ -223,6 +218,7 @@ export function usePublishDraft(
               ...changes.changes,
               ...deleteChanges,
             ]
+
             let capabilityId = ''
             if (accountId !== destinationId.uid) {
               const capabilities =
@@ -420,6 +416,8 @@ export function useDraftEditor() {
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   const {data, status: draftStatus} = useDraft(route.id)
+
+  console.log(`== ~ data:`, data)
 
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
@@ -1002,225 +1000,6 @@ export function useListSite(id?: UnpackedHypermediaId) {
       return docs as HMDocumentInfo[]
     },
   })
-}
-
-export function compareBlocksWithMap(
-  blocksMap: BlocksMap,
-  blocks: Array<EditorBlock>,
-  parentId: string,
-) {
-  let changes: Array<DocumentChange> = []
-  let touchedBlocks: Array<string> = []
-
-  // iterate over editor blocks
-  blocks?.forEach((block, idx) => {
-    // add blockid to the touchedBlocks list to capture deletes later
-    touchedBlocks.push(block.id)
-
-    // compare replace
-    let prevBlockState = blocksMap[block.id]
-
-    // const childGroup = getBlockGroup(editor, block.id) // TODO: do this with no editor
-
-    // if (childGroup) {
-    if (false) {
-      // @ts-expect-error
-      block.props.childrenType = childGroup.type ? childGroup.type : 'Group'
-      // @ts-expect-error
-      block.props.listLevel = childGroup.listLevel
-      // @ts-expect-error
-      if (childGroup.start) block.props.start = childGroup.start.toString()
-    }
-    let currentBlockState = editorBlockToHMBlock(block)
-
-    if (
-      !prevBlockState ||
-      prevBlockState.block.attributes?.listLevel !==
-        currentBlockState.attributes?.listLevel
-    ) {
-      const serverBlock = editorBlockToHMBlock(block)
-
-      // add moveBlock change by default to all blocks
-      changes.push(
-        new DocumentChange({
-          op: {
-            case: 'moveBlock',
-            value: {
-              blockId: block.id,
-              leftSibling: idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : '',
-              parent: parentId,
-            },
-          },
-        }),
-        new DocumentChange({
-          op: {
-            case: 'replaceBlock',
-            value: Block.fromJson(serverBlock),
-          },
-        }),
-      )
-    } else {
-      let left = idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : ''
-      if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
-        changes.push(
-          new DocumentChange({
-            op: {
-              case: 'moveBlock',
-              value: {
-                blockId: block.id,
-                leftSibling: left,
-                parent: parentId,
-              },
-            },
-          }),
-        )
-      }
-
-      if (!isBlocksEqual(prevBlockState.block, currentBlockState)) {
-        // this means is a new block and we need to also add a replaceBlock change
-        changes.push(
-          new DocumentChange({
-            op: {
-              case: 'replaceBlock',
-              value: Block.fromJson(currentBlockState),
-            },
-          }),
-        )
-      }
-    }
-
-    if (block.children.length) {
-      let nestedResults = compareBlocksWithMap(
-        blocksMap,
-        block.children,
-        block.id,
-      )
-      changes = [...changes, ...nestedResults.changes]
-      touchedBlocks = [...touchedBlocks, ...nestedResults.touchedBlocks]
-    }
-  })
-
-  return {
-    changes,
-    touchedBlocks,
-  }
-}
-
-export function compareDraftWithMap(
-  blocksMap: BlocksMap,
-  blockNodes: HMBlockNode[],
-  parentId: string,
-) {
-  let changes: Array<DocumentChange> = []
-  let touchedBlocks: Array<string> = []
-
-  // iterate over editor blocks
-  blockNodes.forEach((bn, idx) => {
-    if (bn.block) {
-      // add blockid to the touchedBlocks list to capture deletes later
-      touchedBlocks.push(bn.block.id)
-
-      // compare replace
-      let prevBlockState = blocksMap[bn.block.id]
-
-      // TODO: get block group
-
-      let currentBlockState = bn.block
-
-      if (!prevBlockState) {
-        const serverBlock = currentBlockState
-
-        // add moveBlock change by default to all blocks
-        changes.push(
-          new DocumentChange({
-            op: {
-              case: 'moveBlock',
-              value: {
-                blockId: bn.block.id,
-                leftSibling:
-                  idx > 0 && blockNodes[idx - 1]
-                    ? blockNodes[idx - 1].block!.id
-                    : '',
-                parent: parentId,
-              },
-            },
-          }),
-          new DocumentChange({
-            op: {
-              case: 'replaceBlock',
-              value: Block.fromJson(serverBlock),
-            },
-          }),
-        )
-      } else {
-        let left =
-          idx > 0 && blockNodes[idx - 1] ? blockNodes[idx - 1].block!.id : ''
-        if (
-          prevBlockState.left !== left ||
-          prevBlockState.parent !== parentId
-        ) {
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'moveBlock',
-                value: {
-                  blockId: bn.block.id,
-                  leftSibling: left,
-                  parent: parentId,
-                },
-              },
-            }),
-          )
-        }
-
-        if (!isBlocksEqual(prevBlockState.block, currentBlockState)) {
-          // this means is a new block and we need to also add a replaceBlock change
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'replaceBlock',
-                value: Block.fromJson(currentBlockState),
-              },
-            }),
-          )
-        }
-      }
-
-      if (bn.children?.length) {
-        let nestedResults = compareDraftWithMap(
-          blocksMap,
-          bn.children,
-          bn.block.id,
-        )
-        changes = [...changes, ...nestedResults.changes]
-        touchedBlocks = [...touchedBlocks, ...nestedResults.touchedBlocks]
-      }
-    }
-  })
-
-  return {
-    changes,
-    touchedBlocks,
-  }
-}
-
-export function extractDeletes(
-  blocksMap: BlocksMap,
-  touchedBlocks: Array<string>,
-) {
-  let deletedIds = Object.keys(blocksMap).filter(
-    (id) => !touchedBlocks.includes(id),
-  )
-
-  return deletedIds.map(
-    (dId) =>
-      new DocumentChange({
-        op: {
-          case: 'deleteBlock',
-          value: dId,
-        },
-      }),
-  )
 }
 
 function observeBlocks(
