@@ -35,11 +35,11 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
 
   /**
    * Optional. If we want events only from specific user accounts. Multiple 
-   * accounts are filtered following OR logic.
+   * authors are filtered following OR logic.
    *
-   * @generated from field: repeated string filter_users = 4;
+   * @generated from field: repeated string filter_authors = 4;
    */
-  filterUsers: string[] = [];
+  filterAuthors: string[] = [];
 
   /**
    * Optional. If we want certain types of events.
@@ -56,11 +56,12 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
   filterEventType: string[] = [];
 
   /**
-   * Optional. If we want events only from specific resource IDs
+   * Optional. If we want events only from specific resource IDs.
+   * It admits wildards, i.e. we can filter by path prefixes.
    *
-   * @generated from field: repeated string filter_resource = 6;
+   * @generated from field: string filter_resource = 6;
    */
-  filterResource: string[] = [];
+  filterResource = "";
 
   /**
    * Optional. If we want to include link events. These blobs (usually documents
@@ -87,9 +88,9 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
     { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "trusted_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "filter_users", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "filter_authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "filter_event_type", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 6, name: "filter_resource", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "filter_resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "add_linked_resource", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 

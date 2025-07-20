@@ -39,7 +39,7 @@ type Server struct {
 	syncer    syncer
 }
 
-var resourcePattern = regexp.MustCompile(`^hm://[acdg]/[a-zA-Z0-9]+$`)
+var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*]*$`)
 
 // NewServer creates a new Server.
 func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server {
@@ -75,9 +75,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var events []*activity.Event
 
 	var filtersStr string
-	if len(req.FilterUsers) > 0 {
+	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
-		for i, user := range req.FilterUsers {
+		for i, user := range req.FilterAuthors {
 			if i > 0 {
 				filtersStr += ", "
 			}
@@ -105,17 +105,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += ") AND "
 	}
 	if len(req.FilterResource) > 0 {
-		filtersStr += storage.ResourcesIRI.String() + " in ("
-		for i, resource := range req.FilterResource {
-			if !resourcePattern.MatchString(resource) {
-				return nil, fmt.Errorf("Invalid resource format [%s]", resource)
-			}
-			if i > 0 {
-				filtersStr += ", "
-			}
-			filtersStr += "'" + resource + "'"
+		if !resourcePattern.MatchString(req.FilterResource) {
+			return nil, fmt.Errorf("Invalid resource format [%s]", req.FilterResource)
 		}
-		filtersStr += ") AND "
+		filtersStr += storage.ResourcesIRI.String() + " GLOB '" + strings.TrimSuffix(req.FilterResource, "/") + "'"
+		filtersStr += " AND "
 	}
 	var linksStr string
 	if len(req.AddLinkedResource) > 0 {

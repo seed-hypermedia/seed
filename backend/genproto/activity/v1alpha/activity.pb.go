@@ -32,8 +32,8 @@ type ListEventsRequest struct {
 	// Optional. If we want events from trusted peers only. All peers by default.
 	TrustedOnly bool `protobuf:"varint,3,opt,name=trusted_only,json=trustedOnly,proto3" json:"trusted_only,omitempty"`
 	// Optional. If we want events only from specific user accounts. Multiple
-	// accounts are filtered following OR logic.
-	FilterUsers []string `protobuf:"bytes,4,rep,name=filter_users,json=filterUsers,proto3" json:"filter_users,omitempty"`
+	// authors are filtered following OR logic.
+	FilterAuthors []string `protobuf:"bytes,4,rep,name=filter_authors,json=filterAuthors,proto3" json:"filter_authors,omitempty"`
 	// Optional. If we want certain types of events.
 	// Currently supported event types are:
 	//   - Capability
@@ -44,8 +44,9 @@ type ListEventsRequest struct {
 	//
 	// Multiple types are filtered following OR logic.
 	FilterEventType []string `protobuf:"bytes,5,rep,name=filter_event_type,json=filterEventType,proto3" json:"filter_event_type,omitempty"`
-	// Optional. If we want events only from specific resource IDs
-	FilterResource []string `protobuf:"bytes,6,rep,name=filter_resource,json=filterResource,proto3" json:"filter_resource,omitempty"`
+	// Optional. If we want events only from specific resource IDs.
+	// It admits wildards, i.e. we can filter by path prefixes.
+	FilterResource string `protobuf:"bytes,6,opt,name=filter_resource,json=filterResource,proto3" json:"filter_resource,omitempty"`
 	// Optional. If we want to include link events. These blobs (usually documents
 	// or comments), link (mention) to another resource (currently only account
 	// mentions supported). We can add these blobs to the feed result by providing a
@@ -110,9 +111,9 @@ func (x *ListEventsRequest) GetTrustedOnly() bool {
 	return false
 }
 
-func (x *ListEventsRequest) GetFilterUsers() []string {
+func (x *ListEventsRequest) GetFilterAuthors() []string {
 	if x != nil {
-		return x.FilterUsers
+		return x.FilterAuthors
 	}
 	return nil
 }
@@ -124,11 +125,11 @@ func (x *ListEventsRequest) GetFilterEventType() []string {
 	return nil
 }
 
-func (x *ListEventsRequest) GetFilterResource() []string {
+func (x *ListEventsRequest) GetFilterResource() string {
 	if x != nil {
 		return x.FilterResource
 	}
-	return nil
+	return ""
 }
 
 func (x *ListEventsRequest) GetAddLinkedResource() []string {
@@ -375,15 +376,15 @@ var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
-	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x02\n" +
+	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x02\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12!\n" +
-	"\ftrusted_only\x18\x03 \x01(\bR\vtrustedOnly\x12!\n" +
-	"\ffilter_users\x18\x04 \x03(\tR\vfilterUsers\x12*\n" +
+	"\ftrusted_only\x18\x03 \x01(\bR\vtrustedOnly\x12%\n" +
+	"\x0efilter_authors\x18\x04 \x03(\tR\rfilterAuthors\x12*\n" +
 	"\x11filter_event_type\x18\x05 \x03(\tR\x0ffilterEventType\x12'\n" +
-	"\x0ffilter_resource\x18\x06 \x03(\tR\x0efilterResource\x12.\n" +
+	"\x0ffilter_resource\x18\x06 \x01(\tR\x0efilterResource\x12.\n" +
 	"\x13add_linked_resource\x18\a \x03(\tR\x11addLinkedResource\"v\n" +
 	"\x12ListEventsResponse\x128\n" +
 	"\x06events\x18\x01 \x03(\v2 .com.seed.activity.v1alpha.EventR\x06events\x12&\n" +

@@ -25,8 +25,8 @@ message ListEventsRequest {
   bool trusted_only = 3;
 
   // Optional. If we want events only from specific user accounts. Multiple 
-  // accounts are filtered following OR logic.
-  repeated string filter_users = 4;
+  // authors are filtered following OR logic.
+  repeated string filter_authors = 4;
 
   // Optional. If we want certain types of events.
   // Currently supported event types are:
@@ -38,8 +38,9 @@ message ListEventsRequest {
   // Multiple types are filtered following OR logic.
   repeated string filter_event_type = 5;
 
-  // Optional. If we want events only from specific resource IDs
-  repeated string filter_resource = 6;
+  // Optional. If we want events only from specific resource IDs.
+  // It admits wildards, i.e. we can filter by path prefixes.
+  string filter_resource = 6;
 
   // Optional. If we want to include link events. These blobs (usually documents
   // or comments), link (mention) to another resource (currently only account
