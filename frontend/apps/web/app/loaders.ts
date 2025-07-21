@@ -698,10 +698,8 @@ export async function loadSiteResource<T>(
       originHomeId = id
     } catch (e) {}
   }
-  console.log('~~ loadSiteResource, homeMetadata', homeMetadata)
   try {
     const resourceContent = await loadResource(id, parsedRequest)
-    console.log('~~ loadSiteResource, resourceContent', resourceContent)
     let supportQueries = resourceContent.supportQueries
     const loadedSiteDocument = {
       ...(extraData || {}),

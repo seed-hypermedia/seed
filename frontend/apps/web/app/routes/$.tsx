@@ -34,7 +34,6 @@ export const loader = async ({
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
-  console.log('~~ url', url)
   const serviceConfig = await getConfig(hostname)
   if (!serviceConfig) return wrapJSON('no-site', {status: 404})
   const {registeredAccountUid} = serviceConfig
@@ -45,36 +44,30 @@ export const loader = async ({
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
-    const commentTarget = url.searchParams.get('target')?.split('/')
-    const targetDocUid = !!commentTarget?.[0] ? commentTarget?.[0] : undefined
-    const targetDocPath = targetDocUid ? commentTarget?.slice(1) : undefined
-
     documentId = hmId(pathParts[1], {
       path: pathParts.slice(2),
       version,
       latest,
-      targetDocUid,
     })
   } else {
     // Site document (regular path)
     const path = params['*'] ? params['*'].split('/').filter(Boolean) : []
     documentId = hmId(registeredAccountUid, {path, version, latest})
   }
-
   return await loadSiteResource(parsedRequest, documentId, {
     prefersLanguages: parsedRequest.prefersLanguages,
   })
 }
 
 export default function UnifiedDocumentPage() {
-  const data = unwrap<DocumentPayload>(useLoaderData())
+  const unwrappedData = useLoaderData()
+  const data = unwrap<DocumentPayload>(unwrappedData)
   if (data === 'unregistered') {
     return <NotRegisteredPage />
   }
   if (data === 'no-site') {
     return <NoSitePage />
   }
-  console.log('~~ UnifiedDocumentPage, data', data)
 
   return <DocumentPage {...data} />
 }
