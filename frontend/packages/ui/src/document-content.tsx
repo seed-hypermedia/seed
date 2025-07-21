@@ -451,7 +451,7 @@ export function BlockNodeContent({
   childrenType = 'Group',
   isFirstChild = false,
   expanded = true,
-  embedDepth = 1,
+  embedDepth,
   embedId,
   parentBlockId,
   handleBlockReplace,
@@ -650,8 +650,8 @@ export function BlockNodeContent({
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
           headingStyles.className,
         )}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onMouseEnter={embedDepth ? undefined : () => setHover(true)}
+        onMouseLeave={embedDepth ? undefined : () => setHover(false)}
       >
         {!hideCollapseButtons && bnChildren ? (
           <Tooltip
@@ -698,157 +698,159 @@ export function BlockNodeContent({
           parentBlockId={parentBlockId}
           // {...interactiveProps}
         />
-        <div
-          className={cn(
-            'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
-            hover && 'z-[999]',
-          )}
-          style={{
-            borderRadius: layoutUnit / 4,
-          }}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-        >
-          {citationsCount?.citations ? (
-            <Tooltip
-              content={tx(
-                'block_citation_count',
-                ({count}) =>
-                  `${count} ${pluralS(count, 'document')} citing this block`,
-                {count: citationsCount.citations},
-              )}
-              delay={800}
-            >
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-sm select-none"
-                style={{
-                  padding: layoutUnit / 4,
-                  marginHorozontal: layoutUnit / 4,
-                }}
-                onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+        {embedDepth ? null : (
+          <div
+            className={cn(
+              'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
+              hover && 'z-[999]',
+            )}
+            style={{
+              borderRadius: layoutUnit / 4,
+            }}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+          >
+            {citationsCount?.citations ? (
+              <Tooltip
+                content={tx(
+                  'block_citation_count',
+                  ({count}) =>
+                    `${count} ${pluralS(count, 'document')} citing this block`,
+                  {count: citationsCount.citations},
+                )}
+                delay={800}
               >
-                <BlockQuote
-                  color="currentColor"
-                  className="size-3 opacity-50"
-                />
-                <SizableText color="muted" size="xs">
-                  {citationsCount.citations
-                    ? String(citationsCount.citations)
-                    : ' '}
-                </SizableText>
-              </Button>
-            </Tooltip>
-          ) : null}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-sm select-none"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                  }}
+                  onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+                >
+                  <BlockQuote
+                    color="currentColor"
+                    className="size-3 opacity-50"
+                  />
+                  <SizableText color="muted" size="xs">
+                    {citationsCount.citations
+                      ? String(citationsCount.citations)
+                      : ' '}
+                  </SizableText>
+                </Button>
+              </Tooltip>
+            ) : null}
 
-          {onBlockReply ? (
-            <Tooltip content="Reply to block" delay={800}>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-sm opacity-0 select-none hover:opacity-100"
-                style={{
-                  padding: layoutUnit / 4,
-                  marginHorozontal: layoutUnit / 4,
-                  opacity: hover ? 1 : 0,
-                }}
-                onClick={() => {
-                  if (blockNode.block?.id) {
-                    onBlockReply(blockNode.block.id)
-                  } else {
-                    console.error('onBlockReply Error: no blockId available')
-                  }
-                }}
+            {onBlockReply ? (
+              <Tooltip content="Reply to block" delay={800}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-sm opacity-0 select-none hover:opacity-100"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockReply(blockNode.block.id)
+                    } else {
+                      console.error('onBlockReply Error: no blockId available')
+                    }
+                  }}
+                >
+                  <MessageSquare
+                    color="currentColor"
+                    className="size-3 opacity-50"
+                  />
+                </Button>
+              </Tooltip>
+            ) : null}
+            {onBlockCommentClick ? (
+              <Tooltip
+                content={
+                  citationsCount?.comments
+                    ? tx(
+                        'block_comment_count',
+                        ({count}) => `${count} ${pluralS(count, 'comment')}`,
+                        {count: citationsCount.comments},
+                      )
+                    : tx('Comment on this block')
+                }
+                delay={800}
               >
-                <MessageSquare
-                  color="currentColor"
-                  className="size-3 opacity-50"
-                />
-              </Button>
-            </Tooltip>
-          ) : null}
-          {onBlockCommentClick ? (
-            <Tooltip
-              content={
-                citationsCount?.comments
-                  ? tx(
-                      'block_comment_count',
-                      ({count}) => `${count} ${pluralS(count, 'comment')}`,
-                      {count: citationsCount.comments},
-                    )
-                  : tx('Comment on this block')
-              }
-              delay={800}
-            >
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-sm opacity-0 select-none hover:opacity-100"
-                style={{
-                  padding: layoutUnit / 4,
-                  marginHorozontal: layoutUnit / 4,
-                  opacity: hover ? 1 : 0,
-                }}
-                onClick={() => {
-                  if (blockNode.block?.id) {
-                    onBlockCommentClick(
-                      blockNode.block.id,
-                      undefined,
-                      citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                    )
-                  } else {
-                    console.error(
-                      'onBlockCommentClick Error: no blockId available',
-                    )
-                  }
-                }}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-sm opacity-0 select-none hover:opacity-100"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockCommentClick(
+                        blockNode.block.id,
+                        undefined,
+                        citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                      )
+                    } else {
+                      console.error(
+                        'onBlockCommentClick Error: no blockId available',
+                      )
+                    }
+                  }}
+                >
+                  <MessageSquare
+                    color="currentColor"
+                    className="size-3 opacity-50"
+                  />
+                  <SizableText color="muted" size="xs">
+                    {citationsCount?.comments
+                      ? String(citationsCount.comments)
+                      : ' '}
+                  </SizableText>
+                </Button>
+              </Tooltip>
+            ) : null}
+            {onBlockCopy ? (
+              <Tooltip
+                content={tx(
+                  'copy_block_exact',
+                  'Copy Block Link (Exact Version)',
+                )}
+                delay={800}
               >
-                <MessageSquare
-                  color="currentColor"
-                  className="size-3 opacity-50"
-                />
-                <SizableText color="muted" size="xs">
-                  {citationsCount?.comments
-                    ? String(citationsCount.comments)
-                    : ' '}
-                </SizableText>
-              </Button>
-            </Tooltip>
-          ) : null}
-          {onBlockCopy ? (
-            <Tooltip
-              content={tx(
-                'copy_block_exact',
-                'Copy Block Link (Exact Version)',
-              )}
-              delay={800}
-            >
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-sm opacity-0 select-none hover:opacity-100"
-                style={{
-                  padding: layoutUnit / 4,
-                  marginHorozontal: layoutUnit / 4,
-                  opacity: hover ? 1 : 0,
-                }}
-                onClick={() => {
-                  if (blockNode.block?.id) {
-                    onBlockCopy(blockNode.block.id, {expanded: true})
-                  } else {
-                    console.error('onBlockCopy Error: no blockId available')
-                  }
-                }}
-              >
-                <Link color="currentColor" className="size-3 opacity-50" />
-                <SizableText color="muted" size="xs">
-                  {' '}
-                </SizableText>
-              </Button>
-            </Tooltip>
-          ) : null}
-        </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-sm opacity-0 select-none hover:opacity-100"
+                  style={{
+                    padding: layoutUnit / 4,
+                    marginHorozontal: layoutUnit / 4,
+                    opacity: hover ? 1 : 0,
+                  }}
+                  onClick={() => {
+                    if (blockNode.block?.id) {
+                      onBlockCopy(blockNode.block.id, {expanded: true})
+                    } else {
+                      console.error('onBlockCopy Error: no blockId available')
+                    }
+                  }}
+                >
+                  <Link color="currentColor" className="size-3 opacity-50" />
+                  <SizableText color="muted" size="xs">
+                    {' '}
+                  </SizableText>
+                </Button>
+              </Tooltip>
+            ) : null}
+          </div>
+        )}
       </div>
       {bnChildren && _expanded ? (
         <BlockNodeList
