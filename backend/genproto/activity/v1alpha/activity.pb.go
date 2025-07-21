@@ -309,7 +309,9 @@ type NewBlobEvent struct {
 	// The user account ID that has created the blob.
 	Author string `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
 	// The resource ID that the blob is related to.
-	Resource      string `protobuf:"bytes,4,opt,name=resource,proto3" json:"resource,omitempty"`
+	Resource string `protobuf:"bytes,4,opt,name=resource,proto3" json:"resource,omitempty"`
+	// Extra attributes of the blob.
+	ExtraAttrs    string `protobuf:"bytes,5,opt,name=extra_attrs,json=extraAttrs,proto3" json:"extra_attrs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -372,6 +374,13 @@ func (x *NewBlobEvent) GetResource() string {
 	return ""
 }
 
+func (x *NewBlobEvent) GetExtraAttrs() string {
+	if x != nil {
+		return x.ExtraAttrs
+	}
+	return ""
+}
+
 var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
@@ -395,12 +404,14 @@ const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
 	"event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\teventTime\x12=\n" +
 	"\fobserve_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vobserveTimeB\x06\n" +
-	"\x04data\"q\n" +
+	"\x04data\"\x92\x01\n" +
 	"\fNewBlobEvent\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x1b\n" +
 	"\tblob_type\x18\x02 \x01(\tR\bblobType\x12\x16\n" +
 	"\x06author\x18\x03 \x01(\tR\x06author\x12\x1a\n" +
-	"\bresource\x18\x04 \x01(\tR\bresource2y\n" +
+	"\bresource\x18\x04 \x01(\tR\bresource\x12\x1f\n" +
+	"\vextra_attrs\x18\x05 \x01(\tR\n" +
+	"extraAttrs2y\n" +
 	"\fActivityFeed\x12i\n" +
 	"\n" +
 	"ListEvents\x12,.com.seed.activity.v1alpha.ListEventsRequest\x1a-.com.seed.activity.v1alpha.ListEventsResponseB1Z/seed/backend/genproto/activity/v1alpha;activityb\x06proto3"

@@ -130,14 +130,14 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		linksStr += "))) AND "
 	}
 	var (
-		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid"
+		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs"
 		tableStr             = "FROM " + storage.T_StructuralBlobs
 		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
 		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " NOT IN ('Contact', 'Change')) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
+		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " NOT IN ('Change')) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30
@@ -167,6 +167,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		mhash := stmt.ColumnBytes(6)
 		codec := stmt.ColumnInt64(7)
 		tsid := stmt.ColumnText(8)
+		extraAttrs := stmt.ColumnText(9)
 		accountID := core.Principal(author).String()
 		id := cid.NewCidV1(uint64(codec), mhash)
 		if eventType == "Comment" {
@@ -174,10 +175,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 		event := activity.Event{
 			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
-				Cid:      id.String(),
-				BlobType: eventType,
-				Author:   accountID,
-				Resource: resource,
+				Cid:        id.String(),
+				BlobType:   eventType,
+				Author:     accountID,
+				Resource:   resource,
+				ExtraAttrs: extraAttrs,
 			}},
 			Account:     accountID,
 			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec

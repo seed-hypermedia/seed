@@ -101,4 +101,7 @@ message NewBlobEvent {
 
   // The resource ID that the blob is related to.
   string resource = 4;
+
+  // Extra attributes of the blob.
+  string extra_attrs = 5;
 }
