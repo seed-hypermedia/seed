@@ -632,8 +632,6 @@ func TestTombstoneRef(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	return
-
 	want := &documents.Ref{
 		Id:      tombstone.Id,
 		Account: "z6MkvFrq593SZ3QNsAgXdsHC2CJGrrwUdwxY2EdRGaT4UbYj",
