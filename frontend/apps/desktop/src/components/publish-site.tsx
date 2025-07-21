@@ -822,9 +822,6 @@ function SeedHostLogin({
             control={control}
             name="email"
             placeholder="me@email.com"
-            style={{
-              color: 'white',
-            }}
           />
         </FormField>
         <Form.Trigger asChild>
@@ -949,9 +946,6 @@ function SeedHostRegisterSubdomain({
                 .replace(/[^a-zA-Z0-9-]/g, '')
                 .toLowerCase()
             }
-            style={{
-              color: 'white',
-            }}
           />
         </FormField>
         <ErrorBox error={errorText} />
@@ -1325,9 +1319,6 @@ function SeedHostRegisterCustomDomain({
                       .replace(/[^a-zA-Z0-9-\.]/g, '')
                       .toLowerCase()
                   }}
-                  style={{
-                    color: 'white',
-                  }}
                 />
               </FormField>
               {createDomain.error ? (
@@ -1571,9 +1562,6 @@ function PublishWithUrl({
             name="url"
             placeholder="https://mysite.com/hm/register?..."
             width={500}
-            style={{
-              color: 'white',
-            }}
           />
         </FormField>
         {register.error ? <ErrorBox error={register.error.message} /> : null}
