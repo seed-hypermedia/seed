@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {SizeTokens, XStack, YStack} from 'tamagui'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {
   AlignCenter,
@@ -64,7 +63,6 @@ export type HypermediaLinkFormProps = {
 }
 
 export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
-  const formSize: SizeTokens = '$2'
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
   const [selectedType, setSelectedType] = useState(props.type)
@@ -85,27 +83,17 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   }
 
   return (
-    <YStack gap="$1.5" zIndex="$zIndex.5">
+    <div className="z-[5] flex flex-col gap-2">
       <LinkTypeDropdown
         selected={selectedType}
         onSelect={(val) => {
           setSelectedType(val)
           props.onChangeType?.(val)
         }}
+        isHmLink={props.isHmLink}
       />
-      {/* </XStack> */}
       {props.hasName && (
-        <XStack
-          paddingHorizontal="$2"
-          ai="center"
-          gap="$2"
-          background="$background"
-          borderColor="$borderColorFocus"
-          borderRadius="$2"
-          borderWidth="$1"
-          hoverStyle={{borderColor: '$borderColorHover'}}
-          focusStyle={{borderColor: '$borderColorHover'}}
-        >
+        <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
           <TextCursorInput size={16} />
           <Input
             className="flex-1"
@@ -118,19 +106,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               props.updateLink(_url, val, false)
             }}
           />
-        </XStack>
+        </div>
       )}
-      <XStack
-        paddingHorizontal="$2"
-        ai="center"
-        gap="$2"
-        background="$background"
-        borderColor="$borderColorFocus"
-        borderRadius="$2"
-        borderWidth="$1"
-        hoverStyle={{borderColor: '$borderColorHover'}}
-        focusStyle={{borderColor: '$borderColorHover'}}
-      >
+      <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
         <Search size={16} />
         <SearchInput
           updateLink={props.updateLink}
@@ -140,7 +118,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           setLink={setUrl}
           title={props.type === 'inline-embed' ? true : false}
         />
-      </XStack>
+      </div>
       {/* {props.hasSearch ? (
         <XStack
           paddingHorizontal="$2"
@@ -193,7 +171,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         </XStack>
       )} */}
       {(props.type === 'embed' || props.type === 'card') && isSeedLink && (
-        <YStack gap="$3" marginVertical="$3">
+        <div className="my-3 flex flex-col gap-3">
           <SwitchField
             label="Show Latest Version"
             id="latest"
@@ -220,17 +198,12 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               }}
             />
           )}
-        </YStack>
+        </div>
       )}
       {props.toolbarProps?.alignment && (
-        <XStack
-          gap="$0.25"
-          paddingLeft="$1"
-          justifyContent="space-between"
-          marginTop="$2"
-        >
+        <div className="mt-2 flex justify-between gap-1 pl-1">
           <Label>Alignment</Label>
-          <XStack gap="$3">
+          <div className="flex gap-3">
             <Button
               size="icon"
               onClick={() => {
@@ -274,8 +247,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             >
               <AlignRight className="size-3" />
             </Button>
-          </XStack>
-        </XStack>
+          </div>
+        </div>
       )}
 
       <SizableText size="sm" className="text-primary">
@@ -286,7 +259,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       <Separator />
 
-      <XStack justifyContent="flex-end">
+      <div className="flex justify-end">
         <Button
           size="icon"
           onClick={() => {
@@ -344,8 +317,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         >
           {props.type === 'link' ? <Unlink size={14} /> : <Trash size={16} />}
         </Button>
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -459,33 +432,6 @@ const SearchInput = ({
         left: inputPosition ? inputPosition.left - 30 : 0,
       }}
     >
-      {/* <YStack
-      className="search-dropdown-content"
-      display={focused ? 'flex' : 'none'}
-      gap="$2"
-      elevation={2}
-      opacity={activeItems.length > 0 ? 1 : 0}
-      paddingVertical="$3"
-      paddingHorizontal="$3"
-      backgroundColor={'$backgroundHover'}
-      borderTopStartRadius={0}
-      borderTopEndRadius={0}
-      borderBottomLeftRadius={6}
-      borderBottomRightRadius={6}
-      position="absolute"
-      width={
-        inputPosition && inputPosition.width ? inputPosition?.width + 37 : 300
-      }
-      top={
-        inputPosition
-          ? Math.min(inputPosition.bottom, viewportHeight - 200) + 5 // Prevent overflow below viewport
-          : 0
-      }
-      left={inputPosition ? inputPosition.left - 30 : 0}
-      maxHeight={500}
-      overflow="scroll"
-      zIndex={99999}
-    > */}
       {isDisplayingRecents ? (
         <SizableText className="mx-4">Recent Resources</SizableText>
       ) : null}
@@ -504,7 +450,6 @@ const SearchInput = ({
           />
         )
       })}
-      {/* </YStack> */}
     </div>
   )
 
@@ -514,7 +459,6 @@ const SearchInput = ({
         ref={inputRef}
         className="flex-1"
         onFocus={() => {
-          console.log('focused????????', inputPosition, focused)
           setFocused(true)
         }}
         onBlur={() => {
@@ -569,9 +513,11 @@ const SearchInput = ({
 export function LinkTypeDropdown({
   selected,
   onSelect,
+  isHmLink,
 }: {
   selected: string
   onSelect: (value: string) => void
+  isHmLink: boolean
 }) {
   const [focused, setFocused] = useState(false)
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
@@ -580,7 +526,7 @@ export function LinkTypeDropdown({
   const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
   const filteredTypes = LINK_TYPES.filter((t) => {
     if (t.value === 'link' || t.value === 'button') return true
-    return false
+    return !!isHmLink
   })
 
   useEffect(() => {
@@ -590,25 +536,18 @@ export function LinkTypeDropdown({
   }, [focused])
 
   const dropdown = (
-    <YStack
-      position="absolute"
-      top={inputPosition ? inputPosition.bottom + 5 : 0}
-      left={inputPosition?.left ?? 0}
-      width={inputPosition?.width ?? 200}
-      zIndex={99999}
-      backgroundColor="$backgroundHover"
-      borderRadius="$2"
-      paddingVertical="$2"
-      elevation="$4"
+    <div
+      className="bg-background absolute z-[99999] flex flex-col rounded-md py-2 shadow-md"
+      style={{
+        top: inputPosition ? inputPosition.bottom + 5 : 0,
+        left: inputPosition?.left ?? 0,
+        width: inputPosition?.width ?? 200,
+      }}
     >
       {filteredTypes.map((item) => (
-        <XStack
+        <div
           key={item.value}
-          paddingHorizontal="$3"
-          paddingVertical="$2"
-          hoverStyle={{backgroundColor: '$background'}}
-          cursor="pointer"
-          gap="$2"
+          className="hover:bg-muted flex cursor-pointer gap-2 px-3 py-2"
           onMouseDown={() => {
             onSelect(item.value)
             setFocused(false)
@@ -619,35 +558,27 @@ export function LinkTypeDropdown({
             color={item.value === selected ? '$brand4' : '$color12'}
           />
           <SizableText
-            size="$2"
-            color={item.value === selected ? '$brand4' : '$color12'}
+            size="md"
+            color={item.value === selected ? 'brand' : 'default'}
           >
             {item.label}
           </SizableText>
-        </XStack>
+        </div>
       ))}
-    </YStack>
+    </div>
   )
 
   return (
     <>
-      <XStack
+      <div
         ref={ref as any}
-        onPress={() => setFocused(!focused)}
-        alignItems="center"
-        paddingHorizontal="$2"
-        borderColor="$borderColorFocus"
-        borderWidth="$1"
-        borderRadius="$2"
-        backgroundColor="$background"
-        hoverStyle={{borderColor: '$borderColorHover'}}
-        height="$2"
-        gap="$2"
+        onClick={() => setFocused(!focused)}
+        className="border-border bg-background hover:border-muted flex h-8 items-center gap-2 rounded-md px-2"
       >
         {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
         <SizableText className="ml-1.5">{selectedTypeObj?.label}</SizableText>
         <ChevronDown size={16} />
-      </XStack>
+      </div>
       {focused && inputPosition && createPortal(dropdown, portalRoot)}
     </>
   )
