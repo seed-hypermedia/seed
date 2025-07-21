@@ -417,8 +417,6 @@ export function useDraftEditor() {
 
   const {data, status: draftStatus} = useDraft(route.id)
 
-  console.log(`== ~ data:`, data)
-
   const locationId = useMemo(() => {
     if (!route.locationUid) return undefined
     return hmId(route.locationUid, {
