@@ -37,9 +37,15 @@ import {
 } from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {AlertDialog, ButtonText, Form, Theme, ThemeName, XGroup} from 'tamagui'
+import {ButtonText, Form, Theme, ThemeName, XGroup} from 'tamagui'
 import {z} from 'zod'
 
+import {
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@shm/ui/components/alert-dialog'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
@@ -72,14 +78,14 @@ function RemoveSiteDialog({
   const removeSite = useRemoveSite(input)
   return (
     <div className="flex flex-col gap-4 rounded-lg p-4">
-      <AlertDialog.Title>Remove Site</AlertDialog.Title>
-      <AlertDialog.Description>
+      <AlertDialogTitle>Remove Site</AlertDialogTitle>
+      <AlertDialogDescription>
         Remove this site URL from the entity? Your site will still exist until
         you delete the server.
-      </AlertDialog.Description>
+      </AlertDialogDescription>
 
       <div className="flex justify-end gap-3">
-        <AlertDialog.Cancel asChild>
+        <AlertDialogCancel asChild>
           <Button
             variant="ghost"
             onClick={() => {
@@ -88,8 +94,8 @@ function RemoveSiteDialog({
           >
             Cancel
           </Button>
-        </AlertDialog.Cancel>
-        <AlertDialog.Action asChild>
+        </AlertDialogCancel>
+        <AlertDialogAction asChild>
           <Button
             variant="destructive"
             onClick={() => {
@@ -99,7 +105,7 @@ function RemoveSiteDialog({
           >
             Remove Site
           </Button>
-        </AlertDialog.Action>
+        </AlertDialogAction>
       </div>
     </div>
   )
