@@ -1,4 +1,5 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
+import {draftLocationId} from '@/models/drafts'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client, trpc} from '@/trpc'
@@ -47,8 +48,6 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
-  const selectedAccount = useSelectedAccount()
-  console.log('== ~~~ draft:', draft.data)
   const editId = draftRoute.editUid
     ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
     : draft.data?.editId
@@ -178,8 +177,7 @@ export default function PublishDraftButton() {
           }
         })
     }
-    console.log('== ~~~ editId:', editId)
-    console.log('== ~~~ signingAccountId:', signingAccountId)
+
     if (editId && signingAccountId) {
       handlePublish(editId, signingAccountId)
     } else {
@@ -190,7 +188,7 @@ export default function PublishDraftButton() {
         onSelectDestination: (location, account) => {
           handlePublish(location, account)
         },
-        defaultLocation: draft.data.locationId,
+        defaultLocation: draftLocationId(draft.data),
         defaultAccount: signingAccountId,
       })
     }

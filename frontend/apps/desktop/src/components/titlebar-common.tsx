@@ -8,6 +8,7 @@ import {
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList, useCreateDraft} from '@/models/documents'
+import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useSubscribedResource} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -456,14 +457,14 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const draftId = route.id
   const draft = useDraft(draftId)
-
-  const editId = draft.data?.editId
-  console.log('== ~ draft:', draft.data)
-  console.log('== ~ editId:', editId)
-  console.log('== ~ draftId:', draftId)
-  const editIdWriteCap = useSelectedAccountCapability(editId, 'writer')
+  const editId = draftEditId(draft.data)
+  const locationId = draftLocationId(draft.data)
+  const editIdWriteCap = useSelectedAccountCapability(
+    editId || locationId,
+    'writer',
+  )
   if (!selectedAccount?.id) return null
-  if (!!editId && !editIdWriteCap)
+  if ((editId || locationId) && !editIdWriteCap)
     return (
       <div className="flex items-center gap-2">
         <HMIcon

@@ -708,8 +708,6 @@ export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
 
 export const HMListedDraftSchema = HMDraftMetaSchema.extend({
   lastUpdateTime: z.number(),
-  locationId: unpackedHmIdSchema.optional(),
-  editId: unpackedHmIdSchema.optional(),
 })
 
 export type HMListedDraft = z.infer<typeof HMListedDraftSchema>

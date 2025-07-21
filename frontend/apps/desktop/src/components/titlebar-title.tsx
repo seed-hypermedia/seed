@@ -7,6 +7,7 @@ import {
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
+import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -747,12 +748,11 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const draft = useDraft(route.id)
   const navigate = useNavigate()
   const locationId = useMemo(() => {
-    if (draft.data?.locationId) return draft.data.locationId
-    let uId = draft.data?.locationUid || route.locationUid
-    let path = draft.data?.locationPath || route.locationPath
-    if (uId) {
-      return hmId(uId, {
-        path,
+    const lid = draftLocationId(draft.data)
+    if (lid) return lid
+    if (route.locationUid) {
+      return hmId(route.locationUid, {
+        path: route.locationPath,
       })
     } else {
       return undefined
@@ -765,12 +765,11 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   }, [draft.data?.metadata.name])
 
   const editId = useMemo(() => {
-    if (draft.data?.editId) return draft.data.editId
-    let uId = draft.data?.editUid || route.editUid
-    let path = draft.data?.editPath || route.editPath
-    if (uId) {
-      return hmId(uId, {
-        path,
+    const eid = draftEditId(draft.data)
+    if (eid) return eid
+    if (route.editUid) {
+      return hmId(route.editUid, {
+        path: route.editPath,
       })
     }
     return undefined
