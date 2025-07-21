@@ -641,12 +641,12 @@ export function BlockNodeContent({
         style={{
           borderRadius: layoutUnit / 4,
           padding: layoutUnit / 3,
-          paddingVertical: isEmbed ? 0 : layoutUnit / 6,
+          paddingTop: isEmbed ? 0 : layoutUnit / 6,
+          paddingBottom: isEmbed ? 0 : layoutUnit / 6,
         }}
         {...debugStyles(debug, 'red')}
         className={cn(
           'relative',
-          blockNode.block?.type == 'Embed' && 'hover:bg-brand-12',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
           headingStyles.className,
         )}

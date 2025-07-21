@@ -53,7 +53,7 @@ function EmbedWrapper({
     <div
       className={cn(
         'w-full',
-        hideBorder && 'border-primary border-[3px] border-l',
+        hideBorder && 'border-[3px] border-l border-transparent',
       )}
       onClick={(e) => {
         e.preventDefault()
