@@ -1,5 +1,5 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
-import {draftLocationId} from '@/models/drafts'
+import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client, trpc} from '@/trpc'
@@ -50,9 +50,7 @@ export default function PublishDraftButton() {
   const pushOnPublish = usePushOnPublish()
   const editId = draftRoute.editUid
     ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
-    : draft.data?.editId
-    ? draft.data?.editId
-    : null
+    : draftEditId(draft.data)
 
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
@@ -69,9 +67,9 @@ export default function PublishDraftButton() {
   const publishToSite = usePublishToSite()
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
   const publish = usePublishDraft(
-    draft.data?.editId
+    editId
       ? {
-          ...draft.data?.editId,
+          ...editId,
           version: draft.data?.deps[0] || null,
         }
       : undefined,
@@ -197,28 +195,29 @@ export default function PublishDraftButton() {
   return (
     <>
       <SaveIndicatorStatus />
-      <div className="flex overflow-hidden rounded-md">
-        <div>
-          <Tooltip
-            content={
-              signingAccount
-                ? `Publish as ${signingAccount?.document?.metadata.name}`
-                : 'Publish Document...'
-            }
-          >
-            <Button size="xs" onClick={handlePublishPress} variant="outline">
-              {signingAccount ? (
-                <HMIcon
-                  id={signingAccount.id}
-                  metadata={signingAccount.document?.metadata}
-                  size={20}
-                />
-              ) : null}
-              Publish
-            </Button>
-          </Tooltip>
-        </div>
-      </div>
+      <Tooltip
+        content={
+          signingAccount
+            ? `Publish as ${signingAccount?.document?.metadata.name}`
+            : 'Publish Document...'
+        }
+      >
+        <Button
+          size="icon"
+          className="px-2"
+          onClick={handlePublishPress}
+          variant="outline"
+        >
+          {signingAccount ? (
+            <HMIcon
+              id={signingAccount.id}
+              metadata={signingAccount.document?.metadata}
+              size={18}
+            />
+          ) : null}
+          Publish
+        </Button>
+      </Tooltip>
       {firstPublishDialog.content}
     </>
   )

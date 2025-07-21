@@ -187,11 +187,6 @@ export function usePublishDraft(
       destinationId,
       accountId,
     }: PublishDraftInput): Promise<HMDocument> => {
-      if (draft.editId?.id !== editId?.id) {
-        throw new Error(
-          'Edit ID mismatch. Draft edit ID is not the same as the edit ID in the route.',
-        )
-      }
 
       console.log('editDocument', editDocument?.content)
 
@@ -205,7 +200,7 @@ export function usePublishDraft(
 
       const navigationChanges = getNavigationChanges(
         draft.navigation,
-        editEntity.data?.document?.detachedBlocks?.navigation,
+        editDocument?.detachedBlocks?.navigation,
       )
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
