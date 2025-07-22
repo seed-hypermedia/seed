@@ -963,7 +963,7 @@ func (idx *indexingCtx) Unstash() error {
 }
 
 var qStashBlob = dqb.Str(`
-	INSERT INTO stashed_blobs (id, reason, extra_attrs) VALUES (?, ?, ?);
+	INSERT OR IGNORE INTO stashed_blobs (id, reason, extra_attrs) VALUES (?, ?, ?);
 `)
 
 func (idx *indexingCtx) SaveBlob(b structuralBlob) error {

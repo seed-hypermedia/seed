@@ -138,12 +138,12 @@ export async function startMainDaemon(): Promise<{
 
   await tryUntilSuccess(
     async () => {
-      log.debug('Trying daemon gRPC..')
+      log.debug('Waiting for daemon to boot...')
       const info = await grpcClient.daemon.getInfo({})
       log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
     },
     'waiting for daemon gRPC to be ready',
-    100, // try every 100ms
+    200, // try every 200ms
     30_000, // timeout after 10s
   )
   markGRPCReady()
