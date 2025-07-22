@@ -278,18 +278,11 @@ const display = ({
     editor.setTextCursorPosition(block.id, 'start')
   }
 
-  const videoProps = {
-    paddingBottom: '56.25%',
-    position: 'relative',
-    height: 0,
-  }
-
   return (
     <MediaContainer
       editor={editor}
       block={block}
       mediaType="video"
-      styleProps={videoProps}
       selected={selected}
       setSelected={setSelected}
       assign={assign}
@@ -302,59 +295,61 @@ const display = ({
       width={currentWidth}
       validateFile={validateFile}
     >
-      {showHandle && (
-        <>
-          <ResizeHandle
-            style={{left: 4}}
-            onMouseDown={leftResizeHandleMouseDownHandler}
+      <div className="relative aspect-[16/9] w-full">
+        {showHandle && (
+          <>
+            <ResizeHandle
+              style={{left: 4}}
+              onMouseDown={leftResizeHandleMouseDownHandler}
+            />
+            <ResizeHandle
+              style={{right: 4}}
+              onMouseDown={rightResizeHandleMouseDownHandler}
+            />
+          </>
+        )}
+        {block.props.displaySrc ? (
+          <video
+            contentEditable={false}
+            playsInline
+            controls
+            preload="metadata"
+            className="absolute top-0 left-0 h-full w-full"
+          >
+            <source
+              src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
+              type={getSourceType(block.props.name)}
+            />
+            <p>Error with the video file.</p>
+          </video>
+        ) : isIpfsUrl(block.props.url) ? (
+          <video
+            contentEditable={false}
+            playsInline
+            controls
+            preload="metadata"
+            className="absolute top-0 left-0 h-full w-full"
+          >
+            <source
+              src={getDaemonFileUrl(block.props.url)}
+              type={getSourceType(block.props.name)}
+            />
+            <p>Error with the video file.</p>
+          </video>
+        ) : (
+          <iframe
+            contentEditable={false}
+            className={cn(
+              'video-iframe absolute top-0 right-0 bottom-0 left-0',
+              !editor.isEditable && 'pointer-events-auto',
+              editor.isEditable && 'pointer-events-none',
+            )}
+            src={block.props.url}
+            frameBorder="0"
+            allowFullScreen
           />
-          <ResizeHandle
-            style={{right: 4}}
-            onMouseDown={rightResizeHandleMouseDownHandler}
-          />
-        </>
-      )}
-      {block.props.displaySrc ? (
-        <video
-          contentEditable={false}
-          playsInline
-          controls
-          preload="metadata"
-          className="absolute top-0 left-0 h-full w-full"
-        >
-          <source
-            src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
-            type={getSourceType(block.props.name)}
-          />
-          <p>Error with the video file.</p>
-        </video>
-      ) : isIpfsUrl(block.props.url) ? (
-        <video
-          contentEditable={false}
-          playsInline
-          controls
-          preload="metadata"
-          className="absolute top-0 left-0 h-full w-full"
-        >
-          <source
-            src={getDaemonFileUrl(block.props.url)}
-            type={getSourceType(block.props.name)}
-          />
-          <p>Error with the video file.</p>
-        </video>
-      ) : (
-        <iframe
-          contentEditable={false}
-          className={cn(
-            'video-iframe absolute top-0 right-0 bottom-0 left-0',
-            !editor.isEditable && 'pointer-events-auto',
-            editor.isEditable && 'pointer-events-none',
-          )}
-          src={block.props.url}
-          frameBorder="0"
-          allowFullScreen
-        />
-      )}
+        )}
+      </div>
     </MediaContainer>
   )
 }
