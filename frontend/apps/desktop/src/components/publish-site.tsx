@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {ButtonText, Form, Theme, ThemeName, XGroup} from 'tamagui'
+import {Theme, ThemeName} from 'tamagui'
 import {z} from 'zod'
 
 import {
@@ -785,8 +785,8 @@ function SeedHostLogin({
         backButton={<BackButton onPress={onBack} />}
         footer={
           <Button onClick={reset} size="sm" className="self-center">
-            <X className="size-3" />
-            Cancel Login
+            <X className="size-3 text-white/60" />
+            <span className="text-white/60">Cancel Login</span>
           </Button>
         }
       >
@@ -816,7 +816,7 @@ function SeedHostLogin({
       heading="Login to Seed Hypermedia Hosting"
       backButton={<BackButton onPress={onBack} />}
     >
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <FormField
           name="email"
           label="Email Address"
@@ -830,13 +830,13 @@ function SeedHostLogin({
             placeholder="me@email.com"
           />
         </FormField>
-        <Form.Trigger asChild>
-          <BlueButton disabled={isSendingEmail}>
-            {isSendingEmail ? 'Sending Email...' : 'Authenticate with Email'}
-          </BlueButton>
-        </Form.Trigger>
+
+        <BlueButton disabled={isSendingEmail} type="submit">
+          {isSendingEmail ? 'Sending Email...' : 'Authenticate with Email'}
+        </BlueButton>
+
         <AnimatedSpinner isVisible={isSendingEmail} />
-      </Form>
+      </form>
     </SeedHostContainer>
   )
 }
@@ -935,7 +935,10 @@ function SeedHostRegisterSubdomain({
         </div>
       }
     >
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4" ai="center">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col items-center gap-4"
+      >
         <FormField
           name="subdomain"
           label={`Select your unique sub-domain name on ${info?.hostDomain}`}
@@ -955,14 +958,14 @@ function SeedHostRegisterSubdomain({
           />
         </FormField>
         <ErrorBox error={errorText} />
-        <Form.Trigger asChild>
-          <BlueButton>
-            <UploadCloud className="size-4" />
-            Publish Site
-          </BlueButton>
-        </Form.Trigger>
+
+        <BlueButton type="submit">
+          <UploadCloud className="size-4" />
+          Publish Site
+        </BlueButton>
+
         <AnimatedSpinner isVisible={isSubmitting} />
-      </Form>
+      </form>
     </SeedHostContainer>
   )
 }
@@ -1004,8 +1007,8 @@ function SeedHostSubdomainPublished({
 
           <div className="flex gap-3">
             <Button onClick={onClose}>
-              <Check className="size-4" />
-              Close
+              <Check className="size-4 text-white/60" />
+              <span className="text-white/60">Close</span>
             </Button>
             <BlueButton onClick={onCustomDomain}>
               <ArrowRight className="size-4" />
@@ -1027,7 +1030,7 @@ function PublishedUrl({url}: {url: string}) {
   const {openUrl} = useUniversalAppContext()
   const textRef = useRef<any>(null)
   return (
-    <XGroup borderColor="$blue8" borderWidth={1}>
+    <div className="flex items-center overflow-hidden rounded-md border-1 border-blue-800">
       <div
         onClick={(e) => {
           e.preventDefault()
@@ -1040,34 +1043,34 @@ function PublishedUrl({url}: {url: string}) {
           }
         }}
       >
-        <XGroup.Item>
-          <div className="flex flex-1 items-center">
-            <Text size="md" className="mx-3 text-blue-300" ref={textRef}>
-              {url}
-            </Text>
-            <Tooltip content="Copy URL">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="m-2"
-                onClick={() => {
-                  copyTextToClipboard(url)
-                  toast(`Copied ${url} URL`)
-                }}
-              >
-                <Copy className="size-4" />
-              </Button>
-            </Tooltip>
-          </div>
-        </XGroup.Item>
+        <div className="flex flex-1 items-center">
+          <Text size="md" className="mx-3 text-blue-300" ref={textRef}>
+            {url}
+          </Text>
+          <Tooltip content="Copy URL">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="m-2 h-auto self-stretch text-white/60 hover:text-white"
+              onClick={() => {
+                copyTextToClipboard(url)
+                toast(`Copied ${url} URL`)
+              }}
+            >
+              <Copy className="size-4" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
-      <XGroup.Item>
-        <BlueButton onClick={() => openUrl(url)}>
-          Open
-          <ExternalLink className="size-4" />
-        </BlueButton>
-      </XGroup.Item>
-    </XGroup>
+
+      <BlueButton
+        className="rounded-tl-none rounded-bl-none"
+        onClick={() => openUrl(url)}
+      >
+        Open
+        <ExternalLink className="size-4" />
+      </BlueButton>
+    </div>
   )
 }
 
@@ -1306,7 +1309,7 @@ function SeedHostRegisterCustomDomain({
               On the next step you will be asked to update your DNS settings to
               point to the Seed Host service.
             </SizableText>
-            <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
+            <form onSubmit={handleSubmit(onSubmit)} gap="$4">
               <FormField
                 name="domain"
                 label="What is your Domain Name?"
@@ -1330,14 +1333,14 @@ function SeedHostRegisterCustomDomain({
               {createDomain.error ? (
                 <ErrorBox error={createDomain.error.message} />
               ) : null}
-              <Form.Trigger asChild>
-                <BlueButton>
-                  Publish to Domain
-                  <UploadCloud className="size-4" />
-                </BlueButton>
-              </Form.Trigger>
+
+              <BlueButton type="submit">
+                Publish to Domain
+                <UploadCloud className="size-4" />
+              </BlueButton>
+
               <AnimatedSpinner isVisible={createDomain.isLoading} />
-            </Form>
+            </form>
           </DialogInner>
         </>
       ) : (
@@ -1551,17 +1554,20 @@ function PublishWithUrl({
       {/* <DialogDescription>description</DialogDescription> */}
       <SizableText className="text-muted-foreground w-full text-center">
         The{' '}
-        <ButtonText
-          onPress={() => {
+        <span
+          className="cursor-pointer text-blue-800 underline"
+          onClick={() => {
             spawn(setupGuideRoute)
           }}
-          textDecorationLine="underline"
         >
           Server Setup
-        </ButtonText>{' '}
+        </span>{' '}
         will output a setup URL for you to paste here.
       </SizableText>
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4" alignItems="center">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col items-center gap-4"
+      >
         <FormField name="url" label="Site Setup URL" errors={errors}>
           <FormInput
             control={control}
@@ -1571,18 +1577,18 @@ function PublishWithUrl({
           />
         </FormField>
         {register.error ? <ErrorBox error={register.error.message} /> : null}
-        <Form.Trigger asChild>
-          <GreenButton>
-            <UploadCloud className="size-4" />
-            Publish Site
-          </GreenButton>
-        </Form.Trigger>
+
+        <GreenButton type="submit">
+          <UploadCloud className="size-4" />
+          Publish Site
+        </GreenButton>
+
         {register.isLoading ? (
           <div className="flex items-center justify-center">
             <Spinner />
           </div>
         ) : null}
-      </Form>
+      </form>
     </PublishDialogContainer>
   )
 }
