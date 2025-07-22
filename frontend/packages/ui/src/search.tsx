@@ -93,7 +93,6 @@ export function MobileSearch({
                   item={item}
                   originHomeId={originHomeId}
                   selected={false}
-                  onSelect={onSelect}
                 />
                 {index === searchItems.length - 1 ? undefined : <Separator />}
               </Fragment>
@@ -312,16 +311,13 @@ export function SearchResultItem({
           id: unpackedId,
         }
       : null,
-    {...originHomeId, onPress: item.onSelect, handler: 'onClick'},
+    {...originHomeId, handler: 'onClick'},
   )
 
-  const linkOrSelectProps = item.onSelect
-    ? {onClick: item.onSelect}
-    : navigateProps
   return (
     <Button
       variant="ghost"
-      {...linkOrSelectProps}
+      {...navigateProps}
       className={cn(
         'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-center justify-start rounded-none py-2',
         selected && 'bg-brand-12',
