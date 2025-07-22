@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
 import {
@@ -265,9 +265,9 @@ function PublishSiteDialog({
   return (
     <PublishDialogContainer heading="Set Up Web Domain">
       <DialogInner>
-        <SizableText size="3xl" className="text-muted-foreground text-center">
+        <DialogTitle className="text-muted-foreground text-center">
           How would you like to publish to the web?
-        </SizableText>
+        </DialogTitle>
         <div className="bg-muted flex flex-col gap-2 rounded-lg p-2">
           <PublishOptionButton
             icon={SeedHost}
