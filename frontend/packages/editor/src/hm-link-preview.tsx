@@ -5,10 +5,10 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, XStack, YStack} from 'tamagui'
 import {Pencil} from '../../ui/src/icons'
 import {
   BlockNoteEditor,
@@ -116,28 +116,16 @@ export function HypermediaLinkPreview(
   }
 
   return (
-    <XStack
-      className="link-preview-toolbar"
-      borderRadius="$5"
-      background="$backgroundFocus"
-      shadowColor="$shadowColorHover"
-      elevation="$3"
-      width={300}
-      paddingVertical="$2"
-      paddingHorizontal="$3"
-      zIndex="$zIndex.4"
-      {...(props.setHovered && {
-        onMouseEnter: () => {
-          props.setHovered?.(true)
-        },
-        onMouseLeave: () => {
-          props.setHovered?.(false)
-          props.editor.hyperlinkToolbar.startHideTimer()
-        },
-      })}
+    <div
+      onMouseEnter={() => props.setHovered?.(true)}
+      onMouseLeave={() => {
+        props.setHovered?.(false)
+        props.editor.hyperlinkToolbar.startHideTimer()
+      }}
+      className="link-preview-toolbar bg-muted flex w-[300px] rounded-xl px-3 py-2 shadow-md"
     >
       {isEditing ? (
-        <YStack flex={1} gap="$2">
+        <div className="flex flex-1 flex-col gap-2">
           {/* <SizableText fontWeight="700">{`${
             props.type.charAt(0).toUpperCase() + props.type.slice(1)
           } settings`}</SizableText> */}
@@ -165,23 +153,12 @@ export function HypermediaLinkPreview(
             isHmLink={!!unpackedRef}
             toolbarProps={props.toolbarProps}
           />
-        </YStack>
+        </div>
       ) : (
-        <XStack
-          width="100%"
-          justifyContent="space-between"
-          alignItems="center"
-          gap="$2"
-        >
-          <XStack
-            flex={1}
-            cursor="pointer"
-            borderRadius="$3"
-            paddingVertical="$1.5"
-            paddingHorizontal="$2"
-            hoverStyle={{opacity: 0.8, background: '$backgroundHover'}}
-            pressStyle={{opacity: 0.8, background: '$backgroundHover'}}
-            onPress={() => props.openUrl(props.url)}
+        <div className="flex w-full items-center justify-between gap-2">
+          <div
+            className="flex flex-1 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
+            onClick={() => props.openUrl(props.url)}
           >
             <SizableText
               size="lg"
@@ -190,17 +167,16 @@ export function HypermediaLinkPreview(
             >
               {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
             </SizableText>
-          </XStack>
-
+          </div>
           <Button
-            icon={Pencil}
-            size="$2"
-            chromeless
-            onPress={() => setIsEditing(true)}
-          />
-        </XStack>
+            onClick={() => setIsEditing(true)}
+            className="rounded-lg p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            <Pencil size={16} />
+          </Button>
+        </div>
       )}
-    </XStack>
+    </div>
   )
 }
 
