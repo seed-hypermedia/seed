@@ -573,6 +573,9 @@ export function BlockNodeContent({
 
     if (!val || !elm.current) return
 
+    const container = document.querySelector('.base-doc-container')
+    if (!container) return
+
     // Uncomment to enable unhighlighting when scrolling outside of the block view.
     // // Add intersection observer to check if the user scrolled out of block view.
     // const observer = new IntersectionObserver(
@@ -587,19 +590,19 @@ export function BlockNodeContent({
     // );
 
     // Function to check if the user clicked outside the block bounds.
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: Event) => {
       if (elm.current && !elm.current.contains(event.target as Node)) {
         handleBlockReplace?.()
       }
     }
 
     // observer.observe(elm.current);
-    document.addEventListener('click', handleClickOutside)
+    container.addEventListener('click', handleClickOutside)
 
     // Remove listeners when unmounting
     return () => {
       // observer.disconnect();
-      document.removeEventListener('click', handleClickOutside)
+      container.removeEventListener('click', handleClickOutside)
     }
   }, [routeParams?.blockRef, routeParams?.blockRange, comment, blockNode.block])
 
@@ -1648,6 +1651,7 @@ export function ContentEmbed({
   }, [props.expanded, props.block.id])
 
   const embedData = useMemo(() => {
+    console.log(props, document)
     const selectedBlock =
       props.blockRef && document?.content
         ? getBlockNodeById(document.content, props.blockRef)

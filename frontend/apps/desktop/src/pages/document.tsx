@@ -338,7 +338,10 @@ function _MainDocumentPage({
 
             <BaseDocContainer
               {...mainContentProps}
-              className={cn(mainContentProps.className, 'sm:mr-10 sm:ml-0')}
+              className={cn(
+                mainContentProps.className,
+                'base-doc-container sm:mr-10 sm:ml-0',
+              )}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
