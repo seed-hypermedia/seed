@@ -10,7 +10,7 @@ import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 
 export const getSourceType = (name: string) => {
@@ -160,13 +160,11 @@ const display = ({
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
-  let resizeParams:
-    | {
-        handleUsed: 'left' | 'right'
-        initialWidth: number
-        initialClientX: number
-      }
-    | undefined
+  const resizeParamsRef = useRef<{
+    handleUsed: 'left' | 'right'
+    initialWidth: number
+    initialClientX: number
+  } | null>(null)
 
   useEffect(() => {
     if (block.props.width) {
@@ -176,19 +174,17 @@ const display = ({
   }, [block.props.width])
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
-    if (!resizeParams) {
+    if (!resizeParamsRef.current) {
       return
     }
 
+    const {handleUsed, initialClientX, initialWidth} = resizeParamsRef.current
+
     let newWidth: number
-    if (resizeParams.handleUsed === 'left') {
-      newWidth =
-        resizeParams.initialWidth +
-        (resizeParams.initialClientX - event.clientX) * 2
+    if (handleUsed === 'left') {
+      newWidth = initialWidth + (initialClientX - event.clientX) * 2
     } else {
-      newWidth =
-        resizeParams.initialWidth +
-        (event.clientX - resizeParams.initialClientX) * 2
+      newWidth = initialWidth + (event.clientX - initialClientX) * 2
     }
 
     // Ensures the video is not wider than the editor and not smaller than a
@@ -207,13 +203,13 @@ const display = ({
 
   // Stops mouse movements from resizing the video and updates the block's
   // `width` prop to the new value.
-  const windowMouseUpHandler = (event: MouseEvent) => {
+  const windowMouseUpHandler = () => {
     setShowHandle(false)
 
-    if (!resizeParams) {
+    if (!resizeParamsRef.current) {
       return
     }
-    resizeParams = undefined
+    resizeParamsRef.current = null
 
     assign({
       props: {
@@ -229,12 +225,21 @@ const display = ({
       },
     })
   }
-  window.addEventListener('mousemove', windowMouseMoveHandler)
-  window.addEventListener('mouseup', windowMouseUpHandler)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => windowMouseMoveHandler(e)
+    const handleMouseUp = () => windowMouseUpHandler()
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   // Hides the resize handles when the cursor leaves the video
   const videoMouseLeaveHandler = () => {
-    if (resizeParams) {
+    if (resizeParamsRef.current) {
       return
     }
 
@@ -250,7 +255,7 @@ const display = ({
 
     setShowHandle(true)
 
-    resizeParams = {
+    resizeParamsRef.current = {
       handleUsed: 'left',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
@@ -265,7 +270,7 @@ const display = ({
 
     setShowHandle(true)
 
-    resizeParams = {
+    resizeParamsRef.current = {
       handleUsed: 'right',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,

@@ -2,15 +2,15 @@ import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
 import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from '@/blocknote/react'
-import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {isValidUrl, timeoutPromise} from '@/utils'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
+import {MediaContainer} from './media-container'
 
 export const ImageBlock = createReactBlockSpec({
   type: 'image',
@@ -233,13 +233,11 @@ const display = ({
   // Track image natural dimensions for aspect ratio calculation
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
 
-  let resizeParams:
-    | {
-        handleUsed: 'left' | 'right'
-        initialWidth: number
-        initialClientX: number
-      }
-    | undefined
+  const resizeParamsRef = useRef<{
+    handleUsed: 'left' | 'right'
+    initialWidth: number
+    initialClientX: number
+  } | null>(null)
 
   useEffect(() => {
     if (block.props.width) {
@@ -269,19 +267,17 @@ const display = ({
   }
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
-    if (!resizeParams) {
+    if (!resizeParamsRef.current) {
       return
     }
 
+    const {handleUsed, initialClientX, initialWidth} = resizeParamsRef.current
+
     let newWidth: number
-    if (resizeParams.handleUsed === 'left') {
-      newWidth =
-        resizeParams.initialWidth +
-        (resizeParams.initialClientX - event.clientX) * 2
+    if (handleUsed === 'left') {
+      newWidth = initialWidth + (initialClientX - event.clientX) * 2
     } else {
-      newWidth =
-        resizeParams.initialWidth +
-        (event.clientX - resizeParams.initialClientX) * 2
+      newWidth = initialWidth + (event.clientX - initialClientX) * 2
     }
 
     // Ensures the image is not wider than the editor and not smaller than a
@@ -309,13 +305,13 @@ const display = ({
 
   // Stops mouse movements from resizing the image and updates the block's
   // `width` prop to the new value.
-  const windowMouseUpHandler = (event: MouseEvent) => {
+  const windowMouseUpHandler = () => {
     setShowHandle(false)
 
-    if (!resizeParams) {
+    if (!resizeParamsRef.current) {
       return
     }
-    resizeParams = undefined
+    resizeParamsRef.current = null
 
     assign({
       props: {
@@ -331,12 +327,21 @@ const display = ({
       },
     })
   }
-  window.addEventListener('mousemove', windowMouseMoveHandler)
-  window.addEventListener('mouseup', windowMouseUpHandler)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => windowMouseMoveHandler(e)
+    const handleMouseUp = () => windowMouseUpHandler()
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   // Hides the resize handles when the cursor leaves the image
-  const imageMouseLeaveHandler = (event) => {
-    if (resizeParams) {
+  const imageMouseLeaveHandler = () => {
+    if (resizeParamsRef.current) {
       return
     }
 
@@ -352,7 +357,7 @@ const display = ({
 
     setShowHandle(true)
 
-    resizeParams = {
+    resizeParamsRef.current = {
       handleUsed: 'left',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
@@ -366,7 +371,7 @@ const display = ({
     event.preventDefault()
     setShowHandle(true)
 
-    resizeParams = {
+    resizeParamsRef.current = {
       handleUsed: 'right',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,

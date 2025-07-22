@@ -6,9 +6,10 @@ body {
   cursor: default;
 }
 
-*:hover {
+/* TODO: figure out why was this style added */
+/* *:hover {
   cursor: default !important;
-}
+} */
 
 .panel-resize-handle {
   width: 2px;
