@@ -252,7 +252,12 @@ func indexProfile(ictx *indexingCtx, id int64, eb Encoded[*Profile]) error {
 		}
 
 		if !ok {
-			return fmt.Errorf("alias profile must have the corresponding capability before already indexed")
+			return stashError{
+				Reason: stashReasonPermissionDenied,
+				Metadata: stashMetadata{
+					DeniedSigners: []core.Principal{v.Signer},
+				},
+			}
 		}
 
 		sb.ExtraAttrs = map[string]any{

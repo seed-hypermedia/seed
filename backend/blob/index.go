@@ -125,7 +125,47 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 }
 
 func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
-	defer sqlitex.Save(conn)(&err)
+	release := sqlitex.Save(conn)
+	defer func() {
+		// This is really obscure and hard to reason about, because we want the handle stash error,
+		// to actually stash the blob, but we don't want to bubble up the stash error upstream.
+		// And the sqlitex.Save relies on the error to know whether to rollback or to release the savepoint.
+		// So we temporarily keep the error, and then check whether release had any other errors,
+		// and if not, we don't bubble up the error.
+
+		var serr stashError
+		if errors.As(err, &serr) {
+			// We handle the stash error here. We rollback the savepoint,
+			// but then we still need to use the same database transaction.
+			release(&err)
+
+			// We want to check if release added any other errors,
+			// so if the resulting error is not of the stash error type, we know something happened during release,
+			// so we can't proceed further.
+			_, ok := err.(stashError)
+			if !ok {
+				return
+			}
+
+			// Released happend successfully, so we can reset the original stash error,
+			// because we've already extracted the necessary metadata from it.
+			err = nil
+
+			// Declaring data here to avoid shadowing the err variable.
+			var data []byte
+			data, err = json.Marshal(serr.Metadata)
+			if err != nil {
+				return
+			}
+			extraJSON := strbytes.String(data)
+
+			err = sqlitex.Exec(conn, qStashBlob(), nil, id, serr.Reason, extraJSON)
+			return
+		}
+
+		// If error is not a stash error, we simply release the savepoint normally.
+		release(&err)
+	}()
 
 	ictx := newCtx(conn, id, bs, log)
 	ictx.mustTrackUnreads = trackUnreads
@@ -914,35 +954,12 @@ type stashError struct {
 	Metadata stashMetadata
 }
 
-func (se stashError) As(v any) bool {
-	tt, ok := v.(*stashError)
-	if !ok {
-		return false
-	}
-
-	*tt = se
-	return true
-}
-
 func (se stashError) Error() string {
-	return fmt.Sprintf("stash error: %s", se.Reason)
+	return fmt.Sprintf("stash error: %s: %+v", se.Reason, se.Metadata)
 }
 
 func (idx *indexingCtx) Unstash() error {
 	return sqlitex.Exec(idx.conn, "DELETE FROM stashed_blobs WHERE id = ?", nil, idx.blobID)
-}
-
-func (idx *indexingCtx) Stash(reason stashReason, metadata any) error {
-	extraJSON := "{}"
-	if metadata != nil {
-		data, err := json.Marshal(metadata)
-		if err != nil {
-			return err
-		}
-		extraJSON = strbytes.String(data)
-	}
-
-	return sqlitex.Exec(idx.conn, qStashBlob(), nil, idx.blobID, reason, extraJSON)
 }
 
 var qStashBlob = dqb.Str(`

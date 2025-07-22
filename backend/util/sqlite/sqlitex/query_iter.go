@@ -1,9 +1,12 @@
 package sqlitex
 
 import (
+	"context"
 	"errors"
 	"iter"
 	"seed/backend/util/sqlite"
+
+	"golang.org/x/exp/constraints"
 )
 
 // Query executes a query and returns an iterator over the results.
@@ -41,4 +44,35 @@ func Query(conn *sqlite.Conn, query string, args ...any) (it iter.Seq[*sqlite.St
 	}
 
 	return it, check
+}
+
+// Result is a type constraint for query results.
+type Result interface {
+	~string | constraints.Integer | constraints.Float
+}
+
+// QueryOne executes a query and returns a single result.
+func QueryOne[T Result](conn *sqlite.Conn, query string, args ...any) (resp T, err error) {
+	err = errNoResults
+	rows, check := Query(conn, query, args...)
+	for row := range rows {
+		row.Scan(&resp)
+		err = nil
+		break
+	}
+	if err := check(); err != nil {
+		return resp, err
+	}
+	return resp, err
+}
+
+// QueryOnePool is like [QueryOne] but uses the connection pool.
+func QueryOnePool[T Result](ctx context.Context, db *Pool, query string, args ...any) (resp T, err error) {
+	conn, release, err := db.Conn(ctx)
+	if err != nil {
+		return resp, err
+	}
+	defer release()
+
+	return QueryOne[T](conn, query, args...)
 }

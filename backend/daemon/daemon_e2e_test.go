@@ -1165,6 +1165,91 @@ func TestDelegatedProfileUpdate(t *testing.T) {
 	require.Equal(t, alice.String(), bobAccountUpdated.AliasAccount)
 }
 
+func TestBug_MissingProfileAlias(t *testing.T) {
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := coretest.NewTester("alice").Account
+	bobKey := coretest.NewTester("bob").Account
+	ctx := t.Context()
+	require.NoError(t, alice.RPC.Daemon.RegisterAccount(ctx, "bob", bobKey))
+
+	_, err := alice.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		SigningKeyName: "main",
+		Account:        aliceKey.String(),
+		Profile: &documents.Profile{
+			Name: "Alice from the Wonderland",
+		},
+	})
+	require.NoError(t, err)
+
+	// Sleeps here are just to make sure timestamps of the blobs have some difference between them.
+
+	time.Sleep(5 * time.Millisecond)
+
+	_, err = alice.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		SigningKeyName: "bob",
+		Account:        bobKey.String(),
+		Profile: &documents.Profile{
+			Name: "Bobby",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(5 * time.Millisecond)
+
+	// Alice delegates to Bob.
+	_, err = alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobKey.String(),
+		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob's key",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(5 * time.Millisecond)
+
+	// Bob claims Alice as an alias.
+	_, err = alice.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "bob",
+		AliasAccount:   aliceKey.String(),
+	})
+	require.NoError(t, err)
+
+	carol := makeTestApp(t, "carol", makeTestConfig(t), true)
+
+	// Carol connects to Alice.
+	_, err = carol.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+	})
+	require.NoError(t, err)
+
+	// Carol discovers bob's account.
+	for {
+		resp, err := carol.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   bobKey.String(),
+			Path:      "",
+			Recursive: true,
+		})
+		require.NoError(t, err)
+
+		if resp.State == entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	{
+		resp, err := carol.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+			Id: bobKey.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, aliceKey.String(), resp.AliasAccount, "carol must discover that bob has alice as an alias")
+	}
+}
+
 func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -1176,7 +1261,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
 
 	// Create Bob's home document
-	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1271,29 +1356,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
 
 	// Wait for connection to establish
-	time.Sleep(200 * time.Millisecond)
-
-	// Alice discovers Bob's home document recursively
-	var count int
-	for {
-		count++
-		res, err := alice.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
-			Account:   bobKey.String(),
-			Path:      "",
-			Recursive: true,
-		})
-		require.NoError(t, err)
-		if res.Version == bobHome.Version {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-		if count > 100 {
-			t.Fatalf("Failed to discover Bob's home document!")
-		}
-	}
-
-	// Give some time for recursive discovery to propagate
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	want, err := bob.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{
 		Account:  bobKey.String(),
@@ -1302,6 +1365,22 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	require.NoError(t, err)
 	slices.SortFunc(want.Documents, func(a, b *documents.DocumentInfo) int { return strings.Compare(a.Path, b.Path) })
 	require.Len(t, want.Documents, 4, "Bob should have 4 documents in total")
+
+	// Alice discovers Bob's home document recursively
+	for {
+		res, err := alice.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   bobKey.String(),
+			Path:      "",
+			Recursive: true,
+		})
+		require.NoError(t, err)
+
+		if res.State == entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// List all documents on Alice and print them
 	docs, err := alice.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{

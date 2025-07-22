@@ -20,8 +20,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"container/list"
-
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -607,37 +605,19 @@ func syncEntities(
 	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
 	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
 
-	downloadedBlocks := list.New()
-	for _, blkID := range allWants {
-		log.Debug("Fetching new block", zap.String("cid", blkID.String()))
+	downloaded := make([]blocks.Block, len(allWants))
+	for i, blkID := range allWants {
 		blk, err := sess.GetBlock(ctx, blkID)
 		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			log.Warn("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
 			continue
 		}
-		downloadedBlocks.PushBack(blk)
+		downloaded[i] = blk
 	}
-	var failed int
-	for downloadedBlocks.Len() > 0 {
-		item := downloadedBlocks.Front()
-		if failed == downloadedBlocks.Len() {
-			return fmt.Errorf("could not sync all content due to indexing (dependencies) problems")
-		}
-		blk, ok := item.Value.(blocks.Block)
-		if !ok {
-			return fmt.Errorf("could not decode block from the list: %w", err)
-		}
 
-		if err := idx.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blk.Cid().String()), zap.Error(err))
-			downloadedBlocks.MoveAfter(item, downloadedBlocks.Back())
-			failed++
-			continue
-		}
-		log.Debug("Blob synced and stored", zap.String("blobCid", blk.Cid().String()))
-		failed = 0
-		downloadedBlocks.Remove(item)
+	if err := idx.PutMany(ctx, downloaded); err != nil {
+		return fmt.Errorf("failed to put reconciled blobs: %w", err)
 	}
-	log.Debug("Successfully synced new content")
+
 	return nil
 }

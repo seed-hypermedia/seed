@@ -8,9 +8,6 @@ import (
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
-	"seed/backend/util/dqb"
-	"seed/backend/util/sqlite"
-	"seed/backend/util/sqlite/sqlitex"
 	"slices"
 	"strings"
 	"time"
@@ -391,7 +388,12 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		}
 
 		if !ok {
-			return fmt.Errorf("missing causal dependency %s of change %s", dep, c)
+			return stashError{
+				Reason: stashReasonFailedPrecondition,
+				Metadata: stashMetadata{
+					MissingBlobs: []cid.Cid{dep},
+				},
+			}
 		}
 
 		sb.AddBlobLink("change/dep", dep)
@@ -507,27 +509,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
-	{
-		refs, err := loadRefsForChange(ictx.conn, ictx.blockStore, id)
-		if err != nil {
-			return err
-		}
-
-		for _, ref := range refs {
-			if err := crossLinkRefMaybe(
-				// TODO(burdiyan): doing some ugly stuff here. We need a new indexing context,
-				// because now we are trying to index a Ref blob that might be related to the change we are currently indexing.
-				// Currently the indexing context is tied to a single blob, but it shouldn't be this way.
-				// There's more code like this. Search for (#ictxDRY).
-				newCtx(ictx.conn, ref.ID, ictx.blockStore, ictx.log),
-				ref.Value,
-			); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log)
 }
 
 type changeIndexedAttrs struct {
@@ -540,57 +522,6 @@ type decodedBlob[T any] struct {
 	CID   cid.Cid
 	Value T
 }
-
-func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]decodedBlob[*Ref], error) {
-	var out []decodedBlob[*Ref]
-	rows, check := sqlitex.Query(conn, qLoadRefsForChange(), changeID)
-	for row := range rows {
-		inc := sqlite.NewIncrementor(0)
-		var (
-			id        = row.ColumnInt64(inc())
-			codec     = row.ColumnInt64(inc())
-			multihash = row.ColumnBytes(inc())
-			rawData   = row.ColumnBytesUnsafe(inc())
-			size      = row.ColumnInt64(inc())
-		)
-
-		data, err := bs.decompress(rawData, int(size))
-		if err != nil {
-			return nil, err
-		}
-
-		ref := &Ref{}
-		if err := cbornode.DecodeInto(data, &ref); err != nil {
-			return nil, err
-		}
-		out = append(out, decodedBlob[*Ref]{
-			ID:    id,
-			CID:   cid.NewCidV1(uint64(codec), multihash),
-			Value: ref,
-		})
-	}
-
-	err := check()
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
-}
-
-var qLoadRefsForChange = dqb.Str(`
-	SELECT
-		blobs.id,
-		blobs.codec,
-		blobs.multihash,
-		blobs.data,
-		blobs.size
-	FROM blob_links bl
-	JOIN blobs ON blobs.id = bl.source
-	WHERE bl.target = :changeID
-	AND bl.type = 'ref/head'
-	AND blobs.size > 0;
-`)
 
 // Block is a block of text with annotations.
 type Block struct {

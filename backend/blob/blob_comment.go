@@ -221,9 +221,12 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	}
 
 	if missingBlobs != nil {
-		return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
-			MissingBlobs: missingBlobs,
-		})
+		return stashError{
+			Reason: stashReasonFailedPrecondition,
+			Metadata: stashMetadata{
+				MissingBlobs: missingBlobs,
+			},
+		}
 	}
 
 	// Check if this is a tombstone (deleted comment)

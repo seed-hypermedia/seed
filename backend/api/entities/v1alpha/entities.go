@@ -117,11 +117,15 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 			createTime:   now,
 			callCount:    1,
 			lastCallTime: now,
+			state:        entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED,
 		}
 		api.discoveryTasks[dkey] = task
 		go task.start(api)
 		api.mu.Unlock()
-		return &entities.DiscoverEntityResponse{}, nil
+		return &entities.DiscoverEntityResponse{
+			State:     task.state,
+			CallCount: int32(task.callCount),
+		}, nil
 	}
 	api.mu.Unlock()
 
@@ -131,9 +135,22 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	task.callCount++
 	task.lastCallTime = now
 
-	return &entities.DiscoverEntityResponse{
-		Version: task.lastResult.String(),
-	}, task.lastErr
+	resp := &entities.DiscoverEntityResponse{
+		Version:   task.lastResult.String(),
+		State:     task.state,
+		CallCount: int32(task.callCount),
+	}
+
+	if task.lastErr != nil {
+		resp.LastError = task.lastErr.Error()
+	}
+
+	if !task.lastResultTime.IsZero() {
+		resp.LastResultTime = timestamppb.New(task.lastResultTime)
+		resp.ResultExpireTime = timestamppb.New(task.lastResultTime.Add(lastResultTTL))
+	}
+
+	return resp, nil
 }
 
 type discoveryTaskKey struct {
@@ -152,16 +169,23 @@ type discoveryTask struct {
 	lastResultTime time.Time
 	lastResult     blob.Version
 	lastErr        error
+
+	state entities.DiscoveryTaskState
 }
 
 func (task *discoveryTask) start(api *Server) {
 	for {
+		task.mu.Lock()
+		task.state = entities.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
+		task.mu.Unlock()
+
 		res, err := api.disc.DiscoverObject(context.Background(), task.key.IRI, task.key.Version, task.key.Recursive)
 		now := time.Now()
 		task.mu.Lock()
 		task.lastResultTime = now
 		task.lastResult = res
 		task.lastErr = err
+		task.state = entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED
 		task.mu.Unlock()
 
 		time.Sleep(lastResultTTL)
@@ -249,7 +273,7 @@ FROM fts_top100 AS f
     ON public_keys.id = structural_blobs.author
 
   LEFT JOIN resources
-    ON resources.id = (SELECT resource from structural_blobs WHERE 
+    ON resources.id = (SELECT resource from structural_blobs WHERE
 	     (f.blob_id       = structural_blobs.genesis_blob
            AND structural_blobs.type = 'Ref')
       OR (f.genesis_blob = structural_blobs.genesis_blob
@@ -263,7 +287,7 @@ FROM fts_top100 AS f
 
   JOIN document_generations
     ON document_generations.resource = resources.id
-  
+
   LEFT JOIN document_generations dg_subject
 	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = f.blob_id) order by id limit 1)
 
@@ -279,14 +303,14 @@ LIMIT :limit
 `)
 
 var qGetMetadata = dqb.Str(`
-	select dg.metadata, r.iri, pk.principal from document_generations dg 
-	INNER JOIN resources r ON r.id = dg.resource 
+	select dg.metadata, r.iri, pk.principal from document_generations dg
+	INNER JOIN resources r ON r.id = dg.resource
 	INNER JOIN public_keys pk ON pk.id = r.owner
 	WHERE dg.is_deleted = False;`)
 
 var qGetParentsMetadata = dqb.Str(`
-	select dg.metadata, r.iri from document_generations dg 
-	INNER JOIN resources r ON r.id = dg.resource 
+	select dg.metadata, r.iri from document_generations dg
+	INNER JOIN resources r ON r.id = dg.resource
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
 var qGetAccountID = dqb.Str(`
 SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)

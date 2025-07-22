@@ -30,3 +30,7 @@ func TestDBMigrateManual(t *testing.T) {
 	blobs := must.Do2(blob.OpenIndex(context.Background(), db, log))
 	require.NoError(t, blobs.Reindex(context.Background()))
 }
+
+func TestFoo(t *testing.T) {
+
+}

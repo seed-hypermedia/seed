@@ -225,6 +225,8 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		    AND sb.extra_attrs->>'redirect' = resources.iri
 		)
 		SELECT * FROM t;`
+
+		// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
 	}
 
 	// Fill Refs.
@@ -274,6 +276,44 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
+		}
+	}
+
+	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
+	// until we can't find any more.
+	for {
+		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
+			return err
+		}
+
+		if blobCountBefore == 0 {
+			break
+		}
+
+		const q = `
+			INSERT OR IGNORE INTO rbsr_blobs
+			SELECT id
+			FROM structural_blobs sb
+			WHERE sb.type = 'Capability'
+			AND sb.extra_attrs->>'del' IN (
+				SELECT DISTINCT author
+				FROM structural_blobs
+				WHERE id IN rbsr_blobs
+			)
+			AND sb.extra_attrs->>'role' = 'AGENT';`
+
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
+		}
+
+		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
+			return err
+		}
+
+		if blobCountAfter == blobCountBefore {
+			break
 		}
 	}
 

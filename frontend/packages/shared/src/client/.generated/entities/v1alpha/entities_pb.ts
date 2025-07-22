@@ -7,6 +7,41 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 
 /**
+ * Describes the state of the discovery task.
+ *
+ * @generated from enum com.seed.entities.v1alpha.DiscoveryTaskState
+ */
+export enum DiscoveryTaskState {
+  /**
+   * The task has just started.
+   *
+   * @generated from enum value: DISCOVERY_TASK_STARTED = 0;
+   */
+  DISCOVERY_TASK_STARTED = 0,
+
+  /**
+   * The task is in progess — we keep looking for peers who can provide the content,
+   * and downloading the content we are finding.
+   *
+   * @generated from enum value: DISCOVERY_TASK_IN_PROGRESS = 1;
+   */
+  DISCOVERY_TASK_IN_PROGRESS = 1,
+
+  /**
+   * The task has completed and the result is cached for the duration of the duration of the TTL.
+   *
+   * @generated from enum value: DISCOVERY_TASK_COMPLETED = 2;
+   */
+  DISCOVERY_TASK_COMPLETED = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DiscoveryTaskState)
+proto3.util.setEnumType(DiscoveryTaskState, "com.seed.entities.v1alpha.DiscoveryTaskState", [
+  { no: 0, name: "DISCOVERY_TASK_STARTED" },
+  { no: 1, name: "DISCOVERY_TASK_IN_PROGRESS" },
+  { no: 2, name: "DISCOVERY_TASK_COMPLETED" },
+]);
+
+/**
  * Request to get a change by ID.
  *
  * @generated from message com.seed.entities.v1alpha.GetChangeRequest
@@ -166,18 +201,53 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
 /**
  * Response to discover an entity.
  *
- * TODO(burdiyan): add summary of the discovery process.
- * Or maybe even make this call streaming?
- *
  * @generated from message com.seed.entities.v1alpha.DiscoverEntityResponse
  */
 export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
   /**
-   * The version of the document we have found
+   * The cached version of the document we've discovered within the last discovery process.
    *
    * @generated from field: string version = 1;
    */
   version = "";
+
+  /**
+   * The state of the discovery task.
+   *
+   * @generated from field: com.seed.entities.v1alpha.DiscoveryTaskState state = 2;
+   */
+  state = DiscoveryTaskState.DISCOVERY_TASK_STARTED;
+
+  /**
+   * The number of times we've called the discovery process for this entity and version so far.
+   *
+   * @generated from field: int32 call_count = 3;
+   */
+  callCount = 0;
+
+  /**
+   * The timestamp of the last result we've found.
+   * It can be empty if the discovery is still in progress.
+   *
+   * @generated from field: google.protobuf.Timestamp last_result_time = 4;
+   */
+  lastResultTime?: Timestamp;
+
+  /**
+   * The cached error message of the last discovery attempt if it failed.
+   *
+   * @generated from field: string last_error = 5;
+   */
+  lastError = "";
+
+  /**
+   * The time when the currently cached result will expire, and a new discovery attempt will be made,
+   * if the client keeps calling the discovery RPC.
+   * Can be empty if no results have been found yet.
+   *
+   * @generated from field: google.protobuf.Timestamp result_expire_time = 6;
+   */
+  resultExpireTime?: Timestamp;
 
   constructor(data?: PartialMessage<DiscoverEntityResponse>) {
     super();
@@ -188,6 +258,11 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
   static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "state", kind: "enum", T: proto3.getEnumType(DiscoveryTaskState) },
+    { no: 3, name: "call_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "last_result_time", kind: "message", T: Timestamp },
+    { no: 5, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "result_expire_time", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityResponse {

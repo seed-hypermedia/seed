@@ -274,9 +274,12 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	if !ok {
 		// If it's not a valid member, we don't fail.
 		// We just stop the indexing, and we'll take care of it later when/if we find the Capability.
-		return ictx.Stash(stashReasonPermissionDenied, stashMetadata{
-			DeniedSigners: []core.Principal{v.Signer},
-		})
+		return stashError{
+			Reason: stashReasonPermissionDenied,
+			Metadata: stashMetadata{
+				DeniedSigners: []core.Principal{v.Signer},
+			},
+		}
 	}
 
 	resDB, err := dbResourcesLookupID(conn, string(iri))
@@ -310,9 +313,12 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 			// I.e. this Ref won't be visible until all the heads are indexed first,
 			// so we have to stop here and avoid saving the document generation data.
 			if bsize.BlobsID == 0 || bsize.BlobsSize < 0 {
-				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
-					MissingBlobs: []cid.Cid{h},
-				})
+				return stashError{
+					Reason: stashReasonFailedPrecondition,
+					Metadata: stashMetadata{
+						MissingBlobs: []cid.Cid{h},
+					},
+				}
 			}
 
 			queue = append(queue, bsize.BlobsID)
@@ -343,9 +349,12 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 					return err
 				}
 
-				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
-					MissingBlobs: []cid.Cid{c},
-				})
+				return stashError{
+					Reason: stashReasonFailedPrecondition,
+					Metadata: stashMetadata{
+						MissingBlobs: []cid.Cid{c},
+					},
+				}
 			}
 
 			changeGenesis, err := ictx.lookup.CID(cm.Genesis())
