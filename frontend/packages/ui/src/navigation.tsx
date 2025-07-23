@@ -43,7 +43,7 @@ export function DocumentSmallListItem({
 }) {
   const route: NavRoute | undefined = draftId
     ? {key: 'draft', id: draftId, accessory: {key: 'options'}}
-    : id && {key: 'document', id, accessory: {key: 'options'}}
+    : id && {key: 'document', id}
   if (!route) {
     throw new Error(
       'No route for DocumentSmallListItem. Must provide either id or draftId',
@@ -65,7 +65,6 @@ export function DocumentSmallListItem({
         active={active}
         {...linkProps}
         onPress={(e) => {
-          console.log('~ HHH onPress')
           onPress?.()
           linkProps.onPress?.(e)
         }}

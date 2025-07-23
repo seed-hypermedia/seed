@@ -654,7 +654,6 @@ function PathItemCard({
                     }
                     metadata={item.metadata}
                     id={item.id}
-                    onPress={() => {}}
                     draftId={item.draftId}
                     isPublished={item.isPublished}
                   />

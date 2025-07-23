@@ -225,25 +225,76 @@ export function isHttpUrl(url: string) {
 }
 
 function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
-  if (nextRoute.key !== 'document' && nextRoute.key !== 'draft')
+  if (nextRoute.key !== 'document' && nextRoute.key !== 'draft') {
     return nextRoute
-  if (routes.length === 0) return nextRoute
+  }
+
+  if (routes.length === 0) {
+    return nextRoute
+  }
+
   const prevRoute = routes[routes.length - 1]
-  if (
-    prevRoute.key == 'document' ||
-    (prevRoute.key == 'draft' && nextRoute.key == 'document')
-  ) {
-    return {
-      ...nextRoute,
-      accessory:
-        prevRoute.accessory &&
-        typeof nextRoute.accessory == 'undefined' &&
-        prevRoute.accessory.key != 'options'
-          ? {
-              key: prevRoute.accessory.key,
-            }
-          : nextRoute.accessory,
+
+  // Debug logging for document-to-document transitions
+  if (prevRoute.key === 'document' && nextRoute.key === 'document') {
+    console.log('🔍 [DEBUG] Document-to-Document transition:', {
+      prevAccessory: 'accessory' in prevRoute ? prevRoute.accessory : 'none',
+      nextAccessory: 'accessory' in nextRoute ? nextRoute.accessory : 'none',
+    })
+  }
+
+  // Step 1: Determine the accessory to use
+  let resultAccessory =
+    'accessory' in nextRoute ? nextRoute.accessory : undefined
+
+  // If nextRoute has no accessory, spread from prevRoute
+  if (!resultAccessory) {
+    if (prevRoute.key === 'document' || prevRoute.key === 'draft') {
+      const prevAccessory =
+        'accessory' in prevRoute ? prevRoute.accessory : undefined
+      if (prevAccessory) {
+        // Special case: don't spread 'options' from draft to document
+        if (
+          prevRoute.key === 'draft' &&
+          prevAccessory.key === 'options' &&
+          nextRoute.key === 'document'
+        ) {
+          resultAccessory = undefined
+          console.log('🔍 [DEBUG] Not spreading options from draft to document')
+        } else {
+          resultAccessory = prevAccessory
+          console.log(
+            '🔍 [DEBUG] Spreading accessory:',
+            prevAccessory,
+            '→',
+            resultAccessory,
+          )
+        }
+      } else if (nextRoute.key === 'draft') {
+        // Special case: going to draft with no accessory defaults to 'options'
+        resultAccessory = {key: 'options'}
+        console.log('🔍 [DEBUG] Defaulting to options for draft')
+      }
     }
   }
-  return nextRoute
+
+  // Step 2: Post-processing - if result is document with 'options', change to 'activity'
+  if (nextRoute.key === 'document' && resultAccessory?.key === 'options') {
+    console.log('🔍 [DEBUG] Post-processing: changing options to activity')
+    resultAccessory = {key: 'activity'}
+  }
+
+  const result = {
+    ...nextRoute,
+    ...(resultAccessory && {accessory: resultAccessory}),
+  }
+
+  // Debug final result for document-to-document
+  if (prevRoute.key === 'document' && nextRoute.key === 'document') {
+    console.log('🔍 [DEBUG] Final document-to-document result:', {
+      resultAccessory: resultAccessory,
+    })
+  }
+
+  return result
 }
