@@ -1,5 +1,5 @@
 # Build from the root with `docker build . -f ./backend/cmd/relayd/Dockerfile`.
-FROM golang:1.24.1-alpine AS builder
+FROM golang:1.24.5-alpine AS builder
 WORKDIR /code
 COPY go.mod go.sum ./
 RUN go mod download

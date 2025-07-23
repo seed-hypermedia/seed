@@ -2,7 +2,7 @@ module seed
 
 go 1.24
 
-toolchain go1.24.1
+toolchain go1.24.5
 
 require (
 	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797
