@@ -69,7 +69,7 @@ export function WindowsLinuxTitleBar({
       <div
         className="border-b-border flex h-6 items-center border-b"
         style={{
-          backgroundColor: isDark ? 'var(--background)' : 'var(--secondary)',
+          backgroundColor: 'var(--background)',
         }}
       >
         <SystemMenu />
