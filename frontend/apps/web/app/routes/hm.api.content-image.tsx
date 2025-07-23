@@ -260,7 +260,6 @@ export const loader = async ({request}: {request: Request}) => {
   const space = url.searchParams.get('space')
   const path = url.searchParams.get('path')
   const version = url.searchParams.get('version')
-  console.log('LOL?!', url.searchParams)
   if (!space) throw new Error('Missing space')
   // if (path) throw new Error("Missing path");
   if (!version) throw new Error('Missing version')

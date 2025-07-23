@@ -50,6 +50,10 @@ export async function initEmailNotifier() {
 
 async function handleEmailNotifications() {
   const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
+  console.log(
+    '~~ handleEmailNotifications lastProcessedBlobCid',
+    lastProcessedBlobCid,
+  )
   if (lastProcessedBlobCid) {
     await handleEmailNotificationsAfterBlobCid(lastProcessedBlobCid)
   } else {
@@ -76,6 +80,10 @@ async function handleEmailNotificationsAfterBlobCid(
   lastProcessedBlobCid: string,
 ) {
   const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
+  console.log(
+    '~~ handleEmailNotificationsAfterBlobCid eventsToProcess',
+    eventsToProcess.length,
+  )
   if (eventsToProcess.length === 0) return
   await handleEventsForEmailNotifications(eventsToProcess)
   await markEventsAsProcessed(eventsToProcess)
@@ -84,7 +92,7 @@ async function handleEmailNotificationsAfterBlobCid(
 async function handleEventsForEmailNotifications(
   events: PlainMessage<Event>[],
 ) {
-  console.log('handleEventsForEmailNotifications', events.length)
+  console.log('~~ handleEventsForEmailNotifications', events.length)
   const allEmails = getAllEmails()
   const accountNotificationOptions: Record<
     string,
