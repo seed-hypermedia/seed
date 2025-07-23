@@ -120,8 +120,12 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 			state:        entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED,
 		}
 		api.discoveryTasks[dkey] = task
-		go task.start(api)
 		api.mu.Unlock()
+
+		task.mu.Lock()
+		go task.start(api)
+		defer task.mu.Unlock()
+
 		return &entities.DiscoverEntityResponse{
 			State:     task.state,
 			CallCount: int32(task.callCount),
