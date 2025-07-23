@@ -95,7 +95,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		for i, eventType := range req.FilterEventType {
 			// Hardcode this to prevent injection attacks
 			if strings.ToLower(eventType) != "capability" && strings.ToLower(eventType) != "ref" && strings.ToLower(eventType) != "comment" && strings.ToLower(eventType) != "dagpb" && strings.ToLower(eventType) != "profile" && strings.ToLower(eventType) != "contact" {
-				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile are supported at the moment", eventType)
+				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile | Contact are supported at the moment", eventType)
 			}
 			if i > 0 {
 				filtersStr += ", "
@@ -137,7 +137,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.StructuralBlobsType.String() + " NOT IN ('Change')) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
+		pageTokenStr = storage.BlobsID.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30
