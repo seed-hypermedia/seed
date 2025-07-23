@@ -19,7 +19,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import {Input, InputProps, Button as TButton} from 'tamagui'
 import {UIAvatar} from './avatar'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -27,6 +26,7 @@ import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
 
+import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
@@ -169,16 +169,18 @@ export function HeaderSearch({
           popoverState.onOpenChange(open)
         }}
       >
-        <PopoverTrigger asChild>
-          <TButton size="$2" chromeless icon={<Search className="size-4" />} />
+        <PopoverTrigger>
+          <Button variant="ghost" size="icon">
+            <Search className="size-4" />
+          </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" side="bottom">
-          <div className="border-borded dark:bg-background flex h-[calc(100vh-100px)] max-h-[600px] flex-col rounded-md border bg-white shadow-md">
-            <div className="flex items-center gap-2 self-stretch p-2">
-              <Search className="size-4" />
+        <PopoverContent align="end" side="bottom" className="p-0">
+          <div className="flex h-[calc(100vh-100px)] max-h-[600px] flex-col">
+            <div className="relative flex items-center gap-2 self-stretch p-2">
+              <Search className="absolute top-1/2 left-4 z-30 size-4 -translate-y-1/2" />
               <Input
                 value={searchValue}
-                className="flex-1"
+                className="h-8 flex-1 pl-8"
                 onChange={(e) => {
                   setSearchValue(e.target.value)
                 }}
@@ -189,21 +191,56 @@ export function HeaderSearch({
                   }
 
                   if (e.key === 'Enter') {
+                    console.log('🔍 [DEBUG] Enter key pressed')
                     e.preventDefault()
-                    if (!universalAppContext) return
+
+                    if (!universalAppContext) {
+                      console.log('🔍 [DEBUG] No universalAppContext found')
+                      return
+                    }
+                    console.log(
+                      '🔍 [DEBUG] universalAppContext exists:',
+                      universalAppContext,
+                    )
 
                     const selectedEntity =
                       searchResults.data?.entities[focusedIndex]
-                    if (!selectedEntity) return
+                    console.log(
+                      '🔍 [DEBUG] selectedEntity:',
+                      selectedEntity,
+                      'focusedIndex:',
+                      focusedIndex,
+                    )
+
+                    if (!selectedEntity) {
+                      console.log('🔍 [DEBUG] No selectedEntity found')
+                      return
+                    }
 
                     const selectedEntityUrl = idToUrl(selectedEntity.id, {
                       originHomeId: universalAppContext.originHomeId,
                     })
+                    console.log(
+                      '🔍 [DEBUG] selectedEntityUrl:',
+                      selectedEntityUrl,
+                    )
 
-                    if (!selectedEntityUrl) return
+                    if (!selectedEntityUrl) {
+                      console.log('🔍 [DEBUG] No selectedEntityUrl generated')
+                      return
+                    }
+
+                    console.log(
+                      '🔍 [DEBUG] About to call openUrl with:',
+                      selectedEntityUrl,
+                    )
+
                     universalAppContext.openUrl(selectedEntityUrl)
 
                     popoverState.onOpenChange(false)
+                    console.log(
+                      '🔍 [DEBUG] Navigation completed, popover closed',
+                    )
                   }
 
                   if (e.key === 'ArrowUp') {
@@ -224,57 +261,63 @@ export function HeaderSearch({
             <div className="min-h-0 w-full max-w-2xl flex-1">
               <ScrollArea>
                 <div className="flex flex-col">
-                  {searchItems.map((item: SearchResult, index: number) => {
-                    return (
-                      <Fragment key={item.key}>
-                        <div
-                          ref={
-                            focusedIndex === index
-                              ? (el) => {
-                                  if (el) {
-                                    const container = el.closest(
-                                      '[data-radix-scroll-area-viewport]',
-                                    )
-                                    if (container) {
-                                      const containerRect =
-                                        container.getBoundingClientRect()
-                                      const elementRect =
-                                        el.getBoundingClientRect()
+                  {searchItems.length > 0 ? (
+                    searchItems.map((item: SearchResult, index: number) => {
+                      return (
+                        <Fragment key={item.key}>
+                          <div
+                            ref={
+                              focusedIndex === index
+                                ? (el) => {
+                                    if (el) {
+                                      const container = el.closest(
+                                        '[data-radix-scroll-area-viewport]',
+                                      )
+                                      if (container) {
+                                        const containerRect =
+                                          container.getBoundingClientRect()
+                                        const elementRect =
+                                          el.getBoundingClientRect()
 
-                                      if (
-                                        elementRect.bottom >
-                                        containerRect.bottom
-                                      ) {
-                                        container.scrollTop +=
-                                          elementRect.bottom -
+                                        if (
+                                          elementRect.bottom >
                                           containerRect.bottom
-                                      } else if (
-                                        elementRect.top < containerRect.top
-                                      ) {
-                                        container.scrollTop -=
-                                          containerRect.top - elementRect.top
+                                        ) {
+                                          container.scrollTop +=
+                                            elementRect.bottom -
+                                            containerRect.bottom
+                                        } else if (
+                                          elementRect.top < containerRect.top
+                                        ) {
+                                          container.scrollTop -=
+                                            containerRect.top - elementRect.top
+                                        }
                                       }
                                     }
                                   }
-                                }
-                              : undefined
-                          }
-                        >
-                          <SearchResultItem
-                            item={item}
-                            originHomeId={originHomeId}
-                            selected={focusedIndex === index}
-                            // onSelect={() => {
-                            //   popoverState.onOpenChange(false)
-                            // }}
-                          />
-                        </div>
-                        {index === searchItems.length - 1 ? undefined : (
-                          <Separator />
-                        )}
-                      </Fragment>
-                    )
-                  })}
+                                : undefined
+                            }
+                          >
+                            <SearchResultItem
+                              item={item}
+                              originHomeId={originHomeId}
+                              selected={focusedIndex === index}
+                              // onSelect={() => {
+                              //   popoverState.onOpenChange(false)
+                              // }}
+                            />
+                          </div>
+                          {index === searchItems.length - 1 ? undefined : (
+                            <Separator />
+                          )}
+                        </Fragment>
+                      )
+                    })
+                  ) : (
+                    <div className="text-muted-foreground p-4 text-center">
+                      No results found
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </div>
@@ -451,8 +494,8 @@ export function SearchInput({
 }: PropsWithChildren<{
   searchResults: Array<SearchResult>
   inputProps: {
-    value: InputProps['value']
-    onChangeText: InputProps['onChangeText']
+    value: string
+    onChangeText: (text: string) => void
     disabled: boolean
   }
   onEscape: () => void
@@ -463,23 +506,13 @@ export function SearchInput({
 }>) {
   return (
     <div className="flex w-full flex-col gap-2">
-      <div className="border-border flex items-center gap-2 rounded-md border px-2">
-        <div className="flex-none">
-          <Search className="size-4" />
-        </div>
-
+      <div className="relative flex items-center gap-2 rounded-md">
+        <Search className="absolute top-1/2 left-2.5 z-30 size-4 -translate-y-1/2" />
         <Input
           autoFocus={true}
-          variant="unstyled"
           placeholder="Search Hypermedia documents"
-          className="w-full px-1"
+          className="w-full px-1 pl-8"
           {...inputProps}
-          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.nativeEvent.key === 'Enter') {
-              e.preventDefault()
-              onEnter()
-            }
-          }}
           onKeyUp={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {
               e.preventDefault()
@@ -503,7 +536,7 @@ export function SearchInput({
           }}
         />
       </div>
-      <ScrollArea className="h-[200px]">{children}</ScrollArea>
+      <ScrollArea className="h-full max-h-[200px]">{children}</ScrollArea>
     </div>
   )
 }
