@@ -104,11 +104,21 @@ export async function getAccount(
   }
 }
 
-export async function getComment(id: string): Promise<HMComment> {
-  const rawDoc = await queryClient.comments.getComment({
-    id,
-  })
-  return HMCommentSchema.parse(rawDoc.toJson())
+export async function getComment(id: string): Promise<HMComment | null> {
+  try {
+    const rawDoc = await queryClient.comments.getComment({
+      id,
+    })
+    return HMCommentSchema.parse(rawDoc.toJson())
+  } catch (error: any) {
+    // Handle ConnectError for NotFound comments gracefully
+    if (error?.code === 'not_found' || error?.message?.includes('not found')) {
+      console.warn(`Comment ${id} not found, treating as acceptable warning`)
+      return null
+    }
+    // Re-throw other errors
+    throw error
+  }
 }
 
 export type WebResourcePayload = {

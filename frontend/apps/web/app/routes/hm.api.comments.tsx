@@ -34,11 +34,28 @@ export const loader = async ({
       try {
         const sourceId = unpackHmId(mention.source)
         if (!sourceId) continue
-        const comment = await queryClient.comments.getComment({
-          id: mention.sourceBlob?.cid,
-        })
-        if (!comment) continue
-        allComments.push(comment.toJson({emitDefaultValues: true}) as HMComment)
+        try {
+          const comment = await queryClient.comments.getComment({
+            id: mention.sourceBlob?.cid,
+          })
+          if (!comment) continue
+          allComments.push(
+            comment.toJson({emitDefaultValues: true}) as HMComment,
+          )
+        } catch (commentError: any) {
+          // Handle ConnectError for NotFound comments gracefully
+          if (
+            commentError?.code === 'not_found' ||
+            commentError?.message?.includes('not found')
+          ) {
+            console.warn(
+              `Comment ${mention.sourceBlob?.cid} not found, skipping`,
+            )
+            continue
+          }
+          // Re-throw other errors
+          throw commentError
+        }
       } catch (error) {
         console.error('=== comment error', error)
       }

@@ -86,10 +86,25 @@ function queryComment(
     enabled: opts?.enabled !== false && !!commentId,
     queryFn: async () => {
       if (!commentId) return null
-      const comment = await grpcClient.comments.getComment({
-        id: commentId,
-      })
-      return toPlainMessage(comment) as HMComment
+      try {
+        const comment = await grpcClient.comments.getComment({
+          id: commentId,
+        })
+        return toPlainMessage(comment) as HMComment
+      } catch (error: any) {
+        // Handle ConnectError for NotFound comments gracefully
+        if (
+          error?.code === 'not_found' ||
+          error?.message?.includes('not found')
+        ) {
+          console.warn(
+            `Comment ${commentId} not found, treating as acceptable warning`,
+          )
+          return null
+        }
+        // Re-throw other errors
+        throw error
+      }
     },
   }
 }

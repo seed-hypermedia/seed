@@ -45,36 +45,53 @@ export const loader = async ({
         // mention.sourceType
         // if (mention.source?.type !== 'c') continue
         if (mention.targetFragment !== blockId) continue
-        const serverComment = await queryClient.comments.getComment({
-          id: mention.sourceBlob?.cid,
-        })
-        if (!serverComment) continue
-        const comment = serverComment.toJson({
-          emitDefaultValues: true,
-        }) as HMComment
-        allComments.push(comment)
+        try {
+          const serverComment = await queryClient.comments.getComment({
+            id: mention.sourceBlob?.cid,
+          })
+          if (!serverComment) continue
+          const comment = serverComment.toJson({
+            emitDefaultValues: true,
+          }) as HMComment
+          allComments.push(comment)
 
-        const targetFragment = parseFragment(mention.targetFragment)
-        const citationTargetId = hmId(targetId.uid, {
-          path: targetId.path,
-          version: mention.targetVersion,
-        })
+          const targetFragment = parseFragment(mention.targetFragment)
+          const citationTargetId = hmId(targetId.uid, {
+            path: targetId.path,
+            version: mention.targetVersion,
+          })
 
-        const author = comment.author ? await getAccount(comment.author) : null
+          const author = comment.author
+            ? await getAccount(comment.author)
+            : null
 
-        citingComments.push({
-          source: {
-            id: sourceId,
-            type: 'c',
-            author: mention.sourceBlob?.author,
-            time: mention.sourceBlob?.createTime,
-          },
-          targetFragment,
-          targetId: citationTargetId,
-          isExactVersion: mention.isExactVersion,
-          comment,
-          author,
-        })
+          citingComments.push({
+            source: {
+              id: sourceId,
+              type: 'c',
+              author: mention.sourceBlob?.author,
+              time: mention.sourceBlob?.createTime,
+            },
+            targetFragment,
+            targetId: citationTargetId,
+            isExactVersion: mention.isExactVersion,
+            comment,
+            author,
+          })
+        } catch (commentError: any) {
+          // Handle ConnectError for NotFound comments gracefully
+          if (
+            commentError?.code === 'not_found' ||
+            commentError?.message?.includes('not found')
+          ) {
+            console.warn(
+              `Comment ${mention.sourceBlob?.cid} not found, skipping`,
+            )
+            continue
+          }
+          // Re-throw other errors
+          throw commentError
+        }
       } catch (error) {
         console.error('=== comment error', error)
       }

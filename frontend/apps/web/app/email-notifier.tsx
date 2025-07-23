@@ -439,12 +439,27 @@ async function getParentComments(comment: PlainMessage<Comment>) {
   const parentComments: PlainMessage<Comment>[] = []
   let currentComment = comment
   while (currentComment.replyParent) {
-    const parentComment = await queryClient.comments.getComment({
-      id: currentComment.replyParent,
-    })
-    const parentCommentPlain = toPlainMessage(parentComment)
-    parentComments.push(parentCommentPlain)
-    currentComment = parentCommentPlain
+    try {
+      const parentComment = await queryClient.comments.getComment({
+        id: currentComment.replyParent,
+      })
+      const parentCommentPlain = toPlainMessage(parentComment)
+      parentComments.push(parentCommentPlain)
+      currentComment = parentCommentPlain
+    } catch (error: any) {
+      // Handle ConnectError for NotFound comments gracefully
+      if (
+        error?.code === 'not_found' ||
+        error?.message?.includes('not found')
+      ) {
+        console.warn(
+          `Parent comment ${currentComment.replyParent} not found, stopping parent traversal`,
+        )
+        break // Stop traversing up the parent chain
+      }
+      // Re-throw other errors
+      throw error
+    }
   }
   return parentComments
 }

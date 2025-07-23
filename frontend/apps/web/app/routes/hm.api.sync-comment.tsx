@@ -58,7 +58,7 @@ export const action: ActionFunction = async ({request}) => {
         message: 'Success',
       }),
     )
-  } catch (error) {
+  } catch (error: any) {
     return withCors(
       json({message: 'Error syncing comment:' + error.message}, {status: 500}),
     )
@@ -71,8 +71,13 @@ async function getCommentExists(commentId: string) {
       id: commentId,
     })
     return true
-  } catch (error) {
-    return false
+  } catch (error: any) {
+    // Handle ConnectError for NotFound comments gracefully
+    if (error?.code === 'not_found' || error?.message?.includes('not found')) {
+      return false
+    }
+    // Re-throw other errors
+    throw error
   }
 }
 
@@ -92,11 +97,24 @@ async function syncComment({
   const comment = await tryUntilSuccess(
     async () => {
       console.log('checking comment', commentId)
-      const comment = await queryClient.comments.getComment({
-        id: commentId,
-      })
-      console.log('comment', comment)
-      return comment
+      try {
+        const comment = await queryClient.comments.getComment({
+          id: commentId,
+        })
+        console.log('comment', comment)
+        return comment
+      } catch (error: any) {
+        // Handle ConnectError for NotFound comments gracefully
+        if (
+          error?.code === 'not_found' ||
+          error?.message?.includes('not found')
+        ) {
+          console.warn(`Comment ${commentId} not found during sync, will retry`)
+          return null // This will cause tryUntilSuccess to retry
+        }
+        // Re-throw other errors
+        throw error
+      }
     },
     {
       retryDelayMs: 1000,
