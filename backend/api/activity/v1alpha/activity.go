@@ -39,7 +39,7 @@ type Server struct {
 	syncer    syncer
 }
 
-var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*]*$`)
+var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`)
 
 // NewServer creates a new Server.
 func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server {
