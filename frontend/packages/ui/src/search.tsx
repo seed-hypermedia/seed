@@ -1,6 +1,5 @@
 import {
   getDocumentTitle,
-  idToUrl,
   packHmId,
   SearchResult,
   UnpackedHypermediaId,
@@ -217,25 +216,10 @@ export function HeaderSearch({
                       return
                     }
 
-                    const selectedEntityUrl = idToUrl(selectedEntity.id, {
-                      originHomeId: universalAppContext.originHomeId,
+                    universalAppContext.openRoute?.({
+                      key: 'document',
+                      id: selectedEntity.id,
                     })
-                    console.log(
-                      '🔍 [DEBUG] selectedEntityUrl:',
-                      selectedEntityUrl,
-                    )
-
-                    if (!selectedEntityUrl) {
-                      console.log('🔍 [DEBUG] No selectedEntityUrl generated')
-                      return
-                    }
-
-                    console.log(
-                      '🔍 [DEBUG] About to call openUrl with:',
-                      selectedEntityUrl,
-                    )
-
-                    universalAppContext.openUrl(selectedEntityUrl)
 
                     popoverState.onOpenChange(false)
                     console.log(
