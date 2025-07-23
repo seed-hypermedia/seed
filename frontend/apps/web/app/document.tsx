@@ -77,11 +77,11 @@ import {unwrap, Wrapped} from './wrapping'
 export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>
   loaderHeaders
 
-export const documentPageMeta: MetaFunction = ({
+export const documentPageMeta = ({
   data,
 }: {
   data: Wrapped<SiteDocumentPayload>
-}) => {
+}): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
   const homeIcon = siteDocument?.homeMetadata?.icon
     ? getOptimizedImageUrl(

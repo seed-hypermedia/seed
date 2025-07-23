@@ -6,18 +6,21 @@ import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
-import {Params, useLoaderData} from '@remix-run/react'
+import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 
 type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
-export const meta: typeof documentPageMeta = (args) => {
+export const meta: MetaFunction<typeof loader> = (args) => {
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
-  return documentPageMeta(args)
+  return documentPageMeta({
+    // @ts-expect-error
+    data: args.data,
+  })
 }
 
 export const headers = documentPageHeaders

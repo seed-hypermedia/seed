@@ -1,5 +1,5 @@
 import {Params} from '@remix-run/react'
-import {loader as loaderFn} from './$'
+import {loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({
   params,
@@ -15,3 +15,5 @@ export const loader = async ({
 }
 
 export {default} from './$'
+
+export const meta = metaFn
