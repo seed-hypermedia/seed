@@ -337,7 +337,7 @@ function PublishOptionButton({
 function BackButton({onPress}: {onPress: () => void}) {
   return (
     <Button size="icon" onClick={onPress} variant="ghost">
-      <ArrowLeft className="size-4" />
+      <ArrowLeft className="text-muted-foreground size-4" />
     </Button>
   )
 }
@@ -899,17 +899,26 @@ function SeedHostRegisterSubdomain({
       heading="Register Hyper.Media Subdomain"
       backButton={<BackButton onPress={onBack} />}
       footer={
-        <div className="flex">
+        <div className="flex items-center gap-0">
           <SizableText size="sm" className="text-muted-foreground">
             Logged in as{' '}
           </SizableText>
+
           <HoverCard>
             <HoverCardTrigger>
-              <SizableText className="text-blue-300" size="sm">
+              <Button
+                variant="link"
+                size="xs"
+                className="text-blue-300 underline-offset-4 hover:text-blue-400 hover:underline"
+                onClick={() => {
+                  onLogout()
+                  logout()
+                }}
+              >
                 {email}
-              </SizableText>
+              </Button>
             </HoverCardTrigger>
-            <HoverCardContent>
+            <HoverCardContent className="dark w-full max-w-3xl rounded-lg bg-black p-2">
               <div className="flex flex-col gap-2 p-2">
                 <SizableText size="sm" className="text-muted-foreground">
                   Logged into{' '}
@@ -922,12 +931,14 @@ function SeedHostRegisterSubdomain({
                   </Text>
                 </SizableText>
                 <Button
+                  size="xs"
+                  variant="destructive"
                   onClick={() => {
                     onLogout()
                     logout()
                   }}
                 >
-                  Log Out
+                  Logout
                 </Button>
               </div>
             </HoverCardContent>
