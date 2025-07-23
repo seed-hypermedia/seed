@@ -2397,7 +2397,7 @@ export function DocumentCardGrid({
   return (
     <div className="flex w-full flex-col">
       {firstItem ? (
-        <div className="flex p-3">
+        <div className="flex">
           <DocumentCard
             banner
             entity={getEntity(firstItem.item.path)}
