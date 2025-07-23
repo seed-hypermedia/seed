@@ -339,13 +339,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 
   return (
     <div className="bg-background window-drag flex flex-1 flex-col">
-      <ReadyStep onComplete={handleNext} />
-      <OnboardingProgress currentStep={currentStep} />
-    </div>
-  )
-
-  return (
-    <div className="bg-background window-drag flex flex-1 flex-col">
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep
