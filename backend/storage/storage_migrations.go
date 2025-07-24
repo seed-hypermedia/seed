@@ -57,6 +57,33 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+
+	{Version: "2025-07-24.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE fts_index
+			ADD COLUMN ts INTEGER;
+			`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE fts_index
+			ADD COLUMN genesis_blob INTEGER;
+			`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE INDEX fts_index_by_ts ON fts_index (ts);
+			`)); err != nil {
+			return err
+		}
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE INDEX fts_index_by_genesis_blob ON fts_index (genesis_blob);
+			`)); err != nil {
+			return err
+		}
+		// Reindexing to fix comment causality issues again.
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-07-22.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to fix comment causality issues again.
 		return scheduleReindex(conn)

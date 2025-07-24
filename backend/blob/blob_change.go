@@ -422,7 +422,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			// TODO(hm24): index other relevant metadata for list response and so on.
 			if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
 				extra.Title = vs
-				if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String()); err != nil {
+				if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
 			}
@@ -462,7 +462,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 					// TODO(hm24): index other relevant metadata for list response and so on.
 					if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
 						extra.Title = vs
-						if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String()); err != nil {
+						if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 							return fmt.Errorf("failed to insert record in fts table: %w", err)
 						}
 					}
@@ -495,7 +495,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 					return err
 				}
 			}
-			if err := dbFTSInsertOrReplace(ictx.conn, blk.Text, "document", id, blk.ID(), sb.CID.String()); err != nil {
+			if err := dbFTSInsertOrReplace(ictx.conn, blk.Text, "document", id, blk.ID(), sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
 		}

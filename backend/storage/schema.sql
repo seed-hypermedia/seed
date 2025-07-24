@@ -271,9 +271,15 @@ CREATE TABLE fts_index (
     -- The block ID of the block that contains the content.
     block_id TEXT NOT NULL,
     -- The type of the content being indexed.
-    type TEXT NOT NULL
+    type TEXT NOT NULL,
+    -- The timestamp of the content being indexed.
+    ts INTEGER,
+    -- The genesis blob ID of the content being indexed.
+    genesis_blob INTEGER
 ) WITHOUT ROWID;
 CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
 CREATE INDEX fts_index_by_version ON fts_index (version);
 CREATE INDEX fts_index_by_block ON fts_index (block_id);
 CREATE INDEX fts_index_by_type ON fts_index (type);
+CREATE INDEX fts_index_by_ts ON fts_index (ts);
+CREATE INDEX fts_index_by_genesis_blob ON fts_index (genesis_blob);
