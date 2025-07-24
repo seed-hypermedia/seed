@@ -77,7 +77,7 @@ export function useCommentDraft(
 
 function queryComment(
   grpcClient: GRPCClient,
-  commentId: string | undefined,
+  commentId: string | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
   return {
@@ -110,12 +110,10 @@ function queryComment(
 }
 
 export function useComment(
-  id: UnpackedHypermediaId | null | undefined,
+  id: string | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
-  return useQuery(
-    queryComment(grpcClient, id?.type == 'c' ? id.uid : undefined, opts),
-  )
+  return useQuery(queryComment(grpcClient, id, opts))
 }
 
 export function useComments(commentIds: string[] = []) {
@@ -427,6 +425,32 @@ function usePushComments() {
           uid: targetDocId.uid,
         })
       }
+    },
+  })
+}
+
+export function useDeleteComment() {
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      targetDocId,
+      signingAccountId,
+    }: {
+      commentId: string
+      targetDocId: UnpackedHypermediaId
+      signingAccountId: string
+    }) => {
+      await grpcClient.comments.deleteComment({
+        id: commentId,
+        signingKeyName: signingAccountId,
+      })
+    },
+    onSuccess: (result, variables) => {
+      invalidateQueries([
+        queryKeys.DOCUMENT_DISCUSSION,
+        // variables.targetDocId.id,
+      ])
+      invalidateQueries([])
     },
   })
 }

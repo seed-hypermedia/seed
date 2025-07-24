@@ -30,6 +30,7 @@ export function OptionsDropdown({
   button,
   side,
   align,
+  className,
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
@@ -37,6 +38,7 @@ export function OptionsDropdown({
   button?: JSX.Element
   side?: DropdownMenuContentProps['side']
   align?: DropdownMenuContentProps['align']
+  className?: string
 }) {
   const popoverState = usePopoverState()
   return (
@@ -46,6 +48,7 @@ export function OptionsDropdown({
         !popoverState.open && hiddenUntilItemHover
           ? 'opacity-0'
           : 'opacity-100',
+        className,
       )}
     >
       <DropdownMenu>

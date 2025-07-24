@@ -1,7 +1,8 @@
 import {useDocumentCitations} from '@/models/citations'
-import {useAllDocumentComments} from '@/models/comments'
+import {useAllDocumentComments, useDeleteComment} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {useSelectedAccountId} from '@/selected-account'
 import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -9,7 +10,11 @@ import {useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
-import {CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
+import {
+  CommentGroup,
+  QuotedDocBlock,
+  useDeleteCommentDialog,
+} from '@shm/ui/discussion'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -62,6 +67,9 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useAllDocumentComments(docId)
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
+  const myAccountId = useSelectedAccountId()
+  const deleteComment = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
 
   let panelContent = null
   if (comments.isLoading && !comments.data) {
@@ -79,7 +87,19 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
               }}
             >
               <CommentGroup
-                rootReplyCommentId={null}
+                currentAccountId={myAccountId ?? undefined}
+                onDelete={(id) => {
+                  if (!myAccountId) return
+                  deleteCommentDialog.open({
+                    onConfirm: () => {
+                      deleteComment.mutate({
+                        commentId: id,
+                        targetDocId: docId,
+                        signingAccountId: myAccountId,
+                      })
+                    },
+                  })
+                }}
                 key={cg.id}
                 commentGroup={cg}
                 authors={authors}
@@ -99,6 +119,7 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
       footer={<CommentBox docId={docId} backgroundColor="$colorTransparent" />}
     >
       {panelContent}
+      {deleteCommentDialog.content}
     </AccessoryContent>
   )
 }
@@ -193,6 +214,9 @@ function CommentReplyAccessory({
   const commentAuthors = useContacts(threadAuthorIds)
   const rootCommentId = threadComments?.at(0)?.id
   const tx = useTxString()
+  const myAccountId = useSelectedAccountId()
+  const deleteComment = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
   return (
     <AccessoryContent
       footer={
@@ -218,6 +242,22 @@ function CommentReplyAccessory({
                 .map((id, index) => [id, commentAuthors[index].data])
                 .filter(([id, v]) => !!v),
             )}
+            onDelete={(id) => {
+              if (!myAccountId) return
+              deleteCommentDialog.open({
+                onConfirm: () => {
+                  deleteComment.mutate({
+                    commentId: id,
+                    targetDocId: docId,
+                    signingAccountId: myAccountId,
+                  })
+                  if (id === commentId) {
+                    onBack()
+                  }
+                },
+              })
+            }}
+            currentAccountId={myAccountId ?? undefined}
             renderCommentContent={renderCommentContent}
             highlightLastComment
           />
@@ -231,6 +271,7 @@ function CommentReplyAccessory({
         docId={docId}
         commentId={commentId}
       />
+      {deleteCommentDialog.content}
     </AccessoryContent>
   )
 }

@@ -18,7 +18,6 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
   return documentPageMeta({
-    // @ts-expect-error
     data: args.data,
   })
 }

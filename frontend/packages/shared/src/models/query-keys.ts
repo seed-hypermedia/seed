@@ -160,8 +160,8 @@ export function labelOfQueryKey(key: QueryKey) {
     // comments
     case queryKeys.COMMENT:
       return 'Comment'
-    case queryKeys.DOCUMENT_COMMENTS:
-      return 'Document Comments'
+    case queryKeys.DOCUMENT_DISCUSSION:
+      return 'Document Discussion'
 
     // web-links
     case queryKeys.GET_URL:

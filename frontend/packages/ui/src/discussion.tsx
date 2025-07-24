@@ -1,4 +1,8 @@
 import {
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@radix-ui/react-alert-dialog'
+import {
   formattedDateMedium,
   getCommentTargetId,
   HMAccountsMetadata,
@@ -13,7 +17,7 @@ import {
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {ChevronRight, Link} from 'lucide-react'
+import {ChevronRight, Link, Trash2} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import {Button} from './button'
@@ -21,7 +25,9 @@ import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent, getBlockNodeById} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Tooltip} from './tooltip'
+import {useAppDialog} from './universal-dialog'
 import {cn} from './utils'
 
 const avatarSize = 18
@@ -33,12 +39,16 @@ export function CommentGroup({
   renderCommentContent,
   enableReplies = true,
   highlightLastComment = false,
+  onDelete,
+  currentAccountId,
 }: {
   commentGroup: HMCommentGroup
   authors?: HMAccountsMetadata | undefined
   renderCommentContent: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   highlightLastComment?: boolean
+  onDelete?: (commentId: string) => void
+  currentAccountId?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
@@ -55,6 +65,7 @@ export function CommentGroup({
       )}
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
+        const isCurrentAccountComment = comment.author === currentAccountId
         return (
           <Comment
             isLast={isLastCommentInGroup}
@@ -68,6 +79,9 @@ export function CommentGroup({
             }
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
+            onDelete={
+              isCurrentAccountComment ? () => onDelete?.(comment.id) : undefined
+            }
           />
         )
       })}
@@ -85,6 +99,7 @@ export function Comment({
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
+  onDelete,
 }: {
   comment: HMComment
   replyCount?: number
@@ -95,6 +110,7 @@ export function Comment({
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
+  onDelete?: () => void
 }) {
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const discussionsContext = useDiscussionsContext()
@@ -114,6 +130,17 @@ export function Comment({
     }
   }, [defaultExpandReplies])
   const getUrl = useResourceUrl()
+  const options: MenuItemType[] = []
+  if (onDelete) {
+    options.push({
+      icon: Trash2,
+      label: 'Delete',
+      onPress: () => {
+        onDelete()
+      },
+      key: 'delete',
+    })
+  }
   return (
     <div
       className={cn(
@@ -181,6 +208,12 @@ export function Comment({
               <Link className="size-3" />
             </Button>
           </Tooltip>
+          {options.length > 0 ? (
+            <OptionsDropdown
+              className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+              menuItems={options}
+            />
+          ) : null}
         </div>
         <div className="-ml-2">{renderCommentContent(comment)}</div>
         {!highlight && (
@@ -282,5 +315,38 @@ export function QuotedDocBlock({
         </div>
       </div>
     </div>
+  )
+}
+
+export function useDeleteCommentDialog() {
+  return useAppDialog(DeleteCommentDialog, {isAlert: true})
+}
+
+function DeleteCommentDialog({
+  input,
+  onClose,
+}: {
+  input: {onConfirm: () => void}
+  onClose: () => void
+}) {
+  return (
+    <>
+      <AlertDialogTitle className="text-xl font-bold">
+        Really Delete?
+      </AlertDialogTitle>
+      <AlertDialogDescription>
+        You will publicly delete this comment, although other peers may have
+        already archived it.
+      </AlertDialogDescription>
+      <Button
+        variant="destructive"
+        onClick={() => {
+          input.onConfirm()
+          onClose()
+        }}
+      >
+        Delete Comment
+      </Button>
+    </>
   )
 }
