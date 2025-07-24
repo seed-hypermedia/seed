@@ -239,8 +239,9 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
   let resultAccessory =
     'accessory' in nextRoute ? nextRoute.accessory : undefined
 
-  // If nextRoute has no accessory, spread from prevRoute
-  if (!resultAccessory) {
+  // If nextRoute has no accessory (undefined), spread from prevRoute
+  // Note: if accessory is null, it means explicitly closed, so don't spread
+  if (resultAccessory === undefined) {
     if (prevRoute.key === 'document' || prevRoute.key === 'draft') {
       const prevAccessory =
         'accessory' in prevRoute ? prevRoute.accessory : undefined
@@ -269,7 +270,7 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
 
   const result = {
     ...nextRoute,
-    ...(resultAccessory && {accessory: resultAccessory}),
+    ...(resultAccessory !== undefined && {accessory: resultAccessory}),
   }
 
   return result

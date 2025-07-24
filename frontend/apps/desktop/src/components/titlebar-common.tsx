@@ -602,7 +602,6 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
       const now = Date.now()
       // Only process click if it's been more than 300ms since the last click
       if (now - lastClickTime.current > 300) {
-        console.log('debug == menu panel button clicked')
         onPress()
         lastClickTime.current = now
       }
