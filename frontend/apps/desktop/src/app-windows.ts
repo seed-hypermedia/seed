@@ -47,49 +47,27 @@ function shouldPreventDuplicateWindow(routeKey: string): boolean {
 
 // Find an existing window that has the specified route as its currently active route
 function findWindowWithActiveRoute(routeKey: string): BrowserWindow | null {
-  console.log(
-    `[DEBUG] Looking for existing window with active route: ${routeKey}`,
-  )
-  console.log(`[DEBUG] Total windows: ${allWindows.size}`)
-
   const windowEntries = Array.from(allWindows.entries())
   for (const [windowId, browserWindow] of windowEntries) {
     const navState = windowNavState[windowId]
-    console.log(`[DEBUG] Window ${windowId}:`, {
-      hasNavState: !!navState,
-      routesLength: navState?.routes?.length || 0,
-      routeIndex: navState?.routeIndex,
-      activeRouteKey: navState?.routes?.[navState.routeIndex]?.key,
-    })
 
     if (navState && navState.routes.length > 0) {
       const activeRoute = navState.routes[navState.routeIndex]
       if (activeRoute && activeRoute.key === routeKey) {
-        console.log(`[DEBUG] Found existing window with route ${routeKey}`)
         return browserWindow
       }
     }
   }
-  console.log(`[DEBUG] No existing window found with active route: ${routeKey}`)
   return null
 }
 
 // Focus an existing window and restore it if minimized
 function focusExistingWindow(browserWindow: BrowserWindow): void {
-  console.log(`[DEBUG] Focusing existing window:`, {
-    isMinimized: browserWindow.isMinimized(),
-    isVisible: browserWindow.isVisible(),
-    isFocused: browserWindow.isFocused(),
-  })
-
   if (browserWindow.isMinimized()) {
-    console.log(`[DEBUG] Restoring minimized window`)
     browserWindow.restore()
   }
   browserWindow.focus()
   browserWindow.show()
-
-  console.log(`[DEBUG] Window focused and shown`)
 }
 
 export function closeAppWindow(windowId: string) {
@@ -279,30 +257,12 @@ export function createAppWindow(
   const initRouteIndex = input?.routeIndex || 0
   const targetRoute = initRoutes[initRouteIndex]
 
-  console.log(`[DEBUG] createAppWindow called with:`, {
-    targetRouteKey: targetRoute?.key,
-    shouldPrevent: targetRoute
-      ? shouldPreventDuplicateWindow(targetRoute.key)
-      : false,
-    inputRoutes: input?.routes,
-    inputRouteIndex: input?.routeIndex,
-  })
-
   if (targetRoute && shouldPreventDuplicateWindow(targetRoute.key)) {
-    console.log(
-      `[DEBUG] Checking for duplicate window for route: ${targetRoute.key}`,
-    )
     const existingWindow = findWindowWithActiveRoute(targetRoute.key)
     if (existingWindow) {
-      console.log(
-        `[DEBUG] Found existing window, focusing it instead of creating new one`,
-      )
       focusExistingWindow(existingWindow)
       return existingWindow
     }
-    console.log(
-      `[DEBUG] No existing window found, proceeding to create new window`,
-    )
   }
 
   const selectedIdentity = input.selectedIdentity || getLastSelectedIdentity()
@@ -384,12 +344,6 @@ export function createAppWindow(
     selectedIdentity,
   }
   windowNavState[windowId] = windValue
-
-  console.log(`[DEBUG] Set windowNavState for ${windowId}:`, {
-    activeRouteKey: windValue.routes[windValue.routeIndex]?.key,
-    routeIndex: windValue.routeIndex,
-    routesLength: windValue.routes.length,
-  })
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
     e.returnValue = {

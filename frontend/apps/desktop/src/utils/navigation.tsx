@@ -235,14 +235,6 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
 
   const prevRoute = routes[routes.length - 1]
 
-  // Debug logging for document-to-document transitions
-  if (prevRoute.key === 'document' && nextRoute.key === 'document') {
-    console.log('🔍 [DEBUG] Document-to-Document transition:', {
-      prevAccessory: 'accessory' in prevRoute ? prevRoute.accessory : 'none',
-      nextAccessory: 'accessory' in nextRoute ? nextRoute.accessory : 'none',
-    })
-  }
-
   // Step 1: Determine the accessory to use
   let resultAccessory =
     'accessory' in nextRoute ? nextRoute.accessory : undefined
@@ -260,40 +252,24 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
           nextRoute.key === 'document'
         ) {
           resultAccessory = undefined
-          console.log('🔍 [DEBUG] Not spreading options from draft to document')
         } else {
           resultAccessory = prevAccessory
-          console.log(
-            '🔍 [DEBUG] Spreading accessory:',
-            prevAccessory,
-            '→',
-            resultAccessory,
-          )
         }
       } else if (nextRoute.key === 'draft') {
         // Special case: going to draft with no accessory defaults to 'options'
         resultAccessory = {key: 'options'}
-        console.log('🔍 [DEBUG] Defaulting to options for draft')
       }
     }
   }
 
   // Step 2: Post-processing - if result is document with 'options', change to 'activity'
   if (nextRoute.key === 'document' && resultAccessory?.key === 'options') {
-    console.log('🔍 [DEBUG] Post-processing: changing options to activity')
     resultAccessory = {key: 'activity'}
   }
 
   const result = {
     ...nextRoute,
     ...(resultAccessory && {accessory: resultAccessory}),
-  }
-
-  // Debug final result for document-to-document
-  if (prevRoute.key === 'document' && nextRoute.key === 'document') {
-    console.log('🔍 [DEBUG] Final document-to-document result:', {
-      resultAccessory: resultAccessory,
-    })
   }
 
   return result
