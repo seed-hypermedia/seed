@@ -6,7 +6,16 @@ import {LinkMenuProps} from './LinkMenuPositioner'
 export function DefaultLinkMenu<BSchema extends BlockSchema>(
   props: LinkMenuProps<BSchema>,
 ) {
-  const {classes} = createStyles({root: {}})(undefined, {
+  const {classes} = createStyles({
+    root: {
+      // Ensure the menu doesn't interfere with Tippy's positioning
+      position: 'static',
+      // Add max width to prevent extremely wide menus
+      maxWidth: '320px',
+      // Ensure proper z-index layering
+      zIndex: 1000,
+    },
+  })(undefined, {
     name: 'LinkMenu',
   })
   const renderedItems: any[] = []
@@ -46,6 +55,10 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
       defaultOpened={true}
       trigger={'hover'}
       closeDelay={10000000}
+      // Let Tippy handle all positioning
+      position="bottom-start"
+      shadow="md"
+      withinPortal={false} // Important: let Tippy handle the portal
     >
       <Menu.Dropdown
         // TODO: This should go back in the plugin.
