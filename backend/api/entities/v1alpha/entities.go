@@ -221,11 +221,10 @@ SELECT
   block_id,
   ts
   from fts_index
-  -- WHERE type = :entityType
-  WHERE type IN ('title', 'document')
+  WHERE type IN ('title', 'document', 'meta')
   AND ts >= :Ts
   AND genesis_blob = :genesisBlobID
-  AND blob_id != :blobID
+  AND rowid != :rowID
   ORDER BY ts ASC
 `)
 var qGetFTS = dqb.Str(`
@@ -238,7 +237,8 @@ WITH fts_top100 AS (
     fts.blob_id,
     structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-    fts.rank
+    fts.rank,
+	fts.rowid
   FROM fts
     JOIN structural_blobs
       ON structural_blobs.id = fts.blob_id
@@ -281,7 +281,8 @@ SELECT
         ON b2.id = a.value
   ) AS heads,
   structural_blobs.ts,
-  structural_blobs.genesis_blob
+  structural_blobs.genesis_blob,
+  f.rowid
 FROM fts_top100 AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
@@ -347,6 +348,7 @@ type searchResult struct {
 	blobCID       string
 	blobID        int64
 	genesisBlobID int64
+	rowID         int64
 	contentType   string
 	version       string
 	versionTime   *timestamppb.Timestamp
@@ -485,6 +487,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			if res.genesisBlobID == 0 {
 				res.genesisBlobID = res.blobID
 			}
+			res.rowID = stmt.ColumnInt64(16)
 			if res.contentType == "comment" {
 				res.iri = "hm://" + res.owner + "/" + res.tsid
 			} else if res.contentType == "contact" {
@@ -580,7 +583,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	totalLatestBlockTime := time.Duration(0)
 	timesCalled := 0
 	iter := 0
-	prevIter := 0
+	//prevIter := 0
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
 		var parentTitles []string
@@ -615,7 +618,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			var errSameBlockChangeDetected = errors.New("same block change detected")
 			if latestUnrelated.version != searchResults[match.Index].latestVersion {
 				timesCalled++
-				prevIter = iter
+				//prevIter = iter
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						iter++
@@ -631,13 +634,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						}
 						latestUnrelated = currentChange
 						return nil
-					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blobID)
+					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
 				}); err != nil && !errors.Is(err, errSameBlockChangeDetected) {
 					return nil, err
 				}
-				if iter == prevIter {
-					fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID)
-				}
+				//if iter == prevIter {
+				//	fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
+				//}
 			}
 			searchResults[match.Index].version = latestUnrelated.version
 			searchResults[match.Index].blobID = latestUnrelated.blobID
@@ -673,7 +676,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	//after = time.Now()
 
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
-	fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
+	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]

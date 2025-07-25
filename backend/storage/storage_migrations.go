@@ -58,7 +58,7 @@ type migration struct {
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
 
-	{Version: "2025-07-24.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+	{Version: "2025-07-25.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			ALTER TABLE fts_index
 			ADD COLUMN ts INTEGER;

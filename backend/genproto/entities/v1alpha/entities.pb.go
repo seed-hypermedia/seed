@@ -646,7 +646,7 @@ type Entity struct {
 	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	// The owner of the entity
 	Owner string `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`
-	// The type of the entity it coud be Title, Document or Comment
+	// The type of the entity it coud be Title, Document, Comment, ...
 	Type string `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
 	// Icon of the document containing that entity
 	Icon string `protobuf:"bytes,8,opt,name=icon,proto3" json:"icon,omitempty"`

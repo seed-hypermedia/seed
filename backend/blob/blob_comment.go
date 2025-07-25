@@ -288,11 +288,11 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			}
 			ftsBlkID = blk.ID()
 			ftsContent = blk.Text
-			if ftsContent != "" {
-				if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
-					return fmt.Errorf("failed to insert record in fts table: %w", err)
-				}
+			//if ftsContent != "" {
+			if err := dbFTSInsertOrReplace(ictx.conn, ftsContent, ftsType, id, ftsBlkID, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
+			//}
 		}
 
 		return nil

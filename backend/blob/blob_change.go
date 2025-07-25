@@ -418,15 +418,15 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			if !ok {
 				continue
 			}
-
+			ftsType := "meta"
 			// TODO(hm24): index other relevant metadata for list response and so on.
-			if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
+			if k == "title" || k == "name" || k == "alias" {
 				extra.Title = vs
-				if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
-					return fmt.Errorf("failed to insert record in fts table: %w", err)
-				}
+				ftsType = "title"
 			}
-
+			if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsType, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+				return fmt.Errorf("failed to insert record in fts table: %w", err)
+			}
 			u, err := url.Parse(vs)
 			if err != nil {
 				continue
@@ -458,13 +458,14 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				vs, isStr := kv.Value.(string)
 				if len(kv.Key) == 1 && isStr {
 					k := kv.Key[0]
-
+					ftsKey := "meta"
 					// TODO(hm24): index other relevant metadata for list response and so on.
-					if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
+					if k == "title" || k == "name" || k == "alias" {
 						extra.Title = vs
-						if err := dbFTSInsertOrReplace(ictx.conn, vs, "title", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
-							return fmt.Errorf("failed to insert record in fts table: %w", err)
-						}
+						ftsKey = "title"
+					}
+					if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsKey, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+						return fmt.Errorf("failed to insert record in fts table: %w", err)
 					}
 				}
 
