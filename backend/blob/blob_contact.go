@@ -124,7 +124,7 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		}
 		extraAttrs["subject"] = subjectID
 		extraAttrs["name"] = v.Name
-		if err := dbFTSInsertOrReplace(ictx.conn, v.Name, "contact", id, "", sb.CID.String()); err != nil {
+		if err := dbFTSInsertOrReplace(ictx.conn, v.Name, "contact", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 			return fmt.Errorf("failed to insert record in fts table: %w", err)
 		}
 	} else {

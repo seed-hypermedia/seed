@@ -6,6 +6,8 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/sqlitegen"
+	"strings"
+	"time"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -49,7 +51,7 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
-func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string) error {
+func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string, FTSTs time.Time, FTSGenesisMultihash string) error {
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSContent", FTSContent)
 		stmt.SetText(":FTSType", FTSType)
@@ -67,13 +69,32 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 		err = fmt.Errorf("failed query: FTSInsert: %w", err)
 		return err
 	}
+	lastRowID := conn.LastInsertRowID()
+	var genesisID int64
+	if FTSGenesisMultihash != "" {
+		before = func(stmt *sqlite.Stmt) {
+			stmt.SetText(":FTSMultihash", strings.ToUpper(FTSGenesisMultihash))
+		}
 
+		err = sqlitegen.ExecStmt(conn, qGetGenesisID(), before, func(_ int, stmt *sqlite.Stmt) error {
+			genesisID = stmt.ColumnInt64(0)
+			return nil
+		})
+		if err != nil {
+			err = fmt.Errorf("failed query: qGetGenesisID: %w", err)
+			return err
+		}
+	} else {
+		genesisID = FTSBlobID
+	}
 	before = func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSType", FTSType)
 		stmt.SetInt64(":FTSBlobID", FTSBlobID)
 		stmt.SetText(":FTSBlockID", FTSBlockID)
 		stmt.SetText(":FTSVersion", FTSVersion)
-		stmt.SetText(":FTSRowID", "last_insert_rowid()")
+		stmt.SetInt64(":FTSRowID", lastRowID)
+		stmt.SetInt64(":FTSTs", FTSTs.UnixMilli())
+		stmt.SetInt64(":FTSGenesisBlob", genesisID)
 	}
 
 	err = sqlitegen.ExecStmt(conn, qFTSIndexInsert(), before, onStep)
@@ -81,73 +102,13 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 		err = fmt.Errorf("failed query: FTSIndexInsert: %w", err)
 		return err
 	}
-
-	before = func(stmt *sqlite.Stmt) {
-		stmt.SetText(":FTSType", FTSType)
-		stmt.SetInt64(":FTSBlobID", FTSBlobID)
-		stmt.SetText(":FTSBlockID", FTSBlockID)
-	}
-	rowsToUpdate := []int64{}
-	onStep = func(_ int, stmt *sqlite.Stmt) error {
-		rowsToUpdate = append(rowsToUpdate, stmt.ColumnInt64(0))
-		return nil
-	}
-
-	err = sqlitegen.ExecStmt(conn, qFTSCheck(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: FTSCheck: %w", err)
-		return err
-	}
-
-	var idx int
-	if len(rowsToUpdate) > 0 {
-		before := func(stmt *sqlite.Stmt) {
-			stmt.SetInt64(":FTSBlobID", FTSBlobID)
-			stmt.SetInt64(":FTSRowID", rowsToUpdate[idx])
-			stmt.SetText(":FTSVersion", FTSVersion)
-			idx++
-		}
-
-		onStep := func(_ int, _ *sqlite.Stmt) error {
-			return nil
-		}
-		err = sqlitegen.ExecStmt(conn, qFTSUpdate(), before, onStep)
-		if err != nil {
-			err = fmt.Errorf("failed query: FTSUpdate: %w", err)
-			return err
-		}
-	}
-
 	return nil
 }
 
-var qFTSCheck = dqb.Str(`
-    SELECT
-		rowid
-    FROM fts_index
-	 WHERE
-      block_id != :FTSBlockID
-      AND type      = :FTSType
-      AND blob_id  < :FTSBlobID
-      AND blob_id IN (
-        SELECT id
-        FROM structural_blobs
-        WHERE genesis_blob = IFNULL(
-          (SELECT genesis_blob
-             FROM structural_blobs
-            WHERE id = :FTSBlobID),
-          :FTSBlobID
-        )
-      )
-`)
-
-var qFTSUpdate = dqb.Str(`
-    UPDATE fts
-    SET
-      blob_id = :FTSBlobID,
-      version = :FTSVersion
-    WHERE
-      rowid = :FTSRowID
+var qGetGenesisID = dqb.Str(`
+SELECT id FROM blobs
+WHERE multihash = unhex(:FTSMultihash)
+LIMIT 1;
 `)
 
 var qFTSInsert = dqb.Str(`
@@ -156,8 +117,8 @@ var qFTSInsert = dqb.Str(`
 `)
 
 var qFTSIndexInsert = dqb.Str(`
-	INSERT OR REPLACE INTO fts_index(rowid, type, blob_id, block_id, version)
-	VALUES (:FTSRowID, :FTSType, :FTSBlobID, :FTSBlockID, :FTSVersion)
+	INSERT OR REPLACE INTO fts_index(rowid, type, blob_id, block_id, version, ts, genesis_blob)
+	VALUES (:FTSRowID, :FTSType, :FTSBlobID, :FTSBlockID, :FTSVersion, :FTSTs, :FTSGenesisBlob)
 `)
 
 func dbResourceLinksInsert(conn *sqlite.Conn, sourceBlob, targetResource int64, ltype string, isPinned bool, meta []byte) error {

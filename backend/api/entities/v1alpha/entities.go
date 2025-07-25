@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -213,6 +214,19 @@ func (task *discoveryTask) start(api *Server) {
 	}
 }
 
+var qGetLatestBlockChange = dqb.Str(`
+SELECT
+  blob_id,
+  version,
+  block_id,
+  ts
+  from fts_index
+  WHERE type IN ('title', 'document', 'meta')
+  AND ts >= :Ts
+  AND genesis_blob = :genesisBlobID
+  AND rowid != :rowID
+  ORDER BY ts ASC
+`)
 var qGetFTS = dqb.Str(`
 WITH fts_top100 AS (
   SELECT
@@ -223,7 +237,8 @@ WITH fts_top100 AS (
     fts.blob_id,
     structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-    fts.rank
+    fts.rank,
+	fts.rowid
   FROM fts
     JOIN structural_blobs
       ON structural_blobs.id = fts.blob_id
@@ -265,7 +280,9 @@ SELECT
       JOIN blobs AS b2
         ON b2.id = a.value
   ) AS heads,
-  structural_blobs.ts
+  structural_blobs.ts,
+  structural_blobs.genesis_blob,
+  f.rowid
 FROM fts_top100 AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
@@ -330,6 +347,8 @@ type searchResult struct {
 	docID         string
 	blobCID       string
 	blobID        int64
+	genesisBlobID int64
+	rowID         int64
 	contentType   string
 	version       string
 	versionTime   *timestamppb.Timestamp
@@ -338,6 +357,10 @@ type searchResult struct {
 
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
+	//start := time.Now()
+	//defer func() {
+	//	fmt.Println("SearchEntities duration:", time.Since(start))
+	//s}()
 	searchResults := []searchResult{}
 	type value struct {
 		Value string `json:"v"`
@@ -460,6 +483,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			res.versionTime = timestamppb.New(ts)
+			res.genesisBlobID = stmt.ColumnInt64(15)
+			if res.genesisBlobID == 0 {
+				res.genesisBlobID = res.blobID
+			}
+			res.rowID = stmt.ColumnInt64(16)
 			if res.contentType == "comment" {
 				res.iri = "hm://" + res.owner + "/" + res.tsid
 			} else if res.contentType == "contact" {
@@ -496,7 +524,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.contentType)
 		if idx, ok := seen[key]; ok {
 			// duplicate – compare blobID
-			if res.blobID > uniqueResults[idx].blobID {
+			if res.versionTime.AsTime().After(uniqueResults[idx].versionTime.AsTime()) {
 				uniqueResults[idx] = res
 				bm := bodyMatches[i]
 				bm.Index = idx
@@ -517,7 +545,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	//after := time.Now()
 	//elapsed := after.Sub(before)
-	//fmt.Printf("qGetFTS took %.9f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
+	//fmt.Printf("qGetFTS took %.3f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
@@ -551,11 +579,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		return parentTitles, nil
 	}
-	//before = time.Now()
 	//totalGetParentsTime := time.Duration(0)
-	//totalLatestBlockTime := time.Duration(0)
-	//var timesCalled int
-
+	totalLatestBlockTime := time.Duration(0)
+	timesCalled := 0
+	iter := 0
+	//prevIter := 0
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
 		var parentTitles []string
@@ -574,6 +602,50 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		id := searchResults[match.Index].iri
 
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
+
+			startLatestBlockTime := time.Now()
+			type Change struct {
+				blobID  int64
+				version string
+				ts      *timestamppb.Timestamp
+			}
+			latestUnrelated := Change{
+				blobID:  searchResults[match.Index].blobID,
+				version: searchResults[match.Index].version,
+				ts:      searchResults[match.Index].versionTime,
+			}
+
+			var errSameBlockChangeDetected = errors.New("same block change detected")
+			if latestUnrelated.version != searchResults[match.Index].latestVersion {
+				timesCalled++
+				//prevIter = iter
+				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
+						iter++
+						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
+						blockID := stmt.ColumnText(2)
+						currentChange := Change{
+							blobID:  stmt.ColumnInt64(0),
+							version: stmt.ColumnText(1),
+							ts:      timestamppb.New(ts),
+						}
+						if blockID == searchResults[match.Index].blockID {
+							return errSameBlockChangeDetected
+						}
+						latestUnrelated = currentChange
+						return nil
+					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+				}); err != nil && !errors.Is(err, errSameBlockChangeDetected) {
+					return nil, err
+				}
+				//if iter == prevIter {
+				//	fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
+				//}
+			}
+			searchResults[match.Index].version = latestUnrelated.version
+			searchResults[match.Index].blobID = latestUnrelated.blobID
+			searchResults[match.Index].versionTime = latestUnrelated.ts
+			totalLatestBlockTime += time.Since(startLatestBlockTime)
 			if searchResults[match.Index].latestVersion == searchResults[match.Index].version {
 				searchResults[match.Index].version += "&l"
 			}
@@ -603,9 +675,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	//after = time.Now()
 
-	//fmt.Printf("getParentsFcn took %.9f s\n", after.Sub(before).Seconds())
-	//fmt.Printf("getParentsFcn took %.9f s\n", totalGetParentsTime.Seconds())
-	//fmt.Printf("qGetLatestBlockChange took %.9f s and was called %d times\n", totalLatestBlockTime.Seconds(), timesCalled)
+	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
+	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
 		a, b := matchingEntities[i], matchingEntities[j]

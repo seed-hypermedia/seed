@@ -194,22 +194,26 @@ const (
 
 // Table fts_index.
 const (
-	FtsIndex        sqlitegen.Table  = "fts_index"
-	FtsIndexBlobID  sqlitegen.Column = "fts_index.blob_id"
-	FtsIndexBlockID sqlitegen.Column = "fts_index.block_id"
-	FtsIndexRowid   sqlitegen.Column = "fts_index.rowid"
-	FtsIndexType    sqlitegen.Column = "fts_index.type"
-	FtsIndexVersion sqlitegen.Column = "fts_index.version"
+	FtsIndex            sqlitegen.Table  = "fts_index"
+	FtsIndexBlobID      sqlitegen.Column = "fts_index.blob_id"
+	FtsIndexBlockID     sqlitegen.Column = "fts_index.block_id"
+	FtsIndexGenesisBlob sqlitegen.Column = "fts_index.genesis_blob"
+	FtsIndexRowid       sqlitegen.Column = "fts_index.rowid"
+	FtsIndexTs          sqlitegen.Column = "fts_index.ts"
+	FtsIndexType        sqlitegen.Column = "fts_index.type"
+	FtsIndexVersion     sqlitegen.Column = "fts_index.version"
 )
 
 // Table fts_index. Plain strings.
 const (
-	T_FtsIndex        = "fts_index"
-	C_FtsIndexBlobID  = "fts_index.blob_id"
-	C_FtsIndexBlockID = "fts_index.block_id"
-	C_FtsIndexRowid   = "fts_index.rowid"
-	C_FtsIndexType    = "fts_index.type"
-	C_FtsIndexVersion = "fts_index.version"
+	T_FtsIndex            = "fts_index"
+	C_FtsIndexBlobID      = "fts_index.blob_id"
+	C_FtsIndexBlockID     = "fts_index.block_id"
+	C_FtsIndexGenesisBlob = "fts_index.genesis_blob"
+	C_FtsIndexRowid       = "fts_index.rowid"
+	C_FtsIndexTs          = "fts_index.ts"
+	C_FtsIndexType        = "fts_index.type"
+	C_FtsIndexVersion     = "fts_index.version"
 )
 
 // Table kv.
@@ -487,7 +491,9 @@ var Schema = sqlitegen.Schema{
 		FtsIdxTerm:                              {Table: FtsIdx, SQLType: ""},
 		FtsIndexBlobID:                          {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexBlockID:                         {Table: FtsIndex, SQLType: "TEXT"},
+		FtsIndexGenesisBlob:                     {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexRowid:                           {Table: FtsIndex, SQLType: "INTEGER"},
+		FtsIndexTs:                              {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexType:                            {Table: FtsIndex, SQLType: "TEXT"},
 		FtsIndexVersion:                         {Table: FtsIndex, SQLType: "TEXT"},
 		KVKey:                                   {Table: KV, SQLType: "TEXT"},
