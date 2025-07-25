@@ -342,6 +342,7 @@ type searchResult struct {
 	icon          string
 	iri           string
 	owner         string
+	metadata      string
 	blockID       string
 	tsid          string
 	docID         string
@@ -407,7 +408,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		entityTypeContact = "contact"
 	}
-	resultsLmit := 2000
+	resultsLmit := 1000
 
 	if len(cleanQuery) < 3 {
 		resultsLmit = 200
@@ -464,6 +465,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			res.docID = stmt.ColumnText(6)
 			res.owner = core.Principal(stmt.ColumnBytes(7)).String()
 			subjectID := core.Principal(stmt.ColumnBytes(8)).String()
+			res.metadata = stmt.ColumnText(11)
 			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
 				icon.Icon.Value = ""
 			}
@@ -671,7 +673,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			Content:     match.Str,
 			ParentNames: parentTitles,
 			Icon:        searchResults[match.Index].icon,
-			Owner:       searchResults[match.Index].owner})
+			Owner:       searchResults[match.Index].owner,
+			Metadata:    searchResults[match.Index].metadata,
+		})
 	}
 	//after = time.Now()
 

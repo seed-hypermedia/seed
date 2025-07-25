@@ -209,6 +209,9 @@ message Entity {
 
   // Parent document names
   repeated string parent_names = 9;
+
+  // Metadata of the document containing that entity.
+  string metadata = 10;
 }
 
 // Publication that has been deleted
