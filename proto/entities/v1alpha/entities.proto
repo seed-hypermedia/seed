@@ -201,7 +201,7 @@ message Entity {
   // The owner of the entity
   string owner = 6;
 
-  // The type of the entity it coud be Title, Document or Comment
+  // The type of the entity it coud be Title, Document, Comment, ...
   string type = 7;
 
   // Icon of the document containing that entity

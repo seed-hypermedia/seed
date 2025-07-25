@@ -585,7 +585,7 @@ export class Entity extends Message<Entity> {
   owner = "";
 
   /**
-   * The type of the entity it coud be Title, Document or Comment
+   * The type of the entity it coud be Title, Document, Comment, ...
    *
    * @generated from field: string type = 7;
    */

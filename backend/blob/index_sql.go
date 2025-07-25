@@ -102,62 +102,6 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 		err = fmt.Errorf("failed query: FTSIndexInsert: %w", err)
 		return err
 	}
-	/*
-		rowsToUpdate := []int64{1, 45, 1034, 56, 467, 832, 11023}
-
-		before = func(stmt *sqlite.Stmt) {
-			stmt.SetText(":FTSMultihash", FTSGenesisHash)
-		}
-		var genesisID int64
-		onStep = func(_ int, stmt *sqlite.Stmt) error {
-			genesisID = stmt.ColumnInt64(0)
-			return nil
-		}
-		genesisID++
-
-			err = sqlitegen.ExecStmt(conn, qGetDocumentBlobs(), before, onStep)
-			if err != nil {
-				err = fmt.Errorf("failed query: FTSCheck: %w", err)
-				return err
-			}
-
-		before = func(stmt *sqlite.Stmt) {
-			stmt.SetText(":FTSType", FTSType)
-			stmt.SetInt64(":FTSBlobID", FTSBlobID)
-			stmt.SetText(":DocBlobIDs", strconv.FormatInt(genesisID, 10))
-		}
-
-		onStep = func(_ int, stmt *sqlite.Stmt) error {
-			rowsToUpdate = append(rowsToUpdate, stmt.ColumnInt64(0))
-			return nil
-		}
-
-		err = sqlitegen.ExecStmt(conn, qFTSCheck(), before, onStep)
-		if err != nil {
-			err = fmt.Errorf("failed query: FTSCheck: %w", err)
-			return err
-		}
-
-		var idx int
-		if len(rowsToUpdate) > 0 {
-			//fmt.Println("FTSUpdate: updating", len(rowsToUpdate), "rows")
-			before := func(stmt *sqlite.Stmt) {
-				stmt.SetInt64(":FTSBlobID", FTSBlobID)
-				stmt.SetInt64(":FTSRowID", rowsToUpdate[idx])
-				stmt.SetText(":FTSVersion", FTSVersion)
-				idx++
-			}
-
-			onStep := func(_ int, _ *sqlite.Stmt) error {
-				return nil
-			}
-			err = sqlitegen.ExecStmt(conn, qFTSUpdate(), before, onStep)
-			if err != nil {
-				err = fmt.Errorf("failed query: FTSUpdate: %w", err)
-				return err
-			}
-		}
-	*/
 	return nil
 }
 
@@ -165,71 +109,6 @@ var qGetGenesisId = dqb.Str(`
 SELECT id FROM blobs
 WHERE multihash = unhex(:FTSMultihash)
 LIMIT 1;
-`)
-
-var qFTSRecursiveCheck = dqb.Str(`
-WITH RECURSIVE 
-genesis_id AS (
-	SELECT 
-	id
-	FROM blobs
-	WHERE lower(hex(multihash)) = :FTSMultihash
-	LIMIT 1
-)
-relevant_cols AS (
-	SELECT 
-	fts_index.version,
-	fts_index.blob_id,
-	fts_type
-	FROM fts_index
-	JOIN structural_blobs ON fts_index.blob_id = structural_blobs.id
-	WHERE type IN ('document', 'title')
-	AND genesis_blob = (SELECT id FROM genesis_id)
-),
-nodes(rowid, ) AS (
-   VALUES(:FTSBlobID)
-   UNION ALL
-   SELECT blob_id, block_id FROM fts_index JOIN nodes ON blob_id=bid
-   WHERE blob_id >
-)
-SELECT x FROM nodes;
-`)
-
-var qFTSCheck = dqb.Str(`
-    SELECT
-		rowid
-    FROM fts_index
-	WHERE
-	(
-		:FTSType = 'document'
-	    AND type != :FTSType
-	) OR (
-		block_id != :FTSBlockID
-		AND (type = 'document' AND type = :FTSType)
-		AND blob_id  < :FTSBlobID
-		AND blob_id IN (:DocBlobIDs)
-	) OR (
-		(type = 'title' AND type = :FTSType)
-		AND blob_id NOT IN (:DocBlobIDs)
-	)
-`)
-
-var qFTSCheckFast = dqb.Str(`
-    SELECT
-		rowid,
-		type,
-		blob_id
-    FROM fts_index
-	WHERE type = 'document' OR type = 'title'
-`)
-
-var qFTSUpdate = dqb.Str(`
-    UPDATE fts
-    SET
-      blob_id = :FTSBlobID,
-      version = :FTSVersion
-    WHERE
-      rowid = :FTSRowID
 `)
 
 var qFTSInsert = dqb.Str(`
