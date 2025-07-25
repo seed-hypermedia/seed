@@ -76,12 +76,12 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 			stmt.SetText(":FTSMultihash", strings.ToUpper(FTSGenesisMultihash))
 		}
 
-		err = sqlitegen.ExecStmt(conn, qGetGenesisId(), before, func(_ int, stmt *sqlite.Stmt) error {
+		err = sqlitegen.ExecStmt(conn, qGetGenesisID(), before, func(_ int, stmt *sqlite.Stmt) error {
 			genesisID = stmt.ColumnInt64(0)
 			return nil
 		})
 		if err != nil {
-			err = fmt.Errorf("failed query: qGetGenesisId: %w", err)
+			err = fmt.Errorf("failed query: qGetGenesisID: %w", err)
 			return err
 		}
 	} else {
@@ -105,7 +105,7 @@ func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlob
 	return nil
 }
 
-var qGetGenesisId = dqb.Str(`
+var qGetGenesisID = dqb.Str(`
 SELECT id FROM blobs
 WHERE multihash = unhex(:FTSMultihash)
 LIMIT 1;
