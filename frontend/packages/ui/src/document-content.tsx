@@ -1,4 +1,4 @@
-import {PlainMessage} from '@bufbuild/protobuf'
+import { PlainMessage } from '@bufbuild/protobuf'
 import {
   BlockNode,
   Contact,
@@ -36,16 +36,16 @@ import {
   DocContentContextValue,
   EntityComponentProps,
 } from '@shm/shared/document-content-types'
-import {useTxString} from '@shm/shared/translation'
+import { useTxString } from '@shm/shared/translation'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import { RadioGroup, RadioGroupItem } from '@shm/ui/components/radio-group'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import {common} from 'lowlight'
+import { common } from 'lowlight'
 import {
   AlertCircle,
   ChevronDown,
@@ -68,12 +68,12 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import {createPortal} from 'react-dom'
-import {Button} from './button'
-import {CheckboxField} from './components/checkbox'
-import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
+import { createPortal } from 'react-dom'
+import { Button } from './button'
+import { CheckboxField } from './components/checkbox'
+import { contentLayoutUnit, contentTextUnit } from './document-content-constants'
 import './document-content.css'
-import {BlankQueryBlockMessage} from './entity-card'
+import { BlankQueryBlockMessage } from './entity-card'
 import {
   extractIpfsUrlCid,
   getDaemonFileUrl,
@@ -81,16 +81,16 @@ import {
   useFileUrl,
   useImageUrl,
 } from './get-file-url'
-import {SeedHeading, marginClasses} from './heading'
-import {HMIcon} from './hm-icon'
-import {BlockQuote} from './icons'
-import {DocumentCard} from './newspaper'
-import {Spinner} from './spinner'
-import {SizableText, Text, TextProps} from './text'
-import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
+import { SeedHeading, marginClasses } from './heading'
+import { HMIcon } from './hm-icon'
+import { BlockQuote } from './icons'
+import { DocumentCard } from './newspaper'
+import { Spinner } from './spinner'
+import { SizableText, Text, TextProps } from './text'
+import { Tooltip } from './tooltip'
+import { useIsDark } from './use-is-dark'
 import useMedia from './use-media'
-import {cn} from './utils'
+import { cn } from './utils'
 
 export const docContentContext = createContext<DocContentContextValue | null>(
   null,
@@ -1135,7 +1135,7 @@ function BlockContentImage({
               : undefined,
           }}
           onClick={handleDoubleClick}
-          title="Double-click to maximize"
+          title="Click to maximize"
         >
           <img
             ref={imageRef}

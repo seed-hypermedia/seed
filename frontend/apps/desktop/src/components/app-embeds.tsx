@@ -151,7 +151,7 @@ function EmbedWrapper({
         blockStyles,
         isHighlight
           ? routeParams?.blockRef == id?.blockRef
-            ? 'bg-primary'
+            ? 'bg-secondary'
             : 'bg-transparent'
           : 'bg-transparent hover:bg-transparent',
         !hideBorder && 'border-l-primary border-l-3',

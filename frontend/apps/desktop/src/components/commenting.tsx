@@ -380,7 +380,7 @@ function CommentReference({reference}: {reference: string | null}) {
   return (
     <div
       className={`border-l-primary m-2 ml-0.5 flex w-full cursor-pointer items-center gap-3 border-l-2 ${
-        highlight ? 'bg-primary text-primary-foreground' : 'bg-transparent'
+        highlight ? 'bg-secondary text-secondary-foreground' : 'bg-transparent'
       }`}
       onMouseEnter={() => {
         if (referenceId) {

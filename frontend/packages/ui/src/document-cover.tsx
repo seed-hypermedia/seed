@@ -104,7 +104,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
           className,
         )}
         onClick={handleDoubleClick}
-        title="Double-click to maximize"
+        title="Click to maximize"
       >
         <img
           src={imageUrl(cover, 'XL')}

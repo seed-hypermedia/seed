@@ -340,7 +340,7 @@ function _MainDocumentPage({
               {...mainContentProps}
               className={cn(
                 mainContentProps.className,
-                'base-doc-container sm:mr-10 sm:ml-0',
+                'base-doc-container relative sm:mr-10 sm:ml-0',
               )}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
@@ -549,132 +549,129 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   if (resource.data?.type !== 'document') return null
 
   return (
-    <div>
-      <Container
-        className="dark:bg-background rounded-lg bg-white"
-        data-docid={docId.id}
-        style={{
-          marginTop: hasCover ? -40 : 0,
-          paddingTop: !hasCover ? 60 : 24,
-        }}
-      >
-        <div className="group flex flex-col gap-4" data-group="header">
-          {hasIcon ? (
-            <div
-              className="flex"
-              style={{
-                marginTop: hasCover ? -80 : 0,
-              }}
-            >
-              <HMIcon
-                size={100}
-                id={docId}
-                metadata={resource.data?.document?.metadata}
-              />
-            </div>
-          ) : null}
-          <div className="flex">
-            <SeedHeading
-              level={1}
-              style={{fontWeight: 'bold', wordBreak: 'break-word'}}
-            >
-              {getDocumentTitle(resource.data?.document)}
-            </SeedHeading>
+    <Container
+      className="dark:bg-background absolute z-[999] w-full rounded-lg bg-white"
+      data-docid={docId.id}
+      style={{
+        marginTop: hasCover ? -40 : 0,
+        paddingTop: !hasCover ? 60 : 24,
+      }}
+    >
+      <div className="group flex flex-col gap-4" data-group="header">
+        {hasIcon ? (
+          <div
+            className="flex"
+            style={{
+              marginTop: hasCover ? -80 : 0,
+            }}
+          >
+            <HMIcon
+              size={100}
+              id={docId}
+              metadata={resource.data?.document?.metadata}
+            />
           </div>
-          {resource.data.document?.metadata?.summary ? (
-            <span className="font-body text-muted-foreground text-xl">
-              {resource.data.document?.metadata?.summary}
-            </span>
-          ) : null}
-          <div className="flex flex-col gap-2">
-            {resource.data?.document?.metadata.siteUrl ? (
-              <SiteURLButton
-                siteUrl={resource.data?.document?.metadata.siteUrl}
-              />
-            ) : null}
-            <div className="flex flex-1 items-center justify-between gap-3">
-              <div className="flex flex-1 flex-wrap items-center gap-3">
-                {resource.data?.document?.path.length ||
-                authors?.length !== 1 ? (
-                  <>
-                    <div className="flex max-w-full flex-wrap items-center gap-1">
-                      {authors
-                        ?.map((a, index) => {
-                          const contact = authorContacts[a]
-                          if (!contact) return null
-                          return [
-                            <ButtonText
-                              key={contact.id.uid}
-                              borderColor="$colorTransparent"
-                              outlineColor="$colorTransparent"
-                              hoverStyle={{
-                                borderColor: '$colorTransparent',
-                                textDecorationLine: 'underline',
-                                textDecorationColor: 'currentColor',
-                              }}
-                              size="$2"
-                              fontWeight="bold"
-                              onPress={() => {
-                                navigate({key: 'document', id: contact.id})
-                              }}
-                            >
-                              {contact.metadata?.name ? (
-                                contact.metadata.name
-                              ) : (
-                                <Tooltip content="Author has not yet loaded">
-                                  <AlertCircle
-                                    size={18}
-                                    className="text-red-800"
-                                  />
-                                </Tooltip>
-                              )}
-                            </ButtonText>,
-                            index !== authors.length - 1 ? (
-                              index === authors.length - 2 ? (
-                                <SizableText
-                                  key={`${a}-and`}
-                                  size="xs"
-                                  weight="bold"
-                                >
-                                  {' & '}
-                                </SizableText>
-                              ) : (
-                                <SizableText
-                                  key={`${a}-comma`}
-                                  weight="bold"
-                                  size="xs"
-                                >
-                                  {', '}
-                                </SizableText>
-                              )
-                            ) : null,
-                          ]
-                        })
-                        .filter(Boolean)}
-                    </div>
-                    <div className="bg-border h-6 w-px" />
-                  </>
-                ) : null}
-                {resource.data?.document ? (
-                  <DocumentDate
-                    metadata={resource.data.document.metadata}
-                    updateTime={resource.data.document.updateTime}
-                    disableTooltip={false}
-                  />
-                ) : null}
-              </div>
-              {resource.data?.document && (
-                <DocumentHeadItems
-                  document={resource.data.document}
-                  docId={docId}
-                />
-              )}
-            </div>
-          </div>
-          <TSeparator />
+        ) : null}
+        <div className="flex">
+          <SeedHeading
+            level={1}
+            style={{fontWeight: 'bold', wordBreak: 'break-word'}}
+          >
+            {getDocumentTitle(resource.data?.document)}
+          </SeedHeading>
         </div>
-      </Container>
-    </div>
+        {resource.data.document?.metadata?.summary ? (
+          <span className="font-body text-muted-foreground text-xl">
+            {resource.data.document?.metadata?.summary}
+          </span>
+        ) : null}
+        <div className="flex flex-col gap-2">
+          {resource.data?.document?.metadata.siteUrl ? (
+            <SiteURLButton
+              siteUrl={resource.data?.document?.metadata.siteUrl}
+            />
+          ) : null}
+          <div className="flex flex-1 items-center justify-between gap-3">
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              {resource.data?.document?.path.length || authors?.length !== 1 ? (
+                <>
+                  <div className="flex max-w-full flex-wrap items-center gap-1">
+                    {authors
+                      ?.map((a, index) => {
+                        const contact = authorContacts[a]
+                        if (!contact) return null
+                        return [
+                          <ButtonText
+                            key={contact.id.uid}
+                            borderColor="$colorTransparent"
+                            outlineColor="$colorTransparent"
+                            hoverStyle={{
+                              borderColor: '$colorTransparent',
+                              textDecorationLine: 'underline',
+                              textDecorationColor: 'currentColor',
+                            }}
+                            size="$2"
+                            fontWeight="bold"
+                            onPress={() => {
+                              navigate({key: 'document', id: contact.id})
+                            }}
+                          >
+                            {contact.metadata?.name ? (
+                              contact.metadata.name
+                            ) : (
+                              <Tooltip content="Author has not yet loaded">
+                                <AlertCircle
+                                  size={18}
+                                  className="text-red-800"
+                                />
+                              </Tooltip>
+                            )}
+                          </ButtonText>,
+                          index !== authors.length - 1 ? (
+                            index === authors.length - 2 ? (
+                              <SizableText
+                                key={`${a}-and`}
+                                size="xs"
+                                weight="bold"
+                              >
+                                {' & '}
+                              </SizableText>
+                            ) : (
+                              <SizableText
+                                key={`${a}-comma`}
+                                weight="bold"
+                                size="xs"
+                              >
+                                {', '}
+                              </SizableText>
+                            )
+                          ) : null,
+                        ]
+                      })
+                      .filter(Boolean)}
+                  </div>
+                  <div className="bg-border h-6 w-px" />
+                </>
+              ) : null}
+              {resource.data?.document ? (
+                <DocumentDate
+                  metadata={resource.data.document.metadata}
+                  updateTime={resource.data.document.updateTime}
+                  disableTooltip={false}
+                />
+              ) : null}
+            </div>
+            {resource.data?.document && (
+              <DocumentHeadItems
+                document={resource.data.document}
+                docId={docId}
+              />
+            )}
+          </div>
+        </div>
+        <TSeparator />
+      </div>
+    </Container>
   )
 }
 
