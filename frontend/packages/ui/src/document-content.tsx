@@ -57,7 +57,6 @@ import {
   X,
 } from 'lucide-react'
 import React, {
-  ComponentProps,
   PropsWithChildren,
   createContext,
   createElement,
@@ -1154,13 +1153,15 @@ function BlockContentImage({
             className="transition-transform duration-200"
           />
         </div>
-        {inline.length ? (
-          <InlineContentView
-            inline={inline}
-            fontSize={textUnit * 0.85}
-            className="text-muted-foreground"
-          />
-        ) : null}
+        <p>
+          {inline.length ? (
+            <InlineContentView
+              inline={inline}
+              fontSize={textUnit * 0.85}
+              className="text-muted-foreground"
+            />
+          ) : null}
+        </p>
       </div>
       {typeof window !== 'undefined' &&
         (() => {
@@ -1391,7 +1392,7 @@ function InlineContentView({
               {...linkProps}
               onClick={onPress}
               className={cn(
-                'cursor-pointer transition-colors',
+                'cursor-pointer break-all transition-colors',
                 isHmScheme ? 'hm-link' : 'link',
               )}
               target={isHmScheme ? undefined : '_blank'}
@@ -1445,36 +1446,6 @@ function InlineContentView({
         return null
       })}
     </>
-  )
-}
-
-function HrefLink({
-  href,
-  children,
-  buttonProps,
-  onHoverIn,
-  onHoverOut,
-}: PropsWithChildren<{
-  href: string
-  buttonProps: ComponentProps<'a'>
-  onHoverIn?: (id: UnpackedHypermediaId) => void
-  onHoverOut?: (id: UnpackedHypermediaId) => void
-}>) {
-  const {onPress, ...linkProps} = useRouteLinkHref(href)
-  const id = unpackHmId(href)
-  return (
-    <a
-      {...linkProps}
-      onClick={onPress}
-      {...buttonProps}
-      // this data attribute is used by the hypermedia highlight component
-      onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
-      onMouseLeave={id ? () => onHoverOut?.(id) : undefined}
-      data-blockid={id?.blockRef}
-      data-docid={id?.blockRef ? undefined : id?.id}
-    >
-      {children}
-    </a>
   )
 }
 
