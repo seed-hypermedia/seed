@@ -52,7 +52,7 @@ export const FormattingToolbarPositioner = <
 
   return (
     <Tippy
-      appendTo={props.editor.domElement.parentElement ?? document.body}
+      appendTo={document.body}
       content={formattingToolbarElement}
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}

@@ -133,7 +133,7 @@ export function HMFormattingToolbar<
   })
 
   return (
-    <div className="border-border bg-background w-fit rounded-md border p-1 shadow-md">
+    <div className="border-border bg-background z-9 w-fit rounded-md border p-1 shadow-md">
       <div className="flex w-full items-center justify-stretch gap-1">
         {toggleStyles.map((item) => (
           <ToggleStyleButton
@@ -255,14 +255,18 @@ function FormatDropdown({
   options: {label: string; value: string}[]
 }) {
   return (
-    <div className="flex items-center">
+    <div className="format-dropdown flex items-center">
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
+        <SelectTrigger className="format-dropdown-trigger">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              className="format-dropdown-item"
+            >
               {option.label}
             </SelectItem>
           ))}
