@@ -187,8 +187,6 @@ export function usePublishDraft(
       destinationId,
       accountId,
     }: PublishDraftInput): Promise<HMDocument> => {
-      console.log('editDocument', editDocument?.content)
-
       const blocksMap = editId
         ? createBlocksMap(editDocument?.content || [], '')
         : {}

@@ -403,9 +403,11 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'banner',
     'query',
     'columnCount',
+    'style', // Query block style attribute
   ]
 
-  const result = attributesToCompare.every((attr) => {
+  // Helper function to check if a single attribute is equal
+  const isAttributeEqual = (attr: string) => {
     if (attr === 'query') {
       return isQueryEqual(a1.query, a2.query)
     }
@@ -413,19 +415,15 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
       (a1[attr] === undefined && a2[attr] === undefined) ||
       a1[attr] === a2[attr]
     )
-  })
+  }
+
+  const result = attributesToCompare.every(isAttributeEqual)
 
   if (!result) {
     console.log('Block attributes not equal. Differences found:', {
       blockId: b1.id,
       differences: attributesToCompare
-        .filter(
-          (attr) =>
-            !(
-              (a1[attr] === undefined && a2[attr] === undefined) ||
-              a1[attr] === a2[attr]
-            ),
-        )
+        .filter((attr) => !isAttributeEqual(attr))
         .map((attr) => ({
           attribute: attr,
           a1Value: a1[attr],
@@ -447,22 +445,27 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   // Compare sorting arrays
   if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
 
-  // Compare includes arrays
-  if (q1.includes.length !== q2.includes.length) return false
+  // Compare includes arrays - handle undefined/null cases
+  const includes1 = q1.includes || []
+  const includes2 = q2.includes || []
+
+  if (includes1.length !== includes2.length) return false
 
   // Deep compare each include item
-  for (let i = 0; i < q1.includes.length; i++) {
-    const include1 = q1.includes[i]
-    const include2 = q2.includes[i]
+  for (let i = 0; i < includes1.length; i++) {
+    const include1 = includes1[i]
+    const include2 = includes2[i]
 
     if (include1.mode !== include2.mode) return false
     if (include1.path !== include2.path) return false
     if (include1.space !== include2.space) return false
   }
 
-  if (q1.sort?.length !== q2.sort?.length) return false
+  // Note: The sort comparison above with _.isEqual should already handle this,
+  // but keeping the explicit loop for consistency
+  if ((q1.sort?.length || 0) !== (q2.sort?.length || 0)) return false
 
-  for (let i = 0; i < q1.sort!.length; i++) {
+  for (let i = 0; i < (q1.sort?.length || 0); i++) {
     const sort1 = q1.sort![i]
     const sort2 = q2.sort![i]
 
