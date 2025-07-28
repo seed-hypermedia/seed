@@ -21,11 +21,14 @@ export async function querySearch(
     accountUid: accountUid,
     loggedAccountUid: perspectiveAccountUid,
   })
+  console.log('SEARCH RESULT', result)
   return {
     searchQuery,
     entities: result.entities
       .map((entity) => {
         const id = unpackHmId(entity.id)
+
+        console.log(`== ~ SEARCH RESULT querySearch ~ id:`, id)
         const docId = unpackHmId(entity.docId)
         if (entity.type === 'contact' && id) {
           return {

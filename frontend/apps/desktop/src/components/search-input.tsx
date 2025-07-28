@@ -53,9 +53,9 @@ export function SearchInput({
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
+
   const searchResults = useSearch(search, {}, true, 48 - search.length)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
-
   let queryItem: null | SearchResult = useMemo(() => {
     if (
       isHypermediaScheme(search) ||
@@ -121,6 +121,7 @@ export function SearchInput({
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
+      ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
       ?.map((item, index) => {
         const title = item.title || item.id.uid
         return {
@@ -185,41 +186,6 @@ export function SearchInput({
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
   }, [focusedIndex, activeItems])
 
-  // useEffect(() => {
-  //   console.log('here1')
-  //   const keyPressHandler = (e: KeyboardEvent) => {
-  //     console.log('here2')
-  //     if (e.key === 'Escape') {
-  //       onClose?.()
-  //     }
-  //     if (e.key === 'Enter') {
-  //       e.preventDefault()
-  //       e.stopPropagation()
-  //       const item = activeItems[focusedIndex]
-  //       if (item) {
-  //         item.onSelect()
-  //       }
-  //     }
-  //     if (e.key === 'ArrowDown') {
-  //       e.preventDefault()
-  //       e.stopPropagation()
-  //       console.log('arrow down???')
-  //       setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-  //     }
-  //     if (e.key === 'ArrowUp') {
-  //       e.preventDefault()
-  //       e.stopPropagation()
-  //       setFocusedIndex(
-  //         (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-  //       )
-  //     }
-  //   }
-  //   window.addEventListener('keydown', keyPressHandler)
-  //   return () => {
-  //     window.removeEventListener('keydown', keyPressHandler)
-  //   }
-  // }, [])
-
   useEffect(() => {
     const el = itemRefs.current[focusedIndex]
     if (el) {
@@ -255,11 +221,14 @@ export function SearchInput({
               <RecentSearchResultItem
                 item={{
                   ...item,
+                  // key: item.id ? packHmId(item.id) : item.key,
                   path: item.path || [],
                   onFocus: sharedProps.onFocus,
                   onMouseEnter: sharedProps.onMouseEnter,
+                  onSelect: () => item.onSelect?.(),
                 }}
                 selected={sharedProps.selected}
+                originHomeId={undefined}
               />
             ) : (
               <SearchResultItem
@@ -308,6 +277,7 @@ export function SearchInput({
       onEnter={() => {
         const item = activeItems[focusedIndex]
         if (item) {
+          onClose?.()
           item.onSelect?.()
         }
       }}

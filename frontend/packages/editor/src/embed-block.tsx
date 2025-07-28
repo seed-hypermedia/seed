@@ -1,6 +1,6 @@
 import {Block, BlockNoteEditor} from '@/blocknote'
 import {createReactBlockSpec} from '@/blocknote/react'
-import {LauncherItem, RecentLauncherItem, SwitcherItem} from '@/launcher-item'
+import {SwitcherItem} from '@/launcher-item'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
@@ -24,6 +24,7 @@ import {
   useDocContentContext,
 } from '@shm/ui/document-content'
 import {ExternalLink} from '@shm/ui/icons'
+import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -246,6 +247,8 @@ const EmbedLauncherInput = ({
   const recents = useRecents()
   const searchResults = useSearch(search, {}, true, 20 - search.length)
 
+  console.log(`== ~ EmbedLauncherInput ~ searchResults:`, searchResults)
+
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities
       ?.map((item) => {
@@ -307,7 +310,7 @@ const EmbedLauncherInput = ({
       className={cn(
         focused ? 'flex' : 'hidden',
         'absolute top-full left-0 z-[999] max-h-[400px] w-full overflow-auto overflow-x-hidden',
-        'flex-col gap-2 px-3 py-3 opacity-100',
+        'flex-col px-3 py-3 opacity-100',
         'bg-muted',
         'rounded-br-md rounded-bl-md',
         'scrollbar-none shadow-sm',
@@ -317,7 +320,11 @@ const EmbedLauncherInput = ({
       }}
     >
       {isDisplayingRecents && (
-        <SizableText color="muted" className="mx-4">
+        <SizableText
+          color="muted"
+          family="default"
+          className="mx-4 text-red-500"
+        >
           Recent Resources
         </SizableText>
       )}
@@ -332,12 +339,12 @@ const EmbedLauncherInput = ({
         return (
           <>
             {isDisplayingRecents ? (
-              <RecentLauncherItem
+              <RecentSearchResultItem
                 item={{...item, id: item.id}}
                 {...sharedProps}
               />
             ) : (
-              <LauncherItem item={item} {...sharedProps} />
+              <SearchResultItem item={item} {...sharedProps} />
             )}
 
             {itemIndex !== activeItems.length - 1 ? (

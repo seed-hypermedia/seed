@@ -195,9 +195,7 @@ function Render(
     <div
       // @ts-ignore
       contentEditable={false}
-      className={`group ${
-        selected ? 'border-muted' : 'border-transparent'
-      } -mx-4 flex flex-col rounded border-[3px] px-4 select-none`}
+      className={`group -mx-4 flex flex-col px-4 select-none`}
     >
       <QuerySettings
         queryDocName={entity.data?.document?.metadata.name || ''}
@@ -338,7 +336,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
 function BlankQueryBlockMessage({message}: {message: string}) {
   return (
     <div className="bg-muted flex items-center rounded-lg p-4">
-      <SizableText weight="bold" className="text-muted-foreground italic">
+      <SizableText className="text-muted-foreground bg-red-500">
         {message}
       </SizableText>
     </div>
@@ -691,12 +689,12 @@ export function QuerySearch({
     <div className="relative flex flex-col">
       <Button
         onClick={() => setShowSearch(true)}
-        className="border-border h-9 gap-2 overflow-hidden border-b"
+        className="border-border hover:bg-input h-9 gap-2 overflow-hidden border"
       >
         <Search className="size-4 shrink-0" />
         <SizableText
           family="default"
-          className="max-w-full flex-1 truncate"
+          className="max-w-full flex-1 truncate text-left"
           style={{
             color: selectedDocName ? 'text-foreground' : 'muted-foreground',
           }}
@@ -715,7 +713,6 @@ export function QuerySearch({
               onClose={() => setShowSearch(false)}
               allowWebURL={allowWebURL}
               onSelect={(data) => {
-                console.log('SELECT', data)
                 if (data.id) {
                   setShowSearch(false)
                 }

@@ -180,7 +180,7 @@ export function useRouteLink(
         stopPropagation: () => void
         metaKey?: boolean
       }) => {
-        e.stopPropagation()
+        e?.stopPropagation()
         if (e.metaKey) {
           if (context.openRouteNewWindow) {
             e.preventDefault()

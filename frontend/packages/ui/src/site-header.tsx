@@ -5,6 +5,7 @@ import {
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
+  SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -87,7 +88,7 @@ export function SiteHeader({
         <Menu size={20} />
       </Button>
       {originHomeId ? (
-        <div className="hidden sm:block">
+        <div className="hidden md:block">
           <HeaderSearch originHomeId={originHomeId} />
         </div>
       ) : null}
@@ -149,8 +150,9 @@ export function SiteHeader({
             <>
               <MobileSearch
                 originHomeId={originHomeId}
-                onSelect={() => {
+                onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
+                  console.log('SEARCH RESULT', item) // TODO: navigate to the document with the correct URL based on the site
                 }}
               />
               {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline

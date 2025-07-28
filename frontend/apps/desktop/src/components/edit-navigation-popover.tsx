@@ -5,7 +5,7 @@ import {
   dropTargetForElements,
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import {hmId, unpackHmId, useSearch} from '@shm/shared'
+import {hmId, packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 import {FormField} from '@shm/ui/forms'
+import {SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -374,23 +375,53 @@ function SearchUI({
   const [isLoading, setIsLoading] = useState(false)
   const isWebUrl = query.match(/^https?:\/\//)
   const search = useSearch(query, {enabled: !!query})
+  const [focusedIndex, setFocusedIndex] = useState(0)
   const dirList = useListDirectory(homeId, {mode: 'Children'})
   const isSearching = !!query.length
   const Icon = isWebUrl ? Globe : Search
-  const results: {
-    link: string
-    label: string
-  }[] = isSearching
-    ? search.data?.entities.map((e) => ({
-        link: e.id.id,
-        label: e.title,
-      })) || []
-    : dirList.data
-        ?.map((d) => ({
-          link: hmId(d.account, {path: d.path}).id,
-          label: d.metadata.name || '?',
-        }))
-        .filter(filterPresets) || []
+  const results: SearchResult[] = isSearching
+    ? search?.data?.entities
+        ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
+        ?.map((item, index) => {
+          const title = item.title || item.id.uid
+          return {
+            key: packHmId(item.id),
+            title,
+            path: item.parentNames,
+            icon: item.icon,
+            onFocus: () => {
+              setFocusedIndex(index)
+            },
+            onMouseEnter: () => {
+              setFocusedIndex(index)
+            },
+            onSelect: () => onValue(packHmId(item.id), item.title || ''),
+            subtitle: 'Document',
+            searchQuery: item.searchQuery,
+            versionTime: item.versionTime
+              ? item.versionTime.toDate().toLocaleString()
+              : '',
+          }
+        })
+        .filter(Boolean) ?? []
+    : dirList.data?.map((d, index) => {
+        const id = hmId(d.account, {path: d.path}).id
+        return {
+          key: id,
+          title: d.metadata.name || '',
+          path: d.path,
+          icon: d.metadata.icon,
+          onSelect: () => onValue(id, d.metadata.name || ''),
+          subtitle: 'Document',
+          searchQuery: query,
+          onFocus: () => {
+            setFocusedIndex(index)
+          },
+          onMouseEnter: () => {
+            setFocusedIndex(index)
+          },
+        }
+      }) ?? []
 
   return (
     <div className="z-50 max-h-[50vh] overflow-y-auto">
@@ -401,21 +432,46 @@ function SearchUI({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && query.match(/^https?:\/\//)) {
-              onValue(query, '')
-              setIsLoading(true)
-              resolveHypermediaUrl(query)
-                .then((resolved) => {
-                  if (resolved) {
-                    onValue(resolved.id, resolved.title || '')
-                  }
-                  setIsLoading(false)
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              onClose()
+            }
+
+            if (e.key === 'Enter') {
+              if (query.match(/^https?:\/\//)) {
+                onValue(query, '')
+                setIsLoading(true)
+                resolveHypermediaUrl(query)
+                  .then((resolved) => {
+                    if (resolved) {
+                      onValue(resolved.id, resolved.title || '')
+                    }
+                    setIsLoading(false)
+                    onClose()
+                  })
+                  .catch((e) => {
+                    console.error(e)
+                    onClose()
+                  })
+              } else {
+                const selectedEntity = results[focusedIndex]
+                if (selectedEntity) {
+                  onValue(selectedEntity.key, selectedEntity.title || '')
                   onClose()
-                })
-                .catch((e) => {
-                  console.error(e)
-                  onClose()
-                })
+                }
+              }
+            }
+
+            if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setFocusedIndex(
+                (prev) => (prev - 1 + results.length) % results.length,
+              )
+            }
+
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setFocusedIndex((prev) => (prev + 1) % results.length)
             }
           }}
         />
@@ -426,18 +482,22 @@ function SearchUI({
           <Spinner />
         </div>
       )}
-      {results.map((e) => {
+      {results.map((item, itemIndex) => {
+        const isSelected = focusedIndex === itemIndex
+
         return (
-          <div
-            key={e.link}
-            onClick={() => {
-              onValue(e.link, e.label)
-              onClose()
+          <SearchResultItem
+            item={{
+              ...item,
+              path: item.path || [],
+              onSelect: () => {
+                onValue(item.key, item.title || '')
+              },
+              onFocus: () => setFocusedIndex(itemIndex),
+              onMouseEnter: () => setFocusedIndex(itemIndex),
             }}
-            className="hover:bg-secondary px-3 py-2"
-          >
-            {e.label}
-          </div>
+            selected={isSelected}
+          />
         )
       })}
     </div>

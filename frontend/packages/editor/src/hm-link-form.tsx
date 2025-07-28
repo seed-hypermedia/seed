@@ -1,34 +1,33 @@
-import {LauncherItem, SwitcherItem} from '@/launcher-item'
+import {SearchResult} from '@shm/shared/editor-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
+import {useDocContentContext} from '@shm/ui/document-content'
 import {SwitchField} from '@shm/ui/form-fields'
-import {Separator} from '@shm/ui/separator'
-import {SizableText} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ChevronDown,
   CircleDot,
   File,
   Link as LinkIcon,
   PanelBottom,
   Quote,
   Search,
-} from 'lucide-react'
-import {ReactNode, useEffect, useRef, useState} from 'react'
-import {createPortal} from 'react-dom'
-import {useDocContentContext} from '../../ui/src/document-content'
-import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  ChevronDown,
   TextCursorInput,
   Trash,
   Unlink,
-} from '../../ui/src/icons'
+} from '@shm/ui/icons'
+import {SearchResultItem} from '@shm/ui/search'
+import {Separator} from '@shm/ui/separator'
+import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
+import {ReactNode, useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {BlockNoteEditor} from './blocknote'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import './hm-link-form.css'
@@ -357,7 +356,7 @@ const SearchInput = ({
   // const recents = useRecents()
   const searchResults = useSearch(search, {}, true, 20 - search.length)
 
-  const searchItems: SwitcherItem[] =
+  const searchItems: Array<SearchResult> =
     searchResults.data?.entities
       ?.map((item) => {
         return {
@@ -367,6 +366,8 @@ const SearchInput = ({
           versionTime: item.versionTime
             ? item.versionTime.toDate().toLocaleString()
             : '',
+          onFocus: () => {},
+          onMouseEnter: () => {},
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
             setLink(item.id.id)
@@ -437,7 +438,7 @@ const SearchInput = ({
       ) : null}
       {activeItems?.map((item, itemIndex) => {
         return (
-          <LauncherItem
+          <SearchResultItem
             item={item}
             key={item.key}
             selected={focusedIndex === itemIndex}

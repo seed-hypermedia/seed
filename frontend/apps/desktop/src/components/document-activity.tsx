@@ -76,6 +76,7 @@ export function ActivityList({
     latestDoc?.data?.document?.version?.split('.') || [],
   )
   const comments = useAllDocumentComments(docId)
+
   const commentGroups = useCommentGroups(comments.data)
   const activeChangeIds = useVersionChanges(docId)
   const childrenActivity = useChildrenActivity(docId)

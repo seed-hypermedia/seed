@@ -18,12 +18,12 @@ export default function Navbar() {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden'
     } else {
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = 'auto'
     }
 
     // Cleanup function to restore scroll when component unmounts
     return () => {
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = 'auto'
     }
   }, [isMobileMenuOpen])
 
@@ -35,10 +35,10 @@ export default function Navbar() {
   ]
 
   return (
-    <header className="flex fixed top-0 right-0 left-0 z-40 justify-between items-center px-8 py-4 w-full bg-white border-b border-gray-200 shadow-sm">
+    <header className="fixed top-0 right-0 left-0 z-40 flex w-full items-center justify-between border-b border-gray-200 bg-white px-8 py-4 shadow-sm">
       <a href="/" className="flex items-center space-x-2">
-        <SeedLogo className="w-6 h-6 text-brand-5" />
-        <span className="text-lg font-semibold text-transparent whitespace-nowrap bg-clip-text bg-gradient-to-r from-brand-5 to-brand-6">
+        <SeedLogo className="text-brand-5 h-6 w-6" />
+        <span className="from-brand-5 to-brand-6 bg-gradient-to-r bg-clip-text text-lg font-semibold whitespace-nowrap text-transparent">
           Seed Hypermedia
         </span>
       </a>
@@ -68,7 +68,7 @@ export default function Navbar() {
       {/* Mobile menu overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-50 backdrop-blur-md bg-black/20 md:hidden"
+          className="fixed inset-0 z-50 bg-black/20 backdrop-blur-md md:hidden"
           onClick={closeMobileMenu}
         />
       )}
@@ -82,7 +82,7 @@ export default function Navbar() {
       >
         <div
           className={`mx-4 w-full max-w-sm transform rounded-2xl border border-gray-100/50 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-out ${
-            isMobileMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            isMobileMenuOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
           } `}
           onClick={(e) => e.stopPropagation()}
         >
@@ -90,18 +90,18 @@ export default function Navbar() {
             {/* Close button */}
             <button
               onClick={closeMobileMenu}
-              className="absolute top-4 right-4 p-2 text-gray-500 rounded-full transition-colors hover:bg-gray-100/50 hover:text-gray-700"
+              className="absolute top-4 right-4 rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100/50 hover:text-gray-700"
               aria-label="Close menu"
             >
               <X size={20} />
             </button>
 
-            <div className="flex flex-col mt-4 space-y-1">
+            <div className="mt-4 flex flex-col space-y-1">
               {navLinks.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
-                  className="block px-4 py-4 text-xl font-bold text-gray-800 rounded-xl transition-all duration-200 hover:text-brand-5 hover:bg-gray-50/50"
+                  className="hover:text-brand-5 block rounded-xl px-4 py-4 text-xl font-bold text-gray-800 transition-all duration-200 hover:bg-gray-50/50"
                   onClick={closeMobileMenu}
                 >
                   {link.label}

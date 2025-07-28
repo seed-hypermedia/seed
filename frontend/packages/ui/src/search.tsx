@@ -60,7 +60,6 @@ export function MobileSearch({
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => {},
           subtitle: 'Document',
           searchQuery: item.searchQuery,
           versionTime:
@@ -69,7 +68,7 @@ export function MobileSearch({
               : item.versionTime
               ? item.versionTime.toDate().toLocaleString()
               : '',
-        }
+        } as SearchResult
       })
       .filter(Boolean) ?? []
 
@@ -85,19 +84,30 @@ export function MobileSearch({
       />
       {searchResults.data?.entities[0] ? (
         <div className="mb-8">
-          {searchItems.map((item: SearchResult, index: number) => {
+          {searchItems.map((item: SearchResult) => {
+            const navigateProps = useRouteLink(
+              item.id
+                ? {
+                    key: 'document',
+                    id: item.id,
+                  }
+                : null,
+              {...originHomeId, handler: 'onClick'},
+            )
+            console.log('NAVIGATE PROPS', navigateProps)
             return (
               <Fragment key={item.key}>
                 <SearchResultItem
-                  item={item}
+                  item={{
+                    ...item,
+                  }}
+                  onSelect={onSelect}
                   originHomeId={originHomeId}
                   selected={false}
                 />
-                {index === searchItems.length - 1 ? undefined : <Separator />}
               </Fragment>
             )
           })}
-          <Separator className="my-10 bg-gray-400" />
         </div>
       ) : null}
     </div>
@@ -190,29 +200,16 @@ export function HeaderSearch({
                   }
 
                   if (e.key === 'Enter') {
-                    console.log('🔍 [DEBUG] Enter key pressed')
                     e.preventDefault()
 
                     if (!universalAppContext) {
-                      console.log('🔍 [DEBUG] No universalAppContext found')
                       return
                     }
-                    console.log(
-                      '🔍 [DEBUG] universalAppContext exists:',
-                      universalAppContext,
-                    )
 
                     const selectedEntity =
                       searchResults.data?.entities[focusedIndex]
-                    console.log(
-                      '🔍 [DEBUG] selectedEntity:',
-                      selectedEntity,
-                      'focusedIndex:',
-                      focusedIndex,
-                    )
 
                     if (!selectedEntity) {
-                      console.log('🔍 [DEBUG] No selectedEntity found')
                       return
                     }
 
@@ -316,10 +313,14 @@ export function SearchResultItem({
   item,
   originHomeId,
   selected = false,
+  className,
+  onSelect,
 }: {
   item: SearchResult
   originHomeId?: UnpackedHypermediaId | null
   selected: boolean
+  className?: string
+  onSelect?: () => void
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
@@ -341,56 +342,81 @@ export function SearchResultItem({
     {...originHomeId, handler: 'onClick'},
   )
 
+  const selectProps = item.onSelect
+    ? {
+        onClick: () => {
+          item.onSelect?.()
+          onSelect?.()
+        },
+      }
+    : {
+        ...navigateProps,
+        onClick: (e: any) => {
+          onSelect?.()
+          navigateProps?.onClick?.(e)
+        },
+      }
+
   return (
     <Button
       variant="ghost"
-      {...navigateProps}
+      {...selectProps}
       className={cn(
-        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-center justify-start rounded-none py-2',
+        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start rounded-none py-2',
         selected && 'bg-brand-12',
+        className,
       )}
     >
-      {item.icon ? (
-        <UIAvatar
-          label={item.title}
-          size={20}
-          id={item.key}
-          url={getDaemonFileUrl(item.icon)}
-        />
-      ) : item.path?.length === 1 ? (
-        <UIAvatar label={item.title} size={20} id={item.key} />
-      ) : null}
-      <div className="flex w-full flex-1 flex-col gap-1 @md:flex-row">
-        <SizableText className="line-clamp-1 w-full truncate text-left font-sans">
-          {highlightSearchMatch(item.title, item.searchQuery, {
-            weight: 'bold',
-            size: 'sm',
-          })}
+      <div className="flex h-5 items-center justify-center">
+        {item.icon ? (
+          <UIAvatar
+            label={item.title}
+            size={20}
+            id={item.key}
+            url={getDaemonFileUrl(item.icon)}
+          />
+        ) : item.path?.length === 1 ? (
+          <UIAvatar label={item.title} size={20} id={item.key} />
+        ) : null}
+      </div>
+      <div className="flex w-full flex-1 flex-col justify-start gap-1">
+        <SizableText className="line-clamp-1 h-5 w-full truncate text-left font-sans font-medium">
+          {!!item.path && unpackedId?.blockRef
+            ? item.path[item.path?.length - 1]
+            : highlightSearchMatch(item.title, item.searchQuery)}
         </SizableText>
 
-        {!!item.path && (unpackHmId(item.key)?.latest || item.versionTime) && (
-          <div className="flex items-center gap-2 overflow-hidden">
-            {!!item.path
-              ? [
-                  <SizableText
-                    size="xs"
-                    weight="light"
-                    className="line-clamp-1 flex-none font-sans text-gray-400"
-                  >
-                    {collapsedPath.join(' / ')}
-                  </SizableText>,
-                  <Separator vertical />,
-                ]
-              : null}
+        {unpackedId?.blockRef ? (
+          <SizableText
+            size="xs"
+            weight="light"
+            className="line-clamp-1 flex-none text-left font-sans text-gray-400"
+          >
+            ...{highlightSearchMatch(item.title, item.searchQuery)}...
+          </SizableText>
+        ) : null}
 
+        {!!item.path && (unpackedId?.latest || item.versionTime) && (
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className="flex flex-1 items-center">
+              {!!item.path ? (
+                <SizableText
+                  size="xs"
+                  weight="light"
+                  className="line-clamp-1 flex-none truncate font-sans text-gray-400"
+                >
+                  {collapsedPath.join(' / ')}
+                </SizableText>
+              ) : null}
+            </div>
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
                 className="line-clamp-1 flex-none text-gray-400"
                 size="xs"
                 weight="light"
-                color={unpackHmId(item.key)?.latest ? 'success' : 'default'}
+                color={unpackedId?.latest ? 'success' : 'default'}
               >
-                {unpackHmId(item.key)?.latest
+                {unpackedId?.latest
                   ? 'Latest Version'
                   : item.versionTime
                   ? 'Previous Version'
@@ -407,6 +433,7 @@ export function SearchResultItem({
 export function RecentSearchResultItem({
   item,
   selected,
+  originHomeId,
 }: {
   item: {
     key: string
@@ -419,6 +446,7 @@ export function RecentSearchResultItem({
     onMouseEnter: () => void
   }
   selected: boolean
+  originHomeId?: UnpackedHypermediaId | null
 }) {
   let path = normalizePath(item.path.slice(0, -1))
   if (item.id) {
@@ -440,28 +468,29 @@ export function RecentSearchResultItem({
     <SearchResultItem
       item={{
         ...item,
-        path,
       }}
       selected={selected}
+      originHomeId={originHomeId}
     />
   )
 }
-export function highlightSearchMatch(
-  text: string,
-  highlight: string = '',
-  normalProps = {},
-  highlightProps = {color: 'success', weight: 'bold'},
-) {
-  if (!highlight) return <SizableText {...normalProps}>{text}</SizableText>
+
+export function highlightSearchMatch(text: string, highlight: string = '') {
+  if (!highlight) return text
   const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'))
   return (
     <>
       {parts.map((part, i) => {
         const isMatch = part.toLowerCase() === highlight.toLowerCase()
-        return (
-          <SizableText key={i} {...(isMatch ? highlightProps : normalProps)}>
+        return isMatch ? (
+          <SizableText
+            className="bg-brand-10 text-secondary-foreground inline-block rounded-md px-1 font-medium dark:text-white"
+            key={i}
+          >
             {part}
           </SizableText>
+        ) : (
+          part
         )
       })}
     </>
@@ -489,9 +518,9 @@ export function SearchInput({
   focusedIndex: number
 }>) {
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className="flex h-full w-full flex-col gap-2">
       <div className="relative flex items-center gap-2 rounded-md">
-        <Search className="absolute top-1/2 left-2.5 z-30 size-4 -translate-y-1/2" />
+        <Search className="absolute top-1/2 left-2.5 z-3 size-4 -translate-y-1/2" />
         <Input
           autoFocus={true}
           placeholder="Search Hypermedia documents"
@@ -500,27 +529,29 @@ export function SearchInput({
           onKeyUp={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {
               e.preventDefault()
-              onEscape()
+              onEscape?.()
             }
 
             if (e.nativeEvent.key === 'Enter') {
               e.preventDefault()
-              onEnter()
+              onEnter?.()
             }
 
             if (e.nativeEvent.key === 'ArrowUp') {
               e.preventDefault()
-              onArrowUp()
+              onArrowUp?.()
             }
 
             if (e.nativeEvent.key === 'ArrowDown') {
               e.preventDefault()
-              onArrowDown()
+              onArrowDown?.()
             }
           }}
         />
       </div>
-      <ScrollArea className="h-full max-h-[200px]">{children}</ScrollArea>
+      <div className="h-full max-h-[200px] overflow-hidden">
+        <ScrollArea className="h-[200px] h-full">{children}</ScrollArea>
+      </div>
     </div>
   )
 }

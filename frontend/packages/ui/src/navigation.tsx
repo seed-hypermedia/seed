@@ -456,15 +456,21 @@ function CollapsedOutlineNode({
   node: NodeOutline
   level?: number
 }) {
+  const nodes =
+    !node.children?.length || node.children.length < 2
+      ? undefined
+      : node.children.length < 8
+      ? node.children
+      : node.children.slice(0, 8)
   return (
     <>
       <div
         key={node.id}
         className="bg-muted-foreground/40 h-0.5 w-full rounded-full"
       />
-      {node.children?.length ? (
+      {nodes ? (
         <div className={cn('flex flex-col gap-3', level < 3 && 'pl-[3px]')}>
-          {node.children.map((child) => (
+          {nodes.map((child) => (
             <CollapsedOutlineNode
               key={child.id}
               node={child}

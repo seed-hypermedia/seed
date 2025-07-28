@@ -86,4 +86,11 @@ export const recentsApi = t.router({
       }
     })
   }),
+  clearAllRecents: t.procedure.mutation(() => {
+    updateRecents((): RecentsState => {
+      return {
+        recents: [],
+      }
+    })
+  }),
 })

@@ -227,6 +227,39 @@ export function DeleteDraftLogs() {
   )
 }
 
+export function DeleteAllRecents() {
+  const [isConfirming, setIsConfirming] = useState(false)
+  const clearAllRecents = trpc.recents.clearAllRecents.useMutation()
+
+  if (isConfirming) {
+    return (
+      <Button
+        variant="destructive"
+        onClick={() => {
+          clearAllRecents.mutateAsync().then(() => {
+            toast.success('All recent items cleared')
+            setIsConfirming(false)
+          })
+        }}
+      >
+        <Trash className="mr-2 h-4 w-4" />
+        Confirm Delete All Recents?
+      </Button>
+    )
+  }
+  return (
+    <Button
+      variant="destructive"
+      onClick={() => {
+        setIsConfirming(true)
+      }}
+    >
+      <Trash className="mr-2 h-4 w-4" />
+      Delete All Recent Items
+    </Button>
+  )
+}
+
 function GeneralSettings() {
   const [theme, setTheme, isInitialLoading] = useSystemThemeWriter()
   return (
@@ -247,6 +280,15 @@ function GeneralSettings() {
           </Select>
         </div>
       )}
+      <SettingsSection title="Recent Items">
+        <SizableText>
+          Clear all recent documents from your search history. This action
+          cannot be undone.
+        </SizableText>
+        <div className="flex justify-end">
+          <DeleteAllRecents />
+        </div>
+      </SettingsSection>
     </div>
   )
 }
