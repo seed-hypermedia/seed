@@ -104,4 +104,6 @@ message NewBlobEvent {
 
   // Extra attributes of the blob.
   string extra_attrs = 5;
+
+  int64 blob_id = 6;
 }

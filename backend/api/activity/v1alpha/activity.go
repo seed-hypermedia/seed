@@ -10,6 +10,8 @@ import (
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/storage"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +25,8 @@ import (
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -111,24 +115,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += storage.ResourcesIRI.String() + " GLOB '" + strings.TrimSuffix(req.FilterResource, "/") + "'"
 		filtersStr += " AND "
 	}
-	var linksStr string
-	if len(req.AddLinkedResource) > 0 {
-		if len(req.FilterResource) > 0 || len(req.FilterEventType) > 0 {
-			linksStr += " OR "
-		}
-		linksStr += "(" + storage.StructuralBlobsType.String() + " in ('Change', 'Comment') AND " + storage.ResourceLinksTarget.String() + " IN (" +
-			"select " + storage.ResourcesID.String() + " FROM " + storage.T_Resources + " where " + storage.ResourcesIRI.String() + " in ("
-		for i, resource := range req.AddLinkedResource {
-			if !resourcePattern.MatchString(resource) {
-				return nil, fmt.Errorf("Invalid link resource format [%s]", resource)
-			}
-			if i > 0 {
-				linksStr += ", "
-			}
-			linksStr += "'" + resource + "'"
-		}
-		linksStr += "))) AND "
-	}
 	var (
 		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs"
 		tableStr             = "FROM " + storage.T_StructuralBlobs
@@ -149,16 +135,19 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		%s
 		%s
 		%s
-		WHERE %s %s %s;
-	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, linksStr, pageTokenStr)
-	var lastBlobID int64
+		WHERE %s %s;
+	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
 	conn, cancel, err := srv.db.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer cancel()
+	pageSize := req.PageSize
+	if len(req.AddLinkedResource) > 0 {
+		pageSize = req.PageSize * 2
+	}
 	err = sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
-		lastBlobID = stmt.ColumnInt64(0)
+		id := stmt.ColumnInt64(0)
 		eventType := stmt.ColumnText(1)
 		author := stmt.ColumnBytes(2)
 		resource := stmt.ColumnText(3)
@@ -169,17 +158,18 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		tsid := stmt.ColumnText(8)
 		extraAttrs := stmt.ColumnText(9)
 		accountID := core.Principal(author).String()
-		id := cid.NewCidV1(uint64(codec), mhash)
+		cID := cid.NewCidV1(uint64(codec), mhash)
 		if eventType == "Comment" {
 			resource = "hm://" + accountID + "/" + tsid
 		}
 		event := activity.Event{
 			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
-				Cid:        id.String(),
+				Cid:        cID.String(),
 				BlobType:   eventType,
 				Author:     accountID,
 				Resource:   resource,
 				ExtraAttrs: extraAttrs,
+				BlobId:     id,
 			}},
 			Account:     accountID,
 			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
@@ -187,14 +177,93 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 		events = append(events, &event)
 		return nil
-	}, cursorBlobID, req.PageSize)
+	}, cursorBlobID, pageSize)
 	if err != nil {
 		return nil, fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
 	}
+	if len(req.AddLinkedResource) > 0 {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			var eids []string
+			if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+				eid := stmt.ColumnInt64(0)
+				if eid == 0 {
+					return nil
+				}
+				eids = append(eids, strconv.FormatInt(eid, 10))
+				return nil
 
+			}, strings.Join(req.AddLinkedResource, ",")); err != nil {
+				return err
+			}
+
+			if len(eids) == 0 {
+				return status.Errorf(codes.NotFound, "none of the entities provided were found '%s'", req.AddLinkedResource)
+			}
+
+			if err := sqlitex.Exec(conn, qListMentions(), func(stmt *sqlite.Stmt) error {
+
+				var (
+					source     = stmt.ColumnText(0)
+					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
+					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
+					eventTime  = stmt.ColumnInt64(4) * 1000
+					blobType   = stmt.ColumnText(5)
+					/*
+						isPinned      = stmt.ColumnInt(6) > 0
+						anchor        = stmt.ColumnText(7)
+						targetVersion = stmt.ColumnText(8)
+						fragment      = stmt.ColumnText(9)
+					*/
+					linkType    = stmt.ColumnText(10)
+					blobID      = stmt.ColumnInt64(11)
+					observeTime = stmt.ColumnInt64(12)
+					tsid        = stmt.ColumnText(13)
+					extraAttrs  = stmt.ColumnText(14)
+				)
+				if source == "" && blobType != "Comment" {
+					return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
+				}
+
+				if blobType == "Comment" {
+					source = "hm://" + author + "/" + tsid
+
+				}
+				if blobType == "Comment" {
+					source = "hm://" + author + "/" + tsid
+				}
+
+				event := activity.Event{
+					Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
+						Cid:        sourceBlob,
+						BlobType:   linkType,
+						Author:     author,
+						Resource:   source,
+						ExtraAttrs: extraAttrs,
+						BlobId:     blobID,
+					}},
+					Account:     author,
+					EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
+					ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
+				}
+				events = append(events, &event)
+				return nil
+			}, strings.Join(eids, ","), cursorBlobID, req.PageSize); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Data.(*activity.Event_NewBlob).NewBlob.BlobId > events[j].Data.(*activity.Event_NewBlob).NewBlob.BlobId
+	})
+	events = events[:int(math.Min(float64(len(events)), float64(req.PageSize)))]
 	var nextPageToken string
-	if lastBlobID != 0 && int(req.PageSize) == len(events) {
-		nextPageToken, err = apiutil.EncodePageToken(lastBlobID-1, nil)
+	if events[len(events)-1].Data.(*activity.Event_NewBlob).NewBlob.BlobId != 0 && int(req.PageSize) == len(events) {
+		nextPageToken, err = apiutil.EncodePageToken(events[len(events)-1].Data.(*activity.Event_NewBlob).NewBlob.BlobId-1, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode next page token: %w", err)
 		}
@@ -205,3 +274,86 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		NextPageToken: nextPageToken,
 	}, err
 }
+
+var qEntitiesLookupID = dqb.Str(`
+	SELECT resources.id
+	FROM resources
+	WHERE resources.iri = :entities_eid
+	LIMIT 1
+`)
+
+var qListMentions = dqb.Str(`
+WITH changes AS (
+SELECT distinct
+    structural_blobs.genesis_blob,
+    resource_links.id AS link_id,
+    resource_links.is_pinned,
+    blobs.codec,
+    blobs.multihash,
+	blobs.id,
+	public_keys.principal AS author,
+    resource_links.extra_attrs->>'a' AS anchor,
+	resource_links.extra_attrs->>'v' AS target_version,
+	resource_links.extra_attrs->>'f' AS target_fragment,
+	resource_links.type AS link_type,
+	structural_blobs.extra_attrs->>'tsid' AS tsid
+	
+FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resource_links.target IN (:targets)
+AND structural_blobs.type IN ('Change')
+)
+SELECT distinct
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+	public_keys.principal AS author,
+    structural_blobs.ts,
+    structural_blobs.type AS blob_type,
+    resource_links.is_pinned,
+    resource_links.extra_attrs->>'a' AS anchor,
+	resource_links.extra_attrs->>'v' AS target_version,
+	resource_links.extra_attrs->>'f' AS target_fragment,
+	resource_links.type AS link_type,
+    blobs.id AS blob_id,
+	blobs.insert_time AS blob_insert_time,
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	structural_blobs.extra_attrs
+FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resource_links.target IN (:targets)
+AND blobs.id < :idx
+AND structural_blobs.type IN ('Comment')
+
+UNION ALL
+SELECT distinct
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+    public_keys.principal AS author,
+    structural_blobs.ts,
+    'Ref' AS blob_type,
+    changes.is_pinned,
+    changes.anchor,
+	changes.target_version,
+	changes.target_fragment,
+	changes.link_type link_type,
+    blobs.id AS blob_id,
+	blobs.insert_time AS blob_insert_time,
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	structural_blobs.extra_attrs
+FROM structural_blobs
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
+AND blobs.id < :idx
+ORDER BY blobs.id DESC
+LIMIT :page_size + 1;
+`)

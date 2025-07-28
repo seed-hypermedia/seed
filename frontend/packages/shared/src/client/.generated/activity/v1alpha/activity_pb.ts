@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * The request to list the events.
@@ -282,6 +282,11 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
    */
   extraAttrs = "";
 
+  /**
+   * @generated from field: int64 blob_id = 6;
+   */
+  blobId = protoInt64.zero;
+
   constructor(data?: PartialMessage<NewBlobEvent>) {
     super();
     proto3.util.initPartial(data, this);
@@ -295,6 +300,7 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
     { no: 3, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "extra_attrs", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "blob_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NewBlobEvent {
