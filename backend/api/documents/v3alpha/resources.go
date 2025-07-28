@@ -81,6 +81,7 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 					Kind: &documents.Resource_Comment{
 						Comment: cmt,
 					},
+					Version: cmt.Version,
 				}, nil
 			case *blob.Contact:
 				pb := contactToProto(tsid, v)
@@ -109,6 +110,7 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		Kind: &documents.Resource_Document{
 			Document: docpb,
 		},
+		Version: docpb.Version,
 	}, nil
 }
 

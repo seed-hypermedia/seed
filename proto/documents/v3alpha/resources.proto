@@ -31,4 +31,7 @@ message Resource {
 
     Contact contact = 3;
   }
+
+  // Optional. The version of the resource (when applicable).
+  string version = 4;
 }

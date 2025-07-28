@@ -61,7 +61,7 @@ func TestTSID_MaxTimestamp(t *testing.T) {
 }
 
 func TestTSID_PanicOnExceedingMaxTimestamp(t *testing.T) {
-	exceedingTimestamp := time.UnixMilli(maxTS).UTC()
+	exceedingTimestamp := time.UnixMilli(1 << 48).UTC()
 	hash := [4]byte{0x11, 0x22, 0x33, 0x44}
 
 	require.Panics(t, func() {
@@ -240,5 +240,17 @@ func TestTSID_TimeEncodingDecoding(t *testing.T) {
 			decoded := decodeTime(b)
 			require.Equal(t, ms, decoded)
 		})
+	}
+}
+
+func TestTSID_StringLength(t *testing.T) {
+	ts := time.Date(2023, 10, 15, 14, 30, 45, 0, time.UTC)
+	tsid := NewTSIDWithHash(ts, [4]byte{255, 255, 255})
+	require.Equal(t, MinTSIDLength, len(tsid), "TSID string length should be 14 characters including multibase prefix and hash")
+
+	{
+		maxTS := time.UnixMilli(1<<48 - 1) // We support up to 48 bits for the timestamps.
+		tsid := NewTSIDWithHash(maxTS, [4]byte{255, 255, 255})
+		require.Equal(t, MaxTSIDLength, len(tsid), "Max TSID string length should also be 14 characters")
 	}
 }

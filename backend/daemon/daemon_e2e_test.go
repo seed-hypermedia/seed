@@ -1396,3 +1396,77 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 			Compare(t, "Document %d must match", i)
 	}
 }
+
+func TestCommentDiscovery(t *testing.T) {
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	ctx := context.Background()
+
+	// Alice creates a document.
+	aliceDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
+		Path:           "/test-doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Test Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a test document for commenting.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Alice creates a comment on the document.
+	comment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount:  aliceDoc.Account,
+		TargetPath:     aliceDoc.Path,
+		TargetVersion:  aliceDoc.Version,
+		SigningKeyName: "main",
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "This is Alice's comment."}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Connect bob to alice.
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	// Wait a little bit for the connection to warm up.
+	time.Sleep(200 * time.Millisecond)
+
+	// Bob discovers the comment.
+	var ok bool
+	for range 100 {
+		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: aliceDoc.Account,
+			Path:    strings.TrimPrefix(comment.Id, aliceDoc.Account), // Comment ID is a resource ID of form `{account}/{tsid}`, but we only want the path with the leading slash.
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", res.LastError, "comment discovery must not produce any errors")
+		if res.Version == comment.Version {
+			ok = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.True(t, ok, "bob must discover alice's comment")
+
+	// Bob should be able to get the comment now.
+	bobGotComment, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: comment.Id,
+	})
+	require.NoError(t, err)
+
+	testutil.StructsEqual(comment, bobGotComment).Compare(t, "bob must get alice's comment intact")
+}

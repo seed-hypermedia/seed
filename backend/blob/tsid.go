@@ -10,6 +10,15 @@ import (
 
 const maxTS = 1<<48 - 1
 
+// For any reasonable timestamp minimum TSID length is 14 characters including multibase prefix.
+// Technically we reserve 48 bits for the millisecond timestamp, so some very unreasonable huge timestamp
+// that is waaaaay far in the future could result in a 15 character TSID.
+// Defining those length is useful for quickly skipping over strings that are definitely not TSIDs.
+const (
+	MinTSIDLength = 14
+	MaxTSIDLength = 15
+)
+
 // TSID is a unique identifier of a replaceable resource,
 // within a namespace of a public key.
 // The ID has an embedded timestamp, hence the name.
@@ -65,7 +74,7 @@ func NewTSIDWithHash(ts time.Time, hash [4]byte) TSID {
 	}
 
 	ms := ts.UnixMilli()
-	if ms >= maxTS {
+	if ms > maxTS {
 		panic("BUG: timestamp exceeds maximum allowed of 48 bits")
 	}
 

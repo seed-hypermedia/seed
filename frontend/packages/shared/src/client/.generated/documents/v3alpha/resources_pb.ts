@@ -80,6 +80,13 @@ export class Resource extends Message<Resource> {
     case: "contact";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
+  /**
+   * Optional. The version of the resource (when applicable).
+   *
+   * @generated from field: string version = 4;
+   */
+  version = "";
+
   constructor(data?: PartialMessage<Resource>) {
     super();
     proto3.util.initPartial(data, this);
@@ -91,6 +98,7 @@ export class Resource extends Message<Resource> {
     { no: 1, name: "document", kind: "message", T: Document, oneof: "kind" },
     { no: 2, name: "comment", kind: "message", T: Comment, oneof: "kind" },
     { no: 3, name: "contact", kind: "message", T: Contact, oneof: "kind" },
+    { no: 4, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Resource {

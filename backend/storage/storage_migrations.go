@@ -57,7 +57,15 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-
+	{Version: "2025-07-28.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX structural_blobs_by_tsid;
+			CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author) WHERE extra_attrs->>'tsid' IS NOT NULL;
+		`)); err != nil {
+			return err
+		}
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-07-25.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			ALTER TABLE fts_index

@@ -77,7 +77,9 @@ type Resource struct {
 	//	*Resource_Document
 	//	*Resource_Comment
 	//	*Resource_Contact
-	Kind          isResource_Kind `protobuf_oneof:"kind"`
+	Kind isResource_Kind `protobuf_oneof:"kind"`
+	// Optional. The version of the resource (when applicable).
+	Version       string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -146,6 +148,13 @@ func (x *Resource) GetContact() *Contact {
 	return nil
 }
 
+func (x *Resource) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 type isResource_Kind interface {
 	isResource_Kind()
 }
@@ -174,11 +183,12 @@ const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\n" +
 	"!documents/v3alpha/resources.proto\x12\x1acom.seed.documents.v3alpha\x1a!documents/v3alpha/documents.proto\x1a documents/v3alpha/comments.proto\"&\n" +
 	"\x12GetResourceRequest\x12\x10\n" +
-	"\x03iri\x18\x01 \x01(\tR\x03iri\"\xd8\x01\n" +
+	"\x03iri\x18\x01 \x01(\tR\x03iri\"\xf2\x01\n" +
 	"\bResource\x12B\n" +
 	"\bdocument\x18\x01 \x01(\v2$.com.seed.documents.v3alpha.DocumentH\x00R\bdocument\x12?\n" +
 	"\acomment\x18\x02 \x01(\v2#.com.seed.documents.v3alpha.CommentH\x00R\acomment\x12?\n" +
-	"\acontact\x18\x03 \x01(\v2#.com.seed.documents.v3alpha.ContactH\x00R\acontactB\x06\n" +
+	"\acontact\x18\x03 \x01(\v2#.com.seed.documents.v3alpha.ContactH\x00R\acontact\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversionB\x06\n" +
 	"\x04kind2p\n" +
 	"\tResources\x12c\n" +
 	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.ResourceB3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
