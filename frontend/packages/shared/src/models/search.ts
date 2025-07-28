@@ -1,15 +1,16 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {useQuery} from '@tanstack/react-query'
-import {UnpackedHypermediaId} from '../hm-types'
+import {HMDocument, UnpackedHypermediaId} from '../hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
 
 export type SearchResultItem = {
   id: UnpackedHypermediaId
+  metadata?: HMDocument['metadata']
   title: string
   icon: string
   parentNames: string[]
-  versionTime: Timestamp
+  versionTime?: Timestamp
   searchQuery: string
   type: 'document' | 'contact'
 }

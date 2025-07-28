@@ -121,7 +121,7 @@ export function SearchInput({
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
-      ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
+      // ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
       ?.map((item, index) => {
         const title = item.title || item.id.uid
         return {
