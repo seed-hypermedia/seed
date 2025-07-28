@@ -17,12 +17,13 @@ import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {UIAvatar} from '@shm/ui/avatar'
+import {Button} from '@shm/ui/button'
 import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, X} from '@shm/ui/icons'
 import {RadioButtons} from '@shm/ui/radio-buttons'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {Button, ListItem, SizableText, XGroup, XStack, YGroup} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
@@ -48,30 +49,23 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
       : undefined
   return (
     <div className="flex flex-col">
-      <ListItem
-        bg="$colorTransparent"
-        hoverTheme
-        pressTheme
-        focusTheme
-        outlineColor="transparent"
-        hoverStyle={{backgroundColor: '$hoverColor'}}
-        borderRadius="$2"
-        paddingHorizontal="$3"
-        paddingVertical={0}
-        icon={<HMIcon metadata={metadata} id={id} size={24} />}
-        onPress={() => {
+      <Button
+        className="h-auto"
+        variant="ghost"
+        onClick={() => {
           navigate({key: 'document', id: hmId(id.uid)})
         }}
       >
+        <HMIcon metadata={metadata} id={id} size={24} />
         <div className="flex flex-1 items-center gap-2">
-          <SizableText size="$2" f={1}>
+          <SizableText size="sm" className="flex-1 text-left">
             {metadata?.name}
           </SizableText>
-          <SizableText size="$1" color="$color9">
+          <SizableText size="xs" color="muted">
             Publisher
           </SizableText>
         </div>
-      </ListItem>
+      </Button>
     </div>
   )
 }
@@ -98,10 +92,16 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
     () =>
       (search ? searchResults.data?.entities : [])
         ?.map((result) => {
-          return {id: result.id, label: result.title}
+          return {
+            id: result.id,
+            label: result.title,
+            type: result.type,
+            metadata: result.metadata,
+          }
         })
         .filter((result) => {
           if (!result) return false // probably id was not parsed correctly
+          if (result.type == 'contact') return true
           if (!result.id.latest) return false // this is not the latest version
           if (result.id.path?.length) return false // this is a directory document, not an account
           if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
@@ -122,94 +122,79 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
     [search, searchResults, selectedCollaborators],
   )
 
+  console.log('matches', matches)
+
   if (!myCapability) return null
   return (
     <div className="flex flex-col gap-2">
-      <XGroup
-        borderWidth={1}
-        borderColor="$color8"
-        animation="fast"
-        bg="$backgroundStrong"
-        borderRadius="$2"
-        overflow="hidden"
-      >
-        <XGroup.Item>
-          <TagInput
-            label="Members"
-            value={search}
-            onChange={setSearch}
-            values={selectedCollaborators}
-            onValuesChange={(collabs) => {
-              setSelectedCollaborators(collabs)
-            }}
-            placeholder="Invite members"
-          >
-            {matches.map(
-              (result) =>
-                result && (
-                  <TagInputItem
-                    key={result.id.id}
-                    onClick={() => {
-                      setSelectedCollaborators((vals) => [...vals, result])
-                    }}
-                    member={result}
-                  >
-                    Add &quot;{result?.label}&quot;
-                  </TagInputItem>
-                ),
-            )}
-            {search && matches.length == 0 ? (
-              <TagInputItem
-                onClick={() => {
-                  console.log('Add new member', search)
-                  let hmUrl = unpackHmId(search)
-                  let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
-                  if (result && hmUrl) {
-                    setSelectedCollaborators((v) => [
-                      ...v,
-                      {id: hmUrl, label: result, unresolved: true},
-                    ])
-                    setSearch('')
-                  } else {
-                    toast.error('Invalid Collaborator Input')
-                  }
-                }}
-              >
-                Add &quot;{search}&quot;
-              </TagInputItem>
-            ) : null}
-          </TagInput>
-        </XGroup.Item>
+      <div className="border-border overflow-hidden rounded-md border-1">
+        <TagInput
+          label="Members"
+          value={search}
+          onChange={setSearch}
+          values={selectedCollaborators}
+          onValuesChange={(collabs) => {
+            setSelectedCollaborators(collabs)
+          }}
+          placeholder="Invite members"
+        >
+          {matches.map(
+            (result) =>
+              result && (
+                <TagInputItem
+                  key={result.id.id}
+                  onClick={() => {
+                    setSelectedCollaborators((vals) => [...vals, result])
+                  }}
+                  member={result}
+                >
+                  Add &quot;{result?.label}&quot;
+                </TagInputItem>
+              ),
+          )}
+          {search && matches.length == 0 ? (
+            <TagInputItem
+              onClick={() => {
+                console.log('Add new member', search)
+                let hmUrl = unpackHmId(search)
+                let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
+                if (result && hmUrl) {
+                  setSelectedCollaborators((v) => [
+                    ...v,
+                    {id: hmUrl, label: result, unresolved: true},
+                  ])
+                  setSearch('')
+                } else {
+                  toast.error('Invalid Collaborator Input')
+                }
+              }}
+            >
+              Add &quot;{search}&quot;
+            </TagInputItem>
+          ) : null}
+        </TagInput>
 
         {selectedCollaborators.length ? (
-          <XGroup.Item>
-            <Button
-              size="$2"
-              h="auto"
-              onPress={() => {
-                addCapabilities.mutate({
-                  myCapability: myCapability,
-                  collaboratorAccountIds: selectedCollaborators.map(
-                    (collab) => collab.id.uid,
-                  ),
-                  role: Role.WRITER,
-                })
-                setSearch('')
-                setSelectedCollaborators([])
-              }}
-              bg="$brand5"
-              borderColor="$brand5"
-              color="white"
-              hoverStyle={{
-                bg: '$brand6',
-                color: 'white',
-                borderColor: '$brand6',
-              }}
-              iconAfter={ArrowRight}
-            />
-          </XGroup.Item>
+          <Button
+            size="sm"
+            className="h-auto rounded-tl-none rounded-bl-none"
+            onClick={() => {
+              addCapabilities.mutate({
+                myCapability: myCapability,
+                collaboratorAccountIds: selectedCollaborators.map(
+                  (collab) => collab.id.uid,
+                ),
+                role: Role.WRITER,
+              })
+              setSearch('')
+              setSelectedCollaborators([])
+            }}
+            variant="default"
+          >
+            <ArrowRight className="size-4" />
+          </Button>
         ) : null}
-      </XGroup>
+      </div>
 
       {/* <Button bg="#DED9FF" icon={Link} size="$2">
         Generate Invite Link
@@ -335,7 +320,7 @@ function CollaboratorItem({
       onPress={() => navigate({key: 'document', id: collaboratorId})}
     >
       <div className="flex flex-1 items-center gap-2">
-        <SizableText size="$2" f={1}>
+        <SizableText size="sm" className="flex-1">
           {
             getContactMetadata(
               capability.accountUid,
@@ -344,7 +329,7 @@ function CollaboratorItem({
             )?.name
           }
         </SizableText>
-        <SizableText size="$1" color="$color9">
+        <SizableText size="xs" color="muted">
           {getRoleName(capability.role)}{' '}
           {capability.grantId.id !== id.id ? '(Parent Capability)' : ''}
         </SizableText>
@@ -405,7 +390,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
     useEffect(() => combobox.setValue(''), [selectedValues, combobox])
 
     const toggleValueFromSelectedValues = (value: SearchResult) => {
-      select.setValue((prevSelectedValues: SearchResult[]) => {
+      select.setValue((prevSelectedValues: Array<SearchResult>) => {
         const index = prevSelectedValues.indexOf(value)
         if (index !== -1) {
           return prevSelectedValues.filter(
@@ -431,7 +416,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       const {selectionStart, selectionEnd} = event.currentTarget
       const isCaretAtTheBeginning = selectionStart === 0 && selectionEnd === 0
       if (!isCaretAtTheBeginning) return
-      select.setValue((values: SearchResult[]) => {
+      select.setValue((values: Array<SearchResult>) => {
         if (!values.length) return values
         return values.slice(0, values.length - 1)
       })
@@ -445,16 +430,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
         aria-label={label}
         className="tag-grid"
         onClick={() => comboboxRef.current?.focus()}
-        render={
-          <XStack
-            // borderColor="$borderColor"
-            // borderWidth={1}
-            flex={1}
-            borderRadius="$2"
-            padding="$1"
-            backgroundColor="$backgroundStrong"
-          />
-        }
+        render={<div className="flex flex-1 rounded-md p-1" />}
       >
         <Ariakit.CompositeRow
           role="row"
@@ -470,18 +446,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 onKeyDown={onItemKeyDown}
                 onFocus={combobox.hide}
                 render={
-                  <XStack
-                    gap="$2"
-                    padding="$1.5"
-                    minHeight="2rem"
-                    borderRadius="$1"
-                    backgroundColor="$backgroundFocus"
-                    borderColor="$borderColor"
-                    alignItems="center"
-                    hoverStyle={{
-                      backgroundColor: '$color7',
-                    }}
-                  />
+                  <div className="bg-background border-border flex min-h-6 items-center gap-1 rounded-md border p-1 px-2 hover:bg-black/10 dark:hover:bg-white/10" />
                 }
               >
                 {'unresolved' in value && value.unresolved ? (
@@ -489,7 +454,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 ) : (
                   <>
                     <LoadedHMIcon id={value.id} size={20} />
-                    <SizableText size="$3">{value.label}</SizableText>
+                    <SizableText>{value.label}</SizableText>
                     {/* <span className="tag-remove"></span> */}
                   </>
                 )}
@@ -526,7 +491,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               <Ariakit.SelectList
                 store={select}
                 render={
-                  <YGroup zIndex="$zIndex.5" backgroundColor="$background" />
+                  <div className="z-100 rounded-sm bg-white dark:bg-black" />
                 }
               />
             }
@@ -549,7 +514,7 @@ function UnresolvedItem({value}: {value: SearchResult}) {
   return (
     <>
       <UIAvatar label={label} id={value.id.id} />
-      <SizableText size="$3">{label}</SizableText>
+      <SizableText>{label}</SizableText>
     </>
   )
 }
@@ -587,7 +552,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
             <HMIcon size={16} metadata={metadata} id={props.member?.id} />
           ) : null}
           <div className="flex flex-1">
-            <SizableText size="$2" textColor="currentColor">
+            <SizableText size="sm" className="text-currentColor">
               {props.children || props.member?.label}
             </SizableText>
           </div>
@@ -602,11 +567,13 @@ const TagInputItemContent = forwardRef<any, any>(
     let {render, children, ...restProps} = props
 
     return (
-      <YGroup.Item>
-        <ListItem size="$3" ref={ref} {...restProps} className="combobox-item">
-          {render ? render : children}
-        </ListItem>
-      </YGroup.Item>
+      <div
+        ref={ref}
+        {...restProps}
+        className="combobox-item data-[active-item]:bg-accent flex flex-1 gap-2 p-3"
+      >
+        {render ? render : children}
+      </div>
     )
   },
 )
