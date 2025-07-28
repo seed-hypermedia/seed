@@ -35,7 +35,8 @@ import {
 } from '@shm/ui/components/drawer'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
-import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
+import {DocumentCover} from '@shm/ui/document-cover'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {BlockQuote, HistoryIcon} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
@@ -608,7 +609,7 @@ function InnerDocumentPage(
                 <div className="flex h-full min-h-full flex-1 flex-col">
                   <div className="flex flex-1 overflow-hidden">
                     <ScrollArea>
-                      <DocumentCover cover={document.metadata.cover} id={id} />
+                      <DocumentCover cover={document.metadata.cover} />
 
                       <div
                         className={cn('flex flex-1', wrapperProps.className)}
@@ -813,38 +814,6 @@ function MobileInteractionCardCollapsed({
         </Button>
       </DrawerTrigger>
       {interactionSummary}
-    </div>
-  )
-}
-
-function DocumentCover({
-  cover,
-  id,
-}: {
-  cover: HMMetadata['cover']
-  id: UnpackedHypermediaId | null
-}) {
-  const imageUrl = useImageUrl()
-  if (!cover) return null
-
-  return (
-    <div
-      className={cn(
-        'relative h-[25vh] w-full flex-shrink-0',
-        cover ? 'bg-transparent' : 'bg-secondary',
-      )}
-    >
-      <img
-        src={imageUrl(cover, 'XL')}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          objectFit: 'cover',
-        }}
-      />
     </div>
   )
 }

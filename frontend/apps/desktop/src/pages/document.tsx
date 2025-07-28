@@ -51,8 +51,8 @@ import {Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
+import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentDate} from '@shm/ui/document-date'
-import {useImageUrl} from '@shm/ui/get-file-url'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
@@ -315,7 +315,7 @@ function _MainDocumentPage({
       >
         <DocInteractionsSummary docId={id} />
         <ScrollArea>
-          <DocumentCover docId={id} />
+          <DocumentCover cover={document?.metadata.cover} />
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
@@ -551,11 +551,12 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <div>
       <Container
-        marginTop={hasCover ? -40 : 0}
-        paddingTop={!hasCover ? 60 : '$6'}
-        className="dark:bg-background bg-white"
+        className="dark:bg-background rounded-lg bg-white"
         data-docid={docId.id}
-        borderRadius="$2"
+        style={{
+          marginTop: hasCover ? -40 : 0,
+          paddingTop: !hasCover ? 60 : 24,
+        }}
       >
         <div className="group flex flex-col gap-4" data-group="header">
           {hasIcon ? (
@@ -575,7 +576,6 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
           <div className="flex">
             <SeedHeading
               level={1}
-              f={1}
               style={{fontWeight: 'bold', wordBreak: 'break-word'}}
             >
               {getDocumentTitle(resource.data?.document)}
@@ -765,35 +765,6 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
     >
       {siteUrl}
     </ButtonText>
-  )
-}
-
-function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
-  const resource = useResource(docId)
-  const imageUrl = useImageUrl()
-  if (resource.data?.type !== 'document') return null
-  if (!resource.data.document.metadata.cover) return null
-
-  return (
-    <div
-      className={`relative flex h-[25vh] w-full ${
-        resource.data.document.metadata.cover
-          ? 'bg-transparent'
-          : 'bg-secondary'
-      }`}
-    >
-      <img
-        src={imageUrl(resource.data.document.metadata.cover, 'XL')}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          objectFit: 'cover',
-        }}
-      />
-    </div>
   )
 }
 
