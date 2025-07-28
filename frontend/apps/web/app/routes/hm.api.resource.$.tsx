@@ -17,7 +17,7 @@ export const loader = async ({
   const latest = url.searchParams.get('l') === 'true'
   const entityPath = params['*']?.split('/')
   const uid = entityPath?.[0]
-  const path = entityPath?.slice(1)
+  const path = entityPath?.slice(1).filter((term) => term !== '')
   if (!uid) {
     throw new Error('No uid provided')
   }
