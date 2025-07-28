@@ -334,8 +334,6 @@ function CommentEmbed(
   const [showReferenced, setShowReferenced] = useState(false)
   const authorId = comment?.author ? hmId(comment?.author) : null
   const author = useSubscribedResource(authorId)
-  console.log('== ~ CommentEmbed ~ authorId:', authorId)
-  console.log('== ~ CommentEmbed ~ author:', author.data)
   return (
     <EmbedWrapper
       viewType="Content"

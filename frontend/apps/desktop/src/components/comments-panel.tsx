@@ -3,7 +3,7 @@ import {useAllDocumentComments, useDeleteComment} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccountId} from '@/selected-account'
-import {DocumentDiscussionsAccessory, pluralS} from '@shm/shared'
+import {DocumentDiscussionsAccessory, hmId, pluralS} from '@shm/shared'
 import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -40,6 +40,11 @@ function _DiscussionsPanel({
   accessory: DocumentDiscussionsAccessory
   onAccessory: (acc: DocumentDiscussionsAccessory) => void
 }) {
+  const homeDoc = useResource(hmId(docId.uid))
+  const targetDomain =
+    homeDoc.data?.type === 'document'
+      ? homeDoc.data.document.metadata.siteUrl
+      : undefined
   if (openComment) {
     return (
       <CommentReplyAccessory
@@ -47,6 +52,7 @@ function _DiscussionsPanel({
         onBack={() => onAccessory({key: 'discussions'})}
         commentId={openComment}
         isReplying={isReplying}
+        targetDomain={targetDomain}
       />
     )
   }
@@ -57,20 +63,26 @@ function _DiscussionsPanel({
         blockId={openBlockId}
         autoFocus={autoFocus}
         onBack={() => onAccessory({key: 'discussions'})}
+        targetDomain={targetDomain}
       />
     )
   }
-  return <AllComments docId={docId} />
+  return <AllComments docId={docId} targetDomain={targetDomain} />
 }
 
-function AllComments({docId}: {docId: UnpackedHypermediaId}) {
+function AllComments({
+  docId,
+  targetDomain,
+}: {
+  docId: UnpackedHypermediaId
+  targetDomain?: string
+}) {
   const comments = useAllDocumentComments(docId)
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
   const myAccountId = useSelectedAccountId()
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
-
   let panelContent = null
   if (comments.isLoading && !comments.data) {
     panelContent = null
@@ -105,6 +117,7 @@ function AllComments({docId}: {docId: UnpackedHypermediaId}) {
                 authors={authors}
                 renderCommentContent={renderCommentContent}
                 enableReplies={true}
+                targetDomain={targetDomain}
               />
               {commentGroups.data?.length - 1 > idx && <Separator />}
             </div>
@@ -129,11 +142,13 @@ function CommentBlockAccessory({
   blockId,
   autoFocus,
   onBack,
+  targetDomain,
 }: {
   resourceId: UnpackedHypermediaId
   blockId: string
   autoFocus?: boolean
   onBack: () => void
+  targetDomain?: string
 }) {
   const tx = useTxString()
   const resource = useResource(resourceId)
@@ -175,6 +190,7 @@ function CommentBlockAccessory({
               citation={citation}
               key={citation.source.id.id}
               accounts={accounts}
+              targetDomain={targetDomain}
             />
           )
         })
@@ -200,11 +216,13 @@ function CommentReplyAccessory({
   onBack,
   commentId,
   isReplying,
+  targetDomain,
 }: {
   docId: UnpackedHypermediaId
   onBack: () => void
   commentId: string
   isReplying?: boolean
+  targetDomain?: string
 }) {
   const comments = useAllDocumentComments(docId)
   const threadComments = useCommentParents(comments.data, commentId)
@@ -260,16 +278,17 @@ function CommentReplyAccessory({
             currentAccountId={myAccountId ?? undefined}
             renderCommentContent={renderCommentContent}
             highlightLastComment
+            targetDomain={targetDomain}
           />
         ) : (
           <EmptyDiscussions docId={docId} commentId={commentId} />
         )
       ) : null}
-
       <FocusedCommentReplies
         defaultOpen={!isReplying}
         docId={docId}
         commentId={commentId}
+        targetDomain={targetDomain}
       />
       {deleteCommentDialog.content}
     </AccessoryContent>
@@ -280,10 +299,12 @@ function FocusedCommentReplies({
   defaultOpen,
   docId,
   commentId,
+  targetDomain,
 }: {
   defaultOpen: boolean
   docId: UnpackedHypermediaId
   commentId: string
+  targetDomain?: string
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const comments = useAllDocumentComments(docId)
@@ -314,6 +335,7 @@ function FocusedCommentReplies({
               commentGroup={r}
               renderCommentContent={renderCommentContent}
               authors={commentAuthors}
+              targetDomain={targetDomain}
             />
           )
         })

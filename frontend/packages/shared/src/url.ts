@@ -2,16 +2,13 @@ import {UnpackedHypermediaId} from './hm-types'
 import {useUniversalAppContext} from './routing'
 import {createWebHMUrl} from './utils'
 
-export function useResourceUrl() {
+export function useResourceUrl(targetDomain?: string) {
   const {origin} = useUniversalAppContext()
   return (id: UnpackedHypermediaId) => {
-    console.log('~origin', origin)
-    console.log('~id', id)
     const url = createWebHMUrl(id.uid, {
       ...id,
-      hostname: origin,
+      hostname: targetDomain || origin,
     })
-    console.log('~url', url)
     return url
   }
 }

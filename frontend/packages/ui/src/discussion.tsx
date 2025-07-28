@@ -41,6 +41,7 @@ export function CommentGroup({
   highlightLastComment = false,
   onDelete,
   currentAccountId,
+  targetDomain,
 }: {
   commentGroup: HMCommentGroup
   authors?: HMAccountsMetadata | undefined
@@ -49,6 +50,7 @@ export function CommentGroup({
   highlightLastComment?: boolean
   onDelete?: (commentId: string) => void
   currentAccountId?: string
+  targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
@@ -82,6 +84,7 @@ export function CommentGroup({
             onDelete={
               isCurrentAccountComment ? () => onDelete?.(comment.id) : undefined
             }
+            targetDomain={targetDomain}
           />
         )
       })}
@@ -100,6 +103,7 @@ export function Comment({
   defaultExpandReplies = false,
   highlight = false,
   onDelete,
+  targetDomain,
 }: {
   comment: HMComment
   replyCount?: number
@@ -111,6 +115,7 @@ export function Comment({
   defaultExpandReplies?: boolean
   highlight?: boolean
   onDelete?: () => void
+  targetDomain?: string
 }) {
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const discussionsContext = useDiscussionsContext()
@@ -129,7 +134,7 @@ export function Comment({
       setShowReplies(defaultExpandReplies)
     }
   }, [defaultExpandReplies])
-  const getUrl = useResourceUrl()
+  const getUrl = useResourceUrl(targetDomain)
   const options: MenuItemType[] = []
   if (onDelete) {
     options.push({
