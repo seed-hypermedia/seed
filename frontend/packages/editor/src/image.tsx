@@ -318,14 +318,6 @@ const display = ({
         width: width.toString(),
       },
     })
-
-    // @ts-expect-error
-    editor.updateBlock(block.id, {
-      ...block,
-      props: {
-        width: width.toString(),
-      },
-    })
   }
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => windowMouseMoveHandler(e)
