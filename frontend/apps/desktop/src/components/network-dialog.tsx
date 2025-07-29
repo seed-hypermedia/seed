@@ -38,8 +38,8 @@ export function NetworkDialog() {
           Add Connection
         </Button>
       </div>
-      <div className="h-full max-h-[500px]">
-        <ScrollArea className="overflow-y-auto">
+      <div className="h-[500px] overflow-hidden">
+        <ScrollArea>
           {peers.data && peers.data.length ? (
             peers.data.map((peer) => (
               <PeerRow

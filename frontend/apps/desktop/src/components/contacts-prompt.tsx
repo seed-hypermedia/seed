@@ -77,8 +77,9 @@ export function AddConnectionDialog({
         onChange={(e) => setPeer(e.target.value)}
         rows={4}
         data-testid="add-contact-input"
+        className="max-h-40"
       />
-      <DialogDescription size={'$1'}>
+      <DialogDescription>
         You can also paste the full peer address here.
       </DialogDescription>
 
