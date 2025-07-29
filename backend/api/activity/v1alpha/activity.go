@@ -257,6 +257,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 
+	if len(events) == 0 {
+		return &activity.ListEventsResponse{}, nil
+	}
+
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].Data.(*activity.Event_NewBlob).NewBlob.BlobId > events[j].Data.(*activity.Event_NewBlob).NewBlob.BlobId
 	})
@@ -297,7 +301,7 @@ SELECT distinct
 	resource_links.extra_attrs->>'f' AS target_fragment,
 	resource_links.type AS link_type,
 	structural_blobs.extra_attrs->>'tsid' AS tsid
-	
+
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
