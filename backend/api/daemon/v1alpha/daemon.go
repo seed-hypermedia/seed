@@ -95,13 +95,13 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
-	if req.Name == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "name is required for a key")
-	}
-
 	acc, err := core.KeyPairFromMnemonic(req.Mnemonic, req.Passphrase)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create account: %v", err)
+	}
+
+	if req.Name == "" {
+		req.Name = acc.PublicKey.String()
 	}
 
 	if err := srv.RegisterAccount(ctx, req.Name, acc); err != nil {
