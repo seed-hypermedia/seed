@@ -440,6 +440,7 @@ function InnerDocumentPage(
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (enableWebSigning) {
+        setEditorAutoFocus(true)
         setCommentPanel(comment)
         if (!media.gtSm) {
           setIsSheetOpen(true)
