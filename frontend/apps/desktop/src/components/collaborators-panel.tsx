@@ -304,23 +304,13 @@ function CollaboratorItem({
       : undefined
   if (capability.role === 'owner') return null
   return (
-    <ListItem
-      bg="$colorTransparent"
-      hoverTheme
-      pressTheme
-      focusTheme
-      outlineColor="transparent"
-      hoverStyle={{backgroundColor: '$hoverColor'}}
-      borderRadius="$2"
-      paddingHorizontal="$3"
-      paddingVertical={0}
-      icon={
-        <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
-      }
-      onPress={() => navigate({key: 'document', id: collaboratorId})}
+    <Button
+      onClick={() => navigate({key: 'document', id: collaboratorId})}
+      className="w-full"
     >
-      <div className="flex flex-1 items-center gap-2">
-        <SizableText size="sm" className="flex-1">
+      <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+        <SizableText size="sm" className="flex-1 truncate text-left">
           {
             getContactMetadata(
               capability.accountUid,
@@ -334,7 +324,7 @@ function CollaboratorItem({
           {capability.grantId.id !== id.id ? '(Parent Capability)' : ''}
         </SizableText>
       </div>
-    </ListItem>
+    </Button>
   )
 }
 
