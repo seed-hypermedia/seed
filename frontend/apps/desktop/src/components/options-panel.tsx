@@ -128,7 +128,15 @@ function SummaryInput({
 
   const adjustHeight = (textarea: HTMLTextAreaElement) => {
     textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
+    textarea.style.height = `${
+      textarea.scrollHeight > 150 ? 150 : textarea.scrollHeight
+    }px`
+
+    if (textarea.scrollHeight > 150) {
+      textarea.style.overflow = 'auto'
+    } else {
+      textarea.style.overflow = 'hidden'
+    }
   }
 
   useEffect(() => {

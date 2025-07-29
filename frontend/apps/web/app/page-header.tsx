@@ -55,6 +55,11 @@ export function PageHeader({
           <SizableText size="4xl" weight="bold">
             {docMetadata?.name}
           </SizableText>
+          {docMetadata?.summary ? (
+            <span className="font-body text-muted-foreground text-xl">
+              {docMetadata?.summary}
+            </span>
+          ) : null}
           <div className="flex flex-1 flex-wrap items-center gap-4">
             {authors?.length ? (
               <div className="flex max-w-full flex-wrap items-center gap-1">
