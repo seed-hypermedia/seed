@@ -2,7 +2,6 @@ import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
-import {ListItem} from '@/components/list-item'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -472,18 +471,16 @@ function AccountKeys() {
       />
     )
   return keys.data?.length && selectedAccount ? (
-    <div className="flex flex-1 gap-3 overflow-hidden">
+    <div className="flex flex-1 gap-3">
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
         <div className="flex flex-1 flex-col">
-          <ScrollArea>
-            {keys.data?.map((key) => (
-              <KeyItem
-                item={key}
-                isActive={key == selectedAccount}
-                onSelect={() => setSelectedAccount(key)}
-              />
-            ))}
-          </ScrollArea>
+          {keys.data?.map((key) => (
+            <KeyItem
+              item={key}
+              isActive={key == selectedAccount}
+              onSelect={() => setSelectedAccount(key)}
+            />
+          ))}
         </div>
       </div>
       <div
@@ -492,171 +489,169 @@ function AccountKeys() {
           isDark ? 'bg-background' : 'bg-muted',
         )}
       >
-        <ScrollArea>
-          <div className="flex flex-col gap-4 p-4">
-            <div className="mb-4 flex gap-4">
-              {selectedAccountId ? (
-                <HMIcon
-                  id={selectedAccountId}
-                  metadata={profileDocument?.metadata}
-                  size={80}
-                />
-              ) : null}
-              <div className="mt-2 flex flex-1 flex-col gap-3">
-                <Field id="username" label="Profile Name">
-                  <Input
-                    disabled
-                    value={getMetadataName(profileDocument?.metadata)}
-                  />
-                </Field>
-                <Field id="accountid" label="Account ID">
-                  <Input disabled value={selectedAccount} />
-                </Field>
-              </div>
-            </div>
-            {mnemonics ? (
-              <div className="flex flex-col gap-2">
-                <Field label="Secret Recovery Phrase" id="words">
-                  <div className="flex gap-3">
-                    <Textarea
-                      className="border-border flex-1 border"
-                      rows={4}
-                      disabled
-                      value={
-                        showWords
-                          ? Array.isArray(mnemonics)
-                            ? mnemonics.join(', ')
-                            : mnemonics
-                          : '**** **** **** **** **** **** **** **** **** **** **** ****'
-                      }
-                    />
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowWords((v) => !v)}
-                      >
-                        {showWords ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          console.log('mnemonics', mnemonics)
-                          copyTextToClipboard(mnemonics.join(', '))
-                          toast.success('Words copied to clipboard')
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-
-                      <AlertDialog>
-                        <Tooltip content="Delete words from device">
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="destructive">
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                        </Tooltip>
-                        <AlertDialogPortal>
-                          <AlertDialogContent className="max-w-[600px] gap-4">
-                            <AlertDialogTitle className="text-2xl font-bold">
-                              Delete Words
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you really sure? you cant recover the secret
-                              words after you delete them. please save them
-                              securely in another place before you delete
-                            </AlertDialogDescription>
-                            <div className="flex justify-end gap-3">
-                              <AlertDialogCancel asChild>
-                                <Button variant="ghost">Cancel</Button>
-                              </AlertDialogCancel>
-                              <AlertDialogAction asChild>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() =>
-                                    deleteWords
-                                      .mutateAsync(selectedAccount)
-                                      .then(() => {
-                                        toast.success('Words deleted!')
-                                        invalidateQueries([
-                                          'trpc.secureStorage.get',
-                                        ])
-                                      })
-                                  }
-                                >
-                                  Delete Permanently
-                                </Button>
-                              </AlertDialogAction>
-                            </div>
-                          </AlertDialogContent>
-                        </AlertDialogPortal>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </Field>
-              </div>
+        <div className="flex flex-col gap-4 p-4">
+          <div className="mb-4 flex gap-4">
+            {selectedAccountId ? (
+              <HMIcon
+                id={selectedAccountId}
+                metadata={profileDocument?.metadata}
+                size={80}
+              />
             ) : null}
-
-            <AlertDialog>
-              <Tooltip content="Delete account from device">
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="destructive" className="self-end">
-                    <Trash className="mr-2 h-4 w-4" />
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-              </Tooltip>
-              <AlertDialogPortal>
-                <AlertDialogContent className="max-w-[600px] gap-4">
-                  <AlertDialogTitle className="text-2xl font-bold">
-                    Delete Account
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure? This account will be removed. Make sure you
-                    have saved the Secret Recovery Phrase for this account if
-                    you want to recover it later.
-                  </AlertDialogDescription>
-                  <div className="flex justify-end gap-3">
-                    <AlertDialogCancel asChild>
-                      <Button variant="ghost">Cancel</Button>
-                    </AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                      <Button
-                        variant="destructive"
-                        onClick={handleDeleteCurrentAccount}
-                      >
-                        Delete Permanently
-                      </Button>
-                    </AlertDialogAction>
-                  </div>
-                </AlertDialogContent>
-              </AlertDialogPortal>
-            </AlertDialog>
-            <Separator />
-            <SettingsSection title="Wallets">
-              <AccountWallet
-                accountUid={selectedAccount}
-                onOpenWallet={(walletId) => setWalletId(walletId)}
-              />
-            </SettingsSection>
-            <SettingsSection title="Linked Devices">
-              <LinkedDevices
-                accountUid={selectedAccount}
-                accountName={getMetadataName(profileDocument?.metadata)}
-              />
-            </SettingsSection>
-            <EmailNotificationSettings
-              key={selectedAccount}
-              accountUid={selectedAccount}
-            />
+            <div className="mt-2 flex flex-1 flex-col gap-3">
+              <Field id="username" label="Profile Name">
+                <Input
+                  disabled
+                  value={getMetadataName(profileDocument?.metadata)}
+                />
+              </Field>
+              <Field id="accountid" label="Account ID">
+                <Input disabled value={selectedAccount} />
+              </Field>
+            </div>
           </div>
-        </ScrollArea>
+          {mnemonics ? (
+            <div className="flex flex-col gap-2">
+              <Field label="Secret Recovery Phrase" id="words">
+                <div className="flex gap-3">
+                  <Textarea
+                    className="border-border flex-1 border"
+                    rows={4}
+                    disabled
+                    value={
+                      showWords
+                        ? Array.isArray(mnemonics)
+                          ? mnemonics.join(', ')
+                          : mnemonics
+                        : '**** **** **** **** **** **** **** **** **** **** **** ****'
+                    }
+                  />
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowWords((v) => !v)}
+                    >
+                      {showWords ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        console.log('mnemonics', mnemonics)
+                        copyTextToClipboard(mnemonics.join(', '))
+                        toast.success('Words copied to clipboard')
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+
+                    <AlertDialog>
+                      <Tooltip content="Delete words from device">
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="destructive">
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                      </Tooltip>
+                      <AlertDialogPortal>
+                        <AlertDialogContent className="max-w-[600px] gap-4">
+                          <AlertDialogTitle className="text-2xl font-bold">
+                            Delete Words
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you really sure? you cant recover the secret
+                            words after you delete them. please save them
+                            securely in another place before you delete
+                          </AlertDialogDescription>
+                          <div className="flex justify-end gap-3">
+                            <AlertDialogCancel asChild>
+                              <Button variant="ghost">Cancel</Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                              <Button
+                                variant="destructive"
+                                onClick={() =>
+                                  deleteWords
+                                    .mutateAsync(selectedAccount)
+                                    .then(() => {
+                                      toast.success('Words deleted!')
+                                      invalidateQueries([
+                                        'trpc.secureStorage.get',
+                                      ])
+                                    })
+                                }
+                              >
+                                Delete Permanently
+                              </Button>
+                            </AlertDialogAction>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialogPortal>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </Field>
+            </div>
+          ) : null}
+
+          <AlertDialog>
+            <Tooltip content="Delete account from device">
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive" className="self-end">
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+            </Tooltip>
+            <AlertDialogPortal>
+              <AlertDialogContent className="max-w-[600px] gap-4">
+                <AlertDialogTitle className="text-2xl font-bold">
+                  Delete Account
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure? This account will be removed. Make sure you have
+                  saved the Secret Recovery Phrase for this account if you want
+                  to recover it later.
+                </AlertDialogDescription>
+                <div className="flex justify-end gap-3">
+                  <AlertDialogCancel asChild>
+                    <Button variant="ghost">Cancel</Button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteCurrentAccount}
+                    >
+                      Delete Permanently
+                    </Button>
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialogPortal>
+          </AlertDialog>
+          <Separator />
+          <SettingsSection title="Wallets">
+            <AccountWallet
+              accountUid={selectedAccount}
+              onOpenWallet={(walletId) => setWalletId(walletId)}
+            />
+          </SettingsSection>
+          <SettingsSection title="Linked Devices">
+            <LinkedDevices
+              accountUid={selectedAccount}
+              accountName={getMetadataName(profileDocument?.metadata)}
+            />
+          </SettingsSection>
+          <EmailNotificationSettings
+            key={selectedAccount}
+            accountUid={selectedAccount}
+          />
+        </div>
       </div>
     </div>
   ) : (
@@ -950,14 +945,24 @@ function KeyItem({
   const document =
     entity.data?.type === 'document' ? entity.data.document : undefined
   return (
-    <ListItem
-      active={isActive}
-      icon={<HMIcon id={id} metadata={document?.metadata} size={24} />}
-      title={document?.metadata.name || item}
-      subTitle={item.substring(item.length - 8)}
-      backgroundColor={isActive ? '$brand12' : undefined}
-      onPress={onSelect}
-    />
+    <Button
+      variant={isActive ? 'secondary' : 'ghost'}
+      onClick={onSelect}
+      className="h-auto w-full items-start"
+    >
+      <HMIcon id={id} metadata={document?.metadata} size={24} />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <SizableText
+          weight={isActive ? 'bold' : 'normal'}
+          className="h-6 truncate text-left"
+        >
+          {document?.metadata.name || item}
+        </SizableText>
+        <SizableText color="muted" size="xs" className="text-left">
+          {item.substring(item.length - 8)}
+        </SizableText>
+      </div>
+    </Button>
   )
 }
 
