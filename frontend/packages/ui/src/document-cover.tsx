@@ -61,7 +61,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
       onClick={handleClose}
     >
       <div
-        className="flex relative justify-center items-center size-full"
+        className="relative flex size-full items-center justify-center"
         onClick={(e) => {
           e.stopPropagation()
           handleClose()
@@ -86,7 +86,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
         />
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2 text-white rounded-full transition-colors bg-black/50 hover:bg-black/70"
+          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
           aria-label="Close"
         >
           <X size={20} />
@@ -99,7 +99,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
     <>
       <div
         className={cn(
-          'relative flex-shrink-0 w-full cursor-pointer h-[25vh]',
+          'relative h-[25vh] w-full flex-shrink-0 cursor-pointer',
           cover ? 'bg-transparent' : 'bg-secondary',
           className,
         )}
