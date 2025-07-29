@@ -15,8 +15,6 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
     'closed',
   )
 
-  if (!cover) return null
-
   const handleDoubleClick = useCallback(() => {
     setModalState('opening')
   }, [])
@@ -52,6 +50,8 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
     }
   }, [modalState, handleKeyDown])
 
+  if (!cover) return null
+
   const maximizedContent = modalState !== 'closed' && (
     <div
       className={cn(
@@ -61,7 +61,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
       onClick={handleClose}
     >
       <div
-        className="relative flex size-full items-center justify-center"
+        className="flex relative justify-center items-center size-full"
         onClick={(e) => {
           e.stopPropagation()
           handleClose()
@@ -86,7 +86,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
         />
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          className="absolute top-4 right-4 p-2 text-white rounded-full transition-colors bg-black/50 hover:bg-black/70"
           aria-label="Close"
         >
           <X size={20} />
@@ -99,7 +99,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
     <>
       <div
         className={cn(
-          'relative h-[25vh] w-full flex-shrink-0 cursor-pointer',
+          'relative flex-shrink-0 w-full cursor-pointer h-[25vh]',
           cover ? 'bg-transparent' : 'bg-secondary',
           className,
         )}
