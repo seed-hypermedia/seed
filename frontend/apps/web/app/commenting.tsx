@@ -256,6 +256,7 @@ export function LocalWebCommenting({
           }}
           account={myAccount.data}
           onDiscardDraft={onDiscardDraft}
+          // perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
         />
       </DocContentProvider>
       {createAccountContent}

@@ -4,15 +4,24 @@ import {SearchPayload, unpackHmId} from '@shm/shared'
 
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url)
+
   const searchQuery = url.searchParams.get('q') || ''
   const accountUid = url.searchParams.get('a') || ''
   const includeBody = url.searchParams.get('b') === 'true'
-  const contextSize = parseInt(url.searchParams.get('c') || '26', 10)
+  // const perspectiveAccountUid = url.searchParams.get('d') || ''
+
+  const contextSizeRaw = url.searchParams.get('c')
+  const contextSize =
+    contextSizeRaw && !isNaN(Number(contextSizeRaw))
+      ? parseInt(contextSizeRaw, 10)
+      : 26
+
   const result = await queryClient.entities.searchEntities({
     query: searchQuery,
-    includeBody: includeBody,
-    contextSize: contextSize,
-    accountUid: accountUid,
+    includeBody,
+    contextSize,
+    accountUid,
+    // loggedAccountUid: perspectiveAccountUid,
   })
 
   return wrapJSON<SearchPayload>({

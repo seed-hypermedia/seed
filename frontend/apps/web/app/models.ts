@@ -83,11 +83,12 @@ export function searchQuery(
   {
     accountUid,
     includeBody,
-    contextSize,
+    contextSize, // perspectiveAccountUid,
   }: {
     accountUid?: string
     includeBody?: boolean
     contextSize?: number
+    // perspectiveAccountUid?: string
   } = {},
 ) {
   return queryAPI<SearchPayload>(
