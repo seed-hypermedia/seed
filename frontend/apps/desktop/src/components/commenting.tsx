@@ -129,11 +129,11 @@ function _CommentBox({
   }, [docId.id, replyCommentId])
 
   if (draft.isInitialLoading) return null
-  if (draft.data || isStartingComment) {
+  if (draft.data || isStartingComment || autoFocus) {
     content = (
       <CommentDraftEditor
         docId={docId}
-        autoFocus={isStartingComment}
+        autoFocus={isStartingComment || autoFocus}
         initCommentDraft={draft.data}
         quotingBlockId={quotingBlockId}
         replyCommentId={replyCommentId}
