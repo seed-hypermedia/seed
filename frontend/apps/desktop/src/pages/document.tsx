@@ -550,7 +550,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <Container
-      className="dark:bg-background absolute z-[999] w-full rounded-lg bg-white"
+      className="dark:bg-background w-full rounded-lg bg-white"
       data-docid={docId.id}
       style={{
         marginTop: hasCover ? -40 : 0,
