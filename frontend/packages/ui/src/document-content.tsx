@@ -674,9 +674,9 @@ export function BlockNodeContent({
               size="icon"
               variant="ghost"
               className={cn(
-                'bg-background absolute left-[-24px] z-50 p-0 opacity-0 select-none hover:opacity-100',
-                ['Unordered', 'Ordered'].includes(childrenType)
-                  ? 'top-[12px]'
+                'bg-background hover:bg-background border-border absolute left-[-24px] z-50 size-6 border p-0 opacity-0 select-none hover:opacity-100 dark:hover:bg-black',
+                childrenType && ['Unordered', 'Ordered'].includes(childrenType)
+                  ? 'top-2'
                   : 'top-4',
                 hover ? 'opacity-100' : _expanded ? 'opacity-0' : 'opacity-100',
               )}

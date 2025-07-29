@@ -356,7 +356,7 @@ function SelectionCollapseButton({
         <Button
           variant="ghost"
           size="iconSm"
-          className="size-7 hover:bg-black/10 dark:hover:bg-white/10"
+          className="size-6 hover:bg-black/10 dark:hover:bg-white/10"
           onClick={(e) => {
             e.stopPropagation()
             setIsCollapsed?.(!isCollapsed)
