@@ -456,19 +456,19 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				extra.Metadata[k] = kv.Value
 
 				vs, isStr := kv.Value.(string)
+				ftsKey := "meta"
 				if len(kv.Key) == 1 && isStr {
 					k := kv.Key[0]
-					ftsKey := "meta"
+
 					// TODO(hm24): index other relevant metadata for list response and so on.
 					if k == "title" || k == "name" || k == "alias" {
 						extra.Title = vs
 						ftsKey = "title"
 					}
-					if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsKey, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
-						return fmt.Errorf("failed to insert record in fts table: %w", err)
-					}
 				}
-
+				if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsKey, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+					return fmt.Errorf("failed to insert record in fts table: %w", err)
+				}
 				u, err := url.Parse(vs)
 				if err != nil {
 					continue
@@ -498,6 +498,20 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			}
 			if err := dbFTSInsertOrReplace(ictx.conn, blk.Text, "document", id, blk.ID(), sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
+			}
+		case OpMoveBlocks:
+			for _, blk := range op.Blocks {
+				content, _, err := dbFTSGetRawContent(ictx.conn, id, blk, sb.GenesisBlob.Hash().String())
+				if err != nil {
+					return fmt.Errorf("failed to get raw content for block %s: %w", blk, err)
+				}
+				if content == "" {
+					continue
+					//fmt.Println("WARNING: empty content for block", blk, "in change", sb.CID, "with id", id, "and genesis", sb.GenesisBlob.Hash().String())
+				} else if err := dbFTSInsertOrReplace(ictx.conn, content, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+					return fmt.Errorf("failed to insert record in fts table: %w", err)
+				}
+
 			}
 		}
 	}

@@ -51,7 +51,72 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
+var qFTSGetRawContentByGenesis = dqb.Str(`
+	SELECT 
+	fts.raw_content,
+	ftsi.version
+FROM fts_index ftsi
+JOIN fts ON fts.rowid = ftsi.rowid
+WHERE ftsi.block_id = :FTSBlockID
+AND ftsi.genesis_blob = :FTSGenesisBlob
+`)
+
+var qFTSGetRawContentByBlobID = dqb.Str(`
+	SELECT 
+	fts.raw_content,
+	ftsi.version
+FROM fts_index ftsi
+JOIN fts ON fts.rowid = ftsi.rowid
+WHERE ftsi.block_id = :FTSBlockID
+AND ftsi.blob_id = :FTSBlobID
+`)
+
+func dbFTSGetRawContent(conn *sqlite.Conn, FTSBlobID int64, FTSBlockID, FTSGenesisMultihash string) (string, string, error) {
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":FTSBlockID", FTSBlockID)
+		stmt.SetInt64(":FTSBlobID", FTSBlobID)
+	}
+	getRawContent := qFTSGetRawContentByBlobID()
+	if strings.Replace(FTSGenesisMultihash, " ", "", -1) != "" {
+		beforeInner := func(stmt *sqlite.Stmt) {
+			stmt.SetText(":FTSMultihash", strings.ToUpper(FTSGenesisMultihash))
+		}
+		var genesisID int64
+		err := sqlitegen.ExecStmt(conn, qGetGenesisID(), beforeInner, func(_ int, stmt *sqlite.Stmt) error {
+			genesisID = stmt.ColumnInt64(0)
+			return nil
+		})
+		if err != nil {
+			err = fmt.Errorf("failed query: qGetGenesisID: %w", err)
+			return "", "", err
+		}
+		before = func(stmt *sqlite.Stmt) {
+			stmt.SetText(":FTSBlockID", FTSBlockID)
+			stmt.SetInt64(":FTSGenesisBlob", genesisID)
+		}
+		getRawContent = qFTSGetRawContentByGenesis()
+	}
+
+	var rawContent, ftsVersion string
+	var err error
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if stmt.ColumnText(0) == "" {
+			return nil
+		}
+		rawContent = stmt.ColumnText(0)
+		ftsVersion = stmt.ColumnText(1)
+		return nil
+	}
+
+	err = sqlitegen.ExecStmt(conn, getRawContent, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: FTSGetRawContent: %w", err)
+		return "", "", err
+	}
+	return rawContent, ftsVersion, nil
+}
 func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string, FTSTs time.Time, FTSGenesisMultihash string) error {
+
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSContent", FTSContent)
 		stmt.SetText(":FTSType", FTSType)

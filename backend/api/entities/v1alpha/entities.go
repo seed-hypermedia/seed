@@ -621,7 +621,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			if latestUnrelated.version != searchResults[match.Index].latestVersion {
 				timesCalled++
 				//prevIter = iter
-				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				relatedFound := false
+				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
@@ -637,12 +638,24 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						latestUnrelated = currentChange
 						return nil
 					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
-				}); err != nil && !errors.Is(err, errSameBlockChangeDetected) {
+				})
+				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
+					//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 					return nil, err
+				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
+					relatedFound = true
 				}
-				//if iter == prevIter {
-				//	fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
-				//}
+				if !relatedFound && latestUnrelated.version != searchResults[match.Index].latestVersion {
+					latestUnrelated.version = searchResults[match.Index].latestVersion
+				}
+				/*
+					if iter == prevIter {
+						fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
+					}
+					fmt.Println("Latest: ", searchResults[match.Index].latestVersion)
+					fmt.Println("Latest unrelated: ", latestUnrelated.version)
+					fmt.Println("Params: ", searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+				*/
 			}
 			searchResults[match.Index].version = latestUnrelated.version
 			searchResults[match.Index].blobID = latestUnrelated.blobID
