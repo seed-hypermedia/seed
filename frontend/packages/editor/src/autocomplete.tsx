@@ -1,20 +1,14 @@
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
+import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
-import {Button} from '@shm/ui/button'
+import {SearchResultItem} from '@shm/ui/search'
 import {SizableText} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
+import {TooltipProvider} from '@shm/ui/tooltip'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {keymap} from 'prosemirror-keymap'
 import {NodeSelection, Plugin, PluginKey} from 'prosemirror-state'
-import React, {
-  MouseEventHandler,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {keyboardStack, useKeyboard} from './keyboard-helpers'
 
 export const autocompletePluginKey = new PluginKey('inline-embed')
@@ -290,6 +284,7 @@ function AutocompletePopupInner(
 ) {
   const {rect, text, onClose, range, onCreate, editor} = props
   const debouncedText = useDebounce(text, 250)
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>([
     'Recents',
     0,
@@ -315,6 +310,16 @@ function AutocompletePopupInner(
       setPosition('below')
     }
   }, [rect])
+
+  useEffect(() => {
+    const el = itemRefs.current[`${index[0]}-${index[1]}`]
+    if (el) {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [index])
 
   useEffect(() => {
     let isActive = true
@@ -411,7 +416,7 @@ function AutocompletePopupInner(
       ) {
         let item = suggestions[group][idx]
 
-        onCreate(item.value, range)
+        onCreate(item.id.id, range)
         onClose()
       }
       return true
@@ -429,86 +434,112 @@ function AutocompletePopupInner(
       ? window.innerHeight - rect.top + popupHeight
       : undefined
 
+  console.log('itemrefs', itemRefs.current)
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: topValue,
-        bottom: bottomValue,
-        left: rect.left,
-        zIndex: 9999,
-      }}
-    >
+    <TooltipProvider>
       <div
         style={{
           position: 'fixed',
-          width: '100vw',
-          height: '100vh',
-          top: 0,
-          left: 0,
+          top: topValue,
+          bottom: bottomValue,
+          left: rect.left,
+          zIndex: 9999,
         }}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onClose()
-        }}
-      />
-      <div className="border-muted bg-background absolute z-[9999] flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
-        {/* <div>Query: "{text}"</div> */}
-        {isOptionsEmpty(suggestions) && (
-          <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
-            <SizableText size="sm" className="flex-1">
-              No Results
-            </SizableText>
-          </div>
-        )}
-        {groups.map((group) => {
-          if (suggestions[group] && suggestions[group].length) {
-            return (
-              <div
-                className="border-border flex flex-col last:border-b-0"
-                key={group}
-              >
-                <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
-                  <SizableText size="sm" className="flex-1">
-                    {group}
-                  </SizableText>
-                  {suggestions[group].length >= 1 ? (
-                    <SizableText size="xs">
-                      {suggestions[group].length == 1
-                        ? '1 item'
-                        : suggestions[group].length > 1
-                        ? `${suggestions[group].length} items`
-                        : ''}
+      >
+        <div
+          style={{
+            position: 'fixed',
+            width: '100vw',
+            height: '100vh',
+            top: 0,
+            left: 0,
+          }}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onClose()
+          }}
+        />
+        <div className="border-border bg-background absolute z-[9999] flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
+          {/* <div>Query: "{text}"</div> */}
+          {isOptionsEmpty(suggestions) && (
+            <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
+              <SizableText size="sm" className="flex-1">
+                No Results
+              </SizableText>
+            </div>
+          )}
+          {groups.map((group) => {
+            if (suggestions[group] && suggestions[group].length) {
+              return (
+                <div
+                  className="border-border flex flex-col last:border-b-0"
+                  key={group}
+                >
+                  <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
+                    <SizableText
+                      size="sm"
+                      className="text-muted-foreground flex-1"
+                    >
+                      {group}
                     </SizableText>
-                  ) : null}
+                    {suggestions[group].length >= 1 ? (
+                      <SizableText size="xs" className="text-muted-foreground">
+                        {suggestions[group].length == 1
+                          ? '1 item'
+                          : suggestions[group].length > 1
+                          ? `${suggestions[group].length} items`
+                          : ''}
+                      </SizableText>
+                    ) : null}
+                  </div>
+                  {suggestions[group].map((item, i) => {
+                    let [currentGroup, idx] = index
+                    const title = item.title || item.id.uid
+                    return (
+                      <div
+                        ref={(el: HTMLDivElement | null) => {
+                          console.log('el', el)
+                          itemRefs.current[`${group}-${i}`] = el
+                        }}
+                      >
+                        <SearchResultItem
+                          selected={currentGroup == group && idx == i}
+                          key={`${group}-${item.id.id}`}
+                          item={{
+                            id: item.id,
+                            key: packHmId(item.id),
+                            title,
+                            path: item.parentNames,
+                            icon: item.icon,
+                            onFocus: () => {},
+                            onMouseEnter: () => {},
+                            onSelect: () => {
+                              onCreate(item.id.id, range)
+                              onClose()
+                            },
+                            subtitle: 'Document',
+                            searchQuery: item.searchQuery,
+                            versionTime:
+                              typeof item.versionTime === 'string'
+                                ? item.versionTime
+                                : item.versionTime
+                                ? item.versionTime.toDate().toLocaleString()
+                                : '',
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
-                {suggestions[group].map((item, i) => {
-                  let [currentGroup, idx] = index
-                  return (
-                    <SuggestionItem
-                      selected={currentGroup == group && idx == i}
-                      value={item.value}
-                      key={`${group}-${item.value}`}
-                      title={item.title}
-                      subtitle={item.subtitle}
-                      onMouseEnter={() => {
-                        setIndex([group, i])
-                      }}
-                      onPress={() => {
-                        onCreate(item.value, range)
-                        onClose()
-                      }}
-                    />
-                  )
-                })}
-              </div>
-            )
-          }
-          return null
-        })}
+              )
+            }
+            return null
+          })}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }
 
@@ -553,54 +584,6 @@ export type AutocompleteTokenPluginAction =
       rect: {top: number; bottom: number; left: number}
     }
   | {type: 'close'}
-
-const SuggestionItem = React.memo(function SuggestionItem(props: {
-  value?: string
-  title: string
-  subtitle: string
-  selected: boolean
-  onPress: MouseEventHandler<HTMLButtonElement>
-  onMouseEnter: MouseEventHandler<HTMLButtonElement>
-}) {
-  const elm = useRef<HTMLDivElement | null>(null)
-
-  useLayoutEffect(() => {
-    if (props.selected) {
-      console.log(elm.current)
-      elm.current?.scrollIntoView({block: 'nearest'})
-    }
-  }, [props.selected])
-
-  if (!props.value && !props.title) {
-    return null
-  }
-
-  return (
-    <div ref={elm}>
-      <Button
-        onClick={props.onPress}
-        onMouseEnter={props.onMouseEnter}
-        variant={props.selected ? 'brand-12' : 'ghost'}
-        size="sm"
-        className={cn(
-          'min-h-[28px] w-full justify-start px-3 py-1.5',
-          props.selected && 'bg-brand-11 hover:bg-brand-11 text-white',
-        )}
-      >
-        <SizableText
-          size="sm"
-          className="flex-1 p-0 text-left font-normal"
-          color="default"
-        >
-          {props.title}
-        </SizableText>
-        <SizableText className="p-0" size="xs" color="default">
-          {props.subtitle}
-        </SizableText>
-      </Button>
-    </div>
-  )
-})
 
 function isOptionsEmpty(obj: InlineMentionsResult) {
   return Object.values(obj).every((value) => value.length === 0)

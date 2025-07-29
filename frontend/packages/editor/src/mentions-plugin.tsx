@@ -57,8 +57,6 @@ export function createInlineEmbedNode(bnEditor: any) {
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')
-
-              console.log(`== node ~ parseHTML ~ value:`, value)
               return {link: value}
             }
             return false
@@ -82,6 +80,7 @@ export function createInlineEmbedNode(bnEditor: any) {
 }
 
 function InlineEmbedNodeComponent(props: any) {
+  console.log('InlineEmbedNodeComponent props', props)
   return (
     <NodeViewWrapper
       className={`inline-embed-token ${props.selected ? 'selected' : ''}`}
@@ -93,6 +92,7 @@ function InlineEmbedNodeComponent(props: any) {
 }
 
 export function MentionToken(props: {value: string; selected?: boolean}) {
+  console.log('MentionToken props', props)
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
@@ -135,6 +135,7 @@ function ContactMention({
 
   return (
     <MentionText selected={selected}>
+      @
       {
         getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts)
           .name

@@ -6,13 +6,17 @@ export function useInlineMentions(
   perspectiveAccountUid?: string | null | undefined,
 ) {
   const recents = useRecents()
-  const recentsRef = useRef<InlineSearchItem[]>([])
+  const recentsRef = useRef<SearchResultItem[]>([])
   useEffect(() => {
     recentsRef.current =
       recents.data?.map((recent) => ({
+        id: recent.id,
         title: recent.name,
         subtitle: '',
-        value: recent.id.id,
+        icon: '',
+        parentNames: [],
+        searchQuery: '',
+        type: 'document',
       })) ?? []
   }, [recents])
 
@@ -20,6 +24,7 @@ export function useInlineMentions(
     if (!searchQuery) throw new Error('searchQuery not injected')
     const resp = await searchQuery(query, {
       perspectiveAccountUid: perspectiveAccountUid || undefined,
+      includeBody: false,
     })
     const alreadySeenIds = new Set<string>()
     const entities: SearchResultItem[] = []
@@ -45,23 +50,11 @@ export function useInlineMentions(
     }
     const response = entities.reduce((acc: InlineMentionsResult, entity) => {
       if (entity.type === 'contact') {
-        acc.Contacts.push({
-          title: entity.title,
-          subtitle: 'Contact',
-          value: entity.id.id,
-        })
+        acc.Contacts.push(entity)
       } else if (entity.id?.path?.length) {
-        acc.Documents.push({
-          title: entity.title,
-          subtitle: 'Document',
-          value: entity.id.id,
-        })
+        acc.Documents.push(entity)
       } else {
-        acc.Sites.push({
-          title: entity.title,
-          subtitle: 'Site',
-          value: entity.id.id,
-        })
+        acc.Sites.push(entity)
       }
       return acc
     }, emptyRespose)
@@ -73,15 +66,9 @@ export function useInlineMentions(
   }
 }
 
-export type InlineSearchItem = {
-  title: string
-  subtitle: string
-  value: string
-}
-
 export type InlineMentionsResult = {
-  Sites: Array<InlineSearchItem>
-  Documents: Array<InlineSearchItem>
-  Recents: Array<InlineSearchItem>
-  Contacts: Array<InlineSearchItem>
+  Sites: Array<SearchResultItem>
+  Documents: Array<SearchResultItem>
+  Recents: Array<SearchResultItem>
+  Contacts: Array<SearchResultItem>
 }

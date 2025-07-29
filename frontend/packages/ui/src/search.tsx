@@ -315,6 +315,7 @@ export function SearchResultItem({
   selected = false,
   className,
   onSelect,
+  ...props
 }: {
   item: SearchResult
   originHomeId?: UnpackedHypermediaId | null
@@ -359,6 +360,7 @@ export function SearchResultItem({
 
   return (
     <Button
+      {...props}
       variant="ghost"
       {...selectProps}
       className={cn(
