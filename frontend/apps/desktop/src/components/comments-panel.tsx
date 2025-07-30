@@ -202,7 +202,7 @@ function CommentBlockAccessory({
     <AccessoryContent
       footer={<CommentBox docId={docId} quotingBlockId={blockId} />}
     >
-      <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
+      <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       <AppDocContentProvider docId={docId}>
         {quotedContent}
       </AppDocContentProvider>
@@ -245,7 +245,7 @@ function CommentReplyAccessory({
         />
       }
     >
-      <AccessoryBackButton onPress={onBack} label={tx('All Discussions')} />
+      <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (
         threadComments.length > 0 ? (
           <CommentGroup

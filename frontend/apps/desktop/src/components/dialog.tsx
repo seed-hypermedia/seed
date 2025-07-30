@@ -1,7 +1,6 @@
 import * as AlertDialog from '@shm/ui/components/alert-dialog'
 import * as Dialog from '@shm/ui/components/dialog'
 import {FC, useMemo, useState} from 'react'
-import {GestureResponderEvent} from 'react-native'
 export {AlertDialogContent} from '@shm/ui/components/alert-dialog'
 export {
   DialogClose,
@@ -12,6 +11,7 @@ export {
   DialogTitle,
 } from '@shm/ui/components/dialog'
 
+import {ButtonProps} from '@shm/ui/button'
 import {
   NavContextProvider,
   NavigationContext,
@@ -53,7 +53,7 @@ export function AppDialog<
 }: {
   TriggerComponent: React.FC<
     {
-      onPress?: (e: GestureResponderEvent) => void
+      onClick: ButtonProps['onClick']
       children: React.ReactNode
     } & TriggerComponentProps
   >
@@ -72,7 +72,7 @@ export function AppDialog<
     <Component.Root onOpenChange={setIsOpen} open={isOpen}>
       <Component.Trigger asChild>
         <TriggerComponent
-          onPress={(e) => {
+          onClick={(e) => {
             e.stopPropagation()
             setIsOpen(true)
           }}

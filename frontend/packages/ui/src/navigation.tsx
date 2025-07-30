@@ -14,8 +14,8 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
-import {GestureResponderEvent} from 'react-native'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
+import {ButtonProps} from './button'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {useMedia} from './use-media'
@@ -28,7 +28,7 @@ export function DocumentSmallListItem({
   indented,
   items,
   active,
-  onPress,
+  onClick,
   draftId,
   isPublished,
 }: {
@@ -37,7 +37,7 @@ export function DocumentSmallListItem({
   indented?: number
   items?: null | ReactNode
   active?: boolean
-  onPress?: () => void
+  onClick?: ButtonProps['onClick']
   draftId?: string | null | undefined
   isPublished?: boolean
 }) {
@@ -49,7 +49,7 @@ export function DocumentSmallListItem({
       'No route for DocumentSmallListItem. Must provide either id or draftId',
     )
   }
-  const linkProps = useRouteLink(route, {onPress})
+  const linkProps = useRouteLink(route, {onPress: onClick, handler: 'onClick'})
   const color = isPublished === false ? '$color11' : undefined
 
   if (items)
@@ -57,16 +57,15 @@ export function DocumentSmallListItem({
       <SmallCollapsableListItem
         bold
         color={color}
-        hoverStyle={{backgroundColor: '$backgroundHover'}}
         key={draftId || id?.id}
         title={getMetadataName(metadata)}
         icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
         indented={indented}
         active={active}
         {...linkProps}
-        onPress={(e) => {
-          onPress?.()
-          linkProps.onPress?.(e)
+        onClick={(e) => {
+          onClick?.()
+          linkProps.onClick?.(e)
         }}
         isDraft={!!draftId}
       >
@@ -79,7 +78,6 @@ export function DocumentSmallListItem({
       multiline
       bold
       color={color}
-      hoverStyle={{backgroundColor: '$backgroundHover'}}
       key={draftId || id?.id}
       title={getMetadataName(metadata)}
       icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
@@ -210,13 +208,13 @@ export function DocDirectory({
   supportQueries,
   id,
   createDirItem,
-  onPress,
+  onClick,
   drafts,
 }: {
   supportQueries?: HMQueryResult[]
   id: UnpackedHypermediaId
   createDirItem?: ((opts: {indented: number}) => ReactNode) | null
-  onPress?: () => void
+  onClick?: ButtonProps['onClick']
   drafts?: HMListedDraft[]
 }) {
   const directoryItems = getSiteNavDirectory({id, supportQueries, drafts})
@@ -228,7 +226,7 @@ export function DocDirectory({
               key={doc.draftId || doc.id?.path?.join('/') || doc.id?.id}
               metadata={doc.metadata}
               id={doc.id}
-              onPress={onPress}
+              onClick={onClick}
               indented={0}
               draftId={doc.draftId}
               isPublished={doc.isPublished}
@@ -255,7 +253,7 @@ export function DocumentOutline({
   outline,
   indented,
   onActivateBlock,
-  onPress,
+  onClick,
   id,
   activeBlockId,
   onCloseNav,
@@ -263,7 +261,7 @@ export function DocumentOutline({
   outline: NodeOutline[]
   indented?: number
   onActivateBlock: (blockId: string) => void
-  onPress?: () => void
+  onClick?: ButtonProps['onClick']
   id: UnpackedHypermediaId
   activeBlockId: string | null
   onCloseNav?: () => void
@@ -288,7 +286,7 @@ export function DocumentOutline({
         key={node.id}
         indented={indented}
         onActivateBlock={onActivateBlock}
-        onPress={onPress}
+        onClick={onClick}
         activeBlockId={activeBlockId}
         onCloseNav={onCloseNav}
         outlineProps={outlineProps}
@@ -302,13 +300,13 @@ export function DraftOutline({
   id,
   onActivateBlock,
   indented,
-  onPress,
+  onClick,
   outline = [],
 }: {
   id: UnpackedHypermediaId
   onActivateBlock: (blockId: string) => void
   indented?: number
-  onPress?: () => void
+  onClick?: ButtonProps['onClick']
   outline: NodeOutline[]
 }) {
   return outline.map((node) => (
@@ -317,7 +315,7 @@ export function DraftOutline({
       key={node.id}
       indented={indented}
       onActivateBlock={onActivateBlock}
-      onPress={onPress}
+      onClick={onClick}
       activeBlockId={null}
       docId={id}
     />
@@ -329,7 +327,7 @@ function OutlineNode({
   indented = 0,
   activeBlockId,
   onActivateBlock,
-  onPress,
+  onClick,
   onCloseNav,
   outlineProps,
   docId,
@@ -338,7 +336,7 @@ function OutlineNode({
   indented?: number
   activeBlockId: string | null
   onActivateBlock: (blockId: string) => void
-  onPress?: () => void
+  onClick?: ButtonProps['onClick']
   onCloseNav?: () => void
   outlineProps?: any
   docId: UnpackedHypermediaId
@@ -352,12 +350,12 @@ function OutlineNode({
         active={node.id === activeBlockId}
         title={node.title}
         indented={indented}
-        onPress={(e: GestureResponderEvent) => {
+        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           e.preventDefault()
-          if (outlineProps && outlineProps.onPress) {
-            outlineProps.onPress(e)
+          if (outlineProps && outlineProps.onClick) {
+            outlineProps.onClick(e)
           }
-          onPress?.()
+          onClick?.(e)
           onCloseNav?.()
           onActivateBlock(node.id)
         }}
@@ -388,7 +386,7 @@ function OutlineNode({
                 indented={indented + 1}
                 activeBlockId={activeBlockId}
                 onActivateBlock={onActivateBlock}
-                onPress={onPress}
+                onClick={onClick}
                 onCloseNav={onCloseNav}
                 outlineProps={childOutlineProps}
                 docId={docId}

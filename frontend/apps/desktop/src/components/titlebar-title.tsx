@@ -29,7 +29,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@shm/ui//hover-card'
-import {Button as TWButton} from '@shm/ui/button'
+import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {
@@ -43,25 +43,14 @@ import {
   X,
 } from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
-import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
-import {TextProps} from '@shm/ui/text'
+import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
-import {
-  Button,
-  FontSizeTokens,
-  Popover,
-  Text,
-  Theme,
-  View,
-  XStack,
-  YStack,
-} from 'tamagui'
 import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
 import {DNSInstructions} from './publish-site'
@@ -169,6 +158,8 @@ function BreadcrumbTitle({
 }) {
   const contacts = useSelectedAccountContacts()
   const latestDoc = useResource({...entityId, version: null, latest: true})
+
+  console.log(`== ~ BreadcrumbTitle ~ latestDoc:`, latestDoc)
   const isLatest =
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
@@ -336,61 +327,33 @@ function BreadcrumbTitle({
   if (isAllError || !displayItems.length) return null
 
   return (
-    <XStack
-      f={1}
-      marginRight={'$4'}
-      margin={0}
-      ai="stretch"
-      alignSelf="stretch"
-      overflow="hidden"
-      height="100%"
-      ref={containerObserverRef}
-      width="100%"
-    >
-      <XStack
-        position="absolute"
-        gap="$2"
-        f={1}
-        marginRight={'$4'}
-        ai="center"
-        width="100%"
-        height="100%"
-      >
-        <XStack
-          overflow="hidden"
-          ai="center"
-          height="100%"
-          flexShrink={1}
-          gap="$2"
-        >
-          {displayItems.flatMap((item, itemIndex) => {
-            if (!item) return null
-            return [
-              item,
-              itemIndex < displayItems.length - 1 ? (
-                <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
-              ) : null,
-            ]
-          })}
-        </XStack>
-        {!hideControls ? (
-          <XStack ai="center" f={1} flexShrink={0} jc="flex-start">
-            <XStack ai="center" className="no-window-drag">
-              <PendingDomain id={entityId} />
-              <FavoriteButton id={entityId} />
-              <CopyReferenceButton
-                docId={entityId}
-                isBlockFocused={false} // TODO: learn why isBlockFocused is needed
-                latest={isLatest}
-              />
-              {onPublishSite ? (
-                <DocOptionsButton onPublishSite={onPublishSite} />
-              ) : null}
-            </XStack>
-          </XStack>
-        ) : null}
-      </XStack>
-    </XStack>
+    <div ref={containerObserverRef} className="flex items-center gap-2">
+      <div className="flex h-full shrink-1 items-center gap-2 overflow-hidden">
+        {displayItems.flatMap((item, itemIndex) => {
+          if (!item) return null
+          return [
+            item,
+            itemIndex < displayItems.length - 1 ? (
+              <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
+            ) : null,
+          ]
+        })}
+      </div>
+      {!hideControls ? (
+        <div className="flex flex-1 shrink-0 items-center justify-start">
+          <PendingDomain id={entityId} />
+          <FavoriteButton id={entityId} />
+          <CopyReferenceButton
+            docId={entityId}
+            isBlockFocused={false} // TODO: learn why isBlockFocused is needed
+            latest={isLatest}
+          />
+          {onPublishSite ? (
+            <DocOptionsButton onPublishSite={onPublishSite} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -403,65 +366,65 @@ function PendingDomainStatus({
 }) {
   if (status === 'waiting-dns') {
     return (
-      <Text color="$color11">
+      <SizableText color="muted">
         Waiting for DNS to resolve to {hostnameStripProtocol(siteUrl)}
-      </Text>
+      </SizableText>
     )
   }
   if (status === 'initializing') {
-    return <Text color="$color11">Initializing Domain...</Text>
+    return <SizableText color="muted">Initializing Domain...</SizableText>
   }
-  return <Text color="$red8">Error</Text>
+  return <SizableText className="text-destructive">Error</SizableText>
 }
 
 function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   const hostSession = useHostSession()
   const site = useResource(id)
+
+  console.log(`== ~ PendingDomain ~ site:`, site)
   if (id.path?.length) return null
   const pendingDomain = hostSession.pendingDomains?.find(
     (domain) => domain.siteUid === id.uid,
   )
   if (!pendingDomain) return null
   return (
-    <View className="no-window-drag" padding="$2">
+    <div className="no-window-drag p-2">
       <HoverCard>
         <HoverCardTrigger>
           <Spinner size="small" />
         </HoverCardTrigger>
-        <HoverCardContent>
-          <Theme name="dark_blue">
-            <YStack className="no-window-drag" gap="$4" padding="$3">
-              {pendingDomain.status === 'waiting-dns' ? (
-                <DNSInstructions
-                  hostname={pendingDomain.hostname}
-                  siteUrl={site.data?.document?.metadata?.siteUrl || ''}
-                />
-              ) : null}
-              <PendingDomainStatus
-                status={pendingDomain.status}
+        <HoverCardContent side="bottom" align="start">
+          <div className="no-window-drag gap-4 p-3">
+            {pendingDomain.status === 'waiting-dns' ? (
+              <DNSInstructions
+                hostname={pendingDomain.hostname}
                 siteUrl={site.data?.document?.metadata?.siteUrl || ''}
               />
-              <XStack jc="center">
-                {hostSession.cancelPendingDomain.isLoading ? (
-                  <Spinner size="small" />
-                ) : (
-                  <Button
-                    size="$2"
-                    theme="red"
-                    onPress={() => {
-                      hostSession.cancelPendingDomain.mutate(pendingDomain.id)
-                    }}
-                    icon={X}
-                  >
-                    Cancel Domain Setup
-                  </Button>
-                )}
-              </XStack>
-            </YStack>
-          </Theme>
+            ) : null}
+            <PendingDomainStatus
+              status={pendingDomain.status}
+              siteUrl={site.data?.document?.metadata?.siteUrl || ''}
+            />
+            <div className="flex justify-center">
+              {hostSession.cancelPendingDomain.isLoading ? (
+                <Spinner size="small" />
+              ) : (
+                <Button
+                  size="iconSm"
+                  variant="destructive"
+                  onClick={() => {
+                    hostSession.cancelPendingDomain.mutate(pendingDomain.id)
+                  }}
+                >
+                  <X className="size-4" />
+                  Cancel Domain Setup
+                </Button>
+              )}
+            </div>
+          </div>
         </HoverCardContent>
       </HoverCard>
-    </View>
+    </div>
   )
 }
 
@@ -474,18 +437,14 @@ function BreadcrumbEllipsis({
 }) {
   const navigate = useNavigate()
   return (
-    <Popover>
-      <Popover.Trigger className="no-window-drag">
-        <Button
-          size="$1"
-          icon={AiOutlineEllipsis}
-          chromeless
-          backgroundColor="$colorTransparent"
-        ></Button>
-      </Popover.Trigger>
-      <Popover.Content bg="$backgroundStrong">
-        <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
-        <YStack space="$3">
+    <HoverCard>
+      <HoverCardTrigger className="no-window-drag">
+        <Button size="iconSm" variant="ghost" className="no-window-drag">
+          <AiOutlineEllipsis className="size-4" />
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="start">
+        <div className="flex flex-col">
           {crumbDetails.slice(1, 1 + collapsedCount).map((crumb) => {
             if (!crumb) return null
             return (
@@ -498,9 +457,9 @@ function BreadcrumbEllipsis({
               </TitleTextButton>
             )
           })}
-        </YStack>
-      </Popover.Content>
-    </Popover>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 
@@ -558,17 +517,14 @@ function BreadcrumbItem({
       return (
         <Tooltip content="Failed to Load">
           <Button
-            chromeless
-            size="$2"
-            margin={0}
-            backgroundColor="$colorTransparent"
-            borderWidth={0}
-            className="no-window-drag"
-            onPress={() => {
+            size="iconSm"
+            variant="ghost"
+            className="no-window-drag m-0"
+            onClick={() => {
               navigate({key: 'document', id})
             }}
           >
-            <AlertCircle size={18} className="text-red-700" />
+            <AlertCircle size={18} className="size-4 text-red-700" />
           </Button>
         </Tooltip>
       )
@@ -594,22 +550,20 @@ function BreadcrumbItem({
     </TitleTextButton>
   )
   return (
-    <View
-      marginTop="$4"
-      paddingBottom="$4"
-      className="no-window-drag"
-      minHeight={40}
-      justifyContent="center"
-    >
+    <div className="no-window-drag">
       <HoverCard>
         <HoverCardTrigger>{content}</HoverCardTrigger>
         {draft ? null : (
-          <HoverCardContent className="w-full max-w-lg p-1">
+          <HoverCardContent
+            side="bottom"
+            align="start"
+            className="w-full max-w-lg p-1"
+          >
             <PathItemCard details={details} homeMetadata={homeMetadata} />
           </HoverCardContent>
         )}
       </HoverCard>
-    </View>
+    </div>
   )
 }
 
@@ -641,11 +595,10 @@ function PathItemCard({
   return (
     <div className="flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden p-2">
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
-      {directoryItems?.length || canEditDoc ? <Separator /> : null}
       {directoryItems?.length ? (
         <>
           <ScrollArea className="flex-1 overflow-y-auto py-0">
-            <div className="pl-2.5">
+            <div>
               {directoryItems?.map((item) => {
                 return (
                   <DocumentSmallListItem
@@ -666,7 +619,11 @@ function PathItemCard({
 
       {canEditDoc ? (
         <div className="flex justify-start">
-          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+          <NewSubDocumentButton
+            size="xs"
+            locationId={docId}
+            importDropdown={false}
+          />
         </div>
       ) : null}
     </div>
@@ -692,7 +649,7 @@ function URLCardSection({
   return (
     <div>
       <div className="flex items-stretch rounded-md border">
-        <TWButton
+        <Button
           size="xs"
           className="flex-1 justify-start overflow-hidden border-none text-left hover:cursor-pointer"
           onClick={() => {
@@ -700,7 +657,7 @@ function URLCardSection({
             externalOpen(url)
           }}
         >
-          <span className="truncate text-xs">
+          <span className="text-muted-foreground truncate text-xs">
             {siteBaseUrl}
 
             {path &&
@@ -708,7 +665,7 @@ function URLCardSection({
                 <span key={`${p}-${index}`}>{`/${p}`}</span>
               ))}
           </span>
-        </TWButton>
+        </Button>
 
         <CopyReferenceButton
           docId={docId}
@@ -729,17 +686,9 @@ export function Title({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   return (
-    <XStack
-      gap="$2"
-      alignSelf="stretch"
-      alignItems="center"
-      paddingLeft="$2"
-      maxWidth="100%"
-      minWidth={240}
-      f={1}
-    >
+    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch pl-2">
       <TitleContent size={size} onPublishSite={onPublishSite} />
-    </XStack>
+    </div>
   )
 }
 
@@ -796,45 +745,23 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     )
 
   return (
-    <XStack
-      f={1}
-      marginRight={'$4'}
-      margin={0}
-      ai="stretch"
-      alignSelf="stretch"
-      overflow="hidden"
-      height="100%"
-      width="100%"
-    >
-      <XStack
-        position="absolute"
-        gap="$2"
-        f={1}
-        marginRight={'$4'}
-        ai="center"
-        width="100%"
-        // className="no-window-drag"
-        height="100%"
+    <div className="flex flex-1 items-stretch justify-stretch gap-2 overflow-hidden">
+      <File className="size-4 self-center" />
+      <TitleTextButton
+        className="no-window-drag font-bold"
+        onClick={() => {
+          navigate({key: 'drafts'})
+        }}
       >
-        <File className="size-4" />
-        <TitleTextButton
-          fontWeight={'bold'}
-          className="no-window-drag"
-          onClick={() => {
-            navigate({key: 'drafts'})
-          }}
-        >
-          Drafts
-        </TitleTextButton>
-        <BreadcrumbSeparator key={`draft-seperator`} />
-        <XStack ai="center" gap="$1">
-          <TitleText fontWeight="bold">
-            {draft.data?.metadata.name || 'New Draft'}
-          </TitleText>
-          <DraftBadge />
-        </XStack>
-      </XStack>
-    </XStack>
+        Drafts
+      </TitleTextButton>
+      <BreadcrumbSeparator key={`draft-seperator`} />
+
+      <TitleText className="self-center font-bold">
+        {draft.data?.metadata.name || 'New Draft'}
+      </TitleText>
+      <DraftBadge />
+    </div>
   )
 }
 

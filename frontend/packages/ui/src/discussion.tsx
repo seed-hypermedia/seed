@@ -15,7 +15,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useDiscussionsContext} from '@shm/shared/discussions-provider'
-import {useTxString, useTxUtils} from '@shm/shared/translation'
+import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
 import {ChevronRight, Link, Trash2} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
@@ -128,7 +128,7 @@ export function Comment({
     },
   )
   const tx = useTxString()
-  const {formattedDateMedium, formattedDateLong} = useTxUtils()
+
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
       setShowReplies(defaultExpandReplies)
@@ -138,9 +138,9 @@ export function Comment({
   const options: MenuItemType[] = []
   if (onDelete) {
     options.push({
-      icon: Trash2,
+      icon: <Trash2 className="size-4" />,
       label: 'Delete',
-      onPress: () => {
+      onClick: () => {
         onDelete()
       },
       key: 'delete',

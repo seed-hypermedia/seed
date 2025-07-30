@@ -112,7 +112,7 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
 
 type UseRouteLinkOpts = {
   replace?: boolean
-  onPress?: () => void
+  onPress?: React.ComponentProps<'button'>['onClick']
   handler?: 'onClick' | 'onPress'
 }
 
@@ -175,11 +175,7 @@ export function useRouteLink(
   })
 
   const clickHandler = context.openRoute
-    ? (e: {
-        preventDefault: () => void
-        stopPropagation: () => void
-        metaKey?: boolean
-      }) => {
+    ? (e: React.MouseEvent<HTMLButtonElement>) => {
         e?.stopPropagation()
         if (e.metaKey) {
           if (context.openRouteNewWindow) {
@@ -195,7 +191,7 @@ export function useRouteLink(
           return // default behavior will not be stopped on web
         }
         e.preventDefault()
-        opts?.onPress?.()
+        opts?.onPress?.(e)
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {

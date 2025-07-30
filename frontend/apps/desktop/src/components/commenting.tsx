@@ -108,7 +108,7 @@ function _CommentBox({
   const route = useNavRoute()
   const replace = useNavigate('replace')
   let content = null
-  let onPress = undefined
+  let onClick = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
   // useEffect(() => {
   //   triggerCommentDraftFocus(docId.id, replyCommentId)
@@ -178,7 +178,7 @@ function _CommentBox({
     )
   }
   return (
-    <div className="rounded-lg" onClick={onPress}>
+    <div className="rounded-lg" onClick={onClick}>
       {content}
     </div>
   )

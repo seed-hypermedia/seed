@@ -124,14 +124,14 @@ export function ImportDropdownButton({
           {
             key: 'file',
             label: 'Import Markdown File',
-            onPress: () => importFile(),
-            icon: FileInput,
+            onClick: () => importFile(),
+            icon: <FileInput className="size-4" />,
           },
           {
             key: 'directory',
             label: 'Import Markdown Folder',
-            onPress: () => importDirectory(),
-            icon: FolderInput,
+            onClick: () => importDirectory(),
+            icon: <FolderInput className="size-4" />,
           },
         ]}
       />

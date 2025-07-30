@@ -37,7 +37,6 @@ import {
 } from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {Theme, ThemeName} from 'tamagui'
 import {z} from 'zod'
 
 import {
@@ -191,35 +190,33 @@ function SeedHostCongratsContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <Theme name="dark_blue">
-      <div className="bg-background relative flex h-[80vh] max-h-[800px] w-[80vw] max-w-[1000px] flex-col items-center gap-4 p-4">
-        <div className="absolute top-20 bottom-0 left-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-left] [animation-timing-function:ease-in-out]">
-          <CelebrationDotsLeft />
-        </div>
-        <div className="absolute top-20 right-0 bottom-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-right] [animation-timing-function:ease-in-out]">
-          <CelebrationDotsRight />
-        </div>
-        <SeedHostHeader />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          {graphic ? (
-            <div className="scale-100 [transform:translateY(0px)] animate-[bounce] opacity-100 [animation-delay:0ms] [animation-duration:1000ms] [animation-fill-mode:both]">
-              {graphic}
-            </div>
-          ) : null}
-          {heading ? (
-            <Text
-              weight="bold"
-              size="lg"
-              className="text-muted-foreground mb-4 text-center"
-            >
-              {heading}
-            </Text>
-          ) : null}
-          {children}
-        </div>
-        {footer ? footer : null}
+    <div className="bg-background relative flex h-[80vh] max-h-[800px] w-[80vw] max-w-[1000px] flex-col items-center gap-4 p-4">
+      <div className="absolute top-20 bottom-0 left-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-left] [animation-timing-function:ease-in-out]">
+        <CelebrationDotsLeft />
       </div>
-    </Theme>
+      <div className="absolute top-20 right-0 bottom-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-right] [animation-timing-function:ease-in-out]">
+        <CelebrationDotsRight />
+      </div>
+      <SeedHostHeader />
+      <div className="flex flex-1 flex-col items-center justify-center gap-4">
+        {graphic ? (
+          <div className="scale-100 [transform:translateY(0px)] animate-[bounce] opacity-100 [animation-delay:0ms] [animation-duration:1000ms] [animation-fill-mode:both]">
+            {graphic}
+          </div>
+        ) : null}
+        {heading ? (
+          <Text
+            weight="bold"
+            size="lg"
+            className="text-muted-foreground mb-4 text-center"
+          >
+            {heading}
+          </Text>
+        ) : null}
+        {children}
+      </div>
+      {footer ? footer : null}
+    </div>
   )
 }
 
@@ -273,7 +270,6 @@ function PublishSiteDialog({
             icon={SeedHost}
             onClick={() => setMode('seed-host')}
             label="Free Hosting by Seed Hypermedia"
-            theme="blue"
             height={60}
           />
           <PublishOptionButton
@@ -315,14 +311,12 @@ function PublishOptionButton({
   label,
   color,
   height,
-  theme,
 }: {
   icon: IconComponent
   onClick: () => void
   label: string
   color?: string
   height?: number
-  theme?: ThemeName
 }) {
   return (
     <Button onClick={onClick} style={{height}}>
@@ -1320,7 +1314,10 @@ function SeedHostRegisterCustomDomain({
               On the next step you will be asked to update your DNS settings to
               point to the Seed Host service.
             </SizableText>
-            <form onSubmit={handleSubmit(onSubmit)} gap="$4">
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="flex flex-col gap-4"
+            >
               <FormField
                 name="domain"
                 label="What is your Domain Name?"

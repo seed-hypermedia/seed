@@ -47,7 +47,7 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {Button as TWButton} from '@shm/ui/button'
+import {ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -73,7 +73,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle, FilePlus, MessageSquare} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {ButtonText} from 'tamagui'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
@@ -487,10 +486,12 @@ function _AppDocSiteHeader({
 
 export function NewSubDocumentButton({
   locationId,
+  size = 'sm',
   importDropdown = true,
 }: {
   locationId: UnpackedHypermediaId
   importDropdown?: boolean
+  size?: ButtonProps['size']
 }) {
   const capability = useSelectedAccountCapability(locationId)
   const canEditDoc = roleCanWrite(capability?.role)
@@ -503,7 +504,7 @@ export function NewSubDocumentButton({
     <>
       <Tooltip content="Create a new document">
         <TWButton
-          size="sm"
+          size={size}
           variant="default"
           className="w-full"
           onClick={createDraft}
@@ -601,19 +602,13 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                         const contact = authorContacts[a]
                         if (!contact) return null
                         return [
-                          <ButtonText
+                          <SizableText
                             key={contact.id.uid}
-                            borderColor="$colorTransparent"
-                            outlineColor="$colorTransparent"
-                            hoverStyle={{
-                              borderColor: '$colorTransparent',
-                              textDecorationLine: 'underline',
-                              textDecorationColor: 'currentColor',
-                            }}
-                            size="$2"
-                            fontWeight="bold"
-                            onPress={() => {
-                              navigate({key: 'document', id: contact.id})
+                            size="sm"
+                            weight="bold"
+                            className="underline-transparent hover:underline"
+                            onClick={() => {
+                              navigate({key: 'contact', id: contact.id})
                             }}
                           >
                             {contact.metadata?.name ? (
@@ -626,7 +621,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                                 />
                               </Tooltip>
                             )}
-                          </ButtonText>,
+                          </SizableText>,
                           index !== authors.length - 1 ? (
                             index === authors.length - 2 ? (
                               <SizableText
@@ -749,19 +744,15 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   const open = useOpenUrl()
   if (!siteUrl) return null
   return (
-    <ButtonText
-      color="$color10"
-      size="$2"
-      hoverStyle={{
-        textDecorationLine: 'underline',
-        textDecorationColor: 'currentColor',
-      }}
-      onPress={() => {
+    <SizableText
+      size="sm"
+      className="underline-transparent hover:underline"
+      onClick={() => {
         open(siteUrl)
       }}
     >
       {siteUrl}
-    </ButtonText>
+    </SizableText>
   )
 }
 

@@ -6,6 +6,7 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Copy, NoConnection} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
@@ -13,7 +14,6 @@ import {cn} from '@shm/ui/utils'
 import {Route} from 'lucide-react'
 import React from 'react'
 import {ColorValue} from 'react-native'
-import {ButtonText, SizableText, useTheme} from 'tamagui'
 import {HMPeerInfo, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
 
@@ -22,7 +22,6 @@ export function useNetworkDialog() {
 }
 
 export function NetworkDialog() {
-  const theme = useTheme()
   const peers = usePeers(false, {
     refetchInterval: 5_000,
   })
@@ -50,8 +49,8 @@ export function NetworkDialog() {
             ))
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
-              <NoConnection color={theme.color7.val} />
-              <SizableText color="$color7" fontWeight="500" size="$5">
+              <NoConnection className="text-muted-foreground size-25" />
+              <SizableText color="muted" weight="medium" size="xl">
                 there are no active connections
               </SizableText>
             </div>
@@ -114,12 +113,12 @@ const PeerRow = React.memo(function PeerRow({
           />
         </Tooltip>
         <Tooltip content="Copy Peer ID">
-          <ButtonText onPress={handleCopyPeerId}>
+          <SizableText onClick={handleCopyPeerId}>
             {id.substring(id.length - 10)}
-          </ButtonText>
+          </SizableText>
         </Tooltip>
       </div>
-      <div className="mx-3 flex gap-3">
+      <div className="group mx-3 flex gap-3">
         {/* <XStack gap="$2">
           {account && !isSite ? (
             <UIAvatar
@@ -144,20 +143,18 @@ const PeerRow = React.memo(function PeerRow({
         </XStack> */}
         {isConnected && (
           <SizableText
-            size="$1"
-            color="$gray10"
-            opacity={0}
-            $group-item-hover={{opacity: 1}}
+            size="xs"
+            color="muted"
+            className="opacity-0 group-hover/item:opacity-100"
           >
             Connected
           </SizableText>
         )}
         {peer.protocol && peer.protocol !== myProtocol && (
           <SizableText
-            size="$1"
-            color="$gray10"
-            opacity={0}
-            $group-item-hover={{opacity: 1}}
+            size="xs"
+            color="muted"
+            className="opacity-0 group-hover/item:opacity-100"
           >
             Protocol: {peer.protocol.slice(12)}
           </SizableText>
@@ -179,9 +176,9 @@ const PeerRow = React.memo(function PeerRow({
             // },
             {
               key: 'copyAddress',
-              icon: Copy,
+              icon: <Copy className="size-4" />,
               label: 'Copy Addresses',
-              onPress: () => {
+              onClick: () => {
                 copyTextToClipboard(addrs.join(','))
                 toast.success('Copied Peer Addresses')
               },

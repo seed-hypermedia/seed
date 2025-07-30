@@ -46,7 +46,6 @@ import {
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Text} from 'tamagui'
 import {z} from 'zod'
 
 export default function ContactPage() {
@@ -265,9 +264,9 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
                   menuItems={[
                     {
                       key: 'delete',
-                      icon: Trash,
+                      icon: <Trash className="size-4" />,
                       label: 'Delete Contact',
-                      onPress: () => {
+                      onClick: () => {
                         deleteContactDialog.open({contact: myContact})
                       },
                     },
@@ -373,7 +372,7 @@ function ContactEdgeNames({
                 const account = accounts[contact.account]
                 return (
                   <div className="flex flex-row items-center justify-between gap-2">
-                    <Text fontWeight="bold">{contact.name}</Text>
+                    <span className="font-bold">{contact.name}</span>
                     {account ? (
                       <Tooltip
                         content={account.metadata?.name || 'Unknown Account'}

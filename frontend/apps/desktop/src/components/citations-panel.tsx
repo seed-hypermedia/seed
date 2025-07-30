@@ -77,7 +77,7 @@ export function CitationsPanel({
         {accessory.openBlockId ? (
           <AccessoryBackButton
             label="All Citations"
-            onPress={() => onAccessory({...accessory, openBlockId: null})}
+            onClick={() => onAccessory({...accessory, openBlockId: null})}
           />
         ) : null}
         {distinctCitations?.map((citation, index) => {

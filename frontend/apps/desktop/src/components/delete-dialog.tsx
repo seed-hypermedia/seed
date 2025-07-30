@@ -10,7 +10,7 @@ import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -19,7 +19,7 @@ import {useDeleteEntities} from '../models/entities'
 import {useAppDialog} from './dialog'
 
 export type DeleteDialogProps = {
-  trigger?: (props: {onPress: () => void}) => JSX.Element
+  trigger?: (props: {onClick: ButtonProps['onClick']}) => JSX.Element
   cancelButton?: ReactNode
   actionButton?: ReactNode
   title: string

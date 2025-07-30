@@ -4,6 +4,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {Fragment, Node} from '@tiptap/pm/model'
 import {
   CircleDot,
   ExternalLink,
@@ -12,10 +13,8 @@ import {
   Pencil,
   Quote,
   Unlink,
-} from '@tamagui/lucide-icons'
-import {Fragment, Node} from '@tiptap/pm/model'
+} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
-import {Button, XGroup, XStack, YStack} from 'tamagui'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,

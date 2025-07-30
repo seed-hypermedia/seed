@@ -50,8 +50,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
       <SmallListItem
         icon={<Add className="size-4" />}
         title="Create"
-        onPress={createDraft}
-        color="$green10"
+        onClick={createDraft}
         indented={indented}
       />
     )
@@ -81,15 +80,6 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
         id={id}
         activeBlockId={id.blockRef}
       />
-      {/* {!isHome && (
-        <DocDirectory
-          id={id}
-          drafts={drafts.data}
-          supportQueries={[siteListQuery]}
-          createDirItem={createDirItem}
-          onPress={onPress}
-        />
-      )} */}
     </DocNavigationWrapper>
   )
 }

@@ -1,6 +1,3 @@
-import {useTheme, View} from '@tamagui/core'
-import {ListItem, ListItemProps} from '@tamagui/list-item'
-import {XStack} from '@tamagui/stacks'
 import {ArrowDownRight, ChevronDown, ChevronRight} from 'lucide-react'
 import {
   ComponentProps,
@@ -9,11 +6,12 @@ import {
   ReactNode,
   useState,
 } from 'react'
-import {Button} from './button'
+import {Button, ButtonProps} from './button'
 import {DraftBadge} from './draft-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 export function FocusButton({
   onPress,
@@ -59,16 +57,14 @@ export function SmallListItem({
   disabled,
   title,
   icon,
+  active,
   iconAfter,
   children,
   indented,
+
   bold,
-  active,
-  activeBgColor,
   rightHover,
   color,
-  paddingVertical,
-  minHeight,
   menuItems,
   isCollapsed,
   onSetCollapsed,
@@ -76,10 +72,12 @@ export function SmallListItem({
   multiline = false,
   docId,
   ...props
-}: ListItemProps & {
-  indented?: boolean | number
+}: ButtonProps & {
+  active?: boolean
   bold?: boolean
-  activeBgColor?: ComponentProps<typeof ListItem>['backgroundColor']
+  indented?: boolean | number
+  icon?: React.ReactNode
+  iconAfter?: React.ReactNode
   selected?: boolean
   rightHover?: ReactNode[]
   menuItems?: MenuItemType[]
@@ -89,101 +87,84 @@ export function SmallListItem({
   multiline?: boolean
   docId?: string
 }) {
-  const theme = useTheme()
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
-  const activeBg = activeBgColor || '$brand12'
+
   return (
-    <ListItem
-      className="mobile-menu-item"
-      hoverTheme
-      pressTheme
-      focusTheme
-      minHeight={minHeight || 32}
-      paddingVertical={paddingVertical || '$1'}
-      size="$3"
-      // $gtSm={{size: "$2"}}
-      paddingLeft={Math.max(0, indent) * 22 + 12}
-      textAlign="left"
-      outlineColor="transparent"
-      backgroundColor={active ? activeBg : '$colorTransparent'}
-      hoverStyle={
-        active
-          ? {backgroundColor: '$brand11', cursor: 'default'}
-          : {backgroundColor: '$color4', cursor: 'default'}
-      }
-      cursor="default"
-      userSelect="none"
-      // gap="$2"
-      group="item"
-      color={color || '$gray12'}
-      title={undefined}
-      borderRadius="$2"
-      iconAfter={
-        iconAfter || rightHover || menuItems ? (
-          <>
-            {rightHover ? (
-              <XStack opacity={0} $group-item-hover={{opacity: 1}}>
-                {rightHover}
-              </XStack>
-            ) : null}
-            {menuItems ? (
-              <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
-            ) : null}
-          </>
-        ) : null
-      }
+    <Button
+      className={cn(
+        'user-select-none group h-auto min-h-8 w-full px-2 text-left outline-none',
+        active && 'bg-secondary text-secondary-foreground',
+        multiline && 'whitespace-normal!',
+        props.className,
+      )}
+      size="sm"
+      style={{
+        paddingLeft: Math.max(0, indent) * 22 + 12,
+      }}
       // this data attribute is used by the hypermedia highlight component
       data-docid={docId}
       {...props}
     >
-      <XStack gap="$2" jc="center" f={1}>
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
         {isValidElement(icon) ? (
           icon
         ) : icon ? (
-          <View width={18}>
+          <div className="size-4 flex-none shrink-0">
             {createElement(icon, {
               size: 18,
-              color: color || theme.gray12.val,
+              color: color || 'currentColor',
             })}
-          </View>
+          </div>
         ) : null}
         {children}
-        <XStack f={1} ai="center" gap="$1">
-          <SizableText
-            size="sm"
-            weight={bold ? 'bold' : 'normal'}
-            className={` ${isDraft ? 'flex-none' : 'flex-1'} ${
-              multiline
-                ? 'line-clamp-2'
-                : 'truncate overflow-hidden whitespace-nowrap'
-            } mobile-menu-item-label w-full select-none`.trim()}
-            style={{
-              color: typeof color === 'string' ? color : theme.gray12.val,
-            }}
-          >
-            {title}
-          </SizableText>
-          {isDraft ? <DraftBadge /> : null}
-        </XStack>
-        {isCollapsed != null ? (
-          <Button
-            className="absolute -left-6"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              onSetCollapsed?.(!isCollapsed)
-            }}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="size-3" />
-            ) : (
-              <ChevronDown className="size-3" />
-            )}
-          </Button>
-        ) : null}
-      </XStack>
-    </ListItem>
+
+        <SizableText
+          size="sm"
+          className={cn(
+            `flex-1 ${
+              multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
+            } mobile-menu-item-label w-full text-left select-none`.trim(),
+            bold && 'font-bold',
+          )}
+          style={{
+            color: typeof color === 'string' ? color : undefined,
+          }}
+        >
+          {title}
+        </SizableText>
+        {isDraft ? <DraftBadge /> : null}
+      </div>
+      {isCollapsed != null ? (
+        <Button
+          className="absolute -left-6"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onSetCollapsed?.(!isCollapsed)
+          }}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="size-3" />
+          ) : (
+            <ChevronDown className="size-3" />
+          )}
+        </Button>
+      ) : null}
+
+      {iconAfter || rightHover || menuItems ? (
+        <>
+          {rightHover ? (
+            <div className="flex opacity-0 group-hover:opacity-100">
+              {rightHover}
+            </div>
+          ) : null}
+          {menuItems ? (
+            <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
+          ) : null}
+        </>
+      ) : null}
+    </Button>
   )
 }
 

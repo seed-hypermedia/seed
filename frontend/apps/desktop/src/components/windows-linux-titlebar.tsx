@@ -27,7 +27,6 @@ import {
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
-import {ListItemProps} from 'tamagui'
 
 export function WindowsLinuxTitleBar({
   left,
@@ -86,7 +85,7 @@ export function SystemMenu() {
               title: 'Preferences...',
               accelerator: 'Ctrl+,',
               onSelect: () => spawn({key: 'settings'}),
-              icon: Settings,
+              icon: <Settings className="size-4" />,
             },
             {id: 'separator'},
             {
@@ -94,7 +93,7 @@ export function SystemMenu() {
               title: 'Search / Open',
               accelerator: 'Ctrl+K',
               onSelect: () => triggerFocusedWindow('open_launcher'),
-              icon: Search,
+              icon: <Search className="size-4" />,
             },
             {
               id: 'forcesync',
@@ -113,13 +112,13 @@ export function SystemMenu() {
               title: 'Hide',
               accelerator: 'Ctrl+H',
               onSelect: () => hide(),
-              icon: Hide,
+              icon: <Hide className="size-4" />,
             },
             {
               id: 'quit',
               title: 'Quit Seed',
               onSelect: () => quit(),
-              icon: Delete,
+              icon: <Delete className="size-4" />,
             },
           ],
         },
@@ -137,14 +136,14 @@ export function SystemMenu() {
                   id: nanoid(10),
                   accessory: {key: 'options'},
                 }),
-              icon: AddSquare,
+              icon: <AddSquare className="size-4" />,
             },
             {
               id: 'newwindow',
               title: 'New Window',
               accelerator: 'Ctrl+Shift+N',
               onSelect: () => spawn(defaultRoute),
-              icon: AddSquare,
+              icon: <AddSquare className="size-4" />,
             },
             {id: 'separator'},
             {
@@ -171,14 +170,14 @@ export function SystemMenu() {
               title: 'Close Window  ',
               accelerator: 'Ctrl+F4',
               onSelect: () => close(),
-              icon: Close,
+              icon: <Close className="size-4" />,
             },
             {
               id: 'closeallwindows',
               title: 'Close all Windows',
               accelerator: 'Ctrl+Shift+Alt+W',
               onSelect: () => invoke('close_all_windows'),
-              icon: CloseAll,
+              icon: <CloseAll className="size-4" />,
             },
           ],
         },
@@ -203,7 +202,7 @@ export function SystemMenu() {
               title: 'Contacts',
               accelerator: 'Ctrl+9',
               onSelect: () => push({key: 'contacts'}),
-              icon: Contact,
+              icon: <Contact className="size-4" />,
               disabled: route.key == 'contacts',
             },
             {
@@ -211,14 +210,14 @@ export function SystemMenu() {
               title: 'Reload',
               accelerator: 'Ctrl+R',
               onSelect: () => window.location.reload(),
-              icon: Reload,
+              icon: <Reload className="size-4" />,
             },
             {
               id: 'forcereload',
               title: 'Force Reload',
               accelerator: 'Ctrl+Shift+R',
               onSelect: () => window.location.reload(),
-              icon: Reload,
+              icon: <Reload className="size-4" />,
             },
             {
               id: 'discover',
@@ -288,7 +287,7 @@ type SubMenuItemElement = {
   id: string
   title: string
   onSelect: () => void
-  icon?: ListItemProps['icon']
+  icon?: React.ReactNode
   accelerator?: string
   disabled?: boolean
 }

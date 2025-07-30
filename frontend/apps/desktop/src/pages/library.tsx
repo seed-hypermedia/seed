@@ -184,8 +184,8 @@ export default function LibraryPage() {
                       {
                         label: 'Mark all as read',
                         key: 'mark-all-as-read',
-                        icon: CheckCheck,
-                        onPress: () => {
+                        icon: <CheckCheck className="size-4" />,
+                        onClick: () => {
                           markAsRead(
                             library.items
                               ?.map((item) => {

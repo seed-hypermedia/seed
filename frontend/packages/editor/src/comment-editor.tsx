@@ -8,7 +8,6 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {XStack, YStack} from '@tamagui/stacks'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
@@ -108,7 +107,7 @@ export default function CommentEditor({
     }
   }, [])
 
-  function onDrop(event: DragEvent) {
+  function onDrop(event: React.DragEvent<HTMLDivElement>) {
     if (!isDragging) return
     const dataTransfer = event.dataTransfer
 
@@ -230,15 +229,10 @@ export default function CommentEditor({
   }
 
   return (
-    <YStack gap="$3" width="100%">
-      <YStack
-        className="comment-editor"
-        marginTop="$1"
-        borderRadius="$4"
-        minHeight={105}
-        bg="$color4"
-        paddingHorizontal="$4"
-        onPress={(e: MouseEvent) => {
+    <div className="flex w-full flex-col gap-3">
+      <div
+        className="comment-editor bg-muted mt-1 flex min-h-[105px] flex-col gap-4 rounded-md px-4 pb-2"
+        onClick={(e: MouseEvent) => {
           const target = e.target as HTMLElement
 
           // Check if the clicked element is not an input, button, or textarea
@@ -248,7 +242,7 @@ export default function CommentEditor({
           e.stopPropagation()
           editor._tiptapEditor.commands.focus()
         }}
-        onKeyDownCapture={(e: KeyboardEvent) => {
+        onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault()
             e.stopPropagation()
@@ -257,23 +251,21 @@ export default function CommentEditor({
             return true
           }
         }}
-        gap="$4"
-        paddingBottom="$2"
         onDragStart={() => {
           setIsDragging(true)
         }}
         onDragEnd={() => {
           setIsDragging(false)
         }}
-        onDragOver={(event: DragEvent) => {
+        onDragOver={(event) => {
           event.preventDefault()
           setIsDragging(true)
         }}
         onDrop={onDrop}
       >
         <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-      </YStack>
-      <XStack gap="$3" jc="flex-end">
+      </div>
+      <div className="flex justify-end gap-3">
         {onDiscardDraft ? (
           <Tooltip content="Discard Comment Draft">
             <Button variant="destructive" size="sm" onClick={onDiscardDraft}>
@@ -285,8 +277,8 @@ export default function CommentEditor({
           reset,
           getContent,
         })}
-      </XStack>
-    </YStack>
+      </div>
+    </div>
   )
 }
 
@@ -444,7 +436,7 @@ export function CommentEditor2({
     }
   }, [])
 
-  function onDrop(event: DragEvent) {
+  function onDrop(event: React.DragEvent<HTMLDivElement>) {
     if (!isDragging) return
     const dataTransfer = event.dataTransfer
 
@@ -566,8 +558,8 @@ export function CommentEditor2({
   }
 
   return (
-    <XStack gap="$2" width="100%" alignItems="flex-start">
-      <XStack flexShrink={0} flexGrow={0}>
+    <div className="flex w-full items-start gap-2">
+      <div className="flex shrink-0 grow-0">
         {account?.metadata ? (
           <HMIcon
             color={'$color8'}
@@ -576,9 +568,9 @@ export function CommentEditor2({
             size={32}
           />
         ) : null}
-      </XStack>
-      <YStack flex={1} bg="$color4" width="100%" borderRadius="$4">
-        <YStack
+      </div>
+      <div className="bg-muted w-full flex-1 rounded-md">
+        <div
           justifyContent={isEditorFocused ? 'flex-start' : 'center'}
           flex={1}
           className="comment-editor"
@@ -597,7 +589,7 @@ export function CommentEditor2({
             e.stopPropagation()
             editor._tiptapEditor.commands.focus()
           }}
-          onKeyDownCapture={(e: KeyboardEvent) => {
+          onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
               e.stopPropagation()
@@ -612,7 +604,7 @@ export function CommentEditor2({
           onDragEnd={() => {
             setIsDragging(false)
           }}
-          onDragOver={(event: DragEvent) => {
+          onDragOver={(event) => {
             event.preventDefault()
             setIsDragging(true)
           }}
@@ -639,16 +631,16 @@ export function CommentEditor2({
               {tx('Start a Comment')}
             </Button>
           )}
-        </YStack>
+        </div>
         {isEditorFocused ? (
-          <XStack alignSelf="flex-end">
+          <div className="flex self-end">
             {submitButton({
               reset,
               getContent,
             })}
-          </XStack>
+          </div>
         ) : null}
-      </YStack>
-    </XStack>
+      </div>
+    </div>
   )
 }

@@ -75,10 +75,6 @@ export function AutoUpdater() {
       ) : updateStatus?.type == 'downloading' ? (
         <div className="flex flex-col gap-2">
           <Progress key="download-progress" value={updateStatus.progress} />
-
-          {/* <Button size="$2" onPress={handleLater}>
-            Cancel
-          </Button> */}
         </div>
       ) : null}
     </div>

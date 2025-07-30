@@ -1,7 +1,6 @@
 import {HyperlinkToolbarProps} from '@/blocknote'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
-import {SizeTokens, YStack} from 'tamagui'
 import {HypermediaLinkForm} from './hm-link-form'
 export function HypermediaLinkToolbar(
   props: HyperlinkToolbarProps & {
@@ -12,8 +11,6 @@ export function HypermediaLinkToolbar(
     setIsFocused: (focused: boolean) => void
   },
 ) {
-  const formSize: SizeTokens = '$2'
-
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
   // const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
@@ -43,17 +40,8 @@ export function HypermediaLinkToolbar(
   }, [])
 
   return (
-    <YStack
-      paddingVertical="$4"
-      paddingHorizontal="$3"
-      gap="$2"
-      borderRadius="$4"
-      overflow="hidden"
-      bg="$backgroundFocus"
-      elevation="$3"
-      zIndex="$zIndex.5"
-      bottom="0"
-      position="absolute"
+    <div
+      className="bg-muted absolute bottom-0 z-50 flex flex-col gap-2 overflow-hidden rounded-md px-3 py-4 shadow-md"
       onMouseEnter={props.stopHideTimer}
       onMouseLeave={props.startHideTimer}
     >
@@ -71,6 +59,6 @@ export function HypermediaLinkToolbar(
         hasSearch={props.type === 'mention'}
         isHmLink={!!unpackedRef}
       />
-    </YStack>
+    </div>
   )
 }

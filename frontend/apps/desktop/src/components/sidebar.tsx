@@ -36,12 +36,12 @@ export function MainAppSidebar() {
       <CreateDocumentButton />
       <SmallListItem
         active={route.key == 'library'}
-        onPress={() => {
+        onClick={() => {
           navigate({key: 'library'})
         }}
         title="Library"
         bold
-        icon={Library}
+        icon={<Library className="size-4" />}
         rightHover={[]}
       />
       {/* <SmallListItem
@@ -56,19 +56,19 @@ export function MainAppSidebar() {
       /> */}
       <SmallListItem
         active={route.key == 'contacts'}
-        onPress={() => {
+        onClick={() => {
           navigate({key: 'contacts'})
         }}
-        icon={Contact}
+        icon={<Contact className="size-4" />}
         title="Contacts"
         bold
       />
       <SmallListItem
         active={route.key == 'drafts'}
-        onPress={() => {
+        onClick={() => {
           navigate({key: 'drafts'})
         }}
-        icon={File}
+        icon={<File className="size-4" />}
         title="Drafts"
         bold
       />
@@ -158,7 +158,7 @@ function FavoritesSection() {
             title={metadata.name}
             icon={<HMIcon id={id} metadata={metadata} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
-            onPress={() => {
+            onClick={() => {
               navigate({key: 'document', id})
             }}
           />
@@ -202,7 +202,7 @@ function AccountsSection() {
             docId={id.id}
             title={metadata.name}
             icon={<HMIcon id={id} metadata={metadata} size={20} />}
-            onPress={() => {
+            onClick={() => {
               navigate({key: 'document', id: latestId(id)})
             }}
             active={
@@ -217,8 +217,8 @@ function AccountsSection() {
         <SmallListItem
           key="add-account"
           title="Add Account"
-          onPress={() => dispatchOnboardingDialog(true)}
-          icon={UserPlus2}
+          onClick={() => dispatchOnboardingDialog(true)}
+          icon={<UserPlus2 className="size-4" />}
         />
       )}
     </SidebarSection>

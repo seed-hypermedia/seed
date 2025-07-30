@@ -4,12 +4,12 @@ import {Button} from './button'
 import {cn} from './utils'
 
 export function AccessoryBackButton({
-  onPress,
+  onClick,
   label,
   className,
   ...props
 }: {
-  onPress: () => void
+  onClick: React.ComponentProps<'button'>['onClick']
   label?: string
 } & HTMLAttributes<HTMLButtonElement>) {
   return (
@@ -20,7 +20,7 @@ export function AccessoryBackButton({
         'text-muted-foreground flex-1 justify-start rounded-lg p-2',
         className,
       )}
-      onClick={onPress}
+      onClick={onClick}
       {...props}
     >
       <ChevronLeft size={16} />

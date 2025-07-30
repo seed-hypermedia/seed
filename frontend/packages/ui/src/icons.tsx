@@ -510,6 +510,7 @@ export function Contact({
 }: {
   color?: string
   size?: string | number
+  className?: string
 }) {
   return (
     <svg
@@ -837,7 +838,11 @@ export function EmptyDiscussion(props: {
   )
 }
 
-export function NoConnection(props: {color?: string; size?: string | number}) {
+export function NoConnection(props: {
+  color?: string
+  size?: string | number
+  className: string
+}) {
   const size = props.size || 100
   return (
     <svg
@@ -846,6 +851,7 @@ export function NoConnection(props: {color?: string; size?: string | number}) {
       viewBox="0 0 77 77"
       width={size}
       height={size}
+      className={props.className}
     >
       <path
         fill={props.color || DefaultIconColor}

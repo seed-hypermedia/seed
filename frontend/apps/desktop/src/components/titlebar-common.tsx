@@ -33,6 +33,12 @@ import {
   latestId,
   pathMatches,
 } from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
@@ -46,6 +52,7 @@ import {
   UploadCloud,
 } from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {SizableText} from '@shm/ui/text'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -62,7 +69,6 @@ import {
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
-import {Button, ColorProp, Popover, SizableText, XGroup} from 'tamagui'
 import {BranchDialog} from './branch-dialog'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
@@ -128,16 +134,16 @@ export function DocOptionsButton({
     {
       key: 'link',
       label: `Copy ${displayHostname(gwUrl)} Link`,
-      icon: Link,
-      onPress: () => {
+      icon: <Link className="size-4" />,
+      onClick: () => {
         onCopyGateway(copyUrlId)
       },
     },
     {
       key: 'export',
       label: 'Export Document',
-      icon: Download,
-      onPress: async () => {
+      icon: <Download className="size-4" />,
+      onClick: async () => {
         if (!doc) return
         const title = doc?.metadata.name || 'document'
         const blocks: HMBlockNode[] | undefined = doc?.content || undefined
@@ -154,16 +160,13 @@ export function DocOptionsButton({
             const success = (
               <>
                 <div className="flex max-w-[700px] flex-col gap-1.5">
-                  <SizableText wordWrap="break-word" textOverflow="break-word">
+                  <SizableText className="text-wrap break-all">
                     Successfully exported document "{title}" to:{' '}
                     <b>{`${res}`}</b>.
                   </SizableText>
                   <SizableText
-                    textDecorationLine="underline"
-                    textDecorationColor="currentColor"
-                    color="$brand5"
-                    tag={'a'}
-                    onPress={() => {
+                    className="text-current underline"
+                    onClick={() => {
                       openDirectory(res)
                     }}
                   >
@@ -172,7 +175,7 @@ export function DocOptionsButton({
                 </div>
               </>
             )
-            toast.success('', {customContent: success})
+            toast.success(success)
           })
           .catch((err) => {
             toast.error(err)
@@ -184,8 +187,8 @@ export function DocOptionsButton({
     menuItems.unshift({
       key: 'link-site',
       label: `Copy ${displayHostname(siteUrl)} Link`,
-      icon: Link,
-      onPress: () => {
+      icon: <Link className="size-4" />,
+      onClick: () => {
         onCopySiteUrl(copyUrlId)
       },
     })
@@ -194,8 +197,8 @@ export function DocOptionsButton({
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
-      icon: Trash,
-      onPress: () => {
+      icon: <Trash className="size-4" />,
+      onClick: () => {
         deleteEntity.open({
           id: route.id,
           onSuccess: () => {
@@ -221,8 +224,8 @@ export function DocOptionsButton({
         menuItems.push({
           key: 'publish-custom-domain',
           label: 'Publish Custom Domain',
-          icon: UploadCloud,
-          onPress: () => {
+          icon: <UploadCloud className="size-4" />,
+          onClick: () => {
             onPublishSite({id: route.id, step: 'seed-host-custom-domain'})
           },
         })
@@ -230,9 +233,9 @@ export function DocOptionsButton({
       menuItems.push({
         key: 'publish-site',
         label: 'Remove Site from Publication',
-        icon: CloudOff,
+        icon: <CloudOff className="size-4" />,
         color: '$red10',
-        onPress: () => {
+        onClick: () => {
           removeSite.open(route.id)
         },
       })
@@ -240,8 +243,8 @@ export function DocOptionsButton({
       menuItems.push({
         key: 'publish-site',
         label: 'Publish Site to Domain',
-        icon: UploadCloud,
-        onPress: () => {
+        icon: <UploadCloud className="size-4" />,
+        onClick: () => {
           onPublishSite({id: route.id})
         },
       })
@@ -256,14 +259,14 @@ export function DocOptionsButton({
     menuItems.push({
       key: 'create-draft',
       label: 'New Document...',
-      icon: FilePlus,
-      onPress: createDraft,
+      icon: <FilePlus className="size-4" />,
+      onClick: createDraft,
     })
     menuItems.push({
       key: 'import',
       label: 'Import...',
-      icon: Import,
-      onPress: () => {
+      icon: <Import className="size-4" />,
+      onClick: () => {
         importDialog.open({
           onImportFile: importing.importFile,
           onImportDirectory: importing.importDirectory,
@@ -277,8 +280,8 @@ export function DocOptionsButton({
     menuItems.push({
       key: 'branch',
       label: 'Create Document Branch',
-      icon: GitFork,
-      onPress: () => {
+      icon: <GitFork className="size-4" />,
+      onClick: () => {
         branchDialog.open(route.id)
       },
     })
@@ -288,8 +291,8 @@ export function DocOptionsButton({
     menuItems.push({
       key: 'move',
       label: 'Move Document',
-      icon: ForwardIcon,
-      onPress: () => {
+      icon: <ForwardIcon className="size-4" />,
+      onClick: () => {
         moveDialog.open({
           id: route.id,
         })
@@ -308,7 +311,12 @@ export function DocOptionsButton({
       {seedHostDialog.content}
       {branchDialog.content}
       {moveDialog.content}
-      <OptionsDropdown menuItems={menuItems} align="start" side="bottom" />
+      <OptionsDropdown
+        className="window-no-drag"
+        menuItems={menuItems}
+        align="start"
+        side="bottom"
+      />
     </>
   )
 }
@@ -343,13 +351,9 @@ function EditDocButton() {
 
   const button = (
     <Button
-      size="$2"
-      chromeless
-      hoverStyle={{
-        bg: '$color6',
-      }}
-      theme={existingDraft ? 'yellow' : undefined}
-      onPress={() => {
+      size="sm"
+      variant={existingDraft ? 'secondary' : 'ghost'}
+      onClick={() => {
         if (existingDraft) {
           navigate({
             key: 'draft',
@@ -367,8 +371,8 @@ function EditDocButton() {
           })
         }
       }}
-      icon={Pencil}
     >
+      <Pencil className="size-4" />
       {existingDraft ? 'Resume Editing' : 'Edit'}
     </Button>
   )
@@ -390,34 +394,12 @@ function EditDocButton() {
             console.log('== ~ onOpenChange ~ val:', val)
             setPopoverVisible(val)
           }}
-          stayInFrame
-          placement="bottom"
         >
-          <Popover.Trigger zIndex="$zIndex.9">{button}</Popover.Trigger>
-          <Popover.Content
-            borderWidth={1}
-            borderColor="$borderColor"
-            width="100%"
-            maxWidth={400}
-            margin="$4"
-            enterStyle={{y: -10, opacity: 0}}
-            exitStyle={{y: -10, opacity: 0}}
-            elevate
-            elevation="$3"
-            zIndex="$zIndex.9"
-            backgroundColor="$background"
-            animation={[
-              'fast',
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-          >
+          <PopoverTrigger>{button}</PopoverTrigger>
+          <PopoverContent>
             <div className="border-border bg-background absolute -top-2 right-9 h-4 w-4 rotate-45 border border-r-transparent border-b-transparent" />
             <div className="flex flex-col gap-2">
-              <SizableText size="$6" fontWeight="bold">
+              <SizableText size="3xl" weight="bold">
                 Start Editing the Content
               </SizableText>
               <SizableText>
@@ -425,7 +407,7 @@ function EditDocButton() {
                 the current page
               </SizableText>
             </div>
-          </Popover.Content>
+          </PopoverContent>
         </Popover>
       </>
     )
@@ -472,10 +454,10 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           id={selectedAccount?.id}
           metadata={selectedAccount?.document?.metadata}
         />
-        <SizableText size="$2">
-          <SizableText fontWeight="bold">
+        <SizableText size="sm">
+          <span className="font-bold">
             {selectedAccount?.document?.metadata.name}
-          </SizableText>
+          </span>
           {' - '}
           Not Allowed to Publish Here
         </SizableText>
@@ -510,17 +492,12 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
     <TitlebarSection>
       {showPublishSiteButton ? (
         <Button
-          chromeless
-          onPress={() => publishSite.open({id})}
-          iconAfter={UploadCloud}
-          size="$2"
-          backgroundColor="$brand5"
-          color="white"
-          hoverStyle={{
-            backgroundColor: '$brand6',
-          }}
+          variant="default"
+          onClick={() => publishSite.open({id})}
+          size="sm"
         >
           Publish to Web Domain
+          <UploadCloud className="size-4" />
         </Button>
       ) : null}
       <SubscriptionButton id={route.id} />
@@ -537,34 +514,24 @@ export function NavigationButtons() {
   if (!state) return null
   return (
     <div className="no-window-drag flex">
-      <XGroup>
-        <XGroup.Item>
-          <Button
-            size="$2"
-            onPress={() => dispatch({type: 'pop'})}
-            chromeless
-            hoverStyle={{
-              bg: '$color6',
-            }}
-            disabled={state.routeIndex <= 0}
-            opacity={state.routeIndex <= 0 ? 0.5 : 1}
-            icon={Back}
-          />
-        </XGroup.Item>
-        <XGroup.Item>
-          <Button
-            size="$2"
-            onPress={() => dispatch({type: 'forward'})}
-            chromeless
-            hoverStyle={{
-              bg: '$color6',
-            }}
-            disabled={state.routeIndex >= state.routes.length - 1}
-            opacity={state.routeIndex >= state.routes.length - 1 ? 0.5 : 1}
-            icon={Forward}
-          />
-        </XGroup.Item>
-      </XGroup>
+      <Button
+        size="icon"
+        onClick={() => dispatch({type: 'pop'})}
+        variant="ghost"
+        disabled={state.routeIndex <= 0}
+        className="rounded-tl-0 rounded-bl-0"
+      >
+        <Back className="size-4" />
+      </Button>
+
+      <Button
+        size="icon"
+        onClick={() => dispatch({type: 'forward'})}
+        disabled={state.routeIndex >= state.routes.length - 1}
+        className="rounded-tr-0 rounded-br-0"
+      >
+        <Forward className="size-4" />
+      </Button>
     </div>
   )
 }
@@ -577,21 +544,25 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
   const isHoverVisible = useStream(ctx?.isHoverVisible)
-  let icon = PanelLeft
+  let icon = <PanelLeft className="size-4" />
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
-  let color: undefined | ColorProp = undefined
+  let color: undefined | string = undefined
 
   if (isLocked) {
     tooltip = 'Close Sidebar'
     onPress = ctx?.onCloseSidebar
     key = 'close'
-    color = '$color9'
+    color = 'text-muted'
   }
 
   if (isHoverVisible) {
-    icon = !isLocked ? ArrowRightFromLine : ArrowLeftFromLine
+    icon = !isLocked ? (
+      <ArrowRightFromLine className="size-4" />
+    ) : (
+      <ArrowLeftFromLine className="size-4" />
+    )
   }
 
   // Add a state to track the last click time to debounce clicks
@@ -618,18 +589,14 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
           >
             <Button
-              backgroundColor="$colorTransparent"
-              size="$2"
+              size="icon"
               key={key}
-              icon={icon}
-              chromeless
-              hoverStyle={{
-                bg: '$color6',
-              }}
               onMouseEnter={ctx.onMenuHover}
               onMouseLeave={ctx.onMenuHoverLeave}
-              onPress={handleClick}
-            />
+              onClick={handleClick}
+            >
+              {icon}
+            </Button>
           </Tooltip>
         </div>
       )}

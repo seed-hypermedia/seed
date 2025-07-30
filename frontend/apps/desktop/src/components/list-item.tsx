@@ -7,34 +7,30 @@ import {getMetadataName} from '@shm/shared/content'
 import {DocumentRoute} from '@shm/shared/routes'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
-import {Button} from '@shm/ui/button'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {ComponentProps, ReactElement, useMemo, useState} from 'react'
+import {ReactElement, useMemo, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-import {ButtonProps, ButtonText, SizableText} from 'tamagui'
 
 export function ListItem({
   accessory,
   title,
-  onPress,
+  onClick,
   icon,
   onPointerEnter,
   menuItems = [],
-  theme,
-  backgroundColor,
   active,
 }: {
   accessory?: ReactElement
   icon?: ReactElement
   title: string
-  onPress: ButtonProps['onPress'] | ComponentProps<typeof ButtonText>['onPress']
+  onClick: ButtonProps['onClick']
   onPointerEnter?: () => void
   menuItems?: (MenuItemType | null)[] | (() => (MenuItemType | null)[])
-  theme?: ComponentProps<typeof Button>['theme']
-  backgroundColor?: ComponentProps<typeof Button>['backgroundColor']
   active?: boolean
 }) {
   let {hover, ...hoverProps} = useHover()
@@ -51,7 +47,7 @@ export function ListItem({
           }
         }}
         variant={active ? 'secondary' : 'ghost'}
-        onClick={onPress}
+        onClick={onClick}
         {...hoverProps}
         className="hover:bg-accent hover:border-background w-full max-w-[600px] flex-1 justify-start"
       >
@@ -59,7 +55,7 @@ export function ListItem({
         <span
           onClick={(e) => {
             e.stopPropagation()
-            onPress?.(e as any)
+            onClick?.(e as any)
           }}
           className="flex-[2] text-left font-bold"
         >
@@ -175,13 +171,8 @@ export function LibraryListItem({
       )}
       <div className="flex flex-1 items-center gap-2 py-2">
         <div className="flex flex-1 flex-col gap-1.5">
-          <div className="flex items-center gap-2 pl-1">
-            <SizableText
-              fontWeight="bold"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
-            >
+          <div className="flex items-center gap-2 overflow-hidden pl-1">
+            <SizableText weight="bold" className="truncate">
               {getMetadataName(metadata)}
             </SizableText>
             {isUnpublished && (
@@ -230,7 +221,7 @@ export function LibraryListItem({
 
 function LibraryEntryTime({entry}: {entry: LibraryData['items'][number]}) {
   return (
-    <SizableText size="$1" color="$color10">
+    <SizableText size="xs" color="muted">
       {formattedDate(entry.updateTime)}
     </SizableText>
   )
