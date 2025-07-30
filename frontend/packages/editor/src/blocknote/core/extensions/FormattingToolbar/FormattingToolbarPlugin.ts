@@ -101,14 +101,13 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
 
     const editorWrapper = this.pmView.dom.parentElement!
     const relatedTarget = event.relatedTarget as HTMLElement | null
-
     // Checks if the focus is moving to an element outside the editor. If it is,
     // the toolbar is hidden.
     if (
       relatedTarget &&
-      (editorWrapper.contains(relatedTarget) ||
+      (editorWrapper === (relatedTarget as Node) ||
         editorWrapper?.contains(relatedTarget as Node) ||
-        relatedTarget.closest('.format-dropdown-item'))
+        relatedTarget.closest('.format-toolbar-item'))
     ) {
       // If focus moved to an element inside the editor or to a Select dropdown component
       return

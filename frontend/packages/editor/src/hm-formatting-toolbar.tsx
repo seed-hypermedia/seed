@@ -231,6 +231,7 @@ function ToggleStyleButton<
         className={cn(
           'hover:bg-black/10 dark:hover:bg-white/10',
           'focus:bg-black/10 dark:focus:bg-white/10',
+          'format-toolbar-item',
           active &&
             'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
         )}
@@ -255,9 +256,9 @@ function FormatDropdown({
   options: {label: string; value: string}[]
 }) {
   return (
-    <div className="format-dropdown flex items-center">
+    <div className="flex items-center">
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="format-dropdown-trigger">
+        <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -265,7 +266,7 @@ function FormatDropdown({
             <SelectItem
               key={option.value}
               value={option.value}
-              className="format-dropdown-item"
+              className="format-toolbar-item"
             >
               {option.label}
             </SelectItem>

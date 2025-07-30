@@ -84,6 +84,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             className={cn(
               'hover:bg-black/10 dark:hover:bg-white/10',
               'focus:bg-black/10 dark:focus:bg-white/10',
+              'format-toolbar-item',
               open &&
                 'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
             )}
