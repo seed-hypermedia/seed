@@ -318,7 +318,7 @@ FROM fts_data AS f
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
 WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
-
+AND document_generations.is_deleted = False
 ORDER BY
   (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
   f.rank ASC
