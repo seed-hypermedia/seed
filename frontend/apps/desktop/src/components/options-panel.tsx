@@ -5,9 +5,9 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
+import {DatePicker} from '@shm/ui/components/date-picker'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {SimpleDatePicker} from '@shm/ui/datepicker'
 import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {
@@ -373,7 +373,7 @@ function OriginalPublishDate({
       <Label size="sm" className="text-muted-foreground">
         Publication Display Date
       </Label>
-      <SimpleDatePicker
+      <DatePicker
         value={
           metadata.displayPublishTime
             ? dateStringToDate(metadata.displayPublishTime).toDateString()

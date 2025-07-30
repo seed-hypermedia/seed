@@ -59,7 +59,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           }
         >
           <PopoverTrigger>
-            <Button size="sm" variant={isSubscribed ? 'outline' : 'brand'}>
+            <Button size="xs" variant={isSubscribed ? 'outline' : 'brand'}>
               {subscription.subscription == 'space' ? (
                 <SubscribeSpace size={20} className="text-brand-5" />
               ) : subscription.subscription == 'document' ? (

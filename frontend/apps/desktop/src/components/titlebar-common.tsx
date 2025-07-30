@@ -658,13 +658,8 @@ function AccessorySidebarToggle() {
     return (
       <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
         <Button
-          size="$2"
-          chromeless
-          hoverStyle={{
-            bg: '$color6',
-          }}
-          icon={PanelRight}
-          onPress={() => {
+          size="icon"
+          onClick={() => {
             if (route.key === 'document') {
               replace({
                 ...route,
@@ -672,20 +667,17 @@ function AccessorySidebarToggle() {
               })
             }
           }}
-        />
+        >
+          <PanelRight className="size-4" />
+        </Button>
       </Tooltip>
     )
   } else if (route.key == 'draft') {
     return (
       <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
         <Button
-          size="$2"
-          chromeless
-          hoverStyle={{
-            bg: '$color6',
-          }}
-          icon={PanelRight}
-          onPress={() => {
+          size="icon"
+          onClick={() => {
             replace({
               ...route,
               accessory: route.accessory
@@ -695,7 +687,9 @@ function AccessorySidebarToggle() {
                   },
             })
           }}
-        />
+        >
+          <PanelRight className="size-4" />
+        </Button>
       </Tooltip>
     )
   }

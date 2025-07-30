@@ -3002,6 +3002,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@date-fns/tz@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "@date-fns/tz@npm:1.2.0"
+  checksum: 2eb37e63fdbd5d72458c528ded6c2f7bdb76bae9c6875d3b827e33600b807cfbd72ab05c9291f258a6e6b7b360ec03e57f7e7d85fe6e0d5e989476dec908910e
+  languageName: node
+  linkType: hard
+
 "@discoveryjs/json-ext@npm:0.5.7":
   version: 0.5.7
   resolution: "@discoveryjs/json-ext@npm:0.5.7"
@@ -10865,15 +10872,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rehookify/datepicker@npm:6.6.8":
-  version: 6.6.8
-  resolution: "@rehookify/datepicker@npm:6.6.8"
-  peerDependencies:
-    react: ^16.8.0 || ^17 || ^18 || ^19
-  checksum: a055f58482acdcb914a800970ca0320fed18b9f64b53d283790f4f4c2a3c0514e9c878e073502415873e82f287a6876e1942021c81205004a64e86f40d7789d0
-  languageName: node
-  linkType: hard
-
 "@remirror/core-constants@npm:^2.0.2":
   version: 2.0.2
   resolution: "@remirror/core-constants@npm:2.0.2"
@@ -12538,7 +12536,6 @@ __metadata:
     "@radix-ui/react-slot": ^1.2.3
     "@radix-ui/react-switch": ^1.2.5
     "@radix-ui/react-tabs": ^1.1.12
-    "@rehookify/datepicker": 6.6.8
     "@shm/shared": "workspace:*"
     "@tailwindcss/vite": ^4.1.8
     "@tamagui/animations-moti": 1.108.2
@@ -12567,6 +12564,7 @@ __metadata:
     next-themes: ^0.4.6
     nostr-tools: 1.16.0
     react: 18.2.0
+    react-day-picker: ^9.8.1
     react-hook-form: 7.46.1
     react-icons: 4.9.0
     react-native-reanimated: 3.7.0
@@ -21355,6 +21353,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"date-fns-jalali@npm:^4.1.0-0":
+  version: 4.1.0-0
+  resolution: "date-fns-jalali@npm:4.1.0-0"
+  checksum: cde80e4a87bfd96458ff1edfd5af5fed7ed6e04dd48574ed64d376e37e7689ddee1a7c5a6685f4b93cf3432eac73c51acd786504070a6973a140c5f15163ca39
+  languageName: node
+  linkType: hard
+
 "date-fns@npm:^2.30.0":
   version: 2.30.0
   resolution: "date-fns@npm:2.30.0"
@@ -21368,6 +21373,13 @@ __metadata:
   version: 3.6.0
   resolution: "date-fns@npm:3.6.0"
   checksum: 0daa1e9a436cf99f9f2ae9232b55e11f3dd46132bee10987164f3eebd29f245b2e066d7d7db40782627411ecf18551d8f4c9fcdf2226e48bb66545407d448ab7
+  languageName: node
+  linkType: hard
+
+"date-fns@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "date-fns@npm:4.1.0"
+  checksum: fb681b242cccabed45494468f64282a7d375ea970e0adbcc5dcc92dcb7aba49b2081c2c9739d41bf71ce89ed68dd73bebfe06ca35129490704775d091895710b
   languageName: node
   linkType: hard
 
@@ -35085,6 +35097,19 @@ __metadata:
     chart.js: ^4.1.1
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
   checksum: ace702185be1450e5888a8bcd8b5fc1995067e3b11d236764a67f5567a3d7c32ff16923b8d48d3d39bda6e45135da6c044c9b43fbe8e1978f95aca9d2c0ce348
+  languageName: node
+  linkType: hard
+
+"react-day-picker@npm:^9.8.1":
+  version: 9.8.1
+  resolution: "react-day-picker@npm:9.8.1"
+  dependencies:
+    "@date-fns/tz": ^1.2.0
+    date-fns: ^4.1.0
+    date-fns-jalali: ^4.1.0-0
+  peerDependencies:
+    react: ">=16.8.0"
+  checksum: 87cb9ad1a566a40fc97dc740333dfe6f36b55e7f2e27f585b6bde5bdfcd577778961394c202e15ac919729079c381a611af78d08d0f2e48290b12e3412967537
   languageName: node
   linkType: hard
 
