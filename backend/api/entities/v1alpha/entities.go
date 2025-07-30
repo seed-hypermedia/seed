@@ -228,7 +228,7 @@ SELECT
   ORDER BY ts ASC
 `)
 var qGetFTS = dqb.Str(`
-WITH fts_top100 AS (
+WITH fts_data AS (
   SELECT
     fts.raw_content,
     fts.type,
@@ -250,6 +250,7 @@ WITH fts_top100 AS (
       ON resources.id = structural_blobs.resource
   WHERE fts.raw_content MATCH :ftsStr
     AND fts.type IN (:entityTitle, :entityContact, :entityDoc, :entityComment)
+	AND blobs.size > 0
   ORDER BY
   (fts.type = 'contact' || fts.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
   fts.rank ASC
@@ -282,8 +283,9 @@ SELECT
   ) AS heads,
   structural_blobs.ts,
   structural_blobs.genesis_blob,
-  f.rowid
-FROM fts_top100 AS f
+  f.rowid,
+  public_keys.id AS author_id
+FROM fts_data AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
 
@@ -323,6 +325,16 @@ ORDER BY
 LIMIT :limit
 `)
 
+var qIsDeletedComment = dqb.Str(`
+	SELECT 
+	ifnull(extra_attrs->>'deleted' = 1, 0) AS is_deleted
+	FROM structural_blobs
+	WHERE type = 'Comment'
+	AND (extra_attrs->>'tsid' || :authorID = :tsID || :authorID)
+	ORDER BY id DESC
+	LIMIT 1;
+`)
+
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
@@ -335,6 +347,11 @@ var qGetParentsMetadata = dqb.Str(`
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
 var qGetAccountID = dqb.Str(`
 SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)
+
+type commentIdentifier struct {
+	authorID int64
+	tsid     string
+}
 
 type searchResult struct {
 	content       string
@@ -354,6 +371,7 @@ type searchResult struct {
 	version       string
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
+	commentKey    commentIdentifier
 }
 
 // SearchEntities implements the Fuzzy search of entities.
@@ -492,6 +510,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			res.rowID = stmt.ColumnInt64(16)
 			if res.contentType == "comment" {
 				res.iri = "hm://" + res.owner + "/" + res.tsid
+				res.commentKey = commentIdentifier{
+					authorID: stmt.ColumnInt64(17),
+					tsid:     res.tsid,
+				}
 			} else if res.contentType == "contact" {
 				res.iri = "hm://" + subjectID + "/" + res.tsid
 				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
@@ -646,6 +668,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					relatedFound = true
 				}
 				if !relatedFound && latestUnrelated.version != searchResults[match.Index].latestVersion {
+					//fmt.Println("Found unrelated change:", latestUnrelated, "for:", searchResults[match.Index])
 					latestUnrelated.version = searchResults[match.Index].latestVersion
 				}
 				/*
@@ -674,6 +697,22 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				if len(offsets) > 1 {
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
+			}
+		} else if searchResults[match.Index].contentType == "comment" {
+			var isDeleted bool
+			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
+					isDeleted = stmt.ColumnInt(0) == 1
+					return nil
+				}, strconv.FormatInt(searchResults[match.Index].commentKey.authorID, 10), searchResults[match.Index].commentKey.tsid)
+			})
+			if err != nil {
+				//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
+				return nil, err
+			}
+			if isDeleted {
+				// If the comment is deleted, we don't return it
+				continue
 			}
 		}
 

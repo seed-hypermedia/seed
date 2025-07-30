@@ -513,6 +513,14 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				}
 
 			}
+
+		case OpDeleteBlocks:
+			for _, blk := range op.Blocks {
+				if err := dbFTSInsertOrReplace(ictx.conn, "", "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+					return fmt.Errorf("failed to insert record in fts table: %w", err)
+				}
+			}
+
 		}
 	}
 

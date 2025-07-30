@@ -57,6 +57,10 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-07-30.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		// Reindexing to take into account delete blobcks changes into fts.
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-07-29.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to take into account move blocks changes into fts.
 		return scheduleReindex(conn)
