@@ -33,7 +33,6 @@ import {Prev as ArrowLeft, Copy, Reload} from '@shm/ui/icons'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   cleanupOnboardingFormData,
@@ -636,16 +635,16 @@ function ExistingStep({
     // }
     // Create the Account
     let createdAccount
-    const name = `temp${nanoid(8)}`
+    // const name = `temp${nanoid(8)}`
     try {
       console.group('👤 Creating Account')
       if (!secretWords.trim()) {
         throw new Error('Mnemonics not found')
       }
-      console.log('Using temporary name:', name)
+      // console.log('Using temporary name:', name)
 
       createdAccount = await register.mutateAsync({
-        name,
+        // name,
         mnemonic,
       })
       console.log('✅ Account created:', createdAccount)
@@ -656,32 +655,32 @@ function ExistingStep({
     }
 
     // Update account key name
-    let renamedKey
-    try {
-      console.group('🔑 Updating Account Key')
-      console.log('Renaming from', name, 'to', createdAccount.accountId)
+    // let renamedKey
+    // try {
+    //   console.group('🔑 Updating Account Key')
+    //   console.log('Renaming from', name, 'to', createdAccount.accountId)
 
-      renamedKey = await grpcClient.daemon.updateKey({
-        currentName: name,
-        newName: createdAccount.accountId,
-      })
-      console.log('✅ Account key updated:', renamedKey)
-      console.groupEnd()
-    } catch (error) {
-      console.error('❌ Failed to update account key:', error)
-      throw new Error(
-        'Failed to update account key: ' + (error as Error).message,
-      )
-    }
+    //   renamedKey = await grpcClient.daemon.updateKey({
+    //     currentName: name,
+    //     newName: createdAccount.accountId,
+    //   })
+    //   console.log('✅ Account key updated:', renamedKey)
+    //   console.groupEnd()
+    // } catch (error) {
+    //   console.error('❌ Failed to update account key:', error)
+    //   throw new Error(
+    //     'Failed to update account key: ' + (error as Error).message,
+    //   )
+    // }
 
     // Save mnemonics to secure storage only if checkbox is checked
     try {
       console.group('💾 Saving Mnemonics')
-      console.log('Saving to key:', renamedKey.name)
+      console.log('Saving to key:', createdAccount.publicKey)
       console.log('Should save words:', shouldSaveWords)
 
       if (shouldSaveWords) {
-        saveWords.mutate({key: renamedKey.name, value: secretWords})
+        saveWords.mutate({key: createdAccount.publicKey, value: secretWords})
         console.log('✅ Mnemonics saved')
       } else {
         console.log('⏭️ Skipping mnemonic save as per user preference')
@@ -851,16 +850,16 @@ function RecoveryStep({
 
       // Create the Account
       let createdAccount
-      const name = `temp${nanoid(8)}`
+      // const name = `temp${nanoid(8)}`
       try {
         console.group('👤 Creating Account')
         if (!mnemonics.data) {
           throw new Error('Mnemonics not found')
         }
-        console.log('Using temporary name:', name)
+        // console.log('Using temporary name:', name)
 
         createdAccount = await register.mutateAsync({
-          name,
+          // name,
           mnemonic: mnemonics.data,
         })
         console.log('✅ Account created:', createdAccount)
@@ -870,33 +869,36 @@ function RecoveryStep({
         throw new Error('Failed to create account: ' + (error as Error).message)
       }
 
-      // Update account key name
-      let renamedKey
-      try {
-        console.group('🔑 Updating Account Key')
-        console.log('Renaming from', name, 'to', createdAccount.accountId)
+      // // Update account key name
+      // let renamedKey
+      // try {
+      //   console.group('🔑 Updating Account Key')
+      //   console.log('Renaming from', name, 'to', createdAccount.accountId)
 
-        renamedKey = await grpcClient.daemon.updateKey({
-          currentName: name,
-          newName: createdAccount.accountId,
-        })
-        console.log('✅ Account key updated:', renamedKey)
-        console.groupEnd()
-      } catch (error) {
-        console.error('❌ Failed to update account key:', error)
-        throw new Error(
-          'Failed to update account key: ' + (error as Error).message,
-        )
-      }
+      //   renamedKey = await grpcClient.daemon.updateKey({
+      //     currentName: name,
+      //     newName: createdAccount.accountId,
+      //   })
+      //   console.log('✅ Account key updated:', renamedKey)
+      //   console.groupEnd()
+      // } catch (error) {
+      //   console.error('❌ Failed to update account key:', error)
+      //   throw new Error(
+      //     'Failed to update account key: ' + (error as Error).message,
+      //   )
+      // }
 
       // Save mnemonics to secure storage only if checkbox is checked
       try {
         console.group('💾 Saving Mnemonics')
-        console.log('Saving to key:', renamedKey.name)
+        console.log('Saving to key:', createdAccount.publicKey)
         console.log('Should save words:', shouldSaveWords)
 
         if (shouldSaveWords) {
-          saveWords.mutate({key: renamedKey.name, value: mnemonics.data})
+          saveWords.mutate({
+            key: createdAccount.publicKey,
+            value: mnemonics.data,
+          })
           console.log('✅ Mnemonics saved')
         } else {
           console.log('⏭️ Skipping mnemonic save as per user preference')

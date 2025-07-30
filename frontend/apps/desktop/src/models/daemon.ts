@@ -136,7 +136,7 @@ export function useRegisterKey(
   >,
 ) {
   return useMutation({
-    mutationFn: async ({name = 'main', mnemonic, passphrase}) => {
+    mutationFn: async ({name = '', mnemonic, passphrase}) => {
       const registration = await grpcClient.daemon.registerKey({
         name,
         mnemonic,

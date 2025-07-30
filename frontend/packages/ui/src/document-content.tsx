@@ -294,14 +294,15 @@ export function DocContent({
       className="relative my-6"
       ref={wrapper}
       style={{
-        paddingHorizontal: layoutUnit / 3,
+        paddingLeft: layoutUnit / 3,
+        paddingRight: layoutUnit / 3,
       }}
       {...props}
     >
       <div
         ref={bubble}
         className={cn(
-          'absolute top-0 left-0 z-50 hidden select-none',
+          'absolute top-0 left-0 z-[99999] hidden select-none',
           media.gtSm && !state.matches('disable') ? 'block' : 'hidden',
         )}
         style={{...coords}}
@@ -309,9 +310,8 @@ export function DocContent({
         {onBlockCopy ? (
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
-              variant="outline"
               size="sm"
-              className="relative"
+              className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
               onClick={() => {
                 onBlockCopy(
                   state.context.blockId,
