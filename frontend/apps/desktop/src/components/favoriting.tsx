@@ -22,10 +22,7 @@ function RemoveFavoriteButton({
         variant={active ? 'default' : 'ghost'}
         {...hoverProps}
         onClick={onClick}
-        className={cn(
-          'no-window-drag',
-          active && 'bg-transparent shadow-none hover:bg-transparent',
-        )}
+        className={cn('no-window-drag', active && 'bg-transparent shadow-none')}
       >
         <StarFull color="var(--color-yellow-500)" />
       </Button>
@@ -62,7 +59,7 @@ export function FavoriteButton({
         className={cn(
           'no-window-drag',
           hideUntilItemHover && 'opacity-0 group-hover:opacity-100',
-          'bg-transparent shadow-none hover:bg-transparent',
+          'bg-transparent shadow-none',
         )}
         onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           e.stopPropagation()

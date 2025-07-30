@@ -1,24 +1,16 @@
-import {Button} from '@tamagui/button'
-import {ColorTokens, SizeTokens} from '@tamagui/core'
-import {ComponentProps} from 'react'
+import {Button, ButtonProps} from './button'
+import {cn} from './utils'
 
 export function RadioButtons<
   Options extends ReadonlyArray<{
     key: string
     label: string
-    icon?: ComponentProps<typeof Button>['icon'] | undefined
   }>,
 >({
-  size = '$4',
-  color = '$color10',
-  activeColor = '$color12',
   options,
   value,
   onValue,
 }: {
-  size?: SizeTokens
-  color?: ColorTokens
-  activeColor?: ColorTokens
   options: Options
   value: Options[number]['key']
   onValue: (value: Options[number]['key']) => void
@@ -27,12 +19,8 @@ export function RadioButtons<
     <div className="flex">
       {options.map((option) => (
         <RadioButton
-          color={color}
-          activeColor={activeColor}
-          size={size}
           key={option.key}
           label={option.label}
-          icon={option.icon}
           active={value === option.key}
           onPress={() => {
             onValue(option.key)
@@ -49,14 +37,11 @@ function RadioButton({
   active,
   onPress,
   size,
-  color,
-  activeColor,
 }: {
-  size?: SizeTokens
-  color?: ColorTokens
-  activeColor?: ColorTokens
+  size?: ButtonProps['size']
+  activeColor?: string
   label: string
-  icon: ComponentProps<typeof Button>['icon'] | undefined
+  icon?: React.ReactNode
   active: boolean
   onPress: () => void
 }) {
@@ -64,20 +49,14 @@ function RadioButton({
     <div>
       <Button
         size={size}
-        disabled={active}
-        icon={icon}
-        chromeless
-        backgroundColor="$colorTransparent"
-        fontWeight="bold"
-        hoverStyle={{
-          cursor: 'default',
-        }}
-        cursor="default"
-        borderBottomWidth={2}
-        borderBottomColor={active ? activeColor : '$colorTransparent'}
-        onPress={onPress}
-        borderRadius={0}
+        disabled={!active}
+        className={cn(
+          'rounded-none border-b-2 border-b-transparent font-bold',
+          active && 'border-b-current',
+        )}
+        onClick={onPress}
       >
+        {icon}
         {label}
       </Button>
     </div>

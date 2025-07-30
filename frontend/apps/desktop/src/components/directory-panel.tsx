@@ -6,14 +6,12 @@ import {SubDocumentItem} from '@shm/ui/activity'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Folder} from 'lucide-react'
-import {useTheme} from 'tamagui'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)
   const directory = childrenActivity.data
   const accounts = useAccountList()
-  const theme = useTheme()
 
   const isInitialLoad = childrenActivity.isInitialLoading
   if (isInitialLoad) {
@@ -26,7 +24,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   if (directory.length == 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-4">
-        <Folder className="size-25" color={theme.color6.val} />
+        <Folder className="text-muted-foreground size-25" />
         <SizableText color="muted" weight="medium" size="xl">
           There are no children documents
         </SizableText>

@@ -26,7 +26,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {Sparkle} from 'lucide-react'
 import {useState} from 'react'
-import {useTheme} from 'tamagui'
 import {
   CommentBox,
   renderCommentContent,
@@ -85,7 +84,6 @@ export function ActivityList({
   const [visibleCount, setVisibleCount] = useState(10)
   const authors = useCommentGroupAuthors(commentGroups.data)
   const route = useNavRoute()
-  const theme = useTheme()
   const activity: (HMCommentGroup | HMChangeSummary | HMDocumentInfo)[] = [
     ...commentGroups.data,
     ...(changes.data || []),
@@ -174,7 +172,7 @@ export function ActivityList({
   if (activityWithGroups.length == 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-4">
-        <Sparkle className="size-25" color={theme.color6.val} />
+        <Sparkle className="text-muted-foreground size-25" />
         <SizableText color="muted" weight="medium" size="xl">
           There is no activity yet.
         </SizableText>

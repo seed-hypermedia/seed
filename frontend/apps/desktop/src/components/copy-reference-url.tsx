@@ -9,14 +9,13 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
-import {DialogDescription} from 'tamagui'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
 import {NavigationContext} from '../utils/navigation'
-import {DialogTitle, useAppDialog} from './dialog'
+import {DialogDescription, DialogTitle, useAppDialog} from './dialog'
 type IsPublishedState = null | boolean // null: determined checked yet
 
 export function useCopyReferenceUrl(
