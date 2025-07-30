@@ -66,7 +66,7 @@ export const queryKeys = {
   LIGHTNING_ACCOUNT_CHECK: 'LIGHTNING_ACCOUNT_CHECK', //, accountId: string
 
   // search
-  SEARCH: 'SEARCH', //, accountUid: string|null, query: string
+  SEARCH: 'SEARCH', //, perspectiveAccountUid: string|null, accountUid: string|null, query: string
 
   // deleted content
   DELETED: 'deleted',

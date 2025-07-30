@@ -7,6 +7,7 @@ import {
 } from '@/models/access-control'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
+import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
@@ -86,7 +87,10 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const capabilities = useAllDocumentCapabilities(id)
 
   const [search, setSearch] = useState('')
-  const searchResults = useSearch(search, {})
+  const selectedAccountId = useSelectedAccountId()
+  const searchResults = useSearch(search, {
+    perspectiveAccountUid: selectedAccountId ?? undefined,
+  })
 
   const matches = useMemo(
     () =>
@@ -102,9 +106,9 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
         .filter((result) => {
           if (!result) return false // probably id was not parsed correctly
           if (result.type == 'contact') return true
-          if (!result.id.latest) return false // this is not the latest version
           if (result.id.path?.length) return false // this is a directory document, not an account
           if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
+          if (result.type == 'document') return true // this is a directory document, not an account
           if (
             capabilities.data?.find(
               (capability) => capability.grantId.uid === result.id.uid,
@@ -117,9 +121,13 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
             )
           )
             return false // already added
+
+          // this is temporarily disabled because the API is not returning the `&l` flag correctly
+          // if (!result.id.latest) return false // this is not the latest version
+
           return true
         }) || [],
-    [search, searchResults, selectedCollaborators],
+    [search, searchResults, selectedCollaborators, capabilities.data],
   )
 
   console.log('matches', matches)

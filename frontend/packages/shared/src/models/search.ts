@@ -48,13 +48,24 @@ export function setSearchQuery(
 
 export function useSearch(
   query: string,
-  {enabled = true, accountUid}: {enabled?: boolean; accountUid?: string} = {},
-  includeBody: boolean | undefined = false,
-  contextSize: number | undefined = 48,
+  {
+    enabled = true,
+    accountUid,
+    includeBody = false,
+    contextSize = 48,
+    perspectiveAccountUid,
+  }: {
+    enabled?: boolean
+    accountUid?: string
+    includeBody?: boolean
+    contextSize?: number
+    perspectiveAccountUid?: string
+  } = {},
 ) {
   return useQuery({
     queryKey: [
       queryKeys.SEARCH,
+      perspectiveAccountUid || null,
       accountUid || null,
       query,
       includeBody,
@@ -63,6 +74,7 @@ export function useSearch(
     queryFn: async () => {
       if (!searchQuery) throw new Error('searchQuery not injected')
       const out = await searchQuery(query, {
+        perspectiveAccountUid: perspectiveAccountUid || undefined,
         accountUid: accountUid || undefined,
         includeBody: includeBody || false,
         contextSize: contextSize || 48,

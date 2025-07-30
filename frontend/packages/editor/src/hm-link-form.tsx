@@ -354,7 +354,10 @@ const SearchInput = ({
   })
 
   // const recents = useRecents()
-  const searchResults = useSearch(search, {}, true, 20 - search.length)
+  const searchResults = useSearch(search, {
+    includeBody: true,
+    contextSize: 20 - search.length,
+  })
 
   const searchItems: Array<SearchResult> =
     searchResults.data?.entities

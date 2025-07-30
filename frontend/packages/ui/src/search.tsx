@@ -39,15 +39,12 @@ export function MobileSearch({
   onSelect: () => void
 }) {
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(
-    searchValue,
-    {
-      enabled: !!searchValue,
-      accountUid: originHomeId?.uid,
-    },
-    true,
-    48 - searchValue.length,
-  )
+  const searchResults = useSearch(searchValue, {
+    enabled: !!searchValue,
+    accountUid: originHomeId?.uid,
+    includeBody: false,
+    contextSize: 48 - searchValue.length,
+  })
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.map((item) => {
@@ -121,15 +118,12 @@ export function HeaderSearch({
 }) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(
-    searchValue,
-    {
-      enabled: !!searchValue,
-      accountUid: originHomeId?.uid,
-    },
-    true,
-    48 - searchValue.length,
-  )
+  const searchResults = useSearch(searchValue, {
+    enabled: !!searchValue,
+    accountUid: originHomeId?.uid,
+    includeBody: false,
+    contextSize: 48 - searchValue.length,
+  })
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
 

@@ -1,5 +1,9 @@
 import {grpcClient} from '@/grpc-client'
-import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {PartialMessage} from '@bufbuild/protobuf'
+import {
+  Entity,
+  SearchEntitiesRequest,
+} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {SearchPayload, setSearchQuery} from '@shm/shared/models/search'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 
@@ -14,22 +18,19 @@ export async function querySearch(
 ): Promise<SearchPayload> {
   const {accountUid, includeBody, contextSize, perspectiveAccountUid} =
     opts || {}
-  const result = await grpcClient.entities.searchEntities({
+  const query: PartialMessage<SearchEntitiesRequest> = {
     query: searchQuery,
     includeBody: includeBody,
     contextSize: contextSize,
     accountUid: accountUid,
     loggedAccountUid: perspectiveAccountUid,
-  })
-
+  }
+  const result = await grpcClient.entities.searchEntities(query)
   return {
     searchQuery,
     entities: result.entities
       .map((entity) => {
         const id = unpackHmId(entity.id)
-
-        console.log(`== ~ SEARCH RESULT querySearch ~ id:`, id)
-        const docId = unpackHmId(entity.docId)
         if (entity.type === 'contact' && id) {
           return {
             // TO FIX when @juligasa changes this. We should reference the docId instead of the contact id uid

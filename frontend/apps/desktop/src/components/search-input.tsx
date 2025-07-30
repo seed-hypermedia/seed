@@ -2,6 +2,7 @@ import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {loadWebLinkMeta} from '@/models/web-links'
+import {useSelectedAccountId} from '@/selected-account'
 import {trpc} from '@/trpc'
 import {appRouteOfId, isHttpUrl, useNavRoute} from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
@@ -53,8 +54,13 @@ export function SearchInput({
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
+  const selectedAccountId = useSelectedAccountId()
 
-  const searchResults = useSearch(search, {}, true, 48 - search.length)
+  const searchResults = useSearch(search, {
+    includeBody: true,
+    contextSize: 48 - search.length,
+    perspectiveAccountUid: selectedAccountId ?? undefined,
+  })
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   let queryItem: null | SearchResult = useMemo(() => {
     if (

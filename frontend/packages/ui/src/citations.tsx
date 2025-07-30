@@ -26,7 +26,7 @@ export function DocumentCitationEntry({
   const tx = useTx()
   const {formattedDateShort} = useTxUtils()
   return (
-    <div className="flex flex-wrap items-center gap-1 py-1">
+    <div className="gap-1 py-1">
       <HMAuthor author={citation.author} />
       <SizableText size="sm" className="text-muted-foreground px-2 py-1">
         {formattedDateShort(citation.source.time)}
@@ -63,7 +63,7 @@ function DocumentCitationToken({
   if (DocPreview) {
     return (
       <HoverCard>
-        <HoverCardTrigger>
+        <HoverCardTrigger asChild>
           <a
             {...linkProps}
             className={cn(

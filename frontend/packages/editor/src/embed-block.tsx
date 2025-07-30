@@ -245,7 +245,10 @@ const EmbedLauncherInput = ({
   const [focused, setFocused] = useState(false)
   const {comment} = useDocContentContext()
   const recents = useRecents()
-  const searchResults = useSearch(search, {}, true, 20 - search.length)
+  const searchResults = useSearch(search, {
+    includeBody: true,
+    contextSize: 20 - search.length,
+  })
 
   console.log(`== ~ EmbedLauncherInput ~ searchResults:`, searchResults)
 

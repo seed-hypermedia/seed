@@ -199,26 +199,28 @@ export function Comment({
 
             <CommentDate comment={comment} />
           </div>
-          <Tooltip content={tx('Copy Comment Link')}>
-            <Button
-              size="iconSm"
-              variant="ghost"
-              className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
-              onClick={() => {
-                const url = getUrl(hmId(comment.id))
-                copyTextToClipboard(url)
-                toast.success('Copied Comment URL')
-              }}
-            >
-              <Link className="size-3" />
-            </Button>
-          </Tooltip>
-          {options.length > 0 ? (
-            <OptionsDropdown
-              className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
-              menuItems={options}
-            />
-          ) : null}
+          <div className="flex items-center gap-2">
+            <Tooltip content={tx('Copy Comment Link')}>
+              <Button
+                size="iconSm"
+                variant="ghost"
+                className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                onClick={() => {
+                  const url = getUrl(hmId(comment.id))
+                  copyTextToClipboard(url)
+                  toast.success('Copied Comment URL')
+                }}
+              >
+                <Link className="size-3" />
+              </Button>
+            </Tooltip>
+            {options.length > 0 ? (
+              <OptionsDropdown
+                className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                menuItems={options}
+              />
+            ) : null}
+          </div>
         </div>
         <div className="-ml-2">{renderCommentContent(comment)}</div>
         {!highlight && (
