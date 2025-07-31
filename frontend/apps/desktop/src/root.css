@@ -13,7 +13,6 @@ body {
 
 .panel-resize-handle {
   width: 2px;
-  /* background-color: var(--color7); */
   position: relative;
 }
 .panel-resize-handle.visible {

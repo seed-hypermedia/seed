@@ -48,7 +48,7 @@
 }
 
 .combobox::placeholder {
-  color: var(--color9);
+  color: var(--color-gray-300);
   opacity: 1; /* Firefox */
 }
 

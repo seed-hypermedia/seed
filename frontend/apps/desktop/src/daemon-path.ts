@@ -1,19 +1,19 @@
 import path from 'path'
 
 export function getDaemonBinaryPath() {
-  // Check multiple ways to detect production environment
-  const isProduction =
-    process.env.NODE_ENV === 'production' ||
-    process.env.ELECTRON_IS_DEV === 'false' ||
-    !process.env.ELECTRON_IS_DEV ||
-    process.resourcesPath !== undefined
+  // In development, we're running from the source directory and should use the plz-out path
+  // In production, we're running from a packaged app and should use the resources path
+  const isPackaged =
+    process.resourcesPath &&
+    !process.resourcesPath.includes('node_modules/electron')
 
-  if (isProduction) {
+  if (isPackaged) {
     // In production, the daemon binary is in the app's resources directory
     const resourcesPath =
       process.resourcesPath || path.join(__dirname, '..', 'Resources')
     return path.join(resourcesPath, `seed-daemon-${getPlatformTriple()}`)
   } else {
+    // In development, use the plz-out build path
     return path.join(
       process.cwd(),
       '../../..',
