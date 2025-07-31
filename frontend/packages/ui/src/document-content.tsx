@@ -628,13 +628,12 @@ export function BlockNodeContent({
       data-node-type="blockContainer"
       data-block-type={blockNode.block?.type}
       className={cn(
-        'blocknode-content border-px',
-        isHighlight
-          ? 'border-brand-10 bg-brand-12 border'
-          : 'border-transparent bg-transparent',
+        'blocknode-content',
+        isHighlight ? 'bg-brand-12' : 'bg-transparent',
       )}
       style={{
         borderRadius: layoutUnit / 4,
+        boxShadow: isHighlight ? '0 0 0 1px var(--brand-10)' : 'none',
       }}
     >
       <div
