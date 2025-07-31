@@ -69,15 +69,14 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 
 // ListEvents list all the events seen locally.
 func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsRequest) (*activity.ListEventsResponse, error) {
-	var cursorBlobID int64 = math.MaxInt32
+	var cursorBlobID int64 = math.MaxInt64
 	if req.PageToken != "" {
 		if err := apiutil.DecodePageToken(req.PageToken, &cursorBlobID, nil); err != nil {
 			return nil, fmt.Errorf("failed to decode page token: %w", err)
 		}
 	}
-
 	var events []*activity.Event
-
+	srv.log.Info("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
@@ -123,7 +122,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.BlobsID.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
+		pageTokenStr = storage.StructuralBlobsTs.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.StructuralBlobsTs.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30
@@ -199,7 +198,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if len(eids) == 0 {
 				return status.Errorf(codes.NotFound, "none of the entities provided were found '%s'", req.AddLinkedResource)
 			}
-
 			if err := sqlitex.Exec(conn, qListMentions(), func(stmt *sqlite.Stmt) error {
 
 				var (
@@ -208,18 +206,19 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
 					eventTime  = stmt.ColumnInt64(4) * 1000
 					blobType   = stmt.ColumnText(5)
-					/*
-						isPinned      = stmt.ColumnInt(6) > 0
-						anchor        = stmt.ColumnText(7)
-						targetVersion = stmt.ColumnText(8)
-						fragment      = stmt.ColumnText(9)
-					*/
+
+					isPinned = stmt.ColumnInt(6) > 0
+					//anchor        = stmt.ColumnText(7)
+					targetVersion = stmt.ColumnText(8)
+					fragment      = stmt.ColumnText(9)
+
 					linkType    = stmt.ColumnText(10)
 					blobID      = stmt.ColumnInt64(11)
 					observeTime = stmt.ColumnInt64(12)
 					tsid        = stmt.ColumnText(13)
 					extraAttrs  = stmt.ColumnText(14)
 				)
+				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
 				if source == "" && blobType != "Comment" {
 					return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
 				}
@@ -227,9 +226,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				if blobType == "Comment" {
 					source = "hm://" + author + "/" + tsid
 
-				}
-				if blobType == "Comment" {
-					source = "hm://" + author + "/" + tsid
+				} else {
+					if targetVersion != "" {
+						source = strings.TrimSuffix(source, "/") + "?v=" + targetVersion // Remove trailing slash for consistency
+					}
+					if fragment != "" {
+						source = strings.TrimSuffix(source, "/") + "#" + fragment // Remove trailing slash for consistency
+					}
 				}
 
 				event := activity.Event{
@@ -240,6 +243,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 						Resource:   source,
 						ExtraAttrs: extraAttrs,
 						BlobId:     blobID,
+						IsPinned:   isPinned,
 					}},
 					Account:     author,
 					EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
@@ -262,12 +266,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 
 	sort.Slice(events, func(i, j int) bool {
-		return events[i].Data.(*activity.Event_NewBlob).NewBlob.BlobId > events[j].Data.(*activity.Event_NewBlob).NewBlob.BlobId
+		return events[i].EventTime.AsTime().After(events[j].EventTime.AsTime())
 	})
 	events = events[:int(math.Min(float64(len(events)), float64(req.PageSize)))]
 	var nextPageToken string
-	if events[len(events)-1].Data.(*activity.Event_NewBlob).NewBlob.BlobId != 0 && int(req.PageSize) == len(events) {
-		nextPageToken, err = apiutil.EncodePageToken(events[len(events)-1].Data.(*activity.Event_NewBlob).NewBlob.BlobId-1, nil)
+	if events[len(events)-1].EventTime.AsTime().UnixNano() != 0 && int(req.PageSize) == len(events) {
+		nextPageToken, err = apiutil.EncodePageToken(events[len(events)-1].EventTime.AsTime().UnixMicro()-1, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode next page token: %w", err)
 		}
@@ -309,6 +313,7 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resource_links.target IN (:targets)
 AND structural_blobs.type IN ('Change')
+AND structural_blobs.ts <= :idx
 )
 SELECT distinct
     resources.iri,
@@ -332,7 +337,7 @@ JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resource_links.target IN (:targets)
-AND blobs.id < :idx
+AND structural_blobs.ts <= :idx
 AND structural_blobs.type IN ('Comment')
 
 UNION ALL
@@ -357,7 +362,7 @@ JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
-AND blobs.id < :idx
-ORDER BY blobs.id DESC
-LIMIT :page_size + 1;
+WHERE structural_blobs.ts <= :idx
+ORDER BY structural_blobs.ts DESC
+LIMIT :page_size;
 `)

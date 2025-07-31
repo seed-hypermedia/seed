@@ -311,8 +311,10 @@ type NewBlobEvent struct {
 	// The resource ID that the blob is related to.
 	Resource string `protobuf:"bytes,4,opt,name=resource,proto3" json:"resource,omitempty"`
 	// Extra attributes of the blob.
-	ExtraAttrs    string `protobuf:"bytes,5,opt,name=extra_attrs,json=extraAttrs,proto3" json:"extra_attrs,omitempty"`
-	BlobId        int64  `protobuf:"varint,6,opt,name=blob_id,json=blobId,proto3" json:"blob_id,omitempty"`
+	ExtraAttrs string `protobuf:"bytes,5,opt,name=extra_attrs,json=extraAttrs,proto3" json:"extra_attrs,omitempty"`
+	BlobId     int64  `protobuf:"varint,6,opt,name=blob_id,json=blobId,proto3" json:"blob_id,omitempty"`
+	// Only relevant for ling events
+	IsPinned      bool `protobuf:"varint,7,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -389,6 +391,13 @@ func (x *NewBlobEvent) GetBlobId() int64 {
 	return 0
 }
 
+func (x *NewBlobEvent) GetIsPinned() bool {
+	if x != nil {
+		return x.IsPinned
+	}
+	return false
+}
+
 var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
@@ -412,7 +421,7 @@ const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
 	"event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\teventTime\x12=\n" +
 	"\fobserve_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vobserveTimeB\x06\n" +
-	"\x04data\"\xab\x01\n" +
+	"\x04data\"\xc8\x01\n" +
 	"\fNewBlobEvent\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x1b\n" +
 	"\tblob_type\x18\x02 \x01(\tR\bblobType\x12\x16\n" +
@@ -420,7 +429,8 @@ const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\bresource\x18\x04 \x01(\tR\bresource\x12\x1f\n" +
 	"\vextra_attrs\x18\x05 \x01(\tR\n" +
 	"extraAttrs\x12\x17\n" +
-	"\ablob_id\x18\x06 \x01(\x03R\x06blobId2y\n" +
+	"\ablob_id\x18\x06 \x01(\x03R\x06blobId\x12\x1b\n" +
+	"\tis_pinned\x18\a \x01(\bR\bisPinned2y\n" +
 	"\fActivityFeed\x12i\n" +
 	"\n" +
 	"ListEvents\x12,.com.seed.activity.v1alpha.ListEventsRequest\x1a-.com.seed.activity.v1alpha.ListEventsResponseB1Z/seed/backend/genproto/activity/v1alpha;activityb\x06proto3"

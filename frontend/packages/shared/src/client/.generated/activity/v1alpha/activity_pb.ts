@@ -287,6 +287,13 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
    */
   blobId = protoInt64.zero;
 
+  /**
+   * Only relevant for ling events
+   *
+   * @generated from field: bool is_pinned = 7;
+   */
+  isPinned = false;
+
   constructor(data?: PartialMessage<NewBlobEvent>) {
     super();
     proto3.util.initPartial(data, this);
@@ -301,6 +308,7 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
     { no: 4, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "extra_attrs", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "blob_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "is_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NewBlobEvent {

@@ -106,4 +106,7 @@ message NewBlobEvent {
   string extra_attrs = 5;
 
   int64 blob_id = 6;
+
+  // Only relevant for ling events
+  bool is_pinned = 7;
 }
