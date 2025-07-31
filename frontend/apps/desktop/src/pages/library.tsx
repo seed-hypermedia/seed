@@ -511,7 +511,7 @@ export function LibraryDocumentItem({
       data-docid={id.id}
       variant="ghost"
       className={cn(
-        'h-auto! w-full items-center justify-start border-none bg-transparent px-4 py-2',
+        'h-auto w-full items-center justify-start border-none bg-transparent px-4 py-2',
         // isRead && 'bg-muted',
       )}
       onClick={() => {
@@ -578,12 +578,14 @@ function LibraryEntryBreadcrumbs({
   const displayCrumbs = breadcrumbs.slice(1).filter((crumb) => !!crumb.name)
   if (!displayCrumbs.length) return null
   return (
-    <div className="flex">
+    <div className="flex gap-1">
       {displayCrumbs.map((breadcrumb, idx) => (
         <>
           <Button
             key={breadcrumb.name}
             variant="link"
+            className="px-0 text-[10px]"
+            size="xs"
             onClick={(e) => {
               e.stopPropagation()
               onNavigate({

@@ -8,7 +8,6 @@ import {
 import '@/blocknote/core/style.css'
 import '@/editor.css'
 import {HMFormattingToolbar} from '@/hm-formatting-toolbar'
-// import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
 import type {HyperMediaEditor} from '@/types'
 import {HypermediaLinkPreview} from './hm-link-preview'
 

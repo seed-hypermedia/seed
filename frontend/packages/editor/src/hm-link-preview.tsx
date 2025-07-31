@@ -37,7 +37,9 @@ export function HypermediaLinkPreview(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
+
   const entity = useResource(unpackedRef || undefined)
+  console.log('entity', entity)
   const document =
     entity.data?.type === 'document' ? entity.data.document : undefined
   useEffect(() => {
@@ -122,7 +124,7 @@ export function HypermediaLinkPreview(
         props.setHovered?.(false)
         props.editor.hyperlinkToolbar.startHideTimer()
       }}
-      className="link-preview-toolbar bg-muted flex w-[300px] rounded-xl px-3 py-2 shadow-md"
+      className="link-preview-toolbar bg-muted flex w-full max-w-xs rounded-md p-2 shadow-lg"
     >
       {isEditing ? (
         <div className="flex flex-1 flex-col gap-2">
@@ -157,22 +159,15 @@ export function HypermediaLinkPreview(
       ) : (
         <div className="flex w-full items-center justify-between gap-2">
           <div
-            className="flex flex-1 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
+            className="flex flex-1 cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
             onClick={() => props.openUrl(props.url)}
           >
-            <SizableText
-              size="lg"
-              color="brand"
-              className="flex-1 truncate overflow-hidden whitespace-nowrap"
-            >
+            <SizableText size="lg" color="brand" className="flex-1 truncate">
               {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
             </SizableText>
           </div>
-          <Button
-            onClick={() => setIsEditing(true)}
-            className="rounded-lg p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <Pencil size={16} />
+          <Button onClick={() => setIsEditing(true)}>
+            <Pencil className="size-4" />
           </Button>
         </div>
       )}
