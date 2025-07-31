@@ -59,18 +59,18 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
-          - os: ubuntu-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-unknown-linux-gnu
+          # - os: macos-13-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          # - os: macos-13-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
+          # - os: ubuntu-latest
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-unknown-linux-gnu
           - os: windows-latest
             arch: x64
             goarch: amd64
@@ -212,6 +212,41 @@ jobs:
       #     keypair_alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
       #     input_file: frontend/apps/desktop/out/make/squirrel.windows/x64/seed-dev-${{ needs.build-info.outputs.version }}-win32-x64-setup.exe
       #     timestamp_url: http://timestamp.digicert.com
+
+      - name: Create test certificate for signing (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          # Create a test certificate for signing
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Test Code Signing" -KeyAlgorithm RSA -KeyLength 2048 -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeyExportPolicy Exportable -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My
+
+          # Export the certificate to a PFX file
+          $password = ConvertTo-SecureString -String "testpassword" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath "test-cert.pfx" -Password $password
+
+          echo "Test certificate created: test-cert.pfx"
+
+      - name: Sign Windows application with test certificate
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          # Find the .exe installer file
+          $exeFile = Get-ChildItem -Path "frontend/apps/desktop/out/make" -Filter "*.exe" -Recurse | Select-Object -First 1
+
+          if ($exeFile) {
+            Write-Host "Signing: $($exeFile.FullName)"
+            
+            # Sign with the test certificate
+            & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" sign /f "test-cert.pfx" /p "testpassword" /t "http://timestamp.digicert.com" /fd sha256 /v "$($exeFile.FullName)"
+            
+            # Verify the signature
+            & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify /v /pa "$($exeFile.FullName)"
+            
+            Write-Host "Successfully signed and verified: $($exeFile.FullName)"
+          } else {
+            Write-Host "No .exe file found to sign"
+            exit 1
+          }
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
