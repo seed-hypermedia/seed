@@ -95,7 +95,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
           <TextCursorInput size={16} />
           <Input
-            className="flex-1"
+            className="flex-1 bg-red-500"
             placeholder={`${props.type} text`}
             id="link-text"
             value={_text}
@@ -118,57 +118,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           title={props.type === 'inline-embed' ? true : false}
         />
       </div>
-      {/* {props.hasSearch ? (
-        <XStack
-          paddingHorizontal="$2"
-          ai="center"
-          gap="$2"
-          background="$background"
-          borderColor="$borderColorFocus"
-          borderRadius="$2"
-          borderWidth="$1"
-          hoverStyle={{borderColor: '$borderColorHover'}}
-          focusStyle={{borderColor: '$borderColorHover'}}
-        >
-          <Search size={16} />
-          <SearchInput
-            updateLink={props.editLink}
-            link={_url}
-            text={_text}
-            setLink={setUrl}
-            title={props.type === 'inline-embed' ? true : false}
-          />
-        </XStack>
-      ) : (
-        <XStack
-          paddingHorizontal="$2"
-          ai="center"
-          gap="$2"
-          background="$background"
-          borderColor="$borderColorFocus"
-          borderRadius="$2"
-          borderWidth="$1"
-          hoverStyle={{borderColor: '$borderColorHover'}}
-          focusStyle={{borderColor: '$borderColorHover'}}
-        >
-          <LinkIcon size={16} />
-          <Input
-            unstyled
-            flex={1}
-            size="$2"
-            value={_url}
-            onKeyPress={handleKeydown}
-            background="$background"
-            borderWidth="$0"
-            outlineWidth="$0"
-            color="$color12"
-            onChangeText={(val) => {
-              setUrl(val)
-              props.updateLink(val, _text)
-            }}
-          />
-        </XStack>
-      )} */}
+
       {(props.type === 'embed' || props.type === 'card') && isSeedLink && (
         <div className="my-3 flex flex-col gap-3">
           <SwitchField
@@ -382,25 +332,6 @@ const SearchInput = ({
       })
       .filter(Boolean) || []
 
-  // const recentItems =
-  //   recents.data?.map(({url, title, subtitle, type}) => {
-  //     return {
-  //       key: url,
-  //       title,
-  //       subtitle,
-  //       onSelect: () => {
-  //         const id = unpackHmId(url)
-  //         if (!id) {
-  //           toast.error('Failed to open recent: ' + url)
-  //           return
-  //         }
-  //         // assign({props: {url: id.id}} as ButtonType)
-  //         setLink(id.id)
-  //         setSearch(id.id)
-  //         updateLink(id.id, title ? title : '')
-  //       },
-  //     }
-  //   }) || []
   const isDisplayingRecents = !search.length
   // const activeItems = isDisplayingRecents ? recentItems : searchItems
   const activeItems = searchItems
