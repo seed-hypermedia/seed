@@ -59,18 +59,18 @@ jobs:
     strategy:
       matrix:
         config:
-          # - os: macos-13-large
-          #   arch: x64
-          #   goarch: amd64
-          #   daemon_name: x86_64-apple-darwin
-          # - os: macos-13-xlarge
-          #   arch: arm64
-          #   goarch: arm64
-          #   daemon_name: aarch64-apple-darwin
-          # - os: ubuntu-latest
-          #   arch: x64
-          #   goarch: amd64
-          #   daemon_name: x86_64-unknown-linux-gnu
+          - os: macos-13-large
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-apple-darwin
+          - os: macos-13-xlarge
+            arch: arm64
+            goarch: arm64
+            daemon_name: aarch64-apple-darwin
+          - os: ubuntu-latest
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-unknown-linux-gnu
           - os: windows-latest
             arch: x64
             goarch: amd64
@@ -202,69 +202,16 @@ jobs:
           AWS_DEFAULT_REGION: eu-west-2
           SEED_P2P_TESTNET_NAME: "dev"
 
-      - name: Install DigiCert Client tools (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        uses: digicert/ssm-code-signing@v1.0.0
-
-      - name: Set up DigiCert KeyManager environment (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: bash
-        run: |
-          echo "SM_HOST=https://clientauth.one.digicert.com" >> "$GITHUB_ENV"
-          echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> "$GITHUB_ENV"
-          # Decode the base64 certificate to a file
-          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /tmp/client_cert.p7b
-          echo "SM_CLIENT_CERT_FILE=/tmp/client_cert.p7b" >> "$GITHUB_ENV"
-          # Set password - try space character if empty (SMCTL might expect this)
-          if [ -z "${{ secrets.SM_CLIENT_CERT_PASSWORD }}" ]; then
-            echo "SM_CLIENT_CERT_PASSWORD= " >> "$GITHUB_ENV"
-          else
-            echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$GITHUB_ENV"
-          fi
-          echo "SM_CODE_SIGNING_CERT_SHA1_HASH=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}" >> "$GITHUB_ENV"
-          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $GITHUB_PATH
-          echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $GITHUB_PATH
-          echo "C:\Program Files\DigiCert\DigiCert One Signing Manager Tools" >> $GITHUB_PATH
-
-          # Debug: verify certificate file was created
-          echo "Certificate file created at: /tmp/client_cert.p7b"
-          ls -la /tmp/client_cert.p7b
-          file /tmp/client_cert.p7b
-
-      - name: Sign Windows application
-        if: startsWith(matrix.config.os, 'windows')
-        shell: bash
-        run: |
-          # Debug environment variables
-          echo "Debug: SM_HOST=$SM_HOST"
-          echo "Debug: SM_API_KEY length: ${#SM_API_KEY}"
-          echo "Debug: SM_CLIENT_CERT_FILE=$SM_CLIENT_CERT_FILE"
-          echo "Debug: SM_CLIENT_CERT_PASSWORD length: ${#SM_CLIENT_CERT_PASSWORD}"
-          echo "Debug: SM_CODE_SIGNING_CERT_SHA1_HASH length: ${#SM_CODE_SIGNING_CERT_SHA1_HASH}"
-
-          # Verify connection and credentials
-          echo "Testing connection and credentials..."
-          smctl.exe healthcheck
-
-          # If healthcheck fails, try to get more information
-          if [ $? -ne 0 ]; then
-            echo "Healthcheck failed, trying to get certificate info..."
-            smctl.exe cert list || echo "Certificate list failed"
-          fi
-
-          # Find the .exe installer file in the out/make directory
-          EXE_FILE=$(find frontend/apps/desktop/out/make -name "*.exe" | head -1)
-          if [ -n "$EXE_FILE" ]; then
-            echo "Signing: $EXE_FILE"
-            # Use DigiCert's cloud-based signing with KeyManager
-            smctl.exe sign --fingerprint=${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }} --input="$EXE_FILE" --verbose
-            echo "Verifying signature..."
-            signtool.exe verify /v /pa "$EXE_FILE"
-            echo "Successfully signed and verified: $EXE_FILE"
-          else
-            echo "No .exe file found to sign"
-            exit 1
-          fi
+      # - name: Sign Windows application with KeyLocker
+      #   if: startsWith(matrix.config.os, 'windows')
+      #   uses: digicert/keylocker-signing@v1
+      #   with:
+      #     api_key: ${{ secrets.KEYLOCKER_API_KEY }}
+      #     client_cert: ${{ secrets.KEYLOCKER_CERT }}
+      #     client_cert_password: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
+      #     keypair_alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
+      #     input_file: frontend/apps/desktop/out/make/squirrel.windows/x64/seed-dev-${{ needs.build-info.outputs.version }}-win32-x64-setup.exe
+      #     timestamp_url: http://timestamp.digicert.com
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
