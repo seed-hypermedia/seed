@@ -17,7 +17,7 @@ body {
   position: relative;
 }
 .panel-resize-handle.visible {
-  background-color: var(--color7);
+  background-color: var(--color-border);
 }
 
 .panel-resize-handle::after {
@@ -35,7 +35,11 @@ body {
 }
 
 .panel-resize-handle:hover {
-  background-color: var(--color8);
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.dark .panel-resize-handle:hover {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 #root {
