@@ -222,6 +222,7 @@ SELECT
   ts
   from fts_index
   WHERE type IN ('title', 'document', 'meta')
+  AND type = :type
   AND ts >= :Ts
   AND genesis_blob = :genesisBlobID
   AND rowid != :rowID
@@ -659,13 +660,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						}
 						latestUnrelated = currentChange
 						return nil
-					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+					}, searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
 				})
 				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
 					//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 					return nil, err
 				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
 					relatedFound = true
+					//fmt.Println("Found related change:", currentChange, "BlockID:", searchResults[match.Index].blockID)
 				}
 				if !relatedFound && latestUnrelated.version != searchResults[match.Index].latestVersion {
 					//fmt.Println("Found unrelated change:", latestUnrelated, "for:", searchResults[match.Index])
