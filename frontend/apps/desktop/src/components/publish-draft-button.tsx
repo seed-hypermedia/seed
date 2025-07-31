@@ -203,7 +203,7 @@ export default function PublishDraftButton() {
         }
       >
         <Button
-          size="icon"
+          size="sm"
           className="px-2"
           onClick={handlePublishPress}
           variant="outline"
