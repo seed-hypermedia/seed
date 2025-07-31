@@ -51,15 +51,15 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col">
       <Button
-        className="h-auto"
+        className="h-auto w-full"
         variant="ghost"
         onClick={() => {
-          navigate({key: 'document', id: hmId(id.uid)})
+          navigate({key: 'contact', id: hmId(id.uid)})
         }}
       >
         <HMIcon metadata={metadata} id={id} size={24} />
-        <div className="flex flex-1 items-center gap-2">
-          <SizableText size="sm" className="flex-1 text-left">
+        <div className="flex flex-1 items-center gap-2 overflow-hidden">
+          <SizableText size="sm" className="flex-1 truncate text-left">
             {metadata?.name}
           </SizableText>
           <SizableText size="xs" color="muted">
@@ -130,58 +130,57 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
     [search, searchResults, selectedCollaborators, capabilities.data],
   )
 
-  console.log('matches', matches)
-
   if (!myCapability) return null
   return (
     <div className="flex flex-col gap-2">
-      <div className="border-border overflow-hidden rounded-md border-1">
-        <TagInput
-          label="Members"
-          value={search}
-          onChange={setSearch}
-          values={selectedCollaborators}
-          onValuesChange={(collabs) => {
-            setSelectedCollaborators(collabs)
-          }}
-          placeholder="Invite members"
-        >
-          {matches.map(
-            (result) =>
-              result && (
-                <TagInputItem
-                  key={result.id.id}
-                  onClick={() => {
-                    setSelectedCollaborators((vals) => [...vals, result])
-                  }}
-                  member={result}
-                >
-                  Add &quot;{result?.label}&quot;
-                </TagInputItem>
-              ),
-          )}
-          {search && matches.length == 0 ? (
-            <TagInputItem
-              onClick={() => {
-                console.log('Add new member', search)
-                let hmUrl = unpackHmId(search)
-                let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
-                if (result && hmUrl) {
-                  setSelectedCollaborators((v) => [
-                    ...v,
-                    {id: hmUrl, label: result, unresolved: true},
-                  ])
-                  setSearch('')
-                } else {
-                  toast.error('Invalid Collaborator Input')
-                }
-              }}
-            >
-              Add &quot;{search}&quot;
-            </TagInputItem>
-          ) : null}
-        </TagInput>
-
+      <div className="border-border flex overflow-hidden rounded-md border-1">
+        <div className="flex flex-1">
+          <TagInput
+            label="Members"
+            value={search}
+            onChange={setSearch}
+            values={selectedCollaborators}
+            onValuesChange={(collabs) => {
+              setSelectedCollaborators(collabs)
+            }}
+            placeholder="Invite members"
+          >
+            {matches.map(
+              (result) =>
+                result && (
+                  <TagInputItem
+                    key={result.id.id}
+                    onClick={() => {
+                      setSelectedCollaborators((vals) => [...vals, result])
+                    }}
+                    member={result}
+                  >
+                    Add &quot;{result?.label}&quot;
+                  </TagInputItem>
+                ),
+            )}
+            {search && matches.length == 0 ? (
+              <TagInputItem
+                onClick={() => {
+                  console.log('Add new member', search)
+                  let hmUrl = unpackHmId(search)
+                  let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
+                  if (result && hmUrl) {
+                    setSelectedCollaborators((v) => [
+                      ...v,
+                      {id: hmUrl, label: result, unresolved: true},
+                    ])
+                    setSearch('')
+                  } else {
+                    toast.error('Invalid Collaborator Input')
+                  }
+                }}
+              >
+                Add &quot;{search}&quot;
+              </TagInputItem>
+            ) : null}
+          </TagInput>
+        </div>
         {selectedCollaborators.length ? (
           <Button
             size="sm"
@@ -253,7 +252,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col gap-3">
       {parentCapabilities ? (
-        <div className="mb-3">
+        <div className="mb-3 bg-red-500">
           {parentCapabilities.map((cap) => (
             <CollaboratorItem key={cap.accountUid} capability={cap} id={id} />
           ))}
@@ -313,7 +312,7 @@ function CollaboratorItem({
   if (capability.role === 'owner') return null
   return (
     <Button
-      onClick={() => navigate({key: 'document', id: collaboratorId})}
+      onClick={() => navigate({key: 'contact', id: collaboratorId})}
       className="w-full"
     >
       <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
