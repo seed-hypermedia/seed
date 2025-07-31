@@ -1,7 +1,7 @@
 import {vitePlugin as remix} from '@remix-run/dev'
 import {installGlobals} from '@remix-run/node'
 import tailwindcss from '@tailwindcss/vite'
-import {tamaguiExtractPlugin, tamaguiPlugin} from '@tamagui/vite-plugin'
+
 import path from 'path'
 import {defineConfig} from 'vite'
 import commonjs from 'vite-plugin-commonjs'
@@ -32,43 +32,21 @@ let config = {
   // },
   build: {minify: false, sourcemap: true},
   ssr: {
-    noExternal: ['@tamagui/helpers-icon', 'react-icons'],
+    noExternal: ['react-icons'],
   },
   define: {
     // "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
+    // Define process.env as an empty object to prevent "process is not defined" errors
+    // Vite will replace individual process.env.VARIABLE_NAME references at build time
+    'process.env': {},
   },
   optimizeDeps: {
     exclude:
       process.env.NODE_ENV === 'production'
         ? []
-        : [
-            'expo-linear-gradient',
-            '@tamagui/*',
-            'tamagui',
-            'react-icons',
-            '@shm/editor',
-          ],
+        : ['expo-linear-gradient', 'react-icons', '@shm/editor'],
   },
   plugins: [
-    tamaguiPlugin({
-      config: './tamagui.config.ts',
-      themeBuilder: {
-        input: '../../packages/ui/src/themes/theme.ts',
-        output: '../../packages/ui/src/themes-generated.ts',
-      },
-    }) as any,
-    process.env.NODE_ENV === 'production'
-      ? tamaguiExtractPlugin({
-          config: './tamagui.config.ts',
-          themeBuilder: {
-            input: '../../packages/ui/src/themes/theme.ts',
-            output: '../../packages/ui/src/themes-generated.ts',
-          },
-        })
-      : null,
-    // tamaguiExtractPlugin({
-    //   logTimings: true,
-    // }),
     remix(),
     tsconfigPaths(),
     commonjs({

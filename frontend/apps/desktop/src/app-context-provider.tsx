@@ -3,8 +3,6 @@ import {queryClient} from '@shm/shared/models/query-client'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactNode, useEffect, useMemo} from 'react'
-import {TamaguiProvider, TamaguiProviderProps} from 'tamagui'
-import tamaguiConfig from '../tamagui.config'
 import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
 import {WindowUtils} from './models/window-utils'
@@ -101,8 +99,10 @@ export function AppContextProvider({
 export function StyleProvider({
   children,
   darkMode,
-  ...rest
-}: Omit<TamaguiProviderProps, 'config'> & {darkMode: boolean}) {
+}: {
+  children: ReactNode
+  darkMode: boolean
+}) {
   // Update document class when darkMode changes
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -114,20 +114,5 @@ export function StyleProvider({
     }
   }, [darkMode])
 
-  return (
-    <TooltipProvider>
-      <TamaguiProvider
-        // @ts-ignore
-        config={tamaguiConfig}
-        // TODO: find a way to add this props without breaking all the styles
-        // disableInjectCSS
-        // disableRootThemeClass
-        className={darkMode ? 'seed-app-dark' : 'seed-app-light'}
-        defaultTheme={darkMode ? 'dark' : 'light'}
-        {...rest}
-      >
-        {children}
-      </TamaguiProvider>
-    </TooltipProvider>
-  )
+  return <TooltipProvider>{children}</TooltipProvider>
 }

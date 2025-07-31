@@ -121,7 +121,7 @@ const Render = (
       const containerWidth = containerRef.current.offsetWidth
 
       // Account for padding
-      const containerPaddingHorizontal = 24 // $3 in most Tamagui themes is around 12px per side
+      const containerPaddingHorizontal = 24
       const adjustedContainerWidth = containerWidth - containerPaddingHorizontal
 
       // Update state based on comparison

@@ -21,7 +21,7 @@
   --brand-12: #e4f6e5;
   --brand: var(--brand-5);
   --highlight: hsl(123, 50%, 93%);
-  --background: oklch(1 0 0);
+  --background: oklch(0.98 0 0);
   --panel: white;
   --panel-background: var(--background);
   --foreground: oklch(0.2686 0 0);

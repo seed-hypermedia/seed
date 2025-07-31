@@ -12,7 +12,6 @@
     "bazelbuild.vscode-bazel",
     "zxh404.vscode-proto3",
     "mkhl.direnv",
-    "FernandoTheRojo.nandorojo-tamagui",
     "ms-python.black-formatter"
   ],
   // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
@@ -20,6 +19,6 @@
     // This one doesn't work well or at all.
     "rubymaniac.vscode-direnv",
     // This one stopped working for some reason.
-    "cab404.vscode-direnv",
+    "cab404.vscode-direnv"
   ]
 }

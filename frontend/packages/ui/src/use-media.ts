@@ -136,7 +136,7 @@ export function useMedia(customMediaQueries?: MediaQueries): MediaQueryState {
     }
   }, [mediaQueryStrings])
 
-  // Return proxied object for performance tracking (similar to Tamagui)
+  // Return proxied object for performance tracking
   return useMemo(() => createMediaProxy(mediaStates), [mediaStates])
 }
 

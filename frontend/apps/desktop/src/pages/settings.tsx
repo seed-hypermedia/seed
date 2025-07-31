@@ -55,6 +55,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
 import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -79,7 +80,6 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
 import {
   AtSign,
@@ -99,7 +99,6 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
-import {Tabs, TabsContentProps, TabsProps} from 'tamagui'
 import {z} from 'zod'
 
 export default function Settings() {
@@ -113,22 +112,13 @@ export default function Settings() {
     >
       <div className={panelContainerStyles}>
         <Tabs
-          flex={1}
-          height="50%"
           onValueChange={(v) => setActiveTab(v)}
           defaultValue="accounts"
-          flexDirection="column"
-          overflow="hidden"
+          className="flex flex-1 flex-col overflow-hidden"
         >
-          <Tabs.List
+          <TabsList
             aria-label="Manage your account"
-            alignItems="center"
-            justifyContent="center"
-            flexShrink={0}
-            flex="none"
-            style={{
-              flexShrink: 0,
-            }}
+            className="flex h-auto w-full flex-none shrink-0 items-center justify-center rounded-none bg-transparent p-0"
           >
             <Tab
               value="accounts"
@@ -166,27 +156,27 @@ export default function Settings() {
               icon={Code2}
               label="Developers"
             />
-          </Tabs.List>
+          </TabsList>
           <Separator />
-          <TabsContent value="accounts">
+          <CustomTabsContent value="accounts">
             <AccountKeys />
-          </TabsContent>
-          <TabsContent value="general">
+          </CustomTabsContent>
+          <CustomTabsContent value="general">
             <GeneralSettings />
-          </TabsContent>
-          <TabsContent value="gateway">
+          </CustomTabsContent>
+          <CustomTabsContent value="gateway">
             <GatewaySettings />
-          </TabsContent>
-          <TabsContent value="app-info">
+          </CustomTabsContent>
+          <CustomTabsContent value="app-info">
             <AppSettings />
             {/* <DevicesInfo /> */}
-          </TabsContent>
-          {/* <TabsContent value="experiments">
+          </CustomTabsContent>
+          {/* <CustomTabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent> */}
-          <TabsContent value="developer">
+      </CustomTabsContent> */}
+          <CustomTabsContent value="developer">
             <DeveloperSettings />
-          </TabsContent>
+          </CustomTabsContent>
         </Tabs>
       </div>
     </div>
@@ -401,7 +391,7 @@ export function ProfileForm({
           <div className="flex">
             <Button
               onClick={() => {
-                editProfileDialog.open(true)
+                editProfileDialog.open('true')
               }}
             >
               <Pencil className="mr-2 size-4" />
@@ -416,7 +406,6 @@ export function ProfileForm({
 }
 
 function AccountKeys() {
-  const isDark = useIsDark()
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
   const deleteWords = trpc.secureStorage.delete.useMutation()
@@ -485,8 +474,7 @@ function AccountKeys() {
       </div>
       <div
         className={cn(
-          'border-border flex flex-[3] flex-col rounded-lg border',
-          isDark ? 'bg-background' : 'bg-muted',
+          'border-border dark:bg-background bg-muted flex flex-[3] flex-col rounded-lg border',
         )}
       >
         <div className="flex flex-col gap-4 p-4">
@@ -721,7 +709,12 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
       <div className="flex">
         <Button
           size="sm"
-          onClick={() => notifSettingsDialog.open({accountUid})}
+          onClick={() =>
+            notifSettingsDialog.open({
+              accountUid,
+              title: 'Edit Notification Settings',
+            })
+          }
         >
           <Pencil className="mr-2 h-4 w-4" />
           Edit Notification Settings
@@ -916,7 +909,8 @@ function DeviceLabelForm({
       <div className="flex flex-col gap-4">
         {linkDevice.error ? (
           <p className="text-destructive">
-            Error linking device: {linkDevice.error.message}
+            Error linking device:{' '}
+            {(linkDevice.error as any)?.message || 'Unknown error'}
           </p>
         ) : null}
         <FormField name="label" label="Device Label" errors={errors}>
@@ -976,12 +970,10 @@ export function ExperimentSection({
   onValue: (v: boolean) => void
   value: boolean
 }) {
-  const isDark = useIsDark()
   return (
     <div
       className={cn(
-        'flex items-center gap-6 rounded border p-3 px-6',
-        isDark ? 'bg-background' : 'bg-muted',
+        'dark:bg-background bg-muted flex items-center gap-6 rounded border p-3 px-6',
       )}
     >
       <SizableText size="2xl">{experiment.emoji}</SizableText>
@@ -1339,7 +1331,7 @@ function DeviceItem({id}: {id: string}) {
         label="Device Address"
         value={data?.addrs.sort().join(', ')}
         onCopy={() => {
-          copyTextToClipboard(data?.addrs.sort().join(', '))
+          data?.addrs && copyTextToClipboard(data.addrs.sort().join(', '))
           toast.success('Copied device address successfully')
         }}
       />
@@ -1507,50 +1499,48 @@ function AppSettings() {
   )
 }
 
-const TabsContent = (props: TabsContentProps) => {
+const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
-    <Tabs.Content
-      // backgroundColor="$background"
-      gap="$3"
-      flex={1}
-      {...props}
-    >
+    <TabsContent className="flex flex-1 flex-col gap-3" {...props}>
       <ScrollArea>
         <div className="flex flex-1 flex-col gap-4 p-4 pb-5">
           {props.children}
         </div>
       </ScrollArea>
-    </Tabs.Content>
+    </TabsContent>
   )
 }
 
-function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
+function Tab(
+  props: React.ComponentProps<typeof TabsTrigger> & {
+    icon: any
+    label: string
+    active: boolean
+  },
+) {
   const {icon: Icon, label, active, ...rest} = props
   return (
-    <Tabs.Tab
+    <TabsTrigger
       data-testid={`tab-${props.value}`}
-      borderRadius={0}
-      flexDirection="column"
-      {...props}
-      p="$4"
-      paddingBottom="$3"
-      height="auto"
-      gap="$2"
-      bg="$colorTransparent"
-      hoverStyle={{cursor: 'default', bg: '$color6'}}
+      className="flex h-auto cursor-default flex-col items-center justify-center gap-2 rounded-none border-0 bg-transparent p-4 pb-3 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10"
       {...rest}
     >
-      <Icon className={active ? 'text-primary' : 'text-muted-foreground'} />
+      <Icon
+        className={cn(
+          'size-5',
+          active ? 'text-brand-2' : 'text-muted-foreground',
+        )}
+      />
       <SizableText
         size="xs"
         className={cn(
           'flex-1',
-          active ? 'text-primary' : 'text-muted-foreground',
+          active ? 'text-brand-2' : 'text-muted-foreground',
         )}
       >
         {label}
       </SizableText>
-    </Tabs.Tab>
+    </TabsTrigger>
   )
 }
 
@@ -1558,12 +1548,10 @@ function SettingsSection({
   title,
   children,
 }: React.PropsWithChildren<{title: string}>) {
-  const isDark = useIsDark()
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded p-3',
-        isDark ? 'bg-background' : 'bg-muted',
+        'dark:bg-background bg-muted flex flex-col gap-3 rounded p-3',
       )}
     >
       <SizableText size="2xl">{title}</SizableText>

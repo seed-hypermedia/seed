@@ -88,7 +88,6 @@ import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText, Text, TextProps} from './text'
 import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
 import useMedia from './use-media'
 import {cn} from './utils'
 
@@ -483,7 +482,6 @@ export function BlockNodeContent({
     setCollapsedBlocks,
   } = useDocContentContext()
   const [hover, setHover] = useState(false)
-  const isDark = useIsDark()
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,

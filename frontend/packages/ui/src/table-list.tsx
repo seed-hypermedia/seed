@@ -9,7 +9,6 @@ import {Button} from './button'
 import {Copy, ExternalLink} from './icons'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
-import {useIsDark} from './use-is-dark'
 import {cn} from './utils'
 
 function useHover() {
@@ -36,12 +35,11 @@ export function TableList({
   children: ReactNode
   className?: string
 } & ComponentProps<'div'>) {
-  const isDark = useIsDark()
   return (
     <div
       className={cn(
         'cursor-default overflow-hidden rounded-lg border select-none',
-        isDark ? 'border-gray-700 bg-black' : 'border-gray-200 bg-gray-50',
+        'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-black',
         'sm:mx-0',
         className,
       )}
@@ -75,12 +73,11 @@ function TableItem({
   className,
   ...props
 }: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
-  const isDark = useIsDark()
   return (
     <div
       className={cn(
         'flex w-full items-start p-4',
-        isDark ? 'bg-black' : 'bg-gray-50',
+        'bg-gray-50 dark:bg-black',
         'hover:bg-gray-100 dark:hover:bg-gray-900',
         'border-b border-gray-200 last:border-b-0 dark:border-gray-700',
         className,

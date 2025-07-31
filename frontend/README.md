@@ -1,8 +1,5 @@
-# Mintter Frontend monorepo
-
-This monorepo is based on the Tamagui's create template. more info
-[here](https://tamagui.dev/docs/intro/installation).
+# Seed Hypermedia Frontend monorepo
 
 ## Development
 
-- [run sites locally](./apps/site/README.md)
+- [run sites locally](./apps/web/README.md)

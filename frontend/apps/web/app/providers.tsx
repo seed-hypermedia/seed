@@ -17,11 +17,8 @@ import {languagePacks} from '@shm/shared/language-packs'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {TamaguiProvider} from '@tamagui/core'
-import {PortalProvider} from '@tamagui/portal'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
-import tamaConf from '../tamagui.config'
 
 const queryClient = new QueryClient()
 
@@ -44,11 +41,9 @@ export const useTheme = () => {
 export const Providers = (props: {children: any}) => {
   return (
     <ThemeProvider>
-      <PortalProvider>
-        <QueryClientProvider client={queryClient}>
-          {props.children}
-        </QueryClientProvider>
-      </PortalProvider>
+      <QueryClientProvider client={queryClient}>
+        {props.children}
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }
@@ -95,16 +90,10 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
     <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
       <TooltipProvider>
-        <TamaguiProvider
-          defaultTheme={theme}
-          disableRootThemeClass
-          config={tamaConf}
-        >
-          {children}
-          <div className="pointer-events-none fixed right-0 bottom-0 z-50 h-auto w-full">
-            <Toaster theme={theme} />
-          </div>
-        </TamaguiProvider>
+        {children}
+        <div className="pointer-events-none fixed right-0 bottom-0 z-50 h-auto w-full">
+          <Toaster theme={theme} />
+        </div>
       </TooltipProvider>
     </ThemeContext.Provider>
   )

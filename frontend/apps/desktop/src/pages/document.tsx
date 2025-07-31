@@ -47,7 +47,7 @@ import {
 import {DiscussionsProvider} from '@shm/shared/discussions-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -62,7 +62,6 @@ import {
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
-import {Button} from '@shm/ui/legacy/button'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -516,7 +515,11 @@ export function NewSubDocumentButton({
       {importDropdown && (
         <ImportDropdownButton
           id={locationId}
-          button={<Button size="$1" circular icon={MoreHorizontal} />}
+          button={
+            <Button size="icon">
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
         />
       )}
     </>
@@ -684,11 +687,11 @@ function DocRedirected({
       message="This document has been redirected to a new location."
       children={
         <Button
-          icon={ArrowRight}
-          onPress={() => {
+          onClick={() => {
             navigate({key: 'document', id: redirectTarget})
           }}
         >
+          <ArrowRight className="size-4" />
           Go to New Location
         </Button>
       }

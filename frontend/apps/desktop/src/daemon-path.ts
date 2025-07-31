@@ -1,11 +1,18 @@
 import path from 'path'
 
 export function getDaemonBinaryPath() {
-  if (process.env.NODE_ENV == 'production') {
-    return path.join(
-      process.resourcesPath,
-      `seed-daemon-${getPlatformTriple()}`,
-    )
+  // Check multiple ways to detect production environment
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.ELECTRON_IS_DEV === 'false' ||
+    !process.env.ELECTRON_IS_DEV ||
+    process.resourcesPath !== undefined
+
+  if (isProduction) {
+    // In production, the daemon binary is in the app's resources directory
+    const resourcesPath =
+      process.resourcesPath || path.join(__dirname, '..', 'Resources')
+    return path.join(resourcesPath, `seed-daemon-${getPlatformTriple()}`)
   } else {
     return path.join(
       process.cwd(),

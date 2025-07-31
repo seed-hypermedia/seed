@@ -8,8 +8,10 @@ import {
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
 import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import {
   Event as NostrEvent,
   nip19,
@@ -19,7 +21,6 @@ import {
   verifySignature,
 } from 'nostr-tools'
 import {useEffect, useState} from 'react'
-import {Card, Tabs, useTheme} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
 export const RELAY_LIST = [
@@ -87,16 +88,16 @@ const Render = (
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromPos(
-      tiptapEditor.state.doc,
+      tiptapEditor.state,
       tiptapEditor.state.selection.from,
     )
-    if (selectedNode && selectedNode.id) {
+    if (selectedNode && selectedNode.block.node.attrs.id) {
       if (
-        selectedNode.id === block.id &&
-        selectedNode.startPos === selection.$anchor.pos
+        selectedNode.block.node.attrs.id === block.id &&
+        selectedNode.block.beforePos === selection.$anchor.pos
       ) {
         setSelected(true)
-      } else if (selectedNode.id !== block.id) {
+      } else if (selectedNode.block.node.attrs.id !== block.id) {
         setSelected(false)
       }
     }
@@ -205,36 +206,32 @@ function NostrComponent({
         </Button>
       ) : null}
       <div className="flex">
-        <Card elevate size="$4" bordered flex={1}>
-          <Card.Header padded>
-            <SizableText className="mt-2" size="2xl">
-              <div className="flex justify-between">
-                <Text>
-                  {'Public Key: '}
-                  {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
-                </Text>
-                <Tooltip
-                  content={
-                    verified ? 'Signature verified' : 'Invalid signature'
+        <div className="border-border flex-1 rounded-md border">
+          <SizableText className="mt-2" size="2xl">
+            <div className="flex justify-between">
+              <Text>
+                {'Public Key: '}
+                {nip21.test(uri) ? <a href={uri}>{header}</a> : header}
+              </Text>
+              <Tooltip
+                content={verified ? 'Signature verified' : 'Invalid signature'}
+              >
+                <Button
+                  disabled
+                  variant={
+                    verified === undefined
+                      ? 'blue'
+                      : verified
+                      ? 'green'
+                      : 'orange'
                   }
-                >
-                  <Button
-                    disabled
-                    variant={
-                      verified === undefined
-                        ? 'blue'
-                        : verified
-                        ? 'green'
-                        : 'orange'
-                    }
-                    size="sm"
-                  ></Button>
-                </Tooltip>
-              </div>
-            </SizableText>
-            <p className="mt-4">{content}</p>
-          </Card.Header>
-        </Card>
+                  size="sm"
+                ></Button>
+              </Tooltip>
+            </div>
+          </SizableText>
+          <p className="mt-4">{content}</p>
+        </div>
       </div>
     </div>
   )
@@ -260,7 +257,6 @@ function NostrForm({
     name: undefined,
     color: undefined,
   })
-  const theme = useTheme()
 
   useEffect(() => {
     if (note) ingestNote(note)
@@ -401,48 +397,33 @@ function NostrForm({
           })
           setTabState(value)
         }}
-        orientation="horizontal"
-        flexDirection="column"
+        className="flex flex-col"
       >
-        <Tabs.List
-          marginBottom="$1"
-          backgroundColor="$background"
-          borderBottomColor="$color8"
-          borderBottomWidth="$1"
-          borderBottomLeftRadius={0}
-          borderBottomRightRadius={0}
-          borderRadius={0}
-        >
-          <Tabs.Tab
-            unstyled
+        <TabsList className="border-muted bg-background mb-1 h-auto w-full rounded-none border-b p-0">
+          <TabsTrigger
             value="search"
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-            borderBottomLeftRadius={0}
-            borderBottomRightRadius={0}
-            borderBottomWidth={tabState == 'search' ? '$1' : '$0'}
-            hoverStyle={{
-              backgroundColor: '$borderColorHover',
-            }}
+            className={cn(
+              'h-auto flex-1 rounded-none border-b-0 bg-transparent px-4 py-2 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10',
+              tabState === 'search'
+                ? 'border-foreground border-b'
+                : 'border-b-0',
+            )}
           >
             <SizableText size="sm">Search</SizableText>
-          </Tabs.Tab>
-          <Tabs.Tab
-            unstyled
+          </TabsTrigger>
+          <TabsTrigger
             value="manual"
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-            borderBottomLeftRadius={0}
-            borderBottomRightRadius={0}
-            borderBottomWidth={tabState == 'manual' ? '$1' : '$0'}
-            hoverStyle={{
-              backgroundColor: '$borderColorHover',
-            }}
+            className={cn(
+              'h-auto flex-1 rounded-none border-b-0 bg-transparent px-4 py-2 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10',
+              tabState === 'manual'
+                ? 'border-foreground border-b'
+                : 'border-b-0',
+            )}
           >
             <SizableText size="sm">Manual</SizableText>
-          </Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Content value="search">
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="search">
           <div className="bg-background flex items-center rounded p-4">
             <form className="w-full" onSubmit={() => searchNote()}>
               <div className="flex flex-1 gap-3">
@@ -466,8 +447,8 @@ function NostrForm({
               )}
             </form>
           </div>
-        </Tabs.Content>
-        <Tabs.Content value="manual">
+        </TabsContent>
+        <TabsContent value="manual">
           <div className="bg-background flex items-center rounded p-4">
             <form className="w-full" onSubmit={() => submitNote()}>
               <div className="flex flex-1 gap-3">
@@ -491,7 +472,7 @@ function NostrForm({
               )}
             </form>
           </div>
-        </Tabs.Content>
+        </TabsContent>
       </Tabs>
     </div>
   )

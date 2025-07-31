@@ -3,37 +3,6 @@ import {cva, type VariantProps} from 'class-variance-authority'
 import * as React from 'react'
 import {cn} from '../utils'
 
-/**
- * Migration Guide from Tamagui Text/SizableText to new Text component:
- *
- * OLD Tamagui API → NEW API:
- * - size="$1" → size="xs"
- * - size="$2" → size="sm"
- * - size="$3" → size="md"
- * - size="$4" → size="lg"
- * - size="$5" → size="xl"
- * - size="$6" → size="2xl"
- * - size="$7" → size="3xl"
- *
- * - color="$color9" → color="muted"
- * - color="$color8" → color="muted"
- * - color="$brand5" → color="brand"
- * - color="$red10" → color="danger"
- * - color="$yellow10" → color="warning"
- *
- * - fontWeight="600" → weight="semibold"
- * - fontWeight="700" → weight="bold"
- * - fontWeight="800" → weight="extrabold"
- * - fontWeight="bold" → weight="bold"
- *
- * For custom styles like textOverflow, whiteSpace, etc., use className:
- * - textOverflow="ellipsis" → className="truncate"
- * - whiteSpace="nowrap" → className="whitespace-nowrap"
- * - userSelect="none" → className="select-none"
- * - flexShrink={0} → className="shrink-0"
- * - display="block" → className="block"
- */
-
 const textVariants = cva(
   'leading-normal', // Base styles
   {

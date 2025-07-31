@@ -4,7 +4,6 @@ import {
 } from '@/components/window-controls'
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {TitleBarProps} from './titlebar'
 import {
   NavigationButtons,
@@ -20,7 +19,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
 
   if (props.clean) {
     return (
-      <TitlebarWrapper>
+      <TitlebarWrapper className="min-h-0">
         <div className="window-drag flex px-2">
           <div className="window-drag flex flex-1 items-center justify-center">
             <TitleText marginHorizontal="$4" fontWeight="bold">
@@ -63,7 +62,6 @@ export function WindowsLinuxTitleBar({
   right?: React.ReactNode
   platform?: string
 }) {
-  const isDark = useIsDark()
   return (
     <div className="flex flex-col">
       <div

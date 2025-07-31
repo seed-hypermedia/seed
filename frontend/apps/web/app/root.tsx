@@ -10,17 +10,13 @@ import {
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {SizableText} from '@shm/ui/text'
-import {isClient} from '@tamagui/core'
-import Tamagui from '../tamagui.config'
 import {Providers} from './providers'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
-import globalTamaguiStyles from './tamagui.css?url'
 
 export const links: LinksFunction = () => {
   return [
     {rel: 'stylesheet', href: globalStyles},
-    {rel: 'stylesheet', href: globalTamaguiStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
   ]
 }
@@ -29,7 +25,6 @@ export function Layout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en">
       <head>
-        <Styles />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
@@ -113,19 +108,3 @@ function App(props: any) {
 }
 
 export default withSentry(App)
-
-export const Styles = () => {
-  if (isClient) {
-    return null
-  }
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Tamagui.getCSS({
-          // design system generated into tamagui.css
-          // exclude: "design-system",
-        }),
-      }}
-    />
-  )
-}

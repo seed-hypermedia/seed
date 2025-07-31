@@ -1,4 +1,4 @@
-import {AppContextProvider, StyleProvider} from '@/app-context-provider'
+import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
@@ -9,7 +9,6 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
-import {useStream} from '@shm/ui/use-stream'
 import {onlineManager, QueryKey} from '@tanstack/react-query'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
@@ -173,6 +172,7 @@ function useWindowUtils(ipc: AppIPC): WindowUtils {
 const daemonState: StateStream<GoDaemonState> = window.daemonState
 // @ts-expect-error
 const appInfo: AppInfoType = window.appInfo
+const darkMode: StateStream<boolean> = window.darkMode
 
 function useGoDaemonState(): GoDaemonState | undefined {
   const [state, setState] = useState<GoDaemonState | undefined>(
@@ -197,6 +197,43 @@ function useGoDaemonState(): GoDaemonState | undefined {
   return state
 }
 
+function useDarkMode(): boolean {
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    const initialValue = darkMode.get()
+    // Apply initial CSS classes immediately
+    if (initialValue) {
+      document.documentElement.classList.add('dark')
+      document.documentElement.classList.remove('light')
+    } else {
+      document.documentElement.classList.add('light')
+      document.documentElement.classList.remove('dark')
+    }
+    return initialValue
+  })
+
+  useEffect(() => {
+    const updateHandler = (value: boolean) => {
+      setIsDark(value)
+      // Apply the dark/light class to the document element for Tailwind CSS
+      if (value) {
+        document.documentElement.classList.add('dark')
+        document.documentElement.classList.remove('light')
+      } else {
+        document.documentElement.classList.add('light')
+        document.documentElement.classList.remove('dark')
+      }
+    }
+
+    const sub = darkMode.subscribe(updateHandler)
+
+    return () => {
+      sub()
+    }
+  }, [])
+
+  return isDark
+}
+
 // on desktop we handle query invalidation by sending it through IPC so it is sent to all windows
 onQueryInvalidation((queryKey: QueryKey) => {
   ipc.send?.('invalidate_queries', queryKey)
@@ -209,13 +246,19 @@ onlineManager.setOnline(true)
 onQueryCacheError((error, query) => {
   const queryKey = query.queryKey as string[]
   const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
-  toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}`, {
-    onClick: () => {
-      const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
-      copyTextToClipboard(detailString)
-      toast.success(`📋 Copied details to clipboard`)
+  toast.error(
+    `Failed to Load ${labelOfQueryKey(queryKey)}. Click to copy details`,
+    {
+      action: {
+        label: 'Copy Details',
+        onClick: () => {
+          const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
+          copyTextToClipboard(detailString)
+          toast.success(`📋 Copied details to clipboard`)
+        },
+      },
     },
-  })
+  )
 })
 
 // Add window interface extension
@@ -241,8 +284,8 @@ function MainApp({}: {}) {
     window.windowIsReady()
   }, [])
 
-  const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
+  const isDarkMode = useDarkMode()
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useUtils()
 
@@ -288,44 +331,45 @@ function MainApp({}: {}) {
   useEffect(() => {
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
-      onData: (value: unknown[]) => {
-        if (!value) return
-        if (value[0] === 'trpc.experiments.get') {
+      onData: (value: unknown) => {
+        const queryKey = value as unknown[]
+        if (!queryKey) return
+        if (queryKey[0] === 'trpc.experiments.get') {
           utils.experiments.get.invalidate()
-        } else if (value[0] === 'trpc.favorites.get') {
+        } else if (queryKey[0] === 'trpc.favorites.get') {
           utils.favorites.get.invalidate()
-        } else if (value[0] === 'trpc.host.get') {
+        } else if (queryKey[0] === 'trpc.host.get') {
           utils.host.get.invalidate()
-        } else if (value[0] === 'trpc.recentSigners.get') {
+        } else if (queryKey[0] === 'trpc.recentSigners.get') {
           utils.recentSigners.get.invalidate()
-        } else if (value[0] === 'trpc.comments.getCommentDraft') {
+        } else if (queryKey[0] === 'trpc.comments.getCommentDraft') {
           utils.comments.getCommentDraft.invalidate()
-        } else if (value[0] === 'trpc.gatewaySettings.getGatewayUrl') {
+        } else if (queryKey[0] === 'trpc.gatewaySettings.getGatewayUrl') {
           utils.gatewaySettings.getGatewayUrl.invalidate()
-        } else if (value[0] === 'trpc.gatewaySettings.getPushOnCopy') {
+        } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnCopy') {
           utils.gatewaySettings.getPushOnCopy.invalidate()
-        } else if (value[0] === 'trpc.gatewaySettings.getPushOnPublish') {
+        } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnPublish') {
           utils.gatewaySettings.getPushOnPublish.invalidate()
-          // } else if (value[0] === queryKeys.RECENTS) {
-          //   console.log('~~ invalidateRecents', value)
+          // } else if (queryKey[0] === queryKeys.RECENTS) {
+          //   console.log('~~ invalidateRecents', queryKey)
           //   utils.recents.getRecents.invalidate()
-        } else if (value[0] === 'trpc.appSettings.getAutoUpdatePreference') {
+        } else if (queryKey[0] === 'trpc.appSettings.getAutoUpdatePreference') {
           utils.appSettings.getAutoUpdatePreference.invalidate()
-        } else if (value[0] == 'trpc.drafts.get') {
-          utils.drafts.get.invalidate(value[1] as string | undefined)
-        } else if (value[0] == 'trpc.drafts.list') {
+        } else if (queryKey[0] == 'trpc.drafts.get') {
+          utils.drafts.get.invalidate(queryKey[1] as string | undefined)
+        } else if (queryKey[0] == 'trpc.drafts.list') {
           utils.drafts.list.invalidate()
-        } else if (value[0] == 'trpc.drafts.listAccount') {
+        } else if (queryKey[0] == 'trpc.drafts.listAccount') {
           utils.drafts.listAccount.invalidate()
-        } else if (value[0] == queryKeys.SETTINGS) {
-          console.log('~~ invalidateSettings', value)
-          utils.appSettings.getSetting.invalidate(value[1] as string)
-        } else if (value[0] == 'trpc.secureStorage.get') {
+        } else if (queryKey[0] == queryKeys.SETTINGS) {
+          console.log('~~ invalidateSettings', queryKey)
+          utils.appSettings.getSetting.invalidate(queryKey[1] as string)
+        } else if (queryKey[0] == 'trpc.secureStorage.get') {
           utils.secureStorage.invalidate()
 
           utils.secureStorage.read.invalidate()
         } else {
-          queryClient.invalidateQueries(value)
+          queryClient.invalidateQueries(queryKey)
         }
       },
     })
@@ -342,12 +386,7 @@ function MainApp({}: {}) {
   ) : (
     <>
       <OnboardingDialog />
-      <Main
-        className={
-          // this is used by editor.css which doesn't know tamagui styles, boooo!
-          darkMode ? 'seed-app-dark' : 'seed-app-light'
-        }
-      />
+      <Main />
       {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
       {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
     </>
@@ -423,7 +462,7 @@ function MainApp({}: {}) {
           return window.docExport.exportDocuments(documents)
         }}
         windowUtils={windowUtils}
-        darkMode={darkMode!}
+        darkMode={isDarkMode}
       >
         <Suspense fallback={<SpinnerWithText message="" />}>
           <ErrorBoundary
@@ -443,19 +482,13 @@ function MainApp({}: {}) {
     )
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)
-    return (
-      <StyleProvider darkMode={darkMode!}>
-        <AppErrorContent message={daemonState?.message} />
-      </StyleProvider>
-    )
+    return <AppErrorContent message={daemonState?.message} />
   } else {
     return (
-      <StyleProvider darkMode={darkMode!}>
-        <SpinnerWithText
-          message={'We are doing some housekeeping.\nDo not close this window!'}
-          delay={1000}
-        />
-      </StyleProvider>
+      <SpinnerWithText
+        message={'We are doing some housekeeping.\nDo not close this window!'}
+        delay={1000}
+      />
     )
   }
 }

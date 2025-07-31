@@ -4,8 +4,8 @@ import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {formatBytes} from '@shm/shared/utils/format-bytes'
+import {Button} from '@shm/ui/button'
 import {File} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {SizableText} from '@shm/ui/text'
 
 export const MaxFileSizeMB = 150
@@ -79,17 +79,8 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
     >
-      <Button
-        borderWidth={0}
-        borderRadius={1}
-        size="$5"
-        fontSize="$4"
-        flex={1}
-        justifyContent="flex-start"
-        icon={<File />}
-        disabled
-        userSelect="none"
-      >
+      <Button className="flex-1 justify-start select-none" disabled>
+        <File className="size-4" />
         <SizableText
           size="md"
           className="flex-1 truncate overflow-hidden whitespace-nowrap"

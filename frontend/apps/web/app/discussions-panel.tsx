@@ -12,7 +12,6 @@ import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
 
@@ -43,8 +42,6 @@ export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   const {homeId, comment, blockId, siteHost, handleBack} = props
 
-  const isDark = useIsDark()
-
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -71,7 +68,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     return (
       <BlockDiscussions
         {...props}
-        isDark={isDark}
         handleBack={handleBack}
         renderCommentContent={renderCommentContent}
       />
@@ -83,7 +79,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     return (
       <CommentDiscussion
         {...props}
-        isDark={isDark}
         handleBack={handleBack}
         renderCommentContent={renderCommentContent}
       />
@@ -91,11 +86,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   return (
-    <AllDiscussions
-      {...props}
-      isDark={isDark}
-      renderCommentContent={renderCommentContent}
-    />
+    <AllDiscussions {...props} renderCommentContent={renderCommentContent} />
   )
 }
 
@@ -106,7 +97,6 @@ export function AllDiscussions({
   handleStartDiscussion,
   renderCommentContent,
 }: DiscussionsPanelProps & {
-  isDark?: boolean
   renderCommentContent: (comment: HMComment) => React.ReactNode
 }) {
   const allDiscussions = useAllDiscussions(docId)
@@ -162,7 +152,6 @@ function BlockDiscussions({
   enableWebSigning,
   handleBack,
 }: DiscussionsPanelProps & {
-  isDark?: boolean
   renderCommentContent: (comment: HMComment) => React.ReactNode
 }) {
   const tx = useTxString()
@@ -198,7 +187,7 @@ function BlockDiscussions({
     <div className="flex flex-col gap-4 px-2">
       <div className="rounded-md p-3">
         <AccessoryBackButton
-          onPress={handleBack}
+          onClick={handleBack}
           label={tx('All Discussions')}
         />
         <WebDocContentProvider
@@ -216,7 +205,6 @@ function BlockDiscussions({
 
 function CommentDiscussion(
   props: DiscussionsPanelProps & {
-    isDark?: boolean
     renderCommentContent: (comment: HMComment) => React.ReactNode
   },
 ) {
@@ -261,7 +249,7 @@ function CommentDiscussion(
     <div className="flex flex-col gap-2 p-3">
       <div className="mx-3 mb-0 flex flex-col">
         <AccessoryBackButton
-          onPress={handleBack}
+          onClick={handleBack}
           label={tx('All Discussions')}
         />
       </div>

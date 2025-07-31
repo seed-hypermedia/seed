@@ -10,7 +10,6 @@ import {FileBlock} from '@shm/editor/file'
 import {HMHeadingBlockContent} from '@shm/editor/heading-component-plugin'
 import {ImageBlock} from '@shm/editor/image'
 import {MathBlock} from '@shm/editor/math'
-import {NostrBlock} from '@shm/editor/nostr'
 import CodeBlockLowlight from '@shm/editor/tiptap-extension-code-block'
 import {VideoBlock} from '@shm/editor/video'
 import {WebEmbed} from '@shm/editor/web-embed'
@@ -45,7 +44,6 @@ export const hmBlockSchema: BlockSchema = {
   embed: EmbedBlock,
   file: FileBlock,
   button: ButtonBlock,
-  nostr: NostrBlock,
   ['web-embed']: WebEmbed,
   math: MathBlock('math'),
   query: QueryBlock,

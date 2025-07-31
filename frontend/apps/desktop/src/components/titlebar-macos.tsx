@@ -13,7 +13,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
   const sidebarWidth = useSidebarWidth()
   if (clean) {
     return (
-      <TitlebarWrapper {...restProps}>
+      <TitlebarWrapper className="min-h-0" {...restProps}>
         <div className="window-drag flex w-full items-center justify-center">
           <TitleText
             marginHorizontal="$4"

@@ -15,13 +15,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      // {
-      //   // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
-      //   "name": "@nderscore/tamagui-typescript-plugin",
-      //   "pathToApp": "."
-      // }
-    ],
+    "plugins": [],
     "paths": {
       "@shm/ui/*": ["../../packages/ui/src/*"],
       "@shm/shared/*": ["../../packages/shared/src/*"],

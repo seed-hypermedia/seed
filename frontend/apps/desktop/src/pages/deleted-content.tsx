@@ -2,8 +2,8 @@ import {useDeletedContent, useUndeleteEntity} from '@/models/entities'
 import {HMDeletedEntity} from '@shm/shared/hm-types'
 import {formattedDateLong, formattedDateMedium} from '@shm/shared/utils/date'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {ShieldX} from '@shm/ui/icons'
-import {Button} from '@shm/ui/legacy/button'
 import {List} from '@shm/ui/list'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -50,13 +50,14 @@ function UndeleteButton({item}: {item: HMDeletedEntity}) {
       content={`Allow this document to be synced to your computer again.`}
     >
       <Button
-        size="$2"
-        onPress={() => {
+        size="sm"
+        onClick={() => {
           if (!item.id) return
           undelete.mutate({id: item.id})
         }}
-        icon={ShieldX}
-      ></Button>
+      >
+        <ShieldX className="size-4" />
+      </Button>
     </Tooltip>
   )
 }

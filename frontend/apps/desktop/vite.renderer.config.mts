@@ -1,6 +1,5 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
-import {tamaguiPlugin} from '@tamagui/vite-plugin'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import {defineConfig} from 'vite'
@@ -51,14 +50,6 @@ export default defineConfig(({command, mode}) => {
         root: '../../',
       }),
       react(),
-      tamaguiPlugin({
-        components: ['@shm/ui', 'tamagui'],
-        config: './tamagui.config.ts',
-        themeBuilder: {
-          input: '../../packages/ui/src/themes/theme.ts',
-          output: '../../packages/ui/src/themes-generated.ts',
-        },
-      }),
       tailwindcss(),
     ],
     resolve: {
@@ -92,6 +83,9 @@ export default defineConfig(({command, mode}) => {
       // This will be replaced with the actual value during build
       // In development it's true, in production it's false
       __SHOW_OB_RESET_BTN__: !!process.env.SHOW_OB_RESET_BTN,
+      // Define process.env as an empty object to prevent "process is not defined" errors
+      // Vite will replace individual process.env.VARIABLE_NAME references at build time
+      'process.env': {},
     },
   }
 

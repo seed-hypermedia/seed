@@ -48,7 +48,6 @@ import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {cn} from '@shm/ui/utils'
 import {useSelector} from '@xstate/react'
 import {Selection} from 'prosemirror-state'
@@ -618,7 +617,6 @@ function DraftMetadataEditor({
 
   const [showIcon, setShowIcon] = useState(false)
 
-  const isDark = useIsDark()
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
   })

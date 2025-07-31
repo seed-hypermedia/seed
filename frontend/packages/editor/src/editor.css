@@ -80,21 +80,10 @@
   text-decoration-thickness: 3px;
 }
 
-/* manually synced with tamagui colors: blue11 and blueDark11 */
-/* .ProseMirror .link { */
-/* color: var(--blue11); */
-/* } */
-/* .seed-app-dark .ProseMirror .link {
-  color: hsl(210, 100%, 66.1%);
-} */
-
 /* manually sync these values with colors.ts brand5 and brandDark5 */
 .ProseMirror .hm-link {
   color: var(--brand5);
 }
-/* .seed-app-dark .ProseMirror .hm-link {
-  color: hsl(184, 80%, 71%);
-} */
 
 .ProseMirror .link-placeholder {
   width: 16px;

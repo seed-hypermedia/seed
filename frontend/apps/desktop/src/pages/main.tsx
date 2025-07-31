@@ -16,7 +16,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useIsDark} from '@shm/ui/use-is-dark'
 import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
@@ -47,7 +46,7 @@ var Drafts = lazy(() => import('./drafts'))
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
-  const isDark = useIsDark()
+
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(
     () => getPageComponent(navR),
@@ -70,11 +69,7 @@ export default function Main({className}: {className?: string}) {
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
-      <TitlebarWrapper
-        height={26}
-        minHeight={26}
-        className="bg-background dark:bg-black"
-      >
+      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
           <TitleText>Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
@@ -97,11 +92,7 @@ export default function Main({className}: {className?: string}) {
     )
   } else if (windowType === 'deleted-content') {
     titlebar = (
-      <TitlebarWrapper
-        height={26}
-        minHeight={26}
-        bg={isDark ? '$background' : '$backgroundStrong'}
-      >
+      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
           <TitleText>Review Deleted Content</TitleText>
           {platform !== 'darwin' && <WindowClose />}

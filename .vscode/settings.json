@@ -85,6 +85,5 @@
   },
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-  "nandorojo-tamagui.configPath": "./frontend/packages/ui/src/tamagui.config.ts"
+  }
 }

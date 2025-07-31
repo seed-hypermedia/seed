@@ -93,7 +93,7 @@ export function SmallListItem({
     <Button
       className={cn(
         'user-select-none group h-auto min-h-8 w-full px-2 text-left outline-none',
-        active && 'bg-secondary text-secondary-foreground',
+        active && 'bg-accent text-accent-foreground',
         multiline && 'whitespace-normal!',
         props.className,
       )}

@@ -12,7 +12,6 @@
     - [Build sites locally](#build-sites-locally)
   - [Scoped package](#scoped-package)
   - [Monorepo Architecrure](#monorepo-architecrure)
-    - [Inspirations and Special mentions](#inspirations-and-special-mentions)
 
 ## TLDR;
 
@@ -42,7 +41,7 @@ yarn install
 
 ## Introduction
 
-The Seed Frontend architecture is based on a [yarn](https://yarnpkg.com) workspace. All the frontend code can be found inside the [`./frontend`](../../frontend) folder. The app is using a monorepo structure inspired by the [Create Tamagui App template](https://tamagui.dev/docs/guides/create-tamagui-app).
+The Seed Frontend architecture is based on a [yarn](https://yarnpkg.com) workspace. All the frontend code can be found inside the [`./frontend`](../../frontend) folder.
 
 - all the apps packages are inside the [`apps`](../../frontend/apps) folder.
 - all the scoped packages that are reused inside each app are in the [`packages`](../../frontend/packages) folder.
@@ -51,12 +50,12 @@ The Seed Frontend architecture is based on a [yarn](https://yarnpkg.com) workspa
 Now let's describe each package and what it does
 
 1. [`apps/desktop`](../../frontend/packages/app): The Local-first Desktop app built with [Electron](https://electronjs.com)
-1. [`apps/site`](../../frontend/packages/app): The Self-hosted sites anyone can run on their own servers built using [NextJS](https://nextjs.org)
-1. [`packages/app`](../../frontend/packages/app): All the "screens" for the local-first apps (currently only `desktop`, soon others...)
-1. [`packages/ui`](../../frontend/packages/ui): All the individual UI components and the theme setup for all the apps.
-1. [`packages/shared`](../../frontend/packages/shared): All the code that interface with the local backend API and gRPC.
-1. [`packages/eslint-config-custom`](../../frontend/packages/eslint-config-custom): the base eslint config for all the frontend code
-1. [`packages/prettier-config`](../../frontend/packages/prettier-config): the base formatting config for all the frontend code.
+2. [`apps/site`](../../frontend/packages/app): The Self-hosted sites anyone can run on their own servers built using [NextJS](https://nextjs.org)
+3. [`packages/app`](../../frontend/packages/app): All the "screens" for the local-first apps (currently only `desktop`, soon others...)
+4. [`packages/ui`](../../frontend/packages/ui): All the individual UI components and the theme setup for all the apps.
+5. [`packages/shared`](../../frontend/packages/shared): All the code that interface with the local backend API and gRPC.
+6. [`packages/eslint-config-custom`](../../frontend/packages/eslint-config-custom): the base eslint config for all the frontend code
+7. [`packages/prettier-config`](../../frontend/packages/prettier-config): the base formatting config for all the frontend code.
 
 
 After you [setup the project](./dev-setup) on your local machine, you should have `yarn` available, so no need to install it globally.
@@ -81,7 +80,6 @@ This application is built with this main tools and frameworks:
 
 - Electron (with electron-forge)
 - Vite
-- Tamagui
 - React
 - BlockNote (build with TipTap and Prosemirror)
 - Radix UI
@@ -139,8 +137,6 @@ Like I mentioned before, this monorepo does not follow some conventions other mo
 - we don't need to build individual packages, only the apps
 - we want to import files using the package name, but import from the source (the actual package)
 
-To achieve this, based on the code structure we adopted thanks to [Tamagui](https://tamagui.dev), we are mainly using [TSConfig paths](https://www.typescriptlang.org/tsconfig#paths) to make sure typescript understands from where it needs to pull the package's code.
-
 ```json
 // ./frontend/apps/desktop/tsconfig.json
 {
@@ -163,7 +159,5 @@ Another change that we did is that in each scoped package's `package.json` file,
 
 You can also see that on each scoped package there's only 2 or 3 scripts set: `lint`, `format` and `test`. While we don't want to build this packages individually, we do want to make sure the code structure and linting follows the project's rules.
 
-### Inspirations and Special mentions
 
-We took a lot of inspirations from tools like [Tamagui](https://tamagui.dev), [Turbo](https://turbo.build/repo) and tutorials like [Monorepo Maestros](https://www.shew.dev/monorepos).
 

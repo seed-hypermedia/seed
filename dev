@@ -78,7 +78,6 @@ def main():
     def run_desktop(args):
         run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:yarn")
-        run("yarn workspace @shm/ui generate")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
@@ -117,7 +116,6 @@ def main():
     def test_desktop(args):
         run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:yarn")
-        run("yarn workspace @shm/ui generate")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:

@@ -52,9 +52,6 @@ node_modules
 **/.next/*
 /out/
 
-# tamagui
-**/.tamagui/*
-
 # development files
 **/*.typegen.ts
 
@@ -91,8 +88,6 @@ _env.scss
 # changelog file
 whats-new.txt
 
-# tamagui
-**/.tamagui/*
 
 # Scratchpad files for local notes and stuff.
 # The pattern is like that to colocate files together,
