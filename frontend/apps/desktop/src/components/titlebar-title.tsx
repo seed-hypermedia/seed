@@ -158,8 +158,6 @@ function BreadcrumbTitle({
 }) {
   const contacts = useSelectedAccountContacts()
   const latestDoc = useResource({...entityId, version: null, latest: true})
-
-  console.log(`== ~ BreadcrumbTitle ~ latestDoc:`, latestDoc)
   const isLatest =
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
@@ -327,8 +325,8 @@ function BreadcrumbTitle({
   if (isAllError || !displayItems.length) return null
 
   return (
-    <div ref={containerObserverRef} className="flex items-center gap-2">
-      <div className="flex h-full shrink-1 items-center gap-2 overflow-hidden">
+    <div ref={containerObserverRef} className="flex gap-2 items-center">
+      <div className="flex overflow-hidden gap-2 items-center h-full shrink-1">
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
@@ -340,7 +338,7 @@ function BreadcrumbTitle({
         })}
       </div>
       {!hideControls ? (
-        <div className="flex flex-1 shrink-0 items-center justify-start">
+        <div className="flex flex-1 justify-start items-center shrink-0">
           <PendingDomain id={entityId} />
           <FavoriteButton id={entityId} />
           <CopyReferenceButton
@@ -381,20 +379,19 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   const hostSession = useHostSession()
   const site = useResource(id)
 
-  console.log(`== ~ PendingDomain ~ site:`, site)
   if (id.path?.length) return null
   const pendingDomain = hostSession.pendingDomains?.find(
     (domain) => domain.siteUid === id.uid,
   )
   if (!pendingDomain) return null
   return (
-    <div className="no-window-drag p-2">
+    <div className="p-2 no-window-drag">
       <HoverCard>
         <HoverCardTrigger>
           <Spinner size="small" />
         </HoverCardTrigger>
         <HoverCardContent side="bottom" align="start">
-          <div className="no-window-drag gap-4 p-3">
+          <div className="gap-4 p-3 no-window-drag">
             {pendingDomain.status === 'waiting-dns' ? (
               <DNSInstructions
                 hostname={pendingDomain.hostname}
@@ -492,7 +489,7 @@ function BreadcrumbItem({
   const observerRef = useSizeObserver(onSize)
   if (details.isLoading) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -519,12 +516,12 @@ function BreadcrumbItem({
           <Button
             size="iconSm"
             variant="ghost"
-            className="no-window-drag m-0"
+            className="m-0 no-window-drag"
             onClick={() => {
               navigate({key: 'document', id})
             }}
           >
-            <AlertCircle size={18} className="size-4 text-red-700" />
+            <AlertCircle size={18} className="text-red-700 size-4" />
           </Button>
         </Tooltip>
       )
@@ -534,7 +531,7 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <div className="flex items-center gap-2">
+    <div className="flex gap-2 items-center">
       <TitleText fontWeight="bold">{details.name}</TitleText>
       {draft ? <DraftBadge /> : null}
     </div>
@@ -557,7 +554,7 @@ function BreadcrumbItem({
           <HoverCardContent
             side="bottom"
             align="start"
-            className="w-full max-w-lg p-1"
+            className="p-1 w-full max-w-lg"
           >
             <PathItemCard details={details} homeMetadata={homeMetadata} />
           </HoverCardContent>
@@ -597,7 +594,7 @@ function PathItemCard({
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       {directoryItems?.length ? (
         <>
-          <ScrollArea className="flex-1 overflow-y-auto py-0">
+          <ScrollArea className="overflow-y-auto flex-1 py-0">
             <div>
               {directoryItems?.map((item) => {
                 return (
@@ -651,13 +648,13 @@ function URLCardSection({
       <div className="flex items-stretch rounded-md border">
         <Button
           size="xs"
-          className="flex-1 justify-start overflow-hidden border-none text-left hover:cursor-pointer"
+          className="overflow-hidden flex-1 justify-start text-left border-none hover:cursor-pointer"
           onClick={() => {
             const url = siteBaseUrlWithProtocol + '/' + path.join('/')
             externalOpen(url)
           }}
         >
-          <span className="text-muted-foreground truncate text-xs">
+          <span className="text-xs truncate text-muted-foreground">
             {siteBaseUrl}
 
             {path &&
@@ -686,7 +683,7 @@ export function Title({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   return (
-    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch pl-2">
+    <div className="flex flex-1 gap-2 items-center self-stretch pl-2 max-w-full min-w-64">
       <TitleContent size={size} onPublishSite={onPublishSite} />
     </div>
   )
@@ -745,10 +742,10 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
     )
 
   return (
-    <div className="flex flex-1 items-stretch justify-stretch gap-2 overflow-hidden">
-      <File className="size-4 self-center" />
+    <div className="flex overflow-hidden flex-1 gap-2 items-stretch justify-stretch">
+      <File className="self-center size-4" />
       <TitleTextButton
-        className="no-window-drag font-bold"
+        className="font-bold no-window-drag"
         onClick={() => {
           navigate({key: 'drafts'})
         }}

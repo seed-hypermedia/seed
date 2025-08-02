@@ -1,4 +1,5 @@
 import {grpcClient} from '@/grpc-client'
+import {decode} from '@ipld/dag-cbor'
 import {
   AuthorVersion,
   Change,
@@ -152,14 +153,21 @@ export type ProfileSchema = {
 export type ChangeData = ChangeBlob<ProfileSchema> // todo: add DocumentSchema
 export type BlobData = ChangeData
 
+export async function loadBlob<BlobSchema>(cid: string): Promise<BlobSchema> {
+  const res = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/ipfs/${cid}`)
+  const cborData = await res.arrayBuffer()
+  const data = decode(cborData)
+
+  // const data = await res.json()
+  console.log('~~! loadBlob', data)
+  return data as BlobSchema
+}
+
 function queryBlob(cid: string | undefined) {
   return {
     queryFn: async () => {
-      const res = await fetch(
-        `http://localhost:${DAEMON_HTTP_PORT}/debug/cid/${cid}`,
-      )
-      const data = await res.json()
-      return data as BlobData
+      if (!cid) return null
+      return loadBlob<BlobData>(cid)
     },
     queryKey: [queryKeys.BLOB_DATA, cid],
     enabled: !!cid,

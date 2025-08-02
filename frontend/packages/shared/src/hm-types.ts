@@ -1166,6 +1166,15 @@ export type HMContact = {
   subjectContacts: PlainMessage<Contact>[] | undefined
 }
 
+export type HMCapability = {
+  id: string
+  accountUid: string
+  role: HMRole
+  capabilityId?: string
+  grantId: UnpackedHypermediaId
+  label?: string | undefined
+}
+
 export const siteDiscoverRequestSchema = z.object({
   uid: z.string(),
   path: z.array(z.string()),

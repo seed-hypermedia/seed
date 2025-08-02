@@ -83,6 +83,7 @@ import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   AtSign,
+  Biohazard,
   Check,
   Code2,
   Cog,
@@ -144,12 +145,12 @@ export default function Settings() {
               icon={Info}
               label="App Info"
             />
-            {/* <Tab
-          value="experiments"
-          active={activeTab === 'experiments'}
-          icon={Biohazard}
-          label="Experiments"
-        /> */}
+            <Tab
+              value="experiments"
+              active={activeTab === 'experiments'}
+              icon={Biohazard}
+              label="Experiments"
+            />
             <Tab
               value="developer"
               active={activeTab === 'developer'}
@@ -169,11 +170,10 @@ export default function Settings() {
           </CustomTabsContent>
           <CustomTabsContent value="app-info">
             <AppSettings />
-            {/* <DevicesInfo /> */}
           </CustomTabsContent>
-          {/* <CustomTabsContent value="experiments">
-        <ExperimentsSettings />
-      </CustomTabsContent> */}
+          <CustomTabsContent value="experiments">
+            <ExperimentsSettings />
+          </CustomTabsContent>
           <CustomTabsContent value="developer">
             <DeveloperSettings />
           </CustomTabsContent>
@@ -1031,11 +1031,10 @@ const EXPERIMENTS = //: ExperimentType[]
     //   description: 'Embed Nostr notes into documents for permanent referencing.',
     // },
     {
-      key: 'hosting',
-      label: 'Seed Hosting Publish Workflow',
-      emoji: '☁️',
-      description:
-        'Test the new publishing workflow with the Seed Hosting service.',
+      key: 'newFeed',
+      label: 'New Feed',
+      emoji: '🍿',
+      description: 'Test the new feed experience.',
     },
   ] as const
 
