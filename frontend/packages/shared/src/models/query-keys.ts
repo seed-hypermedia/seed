@@ -12,8 +12,7 @@ export const queryKeys = {
   SITE_LIBRARY: 'SITE_LIBRARY', // siteUid: string
 
   // feed
-  FEED: 'FEED', // trustedOnly: boolean
-  FEED_LATEST_EVENT: 'FEED_LATEST_EVENT', // trustedOnly: boolean
+  FEED: 'FEED', // docId?: boolean
   RESOURCE_FEED: 'RESOURCE_FEED', //, resourceId: string
   RESOURCE_FEED_LATEST_EVENT: 'RESOURCE_FEED_LATEST_EVENT', //, resourceId: string
 

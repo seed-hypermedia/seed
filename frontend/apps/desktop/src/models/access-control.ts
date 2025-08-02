@@ -7,6 +7,7 @@ import {
 } from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
 import {
+  HMCapability,
   HMEntityContent,
   HMRole,
   UnpackedHypermediaId,
@@ -65,15 +66,6 @@ export function getRoleName(role: HMRole) {
 export function getRoleCapabilityType(role: Role): HMRole | null {
   if (role === Role.WRITER) return 'writer'
   return null
-}
-
-export type HMCapability = {
-  id: string
-  accountUid: string
-  role: HMRole
-  capabilityId?: string
-  grantId: UnpackedHypermediaId
-  label?: string | undefined
 }
 
 const CapabilityInheritance: Readonly<HMRole[]> =

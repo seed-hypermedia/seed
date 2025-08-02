@@ -103,3 +103,32 @@ describe('packHmId', () => {
     )
   })
 })
+
+describe('hmId', () => {
+  test('creates hm://123/a/b?v=foo#bar', () => {
+    expect(
+      hmId('123', {version: 'foo', blockRef: 'bar', path: ['a', 'b']}),
+    ).toEqual({
+      id: 'hm://123/a/b',
+      scheme: null,
+      hostname: null,
+      uid: '123',
+      version: 'foo',
+      blockRef: 'bar',
+      blockRange: null,
+      path: ['a', 'b'],
+    })
+  })
+  test('creates hm://abc/def/a/b', () => {
+    expect(hmId('abc/def/a/b')).toEqual({
+      id: 'hm://abc/def/a/b',
+      scheme: null,
+      hostname: null,
+      uid: 'abc',
+      version: null,
+      blockRef: null,
+      blockRange: null,
+      path: ['def', 'a', 'b'],
+    })
+  })
+})

@@ -93,7 +93,7 @@ export function CitationsPanel({
                   ? accounts[citation.source.author]
                   : null,
               }}
-              DocPreview={DocumentPreview}
+              ResourcePreview={ResourcePreview}
             />
           )
         })}
@@ -102,29 +102,29 @@ export function CitationsPanel({
   )
 }
 
-function DocumentPreview({
+function ResourcePreview({
   metadata,
-  docId,
+  id,
 }: {
   metadata?: HMMetadata | null
-  docId: UnpackedHypermediaId
+  id: UnpackedHypermediaId
 }) {
-  const doc = useResource(docId)
+  const doc = useResource(id)
   if (doc.isInitialLoading) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
   }
   if (!doc.data) return null
-
+  // todo, handle other resource types. type error below is reminding us of that.
   return (
-    <div className="flex max-h-96 w-full max-w-xl flex-col gap-3 overflow-y-auto p-4">
+    <div className="flex overflow-y-auto flex-col gap-3 p-4 w-full max-w-xl max-h-96">
       <SizableText size="2xl" weight="bold" className="px-2">
         {metadata?.name || 'Untitled'}
       </SizableText>
-      <div className="h-px w-full flex-shrink-0 bg-gray-200 dark:bg-gray-800" />
+      <div className="flex-shrink-0 w-full h-px bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
         <BlocksContent
           // @ts-expect-error
@@ -139,9 +139,11 @@ function DocumentPreview({
 export function CommentCitationEntry({
   citation,
   accounts,
+  targetDomain,
 }: {
   citation: HMCitation
   accounts: HMAccountsMetadata
+  targetDomain?: string
 }) {
   const citationTargetFragment = citation.targetFragment
   const citationTarget = citation.targetId
@@ -192,6 +194,7 @@ export function CommentCitationEntry({
       authorMetadata={accounts[comment.data.author]?.metadata}
       renderCommentContent={renderCommentContent}
       replyCount={replies?.length}
+      targetDomain={targetDomain}
     />
   )
 }
