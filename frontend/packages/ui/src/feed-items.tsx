@@ -5,6 +5,7 @@ import {
   LoadedDocUpdateEvent,
   LoadedFeedEvent,
 } from '@shm/shared/feed-types'
+import {Comment} from './discussion'
 import {
   EventContact,
   EventContacts,
@@ -34,9 +35,12 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
       <EventRow>
         <EventContact contact={event.author} />
         <EventDescriptionText>commented on</EventDescriptionText>
-        <ResourceToken id={event.commentId} metadata={event.comment.metadata} />
+        {event.targetId ? (
+          <ResourceToken id={event.targetId} metadata={event.targetMetadata} />
+        ) : null}
         <EventTimestamp time={event.time} />
       </EventRow>
+      {event.comment && <Comment comment={event.comment} />}
     </>
   )
 }

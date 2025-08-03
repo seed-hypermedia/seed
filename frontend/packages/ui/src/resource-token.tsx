@@ -44,7 +44,7 @@ export function ResourceToken({
             {metadata?.name}
           </a>
         </HoverCardTrigger>
-        <HoverCardContent className="p-0 w-full max-w-100" align="end">
+        <HoverCardContent className="w-full max-w-100 p-0" align="end">
           <ResourcePreview metadata={metadata} id={id} />
         </HoverCardContent>
       </HoverCard>
