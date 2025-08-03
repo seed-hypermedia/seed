@@ -28,7 +28,10 @@ async function getMetadata(id: UnpackedHypermediaId) {
   })
   if (resource.kind?.case === 'document') {
     const metadata = resource.kind.value.metadata?.toJson()
-    return {kind: 'document', ...(metadata ?? {})}
+    return {
+      kind: 'document',
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+    }
   }
   if (resource.kind?.case === 'comment') {
     return {kind: 'comment'}
@@ -78,7 +81,36 @@ async function loadCapabilityEvent(
 
   const capabilityBlob = cid ? await loadBlob<unknown>(cid) : null
 
-  return null
+  if (!author || !resource) {
+    console.log('Capability event missing author or resource')
+    return null
+  }
+
+  const authorId = hmId(author)
+  const resourceId = unpackHmId(resource)
+
+  if (!resourceId) {
+    console.log('Failed to unpack capability resource ID')
+    return null
+  }
+
+  // For now, create a basic capability event until we have proper capability loading
+  return {
+    id: resourceId.uid,
+    type: 'capability',
+    author: {
+      id: authorId,
+      metadata: await getMetadata(authorId),
+    },
+    time: observeTime || {seconds: 0, nanos: 0},
+    delegates: [], // TODO: Load actual delegates when capability loading is implemented
+    capabilityId: resourceId,
+    capability: {
+      // TODO: Load actual capability data
+      kind: 'unknown',
+      target: resource,
+    } as any, // Temporary type assertion until proper capability schema is available
+  }
 }
 
 async function loadCommentEvent(
@@ -187,28 +219,53 @@ function toHMTimestamp(ts: number) {
 async function loadEvent(event: Event): Promise<LoadedFeedEvent | null> {
   const blobType =
     event.data.case === 'newBlob' ? event.data.value.blobType : undefined
-  switch (blobType) {
-    case 'Contact':
-      return await loadContactEvent(event)
-    case 'Capability':
-      return await loadCapabilityEvent(event)
-    case 'Comment':
-      return await loadCommentEvent(event)
-    case 'Ref':
-      return await loadDocUpdateEvent(event)
+  console.log(
+    'Loading event with blobType:',
+    blobType,
+    'event data case:',
+    event.data.case,
+  )
+
+  try {
+    switch (blobType) {
+      case 'Contact':
+        return await loadContactEvent(event)
+      case 'Capability':
+        return await loadCapabilityEvent(event)
+      case 'Comment':
+        return await loadCommentEvent(event)
+      case 'Ref':
+        return await loadDocUpdateEvent(event)
+      default:
+        console.warn('⚠️ Unknown blob type - event filtered out:', {
+          blobType,
+          eventDataCase: event.data.case,
+          eventData: event.data.value,
+        })
+        return null
+    }
+  } catch (error) {
+    console.error('❌ Error loading event:', error, {blobType, event})
+    return null
   }
-  return null
 }
 
 export function useDocFeed(docId: UnpackedHypermediaId) {
   return useInfiniteQuery(
     [queryKeys.FEED, docId.id],
     async ({pageParam}) => {
+      console.log('Feed query - pageParam:', pageParam, 'docId:', docId.id)
       const feedResp = await grpcClient.activityFeed.listEvents({
         filterResource: docId.id,
         pageSize: 5,
         pageToken: pageParam,
       })
+      console.log(
+        'Feed response - events count:',
+        feedResp.events.length,
+        'nextPageToken:',
+        feedResp.nextPageToken,
+      )
       const loadedEvents: LoadedFeedEvent[] = []
       for (const event of feedResp.events) {
         // console.log('~~', event)
@@ -217,13 +274,24 @@ export function useDocFeed(docId: UnpackedHypermediaId) {
           loadedEvents.push(loaded)
         }
       }
+      console.log(
+        'Filtered events count:',
+        loadedEvents.length,
+        'nextPageToken:',
+        feedResp.nextPageToken,
+      )
       return {
         events: loadedEvents,
         nextPageToken: feedResp.nextPageToken,
       }
     },
     {
-      getNextPageParam: (lastPage) => lastPage.nextPageToken,
+      getNextPageParam: (lastPage) => {
+        console.log('getNextPageParam called with lastPage:', lastPage)
+        const nextToken = lastPage.nextPageToken
+        console.log('Returning nextPageToken:', nextToken)
+        return nextToken
+      },
     },
   )
 }

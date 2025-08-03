@@ -118,6 +118,11 @@ function ResourcePreview({
     )
   }
   if (!doc.data) return null
+  let content =
+    doc.data.type === 'document' ? doc.data.document.content : undefined
+  if (!content && doc.data.type === 'comment') {
+    content = doc.data.comment.content
+  }
   // todo, handle other resource types. type error below is reminding us of that.
   return (
     <div className="flex overflow-y-auto flex-col gap-3 p-4 w-full max-w-xl max-h-96">
@@ -126,11 +131,7 @@ function ResourcePreview({
       </SizableText>
       <div className="flex-shrink-0 w-full h-px bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
-        <BlocksContent
-          // @ts-expect-error
-          blocks={doc.data.document?.content}
-          parentBlockId={null}
-        />
+        <BlocksContent blocks={content} parentBlockId={null} />
       </AppDocContentProvider>
     </div>
   )

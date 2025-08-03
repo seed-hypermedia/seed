@@ -1,7 +1,7 @@
 import {useDocFeed} from '@/models/feed'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {FeedEvent} from '@shm/ui/feed-items'
-import {useCallback, useRef} from 'react'
+import {useCallback, useEffect, useRef} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
@@ -29,7 +29,7 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
         {
           // Use the scroll area viewport as the root
           root: document.querySelector('[data-radix-scroll-area-viewport]'),
-          rootMargin: '100px',
+          rootMargin: '200px', // Increased to load earlier
         },
       )
       if (node) observerRef.current.observe(node)
@@ -39,6 +39,24 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
+
+  // Auto-load more items if we don't have enough to fill the viewport
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !isFetchingNextPage &&
+      hasNextPage &&
+      allEvents.length < 10
+    ) {
+      fetchNextPage()
+    }
+  }, [
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    allEvents.length,
+    fetchNextPage,
+  ])
 
   if (isLoading) {
     return (
@@ -60,7 +78,12 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
     <AccessoryContent title="Feed">
       <div>
         {allEvents.map((event, index) => {
-          return <FeedEvent event={event} key={event.id} />
+          const isLast = index === allEvents.length - 1
+          return (
+            <div key={event.id} ref={isLast ? lastElementRef : undefined}>
+              <FeedEvent event={event} />
+            </div>
+          )
         })}
         {isFetchingNextPage && (
           <div className="py-3 text-center text-muted-foreground">
