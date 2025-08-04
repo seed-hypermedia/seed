@@ -57,6 +57,22 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-08-04.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		// Remove trailing slashes from subscription IRIs and add a DB check to avoid it.
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE subscriptions RENAME TO subscriptions_old;
+			CREATE TABLE subscriptions (
+			    id INTEGER PRIMARY KEY,
+			    iri TEXT UNIQUE NOT NULL CHECK (iri NOT LIKE '%/'),
+			    is_recursive BOOLEAN DEFAULT false NOT NULL,
+			    insert_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+			);
+			INSERT OR IGNORE INTO subscriptions
+			SELECT id, rtrim(iri, '/'), is_recursive, insert_time
+			FROM subscriptions_old;
+			DROP TABLE subscriptions_old;
+		`))
+	}},
 	{Version: "2025-07-30.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Reindexing to take into account delete blobcks changes into fts.
 		return scheduleReindex(conn)

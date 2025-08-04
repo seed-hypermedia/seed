@@ -15,7 +15,6 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
-	"seed/backend/util/singleflight"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -127,6 +126,8 @@ type protocolChecker struct {
 	checker func(context.Context, peer.ID, string, ...protocol.ID) error
 	version string
 }
+
+// Service implements syncing content over the P2P network.
 type Service struct {
 	cfg        config.Syncing
 	log        *zap.Logger
@@ -143,7 +144,6 @@ type Service struct {
 	wg         sync.WaitGroup
 	workers    map[peer.ID]*worker
 	semaphore  chan struct{}
-	single     singleflight.Group[discoveryKey, blob.Version]
 }
 
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
@@ -248,7 +248,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 
 	var workersDiff int
 
-	// Starting workers for newly added trusted peers.
+	// Starting workers for newly added peers.
 	for pid := range peers {
 		if _, ok := s.workers[pid]; !ok {
 			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore, s.sstore)
@@ -259,7 +259,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 		}
 	}
 
-	// Stop workers for those peers we no longer trust.
+	// Stop workers for removed peers.
 	for _, w := range s.workers {
 		if _, ok := peers[w.pid]; !ok {
 			w.stop()
@@ -280,11 +280,8 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 	log := s.log.With(zap.Int64("traceID", time.Now().UnixMicro()))
 
 	log.Info("SyncLoopStarted")
-	var err error
-	var res SyncResult
 
-	res, err = s.SyncAll(ctx)
-
+	res, err := s.forceSyncSubscriptions(ctx)
 	if err != nil {
 		if errors.Is(err, ErrSyncAlreadyRunning) {
 			log.Debug("SyncLoopIsAlreadyRunning")
@@ -321,38 +318,24 @@ type SyncResult struct {
 	Errs          []error
 }
 
-// SyncAll attempts to sync the with all the peers at once.
-func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
-	return s.SyncSubscribedContent(ctx)
-}
-
-// SyncSubscribedContent attempts to sync all the content marked as subscribed.
-// However, if subscriptions are passed to this function, only those docs will
-// be synced.
-func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
+// forceSyncSubscriptions attempts to sync all the content marked as subscribed.
+func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, err error) {
 	for !s.mu.TryLock() {
-		select {
-		case <-ctx.Done():
-			return res, ctx.Err()
-		case <-time.After(time.Second * 1):
-		}
-		time.Sleep(time.Second)
+		return res, nil
 	}
 	defer s.mu.Unlock()
 
-	if len(subscriptions) == 0 {
-		s.log.Debug("No subscriptions passed, grabbing all of them")
-		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
-			PageSize: math.MaxInt32,
-		})
-		s.log.Debug("List all subscriptions", zap.Error(err))
-		if err != nil {
-			return res, err
-		}
-		subscriptions = ret.Subscriptions
+	ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+		PageSize: math.MaxInt32,
+	})
+	s.log.Debug("List all subscriptions", zap.Error(err))
+	if err != nil {
+		return res, err
 	}
-	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of total subscriptions", len(subscriptions)))
-	if len(subscriptions) == 0 {
+	subs := ret.Subscriptions
+
+	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of total subscriptions", len(subs)))
+	if len(subs) == 0 {
 		return res, nil
 	}
 	subsMap := make(subscriptionMap)
@@ -378,13 +361,13 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 
 	s.log.Debug("Got list of peers", zap.Int("Number of total peers", len(allPeers)))
 	eidsMap := make(map[string]bool)
-	for _, subs := range subscriptions {
+	for _, subs := range subs {
 		eid := "hm://" + subs.Account + subs.Path
 		eidsMap[eid] = subs.Recursive
 	}
 	if len(allPeers) == 0 {
 		s.log.Debug("Defaulting to DHT since we don't have providers")
-		for _, subs := range subscriptions {
+		for _, subs := range subs {
 			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte("hm://"+subs.Account+subs.Path))
 			if err != nil {
 				continue
@@ -409,8 +392,8 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	}
 
 	// Create RBSR store for all subscriptions
-	dkeys := make(colx.HashSet[discoveryKey], len(subscriptions))
-	for _, subs := range subscriptions {
+	dkeys := make(colx.HashSet[discoveryKey], len(subs))
+	for _, subs := range subs {
 		dkeys.Put(discoveryKey{
 			IRI:       blob.IRI("hm://" + subs.Account + subs.Path),
 			Recursive: subs.Recursive,

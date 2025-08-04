@@ -194,13 +194,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	a.setupLogging(ctx, cfg)
 
-	// TODO(hm24): groups are dead.
-	// if !cfg.Syncing.NoPull {
-	// 	a.g.Go(func() error {
-	// 		return a.RPC.Groups.StartPeriodicSync(ctx, cfg.Syncing.WarmupDuration, cfg.Syncing.Interval, false)
-	// 	})
-	// }
-
 	return
 }
 
@@ -290,10 +283,8 @@ func initNetwork(
 		// Wait until the network fully stops if it was ever started.
 		select {
 		case <-started:
-			select {
-			case <-done:
-				return nil
-			}
+			<-done
+			return nil
 		default:
 			return nil
 		}

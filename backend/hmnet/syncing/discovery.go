@@ -135,7 +135,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 	defer cancelDHTCtx()
 	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
 	if len(peers) == 0 {
-		return "", fmt.Errorf("After checking local peers, no dht providers were found serving CID %s", c.String())
+		return "", nil
 	}
 
 	eidsMap := make(map[string]bool)

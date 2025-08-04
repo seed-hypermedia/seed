@@ -3,7 +3,6 @@ package activity
 import (
 	context "context"
 	activity "seed/backend/genproto/activity/v1alpha"
-	"seed/backend/hmnet/syncing"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +10,6 @@ import (
 
 func TestListSubscriptions(t *testing.T) {
 	alice := newTestServer(t, "alice")
-	alice.SetSyncer(&helper{})
 	ctx := context.Background()
 
 	req := &activity.ListSubscriptionsRequest{
@@ -27,10 +25,4 @@ func TestListSubscriptions(t *testing.T) {
 		Recursive: false,
 	})
 	require.Error(t, err)
-}
-
-type helper struct{}
-
-func (h *helper) SyncSubscribedContent(ctx context.Context, _ ...*activity.Subscription) (syncing.SyncResult, error) {
-	return syncing.SyncResult{}, nil
 }

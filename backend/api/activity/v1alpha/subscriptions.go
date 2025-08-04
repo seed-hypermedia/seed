@@ -58,10 +58,6 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 
 	srv.log.Debug("Subscribe called", zap.Bool("async", async))
 
-	if srv.syncer == nil && !async {
-		return nil, fmt.Errorf("Syncer non defined on blocking call")
-	}
-
 	if err := srv.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		const q = "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?, ?);"
 		return sqlitex.Exec(conn, q, nil, string(wantedIRI), req.Recursive)
@@ -69,32 +65,19 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		return nil, err
 	}
 
-	subscriptionReq := &activity.Subscription{
-		Account:   req.Account,
-		Path:      req.Path,
-		Recursive: req.Recursive,
-	}
-
-	if async {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
-			defer cancel()
-			_, err := srv.syncer.SyncSubscribedContent(ctx, subscriptionReq)
-			if err != nil {
-				srv.log.Debug("Non blocking Sync failed", zap.Error(err))
-			}
-		}()
-	} else {
-		ret, err := srv.syncer.SyncSubscribedContent(ctx, subscriptionReq)
-		if err != nil {
-			const errMsg = "Blocking sync failed"
-			srv.log.Debug(errMsg, zap.Error(err))
-			return nil, fmt.Errorf("%s: %s", errMsg, err.Error())
-		}
-		if ret.NumSyncOK == 0 {
-			const errMsg = "Could not sync subscribed content from any known peer"
-			srv.log.Debug(errMsg)
-			return nil, fmt.Errorf("%s", errMsg)
+	if srv.syncer != nil {
+		if async {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
+				defer cancel()
+				_, err := srv.syncer.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
+				if err != nil {
+					srv.log.Debug("Non blocking Sync failed", zap.Error(err))
+				}
+			}()
+		} else {
+			// We ignore the error here because discovering the object during subscribing is a best-effort operation.
+			_, _ = srv.syncer.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
 		}
 	}
 

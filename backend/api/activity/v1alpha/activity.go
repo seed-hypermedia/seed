@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/storage"
@@ -15,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"seed/backend/hmnet/syncing"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/dqb"
@@ -31,7 +31,7 @@ import (
 )
 
 type syncer interface {
-	SyncSubscribedContent(context.Context, ...*activity.Subscription) (syncing.SyncResult, error)
+	DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error)
 }
 
 // Server implements the Activity gRPC API.
