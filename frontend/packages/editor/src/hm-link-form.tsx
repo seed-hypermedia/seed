@@ -95,7 +95,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
           <TextCursorInput size={16} />
           <Input
-            className="flex-1 bg-red-500"
+            className="flex-1"
             placeholder={`${props.type} text`}
             id="link-text"
             value={_text}

@@ -336,9 +336,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
 function BlankQueryBlockMessage({message}: {message: string}) {
   return (
     <div className="bg-muted flex items-center rounded-lg p-4">
-      <SizableText className="text-muted-foreground bg-red-500">
-        {message}
-      </SizableText>
+      <SizableText className="text-muted-foreground">{message}</SizableText>
     </div>
   )
 }

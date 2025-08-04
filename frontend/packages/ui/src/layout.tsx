@@ -159,7 +159,7 @@ export const useDocumentLayout = (
       contentMaxWidth,
       sidebarProps: {
         className: `document-aside flex-1 w-full pt-4 ${
-          layoutState.showCollapsed ? 'pr-0' : 'pr-10'
+          layoutState.showCollapsed ? 'px-2' : 'pr-10 pl-4'
         }`,
         style: {
           maxWidth: layoutState.showCollapsed ? 40 : 280,

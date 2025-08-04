@@ -252,7 +252,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col gap-3">
       {parentCapabilities ? (
-        <div className="mb-3 bg-red-500">
+        <div className="mb-3">
           {parentCapabilities.map((cap) => (
             <CollaboratorItem key={cap.accountUid} capability={cap} id={id} />
           ))}
