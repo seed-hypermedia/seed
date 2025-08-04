@@ -249,6 +249,13 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
    */
   resultExpireTime?: Timestamp;
 
+  /**
+   * The progress of the discovery process.
+   *
+   * @generated from field: com.seed.entities.v1alpha.DiscoveryProgress progress = 7;
+   */
+  progress?: DiscoveryProgress;
+
   constructor(data?: PartialMessage<DiscoverEntityResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -263,6 +270,7 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
     { no: 4, name: "last_result_time", kind: "message", T: Timestamp },
     { no: 5, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "result_expire_time", kind: "message", T: Timestamp },
+    { no: 7, name: "progress", kind: "message", T: DiscoveryProgress },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityResponse {
@@ -279,6 +287,87 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
 
   static equals(a: DiscoverEntityResponse | PlainMessage<DiscoverEntityResponse> | undefined, b: DiscoverEntityResponse | PlainMessage<DiscoverEntityResponse> | undefined): boolean {
     return proto3.util.equals(DiscoverEntityResponse, a, b);
+  }
+}
+
+/**
+ * Various metrics reporting on the progress of the discovery process.
+ *
+ * @generated from message com.seed.entities.v1alpha.DiscoveryProgress
+ */
+export class DiscoveryProgress extends Message<DiscoveryProgress> {
+  /**
+   * Number of peers we have found so far.
+   *
+   * @generated from field: int32 peers_found = 1;
+   */
+  peersFound = 0;
+
+  /**
+   * Number of peers we have successfully synced with.
+   *
+   * @generated from field: int32 peers_synced_ok = 2;
+   */
+  peersSyncedOk = 0;
+
+  /**
+   * Number of peers we have failed to sync with.
+   *
+   * @generated from field: int32 peers_failed = 3;
+   */
+  peersFailed = 0;
+
+  /**
+   * Number of blobs we have discovered so far.
+   *
+   * @generated from field: int32 blobs_discovered = 4;
+   */
+  blobsDiscovered = 0;
+
+  /**
+   * Number of blobs we have successfully downloaded.
+   *
+   * @generated from field: int32 blobs_downloaded = 5;
+   */
+  blobsDownloaded = 0;
+
+  /**
+   * Number of blobs we have failed to download.
+   *
+   * @generated from field: int32 blobs_failed = 6;
+   */
+  blobsFailed = 0;
+
+  constructor(data?: PartialMessage<DiscoveryProgress>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.entities.v1alpha.DiscoveryProgress";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peers_found", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "peers_synced_ok", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "peers_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "blobs_discovered", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "blobs_downloaded", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "blobs_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined, b: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined): boolean {
+    return proto3.util.equals(DiscoveryProgress, a, b);
   }
 }
 

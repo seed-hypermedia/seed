@@ -405,16 +405,18 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 		return res, fmt.Errorf("failed to create RBSR store: %w", err)
 	}
 
-	return s.syncWithManyPeers(ctx, subsMap, store), nil
+	return s.syncWithManyPeers(ctx, subsMap, store, &DiscoveryProgress{}), nil
 }
 
 // syncWithManyPeers syncs with many peers in parallel
-func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store rbsr.Store) (res SyncResult) {
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store rbsr.Store, prog *DiscoveryProgress) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
+
+	prog.PeersFound.Add(int32(len(subsMap)))
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -422,8 +424,10 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 				res.Errs[i] = err
 				if err == nil {
 					atomic.AddInt64(&res.NumSyncOK, 1)
+					prog.PeersSyncedOK.Add(1)
 				} else {
 					atomic.AddInt64(&res.NumSyncFailed, 1)
+					prog.PeersFailed.Add(1)
 				}
 
 				wg.Done()
@@ -431,7 +435,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
@@ -444,7 +448,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store) error {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store, prog *DiscoveryProgress) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
@@ -465,7 +469,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids, store)
+	return syncEntities(ctx, pid, c, s.indexer, bswap, s.log, eids, store, prog)
 }
 
 func syncEntities(
@@ -474,10 +478,10 @@ func syncEntities(
 	c p2p.SyncingClient,
 	idx blockstore.Blockstore,
 	sess exchange.Fetcher,
-	db *sqlitex.Pool,
 	log *zap.Logger,
 	eids map[string]bool,
 	store rbsr.Store,
+	prog *DiscoveryProgress,
 ) (err error) {
 	ctx = blob.ContextWithUnreadsTracking(ctx)
 
@@ -500,14 +504,14 @@ func syncEntities(
 		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
 
-	localHaves := make(map[cid.Cid]struct{}, store.Size())
+	localHaves := make(colx.HashSet[cid.Cid], store.Size())
 
 	if err := store.ForEach(0, store.Size(), func(i int, it rbsr.Item) bool {
 		localCid, err := cid.Cast(it.Value)
 		if err != nil {
 			panic(err)
 		}
-		localHaves[localCid] = struct{}{}
+		localHaves.Put(localCid)
 		return true
 	}); err != nil {
 		return err
@@ -565,7 +569,8 @@ func syncEntities(
 			if err != nil {
 				return err
 			}
-			if _, ok := localHaves[blockCid]; !ok {
+			if !localHaves.Has(blockCid) {
+				prog.BlobsDiscovered.Add(1)
 				allWants = append(allWants, blockCid)
 			}
 		}
@@ -585,8 +590,10 @@ func syncEntities(
 		blk, err := sess.GetBlock(ctx, blkID)
 		if err != nil {
 			log.Warn("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			prog.BlobsFailed.Add(1)
 			continue
 		}
+		prog.BlobsDownloaded.Add(1)
 		downloaded[i] = blk
 	}
 

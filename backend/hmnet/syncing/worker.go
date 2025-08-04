@@ -233,7 +233,7 @@ func (sw *worker) sync(ctx context.Context) {
 		return
 	}
 
-	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids, store); err != nil {
+	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.log, eids, store, &DiscoveryProgress{}); err != nil {
 		sw.log.Debug("Failed to smart sync", zap.Error(err))
 	}
 }

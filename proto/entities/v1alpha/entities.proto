@@ -105,6 +105,30 @@ message DiscoverEntityResponse {
   // if the client keeps calling the discovery RPC.
   // Can be empty if no results have been found yet.
   google.protobuf.Timestamp result_expire_time = 6;
+
+  // The progress of the discovery process.
+  DiscoveryProgress progress = 7;
+}
+
+// Various metrics reporting on the progress of the discovery process.
+message DiscoveryProgress {
+  // Number of peers we have found so far.
+  int32 peers_found = 1;
+
+  // Number of peers we have successfully synced with.
+  int32 peers_synced_ok = 2;
+
+  // Number of peers we have failed to sync with.
+  int32 peers_failed = 3;
+
+  // Number of blobs we have discovered so far.
+  int32 blobs_discovered = 4;
+
+  // Number of blobs we have successfully downloaded.
+  int32 blobs_downloaded = 5;
+
+  // Number of blobs we have failed to download.
+  int32 blobs_failed = 6;
 }
 
 // A change to an entity.

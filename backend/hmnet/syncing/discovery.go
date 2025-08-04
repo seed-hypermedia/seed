@@ -14,6 +14,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -30,10 +31,26 @@ const (
 	DefaultDHTTimeout       = 2 * DefaultDiscoveryTimeout / 3
 )
 
+// DiscoveryProgress is used to track the progress of the discovery process.
+type DiscoveryProgress struct {
+	PeersFound      atomic.Int32
+	PeersSyncedOK   atomic.Int32
+	PeersFailed     atomic.Int32
+	BlobsDiscovered atomic.Int32
+	BlobsDownloaded atomic.Int32
+	BlobsFailed     atomic.Int32
+}
+
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
 // other local object. This function blocks until either success or fails to find providers.
 func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
+	prog := &DiscoveryProgress{}
+	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, prog)
+}
+
+// DiscoverObjectWithProgress is similar to DiscoverObject, but tracks the progress of the discovery process.
+func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, prog *DiscoveryProgress) (blob.Version, error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
@@ -111,7 +128,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 			subsMap[pid] = eidsMap
 		}
 
-		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store)
+		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog)
 		if res.NumSyncOK > 0 {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
@@ -148,7 +165,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 		subsMap[p.ID] = eidsMap
 	}
 
-	res := s.syncWithManyPeers(ctxDHT, subsMap, store)
+	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog)
 	if res.NumSyncOK > 0 {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,

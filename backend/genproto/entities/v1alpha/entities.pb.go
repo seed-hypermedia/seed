@@ -271,8 +271,10 @@ type DiscoverEntityResponse struct {
 	// if the client keeps calling the discovery RPC.
 	// Can be empty if no results have been found yet.
 	ResultExpireTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=result_expire_time,json=resultExpireTime,proto3" json:"result_expire_time,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The progress of the discovery process.
+	Progress      *DiscoveryProgress `protobuf:"bytes,7,opt,name=progress,proto3" json:"progress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DiscoverEntityResponse) Reset() {
@@ -347,6 +349,104 @@ func (x *DiscoverEntityResponse) GetResultExpireTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *DiscoverEntityResponse) GetProgress() *DiscoveryProgress {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
+// Various metrics reporting on the progress of the discovery process.
+type DiscoveryProgress struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Number of peers we have found so far.
+	PeersFound int32 `protobuf:"varint,1,opt,name=peers_found,json=peersFound,proto3" json:"peers_found,omitempty"`
+	// Number of peers we have successfully synced with.
+	PeersSyncedOk int32 `protobuf:"varint,2,opt,name=peers_synced_ok,json=peersSyncedOk,proto3" json:"peers_synced_ok,omitempty"`
+	// Number of peers we have failed to sync with.
+	PeersFailed int32 `protobuf:"varint,3,opt,name=peers_failed,json=peersFailed,proto3" json:"peers_failed,omitempty"`
+	// Number of blobs we have discovered so far.
+	BlobsDiscovered int32 `protobuf:"varint,4,opt,name=blobs_discovered,json=blobsDiscovered,proto3" json:"blobs_discovered,omitempty"`
+	// Number of blobs we have successfully downloaded.
+	BlobsDownloaded int32 `protobuf:"varint,5,opt,name=blobs_downloaded,json=blobsDownloaded,proto3" json:"blobs_downloaded,omitempty"`
+	// Number of blobs we have failed to download.
+	BlobsFailed   int32 `protobuf:"varint,6,opt,name=blobs_failed,json=blobsFailed,proto3" json:"blobs_failed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscoveryProgress) Reset() {
+	*x = DiscoveryProgress{}
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscoveryProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscoveryProgress) ProtoMessage() {}
+
+func (x *DiscoveryProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscoveryProgress.ProtoReflect.Descriptor instead.
+func (*DiscoveryProgress) Descriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DiscoveryProgress) GetPeersFound() int32 {
+	if x != nil {
+		return x.PeersFound
+	}
+	return 0
+}
+
+func (x *DiscoveryProgress) GetPeersSyncedOk() int32 {
+	if x != nil {
+		return x.PeersSyncedOk
+	}
+	return 0
+}
+
+func (x *DiscoveryProgress) GetPeersFailed() int32 {
+	if x != nil {
+		return x.PeersFailed
+	}
+	return 0
+}
+
+func (x *DiscoveryProgress) GetBlobsDiscovered() int32 {
+	if x != nil {
+		return x.BlobsDiscovered
+	}
+	return 0
+}
+
+func (x *DiscoveryProgress) GetBlobsDownloaded() int32 {
+	if x != nil {
+		return x.BlobsDownloaded
+	}
+	return 0
+}
+
+func (x *DiscoveryProgress) GetBlobsFailed() int32 {
+	if x != nil {
+		return x.BlobsFailed
+	}
+	return 0
+}
+
 // A change to an entity.
 type Change struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -370,7 +470,7 @@ type Change struct {
 
 func (x *Change) Reset() {
 	*x = Change{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[4]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -382,7 +482,7 @@ func (x *Change) String() string {
 func (*Change) ProtoMessage() {}
 
 func (x *Change) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[4]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -395,7 +495,7 @@ func (x *Change) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Change.ProtoReflect.Descriptor instead.
 func (*Change) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{4}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Change) GetId() string {
@@ -472,7 +572,7 @@ type EntityTimeline struct {
 
 func (x *EntityTimeline) Reset() {
 	*x = EntityTimeline{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[5]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +584,7 @@ func (x *EntityTimeline) String() string {
 func (*EntityTimeline) ProtoMessage() {}
 
 func (x *EntityTimeline) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[5]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +597,7 @@ func (x *EntityTimeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityTimeline.ProtoReflect.Descriptor instead.
 func (*EntityTimeline) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{5}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EntityTimeline) GetId() string {
@@ -568,7 +668,7 @@ type AuthorVersion struct {
 
 func (x *AuthorVersion) Reset() {
 	*x = AuthorVersion{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[6]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -580,7 +680,7 @@ func (x *AuthorVersion) String() string {
 func (*AuthorVersion) ProtoMessage() {}
 
 func (x *AuthorVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[6]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -593,7 +693,7 @@ func (x *AuthorVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorVersion.ProtoReflect.Descriptor instead.
 func (*AuthorVersion) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{6}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AuthorVersion) GetAuthor() string {
@@ -660,7 +760,7 @@ type Entity struct {
 
 func (x *Entity) Reset() {
 	*x = Entity{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[7]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +772,7 @@ func (x *Entity) String() string {
 func (*Entity) ProtoMessage() {}
 
 func (x *Entity) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[7]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +785,7 @@ func (x *Entity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entity.ProtoReflect.Descriptor instead.
 func (*Entity) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{7}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Entity) GetId() string {
@@ -775,7 +875,7 @@ type DeletedEntity struct {
 
 func (x *DeletedEntity) Reset() {
 	*x = DeletedEntity{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[8]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -787,7 +887,7 @@ func (x *DeletedEntity) String() string {
 func (*DeletedEntity) ProtoMessage() {}
 
 func (x *DeletedEntity) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[8]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +900,7 @@ func (x *DeletedEntity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletedEntity.ProtoReflect.Descriptor instead.
 func (*DeletedEntity) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{8}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeletedEntity) GetId() string {
@@ -858,7 +958,7 @@ type SearchEntitiesRequest struct {
 
 func (x *SearchEntitiesRequest) Reset() {
 	*x = SearchEntitiesRequest{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[9]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -870,7 +970,7 @@ func (x *SearchEntitiesRequest) String() string {
 func (*SearchEntitiesRequest) ProtoMessage() {}
 
 func (x *SearchEntitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[9]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -883,7 +983,7 @@ func (x *SearchEntitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchEntitiesRequest.ProtoReflect.Descriptor instead.
 func (*SearchEntitiesRequest) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{9}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SearchEntitiesRequest) GetQuery() string {
@@ -934,7 +1034,7 @@ type SearchEntitiesResponse struct {
 
 func (x *SearchEntitiesResponse) Reset() {
 	*x = SearchEntitiesResponse{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[10]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -946,7 +1046,7 @@ func (x *SearchEntitiesResponse) String() string {
 func (*SearchEntitiesResponse) ProtoMessage() {}
 
 func (x *SearchEntitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[10]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -959,7 +1059,7 @@ func (x *SearchEntitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchEntitiesResponse.ProtoReflect.Descriptor instead.
 func (*SearchEntitiesResponse) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{10}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SearchEntitiesResponse) GetEntities() []*Entity {
@@ -990,7 +1090,7 @@ type DeleteEntityRequest struct {
 
 func (x *DeleteEntityRequest) Reset() {
 	*x = DeleteEntityRequest{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[11]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1002,7 +1102,7 @@ func (x *DeleteEntityRequest) String() string {
 func (*DeleteEntityRequest) ProtoMessage() {}
 
 func (x *DeleteEntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[11]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1015,7 +1115,7 @@ func (x *DeleteEntityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteEntityRequest.ProtoReflect.Descriptor instead.
 func (*DeleteEntityRequest) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{11}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeleteEntityRequest) GetId() string {
@@ -1045,7 +1145,7 @@ type ListDeletedEntitiesRequest struct {
 
 func (x *ListDeletedEntitiesRequest) Reset() {
 	*x = ListDeletedEntitiesRequest{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[12]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1057,7 +1157,7 @@ func (x *ListDeletedEntitiesRequest) String() string {
 func (*ListDeletedEntitiesRequest) ProtoMessage() {}
 
 func (x *ListDeletedEntitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[12]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1070,7 +1170,7 @@ func (x *ListDeletedEntitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeletedEntitiesRequest.ProtoReflect.Descriptor instead.
 func (*ListDeletedEntitiesRequest) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{12}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListDeletedEntitiesRequest) GetPageSize() int32 {
@@ -1100,7 +1200,7 @@ type ListDeletedEntitiesResponse struct {
 
 func (x *ListDeletedEntitiesResponse) Reset() {
 	*x = ListDeletedEntitiesResponse{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[13]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1212,7 @@ func (x *ListDeletedEntitiesResponse) String() string {
 func (*ListDeletedEntitiesResponse) ProtoMessage() {}
 
 func (x *ListDeletedEntitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[13]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1225,7 @@ func (x *ListDeletedEntitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeletedEntitiesResponse.ProtoReflect.Descriptor instead.
 func (*ListDeletedEntitiesResponse) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{13}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListDeletedEntitiesResponse) GetDeletedEntities() []*DeletedEntity {
@@ -1154,7 +1254,7 @@ type UndeleteEntityRequest struct {
 
 func (x *UndeleteEntityRequest) Reset() {
 	*x = UndeleteEntityRequest{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[14]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1266,7 @@ func (x *UndeleteEntityRequest) String() string {
 func (*UndeleteEntityRequest) ProtoMessage() {}
 
 func (x *UndeleteEntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[14]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1279,7 @@ func (x *UndeleteEntityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UndeleteEntityRequest.ProtoReflect.Descriptor instead.
 func (*UndeleteEntityRequest) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{14}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UndeleteEntityRequest) GetId() string {
@@ -1214,7 +1314,7 @@ type ListEntityMentionsRequest struct {
 
 func (x *ListEntityMentionsRequest) Reset() {
 	*x = ListEntityMentionsRequest{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[15]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1226,7 +1326,7 @@ func (x *ListEntityMentionsRequest) String() string {
 func (*ListEntityMentionsRequest) ProtoMessage() {}
 
 func (x *ListEntityMentionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[15]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1239,7 +1339,7 @@ func (x *ListEntityMentionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEntityMentionsRequest.ProtoReflect.Descriptor instead.
 func (*ListEntityMentionsRequest) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{15}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListEntityMentionsRequest) GetId() string {
@@ -1283,7 +1383,7 @@ type ListEntityMentionsResponse struct {
 
 func (x *ListEntityMentionsResponse) Reset() {
 	*x = ListEntityMentionsResponse{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[16]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1295,7 +1395,7 @@ func (x *ListEntityMentionsResponse) String() string {
 func (*ListEntityMentionsResponse) ProtoMessage() {}
 
 func (x *ListEntityMentionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[16]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1308,7 +1408,7 @@ func (x *ListEntityMentionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEntityMentionsResponse.ProtoReflect.Descriptor instead.
 func (*ListEntityMentionsResponse) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{16}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListEntityMentionsResponse) GetMentions() []*Mention {
@@ -1356,7 +1456,7 @@ type Mention struct {
 
 func (x *Mention) Reset() {
 	*x = Mention{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[17]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1368,7 +1468,7 @@ func (x *Mention) String() string {
 func (*Mention) ProtoMessage() {}
 
 func (x *Mention) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[17]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1381,7 +1481,7 @@ func (x *Mention) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Mention.ProtoReflect.Descriptor instead.
 func (*Mention) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{17}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Mention) GetSource() string {
@@ -1455,7 +1555,7 @@ type Mention_BlobInfo struct {
 
 func (x *Mention_BlobInfo) Reset() {
 	*x = Mention_BlobInfo{}
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +1567,7 @@ func (x *Mention_BlobInfo) String() string {
 func (*Mention_BlobInfo) ProtoMessage() {}
 
 func (x *Mention_BlobInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +1580,7 @@ func (x *Mention_BlobInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Mention_BlobInfo.ProtoReflect.Descriptor instead.
 func (*Mention_BlobInfo) Descriptor() ([]byte, []int) {
-	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{17, 0}
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{18, 0}
 }
 
 func (x *Mention_BlobInfo) GetCid() string {
@@ -1518,7 +1618,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\trecursive\x18\x04 \x01(\bR\trecursive\"\xc5\x02\n" +
+	"\trecursive\x18\x04 \x01(\bR\trecursive\"\x8f\x03\n" +
 	"\x16DiscoverEntityResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12C\n" +
 	"\x05state\x18\x02 \x01(\x0e2-.com.seed.entities.v1alpha.DiscoveryTaskStateR\x05state\x12\x1d\n" +
@@ -1527,7 +1627,16 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x10last_result_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastResultTime\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\x05 \x01(\tR\tlastError\x12H\n" +
-	"\x12result_expire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x10resultExpireTime\"\xd7\x01\n" +
+	"\x12result_expire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x10resultExpireTime\x12H\n" +
+	"\bprogress\x18\a \x01(\v2,.com.seed.entities.v1alpha.DiscoveryProgressR\bprogress\"\xf8\x01\n" +
+	"\x11DiscoveryProgress\x12\x1f\n" +
+	"\vpeers_found\x18\x01 \x01(\x05R\n" +
+	"peersFound\x12&\n" +
+	"\x0fpeers_synced_ok\x18\x02 \x01(\x05R\rpeersSyncedOk\x12!\n" +
+	"\fpeers_failed\x18\x03 \x01(\x05R\vpeersFailed\x12)\n" +
+	"\x10blobs_discovered\x18\x04 \x01(\x05R\x0fblobsDiscovered\x12)\n" +
+	"\x10blobs_downloaded\x18\x05 \x01(\x05R\x0fblobsDownloaded\x12!\n" +
+	"\fblobs_failed\x18\x06 \x01(\x05R\vblobsFailed\"\xd7\x01\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12;\n" +
@@ -1646,69 +1755,71 @@ func file_entities_v1alpha_entities_proto_rawDescGZIP() []byte {
 }
 
 var file_entities_v1alpha_entities_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_entities_v1alpha_entities_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_entities_v1alpha_entities_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_entities_v1alpha_entities_proto_goTypes = []any{
 	(DiscoveryTaskState)(0),             // 0: com.seed.entities.v1alpha.DiscoveryTaskState
 	(*GetChangeRequest)(nil),            // 1: com.seed.entities.v1alpha.GetChangeRequest
 	(*GetEntityTimelineRequest)(nil),    // 2: com.seed.entities.v1alpha.GetEntityTimelineRequest
 	(*DiscoverEntityRequest)(nil),       // 3: com.seed.entities.v1alpha.DiscoverEntityRequest
 	(*DiscoverEntityResponse)(nil),      // 4: com.seed.entities.v1alpha.DiscoverEntityResponse
-	(*Change)(nil),                      // 5: com.seed.entities.v1alpha.Change
-	(*EntityTimeline)(nil),              // 6: com.seed.entities.v1alpha.EntityTimeline
-	(*AuthorVersion)(nil),               // 7: com.seed.entities.v1alpha.AuthorVersion
-	(*Entity)(nil),                      // 8: com.seed.entities.v1alpha.Entity
-	(*DeletedEntity)(nil),               // 9: com.seed.entities.v1alpha.DeletedEntity
-	(*SearchEntitiesRequest)(nil),       // 10: com.seed.entities.v1alpha.SearchEntitiesRequest
-	(*SearchEntitiesResponse)(nil),      // 11: com.seed.entities.v1alpha.SearchEntitiesResponse
-	(*DeleteEntityRequest)(nil),         // 12: com.seed.entities.v1alpha.DeleteEntityRequest
-	(*ListDeletedEntitiesRequest)(nil),  // 13: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	(*ListDeletedEntitiesResponse)(nil), // 14: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	(*UndeleteEntityRequest)(nil),       // 15: com.seed.entities.v1alpha.UndeleteEntityRequest
-	(*ListEntityMentionsRequest)(nil),   // 16: com.seed.entities.v1alpha.ListEntityMentionsRequest
-	(*ListEntityMentionsResponse)(nil),  // 17: com.seed.entities.v1alpha.ListEntityMentionsResponse
-	(*Mention)(nil),                     // 18: com.seed.entities.v1alpha.Mention
-	nil,                                 // 19: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	(*Mention_BlobInfo)(nil),            // 20: com.seed.entities.v1alpha.Mention.BlobInfo
-	(*timestamppb.Timestamp)(nil),       // 21: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),               // 22: google.protobuf.Empty
+	(*DiscoveryProgress)(nil),           // 5: com.seed.entities.v1alpha.DiscoveryProgress
+	(*Change)(nil),                      // 6: com.seed.entities.v1alpha.Change
+	(*EntityTimeline)(nil),              // 7: com.seed.entities.v1alpha.EntityTimeline
+	(*AuthorVersion)(nil),               // 8: com.seed.entities.v1alpha.AuthorVersion
+	(*Entity)(nil),                      // 9: com.seed.entities.v1alpha.Entity
+	(*DeletedEntity)(nil),               // 10: com.seed.entities.v1alpha.DeletedEntity
+	(*SearchEntitiesRequest)(nil),       // 11: com.seed.entities.v1alpha.SearchEntitiesRequest
+	(*SearchEntitiesResponse)(nil),      // 12: com.seed.entities.v1alpha.SearchEntitiesResponse
+	(*DeleteEntityRequest)(nil),         // 13: com.seed.entities.v1alpha.DeleteEntityRequest
+	(*ListDeletedEntitiesRequest)(nil),  // 14: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	(*ListDeletedEntitiesResponse)(nil), // 15: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	(*UndeleteEntityRequest)(nil),       // 16: com.seed.entities.v1alpha.UndeleteEntityRequest
+	(*ListEntityMentionsRequest)(nil),   // 17: com.seed.entities.v1alpha.ListEntityMentionsRequest
+	(*ListEntityMentionsResponse)(nil),  // 18: com.seed.entities.v1alpha.ListEntityMentionsResponse
+	(*Mention)(nil),                     // 19: com.seed.entities.v1alpha.Mention
+	nil,                                 // 20: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	(*Mention_BlobInfo)(nil),            // 21: com.seed.entities.v1alpha.Mention.BlobInfo
+	(*timestamppb.Timestamp)(nil),       // 22: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),               // 23: google.protobuf.Empty
 }
 var file_entities_v1alpha_entities_proto_depIdxs = []int32{
 	0,  // 0: com.seed.entities.v1alpha.DiscoverEntityResponse.state:type_name -> com.seed.entities.v1alpha.DiscoveryTaskState
-	21, // 1: com.seed.entities.v1alpha.DiscoverEntityResponse.last_result_time:type_name -> google.protobuf.Timestamp
-	21, // 2: com.seed.entities.v1alpha.DiscoverEntityResponse.result_expire_time:type_name -> google.protobuf.Timestamp
-	21, // 3: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
-	19, // 4: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	7,  // 5: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
-	21, // 6: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
-	21, // 7: com.seed.entities.v1alpha.Entity.version_time:type_name -> google.protobuf.Timestamp
-	21, // 8: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
-	8,  // 9: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
-	9,  // 10: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
-	18, // 11: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
-	20, // 12: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
-	5,  // 13: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
-	21, // 14: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
-	1,  // 15: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
-	2,  // 16: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
-	3,  // 17: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
-	10, // 18: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
-	12, // 19: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
-	13, // 20: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	15, // 21: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
-	16, // 22: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
-	5,  // 23: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
-	6,  // 24: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
-	4,  // 25: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
-	11, // 26: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
-	22, // 27: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
-	14, // 28: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	22, // 29: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
-	17, // 30: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
-	23, // [23:31] is the sub-list for method output_type
-	15, // [15:23] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	22, // 1: com.seed.entities.v1alpha.DiscoverEntityResponse.last_result_time:type_name -> google.protobuf.Timestamp
+	22, // 2: com.seed.entities.v1alpha.DiscoverEntityResponse.result_expire_time:type_name -> google.protobuf.Timestamp
+	5,  // 3: com.seed.entities.v1alpha.DiscoverEntityResponse.progress:type_name -> com.seed.entities.v1alpha.DiscoveryProgress
+	22, // 4: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
+	20, // 5: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	8,  // 6: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
+	22, // 7: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
+	22, // 8: com.seed.entities.v1alpha.Entity.version_time:type_name -> google.protobuf.Timestamp
+	22, // 9: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
+	9,  // 10: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
+	10, // 11: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
+	19, // 12: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
+	21, // 13: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
+	6,  // 14: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
+	22, // 15: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
+	1,  // 16: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
+	2,  // 17: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
+	3,  // 18: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
+	11, // 19: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
+	13, // 20: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
+	14, // 21: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	16, // 22: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
+	17, // 23: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
+	6,  // 24: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
+	7,  // 25: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
+	4,  // 26: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
+	12, // 27: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
+	23, // 28: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
+	15, // 29: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	23, // 30: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
+	18, // 31: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
+	24, // [24:32] is the sub-list for method output_type
+	16, // [16:24] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_entities_v1alpha_entities_proto_init() }
@@ -1722,7 +1833,7 @@ func file_entities_v1alpha_entities_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_entities_v1alpha_entities_proto_rawDesc), len(file_entities_v1alpha_entities_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

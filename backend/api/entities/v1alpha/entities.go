@@ -15,6 +15,7 @@ import (
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/hlc"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"sort"
@@ -39,7 +40,7 @@ import (
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(ctx context.Context, i blob.IRI, v blob.Version, recursive bool) (blob.Version, error)
+	DiscoverObjectWithProgress(ctx context.Context, i blob.IRI, v blob.Version, recursive bool, prog *syncing.DiscoveryProgress) (blob.Version, error)
 }
 
 // Server implements Entities API.
@@ -119,6 +120,7 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 			callCount:    1,
 			lastCallTime: now,
 			state:        entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED,
+			prog:         &syncing.DiscoveryProgress{},
 		}
 		api.discoveryTasks[dkey] = task
 		api.mu.Unlock()
@@ -130,6 +132,7 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 		return &entities.DiscoverEntityResponse{
 			State:     task.state,
 			CallCount: int32(task.callCount),
+			Progress:  progressToProto(task.prog),
 		}, nil
 	}
 	api.mu.Unlock()
@@ -144,6 +147,7 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 		Version:   task.lastResult.String(),
 		State:     task.state,
 		CallCount: int32(task.callCount),
+		Progress:  progressToProto(task.prog),
 	}
 
 	if task.lastErr != nil {
@@ -156,6 +160,17 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	}
 
 	return resp, nil
+}
+
+func progressToProto(prog *syncing.DiscoveryProgress) *entities.DiscoveryProgress {
+	return &entities.DiscoveryProgress{
+		PeersFound:      prog.PeersFound.Load(),
+		PeersSyncedOk:   prog.PeersSyncedOK.Load(),
+		PeersFailed:     prog.PeersFailed.Load(),
+		BlobsDiscovered: prog.BlobsDiscovered.Load(),
+		BlobsDownloaded: prog.BlobsDownloaded.Load(),
+		BlobsFailed:     prog.BlobsFailed.Load(),
+	}
 }
 
 type discoveryTaskKey struct {
@@ -176,15 +191,17 @@ type discoveryTask struct {
 	lastErr        error
 
 	state entities.DiscoveryTaskState
+	prog  *syncing.DiscoveryProgress
 }
 
 func (task *discoveryTask) start(api *Server) {
 	for {
 		task.mu.Lock()
 		task.state = entities.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
+		task.prog = &syncing.DiscoveryProgress{}
 		task.mu.Unlock()
 
-		res, err := api.disc.DiscoverObject(context.Background(), task.key.IRI, task.key.Version, task.key.Recursive)
+		res, err := api.disc.DiscoverObjectWithProgress(context.Background(), task.key.IRI, task.key.Version, task.key.Recursive, task.prog)
 		now := time.Now()
 		task.mu.Lock()
 		task.lastResultTime = now
@@ -327,7 +344,7 @@ LIMIT :limit
 `)
 
 var qIsDeletedComment = dqb.Str(`
-	SELECT 
+	SELECT
 	ifnull(extra_attrs->>'deleted' = 1, 0) AS is_deleted
 	FROM structural_blobs
 	WHERE type = 'Comment'
