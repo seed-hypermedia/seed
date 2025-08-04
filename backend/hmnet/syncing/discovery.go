@@ -8,6 +8,7 @@ import (
 	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
+	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -86,6 +87,20 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 		return "", err
 	}
 
+	// Create RBSR store once for reuse across all peers.
+	dkeys := colx.HashSet[discoveryKey]{
+		discoveryKey{
+			IRI:       entityID,
+			Version:   version,
+			Recursive: recursive,
+		}: {},
+	}
+
+	store, err := s.loadStore(ctxLocalPeers, dkeys)
+	if err != nil {
+		return "", fmt.Errorf("failed to create RBSR store: %w", err)
+	}
+
 	if len(allPeers) != 0 {
 		s.log.Debug("Discovering via connected local peers first", zap.Error(err))
 		eidsMap := make(map[string]bool)
@@ -96,7 +111,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 			subsMap[pid] = eidsMap
 		}
 
-		res := s.syncWithManyPeers(ctxLocalPeers, subsMap)
+		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store)
 		if res.NumSyncOK > 0 {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
@@ -133,7 +148,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 		subsMap[p.ID] = eidsMap
 	}
 
-	res := s.syncWithManyPeers(ctxDHT, subsMap)
+	res := s.syncWithManyPeers(ctxDHT, subsMap, store)
 	if res.NumSyncOK > 0 {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,
@@ -146,33 +161,21 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 	return "", fmt.Errorf("Found some DHT providers but could not get document from them %s", c.String())
 }
 
-func (s *Service) discoverObject(ctx context.Context, iri blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
-	dkey := discoveryKey{
-		IRI:       iri,
-		Version:   version,
-		Recursive: recursive,
+// loadStore creates and populates an RBSR store for the given discovery keys.
+func (s *Service) loadStore(ctx context.Context, dkeys map[discoveryKey]struct{}) (rbsr.Store, error) {
+	store := rbsr.NewSliceStore()
+
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, dkeys, store)
+	}); err != nil {
+		return nil, err
 	}
 
-	c := s.single.DoChanContext(ctx, dkey, func(ctx context.Context) (blob.Version, error) {
-		// Giving some time before letting another discovery for this key to happen.
-		// The frontend is currently calling this function very agressively.
-		defer time.AfterFunc(time.Second*30, func() {
-			s.single.Forget(dkey)
-		})
-
-		// Check if the entity exists in the local store.
-
-		// Fill up the RBSR store and spawn a goroutine to sync with the peers.
-		// store := rbsr.NewSliceStore()
-		panic("TODO")
-	})
-
-	select {
-	case res := <-c:
-		return res.Val, nil
-	case <-ctx.Done():
-		return "", ctx.Err()
+	if err := store.Seal(); err != nil {
+		return nil, err
 	}
+
+	return store, nil
 }
 
 type discoveryKey struct {

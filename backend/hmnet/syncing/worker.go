@@ -4,12 +4,17 @@ import (
 	"context"
 	"hash/fnv"
 	"math"
+	"seed/backend/blob"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/hmnet/netutil"
+	"seed/backend/hmnet/syncing/rbsr"
+	"strings"
 	"sync"
 	"time"
 
+	"seed/backend/util/colx"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/boxo/blockstore"
@@ -206,7 +211,29 @@ func (sw *worker) sync(ctx context.Context) {
 		eid := "hm://" + subscription.Account + subscription.Path
 		eids[eid] = subscription.Recursive
 	}
-	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids); err != nil {
+	// Create RBSR store for the entities
+	dkeys := make(colx.HashSet[discoveryKey], len(eids))
+	for eid, recursive := range eids {
+		dkeys.Put(discoveryKey{
+			IRI:       blob.IRI(strings.TrimSuffix(eid, "/")),
+			Recursive: recursive,
+		})
+	}
+
+	store := rbsr.NewSliceStore()
+	if err := sw.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, dkeys, store)
+	}); err != nil {
+		sw.log.Debug("Failed to create RBSR store", zap.Error(err))
+		return
+	}
+
+	if err := store.Seal(); err != nil {
+		sw.log.Debug("Failed to seal RBSR store", zap.Error(err))
+		return
+	}
+
+	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids, store); err != nil {
 		sw.log.Debug("Failed to smart sync", zap.Error(err))
 	}
 }

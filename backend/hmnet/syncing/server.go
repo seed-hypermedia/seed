@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	"google.golang.org/grpc"
 
+	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 )
@@ -58,15 +59,13 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
-	dkeys := make(map[discoveryKey]struct{}, len(filters))
-
+	dkeys := make(colx.HashSet[discoveryKey], len(filters))
 	for _, f := range filters {
 		f.Resource = strings.TrimSuffix(f.Resource, "/")
-		dkey := discoveryKey{
+		dkeys.Put(discoveryKey{
 			IRI:       blob.IRI(f.Resource),
 			Recursive: f.Recursive,
-		}
-		dkeys[dkey] = struct{}{}
+		})
 	}
 
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {

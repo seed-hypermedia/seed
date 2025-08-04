@@ -13,6 +13,7 @@ import (
 	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
+	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
 	"seed/backend/util/singleflight"
 	"strings"
@@ -99,6 +100,7 @@ func init() {
 // of a Syncing RPC client for a given remote Device ID.
 type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
 
+// subscriptionMap is a map of peer IDs to an IRI and a boolean indicating whether it's a recursive subscription.
 type subscriptionMap map[peer.ID]map[string]bool
 
 // bitswap is a subset of the bitswap that is used by syncing service.
@@ -406,11 +408,25 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		subsMap[pid] = eidsMap
 	}
 
-	return s.syncWithManyPeers(ctx, subsMap), nil
+	// Create RBSR store for all subscriptions
+	dkeys := make(colx.HashSet[discoveryKey], len(subscriptions))
+	for _, subs := range subscriptions {
+		dkeys.Put(discoveryKey{
+			IRI:       blob.IRI("hm://" + subs.Account + subs.Path),
+			Recursive: subs.Recursive,
+		})
+	}
+
+	store, err := s.loadStore(ctx, dkeys)
+	if err != nil {
+		return res, fmt.Errorf("failed to create RBSR store: %w", err)
+	}
+
+	return s.syncWithManyPeers(ctx, subsMap, store), nil
 }
 
 // syncWithManyPeers syncs with many peers in parallel
-func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store rbsr.Store) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
@@ -432,7 +448,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
@@ -445,9 +461,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-// syncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
-// If a non empty entity is provided, then only syncs blobs related to that entities.
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
@@ -468,7 +482,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids)
+	return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids, store)
 }
 
 func syncEntities(
@@ -480,6 +494,7 @@ func syncEntities(
 	db *sqlitex.Pool,
 	log *zap.Logger,
 	eids map[string]bool,
+	store rbsr.Store,
 ) (err error) {
 	ctx = blob.ContextWithUnreadsTracking(ctx)
 
@@ -500,29 +515,6 @@ func syncEntities(
 	)
 	if _, ok := ctx.Deadline(); !ok {
 		return fmt.Errorf("BUG: syncEntity must have timeout")
-	}
-
-	store := rbsr.NewSliceStore()
-
-	dkeys := make(map[discoveryKey]struct{}, len(eids))
-
-	for eid, recursive := range eids {
-		eid = strings.TrimSuffix(eid, "/")
-		dkey := discoveryKey{
-			IRI:       blob.IRI(eid),
-			Recursive: recursive,
-		}
-		dkeys[dkey] = struct{}{}
-	}
-
-	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return loadRBSRStore(conn, dkeys, store)
-	}); err != nil {
-		return err
-	}
-
-	if err := store.Seal(); err != nil {
-		return err
 	}
 
 	localHaves := make(map[cid.Cid]struct{}, store.Size())
