@@ -177,6 +177,11 @@ export function useCommentEditor(
     onSuccess: () => {
       invalidateQueries(['trpc.comments.getCommentDraft'])
       onDiscardDraft?.()
+      // Only clear editor if this was triggered by successful comment publication
+      if (shouldClearEditorRef.current) {
+        shouldClearEditorRef.current = false
+        editor.removeBlocks(editor.topLevelBlocks)
+      }
     },
   })
   const pushComments = usePushComments()
@@ -184,6 +189,7 @@ export function useCommentEditor(
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
+  const shouldClearEditorRef = useRef<boolean>(false)
 
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
@@ -346,6 +352,8 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       clearTimeout(saveTimeoutRef.current)
+      // Set flag to indicate we should clear editor after draft removal
+      shouldClearEditorRef.current = true
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId,
