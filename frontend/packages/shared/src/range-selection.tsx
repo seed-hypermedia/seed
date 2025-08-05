@@ -1,8 +1,279 @@
 import {useMachine} from '@xstate/react'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {assign, setup} from 'xstate'
+import {isSurrogate} from './client/unicode'
+import {HMBlockNode} from './hm-types'
 
-export function useRangeSelection() {
+/**
+ * Converts a UTF-16 offset to a Unicode codepoint offset
+ * @param text - The source text (HMBlock.text with invisible characters)
+ * @param utf16Offset - The UTF-16 based offset from browser selection
+ * @returns The corresponding Unicode codepoint offset
+ */
+function utf16ToCodepointOffset(text: string, utf16Offset: number): number {
+  let codepointOffset = 0
+  let utf16Index = 0
+
+  while (utf16Index < utf16Offset && utf16Index < text.length) {
+    if (isSurrogate(text, utf16Index)) {
+      // Surrogate pair takes 2 UTF-16 code units but counts as 1 codepoint
+      utf16Index += 2
+    } else {
+      // Regular character takes 1 UTF-16 code unit and counts as 1 codepoint
+      utf16Index += 1
+    }
+    codepointOffset++
+  }
+
+  return codepointOffset
+}
+
+function getBlockNodeById(
+  blocks: Array<HMBlockNode>,
+  blockId: string,
+): HMBlockNode | null {
+  if (!blockId) return null
+
+  let res: HMBlockNode | undefined
+  blocks.find((bn) => {
+    if (bn.block?.id == blockId) {
+      res = bn
+      return true
+    } else if (bn.children?.length) {
+      const foundChild = getBlockNodeById(bn.children, blockId)
+      if (foundChild) {
+        res = foundChild
+        return true
+      }
+    }
+    return false
+  })
+  return res || null
+}
+
+export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
+  const machine = useMemo(
+    () =>
+      setup({
+        types: {
+          context: defaultContext as {
+            selection: Selection | null
+            blockId: string
+            rangeStart: number | null
+            rangeEnd: number | null
+            mouseDown: boolean
+          },
+          events: {} as
+            | {type: 'SELECT'}
+            | {type: 'CREATE_COMMENT'}
+            | {type: 'COMMENT_CANCEL'}
+            | {type: 'COMMENT_SUBMIT'}
+            | {type: 'MOUSEDOWN'}
+            | {type: 'MOUSEUP'}
+            | {type: 'ENABLE'}
+            | {type: 'DISABLE'},
+        },
+        actions: {
+          setMouse: assign(({context, event}) => {
+            return {
+              ...context,
+              mouseDown: event.type == 'MOUSEDOWN',
+            }
+          }),
+          // @ts-expect-error
+          setRange: assign(() => {
+            let sel = window.getSelection()
+            if (sel && sel.rangeCount > 0) {
+              const {anchorNode, anchorOffset, focusNode, focusOffset} = sel
+              const anchorBlockId = getParentElId(anchorNode)
+              const focusBlockId = getParentElId(focusNode)
+              const anchorRangeOffset = getRangeOffset(anchorNode)
+              const focusRangeOffset = getRangeOffset(focusNode)
+
+              if (focusBlockId !== anchorBlockId) {
+                // Check if this is a triple-click scenario (all offsets are 0)
+                const isTripleClick =
+                  focusRangeOffset === 0 && focusOffset === 0
+
+                if (isTripleClick && anchorBlockId) {
+                  // Handle triple-click: select entire anchor block
+                  if (documentContent) {
+                    const blockNode = getBlockNodeById(
+                      documentContent,
+                      anchorBlockId,
+                    )
+                    if (
+                      blockNode?.block &&
+                      'text' in blockNode.block &&
+                      blockNode.block.text
+                    ) {
+                      const blockText = blockNode.block.text
+                      return {
+                        ...defaultContext,
+                        selection: sel,
+                        blockId: anchorBlockId,
+                        rangeStart: 0,
+                        rangeEnd: utf16ToCodepointOffset(
+                          blockText,
+                          blockText.length,
+                        ),
+                      }
+                    }
+                  }
+                  // Fallback to DOM text if documentContent not available
+                  const blockElement = document.getElementById(anchorBlockId)
+                  if (blockElement) {
+                    const blockTextContent = blockElement.textContent || ''
+                    return {
+                      ...defaultContext,
+                      selection: sel,
+                      blockId: anchorBlockId,
+                      rangeStart: 0,
+                      rangeEnd: blockTextContent.length,
+                    }
+                  }
+                }
+
+                // For any other multi-block selection, reject it
+                return defaultContext
+              }
+
+              const blockId = focusBlockId
+              const anchorRange = anchorRangeOffset + anchorOffset
+              const focusRange = focusRangeOffset + focusOffset
+
+              if (anchorRange === focusRange) {
+                return defaultContext
+              }
+
+              const utf16RangeStart = Math.min(anchorRange, focusRange)
+              const utf16RangeEnd = Math.max(anchorRange, focusRange)
+
+              // Convert UTF-16 offsets to Unicode codepoint offsets
+              let rangeStart = utf16RangeStart
+              let rangeEnd = utf16RangeEnd
+
+              if (documentContent && blockId) {
+                const blockNode = getBlockNodeById(documentContent, blockId)
+                if (
+                  blockNode?.block &&
+                  'text' in blockNode.block &&
+                  blockNode.block.text
+                ) {
+                  const blockText = blockNode.block.text
+                  rangeStart = utf16ToCodepointOffset(
+                    blockText,
+                    utf16RangeStart,
+                  )
+                  rangeEnd = utf16ToCodepointOffset(blockText, utf16RangeEnd)
+                }
+              }
+
+              console.log('=== SELECTION === ', {
+                blockId,
+                rangeStart,
+                rangeEnd,
+                utf16RangeStart,
+                utf16RangeEnd,
+              })
+
+              return {
+                ...defaultContext,
+                selection: sel,
+                blockId,
+                rangeStart,
+                rangeEnd,
+              }
+            }
+          }),
+          clearContext: assign(() => {
+            document.getSelection()?.empty()
+            return defaultContext
+          }),
+        },
+      }).createMachine({
+        context: {
+          selection: null,
+          blockId: '',
+          rangeStart: null,
+          rangeEnd: null,
+          mouseDown: false,
+        },
+        id: 'Range Selection',
+        initial: 'disable',
+        on: {
+          ENABLE: {
+            target: '.idle',
+          },
+          DISABLE: {
+            target: '.disable',
+          },
+          MOUSEDOWN: {
+            actions: ['setMouse'],
+          },
+          MOUSEUP: {
+            actions: ['setMouse'],
+          },
+        },
+        states: {
+          disable: {},
+          idle: {
+            on: {
+              SELECT: {
+                target: 'active',
+              },
+            },
+          },
+          active: {
+            initial: 'selecting',
+            states: {
+              selecting: {
+                after: {
+                  '300': {
+                    target: 'selected',
+                    guard: ({context}) => !context.mouseDown,
+                  },
+                },
+                on: {
+                  SELECT: {
+                    target: 'selecting',
+                    reenter: true,
+                  },
+                  MOUSEUP: {
+                    target: 'selected',
+                  },
+                },
+              },
+              selected: {
+                entry: ['setRange'],
+                on: {
+                  SELECT: {
+                    target: 'selecting',
+                    action: ['clearContext'],
+                  },
+                  CREATE_COMMENT: {
+                    target: '#Range Selection.idle',
+                    actions: ['clearContext'],
+                  },
+                },
+              },
+              commenting: {
+                on: {
+                  COMMENT_SUBMIT: {
+                    target: '#Range Selection.idle',
+                  },
+                  COMMENT_CANCEL: {
+                    target: 'selected',
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    [documentContent],
+  )
+
   const [state, send, actor] = useMachine(machine)
   const wrapper = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
@@ -92,210 +363,6 @@ const defaultContext = {
   rangeEnd: null,
   mouseDown: false,
 }
-
-const machine = setup({
-  types: {
-    context: defaultContext as {
-      selection: Selection | null
-      blockId: string
-      rangeStart: number | null
-      rangeEnd: number | null
-      mouseDown: boolean
-    },
-    events: {} as
-      | {type: 'SELECT'}
-      | {type: 'CREATE_COMMENT'}
-      | {type: 'COMMENT_CANCEL'}
-      | {type: 'COMMENT_SUBMIT'}
-      | {type: 'MOUSEDOWN'}
-      | {type: 'MOUSEUP'}
-      | {type: 'ENABLE'}
-      | {type: 'DISABLE'},
-  },
-  actions: {
-    setMouse: assign(({context, event}) => {
-      return {
-        ...context,
-        mouseDown: event.type == 'MOUSEDOWN',
-      }
-    }),
-    // @ts-expect-error
-    setRange: assign(() => {
-      let sel = window.getSelection()
-      if (sel && sel.rangeCount > 0) {
-        const {anchorNode, anchorOffset, focusNode, focusOffset} = sel
-        const anchorBlockId = getParentElId(anchorNode)
-        const focusBlockId = getParentElId(focusNode)
-        const anchorRangeOffset = getRangeOffset(anchorNode)
-        const focusRangeOffset = getRangeOffset(focusNode)
-
-        if (focusBlockId !== anchorBlockId) {
-          // Check if this is a triple-click scenario (all offsets are 0)
-          const isTripleClick = focusRangeOffset === 0 && focusOffset === 0
-
-          if (isTripleClick && anchorBlockId) {
-            // Handle triple-click: select entire anchor block
-            // console.log(
-            //   '=== SELECTION === Triple-click detected, selecting entire block:',
-            //   anchorBlockId,
-            // )
-            const blockElement = document.getElementById(anchorBlockId)
-            if (blockElement) {
-              const blockTextContent = blockElement.textContent || ''
-              return {
-                ...defaultContext,
-                selection: sel,
-                blockId: anchorBlockId,
-                rangeStart: 0,
-                rangeEnd: blockTextContent.length,
-              }
-            }
-          }
-
-          // For any other multi-block selection, reject it
-          // console.log(
-          //   '=== SELECTION === invalid selection, multiple blocks selected.',
-          //   {
-          //     anchorBlockId,
-          //     focusBlockId,
-          //     anchorRangeOffset,
-          //     focusRangeOffset,
-          //     anchorOffset,
-          //     focusOffset,
-          //   },
-          // )
-          return defaultContext
-        }
-        const blockId = focusBlockId
-        const anchorRange = anchorRangeOffset + anchorOffset
-        const focusRange = focusRangeOffset + focusOffset
-        if (anchorRange === focusRange) {
-          // console.log('=== SELECTION === empty range not supported')
-          return defaultContext
-        }
-        const rangeStart = Math.min(anchorRange, focusRange)
-        const rangeEnd = Math.max(anchorRange, focusRange)
-
-        console.log('=== SELECTION === ', {
-          blockId,
-          rangeStart,
-          rangeEnd,
-        })
-        return {
-          ...defaultContext,
-          selection: sel,
-          blockId,
-          rangeStart,
-          rangeEnd,
-        }
-      }
-    }),
-    clearContext: assign(() => {
-      document.getSelection()?.empty()
-      return defaultContext
-    }),
-  },
-  // schemas: {
-  //   events: {
-  //     SELECT: {
-  //       type: 'object',
-  //       properties: {},
-  //     },
-  //     CREATE_COMMENT: {
-  //       type: 'object',
-  //       properties: {},
-  //     },
-  //     COMMENT_CANCEL: {
-  //       type: 'object',
-  //       properties: {},
-  //     },
-  //     COMMENT_SUBMIT: {
-  //       type: 'object',
-  //       properties: {},
-  //     },
-  //   },
-  // },
-}).createMachine({
-  context: {
-    selection: null,
-    blockId: '',
-    rangeStart: null,
-    rangeEnd: null,
-    mouseDown: false,
-  },
-  id: 'Range Selection',
-  initial: 'disable',
-  on: {
-    ENABLE: {
-      target: '.idle',
-    },
-    DISABLE: {
-      target: '.disable',
-    },
-    MOUSEDOWN: {
-      actions: ['setMouse'],
-    },
-    MOUSEUP: {
-      actions: ['setMouse'],
-    },
-  },
-  states: {
-    disable: {},
-    idle: {
-      on: {
-        SELECT: {
-          target: 'active',
-        },
-      },
-    },
-    active: {
-      initial: 'selecting',
-      states: {
-        selecting: {
-          after: {
-            '300': {
-              target: 'selected',
-              guard: ({context}) => !context.mouseDown,
-            },
-          },
-          on: {
-            SELECT: {
-              target: 'selecting',
-              reenter: true,
-            },
-            MOUSEUP: {
-              target: 'selected',
-            },
-          },
-        },
-        selected: {
-          entry: ['setRange'],
-          on: {
-            SELECT: {
-              target: 'selecting',
-              action: ['clearContext'],
-            },
-            CREATE_COMMENT: {
-              // target: 'commenting',
-              target: '#Range Selection.idle',
-              actions: ['clearContext'],
-            },
-          },
-        },
-        commenting: {
-          on: {
-            COMMENT_SUBMIT: {
-              target: '#Range Selection.idle',
-            },
-            COMMENT_CANCEL: {
-              target: 'selected',
-            },
-          },
-        },
-      },
-    },
-  },
-})
 
 function getParentElId(el: Node | null) {
   if (!el) return null

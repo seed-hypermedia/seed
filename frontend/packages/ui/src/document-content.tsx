@@ -253,9 +253,9 @@ export function DocContent({
   handleBlockReplace?: () => boolean
 }) {
   const media = useMedia()
-  const {wrapper, bubble, coords, state, actor} = useRangeSelection()
-  const {layoutUnit, onBlockCopy} = useDocContentContext()
   const allBlocks = document?.content || []
+  const {wrapper, bubble, coords, state, actor} = useRangeSelection(allBlocks)
+  const {layoutUnit, onBlockCopy} = useDocContentContext()
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
   const displayBlocks = maxBlockCount
     ? clipContentBlocks(focusedBlocks || [], maxBlockCount)
@@ -328,6 +328,8 @@ export function DocContent({
                         expanded: true,
                       },
                 )
+                // Clear the browser selection so custom highlight becomes visible
+                actor.send({type: 'CREATE_COMMENT'})
               }}
             >
               <Link className="size-3" size={2} />
