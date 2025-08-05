@@ -301,15 +301,19 @@ export function DocContent({
       <div
         ref={bubble}
         className={cn(
-          'absolute top-0 left-0 z-[99999] hidden select-none',
-          media.gtSm && !state.matches('disable') ? 'block' : 'hidden',
+          'absolute top-0 left-0 z-[99999] transition-[opacity,transform] duration-200 ease-out select-none',
+          media.gtSm &&
+            !state.matches('disable') &&
+            state.matches({active: 'selected'})
+            ? 'pointer-events-auto translate-y-0 opacity-100'
+            : 'pointer-events-none -translate-y-4 opacity-0',
         )}
         style={{...coords}}
       >
         {onBlockCopy ? (
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
-              size="sm"
+              size="icon"
               className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
               onClick={() => {
                 onBlockCopy(
@@ -326,7 +330,7 @@ export function DocContent({
                 )
               }}
             >
-              <Link size={2} />
+              <Link className="size-3" size={2} />
             </Button>
           </Tooltip>
         ) : null}

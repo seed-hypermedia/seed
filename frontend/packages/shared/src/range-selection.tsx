@@ -128,9 +128,41 @@ const machine = setup({
         const focusBlockId = getParentElId(focusNode)
         const anchorRangeOffset = getRangeOffset(anchorNode)
         const focusRangeOffset = getRangeOffset(focusNode)
+
         if (focusBlockId !== anchorBlockId) {
+          // Check if this is a triple-click scenario (all offsets are 0)
+          const isTripleClick = focusRangeOffset === 0 && focusOffset === 0
+
+          if (isTripleClick && anchorBlockId) {
+            // Handle triple-click: select entire anchor block
+            // console.log(
+            //   '=== SELECTION === Triple-click detected, selecting entire block:',
+            //   anchorBlockId,
+            // )
+            const blockElement = document.getElementById(anchorBlockId)
+            if (blockElement) {
+              const blockTextContent = blockElement.textContent || ''
+              return {
+                ...defaultContext,
+                selection: sel,
+                blockId: anchorBlockId,
+                rangeStart: 0,
+                rangeEnd: blockTextContent.length,
+              }
+            }
+          }
+
+          // For any other multi-block selection, reject it
           // console.log(
-          //   '=== SELECTION === invalid selection, probably multiple blocks selected.',
+          //   '=== SELECTION === invalid selection, multiple blocks selected.',
+          //   {
+          //     anchorBlockId,
+          //     focusBlockId,
+          //     anchorRangeOffset,
+          //     focusRangeOffset,
+          //     anchorOffset,
+          //     focusOffset,
+          //   },
           // )
           return defaultContext
         }
@@ -144,11 +176,11 @@ const machine = setup({
         const rangeStart = Math.min(anchorRange, focusRange)
         const rangeEnd = Math.max(anchorRange, focusRange)
 
-        // console.log('=== SELECTION === ', {
-        //   blockId,
-        //   rangeStart,
-        //   rangeEnd,
-        // })
+        console.log('=== SELECTION === ', {
+          blockId,
+          rangeStart,
+          rangeEnd,
+        })
         return {
           ...defaultContext,
           selection: sel,
