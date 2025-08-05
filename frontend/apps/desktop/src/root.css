@@ -4,6 +4,7 @@ body {
   overflow: hidden;
   display: flex;
   cursor: default;
+  overscroll-behavior: none;
 }
 
 /* TODO: figure out why was this style added */

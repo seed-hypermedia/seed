@@ -8,6 +8,7 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
@@ -571,15 +572,15 @@ export function CommentEditor2({
       </div>
       <div className="bg-muted w-full flex-1 rounded-md">
         <div
-          justifyContent={isEditorFocused ? 'flex-start' : 'center'}
-          flex={1}
-          className="comment-editor"
-          paddingHorizontal={isEditorFocused ? '$3' : undefined}
+          className={cn(
+            'comment-editor min-h-10 flex-1',
+            isEditorFocused ? 'justify-start px-3' : 'justify-center',
+          )}
           // marginTop="$1"
 
           // minHeight={isEditorFocused ? 105 : 40}
           // paddingHorizontal="$4"
-          onPress={(e: MouseEvent) => {
+          onClick={(e) => {
             const target = e.target as HTMLElement
 
             // Check if the clicked element is not an input, button, or textarea
@@ -613,7 +614,6 @@ export function CommentEditor2({
           // paddingBottom="$2"
           // bg="$color4"
           // paddingHorizontal="$4"
-          minHeight={40}
         >
           {isEditorFocused ? (
             <HyperMediaEditorView editor={editor} openUrl={openUrl} />

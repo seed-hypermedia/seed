@@ -609,12 +609,9 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
 
   return (
     <Button
-      bg="$brand12"
-      borderColor="$brand11"
-      hoverStyle={{bg: '$brand11', borderColor: '$brand10'}}
-      size="$2"
-      iconAfter={ArrowRight}
-      onPress={() => {
+      variant="secondary"
+      size="xs"
+      onClick={() => {
         navigate({
           key: 'document',
           id: {...route.id, version: null, latest: true},
@@ -623,6 +620,7 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
       }}
     >
       Latest Version
+      <ArrowRight className="size-4" />
     </Button>
   )
 }
