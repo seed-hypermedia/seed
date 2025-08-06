@@ -45,12 +45,8 @@ async function getMetadata(id: UnpackedHypermediaId) {
 async function loadContactEvent(
   event: Event,
 ): Promise<LoadedContactEvent | null> {
-  // const contactData = await grpcClient.contacts.getContact({
-  //   id: event.contact.id,
-  // })
-
-  const {author, cid, blobType, resource} = event.data.value || {}
-  const {eventTime, observeTime} = event
+  const {author, cid, resource} = event.data.value || {}
+  const {observeTime} = event
 
   const contactData = cid ? await loadBlob<unknown>(cid) : null
   if (!author) return null
@@ -76,13 +72,10 @@ async function loadContactEvent(
 async function loadCapabilityEvent(
   event: Event,
 ): Promise<LoadedCapabilityEvent | null> {
-  const {author, cid, blobType, resource} = event.data.value || {}
-  const {eventTime, observeTime} = event
-
-  const capabilityBlob = cid ? await loadBlob<unknown>(cid) : null
+  const {author, resource} = event.data.value || {}
+  const {observeTime} = event
 
   if (!author || !resource) {
-    console.log('Capability event missing author or resource')
     return null
   }
 
@@ -90,7 +83,6 @@ async function loadCapabilityEvent(
   const resourceId = unpackHmId(resource)
 
   if (!resourceId) {
-    console.log('Failed to unpack capability resource ID')
     return null
   }
 
@@ -116,8 +108,8 @@ async function loadCapabilityEvent(
 async function loadCommentEvent(
   event: Event,
 ): Promise<LoadedCommentEvent | null> {
-  const {author, cid, blobType, resource} = event.data.value || {}
-  const {eventTime, observeTime} = event
+  const {author, resource} = event.data.value || {}
+  const {observeTime} = event
 
   const resourceId = unpackHmId(resource)
   const resourceData = resourceId ? await loadResource(resourceId) : null
@@ -133,22 +125,10 @@ async function loadCommentEvent(
       })
     : null
   const targetMetadata = targetId ? await getMetadata(targetId) : null
-  console.log('Loading Target!!', targetId, targetMetadata)
-  // const commentBlob = cid ? await loadBlob<unknown>(cid) : null
+
   if (!author) return null
   if (!resource) return null
   const authorId = hmId(author)
-  console.log('~~! loadCommentEvent', {
-    resourceData,
-    resource,
-    blobType,
-    cid,
-    author,
-    comment,
-    targetId,
-    authorId,
-  })
-  console.log('~~!!', hmId(comment?.replyParent))
   if (!resourceId) return null
   return {
     id: resourceId.uid,
@@ -172,8 +152,7 @@ async function loadCommentEvent(
 async function loadDocUpdateEvent(
   event: Event,
 ): Promise<LoadedDocUpdateEvent | null> {
-  const {author, cid, blobType, resource} = event.data.value || {}
-  // const {eventTime, observeTime} = event
+  const {author, cid, resource} = event.data.value || {}
   if (!cid) return null
   const refData = cid
     ? await loadBlob<{
@@ -192,7 +171,6 @@ async function loadDocUpdateEvent(
     iri: packHmId(exactDocId),
   })
   if (docResource.kind?.case !== 'document') {
-    console.warn('~~! unexpected resource. expected document, got', docResource)
     return null
   }
   // const docResourceMetadata = docResource.kind.value.metadata?.toJson()
@@ -219,12 +197,6 @@ function toHMTimestamp(ts: number) {
 async function loadEvent(event: Event): Promise<LoadedFeedEvent | null> {
   const blobType =
     event.data.case === 'newBlob' ? event.data.value.blobType : undefined
-  console.log(
-    'Loading event with blobType:',
-    blobType,
-    'event data case:',
-    event.data.case,
-  )
 
   try {
     switch (blobType) {
@@ -237,15 +209,10 @@ async function loadEvent(event: Event): Promise<LoadedFeedEvent | null> {
       case 'Ref':
         return await loadDocUpdateEvent(event)
       default:
-        console.warn('⚠️ Unknown blob type - event filtered out:', {
-          blobType,
-          eventDataCase: event.data.case,
-          eventData: event.data.value,
-        })
         return null
     }
   } catch (error) {
-    console.error('❌ Error loading event:', error, {blobType, event})
+    console.error('Error loading event:', error)
     return null
   }
 }
@@ -254,44 +221,28 @@ export function useDocFeed(docId: UnpackedHypermediaId) {
   return useInfiniteQuery(
     [queryKeys.FEED, docId.id],
     async ({pageParam}) => {
-      console.log('Feed query - pageParam:', pageParam, 'docId:', docId.id)
       const feedResp = await grpcClient.activityFeed.listEvents({
-        filterResource: docId.id,
+        filterResource: `${docId.id}*`,
         pageSize: 5,
         pageToken: pageParam,
       })
-      console.log(
-        'Feed response - events count:',
-        feedResp.events.length,
-        'nextPageToken:',
-        feedResp.nextPageToken,
-      )
+
       const loadedEvents: LoadedFeedEvent[] = []
+
       for (const event of feedResp.events) {
-        // console.log('~~', event)
         const loaded = await loadEvent(event)
         if (loaded) {
           loadedEvents.push(loaded)
         }
       }
-      console.log(
-        'Filtered events count:',
-        loadedEvents.length,
-        'nextPageToken:',
-        feedResp.nextPageToken,
-      )
+
       return {
         events: loadedEvents,
         nextPageToken: feedResp.nextPageToken,
       }
     },
     {
-      getNextPageParam: (lastPage) => {
-        console.log('getNextPageParam called with lastPage:', lastPage)
-        const nextToken = lastPage.nextPageToken
-        console.log('Returning nextPageToken:', nextToken)
-        return nextToken
-      },
+      getNextPageParam: (lastPage) => lastPage.nextPageToken,
     },
   )
 }

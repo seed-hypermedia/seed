@@ -14,49 +14,57 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
     error,
   } = useDocFeed(docId)
   const observerRef = useRef<IntersectionObserver>()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const lastElementRef = useCallback(
     (node: HTMLDivElement) => {
-      if (isLoading) return
-      if (observerRef.current) observerRef.current.disconnect()
+      // Disconnect previous observer
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = undefined
+      }
 
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage()
+      // Early return if no node or still loading
+      if (!node || isLoading) {
+        return
+      }
+
+      const scrollContainer = scrollContainerRef.current
+
+      // Use the ref container or fallback to default viewport
+      const observerOptions = scrollContainer
+        ? {
+            root: scrollContainer,
+            rootMargin: '100px',
           }
-        },
-        {
-          // Use the scroll area viewport as the root
-          root: document.querySelector('[data-radix-scroll-area-viewport]'),
-          rootMargin: '200px', // Increased to load earlier
-        },
-      )
-      if (node) observerRef.current.observe(node)
+        : {
+            rootMargin: '100px',
+          }
+
+      observerRef.current = new IntersectionObserver((entries) => {
+        const entry = entries[0]
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      }, observerOptions)
+
+      observerRef.current.observe(node)
     },
     [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage],
   )
 
+  // Cleanup observer on component unmount
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = undefined
+      }
+    }
+  }, [])
+
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
-
-  // Auto-load more items if we don't have enough to fill the viewport
-  useEffect(() => {
-    if (
-      !isLoading &&
-      !isFetchingNextPage &&
-      hasNextPage &&
-      allEvents.length < 10
-    ) {
-      fetchNextPage()
-    }
-  }, [
-    isLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    allEvents.length,
-    fetchNextPage,
-  ])
 
   if (isLoading) {
     return (
@@ -76,7 +84,7 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <AccessoryContent title="Feed">
-      <div>
+      <div ref={scrollContainerRef} className="overflow-y-auto h-full">
         {allEvents.map((event, index) => {
           const isLast = index === allEvents.length - 1
           return (

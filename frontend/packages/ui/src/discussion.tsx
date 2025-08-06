@@ -108,6 +108,7 @@ export function Comment({
   highlight = false,
   onDelete,
   targetDomain,
+  heading,
 }: {
   comment: HMComment
   replyCount?: number
@@ -120,6 +121,7 @@ export function Comment({
   highlight?: boolean
   onDelete?: () => void
   targetDomain?: string
+  heading?: ReactNode
 }) {
   let renderContent = renderCommentContent
   if (!renderContent) {
@@ -201,38 +203,43 @@ export function Comment({
           }}
         />
       ) : null}
-      <div className="relative mt-0.5 min-w-5">
-        {/* @ts-expect-error */}
-        <div
-          className={cn(
-            'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
-            highlight
-              ? 'outline-secondary hover:outline-secondary'
-              : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
-          )}
-          {...authorLink}
-        />
-        {authorHmId && (
-          <div className="size-5">
-            <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
-          </div>
-        )}
-      </div>
-      <div className="flex flex-col flex-1 gap-1 w-full">
-        <div className="flex overflow-hidden gap-2 justify-between items-center pr-2 group">
-          <div className="flex overflow-hidden gap-1 items-baseline">
-            <button
-              className={cn(
-                'px-1 h-5 text-sm font-bold truncate rounded transition-colors hover:bg-accent',
-                authorLink ? 'cursor-pointer' : '',
-              )}
-              {...authorLink}
-            >
-              {authorMetadata?.name || '...'}
-            </button>
 
-            <CommentDate comment={comment} />
-          </div>
+      {heading ? null : (
+        <div className="relative mt-0.5 min-w-5">
+          <div
+            className={cn(
+              'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
+              highlight
+                ? 'outline-secondary hover:outline-secondary'
+                : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
+            )}
+            {...authorLink}
+          />
+          {authorHmId && (
+            <div className="size-5">
+              <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex flex-col flex-1 gap-1 w-full">
+        {heading ? <div className="inline">{heading}</div> : null}
+        <div className="flex overflow-hidden gap-2 justify-between items-center pr-2 group">
+          {heading ? null : (
+            <div className="flex overflow-hidden gap-1 items-baseline">
+              <button
+                className={cn(
+                  'px-1 h-5 text-sm font-bold truncate rounded transition-colors hover:bg-accent',
+                  authorLink ? 'cursor-pointer' : '',
+                )}
+                {...authorLink}
+              >
+                {authorMetadata?.name || '...'}
+              </button>
+
+              <CommentDate comment={comment} />
+            </div>
+          )}
           <div className="flex gap-2 items-center">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
