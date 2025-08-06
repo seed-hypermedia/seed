@@ -394,7 +394,7 @@ export async function loadResource(
 ): Promise<WebResourcePayload> {
   try {
     const resource = await queryClient.resources.getResource({
-      iri: id.id,
+      iri: packHmId(id),
     })
     if (resource.kind.case === 'comment') {
       const comment = prepareHMComment(resource.kind.value)
