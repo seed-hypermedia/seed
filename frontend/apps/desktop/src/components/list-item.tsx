@@ -139,7 +139,6 @@ export function LibraryListItem({
       />
     ) : null
 
-  const hoverColor = 'hover:bg-accent'
   return (
     <div
       onClick={() => {

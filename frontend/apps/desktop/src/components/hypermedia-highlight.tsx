@@ -2,7 +2,7 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEffect, useRef} from 'react'
 
 // Default highlight color - adjust as needed
-const DEFAULT_HIGHLIGHT_COLOR = 'var(--brand12)' // Light gold with transparency
+const DEFAULT_HIGHLIGHT_COLOR = 'var(--accent)' // Light gold with transparency
 
 interface HypermediaHighlightProps {
   /** Optional custom highlight color */
@@ -48,8 +48,25 @@ export function HypermediaHighlight({
       }
     }
 
+    const textHighlightSelectors = selectors
+      .map(
+        (selector) =>
+          `${selector}.block-paragraph span, ${selector}.block-paragraph strong, ${selector}.block-paragraph em, ${selector}.block-paragraph a, ${selector}.block-paragraph code, ${selector}.block-heading span, ${selector}.block-heading strong, ${selector}.block-heading em, ${selector}.block-heading a, ${selector}.block-heading code`,
+      )
+      .join(',')
+
+    const blockHighlightSelectors = selectors
+      .map(
+        (selector) => `${selector}:not(.block-paragraph):not(.block-heading)`,
+      )
+      .join(',')
+
     return `
-      ${selectors.join(',')} {
+      ${textHighlightSelectors} {
+        transition: background-color 0.3s ease;
+        background-color: ${highlightColor} !important;
+      }
+      ${blockHighlightSelectors} {
         transition: background-color 0.3s ease;
         background-color: ${highlightColor} !important;
       }
