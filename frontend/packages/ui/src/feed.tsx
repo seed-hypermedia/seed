@@ -6,7 +6,7 @@ import {ResourceToken} from './resource-token'
 import {SizableText} from './text'
 
 export function EventRow({children}: {children: React.ReactNode}) {
-  return <div className="flex gap-1 py-1">{children}</div>
+  return <div className="">{children}</div>
 }
 
 export function EventContact({contact}: {contact?: HMContactItem}) {
@@ -29,7 +29,11 @@ export function EventContacts({contacts}: {contacts: HMContactItem[]}) {
 }
 
 export function EventDescriptionText({children}: {children: React.ReactNode}) {
-  return <SizableText size="sm">{children}</SizableText>
+  return (
+    <SizableText size="sm" className="px-2">
+      {children}
+    </SizableText>
+  )
 }
 
 export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {

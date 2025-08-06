@@ -16,7 +16,6 @@ import {
 import {ResourceToken} from './resource-token'
 
 export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
-  console.log('~~! DocUpdateEvent', event)
   return (
     <EventRow>
       <EventContact contact={event.author} />
@@ -28,25 +27,31 @@ export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
 }
 
 export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
-  console.log('~~! CommentBlobEvent', event)
-
   return (
     <>
-      <EventRow>
-        <EventContact contact={event.author} />
-        <EventDescriptionText>commented on</EventDescriptionText>
-        {event.targetId ? (
-          <ResourceToken id={event.targetId} metadata={event.targetMetadata} />
-        ) : null}
-        <EventTimestamp time={event.time} />
-      </EventRow>
-      {event.comment && <Comment comment={event.comment} />}
+      {event.comment && (
+        <Comment
+          comment={event.comment}
+          heading={
+            <>
+              <EventContact contact={event.author} />
+              <EventDescriptionText>commented on</EventDescriptionText>
+              {event.targetId ? (
+                <ResourceToken
+                  id={event.targetId}
+                  metadata={event.targetMetadata}
+                />
+              ) : null}
+              <EventTimestamp time={event.time} />
+            </>
+          }
+        />
+      )}
     </>
   )
 }
 
 export function CapabilityBlobEvent({event}: {event: LoadedCapabilityEvent}) {
-  console.log('~~! CapabilityBlobEvent', event)
   return (
     <EventRow>
       <EventContact contact={event.author} />
@@ -59,7 +64,6 @@ export function CapabilityBlobEvent({event}: {event: LoadedCapabilityEvent}) {
 }
 
 export function ContactBlobEvent({event}: {event: LoadedContactEvent}) {
-  console.log('~~! ContactBlobEvent', event)
   return (
     <EventRow>
       <EventContact contact={event.author} />
@@ -71,7 +75,6 @@ export function ContactBlobEvent({event}: {event: LoadedContactEvent}) {
 }
 
 export function FeedEvent({event}: {event: LoadedFeedEvent}) {
-  console.log('~~! FeedEvent', event)
   if (event.type === 'contact') {
     return <ContactBlobEvent event={event} />
   }
