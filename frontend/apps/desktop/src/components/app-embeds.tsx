@@ -149,11 +149,11 @@ function EmbedWrapper({
       className={cn(
         'block-embed flex flex-col',
         blockStyles,
-        isHighlight
-          ? routeParams?.blockRef == id?.blockRef
-            ? 'bg-secondary'
-            : 'bg-transparent'
-          : 'bg-transparent hover:bg-transparent',
+        // isHighlight
+        //   ? routeParams?.blockRef == id?.blockRef
+        //     ? 'bg-secondary'
+        //     : 'bg-transparent'
+        //   : 'bg-transparent hover:bg-transparent',
         !hideBorder && 'border-l-primary border-l-3',
         'm-0 rounded-none',
       )}
@@ -161,9 +161,20 @@ function EmbedWrapper({
       data-url={id ? packHmId(id) : ''}
       data-view={viewType}
       // this data attribute is used by the hypermedia highlight component
-      onMouseEnter={() => docContentContext?.onHoverIn?.(id)}
-      onMouseLeave={() => docContentContext?.onHoverOut?.(id)}
-      data-blockid={id?.blockRef}
+      onMouseEnter={() => {
+        docContentContext?.onHoverIn?.(id)
+      }}
+      onMouseLeave={() => {
+        docContentContext?.onHoverOut?.(id)
+      }}
+      data-blockid={
+        id &&
+        id.blockRange &&
+        'expanded' in id.blockRange &&
+        id.blockRange.expanded
+          ? id?.blockRef
+          : undefined
+      }
       data-docid={id?.blockRef ? undefined : id?.id}
       onClick={(e) => {
         const selection = window.getSelection()
@@ -196,6 +207,12 @@ function EmbedWrapper({
                   'end' in id.blockRange
                     ? id.blockRange
                     : null,
+                expanded:
+                  id.blockRange &&
+                  'expanded' in id.blockRange &&
+                  id.blockRange.expanded
+                    ? id.blockRange.expanded
+                    : false,
               },
             } as DocumentRoute)
           : ({
@@ -209,6 +226,12 @@ function EmbedWrapper({
                   'end' in id.blockRange
                     ? id.blockRange
                     : null,
+                expanded:
+                  id.blockRange &&
+                  'expanded' in id.blockRange &&
+                  id.blockRange.expanded
+                    ? id.blockRange.expanded
+                    : false,
               },
             } as DocumentRoute)
         method(destRoute)
@@ -263,7 +286,6 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
     )
   }
   const resource = useSubscribedResource(props)
-  const navigate = useNavigate()
   if (resource.data?.type === 'document') {
     return (
       <DocumentContentEmbed

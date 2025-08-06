@@ -1602,27 +1602,28 @@ export function ContentEmbed({
 }) {
   const context = useDocContentContext()
 
-  const [isExpanded, setExpanded] = useState(props.expanded ?? true)
+  const [isExpanded, setExpanded] = useState(
+    props.blockRange && 'expanded' in props.blockRange
+      ? props.blockRange.expanded
+      : true,
+  )
 
   useEffect(() => {
     setExpanded(!context.collapsedBlocks.has(props.block.id))
   }, [context.collapsedBlocks, props.block.id])
 
   useEffect(() => {
-    if (
-      props.expanded === true &&
-      !context.collapsedBlocks.has(props.block.id)
-    ) {
+    if (isExpanded === true && !context.collapsedBlocks.has(props.block.id)) {
       context.setCollapsedBlocks(props.block.id, false)
     }
 
     if (
-      props.expanded === false &&
+      isExpanded === false &&
       context.collapsedBlocks.has(props.block.id) === false
     ) {
       context.setCollapsedBlocks(props.block.id, true)
     }
-  }, [props.expanded, props.block.id])
+  }, [isExpanded, props.block.id])
 
   const embedData = useMemo(() => {
     console.log(props, document)

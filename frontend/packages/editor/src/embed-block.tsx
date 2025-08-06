@@ -15,7 +15,6 @@ import {
   isPublicGatewayLink,
   normalizeHmId,
   packHmId,
-  unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {Input} from '@shm/ui/components/input'
 import {
@@ -172,9 +171,6 @@ const display = ({
   selected,
   setSelected,
 }: DisplayComponentProps) => {
-  const unpackedId = unpackHmId(block.props.url)
-  // const [hovered, setHovered] = useState(false)
-
   return (
     <MediaContainer
       editor={editor}
@@ -202,13 +198,7 @@ const display = ({
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
           <BlockContentEmbed
-            expanded={
-              unpackedId &&
-              unpackedId.blockRange &&
-              'expanded' in unpackedId.blockRange
-                ? true
-                : false
-            }
+            parentBlockId={block.props.parentBlockId || null}
             block={{
               id: block.id,
               type: 'Embed',

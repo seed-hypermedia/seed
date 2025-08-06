@@ -159,16 +159,6 @@ export function parseCustomURL(url: string): ParsedURL | null {
   }
 }
 
-function inKeys<V extends string>(
-  key: string,
-  values: Record<V, string>,
-): V | null {
-  // TODO: change to expect-error instead
-  // @ts-ignore
-  if (values[key]) return key as V
-  return null
-}
-
 // this is used to convert an object that is a superset of HMId to an exact HMId. This is used in the case of embed props (but maybe we should reconsider this approach of spreading id directly into embed props)
 export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
   return {

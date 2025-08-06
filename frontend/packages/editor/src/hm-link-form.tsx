@@ -1,7 +1,7 @@
 import {SearchResult} from '@shm/shared/editor-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
-import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
@@ -143,6 +143,23 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 opacity: !collapsedBlocks.has(props.id) ? 1 : 0.4,
               }}
               onCheckedChange={(checked) => {
+                props.updateLink(
+                  packHmId(
+                    hmId(unpacked.uid, {
+                      version: unpacked.version,
+                      blockRef: unpacked.blockRef,
+                      blockRange: {
+                        ...unpacked.blockRange,
+                        expanded: checked,
+                      },
+                      path: unpacked.path,
+                      hostname: unpacked.hostname,
+                      latest: unpacked.latest,
+                    }),
+                  ),
+                  _text,
+                  false,
+                )
                 setCollapsedBlocks(props.id, !checked)
               }}
             />
