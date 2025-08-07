@@ -7,11 +7,10 @@ import {z} from 'zod'
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET
 
-const configPath = join(process.env.DATA_DIR || process.cwd(), 'config.json')
-const serviceConfigPath = join(
-  process.env.DATA_DIR || process.cwd(),
-  'service-config.json',
-)
+const webDataDir = process.env.DATA_DIR || process.cwd()
+console.log('~~ process.env.DATA_DIR webDataDir', webDataDir)
+const configPath = join(webDataDir, 'config.json')
+const serviceConfigPath = join(webDataDir, 'service-config.json')
 
 export const siteConfigSchema = z.object({
   availableRegistrationSecret: z.string().optional(),
