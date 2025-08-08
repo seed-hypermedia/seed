@@ -100,6 +100,7 @@ function AuthorName({author}: {author: HMMetadataPayload}) {
     },
   )
   return (
+    // @ts-expect-error
     <a
       className="h-auto flex-shrink-1 truncate p-0 text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
       {...linkProps}

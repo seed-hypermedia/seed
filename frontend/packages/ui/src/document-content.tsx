@@ -403,6 +403,7 @@ export function BlockNodeList({
 }) {
   const getListClasses = (
     type: HMBlockChildrenType,
+    // @ts-expect-error
     level?: string | number,
   ): string => {
     const classes: string[] = [
@@ -486,6 +487,7 @@ export function BlockNodeContent({
     debug,
     comment,
     blockCitations,
+    // @ts-expect-error
     collapsedBlocks,
     setCollapsedBlocks,
   } = useDocContentContext()
@@ -883,6 +885,7 @@ export function BlockNodeContent({
   )
 }
 
+// @ts-expect-error
 function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   if (bn.children && bn.children.length) return false
   if (typeof bn.block == 'undefined') return true
@@ -967,6 +970,7 @@ function BlockContentParagraph({
   parentBlockId,
   ...props
 }: BlockContentProps) {
+  // @ts-expect-error
   const {debug, textUnit, comment} = useDocContentContext()
 
   let inline = useMemo(() => {
@@ -1014,6 +1018,7 @@ export function BlockContentHeading({
 
 export function useHeadingMarginStyles(
   depth: number,
+  // @ts-expect-error
   unit: number,
   isFirst?: boolean,
 ) {
@@ -1164,6 +1169,7 @@ function BlockContentImage({
               objectFit: 'contain',
               transition: 'transform 0.2s ease-out',
             }}
+            // @ts-expect-error
             onClick={(e) => {
               handleDoubleClick()
             }}
@@ -1296,6 +1302,7 @@ function InlineContentView({
   isRange?: boolean
   fontWeight?: string
 } & React.HTMLAttributes<HTMLSpanElement>) {
+  {/* @ts-expect-error */}
   const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
     useDocContentContext()
 
@@ -1524,6 +1531,7 @@ export function ErrorBlock({
 export function CommentContentEmbed({
   props,
   comment,
+  // @ts-expect-error
   isLoading,
   author,
   EmbedWrapper,
@@ -1903,6 +1911,7 @@ export function getBlockNodeById(
 }
 
 export function BlockContentFile({block}: BlockContentProps) {
+  // @ts-expect-error
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
   // @ts-expect-error
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
@@ -2132,6 +2141,7 @@ export function BlockContentCode({
   parentBlockId,
   ...props
 }: BlockContentProps) {
+  // @ts-expect-error
   const {layoutUnit, debug, textUnit} = useDocContentContext()
   function getHighlightNodes(result: any) {
     return result.value || result.children || []

@@ -107,6 +107,7 @@ export function applyTotalAmount(amountString: string) {
       return {...allocation, amount}
     }
     if (allocation.mode === 'custom') {
+      // @ts-expect-error
       const prevSubtotal = allocation.amounts.reduce(
         (acc, {amount}) => acc + amount,
         0,

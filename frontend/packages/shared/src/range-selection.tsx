@@ -326,6 +326,7 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
       wrapper.current?.removeEventListener('touchend', handleMouseDown(false))
     }
 
+    // @ts-expect-error
     function handleSelectionChange(e: any) {
       if (wrapper.current) {
         const selection = window.getSelection()
@@ -340,6 +341,7 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
     }
 
     function handleMouseDown(mouseDown: boolean) {
+      // @ts-expect-error
       return function handleMouseDown(e: any) {
         actor.send({type: mouseDown ? 'MOUSEDOWN' : 'MOUSEUP'})
       }

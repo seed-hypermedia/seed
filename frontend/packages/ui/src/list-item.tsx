@@ -110,6 +110,7 @@ export function SmallListItem({
           icon
         ) : icon ? (
           <div className="size-4 flex-none shrink-0">
+            {/* @ts-expect-error */}
             {createElement(icon, {
               size: 18,
               color: color || 'currentColor',

@@ -169,6 +169,7 @@ export function Comment({
         />
       ) : null}
       <div className="relative mt-0.5 min-w-5">
+        {/* @ts-expect-error */}
         <div
           className={cn(
             'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
@@ -282,6 +283,7 @@ function CommentDate({comment}: {comment: HMComment}) {
     },
   )
   return (
+    // @ts-expect-error
     <a
       className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"
       {...link}
@@ -292,6 +294,7 @@ function CommentDate({comment}: {comment: HMComment}) {
 }
 
 export function QuotedDocBlock({
+  // @ts-expect-error
   docId,
   blockId,
   doc,

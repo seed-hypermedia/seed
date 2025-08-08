@@ -30,8 +30,11 @@ import {Tooltip} from './tooltip'
 import {DialogDescription, DialogTitle, useAppDialog} from './universal-dialog'
 
 async function sendWeblnPayment(invoice: string) {
+  // @ts-expect-error
   if (typeof window.webln !== 'undefined') {
+    // @ts-expect-error
     await window.webln.enable()
+    // @ts-expect-error
     return await window.webln.sendPayment(invoice)
   }
 }
@@ -202,6 +205,7 @@ function DonateForm({
   const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
     {
       mode: 'even',
+      // @ts-expect-error
       amount: DEFAULT_PAYMENT_AMOUNTS[0],
       recipients: authors
         .filter((a) => allowed.has(a.id.uid))

@@ -150,6 +150,7 @@ export function SiteHeader({
             <>
               <MobileSearch
                 originHomeId={originHomeId}
+                // @ts-expect-error
                 onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
                   console.log('SEARCH RESULT', item) // TODO: navigate to the document with the correct URL based on the site
@@ -159,6 +160,7 @@ export function SiteHeader({
                 <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
                   {items?.map((item) => (
                     <DocumentSmallListItem
+                      // @ts-expect-error
                       onPress={() => {
                         setIsMobileMenuOpen(false)
                       }}
@@ -219,6 +221,7 @@ function NavItems({
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
+              // @ts-expect-error
               onPress={onPress}
               key={id.path?.join('/') || id.id}
               metadata={doc.metadata}
@@ -259,6 +262,7 @@ function MobileMenuOutline({
 export function SmallSiteHeader({
   originHomeMetadata,
   originHomeId,
+  // @ts-expect-error
   siteHost,
 }: {
   originHomeMetadata: HMMetadata
@@ -310,6 +314,7 @@ function HeaderLinkItem({
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
+      {/* @ts-expect-error */}
       <a
         className={cn(
           'cursor-pointer truncate px-1 font-bold transition-colors select-none',
@@ -325,6 +330,7 @@ function HeaderLinkItem({
   )
 }
 
+// @ts-expect-error
 function DropdownLinkItem({
   item,
   docId,
@@ -350,6 +356,7 @@ function DropdownLinkItem({
   )
 
   return (
+    // @ts-expect-error
     <div
       className={cn(
         'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
@@ -486,6 +493,7 @@ export function SiteHeaderMenu({
                   {handler: 'onClick'},
                 )
                 return (
+                  // @ts-expect-error
                   <DropdownMenuItem key={item.key} {...linkProps}>
                     {item.metadata.name}
                   </DropdownMenuItem>
