@@ -256,7 +256,6 @@ function flattenLeaves(
   return result
 }
 
-// @ts-expect-error
 function getParentBlock(block: HMBlock) {
   if (block.type == 'Heading') return block
   if (block.type == 'Paragraph') return block
