@@ -1,4 +1,4 @@
-import {updateBlockCommand} from '@/blocknote/core/api/blockManipulation/commands/updateBlock'
+import {updateBlockCommand} from '../../../../../api/blockManipulation/commands/updateBlock'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 import {mergeCSSClasses} from '../../../../../shared/utils'
 import {createTipTapBlock} from '../../../api/block'
@@ -96,7 +96,7 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
       'div',
       mergeAttributes(HTMLAttributes, {
         class: mergeCSSClasses(
-          // @ts-expect-error
+          // @ts-ignore
           styles.blockContent,
           blockContentDOMAttributes.class,
         ),
@@ -106,7 +106,7 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
         'h' + node.attrs.level,
         {
           class: mergeCSSClasses(
-            // @ts-expect-error
+            // @ts-ignore
             styles.inlineContent,
             inlineContentDOMAttributes.class,
           ),

@@ -40,12 +40,14 @@ export function BranchDialog({
     )
   return (
     <div className="flex flex-col">
+      {/* @ts-expect-error */}
       <DialogTitle>Branch from "{entity?.document?.metadata.name}"</DialogTitle>
       {entity ? (
         <>
           <LocationPicker
             location={location}
             setLocation={setLocation}
+            // @ts-expect-error
             newName={entity?.document?.metadata.name || 'Untitled'}
             account={selectedAccount.id.uid}
             actionLabel="branch"

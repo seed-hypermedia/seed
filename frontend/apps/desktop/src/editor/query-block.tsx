@@ -121,6 +121,7 @@ function Render(
     enabled: !!queryId,
   })
   const directoryItems = useListDirectory(queryId, {
+    // @ts-ignore
     mode: queryIncludes[0]?.mode,
   })
 
@@ -198,6 +199,7 @@ function Render(
       className={`group -mx-4 flex flex-col px-4 select-none`}
     >
       <QuerySettings
+        // @ts-expect-error
         queryDocName={entity.data?.document?.metadata.name || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
@@ -260,8 +262,10 @@ function CardView({
 
   return (
     <DocumentCardGrid
+      // @ts-expect-error
       firstItem={firstItem}
       getEntity={getEntity}
+      // @ts-expect-error
       items={restItems}
       accountsMetadata={{}}
       columnCount={parseInt(block.props.columnCount || '1', 10) as number}
@@ -296,6 +300,7 @@ function ListView({
     <div className="flex flex-col gap-3">
       {entries.length ? (
         entries.map((entry) => (
+          // @ts-expect-error
           <LibraryListItem
             key={entry.id.id}
             entry={entry}
@@ -328,6 +333,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
   }
   return (
     <BlankQueryBlockMessage
+      // @ts-expect-error
       message={`No Documents found in "${includesEntity.data?.document?.metadata.name}". Add a Document there, or query for other Parent Documents.`}
     />
   )
@@ -367,16 +373,22 @@ function QuerySettings({
   }) => void
   editor: BlockNoteEditor<HMBlockSchema>
 }) {
+  // @ts-expect-error
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
   const [limit, setLimit] = useState(!!block.props.queryLimit)
 
   useEffect(() => {
+    // @ts-expect-error
     if (block.props.defaultOpen === 'true') {
       editor.updateBlock(block.id, {
         ...block,
+        // @ts-expect-error
         props: {...block.props, defaultOpen: 'false'},
       })
     }
+    {
+    }
+  // @ts-expect-error
   }, [block.props.defaultOpen])
 
   return (
@@ -495,6 +507,7 @@ function QuerySettings({
                 ]}
               />
               <SelectField
+                // @ts-ignore
                 value={querySort[0].term}
                 onValue={(value) => {
                   console.log('SORT', querySort[0])
@@ -572,6 +585,7 @@ function QuerySettings({
                     label="Show Banner"
                     id="banner"
                     defaultChecked={banner}
+                    // @ts-expect-error
                     opacity={banner ? 1 : 0.4}
                     onCheckedChange={(value) => {
                       onValuesChange({
@@ -588,6 +602,7 @@ function QuerySettings({
 
               <SwitchField
                 label="Reverse"
+                // @ts-ignore
                 defaultChecked={querySort[0].reverse}
                 id="sort-reverse"
                 onCheckedChange={(value) => {

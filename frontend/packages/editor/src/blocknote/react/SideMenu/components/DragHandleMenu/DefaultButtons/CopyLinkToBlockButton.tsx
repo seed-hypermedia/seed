@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../../../core'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {Link} from '@shm/ui/icons'
 import {DragHandleMenuProps} from '../DragHandleMenu'

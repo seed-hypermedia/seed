@@ -317,6 +317,7 @@ export function getSlashMenuItems({
     group: 'Web embeds',
     icon: <RiPagesFill size={18} />,
     hint: 'Insert an Instagram or X post embed',
+    // @ts-expect-error
     execute: (editor) => {
       insertOrUpdateBlock(
         editor,

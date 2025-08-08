@@ -1,8 +1,8 @@
-import {MultipleNodeSelection} from '@/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelectionChange'
-import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
-import {HMBlockSchema} from '@/schema'
-import {getNodesInSelection} from '@/utils'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelectionChange'
+import {MaxFileSizeB, MaxFileSizeMB} from './file'
+import {HMBlockSchema} from './schema'
+import {getNodesInSelection} from './utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -121,7 +121,7 @@ export const MediaRender: React.FC<RenderProps> = ({
 
   useEffect(() => {
     if (!uploading && hasSrc) {
-      // @ts-expect-error
+      // @ts-ignore
       if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {
           props: {url: block.props.src, src: ''},
@@ -323,7 +323,7 @@ function MediaForm({
   const {handleFileAttachment, comment} = useDocContentContext()
 
   const handleUpload = async (files: File[]) => {
-    // @ts-expect-error
+    // @ts-ignore
     if (validateFile && !validateFile(files[0])) {
       return
     }
@@ -336,11 +336,11 @@ function MediaForm({
         name:
           largeFileIndex > 0
             ? `The size of ${
-                // @ts-expect-error
+                // @ts-ignore
                 largeFile.name.length < 36
-                  // @ts-expect-error
+                  // @ts-ignore
                   ? largeFile.name
-                  // @ts-expect-error
+                  // @ts-ignore
                   : largeFile.name.slice(0, 32) + '...'
               } exceeds ${MaxFileSizeMB} MB.`
             : `The file size exceeds ${MaxFileSizeMB} MB.`,
@@ -349,10 +349,10 @@ function MediaForm({
       return
     }
 
-    // @ts-expect-error
+    // @ts-ignore
     const {name, size} = files[0]
     if (handleFileAttachment) {
-      // @ts-expect-error
+      // @ts-ignore
       const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
       assign({
         props: {
@@ -366,7 +366,7 @@ function MediaForm({
       // upload to IPFS immediately if handleFileAttachment is not available
       try {
         const formData = new FormData()
-        // @ts-expect-error
+        // @ts-ignore
         formData.append('file', files[0])
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',

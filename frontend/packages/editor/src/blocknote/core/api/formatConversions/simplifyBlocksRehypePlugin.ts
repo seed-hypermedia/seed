@@ -17,7 +17,10 @@ type SimplifyBlocksOptions = {
  */
 export function simplifyBlocks(options: SimplifyBlocksOptions) {
   const listItemBlockTypes = new Set<string>([
+// @ts-ignore
+// @ts-ignore
     ...options.orderedListItemBlockTypes,
+// @ts-ignore
     ...options.unorderedListItemBlockTypes,
   ])
 
@@ -85,7 +88,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
         ) as HASTElement
 
         // Adds only the content inside the block to the active list.
-        // @ts-expect-error
+        // @ts-ignore
         listItemElement.children.push(blockContent.children[0])
         // Nested blocks have already been processed in the recursive function call, so the resulting elements are
         // also added to the active list.
@@ -99,7 +102,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
         // Lifts all children out of the current block, as only list items should allow nesting.
         tree.children.splice(i + 1, 0, ...blockGroup.children)
         // Replaces the block with only the content inside it.
-        // @ts-expect-error
+        // @ts-ignore
         tree.children[i] = blockContent.children[0]
 
         // Updates the current index and number of child elements.
@@ -108,7 +111,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
         numChildElements += numElementsAdded
       } else {
         // Replaces the block with only the content inside it.
-        // @ts-expect-error
+        // @ts-ignore
         tree.children[i] = blockContent.children[0]
       }
     }

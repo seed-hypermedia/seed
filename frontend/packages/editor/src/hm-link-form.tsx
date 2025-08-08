@@ -247,10 +247,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                     to: posBeforeNode + 1 + contentNode.nodeSize,
                   }
                 } else {
-                  // @ts-expect-error
+                  // @ts-ignore
                   contentNode.descendants((child, childPos) => {
                     const linkMark = child.marks?.find(
-                      // @ts-expect-error
+                      // @ts-ignore
                       (mark) => mark.type.name === 'link',
                     )
                     if (linkMark) {

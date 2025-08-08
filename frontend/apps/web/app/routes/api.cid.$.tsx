@@ -4,6 +4,7 @@ import {CID} from 'multiformats/cid'
 
 export const loader = apiGetter(async (req) => {
   const [_api, _cid, cid] = req.pathParts
+  // @ts-expect-error
   const parsedCid = parseCid(cid)
   const result = await fetch(`${DAEMON_HTTP_URL}/debug/cid/${cid}`)
   if (result.status === 404) {

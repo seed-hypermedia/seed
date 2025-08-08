@@ -37,7 +37,7 @@ export function loadTwitterScript(): Promise<any> {
 }
 
 export function generateInstagramEmbedHtml(url: string): string {
-  // @ts-expect-error
+  // @ts-ignore
   const cleanUrl = url.split('?')[0].replace(/\/$/, '') // strip params and trailing slash
   const permalink = `${cleanUrl}/?utm_source=ig_embed&utm_campaign=loading`
 

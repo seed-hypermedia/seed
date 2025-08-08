@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "echo NO TESTS",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --project tsconfig.app.json"
   },
   "dependencies": {
     "@hookform/resolvers": "3.3.1",

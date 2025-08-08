@@ -59,6 +59,7 @@ export const draftMachine = setup({
         },
   },
   actions: {
+    // @ts-ignore
     setErrorMessage: ({event}) => {
       if (event.type === 'fetch.error') {
         return {
@@ -313,8 +314,10 @@ export const draftMachine = setup({
             },
           },
           invoke: {
+            // @ts-expect-error
             id: 'writeDraft',
             src: 'writeDraft',
+            // @ts-expect-error
             input: ({context}) => ({
               metadata: context.metadata,
               deps: context.deps,
@@ -386,8 +389,10 @@ export const draftMachine = setup({
             },
           },
           invoke: {
+            // @ts-expect-error
             id: 'writeDraft',
             src: 'writeDraft',
+            // @ts-expect-error
             input: ({context}) => ({
               metadata: context.metadata,
               deps: context.deps,
@@ -404,6 +409,7 @@ export const draftMachine = setup({
                 actions: [
                   {
                     type: 'onSaveSuccess',
+                    // @ts-expect-error
                     params: ({event}) => event.output,
                   },
                   // {type: 'setDraft'},

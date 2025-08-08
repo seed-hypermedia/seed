@@ -27,6 +27,7 @@ export const test = baseTest.extend<{
     let alias = 'testAlias'
     let bio = 'test bio'
     let data = await startApp()
+    // @ts-expect-error
     let homePage = new HomePage(data, alias, bio)
     await homePage.goto()
 

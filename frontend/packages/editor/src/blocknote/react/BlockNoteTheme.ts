@@ -1,4 +1,4 @@
-import {bnBlockStyles} from '@/blocknote/core'
+import {bnBlockStyles} from '../core'
 import {CSSObject, MantineThemeOverride} from '@mantine/core'
 import _ from 'lodash'
 

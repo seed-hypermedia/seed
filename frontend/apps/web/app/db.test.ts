@@ -94,8 +94,11 @@ describe('Database', () => {
         .prepare('PRAGMA foreign_key_list(accounts)')
         .all() as ForeignKeyInfo[]
       expect(foreignKeys).toHaveLength(1)
+      // @ts-expect-error
       expect(foreignKeys[0].from).toBe('email')
+      // @ts-expect-error
       expect(foreignKeys[0].to).toBe('email')
+      // @ts-expect-error
       expect(foreignKeys[0].table).toBe('emails')
 
       db.close()

@@ -1,5 +1,5 @@
-import {getLinkMenuItems} from '@/blocknote/core/extensions/LinkMenu/defaultLinkMenuItems'
-import {linkMenuPluginKey} from '@/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
+import {getLinkMenuItems} from '../../blocknote/core/extensions/LinkMenu/defaultLinkMenuItems'
+import {linkMenuPluginKey} from '../../blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
@@ -108,9 +108,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         const link =
           matches.length === 1 &&
-          // @ts-expect-error
+          // @ts-ignore
           matches[0].isLink &&
-          // @ts-expect-error
+          // @ts-ignore
           textContent.trim().startsWith(matches[0].href)
             ? matches[0]
             : null
@@ -123,7 +123,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
             : hasPastedLink
-            // @ts-expect-error
+            // @ts-ignore
             ? pastedLinkMarks[0].attrs.href
             : link?.href || null
           if (pastedLink) {
@@ -349,10 +349,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            // @ts-expect-error
+            // @ts-ignore
             case 'web': {
               const metaPromise = resolveHypermediaUrl(link.href)
-                // @ts-expect-error
+                // @ts-ignore
                 .then((linkMetaResult) => {
                   if (!linkMetaResult) return
                   const fullHmUrl = hmIdWithVersion(
@@ -520,10 +520,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       const extension = extensionArray[extensionArray.length - 1]
       // @ts-expect-error
       if (['png', 'jpg', 'jpeg'].includes(extension)) return [1, matchResult[0]]
-      // @ts-expect-error
+      // @ts-ignore
       else if (['pdf', 'xml', 'csv'].includes(extension))
         return ['file', matchResult[0]]
-      // @ts-expect-error
+      // @ts-ignore
       else if (['mp4', 'webm', 'ogg'].includes(extension))
         return ['video', matchResult[0]]
     } else if (
@@ -553,7 +553,7 @@ async function fetchEntityTitle(
   const doc = document
   let title
   if (blockRef) {
-    // @ts-expect-error
+    // @ts-ignore
     const block = doc.content.find((block) => {
       if (block.block) {
         return block.block.id === blockRef
@@ -600,6 +600,6 @@ async function fetchEntityTitle(
   //     return {title: null}
   //   }
 
-  // @ts-expect-error
+  // @ts-ignore
   return {title: null}
 }

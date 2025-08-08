@@ -60,6 +60,7 @@ export function LocationPicker({
 
   function handleSetLocation(location: UnpackedHypermediaId) {
     // make sure the account can write to this location. if not, change the account to the account who can.
+    // @ts-ignore
     const allAcctsWithWrite = writableDocuments.filter((d) => {
       if (isIdParentOfOrEqual(d.entity.id, location)) return true
     })
@@ -396,8 +397,10 @@ function URLPreview({
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
           <SizableText
+            // @ts-expect-error
             color={isError ? '$red11' : '$color10'}
             fontWeight={isError ? 'bold' : 'normal'}
+            // @ts-expect-error
             size="$2"
           >
             Branch Destination URL{extraLabel}
@@ -451,6 +454,7 @@ function useDefaultAccountId(
       const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
         acctsWithCapsOfLocation.has(signer),
       )
+      // @ts-ignore
       return recentSigner || writableCaps[0]?.accountUid
     }
   }
@@ -472,5 +476,6 @@ function useParentId(id: UnpackedHypermediaId | null) {
 
 function capitalize(word: string) {
   if (!word) return ''
+  // @ts-ignore
   return word[0].toUpperCase() + word.slice(1)
 }

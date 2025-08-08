@@ -14,9 +14,9 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
 
   if (
     (currentBlock.content.length === 1 &&
-      // @ts-expect-error
+      // @ts-ignore
       currentBlock.content[0].type === 'text' &&
-      // @ts-expect-error
+      // @ts-ignore
       currentBlock.content[0].text === '/') ||
     currentBlock.content.length === 0
   ) {

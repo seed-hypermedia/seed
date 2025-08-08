@@ -150,7 +150,7 @@ function setDragImage(view: EditorView, from: number, to = from) {
 
   for (let i = parent.childElementCount - 1; i >= 0; i--) {
     if (i > lastSelectedBlockIndex || i < firstSelectedBlockIndex) {
-      // @ts-expect-error
+      // @ts-ignore
       parentClone.removeChild(parentClone.children[i])
     }
   }

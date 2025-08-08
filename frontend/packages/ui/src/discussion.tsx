@@ -294,8 +294,6 @@ function CommentDate({comment}: {comment: HMComment}) {
 }
 
 export function QuotedDocBlock({
-  // @ts-expect-error
-  docId,
   blockId,
   doc,
 }: {

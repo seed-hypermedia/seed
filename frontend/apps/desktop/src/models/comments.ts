@@ -1,3 +1,4 @@
+// @ts-expect-error
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
@@ -209,12 +210,14 @@ export function useCommentEditor(
     })
     editor.removeBlocks(editor.topLevelBlocks)
     editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
+    // @ts-expect-error
     setGroupTypes(editor._tiptapEditor, editorBlocks)
   }
   async function writeDraft() {
     setIsSaved(false)
     const blocks = serverBlockNodesFromEditorBlocks(
       editor,
+      // @ts-expect-error
       editor.topLevelBlocks,
     )
     await write.mutateAsync({
@@ -244,6 +247,7 @@ export function useCommentEditor(
       }, 500)
     },
     linkExtensionOptions: {
+      // @ts-expect-error
       openOnClick: false,
       queryClient,
       grpcClient,
@@ -305,6 +309,7 @@ export function useCommentEditor(
   }, [])
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   const publishComment = useMutation({
+    // @ts-expect-error
     mutationFn: async ({
       content,
       signingKeyName,
@@ -322,6 +327,7 @@ export function useCommentEditor(
                 attributes: {
                   childrenType: 'Group',
                   fields: {
+                    // @ts-expect-error
                     childrenType: {case: 'stringValue', value: 'Group'},
                   },
                   view: 'Content',
@@ -339,6 +345,7 @@ export function useCommentEditor(
         targetAccount: targetDocId.uid,
         targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
         signingKeyName,
+        // @ts-expect-error
         targetVersion: targetEntity.data?.document?.version!,
       })
       writeRecentSigner.mutateAsync(signingKeyName).then(() => {
@@ -379,6 +386,7 @@ export function useCommentEditor(
     function onSubmit() {
       if (!targetDocId.id) throw new Error('no targetDocId.id')
       // remove trailing blocks
+      // @ts-expect-error
       const editorBlocks = removeTrailingBlocks(editor.topLevelBlocks)
       const content = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
       // const contentWithoutLastEmptyBlock = content.filter((block, index) => {

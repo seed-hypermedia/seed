@@ -43,11 +43,15 @@ export function SiteTemplate({
     hmId(templates.documentation),
   )
   const blogTemplateDocument =
+    // @ts-ignore
     blogTemplate.data?.type === 'document'
+      // @ts-ignore
       ? blogTemplate.data.document
       : undefined
   const documentationTemplateDocument =
+    // @ts-ignore
     documentationTemplate.data?.type === 'document'
+      // @ts-ignore
       ? documentationTemplate.data.document
       : undefined
   function confirmTemplate() {
@@ -239,6 +243,7 @@ function TemplateItem({
 }) {
   const resource = useSubscribedResource(hmId(template))
   const document =
+    {/* @ts-ignore */}
     resource.data?.type === 'document' ? resource.data.document : undefined
   return (
     <div

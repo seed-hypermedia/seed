@@ -271,7 +271,9 @@ export class AutoUpdater {
     const [v2Base, v2Dev] = v2.split('-dev.')
 
     // Compare main version numbers first (2025.2.8)
+    // @ts-ignore
     const v1Parts = v1Base.split('.').map(Number)
+    // @ts-ignore
     const v2Parts = v2Base.split('.').map(Number)
 
     // Compare year.month.patch

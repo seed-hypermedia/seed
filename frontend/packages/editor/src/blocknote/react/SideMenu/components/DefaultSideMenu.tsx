@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../core'
 
 import {DragHandle} from './DefaultButtons/DragHandle'
 import {SideMenu} from './SideMenu'

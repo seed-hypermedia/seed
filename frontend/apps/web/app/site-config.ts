@@ -84,6 +84,7 @@ export async function getConfig(hostname: string) {
     // get the subdomain (without the dot)
     const subdomain = parts[0]
     // return the named service config
+    // @ts-expect-error
     return serviceConfig.namedServices[subdomain] || null
   } else {
     return singleSiteConfig
@@ -121,6 +122,7 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
             `Cannot write to service config for hostname ${hostname} - must be in format [subdomain].${serviceConfig.rootHostname}`,
           )
         }
+        // @ts-expect-error
         subdomain = parts[0]
       }
       if (!subdomain) throw new Error('Invalid hostname')

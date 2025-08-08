@@ -36,7 +36,7 @@ export function autolink(options: AutolinkOptions): Plugin {
       const changes = getChangedRanges(transform)
       let needsAutolink = true
 
-      // @ts-expect-error
+      // @ts-ignore
       changes.forEach(({oldRange, newRange}) => {
         // At first we check if we have to remove links.
         getMarksBetween(oldRange.from, oldRange.to, oldState.doc)
@@ -62,9 +62,9 @@ export function autolink(options: AutolinkOptions): Plugin {
               ' ',
             )
             const newLinkText = newState.doc.textBetween(
-              // @ts-expect-error
+              // @ts-ignore
               newMark.from,
-              // @ts-expect-error
+              // @ts-ignore
               newMark.to,
               undefined,
               ' ',
@@ -80,9 +80,9 @@ export function autolink(options: AutolinkOptions): Plugin {
             // Because we don’t want to remove links that were set manually.
             if (wasLink && !isLink) {
               tr.removeMark(
-                // @ts-expect-error
+                // @ts-ignore
                 needsAutolink ? newMark.from : newMark.to - 1,
-                // @ts-expect-error
+                // @ts-ignore
                 newMark.to,
                 options.type,
               )
@@ -103,9 +103,9 @@ export function autolink(options: AutolinkOptions): Plugin {
           // Grab the first node within the changed ranges (ex. the first of two paragraphs when hitting enter).
           textBlock = nodesInChangedRanges[0]
           textBeforeWhitespace = newState.doc.textBetween(
-            // @ts-expect-error
+            // @ts-ignore
             textBlock.pos,
-            // @ts-expect-error
+            // @ts-ignore
             textBlock.pos + textBlock.node.nodeSize,
             undefined,
             ' ',
@@ -119,7 +119,7 @@ export function autolink(options: AutolinkOptions): Plugin {
         ) {
           textBlock = nodesInChangedRanges[0]
           textBeforeWhitespace = newState.doc.textBetween(
-            // @ts-expect-error
+            // @ts-ignore
             textBlock.pos,
             newRange.to,
             undefined,
@@ -140,7 +140,7 @@ export function autolink(options: AutolinkOptions): Plugin {
             wordsBeforeWhitespace[wordsBeforeWhitespace.length - 1]
           const lastWordAndBlockOffset =
             textBlock.pos +
-            // @ts-expect-error
+            // @ts-ignore
             textBeforeWhitespace.lastIndexOf(lastWordBeforeSpace)
 
           if (!lastWordBeforeSpace) {

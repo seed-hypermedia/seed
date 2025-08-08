@@ -15,4 +15,4 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-declare const __SHOW_OB_RESET_BTN__: number
+declare const __SHOW_OB_RESET_BTN__: boolean

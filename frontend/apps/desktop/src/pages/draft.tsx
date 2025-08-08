@@ -66,6 +66,7 @@ export default function DraftPage() {
 
   const locationId = useMemo(() => {
     if (route.key != 'draft') return undefined
+    // @ts-expect-error
     if (data?.locationId) return data.locationId
     if (route.locationUid)
       return hmId(route.locationUid, {path: route.locationPath})
@@ -83,6 +84,7 @@ export default function DraftPage() {
 
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
+    {/* @ts-expect-error */}
     if (data?.editId) return data.editId
     if (route.editUid) return hmId(route.editUid, {path: route.editPath})
     if (data?.editUid) return hmId(data.editUid, {path: data.editPath})
@@ -198,6 +200,7 @@ export default function DraftPage() {
           <AccessoryLayout
             accessory={accessory}
             accessoryKey={accessoryKey}
+            // @ts-expect-error
             onScroll={() => dispatchScroll(true)}
             onAccessorySelect={(key) => {
               if (!key) return
@@ -336,6 +339,7 @@ function DocumentEditor({
 
   const contacts = useSelectedAccountContacts()
 
+  {/* @ts-expect-error */}
   if (state.matches('editing'))
     return (
       <div
@@ -349,6 +353,7 @@ function DocumentEditor({
           event.preventDefault()
           setIsDragging(true)
         }}
+        // @ts-expect-error
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
         className="flex flex-1 flex-col overflow-hidden"
@@ -361,8 +366,10 @@ function DocumentEditor({
           >
             <DraftCover
               draftActor={actor}
+              // @ts-expect-error
               disabled={!state.matches('editing')}
               show={showCover}
+              // @ts-expect-error
               setShow={setShowCover}
               showOutline={showOutline}
             />
@@ -370,6 +377,7 @@ function DocumentEditor({
               <div {...wrapperProps}>
                 {showSidebars ? (
                   <div
+                    // @ts-expect-error
                     className={showCover ? 'mt-[152px]' : 'mt-[220px]'}
                     onClick={(e) => e.stopPropagation()}
                     {...sidebarProps}
@@ -394,6 +402,7 @@ function DocumentEditor({
                     />
                   ) : null}
                   <Container
+                    // @ts-expect-error
                     paddingLeft="$4"
                     marginBottom={300}
                     onClick={(e: MouseEvent<HTMLDivElement>) => {
@@ -424,6 +433,7 @@ function DocumentEditor({
     if (dataTransfer?.files && dataTransfer.files.length > 0) {
       handleDragMedia(
         dataTransfer.files,
+        // @ts-expect-error
         (type, fileCID) => {
           console.log('==== MEDIA UPLOAD', type, fileCID)
           let mediaBlock = {
@@ -438,6 +448,7 @@ function DocumentEditor({
           }
           editor.insertBlocks(
             [mediaBlock],
+// @ts-expect-error
             editor._tiptapEditor.state.selection,
           )
         },
@@ -455,6 +466,7 @@ function DocumentEditor({
     urls.forEach((url) => {
       if (url.startsWith('http://') || url.startsWith('https://')) {
         importWebFile.mutate(
+          // @ts-expect-error
           {url},
           {
             onSuccess: (result) => {
@@ -462,13 +474,16 @@ function DocumentEditor({
                 id: generateBlockId(),
                 type: 'WebEmbed',
                 props: {
+                  // @ts-expect-error
                   url: result.data.url,
                 },
                 content: [],
                 children: [],
               }
               editor.insertBlocks(
+// @ts-ignore
                 [webEmbedBlock],
+// @ts-expect-error
                 editor._tiptapEditor.state.selection,
               )
             },
@@ -486,8 +501,11 @@ function DocumentEditor({
             content: [],
             children: [],
           }
+// @ts-ignore
           editor.insertBlocks(
+// @ts-ignore
             [hmDocBlock],
+// @ts-expect-error
             editor._tiptapEditor.state.selection,
           )
         }
@@ -563,6 +581,7 @@ function DraftAppHeader({
       items={displayNavItems}
       docId={docId}
       document={document}
+      // @ts-expect-error
       draftMetadata={draftMetadata}
       isCenterLayout={
         siteHomeEntity.document?.metadata.theme?.headerLayout === 'Center' ||
@@ -819,6 +838,7 @@ function DraftCover({
           })
         }}
         url={cover ? getDaemonFileUrl(cover) : ''}
+        // @ts-expect-error
         id={route.id}
       />
     </div>

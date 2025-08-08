@@ -1,8 +1,8 @@
-import {BlockNoteEditor, BlockSchema} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema} from '../../../../core'
 import {
   canNestBlock as checkNestBlock,
   canUnnestBlock as checkUnnestBlock,
-} from '@/blocknote/core/api/blockManipulation/commands/nestBlock'
+} from '../../../../core/api/blockManipulation/commands/nestBlock'
 import {useCallback, useState} from 'react'
 import {RiIndentDecrease, RiIndentIncrease} from 'react-icons/ri'
 import {ToolbarButton} from '../../../SharedComponents/Toolbar/components/ToolbarButton'

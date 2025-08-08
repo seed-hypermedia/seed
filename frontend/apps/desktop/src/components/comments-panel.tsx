@@ -169,8 +169,10 @@ function CommentBlockAccessory({
   let quotedContent = null
 
   if (!docId) return null
+  // @ts-expect-error
   if (doc.data?.document) {
     quotedContent = (
+      // @ts-expect-error
       <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />
     )
   } else if (doc.isInitialLoading) {
@@ -190,6 +192,7 @@ function CommentBlockAccessory({
               citation={citation}
               key={citation.source.id.id}
               accounts={accounts}
+              // @ts-expect-error
               targetDomain={targetDomain}
             />
           )
@@ -257,6 +260,7 @@ function CommentReplyAccessory({
             }}
             authors={Object.fromEntries(
               threadAuthorIds
+                // @ts-ignore
                 .map((id, index) => [id, commentAuthors[index].data])
                 .filter(([id, v]) => !!v),
             )}

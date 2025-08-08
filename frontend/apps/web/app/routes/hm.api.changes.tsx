@@ -57,6 +57,7 @@ export const loader = async ({
       latestVersion: latestDoc.version,
     }
   } catch (e: any) {
+    // @ts-expect-error
     result = {error: (e as Error).message}
   }
 

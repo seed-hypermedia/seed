@@ -1,4 +1,4 @@
-import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '../core'
 import {MantineProvider, createStyles} from '@mantine/core'
 import {EditorContent} from '@tiptap/react'
 import {HTMLAttributes, ReactNode, useEffect, useMemo, useState} from 'react'

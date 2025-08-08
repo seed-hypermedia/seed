@@ -20,40 +20,40 @@ export const lightDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[0],
     },
     tooltip: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[1],
     },
     hovered: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[1],
     },
     selected: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[0],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[5],
     },
     disabled: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[3],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[1],
     },
-    // @ts-expect-error
+    // @ts-ignore
     shadow: defaultColorScheme[2],
-    // @ts-expect-error
+    // @ts-ignore
     border: defaultColorScheme[1],
-    // @ts-expect-error
+    // @ts-ignore
     sideMenu: defaultColorScheme[2],
     highlightColors: {
       gray: {
@@ -106,40 +106,40 @@ export const darkDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[6],
     },
     tooltip: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[7],
     },
     hovered: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[7],
     },
     selected: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[8],
     },
     disabled: {
-      // @ts-expect-error
+      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-expect-error
+      // @ts-ignore
       background: defaultColorScheme[7],
     },
-    // @ts-expect-error
+    // @ts-ignore
     shadow: defaultColorScheme[8],
-    // @ts-expect-error
+    // @ts-ignore
     border: defaultColorScheme[7],
-    // @ts-expect-error
+    // @ts-ignore
     sideMenu: defaultColorScheme[4],
     highlightColors: {
       gray: {

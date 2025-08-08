@@ -110,6 +110,7 @@ export async function preparePublicKey(
   const y = bytes.slice(33)
 
   // Check if y is odd
+  // @ts-expect-error
   const prefix = y[31] & 1 ? 0x03 : 0x02
 
   const outputKeyValue = new Uint8Array([

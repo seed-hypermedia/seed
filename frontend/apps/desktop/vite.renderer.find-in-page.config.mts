@@ -42,6 +42,17 @@ export default defineConfig(({command, mode}) => {
         resolveExtensions: extensions,
       },
     },
+    // Define environment variables for the find-in-page renderer
+    define: {
+      // Define process object for the renderer process (browser environment)
+      process: JSON.stringify({
+        env: {},
+        platform: process.platform,
+        arch: process.arch,
+        versions: process.versions,
+      }),
+      global: 'globalThis',
+    },
   }
 
   if (command == 'build') {

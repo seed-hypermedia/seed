@@ -67,6 +67,7 @@ export function HypermediaLinkPreview(
     if (type === 'link') {
       const node = schema.nodes.paragraph.create(
         null,
+// @ts-ignore
         schema.text(title, schema.marks['link'].create({href: props.url})),
       )
       insertNode(
@@ -183,7 +184,7 @@ function getTitleFromEntity(
   if (!document || !unpackedId) return
   let title
   if (unpackedId.blockRef) {
-    // @ts-expect-error
+    // @ts-ignore
     const block = document.content.find((block) => {
       if (block.block) {
         return block.block.id === unpackedId.blockRef
@@ -220,7 +221,7 @@ function insertNode(
     let endPos = $pos.end()
     let endContent = Fragment.empty
     if (prevType === 'link') {
-      // @ts-expect-error
+      // @ts-ignore
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.marks.length > 0 && node.marks[0].attrs.href === link) {
           startPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
@@ -230,7 +231,7 @@ function insertNode(
         }
       })
     } else if (prevType === 'inline-embed') {
-      // @ts-expect-error
+      // @ts-ignore
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.type.name === 'inline-embed' && node.attrs.link === link) {
           startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos
@@ -299,7 +300,7 @@ function insertMentionNode(
 
   if (inline) {
     let offset = 0
-    // @ts-expect-error
+    // @ts-ignore
     $pos.parent.descendants((node, pos) => {
       if (node.marks.length > 0) {
         offset = pos

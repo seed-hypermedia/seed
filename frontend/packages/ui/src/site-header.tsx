@@ -262,8 +262,6 @@ function MobileMenuOutline({
 export function SmallSiteHeader({
   originHomeMetadata,
   originHomeId,
-  // @ts-expect-error
-  siteHost,
 }: {
   originHomeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
@@ -326,46 +324,6 @@ function HeaderLinkItem({
         {getMetadataName(metadata)}
       </a>
       {draftId ? <DraftBadge /> : null}
-    </div>
-  )
-}
-
-// @ts-expect-error
-function DropdownLinkItem({
-  item,
-  docId,
-}: {
-  item: DocNavigationItem
-  docId: UnpackedHypermediaId | null
-}) {
-  const isActive =
-    !!item.id &&
-    !!docId &&
-    item.id.uid === docId.uid &&
-    !!docId?.path &&
-    !!item.id?.path &&
-    docId.path.join('/').startsWith(item.id.path.join('/'))
-
-  const linkProps = useRouteLink(
-    item.draftId
-      ? {key: 'draft', id: item.draftId}
-      : item.id
-      ? {key: 'document', id: item.id}
-      : item.webUrl || '',
-    {handler: 'onClick'},
-  )
-
-  return (
-    // @ts-expect-error
-    <div
-      className={cn(
-        'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
-        isActive && 'bg-accent',
-      )}
-      {...linkProps}
-    >
-      <span className="text-sm">{getMetadataName(item.metadata)}</span>
-      {item.draftId && <DraftBadge />}
     </div>
   )
 }

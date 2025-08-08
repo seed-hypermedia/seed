@@ -1,5 +1,5 @@
-import {updateGroup} from '@/block-utils'
-import {BlockNoteEditor, BlockSchema} from '@/blocknote/core'
+import {updateGroup} from '../../../../../block-utils'
+import {BlockNoteEditor, BlockSchema} from '../../../../core'
 import {useMemo, useState} from 'react'
 import {RiH2, RiListOrdered, RiListUnordered, RiText} from 'react-icons/ri'
 import {ToolbarDropdown} from '../../../SharedComponents/Toolbar/components/ToolbarDropdown'
@@ -65,7 +65,7 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
 
       // Checks if props for the block type are valid
       for (const [prop, value] of Object.entries(item.props || {})) {
-        // @ts-expect-error
+        // @ts-ignore
         const propSchema = props.editor.schema[item.type].propSchema
 
         // Checks if the prop exists for the block type
@@ -75,9 +75,9 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
 
         // Checks if the prop's value is valid
         if (
-          // @ts-expect-error
+          // @ts-ignore
           propSchema[prop].values !== undefined &&
-          // @ts-expect-error
+          // @ts-ignore
           !propSchema[prop].values!.includes(value)
         ) {
           return false

@@ -1,4 +1,4 @@
-import {selectableNodeTypes} from '@/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
+import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
 import {Node} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
@@ -39,7 +39,7 @@ export const splitBlockCommand = (
       },
     ]
 
-    // @ts-expect-error
+    // @ts-ignore
     tr = tr.split(posInBlock, 2, types)
 
     if (insertNode) {

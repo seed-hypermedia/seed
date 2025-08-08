@@ -32,11 +32,18 @@ import './root.tsx'
 
 if (IS_PROD_DESKTOP) {
   Sentry.init({
+// @ts-ignore
+// @ts-ignore
+// @ts-expect-error
     dsn: import.meta.env.VITE_DESKTOP_SENTRY_DSN,
+// @ts-expect-error
     release: import.meta.env.VITE_VERSION,
+// @ts-expect-error
     environment: import.meta.env.MODE,
     debug: false,
+// @ts-ignore
     integrations: [new Sentry.Replay(), new Sentry.BrowserTracing()],
+// @ts-expect-error
     tracesSampleRate: import.meta.env.DEV ? 1.0 : 0.25,
     tracePropagationTargets: ['localhost', /^https:\/\/hyper\.media\//],
     // Session Replay

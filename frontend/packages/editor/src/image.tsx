@@ -1,10 +1,10 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {createReactBlockSpec} from '@/blocknote/react'
-import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
-import {isValidUrl, timeoutPromise} from '@/utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from './blocknote/react'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
+import {isValidUrl, timeoutPromise} from './utils'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
@@ -201,10 +201,10 @@ const display = ({
 }: DisplayComponentProps) => {
   const {importWebFile} = useDocContentContext()
   useEffect(() => {
-    // @ts-expect-error
+    // @ts-ignore
     if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
       const url = block.props.url
-      // @ts-expect-error
+      // @ts-ignore
       if (isValidUrl(url)) {
         timeoutPromise(importWebFile.mutateAsync(url), 5000, {
           reason: 'Error fetching the image.',
@@ -230,7 +230,7 @@ const display = ({
   const maxHeight = 600
 
   let width: number =
-    // @ts-expect-error
+    // @ts-ignore
     parseFloat(block.props.width) ||
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
@@ -356,7 +356,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'left',
-      // @ts-expect-error
+      // @ts-ignore
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -371,7 +371,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'right',
-      // @ts-expect-error
+      // @ts-ignore
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }

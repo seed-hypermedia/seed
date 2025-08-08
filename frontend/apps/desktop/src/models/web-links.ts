@@ -21,6 +21,7 @@ export function useWaitForPublication(url: string, secondsUntilTimeout = 120) {
       if (isTimedOutRef.current) return
       const meta = await fetchWebLinkMeta(url)
       if (meta?.hmId) {
+        // @ts-expect-error
         setResultMeta(meta)
       } else {
         if (isTimedOutRef.current) setTimedOut(true)

@@ -330,19 +330,26 @@ export function CommentCitationEntry({
     if (!comment) return comment
     if (
       comment.content.length === 1 &&
+      // @ts-expect-error
       comment.content[0].block.type === 'Embed' &&
       citationTarget
     ) {
       const firstBlockNode = comment.content[0]
+      // @ts-expect-error
       const singleEmbedId = unpackHmId(firstBlockNode.block.link)
       if (
+        // @ts-expect-error
         firstBlockNode.children?.length &&
+        // @ts-expect-error
         singleEmbedId?.type === citationTarget.type &&
+        // @ts-expect-error
         singleEmbedId.id === citationTarget.id &&
+        // @ts-expect-error
         singleEmbedId.blockRef === citationTargetFragment?.blockId
       ) {
         return {
           ...comment,
+          // @ts-expect-error
           content: firstBlockNode.children,
         } satisfies HMComment
       }
@@ -365,6 +372,7 @@ export function CommentCitationEntry({
       key={comment.id}
       authorId={comment.author}
       comment={focusedComment}
+      // @ts-expect-error
       rootCommentId={comment.threadRoot ?? null}
       rootCommentVersion={comment.threadRootVersion ?? null}
       authorMetadata={accounts[comment.author]?.metadata}

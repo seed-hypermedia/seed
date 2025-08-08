@@ -4,11 +4,11 @@ import {
   DefaultBlockSchema,
   LinkMenuProsemirrorPlugin,
   LinkMenuState,
-} from '@/blocknote/core'
+} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {LinkMenuItem} from '@/blocknote/core/extensions/LinkMenu/LinkMenuItem'
+import {LinkMenuItem} from '../../../core/extensions/LinkMenu/LinkMenuItem'
 import {DefaultLinkMenu} from './DefaultLinkMenu'
 
 export type LinkMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =

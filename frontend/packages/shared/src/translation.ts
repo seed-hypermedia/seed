@@ -33,9 +33,9 @@ export function useTx() {
           'args are required when using a function as a translation',
         )
       }
-      return def(args)
+      return (def as any)(args)
     }
-    return def
+    return def as any
   }
 }
 
@@ -56,9 +56,9 @@ export function useTxString() {
           'args are required when using a function as a translation',
         )
       }
-      return def(args)
+      return (def as any)(args)
     }
-    return def
+    return def as any
   }
 }
 

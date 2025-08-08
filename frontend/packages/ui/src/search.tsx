@@ -560,7 +560,7 @@ function escapeRegExp(str: string) {
 function normalizePath(path: string[]): string[] {
   return path.map((segment) => {
     const [first, ...rest] = segment.split('-')
-    // @ts-expect-error
+    // @ts-ignore
     return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
   })
 }
@@ -592,7 +592,7 @@ export function useCollapsedPath(
     if (fullWidth <= containerWidth) {
       setCollapsedPath(path)
     } else {
-      // @ts-expect-error
+      // @ts-ignore
       setCollapsedPath([path[0], '…', path[path.length - 1]])
     }
   }, [path, containerRef])

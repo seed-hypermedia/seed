@@ -242,6 +242,7 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
   // If nextRoute has no accessory (undefined), spread from prevRoute
   // Note: if accessory is null, it means explicitly closed, so don't spread
   if (resultAccessory === undefined) {
+    // @ts-ignore
     if (prevRoute.key === 'document' || prevRoute.key === 'draft') {
       const prevAccessory =
         'accessory' in prevRoute ? prevRoute.accessory : undefined

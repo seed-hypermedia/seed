@@ -148,7 +148,7 @@ function getBlockNodeChanges(
   for (const bn of blockNodes) {
     if (bn.block.type == 'Query') {
       // change space id to the targetId
-      // @ts-expect-error
+      // @ts-ignore
       bn.block.attributes.query.includes[0].space = targetId
     }
 
@@ -168,9 +168,9 @@ function getBlockNodeChanges(
         op: {
           case: 'moveBlock',
           value: {
-            // @ts-expect-error
+            // @ts-ignore
             parent: blocksMap[bn.block.id].parent,
-            // @ts-expect-error
+            // @ts-ignore
             leftSibling: blocksMap[bn.block.id].left,
             blockId: bn.block.id,
           },

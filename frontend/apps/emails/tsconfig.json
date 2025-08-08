@@ -1,4 +1,6 @@
 {
+  "include": ["*.ts", "*.tsx", "components/*.tsx"],
+  "exclude": ["node_modules", "../../packages/**/*"],
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
@@ -6,6 +8,11 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "strict": false
+    "strict": false,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "skipDefaultLibCheck": true,
+    "noLib": false,
+    "lib": ["ES2022", "DOM"]
   }
 }

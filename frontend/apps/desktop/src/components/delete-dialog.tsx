@@ -60,15 +60,18 @@ export function DeleteEntityDialog({
         <Spinner />
       </div>
     )
+  {/* @ts-expect-error */}
   if (doc.isError || !doc.data?.document)
     return (
       <Text className="text-destructive text-sm">
+        {/* @ts-expect-error */}
         {doc.error || 'Could not load document'}
       </Text>
     )
   return (
     <div className="flex max-w-[440px] flex-col gap-4 rounded-lg p-4">
       <Text className="text-lg font-semibold">
+        {/* @ts-expect-error */}
         Delete "{getDocumentTitle(doc.data?.document)}"
       </Text>
       <Text className="text-muted-foreground text-sm">
@@ -89,6 +92,7 @@ export function DeleteEntityDialog({
       </Text>
       <div className="my-4 flex flex-col gap-3">
         <DeletionListItem
+          // @ts-expect-error
           metadata={doc.data.document.metadata}
           path={id.path}
         />

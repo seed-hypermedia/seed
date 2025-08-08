@@ -27,6 +27,7 @@ import {
   useHover,
   useLowlight,
   useOpenUrl,
+// @ts-ignore
   useRangeSelection,
   useRouteLink,
   useRouteLinkHref,
@@ -403,6 +404,7 @@ export function BlockNodeList({
 }) {
   const getListClasses = (
     type: HMBlockChildrenType,
+    // @ts-ignore
     level?: string | number,
   ): string => {
     const classes: string[] = [
@@ -486,7 +488,6 @@ export function BlockNodeContent({
     debug,
     comment,
     blockCitations,
-    collapsedBlocks,
     setCollapsedBlocks,
   } = useDocContentContext()
   const [hover, setHover] = useState(false)
@@ -883,27 +884,6 @@ export function BlockNodeContent({
   )
 }
 
-function isBlockNodeEmpty(bn: HMBlockNode): boolean {
-  if (bn.children && bn.children.length) return false
-  if (typeof bn.block == 'undefined') return true
-  switch (bn.block.type) {
-    case 'Paragraph':
-    case 'Heading':
-    case 'Math':
-    case 'Code':
-      return !bn.block.text
-    case 'Image':
-    case 'File':
-    case 'Video':
-    // case "nostr":
-    case 'Embed':
-    case 'WebEmbed':
-      return !bn.block.link
-    default:
-      return false
-  }
-}
-
 export const blockStyles = 'w-full flex-1 self-center'
 
 function BlockContent(props: BlockContentProps) {
@@ -967,7 +947,7 @@ function BlockContentParagraph({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {debug, textUnit, comment} = useDocContentContext()
+  const {debug, comment} = useDocContentContext()
 
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block)
@@ -1014,6 +994,7 @@ export function BlockContentHeading({
 
 export function useHeadingMarginStyles(
   depth: number,
+  // @ts-ignore
   unit: number,
   isFirst?: boolean,
 ) {
@@ -1164,7 +1145,7 @@ function BlockContentImage({
               objectFit: 'contain',
               transition: 'transform 0.2s ease-out',
             }}
-            onClick={(e) => {
+            onClick={() => {
               handleDoubleClick()
             }}
             className="transition-transform duration-200"
@@ -1296,7 +1277,7 @@ function InlineContentView({
   isRange?: boolean
   fontWeight?: string
 } & React.HTMLAttributes<HTMLSpanElement>) {
-  const {textUnit, entityComponents, comment, onHoverIn, onHoverOut} =
+  const {textUnit, entityComponents, onHoverIn, onHoverOut} =
     useDocContentContext()
 
   const InlineEmbed = entityComponents.Inline
@@ -1524,7 +1505,6 @@ export function ErrorBlock({
 export function CommentContentEmbed({
   props,
   comment,
-  isLoading,
   author,
   EmbedWrapper,
 }: {
@@ -1842,9 +1822,9 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     return <ErrorBlockMessage message="Query block with nothing included" />
   const id =
     mainInclude.space &&
-    // @ts-expect-error
+    // @ts-ignore
     hmId(query.includes[0].space, {
-      // @ts-expect-error
+      // @ts-ignore
       path: query.includes[0].path ? query.includes[0].path.split('/') : null,
       latest: true,
     })
@@ -1903,7 +1883,7 @@ export function getBlockNodeById(
 }
 
 export function BlockContentFile({block}: BlockContentProps) {
-  const {layoutUnit, saveCidAsFile} = useDocContentContext()
+  const {saveCidAsFile} = useDocContentContext()
   // @ts-expect-error
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
@@ -2132,7 +2112,7 @@ export function BlockContentCode({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {layoutUnit, debug, textUnit} = useDocContentContext()
+  const {layoutUnit, debug} = useDocContentContext()
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
   }
@@ -2250,7 +2230,7 @@ export function BlockContentMath({
   }, [isContentSmallerThanContainer, layoutUnit])
 
   // Update measurements when tex changes
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     if (tex) {
       // Use a timeout to ensure KaTeX has finished rendering
@@ -2263,7 +2243,7 @@ export function BlockContentMath({
   }, [tex, measureContentAndContainer])
 
   // Also measure after mathRef updates (when KaTeX rendering is done)
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     if (mathRef.current) {
       // Use MutationObserver to detect when KaTeX finishes rendering
@@ -2284,7 +2264,7 @@ export function BlockContentMath({
   }, [measureContentAndContainer])
 
   // Add resize observer to handle container size changes
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     const container = containerRef.current
 

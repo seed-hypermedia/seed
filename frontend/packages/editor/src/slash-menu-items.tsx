@@ -4,7 +4,7 @@ import {
   insertOrUpdateBlock,
   PartialBlock,
   PropSchema,
-} from '@/blocknote/core'
+} from './blocknote/core'
 import {
   RiArticleFill,
   RiCodeBoxFill,

@@ -47,6 +47,7 @@ export function OptionsPanel({
               onMetadata={onMetadata}
             />
             <HeaderLogo
+              // @ts-expect-error
               draftId={draftId}
               metadata={metadata}
               onMetadata={onMetadata}

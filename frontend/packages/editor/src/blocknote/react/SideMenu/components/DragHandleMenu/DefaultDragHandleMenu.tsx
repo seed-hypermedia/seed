@@ -1,6 +1,6 @@
 // @ts-expect-error
 import {Block, BlockNoteEditor, HMBlockSchema} from '@'
-import {updateGroup} from '@/block-utils'
+import {updateGroup} from '../../../../../block-utils'
 import {Box, Menu} from '@mantine/core'
 import {Forward, RefreshCcw} from '@shm/ui/icons'
 import * as _ from 'lodash'

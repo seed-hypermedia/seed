@@ -45,6 +45,7 @@ export const loader = async ({
     const allComments = res.comments.map(
       (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
     )
+    // @ts-expect-error
     const commentGroups = getCommentGroups(allComments, targetCommentId || null)
     const allAccounts = new Set<string>()
     commentGroups.forEach((commentGroup) => {
@@ -68,6 +69,7 @@ export const loader = async ({
       })
       .map((d) => {
         return {
+          // @ts-expect-error
           ...d.toJson({emitDefaultValues: true}),
           path: entityQueryPathToHmIdPath(d.path),
           type: 'document',

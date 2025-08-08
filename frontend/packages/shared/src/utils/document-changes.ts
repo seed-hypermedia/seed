@@ -1,4 +1,3 @@
-import {Empty} from '@bufbuild/protobuf'
 import _ from 'lodash'
 import {DocumentChange_SetAttribute} from '../client'
 import {
@@ -102,22 +101,6 @@ export function extractMetaEntries(jsonObject: {}): [
   )
 }
 
-// @ts-expect-error
-function docAttributeChangeNull(key: string[]) {
-  return new DocumentChange({
-    op: {
-      case: 'setAttribute',
-      value: new DocumentChange_SetAttribute({
-        blockId: '',
-        key,
-        value: {
-          case: 'nullValue',
-          value: new Empty(),
-        },
-      }),
-    },
-  })
-}
 function docAttributeChangeString(key: string[], value: string) {
   return new DocumentChange({
     op: {
@@ -237,7 +220,7 @@ export function compareBlocksWithMap(
             case: 'moveBlock',
             value: {
               blockId: block.id,
-              // @ts-expect-error
+              // @ts-ignore
               leftSibling: idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : '',
               parent: parentId,
             },
@@ -251,7 +234,7 @@ export function compareBlocksWithMap(
         }),
       )
     } else {
-      // @ts-expect-error
+      // @ts-ignore
       let left = idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : ''
       if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
         changes.push(
@@ -474,11 +457,11 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
     const include1 = includes1[i]
     const include2 = includes2[i]
 
-    // @ts-expect-error
+    // @ts-ignore
     if (include1.mode !== include2.mode) return false
-    // @ts-expect-error
+    // @ts-ignore
     if (include1.path !== include2.path) return false
-    // @ts-expect-error
+    // @ts-ignore
     if (include1.space !== include2.space) return false
   }
 
@@ -490,10 +473,10 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
     const sort1 = q1.sort![i]
     const sort2 = q2.sort![i]
 
-    // @ts-expect-error
+    // @ts-ignore
     if (sort1.reverse !== sort2.reverse) return false
 
-    // @ts-expect-error
+    // @ts-ignore
     if (sort1.term !== sort2.term) return false
   }
   return true

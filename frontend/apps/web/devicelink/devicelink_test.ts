@@ -37,6 +37,7 @@ export async function main() {
   const key = keys.keys[0]
 
   const session = await client.daemon.createDeviceLinkSession({
+    // @ts-expect-error
     signingKeyName: key.name,
   })
 
@@ -121,6 +122,7 @@ async function preparePublicKey(publicKey: CryptoKey): Promise<PublicKey> {
   const y = bytes.slice(33)
 
   // Check if y is odd
+  // @ts-expect-error
   const prefix = y[31] & 1 ? 0x03 : 0x02
 
   const outputKeyValue = new Uint8Array([

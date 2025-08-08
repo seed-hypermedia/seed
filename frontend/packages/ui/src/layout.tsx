@@ -114,8 +114,7 @@ export const useDocumentLayout = (
     })
 
     // Set up mutation observer to detect when the element is added to the DOM
-    // @ts-expect-error
-    const mutationObserver = new MutationObserver((mutations) => {
+    const mutationObserver = new MutationObserver(() => {
       if (elementRef.current && !element) {
         element = elementRef.current
 

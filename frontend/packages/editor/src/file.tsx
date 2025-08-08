@@ -1,8 +1,8 @@
-import {Block, BlockNoteEditor, defaultProps} from '@/blocknote/core'
-import {createReactBlockSpec} from '@/blocknote/react'
-import {MediaContainer} from '@/media-container'
-import {DisplayComponentProps, MediaRender} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
+import {Block, BlockNoteEditor, defaultProps} from './blocknote/core'
+import {createReactBlockSpec} from './blocknote/react'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender} from './media-render'
+import {HMBlockSchema} from './schema'
 import {formatBytes} from '@shm/shared/utils/format-bytes'
 import {Button} from '@shm/ui/button'
 import {File} from '@shm/ui/icons'
@@ -88,7 +88,7 @@ const display = ({
           {block.props.name}
         </SizableText>
         <SizableText className="pt-1" color="muted" size="sm">
-          {/* @ts-expect-error */}
+          {/* @ts-ignore */}
           {formatBytes(parseInt(block.props.size))}
         </SizableText>
       </Button>

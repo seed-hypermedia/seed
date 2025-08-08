@@ -7,7 +7,7 @@ export function getActivityTime(
 ) {
   if (activity.type === 'change') return normalizeDate(activity.createTime)
   if (activity.type === 'commentGroup')
-    // @ts-expect-error
+    // @ts-ignore
     return normalizeDate(activity.comments[0].createTime)
   if (activity.type === 'document') {
     const updateTime = normalizeDate(activity.updateTime)

@@ -93,6 +93,7 @@ export const action: ActionFunction = async ({request}) => {
     message: 'Success',
     dependencies,
     commentId: resultCommentId,
+    // @ts-expect-error
     comment: commentResult.toJson(),
     targetId,
   } satisfies CommentResponsePayload)

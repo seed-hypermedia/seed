@@ -1,4 +1,4 @@
-import {HMBlockSchema} from '@/schema'
+import {HMBlockSchema} from '../../../../schema'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 

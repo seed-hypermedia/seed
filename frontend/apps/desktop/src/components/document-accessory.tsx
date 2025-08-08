@@ -42,6 +42,7 @@ export function useDocumentAccessory({
     accessory = (
       <CitationsPanel
         entityId={docId}
+        // @ts-expect-error
         accessory={route.accessory}
         onAccessory={(acc) => {
           replace({...route, accessory: acc})
@@ -60,10 +61,12 @@ export function useDocumentAccessory({
       />
     )
   } else if (accessoryKey === 'collaborators') {
+    // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />
   } else if (route.accessory?.key === 'discussions') {
     accessory = (
       <DiscussionsPanel
+        // @ts-expect-error
         docId={docId}
         accessory={route.accessory}
         onAccessory={(acc) => {

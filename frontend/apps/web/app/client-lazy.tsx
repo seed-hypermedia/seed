@@ -10,6 +10,7 @@ function clientLazy<ComponentProps extends {}>(
     useEffect(() => {
       setIsClientAwake(true)
     }, [])
+    // @ts-expect-error
     return isClientAwake ? <ClientComponent {...props} /> : null
   }
   return ClientAwokenComponent

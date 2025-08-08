@@ -96,6 +96,7 @@ export async function initDrafts() {
         })
         deps = doc.version.split('.')
       } catch (e) {
+        // @ts-expect-error
         if (e.message.match('document not found')) {
           console.error('deps edit doc not found')
           editUid = undefined
@@ -295,6 +296,7 @@ export const draftsApi = t.router({
       await saveDraftIndex()
       const draft: HMDraftContent = {
         content: input.content,
+        // @ts-expect-error
         signingAccount: input.signingAccount,
         deps: input.deps,
         navigation: input.navigation,

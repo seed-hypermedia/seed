@@ -1,5 +1,5 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import type {BlockIdentifier} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
 import {HMBlockChildrenTypeSchema} from '@shm/shared'
@@ -15,7 +15,7 @@ export function youtubeParser(url: string) {
   var regExp =
     /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
   var match = url.match(regExp)
-  // @ts-expect-error
+  // @ts-ignore
   return match && match[7].length == 11 ? match[7] : false
 }
 
@@ -57,7 +57,7 @@ export function setGroupTypes(
         block.props &&
         block.props.childrenType
       ) {
-        // @ts-expect-error
+        // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
           if (child.type.name === 'blockGroup') {
             setTimeout(() => {

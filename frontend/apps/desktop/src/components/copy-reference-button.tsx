@@ -40,6 +40,7 @@ export function useDocumentUrl({
   const accountId = hmId(docId.uid)
   const accountEntity = useResource(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  // @ts-expect-error
   const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
   const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
     siteHostname || gwUrl,
@@ -50,10 +51,12 @@ export function useDocumentUrl({
     ? createSiteUrl({
         hostname: siteHostname,
         path: docId.path,
+        // @ts-expect-error
         version: docEntity.data?.document?.version,
         latest,
       })
     : createWebHMUrl(docId.uid, {
+        // @ts-expect-error
         version: docEntity.data?.document?.version,
         hostname: gwUrl,
         path: docId.path,
@@ -73,6 +76,7 @@ export function useDocumentUrl({
       onCopyReference({
         ...docId,
         hostname: siteHostname || gwUrl,
+        // @ts-expect-error
         version: docEntity.data?.document?.version || null,
         blockRef: blockId || focusBlockId || null,
         blockRange: blockRange || null,
@@ -172,6 +176,7 @@ export function useCopyReferenceButton(docId?: UnpackedHypermediaId) {
     if (isCopied) return
     if (docId) {
       const accountId = hmId(docId.uid)
+      // @ts-expect-error
       copy(accountId)
       setIsCopied(true)
       setTimeout(() => {

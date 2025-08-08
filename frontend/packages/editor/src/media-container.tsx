@@ -1,9 +1,9 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {InlineContent} from '@/blocknote/react/ReactBlockSpec'
-import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
-import {MediaType} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {InlineContent} from './blocknote/react/ReactBlockSpec'
+import {MaxFileSizeB, MaxFileSizeMB} from './file'
+import {MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
@@ -87,11 +87,11 @@ export const MediaContainer = ({
       if (selected) setSelected(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const file = Array.from(e.dataTransfer.files)[0]
-        // @ts-expect-error
+        // @ts-ignore
         if (validateFile && !validateFile(file)) {
           return
         }
-        // @ts-expect-error
+        // @ts-ignore
         if (!file.type.includes(`${mediaType}/`) && mediaType !== 'file') {
           toast.error(
             `The dragged file is not ${
@@ -100,7 +100,7 @@ export const MediaContainer = ({
           )
           return
         }
-        // @ts-expect-error
+        // @ts-ignore
         handleDragReplace(file)
         return
       }

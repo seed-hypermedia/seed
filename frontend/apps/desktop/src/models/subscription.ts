@@ -4,6 +4,7 @@ import {Subscription} from '@shm/shared/client/.generated/activity/v1alpha/subsc
 import {BIG_INT} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+// @ts-expect-error
 import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   entityQueryPathToHmIdPath,

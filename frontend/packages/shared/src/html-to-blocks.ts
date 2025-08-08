@@ -16,15 +16,10 @@ export async function htmlToBlocks(
   const $ = cheerio.load(html)
   const blocks: HMBlockNode[] = []
 
-  // @ts-expect-error
-  function pushBlock(block: HMBlock) {
-    blocks.push({block, children: []})
-  }
-
   // Helper function to get heading level from tag name
   function getHeadingLevel(tagName: string): number | null {
     const match = tagName.match(/^h([1-6])$/)
-    // @ts-expect-error
+    // @ts-ignore
     return match ? parseInt(match[1], 10) : null
   }
 
@@ -195,9 +190,6 @@ export async function htmlToBlocks(
     }
     await walk(node, 0, {})
 
-    // Calculate how much whitespace we're trimming from the start
-    // @ts-expect-error
-    const originalLength = normalizedText.length
     const trimmedText = normalizedText.trim()
     const leadingWhitespaceLength =
       normalizedText.length - normalizedText.trimStart().length
@@ -214,9 +206,9 @@ export async function htmlToBlocks(
     }))
 
     adjustedAnnotations.sort((a, b) => {
-      // @ts-expect-error
+      // @ts-ignore
       if (a.starts[0] !== b.starts[0]) return a.starts[0] - b.starts[0]
-      // @ts-expect-error
+      // @ts-ignore
       if (a.ends[0] !== b.ends[0]) return a.ends[0] - b.ends[0]
       if (a.type !== b.type) return a.type < b.type ? -1 : 1
       return 0
@@ -253,11 +245,11 @@ export async function htmlToBlocks(
     const $el = $(el)
 
     // Check if there are newlines before this element by looking at the original HTML
-    // @ts-expect-error
+    // @ts-ignore
     const hasNewlinesBefore = i > 0 && html.includes('\n\n<' + el.name)
 
     // Check if it's a heading
-    // @ts-expect-error
+    // @ts-ignore
     const headingLevel = getHeadingLevel(el.name)
     if (headingLevel) {
       const headingBlock = await createHeadingBlock(el)
@@ -507,7 +499,7 @@ export async function htmlToBlocks(
       // Remove any headings from stack that are at same level or deeper
       while (
         headingStack.length > 0 &&
-        // @ts-expect-error
+        // @ts-ignore
         headingStack[headingStack.length - 1].level >= element.level
       ) {
         headingStack.pop()
@@ -519,7 +511,7 @@ export async function htmlToBlocks(
         blocks.push(element.blockNode)
       } else {
         // Child heading
-        // @ts-expect-error
+        // @ts-ignore
         const parent = headingStack[headingStack.length - 1].blockNode
         if (!parent.children) parent.children = []
         parent.children.push(element.blockNode)
@@ -532,7 +524,7 @@ export async function htmlToBlocks(
       if (headingStack.length === 0) {
         blocks.push(element.blockNode)
       } else {
-        // @ts-expect-error
+        // @ts-ignore
         const parent = headingStack[headingStack.length - 1].blockNode
         if (!parent.children) parent.children = []
         parent.children.push(element.blockNode)

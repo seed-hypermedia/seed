@@ -49,6 +49,7 @@ type FileType = {
   type: string
 }
 
+// @ts-ignore
 export async function handleDragMedia(file: File) {
   if (file.size > 62914560) {
     toast.error(`The size of ${file.name} exceeds 60 MB.`)
@@ -70,6 +71,7 @@ export async function handleDragMedia(file: File) {
       size: file.size.toString(),
     } as FileType['props']
   } catch (error) {
+    // @ts-expect-error
     console.log(error.message)
     toast.error('Failed to upload file.')
   }

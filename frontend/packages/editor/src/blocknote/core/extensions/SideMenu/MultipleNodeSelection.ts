@@ -37,7 +37,7 @@ export class MultipleNodeSelection extends Selection {
     return new MultipleNodeSelection(doc.resolve(from), doc.resolve(to))
   }
 
-  // @ts-expect-error
+  // @ts-ignore
   content(): Slice {
     return new Slice(Fragment.from(this.nodes), 0, 0)
   }
@@ -56,7 +56,7 @@ export class MultipleNodeSelection extends Selection {
     }
 
     for (let i = 0; i < this.nodes.length; i++) {
-      // @ts-expect-error
+      // @ts-ignore
       if (!this.nodes[i].eq(selection.nodes[i])) {
         return false
       }

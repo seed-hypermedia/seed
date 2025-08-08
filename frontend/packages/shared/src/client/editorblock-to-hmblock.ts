@@ -209,9 +209,20 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockParse = HMBlockSchema.safeParse(block)
 
-  if (blockParse.success) return block
-  console.error('Failed to validate block for writing', block, blockParse.error)
-  throw new Error('Failed to validate block for writing ' + blockParse.error)
+  if (blockParse.success) {
+    return blockParse.data
+  }
+
+  // TypeScript can't narrow the type here, so we need to assert it
+  const failedParse = blockParse as {success: false; error: any}
+  console.error(
+    'Failed to validate block for writing',
+    block,
+    failedParse.error,
+  )
+  throw new Error(
+    'Failed to validate block for writing ' + JSON.stringify(failedParse.error),
+  )
 }
 
 function flattenLeaves(
@@ -222,43 +233,35 @@ function flattenLeaves(
   for (let i = 0; i < content.length; i++) {
     let leaf = content[i]
 
-    // @ts-expect-error
+    // @ts-ignore
     if (leaf.type == 'link') {
-      // @ts-expect-error
+      // @ts-ignore
       let nestedLeaves = flattenLeaves(leaf.content).map(
         (l: HMInlineContent) =>
           ({
             ...l,
-            // @ts-expect-error
+            // @ts-ignore
             href: leaf.href,
             type: 'link',
           }) as const,
       )
       result.push(...nestedLeaves)
     }
-    // @ts-expect-error
+    // @ts-ignore
     if (leaf.type == 'inline-embed') {
       result.push({
         ...leaf,
         text: '\uFFFC',
-        // @ts-expect-error
+        // @ts-ignore
         link: leaf.link,
       } as const)
     }
 
-    // @ts-expect-error
+    // @ts-ignore
     if (leaf.type == 'text') {
       result.push(leaf)
     }
   }
 
-  // @ts-expect-error
-  return result
-}
-
-function getParentBlock(block: HMBlock) {
-  if (block.type == 'Heading') return block
-  if (block.type == 'Paragraph') return block
-  if (block.type == 'Code') return block
-  return undefined
+  return result as Array<HMInlineContent>
 }

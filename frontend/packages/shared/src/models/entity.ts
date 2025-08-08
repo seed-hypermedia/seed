@@ -203,7 +203,7 @@ export class HMRedirectError extends Error {
   }
 }
 
-// @ts-expect-error
+// @ts-ignore
 export function getErrorMessage(err: any) {
   try {
     const e = ConnectError.from(err)

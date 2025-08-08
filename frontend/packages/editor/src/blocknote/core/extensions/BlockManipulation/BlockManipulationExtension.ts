@@ -1,4 +1,4 @@
-import {autocompletePluginKey} from '@/autocomplete'
+import {autocompletePluginKey} from '../../../../autocomplete'
 import {Extension} from '@tiptap/core'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
@@ -180,7 +180,7 @@ export const BlockManipulationExtension = Extension.create({
 
                 if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
                   const newBlock =
-                    // @ts-expect-error
+                    // @ts-ignore
                     state.schema.nodes['blockContainer'].createAndFill()!
                   let tr = state.tr.insert(1, newBlock)
                   view.dispatch(tr)

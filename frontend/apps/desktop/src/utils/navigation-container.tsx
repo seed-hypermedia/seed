@@ -51,6 +51,7 @@ export function NavigationContainer({
         if (prevState !== newState) {
           updateNavState(newState)
         } else if (action.type === 'closeBack') {
+          // @ts-expect-error
           client.closeAppWindow.mutate(window.windowId)
         }
       },

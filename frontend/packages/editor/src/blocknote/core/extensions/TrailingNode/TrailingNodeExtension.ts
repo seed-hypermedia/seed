@@ -40,7 +40,7 @@ export const TrailingNode = Extension.create<TrailingNodeOptions>({
 
           return tr.insert(
             endPosition,
-            // @ts-expect-error
+            // @ts-ignore
             type.create(undefined, contentType.create()),
           )
         },

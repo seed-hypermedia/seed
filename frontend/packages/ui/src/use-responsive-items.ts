@@ -88,10 +88,10 @@ export function useResponsiveItems<T extends {key: string}>({
 
     // Ensure we show at least one item (fallback)
     if (visible.length === 0 && items.length > 0) {
-      // @ts-expect-error
+      // @ts-ignore
       visible.push(items[0])
       const firstOverflowIndex = overflow.findIndex(
-        // @ts-expect-error
+        // @ts-ignore
         (item) => item.key === items[0].key,
       )
       if (firstOverflowIndex !== -1) {

@@ -1,10 +1,10 @@
-import {findNextBlock, findPreviousBlock} from '@/block-utils'
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
-import {HMBlockSchema} from '@/schema'
+import {findNextBlock, findPreviousBlock} from './block-utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {getBlockInfoFromSelection} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {HMBlockSchema} from './schema'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
@@ -135,7 +135,7 @@ const Render = (
   }, [isContentSmallerThanContainer])
 
   // Update measurements when content changes
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     // @ts-expect-error
     if (block.content[0] && block.content[0].text) {
@@ -149,7 +149,7 @@ const Render = (
   }, [block.content, measureContentAndContainer])
 
   // Also measure after mathRef updates (when KaTeX rendering is done)
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     if (mathRef.current) {
       // Use MutationObserver to detect when KaTeX finishes rendering
@@ -170,7 +170,7 @@ const Render = (
   }, [measureContentAndContainer])
 
   // Add resize observer to handle container size changes
-  // @ts-expect-error
+  // @ts-ignore
   useEffect(() => {
     const container = containerRef.current
 

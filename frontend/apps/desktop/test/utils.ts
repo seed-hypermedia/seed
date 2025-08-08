@@ -35,6 +35,7 @@ export async function startApp() {
   //   console.log(`== ~ startApp ~ windows:`, windows)
   //   throw new Error('too many windows open')
   // }
+  // @ts-ignore
   const appWindow: Page = windows[0]
   appWindow.on('console', log.info)
 
@@ -100,6 +101,7 @@ export function findLatestBuild(): string {
   ]
 
   const latestBuild = builds
+    // @ts-ignore
     .map((fileName) => {
       // make sure it's a directory with "-" delimited platform in its name
       const stats = fs.statSync(path.join(outDir, fileName))
@@ -116,6 +118,7 @@ export function findLatestBuild(): string {
     })
     // @ts-ignore
     .sort((a, b) => b.time - a.time)
+    // @ts-ignore
     .map((file) => {
       if (file) {
         return file.name
@@ -210,6 +213,7 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     // @ts-ignore
     const appDir = path.join(buildDir, appBundle, 'Contents', 'MacOS')
     const appName = fs.readdirSync(appDir)[0]
+    // @ts-ignore
     executable = path.join(appDir, appName)
 
     // @ts-ignore
@@ -269,7 +273,9 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     name = packageJson.name
   } else if (platform == 'linux') {
     const buildFolderName = buildDir.split('/').reverse()[0]
+    // @ts-ignore
     const appName = buildFolderName.split('-')[0]
+    // @ts-ignore
     executable = path.join(buildDir, appName)
     resourcesDir = path.join(buildDir, 'resources')
     const resourcesList = fs.readdirSync(resourcesDir)

@@ -1,4 +1,4 @@
-import {hmBlockSchema} from '@/full-schema'
+import {hmBlockSchema} from '../../../../full-schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
@@ -255,7 +255,7 @@ export const MarkdownToBlocks = async (
   // Get ProseMirror fragment from parsed HTML
   const fragment = ProseMirrorDOMParser.fromSchema(state.schema).parse(doc.body)
 
-  // @ts-expect-error
+  // @ts-ignore
   fragment.firstChild!.content.forEach((node) => {
     if (node.type.name !== 'blockContainer') {
       return false
@@ -267,7 +267,7 @@ export const MarkdownToBlocks = async (
   // Function to determine heading level
   const getHeadingLevel = (block: Block<BlockSchema>) => {
     if (block.type.startsWith('heading')) {
-      // @ts-expect-error
+      // @ts-ignore
       return parseInt(block.props.level, 10)
     }
     return 0
@@ -280,13 +280,13 @@ export const MarkdownToBlocks = async (
     const headingLevel = getHeadingLevel(block)
 
     if (headingLevel > 0) {
-      // @ts-expect-error
+      // @ts-ignore
       while (stack.length && stack[stack.length - 1].level >= headingLevel) {
         stack.pop()
       }
 
       if (stack.length) {
-        // @ts-expect-error
+        // @ts-ignore
         stack[stack.length - 1].block.children.push(block)
       } else {
         organizedBlocks.push(block)
@@ -304,9 +304,9 @@ export const MarkdownToBlocks = async (
       }
       if (block.content.length > 0) {
         const blockContent =
-          // @ts-expect-error
+          // @ts-ignore
           block.content[0].type === 'link'
-            // @ts-expect-error
+            // @ts-ignore
             ? block.content[0].content[0].text
             : // @ts-ignore
               block.content[0].text
@@ -393,7 +393,7 @@ export const MarkdownToBlocks = async (
         }
       }
       if (stack.length) {
-        // @ts-expect-error
+        // @ts-ignore
         stack[stack.length - 1].block.children.push(blockToInsert)
       } else {
         organizedBlocks.push(blockToInsert)

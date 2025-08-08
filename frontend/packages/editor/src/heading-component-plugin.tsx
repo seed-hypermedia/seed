@@ -1,6 +1,6 @@
-import {createTipTapBlock} from '@/blocknote'
-import {updateBlockCommand} from '@/blocknote/core/api/blockManipulation/commands/updateBlock'
-import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {createTipTapBlock} from './blocknote'
+import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
+import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {headingVariants} from '@shm/ui/heading'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 

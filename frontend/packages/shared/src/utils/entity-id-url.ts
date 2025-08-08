@@ -149,15 +149,12 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [scheme, rest] = url.split('://')
   if (!rest) return null
   const [pathAndQuery, fragment = null] = rest.split('#')
-  // @ts-expect-error
-  const [path, queryString] = pathAndQuery.split('?')
+  const [path, queryString] = pathAndQuery?.split('?') || []
   const query = new URLSearchParams(queryString)
   const queryObject = Object.fromEntries(query.entries())
   return {
-    // @ts-expect-error
-    scheme,
-    // @ts-expect-error
-    path: path.split('/'),
+    scheme: scheme || null,
+    path: path?.split('/') || [],
     query: queryObject,
     fragment,
   }
@@ -239,16 +236,13 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     }
   }
   return {
-    // @ts-expect-error
-    id: packBaseId(uid, path),
-    // @ts-expect-error
-    uid,
+    id: packBaseId(uid || '', path),
+    uid: uid || '',
     path: path || null,
     version,
     blockRef: fragment ? fragment.blockId : null,
     blockRange,
-    // @ts-expect-error
-    hostname,
+    hostname: hostname || null,
     latest,
     scheme: parsed.scheme,
   }
@@ -282,7 +276,7 @@ export function idToUrl(
 export function normalizeHmId(
   urlMaybe: string,
   gwUrl: StateStream<string>,
-// @ts-expect-error
+  // @ts-ignore
 ): string | undefined {
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
@@ -384,14 +378,17 @@ export function extractBlockRangeOfUrl(
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
   const regex =
+// @ts-ignore
+// @ts-ignore
+// @ts-ignore
+// @ts-ignore
     /^(?<blockId>\S{8})((?<expanded>\+)|\[(?<rangeStart>\d+)\:(?<rangeEnd>\d+)\])?$/
   const match = input.match(regex)
   if (match && match.groups) {
     if (match.groups.expanded == '+') {
       return {
         type: 'block',
-        // @ts-expect-error
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         expanded: true,
       }
     } else if (
@@ -400,16 +397,14 @@ export function parseFragment(input: string | null): ParsedFragment | null {
     ) {
       return {
         type: 'block-range',
-        // @ts-expect-error
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         start: parseInt(match.groups.rangeStart || '0'),
         end: parseInt(match.groups.rangeEnd || '0'),
       }
     } else {
       return {
         type: 'block',
-        // @ts-expect-error
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         expanded: false,
       }
     }

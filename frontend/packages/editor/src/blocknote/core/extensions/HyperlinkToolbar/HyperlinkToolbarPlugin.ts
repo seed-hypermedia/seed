@@ -507,7 +507,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
               to: posBeforeNode + 1 + contentNode.nodeSize,
             }
           } else {
-            // @ts-expect-error
+            // @ts-ignore
             contentNode.descendants((child, childPos) => {
               const linkMark = child.marks?.find(
                 (mark) => mark.type.name === 'link',
@@ -533,7 +533,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         }
       } catch (e) {
         let missingId
-        // @ts-expect-error
+        // @ts-ignore
         state.doc.descendants((node, pos) => {
           if (node.attrs.id && node.attrs.id === this.hoveredId) {
             missingId = this.hoveredId
@@ -767,7 +767,7 @@ function getNodeAndRange(
             to: posBeforeNode + 1 + contentNode.nodeSize,
           }
         } else {
-          // @ts-expect-error
+          // @ts-ignore
           contentNode.descendants((child, childPos) => {
             const linkMark = child.marks?.find(
               (mark) => mark.type.name === 'link',

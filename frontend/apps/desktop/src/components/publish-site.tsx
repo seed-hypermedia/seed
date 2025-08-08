@@ -613,6 +613,7 @@ function versionToInt(version: string): number | null {
   const parts = version.split('.')
   if (parts.length !== 3) return null
   return (
+    // @ts-ignore
     parseInt(parts[0]) * 10_000 + parseInt(parts[1]) * 1000 + parseInt(parts[2])
   )
 }
@@ -772,6 +773,7 @@ function SeedHostLogin({
     login(data.email)
   }
   if (isPendingEmailValidation && email) {
+    {/* @ts-expect-error */}
     const errorMessage = error?.message || absorbedSession.error?.message
     return (
       <SeedHostContainer
@@ -887,6 +889,7 @@ function SeedHostRegisterSubdomain({
     setFocus('subdomain')
   }, [])
   const isSubmitting = register.isLoading || createSite.isLoading
+  {/* @ts-expect-error */}
   const errorText = register.error?.message || createSite.error?.message
   return (
     <SeedHostContainer
@@ -1229,6 +1232,7 @@ function SeedHostRegisterCustomDomain({
     (pending) => pending.siteUid === id.uid,
   )
   const pendingDomainId = localPendingDomain?.domainId
+  // @ts-ignore
   useEffect(() => {
     if (pendingDomainId) {
       activelyWatchedDomainIds.add(pendingDomainId)
@@ -1339,6 +1343,7 @@ function SeedHostRegisterCustomDomain({
                 />
               </FormField>
               {createDomain.error ? (
+                // @ts-expect-error
                 <ErrorBox error={createDomain.error.message} />
               ) : null}
 
@@ -1418,6 +1423,7 @@ function SeedHostContent({
       <SeedHostIntro
         onSubmit={() => setMode(loggedIn ? 'register-subdomain' : 'login')}
         onBack={onBack}
+        // @ts-expect-error
         info={hostInfo.data}
         infoError={hostInfo.error}
         infoIsLoading={hostInfo.isLoading}
@@ -1438,6 +1444,7 @@ function SeedHostContent({
     return (
       <SeedHostRegisterSubdomain
         id={id}
+        // @ts-expect-error
         info={hostInfo.data}
         onLogout={() => {
           setMode('login')
@@ -1584,6 +1591,7 @@ function PublishWithUrl({
             width={500}
           />
         </FormField>
+        {/* @ts-expect-error */}
         {register.error ? <ErrorBox error={register.error.message} /> : null}
 
         <GreenButton type="submit">

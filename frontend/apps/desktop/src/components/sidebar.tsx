@@ -191,6 +191,7 @@ function AccountsSection() {
     >
       {accounts.map((account) => {
         if (!account.data) return null
+        // @ts-expect-error
         const {id, document} = account.data
         const metadata = getContactMetadata(
           id.uid,

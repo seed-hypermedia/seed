@@ -18,12 +18,14 @@ export const action: ActionFunction = async ({request}) => {
   const storeResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
+        // @ts-expect-error
         data: cborData,
       },
     ],
   })
   return json({
     message: 'Success',
+    // @ts-expect-error
     cid: storeResult.blobs[0].cid,
   })
 }

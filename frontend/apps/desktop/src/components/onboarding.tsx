@@ -1240,6 +1240,7 @@ async function fileToImageData(file: File): Promise<ImageData> {
 
 function base64ToFile(imageData: ImageData): File {
   // Convert base64 to blob
+  // @ts-ignore
   const byteString = atob(imageData.base64.split(',')[1])
   const ab = new ArrayBuffer(byteString.length)
   const ia = new Uint8Array(ab)

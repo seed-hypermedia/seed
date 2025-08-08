@@ -18,6 +18,7 @@ export function getDaemonFileUrl(ipfsUrl?: string) {
 export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
   const regex = /^ipfs:\/\/(.+)$/
   const match = cidOrIPFSUrl.match(regex)
+// @ts-ignore
   return match ? match[1] : cidOrIPFSUrl
 }
 
@@ -27,7 +28,9 @@ export function EmailHeader({
 }: {
   avatarUrl: string
   name: string
+// @ts-ignore
 }) {
+// @ts-ignore
   const fallbackLetter = name[0].toUpperCase()
 
   return (

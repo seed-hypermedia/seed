@@ -35,7 +35,7 @@ export const ParagraphBlockContent = createTipTapBlock({
         {
           ...blockContentDOMAttributes,
           class: mergeCSSClasses(
-            // @ts-expect-error
+            // @ts-ignore
             styles.blockContent,
             blockContentDOMAttributes.class,
           ),
@@ -48,7 +48,7 @@ export const ParagraphBlockContent = createTipTapBlock({
         {
           ...inlineContentDOMAttributes,
           class: mergeCSSClasses(
-            // @ts-expect-error
+            // @ts-ignore
             styles.inlineContent,
             inlineContentDOMAttributes.class,
           ),

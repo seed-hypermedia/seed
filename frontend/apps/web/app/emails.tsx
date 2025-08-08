@@ -33,6 +33,7 @@ export async function sendNotificationsEmail(
     if (!notificationsByDocument[notification.notif.targetId.id]) {
       notificationsByDocument[notification.notif.targetId.id] = []
     }
+    // @ts-expect-error
     notificationsByDocument[notification.notif.targetId.id].push(notification)
     subscriberNames.add(notification.accountMeta?.name || 'You')
   }
@@ -43,15 +44,19 @@ export async function sendNotificationsEmail(
       : 'Notification'
   let subject = baseNotifsSubject
   const singleDocumentTitle = notifications.every(
+    // @ts-expect-error
     (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name,
   )
-    ? notifications[0].notif.targetMeta?.name
+    ? // @ts-expect-error
+      notifications[0].notif.targetMeta?.name
     : undefined
   if (singleDocumentTitle) {
     subject = `${baseNotifsSubject} on ${singleDocumentTitle}`
   }
   const firstNotificationSummary = getNotificationSummary(
+    // @ts-expect-error
     notifications[0].notif,
+    // @ts-expect-error
     notifications[0].accountMeta,
   )
   const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
@@ -61,7 +66,12 @@ export async function sendNotificationsEmail(
 ${docNotifs
   .map((notifications) => {
     const docName =
+      // @ts-expect-error
       notifications[0].notif.targetMeta?.name || 'Untitled Document'
+
+    // @ts-expect-error
+    const firstNotifUrl = notifications[0].notif.url
+
     return `${docName}
 
 ${notifications
@@ -71,7 +81,7 @@ ${notifications
   })
   .join('\n')}
   
-${notifications[0].notif.url}
+${firstNotifUrl}
 
 `
   })
@@ -99,6 +109,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
           return (
             <MjmlSection>
               <MjmlText fontSize={20} fontWeight={'bold'}>
+                {/* @ts-expect-error */}
                 {notifications[0].notif.targetMeta?.name || 'Untitled Document'}
               </MjmlText>
               {notifications.map((notification) => {
@@ -114,6 +125,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
               <MjmlButton
                 padding="8px"
                 backgroundColor="#346DB7"
+                // @ts-expect-error
                 href={notifications[0].notif.url}
               >
                 Open Document

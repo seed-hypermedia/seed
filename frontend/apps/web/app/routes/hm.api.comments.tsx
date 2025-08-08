@@ -77,6 +77,7 @@ export const loader = async ({
     result = {
       allComments,
       commentGroups: commentGroups,
+      // @ts-expect-error
       commentAuthors: Object.fromEntries(
         allAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),

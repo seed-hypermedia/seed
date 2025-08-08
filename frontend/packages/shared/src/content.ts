@@ -9,8 +9,7 @@ import {
   HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
-// @ts-expect-error
-import {UnpackedHypermediaId, unpackHmId} from './utils'
+import {unpackHmId} from './utils'
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
@@ -128,10 +127,8 @@ function titleOfEntry(entry: HMDocumentInfo) {
 function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
   const a = titleOfEntry(ea)
   const b = titleOfEntry(eb)
-  {/* @ts-expect-error */}
-  if (a < b) return 1
-  // @ts-expect-error
-  if (a > b) return -1
+  if (a && b && a < b) return 1
+  if (a && b && a > b) return -1
   return 0
 }
 
@@ -147,8 +144,7 @@ export function queryBlockSortedItems({
 
   if (sort.length !== 1) return res
 
-  // @ts-expect-error
-  const sortTerm = sort[0].term
+  const sortTerm = sort?.[0]?.term
 
   if (sortTerm == 'Title') {
     res = [...entries].sort(titleSort)
@@ -171,14 +167,13 @@ export function queryBlockSortedItems({
   //   return entries
   // }
 
-  // @ts-expect-error
-  return sort[0].reverse ? [...res].reverse() : res
+  return sort?.[0]?.reverse ? [...res].reverse() : res
 }
 
 export type RefDefinition = {
   blockId: string
   link: string
-  refId: UnpackedHypermediaId
+  refId: any
 }
 
 export function extractRefs(
@@ -198,7 +193,7 @@ export function extractRefs(
         })
     }
     // @ts-expect-error
-    block.block.annotations?.forEach((annotation) => {
+    ;(block.block as any).annotations?.forEach((annotation) => {
       if (annotation.type === 'Embed') {
         refs.push({
           blockId: block.block.id,
@@ -232,10 +227,8 @@ export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
 export function plainTextOfContent(content?: HMBlockNode[]): string {
   let textContent = ''
   content?.forEach((bn) => {
-    // @ts-expect-error
-    if (bn.block?.text) {
-      // @ts-expect-error
-      textContent += bn.block?.text + ' '
+    if ((bn.block as any)?.text) {
+      textContent += (bn.block as any)?.text + ' '
     }
   })
   return textContent
@@ -246,8 +239,8 @@ export function getDocumentImage(document: HMDocument): string | null {
   if (coverImage) return coverImage
   const firstImageBlock = findFirstBlock<HMBlockImage>(
     document.content,
-    // @ts-expect-error
-    (block) => block.type === 'Image' && !!block.link,
+    (block): block is HMBlockImage =>
+      block.type === 'Image' && !!(block as any).link,
   )
   if (firstImageBlock) return firstImageBlock.link || null
   return null
@@ -261,14 +254,14 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
   let index = 0
   while (!found && index < content.length) {
     const blockNode = content[index]
-    // @ts-expect-error
+    // @ts-ignore
     if (test(blockNode.block)) {
-      // @ts-expect-error
+      // @ts-ignore
       found = blockNode.block
       break
     }
     const foundChild =
-      // @ts-expect-error
+      // @ts-ignore
       blockNode.children && findFirstBlock(blockNode.children, test)
     if (foundChild) {
       found = foundChild

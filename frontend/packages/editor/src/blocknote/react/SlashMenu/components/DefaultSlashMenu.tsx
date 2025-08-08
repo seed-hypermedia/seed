@@ -1,7 +1,7 @@
 import {createStyles, Menu} from '@mantine/core'
 import * as _ from 'lodash'
 
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../core'
 import {SlashMenuItem} from './SlashMenuItem'
 import {SlashMenuProps} from './SlashMenuPositioner'
 

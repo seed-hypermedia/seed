@@ -187,7 +187,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
             link: string,
             range: {from: number; to: number},
           ) => {
-            // @ts-expect-error
+            // @ts-ignore
             const node = view.state.schema.nodes[nodeName].create({
               link,
             })
@@ -213,7 +213,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
 
   const addContentBeforeInlineMentionPlugin = new Plugin({
     props: {
-      // @ts-expect-error
+      // @ts-ignore
       handleKeyDown(view, event) {
         if (view.state.selection.from == view.state.selection.to) {
           // selection is collapsed
@@ -372,9 +372,9 @@ function AutocompletePopupInner(
         if (groups.indexOf(group) == 0) {
           // need to go to the end of the list
           setIndex([
-            // @ts-expect-error
+            // @ts-ignore
             groups[groups.length - 1],
-            // @ts-expect-error
+            // @ts-ignore
             groups[groups.length - 1].length - 1,
           ])
         } else {
@@ -382,7 +382,7 @@ function AutocompletePopupInner(
             0,
             groupsOrder.length - 1,
           ])
-          // @ts-expect-error
+          // @ts-ignore
           setIndex([groups[groupIdx], suggestions[groups[groupIdx]].length - 1])
         }
       } else {
@@ -398,7 +398,7 @@ function AutocompletePopupInner(
         groups.indexOf(group) == groups.length - 1 &&
         idx == suggestions[group].length - 1
       ) {
-        // @ts-expect-error
+        // @ts-ignore
         setIndex([groups[0], 0])
       } else if (idx < suggestions[group].length - 1) {
         setIndex([group, idx + 1])
@@ -408,7 +408,7 @@ function AutocompletePopupInner(
           groups.length - 1,
         ])
 
-        // @ts-expect-error
+        // @ts-ignore
         setIndex([groups[groupIdx], 0])
       }
       return true
@@ -423,7 +423,7 @@ function AutocompletePopupInner(
       ) {
         let item = suggestions[group][idx]
 
-        // @ts-expect-error
+        // @ts-ignore
         onCreate(item.id.id, range)
         onClose()
       }

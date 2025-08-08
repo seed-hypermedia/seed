@@ -283,19 +283,29 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
     )
   }
   const resource = useSubscribedResource(props)
+  {
+  }
+  // @ts-ignore
   if (resource.data?.type === 'document') {
     return (
       <DocumentContentEmbed
         {...props}
+        // @ts-ignore
         document={resource.data.document}
+        // @ts-ignore
         isLoading={resource.isInitialLoading}
       />
     )
+    {
+    }
+    // @ts-ignore
   } else if (resource.data?.type === 'comment') {
     return (
       <CommentEmbed
         {...props}
+        // @ts-ignore
         comment={resource.data.comment}
+        // @ts-ignore
         isLoading={resource.isInitialLoading}
       />
     )
@@ -365,6 +375,7 @@ function CommentEmbed(
         comment={comment}
         EmbedWrapper={EmbedWrapper}
         isLoading={isLoading}
+        // @ts-expect-error
         author={author.data}
       />
     </EmbedWrapper>
@@ -375,17 +386,26 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const route = useNavRoute()
   const doc = useSubscribedResource(props)
   const authors = useAccountsMetadata(
+    // @ts-ignore
     doc.data?.type === 'document' ? doc.data.document?.authors || [] : [],
   )
   const view =
     (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
     'Content'
+  {
+  }
+  // @ts-ignore
   if (doc.isLoading)
     return (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
+  {
+  }
+  {
+    /* @ts-ignore */
+  }
   if (!doc.data) return <ErrorBlock message="Could not load embed" />
   const id = narrowHmId(props)
   return (
@@ -400,6 +420,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
           entity={{
             id,
             document:
+              // @ts-ignore
               doc.data.type === 'document' ? doc.data.document : undefined,
           }}
           docId={id}
@@ -421,6 +442,9 @@ export function EmbedInline(props: EntityComponentProps) {
 function DocInlineEmbed(props: EntityComponentProps) {
   const contacts = useSelectedAccountContacts()
   const doc = useSubscribedResource(props)
+  {
+  }
+  // @ts-ignore
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
   return (
     <InlineEmbedButton
@@ -448,6 +472,7 @@ export function QueryBlockDesktop({
   useSubscribedResource(id, true)
 
   const directoryItems = useListDirectory(id, {
+    // @ts-ignore
     mode: block.attributes.query.includes[0].mode,
   })
 
@@ -564,6 +589,7 @@ function QueryStyleCard({
 
   return (
     <DocumentCardGrid
+      // @ts-ignore
       firstItem={firstItem}
       items={restItems}
       getEntity={getEntity}

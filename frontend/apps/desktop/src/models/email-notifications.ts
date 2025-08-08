@@ -6,6 +6,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import type {
   EmailNotifierAccountState,
   EmailNotifierAction,
+// @ts-expect-error
 } from '../../../web/app/routes/hm.api.email-notifier.$.tsx'
 import {useGatewayUrl} from './gateway-settings'
 
@@ -25,6 +26,7 @@ export function createNotifierRequester(gatewayUrl: string | undefined) {
     const cborData = cborEncode(action)
     const signResponse = await grpcClient.daemon.signData({
       signingKeyName: accountUid,
+      // @ts-expect-error
       data: cborData,
     })
     const signedPayload = {...action, sig: signResponse.signature}

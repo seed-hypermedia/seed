@@ -69,6 +69,7 @@ export function useExportDocuments() {
             </div>
           </>
         )
+        // @ts-expect-error
         toast.success('', {customContent: success})
       })
       .catch((err) => {

@@ -1,4 +1,4 @@
-import {HyperlinkToolbarProps} from '@/blocknote'
+import {HyperlinkToolbarProps} from './blocknote'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
 import {HypermediaLinkForm} from './hm-link-form'

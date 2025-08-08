@@ -221,8 +221,11 @@ async function warmFullCache(hostname: string) {
   // warm paths until we've warmed all paths
   while (pathsToWarm.size > 0) {
     const path = pathsToWarm.values().next().value
+    // @ts-expect-error
     const {html, status, contentLinks} = await warmCachePath(hostname, path)
+    // @ts-expect-error
     pathsToWarm.delete(path)
+    // @ts-expect-error
     warmedPaths.add(path)
     for (const link of contentLinks) {
       if (!warmedPaths.has(link)) {
@@ -243,6 +246,7 @@ function getHmIdOfRequest(
     return hmId(originAccountId, {path: [], version, latest})
   }
   if (pathParts[0] === 'hm') {
+    // @ts-expect-error
     return hmId(pathParts[1], {path: pathParts.slice(2), version, latest})
   }
   if (!originAccountId) return null
@@ -415,6 +419,7 @@ function isBotRequest(userAgent: string | null) {
 
   // isbot < 3.8.0
   if ('default' in isbotModule && typeof isbotModule.default === 'function') {
+    // @ts-expect-error
     return isbotModule.default(userAgent)
   }
 

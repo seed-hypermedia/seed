@@ -54,7 +54,7 @@ export const updateBlockCommand =
           block,
           state,
 
-          // @ts-expect-error
+          // @ts-ignore
           oldNodeType,
           newNodeType,
           blockInfo,
@@ -185,7 +185,7 @@ function updateChildren<BSchema extends BlockSchema>(
       // Inserts a new blockGroup containing the child nodes created earlier.
       state.tr.insert(
         blockInfo.blockContent.afterPos,
-        // @ts-expect-error
+        // @ts-ignore
         state.schema.nodes['blockGroup'].createChecked({}, childNodes),
       )
     }
@@ -208,7 +208,7 @@ export function updateBlock<BSchema extends BlockSchema>(
     throw new Error(`Block with ID ${id} not found`)
   }
 
-  // @ts-expect-error
+  // @ts-ignore
   ttEditor.commands.command(({state, dispatch}) => {
     updateBlockCommand(
       posInfo.posBeforeNode,

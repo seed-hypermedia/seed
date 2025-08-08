@@ -60,6 +60,7 @@ export function WebDocContentProvider({
       onHoverOut={onHoverOut}
       entityComponents={{
         Document: EmbedDocument,
+        // @ts-expect-error
         Inline: EmbedInline,
         Query: QueryBlockWeb,
         Comment: () => null,
@@ -120,6 +121,7 @@ export function WebDocContentProvider({
           : null
       }
       onBlockCommentClick={onBlockCommentClick}
+      // @ts-expect-error
       onBlockCitationClick={onBlockCitationClick}
       routeParams={routeParams}
       textUnit={18}

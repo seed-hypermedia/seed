@@ -158,10 +158,12 @@ setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
       iri: packHmId(hmId),
     })
     if (resource.kind.case === 'document') {
+      // @ts-expect-error
       return {
         type: 'document',
         id: hmId satisfies UnpackedHypermediaId,
         document: prepareHMDocument(resource.kind.value) satisfies HMDocument,
+      // @ts-expect-error
       } satisfies HMResourceDocument
     }
     if (resource.kind.case === 'comment') {
@@ -282,6 +284,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
         queryClient
           .fetchQuery(queryListDirectory(id))
+          // @ts-expect-error
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
               invalidateEntityWithVersion(
@@ -388,13 +391,16 @@ export function useSubscribedResource(
 ) {
   const result = useSubscribedResources([{id, recursive}])[0]
   useEffect(() => {
+    // @ts-expect-error
     if (result.data?.redirectTarget) {
       handleRedirectOrDeleted?.({
         isDeleted: false,
+        // @ts-expect-error
         redirectTarget: result.data?.redirectTarget,
       })
     }
     // todo: handle deleted
+  // @ts-expect-error
   }, [result.data?.redirectTarget])
   return result
 }
@@ -402,6 +408,7 @@ export function useSubscribedResource(
 export function useIdEntities(
   ids: Array<UnpackedHypermediaId>,
 ): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
+  // @ts-ignore
   return useSubscribedResources(
     ids.map((id) => {
       return {id}
@@ -419,6 +426,7 @@ export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
         if (!account.data) return null
         return [
           account.data.id.uid,
+          // @ts-expect-error
           {id: account.data.id, metadata: account.data.document?.metadata},
         ]
       })

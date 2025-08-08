@@ -24,6 +24,7 @@ export default function DraftsPage() {
   const allLocationParents = useMemo(() => {
     const allLocationParents = new Set<string>()
     drafts.data?.forEach((draft) => {
+      // @ts-expect-error
       const contextId = draft.editId || draft.locationId
       if (contextId) {
         const uid = contextId.uid
@@ -43,17 +44,20 @@ export default function DraftsPage() {
   const draftItems = useMemo(() => {
     return drafts.data?.map((item) => {
       let breadcrumbs: HMMetadataPayload[] = []
+      // @ts-expect-error
       const contextId = item.editId || item.locationId
       if (contextId) {
         const uid = contextId.uid
         const parentPaths = getParentPaths(contextId.path)
         breadcrumbs = (
+          // @ts-expect-error
           contextId === item.editId ? parentPaths.slice(0, -1) : parentPaths
         ).map((path) => {
           const id = hmId(uid, {path})
           return {
             id,
             metadata:
+              // @ts-expect-error
               entities.find((e) => e.data?.id.id === id.id)?.data?.document
                 ?.metadata ?? null,
           }

@@ -4,9 +4,9 @@ import {
   BlockSchema,
   DefaultBlockSchema,
   SideMenuProsemirrorPlugin,
-} from '@/blocknote/core'
-import {getGroupInfoFromPos} from '@/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
-import {scrollEvents} from '@/editor-on-scroll-stream'
+} from '../../../core'
+import {getGroupInfoFromPos} from '../../../core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import {scrollEvents} from '../../../../editor-on-scroll-stream'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
@@ -113,7 +113,7 @@ export const SideMenuPositioner = <
       const ttEditor = props.editor._tiptapEditor
       const {view} = ttEditor
       const {state} = view
-      // @ts-expect-error
+      // @ts-ignore
       state.doc.descendants((node, pos) => {
         if (node.attrs.id === block.id) {
           const {group} = getGroupInfoFromPos(pos, state)

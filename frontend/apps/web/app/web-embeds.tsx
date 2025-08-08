@@ -216,6 +216,7 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
         props={props}
         comment={comment}
         isLoading={doc.isLoading}
+        // @ts-expect-error
         author={author.data}
         EmbedWrapper={EmbedWrapper}
       />
@@ -345,6 +346,7 @@ function QueryStyleCard({
 
   return (
     <DocumentCardGrid
+      // @ts-expect-error
       firstItem={firstItem}
       items={restItems}
       getEntity={getEntity}

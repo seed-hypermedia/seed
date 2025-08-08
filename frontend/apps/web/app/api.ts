@@ -381,6 +381,7 @@ export async function createComment({
 function cleanContentOfUndefined(content: HMBlockNode[]) {
   content.forEach((blockNode) => {
     const {block, children} = blockNode
+    // @ts-expect-error
     if (typeof block.text === 'undefined') block.text = ''
     if (children) cleanContentOfUndefined(children)
   })

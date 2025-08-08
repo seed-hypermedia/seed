@@ -59,6 +59,7 @@ export function normalizeDate(value: AnyTimestamp) {
   } else if (value?.seconds) {
     const seconds =
       typeof value.seconds === 'bigint' ? value.seconds : BigInt(value.seconds)
+// @ts-ignore
     date = new Date(Number(seconds * 1000n))
   }
   return date

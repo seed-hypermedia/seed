@@ -122,7 +122,9 @@ export function LibraryListItem({
   docId: string
 }) {
   const navigate = useNavigate()
+  // @ts-expect-error
   const metadata = entry.document?.metadata || entry.draft?.metadata
+  // @ts-expect-error
   const isUnpublished = !!entry.draft && !entry.document
   const editors = useMemo(
     () =>
@@ -135,6 +137,7 @@ export function LibraryListItem({
       <HMIcon
         size={28}
         id={entry.id}
+        // @ts-expect-error
         metadata={entry.document?.metadata || entry.draft?.metadata}
       />
     ) : null
@@ -221,6 +224,7 @@ export function LibraryListItem({
 function LibraryEntryTime({entry}: {entry: LibraryData['items'][number]}) {
   return (
     <SizableText size="xs" color="muted">
+      {/* @ts-expect-error */}
       {formattedDate(entry.updateTime)}
     </SizableText>
   )
@@ -242,9 +246,11 @@ function LibraryEntryLocation({
         className="text-primary hover:text-primary/80 h-auto border-0 bg-transparent p-0 font-normal hover:bg-transparent hover:underline"
         onClick={(e) => {
           e.stopPropagation()
+          {/* @ts-ignore */}
           onNavigate({key: 'document', id: space.id})
         }}
       >
+        {/* @ts-ignore */}
         {getMetadataName(space.metadata)}
       </Button>
 

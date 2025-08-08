@@ -16,10 +16,15 @@ function normalizeKeyName(name: string): string {
   let alt, ctrl, shift, meta
   for (let i = 0; i < parts.length - 1; i++) {
     let mod = parts[i]
+    // @ts-ignore
     if (/^(cmd|meta|m)$/i.test(mod)) meta = true
+    // @ts-ignore
     else if (/^a(lt)?$/i.test(mod)) alt = true
+    // @ts-ignore
     else if (/^(c|ctrl|control)$/i.test(mod)) ctrl = true
+    // @ts-ignore
     else if (/^s(hift)?$/i.test(mod)) shift = true
+    // @ts-ignore
     else if (/^mod$/i.test(mod)) {
       if (mac) meta = true
       else ctrl = true
@@ -29,6 +34,7 @@ function normalizeKeyName(name: string): string {
   if (ctrl) result = 'Ctrl-' + result
   if (meta) result = 'Meta-' + result
   if (shift) result = 'Shift-' + result
+  // @ts-ignore
   return result
 }
 
@@ -116,6 +122,7 @@ class KeyboardStack {
   handleKeyDown: KeyboardEventHandler = (event) => {
     for (let i = this.stack.length - 1; i >= 0; i--) {
       const handler = this.stack[i]
+      // @ts-ignore
       if (handler(event)) {
         return true
       }

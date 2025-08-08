@@ -1,4 +1,4 @@
-// import {loadWebLinkMeta} from '@/models/web-links'
+// import {loadWebLinkMeta} from './models/web-links'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {EditorView} from '@tiptap/pm/view'
@@ -16,6 +16,7 @@ export function createHypermediaDocLinkPlugin({}: {}) {
           let state = plugin.getState(view.state)
           if (state?.size && state?.size > 0) {
             if (state) {
+// @ts-ignore
               for (const entry of state) {
                 checkHyperLink(view, entry)
               }

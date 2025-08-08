@@ -464,6 +464,7 @@ function ImageField<Fields extends FieldValues>({
       )}
       {c.field.value && (
         <img
+          // @ts-expect-error
           src={currentImgURL}
           style={{
             width: '100%',

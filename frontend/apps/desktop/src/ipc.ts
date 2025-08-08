@@ -15,5 +15,6 @@ export const ipc: AppIPC = {
       console.debug('IPC Invoke', cmd, args)
     }
   },
+  // @ts-expect-error
   ...window.ipc,
 }

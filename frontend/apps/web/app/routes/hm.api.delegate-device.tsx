@@ -46,8 +46,11 @@ export const action: ActionFunction = async ({request}) => {
 
   return json({
     message: 'Success',
+    // @ts-expect-error
     profileAliasCid,
+    // @ts-expect-error
     browserToAppCapCid,
+    // @ts-expect-error
     appToBrowserCapCid,
   } satisfies DelegateDeviceResponsePayload)
 }
