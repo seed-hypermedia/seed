@@ -34,12 +34,6 @@ let config = {
   ssr: {
     noExternal: ['react-icons'],
   },
-  define: {
-    // "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
-    // Define process.env as an empty object to prevent "process is not defined" errors
-    // Vite will replace individual process.env.VARIABLE_NAME references at build time
-    // 'process.env': {},
-  },
   optimizeDeps: {
     exclude:
       process.env.NODE_ENV === 'production'
