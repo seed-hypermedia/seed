@@ -20,6 +20,7 @@ import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
+import {fetchAndSaveWpPosts} from './wordpress-import'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -113,6 +114,26 @@ async function startImport(url: string, importId: string) {
     })
     .catch((error) => {
       console.error('Error importing site', url, error)
+      importingStatus[importId] = {mode: 'error', error: error.message}
+    })
+}
+
+async function importWpSite(url: string, importId: string) {
+  return await fetchAndSaveWpPosts(url, importId)
+  // (status) => {
+  //   importingStatus[importId] = {...status, mode: 'scraping'}
+  // }
+}
+
+export function startWpImport(siteUrl: string, importId: string) {
+  importingStatus[importId] = {mode: 'importing'}
+  console.log('here???????')
+  importWpSite(siteUrl, importId)
+    .then((result) => {
+      console.log(result)
+      // importingStatus[importId] = {mode: 'ready', result: result}
+    })
+    .catch((error) => {
       importingStatus[importId] = {mode: 'error', error: error.message}
     })
 }
@@ -242,6 +263,13 @@ export const webImportingApi = t.router({
     .mutation(async ({input}) => {
       const importId = nanoid(10)
       startImport(input.url, importId)
+      return {importId}
+    }),
+  importWpSite: t.procedure
+    .input(z.object({url: z.string()}).strict())
+    .mutation(async ({input}) => {
+      const importId = nanoid(10)
+      startWpImport(input.url, importId)
       return {importId}
     }),
   importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {

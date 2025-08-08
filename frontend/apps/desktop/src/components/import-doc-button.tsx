@@ -58,6 +58,7 @@ export function ImportDialog({
     onImportFile: () => void
     onImportDirectory: () => void
     onImportWebSite: () => void
+    onImportWordpress: () => void
   }
   onClose: () => void
 }) {
@@ -101,6 +102,17 @@ export function ImportDialog({
         >
           <Globe className="size-3" />
           Import Web Site
+        </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportWordpress()
+          }}
+        >
+          <File className="size-3" />
+          Import WordPress Site
         </Button>
       </div>
     </>
@@ -239,18 +251,60 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   }
 
   const webImporting = useWebImporting()
+  const wpImporting = useWordpressImporting()
 
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
     importWebSite: () => webImporting.open({destinationId: parentId}),
+    importWordpress: () => wpImporting.open({destinationId: parentId}),
     content: (
       <>
         {importDialog.content}
         {webImporting.content}
+        {wpImporting.content}
       </>
     ),
   }
+}
+
+export function useWordpressImporting() {
+  return useAppDialog(WordpressImportDialog)
+}
+
+function WordpressImportDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {
+    destinationId: UnpackedHypermediaId
+    defaultUrl?: string
+  }
+}) {
+  const [importId, setImportId] = useState<string | null>(null)
+  const [hostname, setHostname] = useState<string | null>(null)
+  const startImport = trpc.webImporting.importWpSite.useMutation()
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DialogTitle>Import WordPress Site</DialogTitle>
+      <ImportURLForm
+        defaultUrl={input.defaultUrl}
+        onSubmit={(url) => {
+          const hostname = new URL(url).host
+          setHostname(hostname)
+          startImport.mutateAsync({url}).then(({importId}) => {
+            console.log('here?????', importId)
+            setImportId(importId)
+          })
+
+          toast('Import Started.')
+          console.log('url', url)
+        }}
+      />
+    </div>
+  )
 }
 
 export function useWebImporting() {
