@@ -53,7 +53,7 @@ const handleLocalMediaPastePlugin = new Plugin({
               const images = tempEl.querySelectorAll('img')
 
               if (images.length > 0) {
-// @ts-expect-error
+                // @ts-expect-error
                 for (const imgEl of images) {
                   const src = imgEl.getAttribute('src')
                   if (src) {

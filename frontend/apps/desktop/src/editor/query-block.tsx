@@ -388,7 +388,7 @@ function QuerySettings({
     }
     {
     }
-  // @ts-expect-error
+    // @ts-expect-error
   }, [block.props.defaultOpen])
 
   return (

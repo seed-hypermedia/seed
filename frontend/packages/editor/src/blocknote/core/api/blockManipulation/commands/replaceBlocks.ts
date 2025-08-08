@@ -36,8 +36,8 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
   const idOfFirstBlock =
     typeof blocksToRemove[0] === 'string'
       ? blocksToRemove[0]
-      // @ts-ignore
-      : blocksToRemove[0].id
+      : // @ts-ignore
+        blocksToRemove[0].id
   let removedSize = 0
 
   // @ts-ignore
@@ -89,7 +89,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
 
   // Throws an error if not all blocks could be found.
   if (idsOfBlocksToRemove.size > 0) {
-// @ts-ignore
+    // @ts-ignore
     const notFoundIds = [...idsOfBlocksToRemove].join('\n')
 
     throw Error(

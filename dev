@@ -106,6 +106,7 @@ def main():
         # os.environ["VITE_SEED_HOST_URL"] = "https://host.seed.hyper.media"
 
         run("yarn format:write")
+        run("yarn typecheck")
         run("yarn test")
 
         run(

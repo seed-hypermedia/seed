@@ -107,7 +107,7 @@ export function removeBlocks(
   })
 
   if (idsOfBlocksToRemove.size > 0) {
-// @ts-ignore
+    // @ts-ignore
     const notFoundIds = [...idsOfBlocksToRemove].join('\n')
 
     throw Error(

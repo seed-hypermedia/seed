@@ -202,7 +202,7 @@ function SubscriptionOptionButton({
 } & VariantProps<typeof buttonVariants>) {
   let icon = null
   if (active) {
-    {/* @ts-expect-error */}
+    // @ts-expect-error
     icon = <Check size={24} className="text-brand-4" />
   } else if (Icon) {
     icon = <Icon size={24} />

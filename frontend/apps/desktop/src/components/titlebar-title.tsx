@@ -233,7 +233,9 @@ function BreadcrumbTitle({
       return
     const firstItemWidth = widthInfo.current[firstCrumbKey]
     const lastItemWidth = widthInfo.current[lastCrumbKey]
-    {/* @ts-ignore */}
+    {
+      /* @ts-ignore */
+    }
     const fixedItemWidth = firstItemWidth + lastItemWidth + spacerWidth
     const crumbWidths: number[] = crumbDetails.map((details) => {
       return (details && widthInfo.current[details.crumbKey]) || 0
@@ -706,8 +708,7 @@ export function Title({
   )
 }
 
-{/* @ts-expect-error */}
-function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
+function DraftTitle({route}: {route: DraftRoute; size?: string}) {
   const draft = useDraft(route.id)
   const navigate = useNavigate()
   const locationId = useMemo(() => {

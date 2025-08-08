@@ -372,7 +372,7 @@ export async function getResource(id: UnpackedHypermediaId) {
         type: 'document',
         id,
         document: prepareHMDocument(resource.kind.value),
-      // @ts-expect-error
+        // @ts-expect-error
       } satisfies HMResourceDocument
     }
     throw new Error(`Unsupported resource kind: ${resource.kind.case}`)

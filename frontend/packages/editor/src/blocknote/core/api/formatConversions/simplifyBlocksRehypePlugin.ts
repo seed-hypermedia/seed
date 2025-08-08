@@ -17,10 +17,10 @@ type SimplifyBlocksOptions = {
  */
 export function simplifyBlocks(options: SimplifyBlocksOptions) {
   const listItemBlockTypes = new Set<string>([
-// @ts-ignore
-// @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
     ...options.orderedListItemBlockTypes,
-// @ts-ignore
+    // @ts-ignore
     ...options.unorderedListItemBlockTypes,
   ])
 

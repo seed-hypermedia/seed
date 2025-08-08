@@ -358,8 +358,8 @@ function CommentReference({reference}: {reference: string | null}) {
     const content =
       // @ts-ignore
       referenceData.data?.type === 'document'
-        // @ts-ignore
-        ? referenceData.data.document?.content
+        ? // @ts-ignore
+          referenceData.data.document?.content
         : undefined
     // @ts-ignore
     if (!referenceData.data) return null
@@ -373,7 +373,7 @@ function CommentReference({reference}: {reference: string | null}) {
     }
 
     return content || []
-  // @ts-ignore
+    // @ts-ignore
   }, [referenceData.data])
 
   const highlight = useMemo(() => {
@@ -384,7 +384,9 @@ function CommentReference({reference}: {reference: string | null}) {
     return referenceId.blockRef == route.id.blockRef
   }, [route, referenceId])
 
-  {/* @ts-ignore */}
+  {
+    /* @ts-ignore */
+  }
   if (!referenceData.data) return null
 
   return (

@@ -156,8 +156,8 @@ export function getSiteNavDirectory({
           sortTime,
           // isDraft: editIds.has(id.id),
           draftId: editIds.has(id.id)
-            // @ts-expect-error
-            ? drafts?.find((d) => d.editId?.id === id.id)?.id
+            ? // @ts-expect-error
+              drafts?.find((d) => d.editId?.id === id.id)?.id
             : undefined,
           isPublished: true,
         }

@@ -50,22 +50,22 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
           property: prop,
           b1Value:
             prop === 'annotations'
-              // @ts-expect-error
-              ? b1.annotations
+              ? // @ts-expect-error
+                b1.annotations
               : prop === 'attributes'
-              // @ts-expect-error
-              ? b1.attributes
-              // @ts-expect-error
-              : b1[prop],
+              ? // @ts-expect-error
+                b1.attributes
+              : // @ts-expect-error
+                b1[prop],
           b2Value:
             prop === 'annotations'
-              // @ts-expect-error
-              ? b2.annotations
+              ? // @ts-expect-error
+                b2.annotations
               : prop === 'attributes'
-              // @ts-expect-error
-              ? b2.attributes
-              // @ts-expect-error
-              : b2[prop],
+              ? // @ts-expect-error
+                b2.attributes
+              : // @ts-expect-error
+                b2[prop],
         })),
     })
   }

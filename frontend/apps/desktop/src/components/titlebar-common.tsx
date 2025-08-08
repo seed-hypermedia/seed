@@ -489,8 +489,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useResource(id)
-  const showPublishSiteButton = {
-  }
+  const showPublishSiteButton = {}
   // @ts-expect-error
   isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
   return (
@@ -711,7 +710,7 @@ export function TitlebarTitle() {
           path: route.id.path,
         })}
       />
-    {/* @ts-expect-error */}
+      {/* @ts-expect-error */}
     </View>
   )
 }

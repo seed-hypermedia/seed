@@ -957,7 +957,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         'Cannot update collaboration user info when collaboration is disabled.',
       )
     }
-// @ts-ignore
+    // @ts-ignore
     this._tiptapEditor.commands.updateUser(user)
   }
 }

@@ -183,8 +183,8 @@ function getBlockNodeChanges(
             ...bn.block,
             // @ts-expect-error
             attributes: bn.block.attributes
-              // @ts-expect-error
-              ? Struct.fromJson(bn.block.attributes)
+              ? // @ts-expect-error
+                Struct.fromJson(bn.block.attributes)
               : {},
           },
         },

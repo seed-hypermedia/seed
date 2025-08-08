@@ -306,8 +306,8 @@ export const MarkdownToBlocks = async (
         const blockContent =
           // @ts-ignore
           block.content[0].type === 'link'
-            // @ts-ignore
-            ? block.content[0].content[0].text
+            ? // @ts-ignore
+              block.content[0].content[0].text
             : // @ts-ignore
               block.content[0].text
 

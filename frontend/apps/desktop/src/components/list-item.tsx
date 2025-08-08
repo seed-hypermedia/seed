@@ -246,7 +246,9 @@ function LibraryEntryLocation({
         className="text-primary hover:text-primary/80 h-auto border-0 bg-transparent p-0 font-normal hover:bg-transparent hover:underline"
         onClick={(e) => {
           e.stopPropagation()
-          {/* @ts-ignore */}
+          {
+            /* @ts-ignore */
+          }
           onNavigate({key: 'document', id: space.id})
         }}
       >

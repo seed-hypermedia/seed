@@ -67,7 +67,7 @@ export function HypermediaLinkPreview(
     if (type === 'link') {
       const node = schema.nodes.paragraph.create(
         null,
-// @ts-ignore
+        // @ts-ignore
         schema.text(title, schema.marks['link'].create({href: props.url})),
       )
       insertNode(

@@ -773,7 +773,7 @@ function SeedHostLogin({
     login(data.email)
   }
   if (isPendingEmailValidation && email) {
-    {/* @ts-expect-error */}
+    // @ts-expect-error
     const errorMessage = error?.message || absorbedSession.error?.message
     return (
       <SeedHostContainer
@@ -889,7 +889,8 @@ function SeedHostRegisterSubdomain({
     setFocus('subdomain')
   }, [])
   const isSubmitting = register.isLoading || createSite.isLoading
-  {/* @ts-expect-error */}
+
+  // @ts-expect-error
   const errorText = register.error?.message || createSite.error?.message
   return (
     <SeedHostContainer

@@ -16,7 +16,7 @@ export function createHypermediaDocLinkPlugin({}: {}) {
           let state = plugin.getState(view.state)
           if (state?.size && state?.size > 0) {
             if (state) {
-// @ts-ignore
+              // @ts-ignore
               for (const entry of state) {
                 checkHyperLink(view, entry)
               }

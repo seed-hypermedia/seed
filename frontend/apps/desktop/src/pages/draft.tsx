@@ -84,7 +84,7 @@ export default function DraftPage() {
 
   const editId = useMemo(() => {
     if (route.key != 'draft') return undefined
-    {/* @ts-expect-error */}
+    // @ts-expect-error
     if (data?.editId) return data.editId
     if (route.editUid) return hmId(route.editUid, {path: route.editPath})
     if (data?.editUid) return hmId(data.editUid, {path: data.editPath})
@@ -339,7 +339,7 @@ function DocumentEditor({
 
   const contacts = useSelectedAccountContacts()
 
-  {/* @ts-expect-error */}
+  // @ts-expect-error
   if (state.matches('editing'))
     return (
       <div
@@ -448,7 +448,7 @@ function DocumentEditor({
           }
           editor.insertBlocks(
             [mediaBlock],
-// @ts-expect-error
+            // @ts-expect-error
             editor._tiptapEditor.state.selection,
           )
         },
@@ -481,9 +481,9 @@ function DocumentEditor({
                 children: [],
               }
               editor.insertBlocks(
-// @ts-ignore
+                // @ts-ignore
                 [webEmbedBlock],
-// @ts-expect-error
+                // @ts-expect-error
                 editor._tiptapEditor.state.selection,
               )
             },
@@ -501,11 +501,11 @@ function DocumentEditor({
             content: [],
             children: [],
           }
-// @ts-ignore
+          // @ts-ignore
           editor.insertBlocks(
-// @ts-ignore
+            // @ts-ignore
             [hmDocBlock],
-// @ts-expect-error
+            // @ts-expect-error
             editor._tiptapEditor.state.selection,
           )
         }

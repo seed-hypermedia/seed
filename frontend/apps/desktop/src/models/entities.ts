@@ -163,7 +163,7 @@ setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
         type: 'document',
         id: hmId satisfies UnpackedHypermediaId,
         document: prepareHMDocument(resource.kind.value) satisfies HMDocument,
-      // @ts-expect-error
+        // @ts-expect-error
       } satisfies HMResourceDocument
     }
     if (resource.kind.case === 'comment') {
@@ -400,7 +400,7 @@ export function useSubscribedResource(
       })
     }
     // todo: handle deleted
-  // @ts-expect-error
+    // @ts-expect-error
   }, [result.data?.redirectTarget])
   return result
 }

@@ -309,8 +309,8 @@ function CollaboratorItem({
   const collaboratorMetadata =
     // @ts-ignore
     collaborator.data?.type === 'document'
-      // @ts-ignore
-      ? collaborator.data.document?.metadata
+      ? // @ts-ignore
+        collaborator.data.document?.metadata
       : undefined
   if (capability.role === 'owner') return null
   return (

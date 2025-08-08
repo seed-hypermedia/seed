@@ -378,10 +378,10 @@ export function extractBlockRangeOfUrl(
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
   const regex =
-// @ts-ignore
-// @ts-ignore
-// @ts-ignore
-// @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
     /^(?<blockId>\S{8})((?<expanded>\+)|\[(?<rangeStart>\d+)\:(?<rangeEnd>\d+)\])?$/
   const match = input.match(regex)
   if (match && match.groups) {

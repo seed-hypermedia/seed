@@ -31,7 +31,9 @@ export function MaximizeOrRestoreButton() {
     cb = maximize
   }
 
-  {/* @ts-ignore */}
+  {
+    /* @ts-ignore */
+  }
   const title = name[0].toUpperCase() + name.substring(1)
 
   return (

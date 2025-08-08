@@ -27,7 +27,7 @@ import {
   useHover,
   useLowlight,
   useOpenUrl,
-// @ts-ignore
+  // @ts-ignore
   useRangeSelection,
   useRouteLink,
   useRouteLinkHref,

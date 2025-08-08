@@ -113,7 +113,7 @@ export default function LibraryPage() {
     return {
       siteMenuItems,
     }
-  {/* @ts-expect-error */}
+    // @ts-expect-error
   }, [library?.sites, replace])
 
   return (

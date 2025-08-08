@@ -4,11 +4,7 @@ import {HMBlockSchema} from '../../schema'
 import {BlockNoteEditor} from './BlockNoteEditor'
 
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
-import {
-  BlockContainer,
-  BlockGroup,
-  Doc,
-} from './extensions/Blocks'
+import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'

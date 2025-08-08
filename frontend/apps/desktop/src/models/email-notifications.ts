@@ -6,7 +6,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import type {
   EmailNotifierAccountState,
   EmailNotifierAction,
-// @ts-expect-error
+  // @ts-expect-error
 } from '../../../web/app/routes/hm.api.email-notifier.$.tsx'
 import {useGatewayUrl} from './gateway-settings'
 

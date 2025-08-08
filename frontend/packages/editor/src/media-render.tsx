@@ -338,10 +338,10 @@ function MediaForm({
             ? `The size of ${
                 // @ts-ignore
                 largeFile.name.length < 36
-                  // @ts-ignore
-                  ? largeFile.name
-                  // @ts-ignore
-                  : largeFile.name.slice(0, 32) + '...'
+                  ? // @ts-ignore
+                    largeFile.name
+                  : // @ts-ignore
+                    largeFile.name.slice(0, 32) + '...'
               } exceeds ${MaxFileSizeMB} MB.`
             : `The file size exceeds ${MaxFileSizeMB} MB.`,
         color: 'red',

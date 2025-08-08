@@ -121,7 +121,7 @@ export function inlineContentToNodes(
       nodes.push(...linkToNodes(content, schema))
     } else if (content.type === 'text') {
       nodes.push(...styledTextArrayToNodes([content], schema))
-    // @ts-expect-error
+      // @ts-expect-error
     } else if (content.type == 'inline-embed') {
       nodes.push(
         // @ts-ignore

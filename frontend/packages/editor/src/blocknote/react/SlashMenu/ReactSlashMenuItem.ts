@@ -1,8 +1,4 @@
-import {
-  BaseSlashMenuItem,
-  BlockSchema,
-  DefaultBlockSchema,
-} from '../../core'
+import {BaseSlashMenuItem, BlockSchema, DefaultBlockSchema} from '../../core'
 
 export type ReactSlashMenuItem<
   BSchema extends BlockSchema = DefaultBlockSchema,

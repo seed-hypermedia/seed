@@ -10,8 +10,8 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const currentDocument =
     // @ts-ignore
     currentEntity.data?.type === 'document'
-      // @ts-ignore
-      ? currentEntity.data.document
+      ? // @ts-ignore
+        currentEntity.data.document
       : undefined
   const changes = useDocumentChanges(docId)
   return (

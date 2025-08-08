@@ -219,7 +219,9 @@ export function ActivityList({
           )
         }
         if (activityItem.type === 'changeGroup') {
-          {/* @ts-ignore */}
+          {
+            /* @ts-ignore */
+          }
           const author = changeAuthors[activityItem.changes[0].author]
           if (!author) return null
           return (

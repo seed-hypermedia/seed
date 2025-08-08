@@ -60,7 +60,8 @@ export function DeleteEntityDialog({
         <Spinner />
       </div>
     )
-  {/* @ts-expect-error */}
+
+  // @ts-expect-error
   if (doc.isError || !doc.data?.document)
     return (
       <Text className="text-destructive text-sm">

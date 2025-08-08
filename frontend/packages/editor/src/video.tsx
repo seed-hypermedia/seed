@@ -318,8 +318,8 @@ const display = ({
             />
             <p>Error with the video file.</p>
           </video>
-        // @ts-ignore
-        ) : isIpfsUrl(block.props.url) ? (
+        ) : // @ts-ignore
+        isIpfsUrl(block.props.url) ? (
           <video
             contentEditable={false}
             playsInline
