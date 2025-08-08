@@ -77,7 +77,7 @@ export function useCommentDraft(
 
 function queryComment(
   grpcClient: GRPCClient,
-  commentId: string | null | undefined,
+  commentId: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
   return {
@@ -88,7 +88,7 @@ function queryComment(
       if (!commentId) return null
       try {
         const comment = await grpcClient.comments.getComment({
-          id: commentId,
+          id: commentId.uid + '/' + commentId.path?.join('/'),
         })
         return toPlainMessage(comment) as HMComment
       } catch (error: any) {
@@ -110,13 +110,13 @@ function queryComment(
 }
 
 export function useComment(
-  id: string | null | undefined,
+  id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
   return useQuery(queryComment(grpcClient, id, opts))
 }
 
-export function useComments(commentIds: string[] = []) {
+export function useComments(commentIds: UnpackedHypermediaId[] = []) {
   return useQueries({
     queries: commentIds.map((commentId) => queryComment(grpcClient, commentId)),
   })

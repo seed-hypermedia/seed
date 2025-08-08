@@ -96,10 +96,12 @@ export function useLibrary({
           ?.map((doc) => doc.activitySummary?.latestCommentId)
           .filter((commentId) => commentId != null)
           .filter((commentId) => commentId.length)
+          .map((commentId) => hmId(commentId))
       : accounts.data?.accounts
           .map((account) => account.activitySummary?.latestCommentId)
           .filter((commentId) => commentId != null)
           .filter((commentId) => commentId.length)
+          .map((commentId) => hmId(commentId))
   const comments = useComments(commentIds || [])
   let items: undefined | LibraryItem[]
   if (grouping === 'none') {
@@ -223,6 +225,7 @@ export function useSiteLibrary(
     .map((doc) => doc.activitySummary?.latestCommentId)
     .filter((commentId) => commentId != null)
     .filter((commentId) => commentId.length)
+    .map((commentId) => hmId(commentId))
   const comments = useComments(commentIds || [])
 
   const data: HMLibraryDocument[] =

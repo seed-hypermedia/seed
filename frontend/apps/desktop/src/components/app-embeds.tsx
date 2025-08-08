@@ -15,19 +15,16 @@ import {
 } from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
-import {formattedDate, formattedDateMedium} from '@shm/shared/utils/date'
+import {formattedDate} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {
   BlockContentUnknown,
-  BlockNodeContent,
-  BlockNodeList,
   blockStyles,
   CommentContentEmbed,
   ContentEmbed,
   DocumentCardGrid,
   ErrorBlock,
-  getBlockNodeById,
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
@@ -49,7 +46,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 
 function EmbedWrapper({
@@ -410,69 +406,6 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
           navigate={route.key === 'document'}
         />
       </div>
-    </EmbedWrapper>
-  )
-}
-
-export function EmbedComment(props: EntityComponentProps) {
-  const comment = useComment(
-    hmId(props.uid, {
-      path: props.path,
-      blockRef: props.blockRef,
-    }),
-    {enabled: !!props.uid},
-  )
-  let embedBlocks = useMemo(() => {
-    const selectedBlock =
-      props.blockRef && comment.data?.content
-        ? getBlockNodeById(comment.data.content, props.blockRef)
-        : null
-
-    const embedBlocks = selectedBlock ? [selectedBlock] : comment.data?.content
-
-    return embedBlocks
-  }, [props.blockRef, comment.data])
-  const account = useSubscribedResource(
-    comment.data?.author ? hmId(comment.data?.author) : null,
-  )
-  const accountMetadata =
-    account.data?.type === 'document'
-      ? account.data.document?.metadata
-      : undefined
-  if (comment.isLoading) return null
-  return (
-    <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
-      <div className="flex flex-wrap justify-between p-3">
-        <div className="flex items-center gap-2">
-          {account.data?.id && (
-            <HMIcon size={24} id={account.data.id} metadata={accountMetadata} />
-          )}
-          <SizableText weight="bold">{accountMetadata?.name}</SizableText>
-        </div>
-        {comment.data?.createTime ? (
-          <SizableText size="sm" color="muted">
-            {formattedDateMedium(comment.data.createTime)}
-          </SizableText>
-        ) : null}
-      </div>
-      {embedBlocks?.length ? (
-        <BlockNodeList childrenType="Group">
-          {embedBlocks.map((bn, idx) => (
-            <BlockNodeContent
-              isFirstChild={idx === 0}
-              key={bn.block?.id}
-              depth={1}
-              blockNode={bn}
-              childrenType="Group"
-              index={idx}
-              embedDepth={1}
-              parentBlockId={props.id}
-            />
-          ))}
-        </BlockNodeList>
-      ) : (
-        <BlockContentUnknown {...props} />
-      )}
     </EmbedWrapper>
   )
 }
