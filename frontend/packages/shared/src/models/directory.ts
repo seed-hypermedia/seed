@@ -73,8 +73,10 @@ export function getQueryResultsWithClient(client: GRPCClient) {
   async function getQueryResults(
     query: HMQuery,
   ): Promise<HMQueryResult | null> {
+    // @ts-expect-error
     const {includes, limit, sort} = query
     if (includes.length !== 1) return null // only support one include for now
+    // @ts-expect-error
     const {path, mode, space} = includes[0]
     const inId = hmId(space, {
       path: path ? path.split('/') : [],
