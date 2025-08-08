@@ -40,6 +40,7 @@ export function insertBlocks<BSchema extends BlockSchema>(
     if (node.childCount < 2) {
       insertionPos = posBeforeNode + node.firstChild!.nodeSize + 1
 
+      // @ts-expect-error
       const blockGroupNode = editor.state.schema.nodes['blockGroup'].create(
         {listType: 'Group'},
         nodesToInsert,
@@ -120,6 +121,7 @@ export function replaceBlocks<BSchema extends BlockSchema>(
   blocksToInsert: PartialBlock<BSchema>[],
   editor: Editor,
 ) {
+  // @ts-expect-error
   insertBlocks(blocksToInsert, blocksToRemove[0], 'before', editor)
   removeBlocks(blocksToRemove, editor)
 }

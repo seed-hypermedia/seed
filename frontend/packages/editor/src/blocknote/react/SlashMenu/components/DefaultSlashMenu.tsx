@@ -19,8 +19,8 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
 
   _.forEach(groups, (groupedItems) => {
     renderedItems.push(
-      <Menu.Label key={groupedItems[0].group}>
-        {groupedItems[0].group}
+      <Menu.Label key={groupedItems[0]?.group}>
+        {groupedItems[0]?.group}
       </Menu.Label>,
     )
 

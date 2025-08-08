@@ -316,6 +316,7 @@ export const setupLinkMenu = <
         },
 
         // Setup decorator on the currently active item (link).
+        // @ts-expect-error
         decorations(state) {
           const {active, decorationId} = (this as Plugin).getState(state)
 

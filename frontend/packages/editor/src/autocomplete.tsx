@@ -187,6 +187,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
             link: string,
             range: {from: number; to: number},
           ) => {
+            // @ts-expect-error
             const node = view.state.schema.nodes[nodeName].create({
               link,
             })
@@ -212,6 +213,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
 
   const addContentBeforeInlineMentionPlugin = new Plugin({
     props: {
+      // @ts-expect-error
       handleKeyDown(view, event) {
         if (view.state.selection.from == view.state.selection.to) {
           // selection is collapsed
@@ -370,7 +372,9 @@ function AutocompletePopupInner(
         if (groups.indexOf(group) == 0) {
           // need to go to the end of the list
           setIndex([
+            // @ts-expect-error
             groups[groups.length - 1],
+            // @ts-expect-error
             groups[groups.length - 1].length - 1,
           ])
         } else {
@@ -378,6 +382,7 @@ function AutocompletePopupInner(
             0,
             groupsOrder.length - 1,
           ])
+          // @ts-expect-error
           setIndex([groups[groupIdx], suggestions[groups[groupIdx]].length - 1])
         }
       } else {
@@ -393,6 +398,7 @@ function AutocompletePopupInner(
         groups.indexOf(group) == groups.length - 1 &&
         idx == suggestions[group].length - 1
       ) {
+        // @ts-expect-error
         setIndex([groups[0], 0])
       } else if (idx < suggestions[group].length - 1) {
         setIndex([group, idx + 1])
@@ -402,6 +408,7 @@ function AutocompletePopupInner(
           groups.length - 1,
         ])
 
+        // @ts-expect-error
         setIndex([groups[groupIdx], 0])
       }
       return true
@@ -416,6 +423,7 @@ function AutocompletePopupInner(
       ) {
         let item = suggestions[group][idx]
 
+        // @ts-expect-error
         onCreate(item.id.id, range)
         onClose()
       }
@@ -508,6 +516,7 @@ function AutocompletePopupInner(
                           selected={currentGroup == group && idx == i}
                           key={`${group}-${item.id.id}`}
                           item={{
+                            // @ts-expect-error
                             id: item.id,
                             key: packHmId(item.id),
                             title,

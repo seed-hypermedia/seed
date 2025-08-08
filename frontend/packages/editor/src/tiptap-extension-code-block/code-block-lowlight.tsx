@@ -39,6 +39,7 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
             ),
           )}
           className={mergeCSSClasses(
+            // @ts-expect-error
             styles.blockContent,
             blockContentDOMAttributes.class,
             language.length ? this.options.languageClassPrefix + language : '',

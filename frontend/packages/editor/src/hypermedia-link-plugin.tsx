@@ -37,6 +37,7 @@ export function createHypermediaDocLinkPlugin({}: {}) {
         let linkId = tr.getMeta('hmPlugin:uncheckedLink')
         if (!linkId) return map
         let markStep = tr.steps.find((step) => {
+          // @ts-expect-error
           if (step.jsonID == 'addMark') {
             let mark = step.toJSON().mark
             if (mark.type == 'link' && mark.attrs.id == linkId) {

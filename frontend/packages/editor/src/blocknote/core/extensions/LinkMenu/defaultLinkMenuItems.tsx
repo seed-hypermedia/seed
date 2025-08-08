@@ -279,6 +279,7 @@ export function getLinkMenuItems({
         },
       }
 
+      // @ts-expect-error
       linkMenuItems = [mediaItem, ...linkMenuItems]
     }
   }
@@ -306,9 +307,11 @@ function insertNode(
     )
     let originalLastContent = state.doc.cut($pos.pos, $pos.end())
     const originalContent: Node[] = []
+    // @ts-expect-error
     originalStartContent.descendants((childNode) => {
       if (childNode.type.name === 'text') originalContent.push(childNode)
     })
+    // @ts-expect-error
     originalLastContent.descendants((childNode) => {
       if (childNode.type.name === 'text') originalContent.push(childNode)
     })

@@ -1,6 +1,7 @@
 import {Editor, EditorOptions, Extension} from '@tiptap/core'
 import {Node} from 'prosemirror-model'
 // import "./blocknote.css";
+// @ts-expect-error
 import {Editor as TiptapEditor} from '@tiptap/core/dist/packages/core/src/Editor'
 import * as Y from 'yjs'
 import {getBlockNoteExtensions} from './BlockNoteExtensions'
@@ -162,6 +163,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
+  // @ts-expect-error
   public inlineEmbedOptions: InlineMentionsResult = {
     Sites: [],
     Documents: [],
@@ -308,6 +310,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         attributes: {
           ...newOptions.domAttributes?.editor,
           class: mergeCSSClasses(
+            // @ts-expect-error
             styles.bnEditor,
             styles.bnRoot,
             newOptions.defaultStyles ? styles.defaultStyles : '',
@@ -363,6 +366,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public get topLevelBlocks(): Block<BSchema>[] {
     const blocks: Block<BSchema>[] = []
 
+    // @ts-expect-error
     this._tiptapEditor.state.doc.firstChild!.descendants((node) => {
       if (blocks.some((block) => block.id === node.attrs.id)) {
         return false
@@ -388,6 +392,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       typeof blockIdentifier === 'string' ? blockIdentifier : blockIdentifier.id
     let newBlock: Block<BSchema> | undefined = undefined
 
+    // @ts-expect-error
     this._tiptapEditor.state.doc.firstChild!.descendants((node) => {
       if (typeof newBlock !== 'undefined') {
         return false
@@ -515,6 +520,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     if (resolvedPos.depth > 1) {
       // for nodes nested in blocks
       parentNode = resolvedPos.node()
+      // @ts-expect-error
       if (!parentNode.type.isInGroup('block')) {
         // for blockGroups, we need to go one level up
         parentNode = resolvedPos.node(resolvedPos.depth - 1)
@@ -582,6 +588,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
     const blocks: Block<BSchema>[] = []
 
+    // @ts-expect-error
     this._tiptapEditor.state.doc.descendants((node, pos) => {
       if (node.type.spec.group !== 'blockContent') {
         return true
@@ -856,6 +863,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this._tiptapEditor.view.dispatch(
       this._tiptapEditor.view.state.tr
         .insertText(text, from, to)
+        // @ts-expect-error
         .addMark(from, from + text.length, mark),
     )
   }

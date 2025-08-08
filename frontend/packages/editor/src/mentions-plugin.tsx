@@ -116,8 +116,9 @@ function DocumentMention({
 
   return (
     <MentionText selected={selected}>
-      {entity.data?.document
-        ? getDocumentTitle(entity.data?.document)
+      // @ts-expect-error
+      {entity.data && 'document' in entity.data && entity.data.document
+        ? getDocumentTitle(entity.data.document)
         : unpackedRef.id}
     </MentionText>
   )

@@ -437,6 +437,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
                       $contentPos.end() + 4,
                     )
 
+                    // @ts-expect-error
                     const mergedBlock = state.schema.nodes['paragraph'].create(
                       blockInfo.blockContent.node.attrs,
                       [
@@ -474,6 +475,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   // some reason it doesn't work with precise positions, so it needs to go into
                   // the next block for 1 position, which removes the first character of the first child.
                   tr.insertText(
+                    // @ts-expect-error
                     blockInfo.childContainer!.node.firstChild!.textContent[0],
                     tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
                   )
@@ -614,6 +616,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
               if (dispatch) {
                 const newBlock =
+                  // @ts-expect-error
                   state.schema.nodes['blockContainer'].createAndFill()!
 
                 state.tr.insert(newBlockInsertionPos, newBlock).scrollIntoView()

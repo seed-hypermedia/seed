@@ -137,6 +137,7 @@ export function routeToHref(
     href = route
   } else if (activeCommentId) {
     const [accountUid, commentTsid] = activeCommentId.split('/')
+    // @ts-expect-error
     const commentId = hmId(accountUid, {path: [commentTsid]})
     href = options.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {

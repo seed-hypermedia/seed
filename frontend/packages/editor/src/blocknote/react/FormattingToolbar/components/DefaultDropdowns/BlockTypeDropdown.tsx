@@ -65,6 +65,7 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
 
       // Checks if props for the block type are valid
       for (const [prop, value] of Object.entries(item.props || {})) {
+        // @ts-expect-error
         const propSchema = props.editor.schema[item.type].propSchema
 
         // Checks if the prop exists for the block type
@@ -74,7 +75,9 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
 
         // Checks if the prop's value is valid
         if (
+          // @ts-expect-error
           propSchema[prop].values !== undefined &&
+          // @ts-expect-error
           !propSchema[prop].values!.includes(value)
         ) {
           return false

@@ -113,6 +113,7 @@ export const SideMenuPositioner = <
       const ttEditor = props.editor._tiptapEditor
       const {view} = ttEditor
       const {state} = view
+      // @ts-expect-error
       state.doc.descendants((node, pos) => {
         if (node.attrs.id === block.id) {
           const {group} = getGroupInfoFromPos(pos, state)

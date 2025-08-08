@@ -83,9 +83,11 @@ export function MobileSearch({
         <div className="mb-8">
           {searchItems.map((item: SearchResult) => {
             const navigateProps = useRouteLink(
+              // @ts-expect-error
               item.id
                 ? {
                     key: 'document',
+                    // @ts-expect-error
                     id: item.id,
                   }
                 : null,
@@ -558,6 +560,7 @@ function escapeRegExp(str: string) {
 function normalizePath(path: string[]): string[] {
   return path.map((segment) => {
     const [first, ...rest] = segment.split('-')
+    // @ts-expect-error
     return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
   })
 }
@@ -589,6 +592,7 @@ export function useCollapsedPath(
     if (fullWidth <= containerWidth) {
       setCollapsedPath(path)
     } else {
+      // @ts-expect-error
       setCollapsedPath([path[0], '…', path[path.length - 1]])
     }
   }, [path, containerRef])

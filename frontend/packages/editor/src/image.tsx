@@ -122,6 +122,7 @@ const Render = (
           })
       } else {
         importWebFile(url)
+          // @ts-expect-error
           .then((imageData) => {
             setLoading(false)
             if (imageData?.displaySrc && imageData?.fileBinary) {
@@ -148,6 +149,7 @@ const Render = (
               setLoading(false)
             }
           })
+          // @ts-expect-error
           .catch((e) => {
             setFileName({
               name: "Couldn't fetch the image from this URL due to restrictions. Please download it manually and upload it from your device.",
@@ -199,8 +201,10 @@ const display = ({
 }: DisplayComponentProps) => {
   const {importWebFile} = useDocContentContext()
   useEffect(() => {
+    // @ts-expect-error
     if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
       const url = block.props.url
+      // @ts-expect-error
       if (isValidUrl(url)) {
         timeoutPromise(importWebFile.mutateAsync(url), 5000, {
           reason: 'Error fetching the image.',
@@ -226,6 +230,7 @@ const display = ({
   const maxHeight = 600
 
   let width: number =
+    // @ts-expect-error
     parseFloat(block.props.width) ||
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
@@ -351,6 +356,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'left',
+      // @ts-expect-error
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -365,6 +371,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'right',
+      // @ts-expect-error
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }

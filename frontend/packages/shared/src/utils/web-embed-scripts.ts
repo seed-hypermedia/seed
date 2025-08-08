@@ -10,6 +10,7 @@ export function loadInstagramScript() {
 }
 
 export function loadTwitterScript(): Promise<any> {
+  // @ts-expect-error
   if ((window as any).twttr) return Promise.resolve(window.twttr)
 
   const existing = document.getElementById('twitter-widgets-script')
@@ -18,6 +19,7 @@ export function loadTwitterScript(): Promise<any> {
       const check = setInterval(() => {
         if ((window as any).twttr) {
           clearInterval(check)
+          // @ts-expect-error
           resolve(window.twttr)
         }
       }, 50)
@@ -35,6 +37,7 @@ export function loadTwitterScript(): Promise<any> {
 }
 
 export function generateInstagramEmbedHtml(url: string): string {
+  // @ts-expect-error
   const cleanUrl = url.split('?')[0].replace(/\/$/, '') // strip params and trailing slash
   const permalink = `${cleanUrl}/?utm_source=ig_embed&utm_campaign=loading`
 

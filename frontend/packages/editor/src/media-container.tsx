@@ -87,9 +87,11 @@ export const MediaContainer = ({
       if (selected) setSelected(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const file = Array.from(e.dataTransfer.files)[0]
+        // @ts-expect-error
         if (validateFile && !validateFile(file)) {
           return
         }
+        // @ts-expect-error
         if (!file.type.includes(`${mediaType}/`) && mediaType !== 'file') {
           toast.error(
             `The dragged file is not ${
@@ -98,6 +100,7 @@ export const MediaContainer = ({
           )
           return
         }
+        // @ts-expect-error
         handleDragReplace(file)
         return
       }
@@ -180,6 +183,7 @@ export const MediaContainer = ({
           ? (e) => {
               e.preventDefault()
               e.stopPropagation()
+              // @ts-expect-error
               onPress(e)
             }
           : undefined

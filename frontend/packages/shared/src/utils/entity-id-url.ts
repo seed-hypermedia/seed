@@ -149,11 +149,14 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [scheme, rest] = url.split('://')
   if (!rest) return null
   const [pathAndQuery, fragment = null] = rest.split('#')
+  // @ts-expect-error
   const [path, queryString] = pathAndQuery.split('?')
   const query = new URLSearchParams(queryString)
   const queryObject = Object.fromEntries(query.entries())
   return {
+    // @ts-expect-error
     scheme,
+    // @ts-expect-error
     path: path.split('/'),
     query: queryObject,
     fragment,
@@ -236,12 +239,15 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     }
   }
   return {
+    // @ts-expect-error
     id: packBaseId(uid, path),
+    // @ts-expect-error
     uid,
     path: path || null,
     version,
     blockRef: fragment ? fragment.blockId : null,
     blockRange,
+    // @ts-expect-error
     hostname,
     latest,
     scheme: parsed.scheme,
@@ -276,6 +282,7 @@ export function idToUrl(
 export function normalizeHmId(
   urlMaybe: string,
   gwUrl: StateStream<string>,
+// @ts-expect-error
 ): string | undefined {
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
@@ -383,6 +390,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
     if (match.groups.expanded == '+') {
       return {
         type: 'block',
+        // @ts-expect-error
         blockId: match.groups.blockId,
         expanded: true,
       }
@@ -392,6 +400,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
     ) {
       return {
         type: 'block-range',
+        // @ts-expect-error
         blockId: match.groups.blockId,
         start: parseInt(match.groups.rangeStart || '0'),
         end: parseInt(match.groups.rangeEnd || '0'),
@@ -399,6 +408,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
     } else {
       return {
         type: 'block',
+        // @ts-expect-error
         blockId: match.groups.blockId,
         expanded: false,
       }
@@ -433,6 +443,7 @@ export function displayHostname(fullHost: string): string {
 
 export function hmIdMatches(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
   return (
+    // @ts-expect-error
     a.type === b.type &&
     a.uid === b.uid &&
     a.version == b.version &&

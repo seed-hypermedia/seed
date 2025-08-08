@@ -96,6 +96,7 @@ export const HyperlinkToolbarPositioner = <
         stopEditing={!show}
         // @ts-ignore
         editor={props.editor}
+        // @ts-expect-error
         type={type}
         id={id}
         setHovered={(hovering: boolean) =>

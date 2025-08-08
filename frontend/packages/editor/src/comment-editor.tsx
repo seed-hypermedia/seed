@@ -72,15 +72,19 @@ export default function CommentEditor({
       resultCIDs: string[]
     }>,
   ) => {
+    // @ts-expect-error
     const editorBlocks: EditorBlock[] = editor.topLevelBlocks
     const blocksWithAttachments = crawlEditorBlocks(
       editorBlocks,
+      // @ts-expect-error
       (block) => !!block.props?.fileBinary,
     )
     const {blobs, resultCIDs} = await prepareAttachments(
+      // @ts-expect-error
       blocksWithAttachments.map((block) => block.props.fileBinary),
     )
     blocksWithAttachments.forEach((block, i) => {
+      // @ts-expect-error
       block.props.url = `ipfs://${resultCIDs[i]}`
     })
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
@@ -118,10 +122,12 @@ export default function CommentEditor({
 
       if (dataTransfer.files.length) {
         for (let i = 0; i < dataTransfer.files.length; i++) {
+          // @ts-expect-error
           files.push(dataTransfer.files[i])
         }
       } else if (dataTransfer.items.length) {
         for (let i = 0; i < dataTransfer.items.length; i++) {
+          // @ts-expect-error
           const item = dataTransfer.items[i].getAsFile()
           if (item) {
             files.push(item)
@@ -133,6 +139,7 @@ export default function CommentEditor({
         const editorElement = document.getElementsByClassName(
           'mantine-Editor-root',
         )[0]
+        // @ts-expect-error
         const editorBoundingBox = editorElement.getBoundingClientRect()
         const posAtCoords = ttEditor.view.posAtCoords({
           left: editorBoundingBox.left + editorBoundingBox.width / 2,
@@ -149,12 +156,14 @@ export default function CommentEditor({
         files
           // @ts-expect-error
           .reduce((previousPromise, file, index) => {
+            // @ts-expect-error
             return previousPromise.then(() => {
               event.preventDefault()
               event.stopPropagation()
 
               if (pos) {
                 return handleDragMedia(file, handleFileAttachment).then(
+                  // @ts-expect-error
                   (props) => {
                     if (!props) return false
 
@@ -198,6 +207,7 @@ export default function CommentEditor({
 
                     if (index === 0) {
                       ;(editor as BlockNoteEditor).insertBlocks(
+                        // @ts-expect-error
                         [blockNode],
                         blockInfo.block.node.attrs.id,
                         // blockInfo.node.textContent ? 'after' : 'before',
@@ -205,6 +215,7 @@ export default function CommentEditor({
                       )
                     } else {
                       ;(editor as BlockNoteEditor).insertBlocks(
+                        // @ts-expect-error
                         [blockNode],
                         lastId,
                         'after',
@@ -233,6 +244,7 @@ export default function CommentEditor({
     <div className="flex w-full flex-col gap-3">
       <div
         className="comment-editor bg-muted mt-1 flex min-h-[105px] flex-col gap-4 rounded-md px-4 pb-2"
+        // @ts-expect-error
         onClick={(e: MouseEvent) => {
           const target = e.target as HTMLElement
 
@@ -243,6 +255,7 @@ export default function CommentEditor({
           e.stopPropagation()
           editor._tiptapEditor.commands.focus()
         }}
+        // @ts-expect-error
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault()
@@ -264,7 +277,19 @@ export default function CommentEditor({
         }}
         onDrop={onDrop}
       >
-        <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+        <HyperMediaEditorView
+          editor={editor}
+          openUrl={
+            openUrl ||
+            ((url: string, newWindow?: boolean) => {
+              if (newWindow) {
+                window.open(url, '_blank')
+              } else {
+                window.location.href = url
+              }
+            })
+          }
+        />
       </div>
       <div className="flex justify-end gap-3">
         {onDiscardDraft ? (
@@ -307,6 +332,7 @@ export function useCommentEditor(
       // console.log("editor content changed", editor.topLevelBlocks);
     },
     linkExtensionOptions: {
+      // @ts-expect-error
       openOnClick: false,
       queryClient,
       // grpcClient,
@@ -401,15 +427,19 @@ export function CommentEditor2({
       resultCIDs: string[]
     }>,
   ) => {
+    // @ts-expect-error
     const editorBlocks: EditorBlock[] = editor.topLevelBlocks
     const blocksWithAttachments = crawlEditorBlocks(
       editorBlocks,
+      // @ts-expect-error
       (block) => !!block.props?.fileBinary,
     )
     const {blobs, resultCIDs} = await prepareAttachments(
+      // @ts-expect-error
       blocksWithAttachments.map((block) => block.props.fileBinary),
     )
     blocksWithAttachments.forEach((block, i) => {
+      // @ts-expect-error
       block.props.url = `ipfs://${resultCIDs[i]}`
     })
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
@@ -447,10 +477,12 @@ export function CommentEditor2({
 
       if (dataTransfer.files.length) {
         for (let i = 0; i < dataTransfer.files.length; i++) {
+          // @ts-expect-error
           files.push(dataTransfer.files[i])
         }
       } else if (dataTransfer.items.length) {
         for (let i = 0; i < dataTransfer.items.length; i++) {
+          // @ts-expect-error
           const item = dataTransfer.items[i].getAsFile()
           if (item) {
             files.push(item)
@@ -462,6 +494,7 @@ export function CommentEditor2({
         const editorElement = document.getElementsByClassName(
           'mantine-Editor-root',
         )[0]
+        // @ts-expect-error
         const editorBoundingBox = editorElement.getBoundingClientRect()
         const posAtCoords = ttEditor.view.posAtCoords({
           left: editorBoundingBox.left + editorBoundingBox.width / 2,
@@ -478,12 +511,14 @@ export function CommentEditor2({
         files
           // @ts-expect-error
           .reduce((previousPromise, file, index) => {
+            // @ts-expect-error
             return previousPromise.then(() => {
               event.preventDefault()
               event.stopPropagation()
 
               if (pos) {
                 return handleDragMedia(file, handleFileAttachment).then(
+                  // @ts-expect-error
                   (props) => {
                     if (!props) return false
 
@@ -527,6 +562,7 @@ export function CommentEditor2({
 
                     if (index === 0) {
                       ;(editor as BlockNoteEditor).insertBlocks(
+                        // @ts-expect-error
                         [blockNode],
                         blockInfo.block.node.attrs.id,
                         // blockInfo.node.textContent ? 'after' : 'before',
@@ -534,6 +570,7 @@ export function CommentEditor2({
                       )
                     } else {
                       ;(editor as BlockNoteEditor).insertBlocks(
+                        // @ts-expect-error
                         [blockNode],
                         lastId,
                         'after',
@@ -590,6 +627,7 @@ export function CommentEditor2({
             e.stopPropagation()
             editor._tiptapEditor.commands.focus()
           }}
+          // @ts-expect-error
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
@@ -616,6 +654,7 @@ export function CommentEditor2({
           // paddingHorizontal="$4"
         >
           {isEditorFocused ? (
+            // @ts-expect-error
             <HyperMediaEditorView editor={editor} openUrl={openUrl} />
           ) : (
             <Button

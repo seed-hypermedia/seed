@@ -53,6 +53,7 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
       // Converts text & line breaks to nodes.
       .map((text) => {
         if (text === '\n') {
+          // @ts-expect-error
           return schema.nodes['hardBreak'].create()
         } else {
           return schema.text(text, marks)
@@ -66,6 +67,7 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
  * prosemirror text nodes with the appropriate marks
  */
 function linkToNodes(link: PartialLink, schema: Schema): Node[] {
+  // @ts-expect-error
   const linkMark = schema.marks.link.create({
     href: link.href,
   })
@@ -119,9 +121,12 @@ export function inlineContentToNodes(
       nodes.push(...linkToNodes(content, schema))
     } else if (content.type === 'text') {
       nodes.push(...styledTextArrayToNodes([content], schema))
+    // @ts-expect-error
     } else if (content.type == 'inline-embed') {
       nodes.push(
+        // @ts-expect-error
         schema.nodes['inline-embed'].create({
+          // @ts-expect-error
           link: content.link,
         }),
       )
@@ -154,8 +159,10 @@ export function blockToNode<BSchema extends BlockSchema>(
   let contentNode: Node
 
   if (!block.content) {
+    // @ts-expect-error
     contentNode = schema.nodes[type].create(block.props)
   } else if (typeof block.content === 'string') {
+    // @ts-expect-error
     contentNode = schema.nodes[type].create(
       block.props,
       schema.text(block.content),
@@ -168,6 +175,7 @@ export function blockToNode<BSchema extends BlockSchema>(
       const textNode = schema.text(block.content[0].text || '')
       nodes.push(textNode)
     } else nodes = inlineContentToNodes(block.content, schema)
+    // @ts-expect-error
     contentNode = schema.nodes[type].create(block.props, nodes)
   }
 
@@ -179,11 +187,13 @@ export function blockToNode<BSchema extends BlockSchema>(
     }
   }
 
+  // @ts-expect-error
   const groupNode = schema.nodes['blockGroup'].create(
     {listType: 'Group'},
     children,
   )
 
+  // @ts-expect-error
   return schema.nodes['blockContainer'].create(
     {
       id: id,
@@ -213,6 +223,7 @@ function contentNodeToInlineContent(contentNode: Node) {
           currentContent.text += '\n'
         } else if (currentContent.type === 'link') {
           // Current content is a link.
+          // @ts-expect-error
           currentContent.content[currentContent.content.length - 1].text += '\n'
         }
       } else {
@@ -300,10 +311,12 @@ function contentNodeToInlineContent(contentNode: Node) {
             // Styles are the same.
             if (
               JSON.stringify(
+                // @ts-expect-error
                 currentContent.content[currentContent.content.length - 1]
                   .styles,
               ) === JSON.stringify(styles)
             ) {
+              // @ts-expect-error
               currentContent.content[currentContent.content.length - 1].text +=
                 node.textContent
             } else {

@@ -524,6 +524,7 @@ export const HMTimestampSchema = z
   .strict()
   .or(z.string())
 
+// @ts-expect-error
 export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
   z.object({
     children: z.array(HMBlockNodeSchema).optional(),

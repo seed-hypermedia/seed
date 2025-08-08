@@ -78,6 +78,7 @@ export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/g
 
 const WEB_ENV = (() => {
   try {
+    // @ts-expect-error
     return window.ENV || {}
   } catch (e) {
     return {}

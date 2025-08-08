@@ -1,5 +1,6 @@
 import {Block, BlockNoteEditor} from '@/blocknote'
 import {createReactBlockSpec} from '@/blocknote/react'
+// @ts-expect-error
 import {SwitcherItem} from '@/launcher-item'
 import {MediaContainer} from '@/media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
@@ -111,7 +112,9 @@ const Render = (
           const fullHmId = hmIdWithVersion(
             res?.id,
             res?.version,
+            // @ts-expect-error
             res?.blockRef,
+            // @ts-expect-error
             res?.blockRange,
           )
           if (fullHmId) {

@@ -885,7 +885,6 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           childrenType: 'Ordered',
-          // @ts-expect-error
           start: '5',
         },
         content: [

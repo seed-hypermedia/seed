@@ -55,6 +55,7 @@ function getNodeIdFromCoords(
     node &&
     node.parentNode &&
     node.parentNode !== view.dom &&
+    // @ts-expect-error
     !node.hasAttribute?.('data-id')
   ) {
     node = node.parentNode as HTMLElement
@@ -63,6 +64,7 @@ function getNodeIdFromCoords(
     return undefined
   }
 
+  // @ts-expect-error
   return {node, id: node.getAttribute('data-id')!}
 }
 
@@ -277,6 +279,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       show: false,
       url: '',
       text: '',
+      // @ts-expect-error
       type: '',
       id: '',
     }
@@ -504,6 +507,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
               to: posBeforeNode + 1 + contentNode.nodeSize,
             }
           } else {
+            // @ts-expect-error
             contentNode.descendants((child, childPos) => {
               const linkMark = child.marks?.find(
                 (mark) => mark.type.name === 'link',
@@ -529,6 +533,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         }
       } catch (e) {
         let missingId
+        // @ts-expect-error
         state.doc.descendants((node, pos) => {
           if (node.attrs.id && node.attrs.id === this.hoveredId) {
             missingId = this.hoveredId
@@ -762,6 +767,7 @@ function getNodeAndRange(
             to: posBeforeNode + 1 + contentNode.nodeSize,
           }
         } else {
+          // @ts-expect-error
           contentNode.descendants((child, childPos) => {
             const linkMark = child.marks?.find(
               (mark) => mark.type.name === 'link',

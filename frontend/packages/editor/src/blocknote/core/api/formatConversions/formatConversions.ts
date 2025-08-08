@@ -21,6 +21,7 @@ export async function blocksToHTML<BSchema extends BlockSchema>(
   const serializer = DOMSerializer.fromSchema(schema)
 
   for (const block of blocks) {
+    // @ts-expect-error
     const node = blockToNode(block, schema)
     const htmlNode = serializer.serializeNode(node)
     htmlParentElement.appendChild(htmlNode)

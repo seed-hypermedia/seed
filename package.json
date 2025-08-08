@@ -63,9 +63,11 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/glob": "^8.1.0",
+    "@types/jscodeshift": "^17.3.0",
     "asar": "^3.2.0",
     "babel-plugin-react-native-web": "0.19.9",
     "concurrently": "8.2.1",
+    "jscodeshift": "^17.3.0",
     "lighthouse": "^12.4.0",
     "playwright": "1.40.1",
     "prettier-plugin-tailwindcss": "^0.6.13",

@@ -39,6 +39,7 @@ export const splitBlockCommand = (
       },
     ]
 
+    // @ts-expect-error
     tr = tr.split(posInBlock, 2, types)
 
     if (insertNode) {

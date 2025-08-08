@@ -2,6 +2,7 @@ import {invalidateQueries, LIGHTNING_API_URL, queryKeys} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
 import {z} from 'zod'
+// @ts-expect-error
 import {HMInvoice, UnpackedHypermediaId} from '.'
 
 export function useAllowedPaymentRecipients(accountUids: string[]) {

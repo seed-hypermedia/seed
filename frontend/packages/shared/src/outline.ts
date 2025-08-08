@@ -117,6 +117,7 @@ export function getDraftNodesOutline(
       outline.push({
         id: child.id,
         title: child.content
+          // @ts-expect-error
           .map((c) => {
             if (c.type === 'text') return c.text
           })

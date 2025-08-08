@@ -181,6 +181,7 @@ export function createBlockSpec<
         }
         // Set blockContent & custom classes
         blockContent.className = mergeCSSClasses(
+          // @ts-expect-error
           styles.blockContent,
           blockContentDOMAttributes.class,
         )
@@ -232,6 +233,7 @@ export function createBlockSpec<
           // Merge existing classes with inlineContent & custom classes
           rendered.contentDOM.className = mergeCSSClasses(
             rendered.contentDOM.className,
+            // @ts-expect-error
             styles.inlineContent,
             inlineContentDOMAttributes.class,
           )

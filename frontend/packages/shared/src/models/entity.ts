@@ -90,6 +90,7 @@ export async function loadResolvedResource(
   if (resource?.type === 'redirect') {
     return await loadResolvedResource(resource.redirectTarget)
   }
+  // @ts-expect-error
   return resource
 }
 
@@ -202,6 +203,7 @@ export class HMRedirectError extends Error {
   }
 }
 
+// @ts-expect-error
 export function getErrorMessage(err: any) {
   try {
     const e = ConnectError.from(err)

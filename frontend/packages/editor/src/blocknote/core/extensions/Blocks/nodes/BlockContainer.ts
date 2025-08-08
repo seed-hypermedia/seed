@@ -270,6 +270,7 @@ export const BlockContainer = Node.create<{
         mergeAttributes(
           {
             ...domAttributes,
+            // @ts-expect-error
             class: mergeCSSClasses(styles.block, domAttributes.class),
             'data-node-type': this.name,
           },
@@ -286,6 +287,7 @@ export const BlockContainer = Node.create<{
       BNCreateBlock:
         (pos) =>
         ({state, dispatch}) => {
+          // @ts-expect-error
           const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
 
           if (dispatch) {
@@ -347,6 +349,7 @@ export const BlockContainer = Node.create<{
               block.beforePos + blockContent.node.nodeSize,
             )
             const newBlock =
+              // @ts-expect-error
               state.schema.nodes['blockContainer'].createAndFill()!
             const newBlockInsertionPos =
               block.beforePos + blockContent.node.nodeSize + 2

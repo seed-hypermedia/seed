@@ -75,6 +75,7 @@ export function findNextBlock(view: EditorView, pos?: number) {
 }
 
 // Find the previous block from provided position or from selection
+// @ts-expect-error
 export function findPreviousBlock(view: EditorView, pos?: number) {
   const {state} = view
   const currentPos = pos ? pos : state.selection.from

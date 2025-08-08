@@ -26,6 +26,7 @@ export const LinkToolbarButton = (props: HyperlinkButtonProps) => {
   // TODO: review code; does this pattern still make sense?
   const updateCreationMenu = useCallback(() => {
     setCreationMenu(
+      // @ts-expect-error
       <EditHyperlinkMenu
         key={Math.random() + ''} // Math.random to prevent old element from being re-used
         url={props.activeHyperlinkUrl}

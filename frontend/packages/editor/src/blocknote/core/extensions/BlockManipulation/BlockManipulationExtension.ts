@@ -180,6 +180,7 @@ export const BlockManipulationExtension = Extension.create({
 
                 if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
                   const newBlock =
+                    // @ts-expect-error
                     state.schema.nodes['blockContainer'].createAndFill()!
                   let tr = state.tr.insert(1, newBlock)
                   view.dispatch(tr)

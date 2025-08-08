@@ -9,6 +9,7 @@ import {
   HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
+// @ts-expect-error
 import {UnpackedHypermediaId, unpackHmId} from './utils'
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
@@ -127,7 +128,9 @@ function titleOfEntry(entry: HMDocumentInfo) {
 function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
   const a = titleOfEntry(ea)
   const b = titleOfEntry(eb)
+  {/* @ts-expect-error */}
   if (a < b) return 1
+  // @ts-expect-error
   if (a > b) return -1
   return 0
 }
@@ -144,6 +147,7 @@ export function queryBlockSortedItems({
 
   if (sort.length !== 1) return res
 
+  // @ts-expect-error
   const sortTerm = sort[0].term
 
   if (sortTerm == 'Title') {
@@ -167,6 +171,7 @@ export function queryBlockSortedItems({
   //   return entries
   // }
 
+  // @ts-expect-error
   return sort[0].reverse ? [...res].reverse() : res
 }
 
@@ -192,6 +197,7 @@ export function extractRefs(
           refId,
         })
     }
+    // @ts-expect-error
     block.block.annotations?.forEach((annotation) => {
       if (annotation.type === 'Embed') {
         refs.push({
@@ -226,7 +232,9 @@ export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
 export function plainTextOfContent(content?: HMBlockNode[]): string {
   let textContent = ''
   content?.forEach((bn) => {
+    // @ts-expect-error
     if (bn.block?.text) {
+      // @ts-expect-error
       textContent += bn.block?.text + ' '
     }
   })
@@ -238,7 +246,7 @@ export function getDocumentImage(document: HMDocument): string | null {
   if (coverImage) return coverImage
   const firstImageBlock = findFirstBlock<HMBlockImage>(
     document.content,
-    // @ts-expect-error not sure what I'm supposed to be doing here...
+    // @ts-expect-error
     (block) => block.type === 'Image' && !!block.link,
   )
   if (firstImageBlock) return firstImageBlock.link || null
@@ -253,11 +261,14 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
   let index = 0
   while (!found && index < content.length) {
     const blockNode = content[index]
+    // @ts-expect-error
     if (test(blockNode.block)) {
+      // @ts-expect-error
       found = blockNode.block
       break
     }
     const foundChild =
+      // @ts-expect-error
       blockNode.children && findFirstBlock(blockNode.children, test)
     if (foundChild) {
       found = foundChild

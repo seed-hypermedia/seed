@@ -30,11 +30,8 @@ import {Tooltip} from './tooltip'
 import {DialogDescription, DialogTitle, useAppDialog} from './universal-dialog'
 
 async function sendWeblnPayment(invoice: string) {
-  // @ts-expect-error
   if (typeof window.webln !== 'undefined') {
-    // @ts-expect-error
     await window.webln.enable()
-    // @ts-expect-error
     return await window.webln.sendPayment(invoice)
   }
 }

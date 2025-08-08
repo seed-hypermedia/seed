@@ -36,9 +36,11 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
   const idOfFirstBlock =
     typeof blocksToRemove[0] === 'string'
       ? blocksToRemove[0]
+      // @ts-expect-error
       : blocksToRemove[0].id
   let removedSize = 0
 
+  // @ts-expect-error
   ttEditor.state.doc.descendants((node, pos) => {
     // Skips traversing nodes after all target blocks have been removed.
     if (idsOfBlocksToRemove.size === 0) {

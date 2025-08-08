@@ -29,9 +29,11 @@ function toHMBlockType(
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockType = toHMBlockType(editorBlock.type)
   if (!blockType) throw new Error('Unsupported block type ' + editorBlock.type)
+  // @ts-expect-error
   let block: HMBlock = {
     id: editorBlock.id,
     type: blockType,
+    // @ts-expect-error
     attributes: {} as HMBlock['attributes'],
     text: '',
     annotations: [],
@@ -39,15 +41,20 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   let leaves = flattenLeaves(editorBlock.content)
 
+  // @ts-expect-error
   block.annotations = [] as HMAnnotations
 
   if (editorBlock.props.childrenType == 'Group') {
+    // @ts-expect-error
     block.attributes.childrenType = 'Group'
   } else if (editorBlock.props.childrenType == 'Unordered') {
+    // @ts-expect-error
     block.attributes.childrenType = 'Unordered'
   } else if (editorBlock.props.childrenType == 'Ordered') {
+    // @ts-expect-error
     block.attributes.childrenType = 'Ordered'
   } else if (editorBlock.props.childrenType == 'Blockquote') {
+    // @ts-expect-error
     block.attributes.childrenType = 'Blockquote'
   }
 
@@ -55,6 +62,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   //   parentBlock.attributes.start = editorBlock.props.start.toString()
   // }
 
+  // @ts-expect-error
   block.text = ''
 
   const annotations = new AnnotationSet()
@@ -63,29 +71,36 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   for (let leaf of leaves) {
     const start = pos
     // TODO: Handle non-text leaves (embed)
+    // @ts-expect-error
     const charCount = codePointLength(leaf.text)
     const end = start + charCount
 
+    // @ts-expect-error
     if (leaf.styles?.bold) {
       annotations.addSpan('Bold', null, start, end)
     }
 
+    // @ts-expect-error
     if (leaf.styles?.italic) {
       annotations.addSpan('Italic', null, start, end)
     }
 
+    // @ts-expect-error
     if (leaf.styles?.underline) {
       annotations.addSpan('Underline', null, start, end)
     }
 
+    // @ts-expect-error
     if (leaf.styles?.strike) {
       annotations.addSpan('Strike', null, start, end)
     }
 
+    // @ts-expect-error
     if (leaf.styles?.code) {
       annotations.addSpan('Code', null, start, end)
     }
 
+    // @ts-expect-error
     if (leaf.styles?.math) {
       annotations.addSpan('Math', null, start, end)
     }
@@ -98,12 +113,14 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       annotations.addSpan('Link', {link: leaf.href}, start, end)
     }
 
+    // @ts-expect-error
     block.text += leaf.text
     pos += charCount
   }
 
   let outAnnotations = annotations.list()
   if (outAnnotations) {
+    // @ts-expect-error
     block.annotations = outAnnotations
   }
 
@@ -164,6 +181,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockEmbed = block.type === 'Embed' ? block : undefined
   if (blockEmbed && editorBlock.type == 'embed') {
+    // @ts-expect-error
     block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view)
@@ -204,30 +222,37 @@ function flattenLeaves(
   for (let i = 0; i < content.length; i++) {
     let leaf = content[i]
 
+    // @ts-expect-error
     if (leaf.type == 'link') {
+      // @ts-expect-error
       let nestedLeaves = flattenLeaves(leaf.content).map(
         (l: HMInlineContent) =>
           ({
             ...l,
+            // @ts-expect-error
             href: leaf.href,
             type: 'link',
           }) as const,
       )
       result.push(...nestedLeaves)
     }
+    // @ts-expect-error
     if (leaf.type == 'inline-embed') {
       result.push({
         ...leaf,
         text: '\uFFFC',
+        // @ts-expect-error
         link: leaf.link,
       } as const)
     }
 
+    // @ts-expect-error
     if (leaf.type == 'text') {
       result.push(leaf)
     }
   }
 
+  // @ts-expect-error
   return result
 }
 

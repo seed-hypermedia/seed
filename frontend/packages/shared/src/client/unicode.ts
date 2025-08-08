@@ -25,13 +25,15 @@ export class AnnotationSet {
         ends: [],
       })
 
-      // @ts-expect-error fix this type error to work with the new Struct type
+      // @ts-expect-error
       annotation.attributes = annotation.attributes?.toJson()
 
       if (type == 'Link' || type == 'Embed') {
+        // @ts-expect-error
         annotation.link = attributes!.link
 
         // delete annotation.attributes
+        // @ts-expect-error
         delete annotation.attributes?.link
       }
 
@@ -75,6 +77,7 @@ export class AnnotationSet {
     let out: Annotation[] = new Array(keys.length)
     // Then we add annotations in the proper order.
     for (let i in keys) {
+      // @ts-expect-error
       const annotation = this.annotations.get(keys[i])
       if (annotation) out[i] = annotation
     }
@@ -83,6 +86,7 @@ export class AnnotationSet {
       let startA = a.starts[0]
       let startB = b.starts[0]
 
+      // @ts-expect-error
       return startA - startB
     })
 

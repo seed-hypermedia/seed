@@ -28,6 +28,7 @@ export function getCommentGroups(
   })
 
   groups.forEach((group) => {
+    // @ts-expect-error
     let comment: HMComment | null = group.comments[0]
     while (comment) {
       const nextComments = comments?.filter(
@@ -35,7 +36,9 @@ export function getCommentGroups(
       )
 
       if (nextComments?.length === 1) {
+        // @ts-expect-error
         comment = nextComments[0]
+        // @ts-expect-error
         group.comments.push(comment)
       } else {
         comment = null

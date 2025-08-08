@@ -46,6 +46,7 @@ const handleLocalMediaPastePlugin = new Plugin({
           // Handle pasted images from the web by trying to get an image representation
           if (item.type === 'text/html') {
             // Get HTML representation to extract images
+            // @ts-expect-error
             item.getAsString((html) => {
               const tempEl = document.createElement('div')
               tempEl.innerHTML = html
@@ -94,6 +95,7 @@ const handleLocalMediaPastePlugin = new Plugin({
               .then((data) => {
                 const {name} = vid
                 const {schema} = view.state
+                // @ts-expect-error
                 const node = schema.nodes.video.create({
                   url: data,
                   name: name,
@@ -113,6 +115,7 @@ const handleLocalMediaPastePlugin = new Plugin({
               .then((data) => {
                 const {name, size} = file
 
+                // @ts-expect-error
                 const node = view.state.schema.nodes.file.create({
                   url: data,
                   name: name,

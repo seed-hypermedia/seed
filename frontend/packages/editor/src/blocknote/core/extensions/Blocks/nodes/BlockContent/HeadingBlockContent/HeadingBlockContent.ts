@@ -96,6 +96,7 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
       'div',
       mergeAttributes(HTMLAttributes, {
         class: mergeCSSClasses(
+          // @ts-expect-error
           styles.blockContent,
           blockContentDOMAttributes.class,
         ),
@@ -105,6 +106,7 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
         'h' + node.attrs.level,
         {
           class: mergeCSSClasses(
+            // @ts-expect-error
             styles.inlineContent,
             inlineContentDOMAttributes.class,
           ),

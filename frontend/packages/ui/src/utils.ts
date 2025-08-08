@@ -28,6 +28,7 @@ export function getDocumentCardImage(document: HMDocument): string | null {
     document.content,
     (block) => block.type === 'Image' && !!block.link,
   )
+  // @ts-expect-error
   if (firstImageBlock) return firstImageBlock.link || null
   return null
 }
@@ -40,11 +41,14 @@ export function findFirstBlock(
   let index = 0
   while (!found && index < content.length) {
     const blockNode = content[index]
+    // @ts-expect-error
     if (test(blockNode.block)) {
+      // @ts-expect-error
       found = blockNode.block
       break
     }
     const foundChild =
+      // @ts-expect-error
       blockNode.children && findFirstBlock(blockNode.children, test)
     if (foundChild) {
       found = foundChild

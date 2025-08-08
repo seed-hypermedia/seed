@@ -209,11 +209,8 @@ export function compareBlocksWithMap(
 
     // if (childGroup) {
     if (false) {
-      // @ts-expect-error
       block.props.childrenType = childGroup.type ? childGroup.type : 'Group'
-      // @ts-expect-error
       block.props.listLevel = childGroup.listLevel
-      // @ts-expect-error
       if (childGroup.start) block.props.start = childGroup.start.toString()
     }
     let currentBlockState = editorBlockToHMBlock(block)

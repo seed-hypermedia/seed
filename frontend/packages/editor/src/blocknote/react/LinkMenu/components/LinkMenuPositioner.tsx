@@ -41,6 +41,7 @@ export const LinkMenuPositioner = <
   useEffect(() => {
     return props.editor.linkMenu.onUpdate((linkMenuState) => {
       setShow(linkMenuState.show)
+      // @ts-expect-error
       setRef(linkMenuState.ref)
       // @ts-ignore
       setItems(linkMenuState.items)
@@ -97,6 +98,7 @@ export const LinkMenuPositioner = <
       animation={'fade'}
       placement="bottom-start"
       // Enable built-in boundary detection
+      // @ts-expect-error
       flipOnUpdate={true}
       // Prevent overflow by adjusting position
       popperOptions={{

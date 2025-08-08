@@ -65,6 +65,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       const $urlPos = state.doc.resolve(state.selection.from)
       const linkMarks = $urlPos.parent.firstChild!.marks
       if (linkMarks && linkMarks.length > 0) {
+        // @ts-expect-error
         const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
         view.dispatch(
           view.state.tr

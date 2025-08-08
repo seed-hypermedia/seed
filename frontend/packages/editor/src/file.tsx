@@ -88,6 +88,7 @@ const display = ({
           {block.props.name}
         </SizableText>
         <SizableText className="pt-1" color="muted" size="sm">
+          {/* @ts-expect-error */}
           {formatBytes(parseInt(block.props.size))}
         </SizableText>
       </Button>

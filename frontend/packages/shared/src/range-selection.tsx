@@ -366,7 +366,7 @@ const defaultContext = {
 
 function getParentElId(el: Node | null) {
   if (!el) return null
-  // @ts-expect-error - this is a HTMLElement but TS says Node
+  // @ts-expect-error
   if (el.id) return el.id
   if (!el.parentElement) return null
   return getParentElId(el.parentElement)
@@ -374,7 +374,7 @@ function getParentElId(el: Node | null) {
 
 function getRangeOffset(el: Node | null) {
   if (!el) return 0
-  // @ts-expect-error - this is a HTMLElement but TS says Node
+  // @ts-expect-error
   if (el.dataset?.rangeOffset != null) return Number(el.dataset?.rangeOffset)
   if (!el.parentElement) return 0
   return getRangeOffset(el.parentElement)

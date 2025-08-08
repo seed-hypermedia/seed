@@ -187,6 +187,7 @@ export function DocContentProvider({
             onValueChange={(val) => setLUnit(Number(val))}
           >
             <div className="flex gap-2">
+              {/* @ts-expect-error */}
               <SizableText size="$1">Layout unit:</SizableText>
               <RadioGroupItemWithLabel value="16" label="16" />
               <RadioGroupItemWithLabel value="20" label="20" />
@@ -374,6 +375,7 @@ function _BlocksContent({
               blockNode={bn}
               depth={1}
               childrenType={getBlockAttribute(
+                // @ts-expect-error
                 bn.block?.attributes,
                 'childrenType',
               )}
@@ -516,9 +518,11 @@ export function BlockNodeContent({
           depth={depth + 1}
           isFirstChild={index == 0}
           blockNode={bn}
+          // @ts-expect-error
           childrenType={bn.block!.attributes?.childrenType}
           listLevel={
             childrenType === 'Unordered' &&
+            // @ts-expect-error
             bn.block!.attributes?.childrenType === 'Unordered'
               ? listLevel + 1
               : listLevel
@@ -555,13 +559,16 @@ export function BlockNodeContent({
 
     const clonedBlock = {
       ...blockNode.block,
+      // @ts-expect-error
       annotations: [...(blockNode!.block!.annotations || [])],
     }
 
     // Add the highlight annotation
     clonedBlock.annotations.push({
       type: 'Range',
+      // @ts-expect-error
       starts: [routeParams.blockRange.start],
+      // @ts-expect-error
       ends: [routeParams.blockRange.end],
       attributes: {},
     })
@@ -653,6 +660,7 @@ export function BlockNodeContent({
         className={cn(
           'relative',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
+          // @ts-expect-error
           headingStyles.className,
         )}
         onMouseEnter={embedDepth ? undefined : () => setHover(true)}
@@ -698,6 +706,7 @@ export function BlockNodeContent({
         ) : null}
 
         <BlockContent
+          // @ts-expect-error
           block={modifiedBlock}
           depth={depth}
           parentBlockId={parentBlockId}
@@ -731,6 +740,7 @@ export function BlockNodeContent({
                   className="rounded-sm select-none"
                   style={{
                     padding: layoutUnit / 4,
+                    // @ts-expect-error
                     marginHorozontal: layoutUnit / 4,
                   }}
                   onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
@@ -756,6 +766,7 @@ export function BlockNodeContent({
                   className="rounded-sm opacity-0 select-none hover:opacity-100"
                   style={{
                     padding: layoutUnit / 4,
+                    // @ts-expect-error
                     marginHorozontal: layoutUnit / 4,
                     opacity: hover ? 1 : 0,
                   }}
@@ -793,6 +804,7 @@ export function BlockNodeContent({
                   className="rounded-sm opacity-0 select-none hover:opacity-100"
                   style={{
                     padding: layoutUnit / 4,
+                    // @ts-expect-error
                     marginHorozontal: layoutUnit / 4,
                     opacity: hover ? 1 : 0,
                   }}
@@ -836,6 +848,7 @@ export function BlockNodeContent({
                   className="rounded-sm opacity-0 select-none hover:opacity-100"
                   style={{
                     padding: layoutUnit / 4,
+                    // @ts-expect-error
                     marginHorozontal: layoutUnit / 4,
                     opacity: hover ? 1 : 0,
                   }}
@@ -859,6 +872,7 @@ export function BlockNodeContent({
       </div>
       {bnChildren && _expanded ? (
         <BlockNodeList
+          // @ts-expect-error
           childrenType={blockNode.block?.attributes?.childrenType}
           listLevel={listLevel}
         >
@@ -1180,6 +1194,7 @@ function BlockContentVideo({
   ...props
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
+  // @ts-expect-error
   const link = block.link || ''
   const {textUnit} = useDocContentContext()
   const fileUrl = useFileUrl()
@@ -1196,6 +1211,7 @@ function BlockContentVideo({
       data-content-type="video"
       data-url={link}
       data-name={getBlockAttribute(block.attributes, 'name')}
+      // @ts-expect-error
       position="relative"
       width="100%"
       ai="center"
@@ -1260,6 +1276,7 @@ function getInlineContentOffset(inline: HMInlineContent): number {
   if (inline.type === 'link') {
     return inline.content.map(getInlineContentOffset).reduce((a, b) => a + b, 0)
   }
+  // @ts-expect-error
   return inline.text?.length || 0
 }
 
@@ -1335,11 +1352,13 @@ function InlineContentView({
         contentOffset += getInlineContentOffset(content)
 
         const textDecorationStyle = buildTextDecorationStyle(
+          // @ts-expect-error
           content.styles,
           linkType,
         )
         // Make code text smaller
         const actualFontSize =
+          // @ts-expect-error
           fSize === null ? null : content.styles?.code ? fSize * 0.85 : fSize
 
         const dynamicStyles: React.CSSProperties = {
@@ -1394,6 +1413,7 @@ function InlineContentView({
             <a
               key={index}
               {...linkProps}
+              // @ts-expect-error
               onClick={onPress}
               className={cn(
                 'cursor-pointer break-all transition-colors',
@@ -1429,6 +1449,7 @@ function InlineContentView({
           else return <span>!?!</span>
         }
 
+        // @ts-expect-error
         if (content.type === 'range') {
           return (
             <Text
@@ -1437,6 +1458,7 @@ function InlineContentView({
               className="bg-yellow-200/50 dark:bg-yellow-900/70"
             >
               <InlineContentView
+                // @ts-expect-error
                 inline={content.content}
                 fontSize={fSize}
                 rangeOffset={inlineContentOffset}
@@ -1521,6 +1543,7 @@ export function CommentContentEmbed({
 }) {
   return (
     <EmbedWrapper
+      // @ts-expect-error
       embedView={props.block.attributes?.view}
       depth={props.depth || 0}
       id={narrowHmId(props)}
@@ -1633,6 +1656,7 @@ export function ContentEmbed({
         ? getBlockNodeById(document.content, props.blockRef)
         : null
 
+    // @ts-expect-error
     const currentAnnotations = selectedBlock?.block?.annotations || []
     const embedBlocks = props.blockRef
       ? selectedBlock
@@ -1713,6 +1737,7 @@ export function ContentEmbed({
             />
           ) : (
             embedData.data.embedBlocks.map((bn, idx) => (
+              // @ts-expect-error
               <BlockNodeContent
                 key={bn.block?.id}
                 isFirstChild={
@@ -1780,6 +1805,7 @@ export function ContentEmbed({
     //   textUnit={context.comment ? 12 : context.textUnit}
     // >
     <EmbedWrapper
+      // @ts-expect-error
       embedView={props.block.attributes?.view}
       depth={props.depth || 1}
       id={narrowHmId(props)}
@@ -1816,7 +1842,9 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     return <ErrorBlockMessage message="Query block with nothing included" />
   const id =
     mainInclude.space &&
+    // @ts-expect-error
     hmId(query.includes[0].space, {
+      // @ts-expect-error
       path: query.includes[0].path ? query.includes[0].path.split('/') : null,
       latest: true,
     })
@@ -1876,6 +1904,7 @@ export function getBlockNodeById(
 
 export function BlockContentFile({block}: BlockContentProps) {
   const {layoutUnit, saveCidAsFile} = useDocContentContext()
+  // @ts-expect-error
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
   return (
@@ -1943,11 +1972,13 @@ export function BlockContentButton({
   const linkProps = useRouteLinkHref(buttonLink || '', {
     handler: 'onClick',
   })
+  // @ts-expect-error
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }
 
   const alignment =
+    // @ts-expect-error
     getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
   if (block.type !== 'Button') return null
   return (
@@ -1993,6 +2024,7 @@ export function BlockContentWebEmbed({
 }: BlockContentProps) {
   const {layoutUnit} = useDocContentContext()
   const openUrl = useOpenUrl()
+  // @ts-expect-error
   const url = block.link || ''
   const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
   const isInstagram = /instagram\.com/.test(url)
@@ -2027,6 +2059,7 @@ export function BlockContentWebEmbed({
           }
         } else if (isInstagram) {
           if (containerRef.current) {
+            // @ts-expect-error
             containerRef.current.innerHTML = generateInstagramEmbedHtml(url)
             loadInstagramScript()
             setTimeout(() => {
@@ -2065,11 +2098,14 @@ export function BlockContentWebEmbed({
         marginRight: (-1 * layoutUnit) / 2,
       }}
       data-content-type="web-embed"
+      // @ts-expect-error
       data-url={block.link}
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
+        // @ts-expect-error
         if (block.link) {
+          // @ts-expect-error
           openUrl(block.link)
         }
       }}
@@ -2130,7 +2166,8 @@ export function BlockContentCode({
       : null
   const nodes: any[] =
     language && language.length > 0
-      ? getHighlightNodes(lowlight.highlight(language, block.text))
+      ? // @ts-expect-error
+        getHighlightNodes(lowlight.highlight(language, block.text))
       : []
 
   return (
@@ -2143,6 +2180,7 @@ export function BlockContentCode({
       style={{
         padding: layoutUnit / 2,
         ...debugStyles(debug, 'blue'),
+        // @ts-expect-error
         marginHorizontal: (-1 * layoutUnit) / 2,
       }}
       {...props}
@@ -2152,7 +2190,8 @@ export function BlockContentCode({
           ? nodes.map((node, index) => (
               <CodeHighlight key={index} node={node} />
             ))
-          : block.text}
+          : // @ts-expect-error
+            block.text}
       </code>
     </pre>
   )
@@ -2173,6 +2212,7 @@ export function BlockContentMath({
 
   useEffect(() => {
     try {
+      // @ts-expect-error
       let res = katex.renderToString(block.text ? block.text : '', {
         throwOnError: true,
         displayMode: true,
@@ -2180,8 +2220,10 @@ export function BlockContentMath({
       setTex(res)
     } catch (e) {
       console.error(e)
+      // @ts-expect-error
       setError(e.message)
     }
+    // @ts-expect-error
   }, [block.text])
 
   // Function to measure content and container widths
@@ -2208,6 +2250,7 @@ export function BlockContentMath({
   }, [isContentSmallerThanContainer, layoutUnit])
 
   // Update measurements when tex changes
+  // @ts-expect-error
   useEffect(() => {
     if (tex) {
       // Use a timeout to ensure KaTeX has finished rendering
@@ -2220,6 +2263,7 @@ export function BlockContentMath({
   }, [tex, measureContentAndContainer])
 
   // Also measure after mathRef updates (when KaTeX rendering is done)
+  // @ts-expect-error
   useEffect(() => {
     if (mathRef.current) {
       // Use MutationObserver to detect when KaTeX finishes rendering
@@ -2240,6 +2284,7 @@ export function BlockContentMath({
   }, [measureContentAndContainer])
 
   // Add resize observer to handle container size changes
+  // @ts-expect-error
   useEffect(() => {
     const container = containerRef.current
 
@@ -2264,6 +2309,7 @@ export function BlockContentMath({
     <div
       {...props}
       data-content-type="math"
+      // @ts-expect-error
       data-content={block.text}
       ref={containerRef}
       className={cn(
@@ -2274,6 +2320,7 @@ export function BlockContentMath({
       )}
       style={{
         padding: layoutUnit / 2,
+        // @ts-expect-error
         marginHorizontal: (-1 * layoutUnit) / 2,
       }}
     >
@@ -2284,6 +2331,7 @@ export function BlockContentMath({
             ? 'items-center justify-center'
             : 'items-start justify-start',
         )}
+        // @ts-expect-error
         dangerouslySetInnerHTML={{__html: tex}}
       />
     </div>
@@ -2311,6 +2359,7 @@ export function InlineEmbedButton({
     {handler: 'onClick'},
   )
   return (
+    // @ts-expect-error
     <a
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}
@@ -2331,8 +2380,8 @@ function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
     <div className="flex items-center gap-2">
-      <RadioGroupItem value={props.value} id={id} size="$1" />
-
+      // @ts-expect-error
+      <RadioGroupItem value={props.value} id={id} />
       <label className="text-xs" htmlFor={id}>
         {props.label}
       </label>

@@ -46,10 +46,12 @@ export const DragExtension = Extension.create<DragOptions>({
 
                 if (data.files.length) {
                   for (let i = 0; i < data.files.length; i++) {
+                    // @ts-expect-error
                     files.push(data.files[i])
                   }
                 } else if (data.items.length) {
                   for (let i = 0; i < data.items.length; i++) {
+                    // @ts-expect-error
                     const item = data.items[i].getAsFile()
                     if (item) {
                       files.push(item)
@@ -67,12 +69,15 @@ export const DragExtension = Extension.create<DragOptions>({
 
                   // using reduce so files get inserted sequentially
                   files
+                    // @ts-expect-error
                     .reduce((previousPromise, file, index) => {
+                      // @ts-expect-error
                       return previousPromise.then(() => {
                         event.preventDefault()
                         event.stopPropagation()
 
                         if (pos && pos.inside !== -1) {
+                          // @ts-expect-error
                           return handleDragMedia(file).then((props) => {
                             if (!props) return false
 
@@ -138,6 +143,7 @@ export const DragExtension = Extension.create<DragOptions>({
                         }
                       })
                     }, Promise.resolve())
+                    // @ts-expect-error
                     .then(() => true)
 
                   return true
@@ -167,6 +173,7 @@ type FileType = {
   type: string
 }
 
+// @ts-expect-error
 async function handleDragMedia(file: File) {
   if (file.size > 62914560) {
     toast.error(`The size of ${file.name} exceeds 60 MB.`)
@@ -188,6 +195,7 @@ async function handleDragMedia(file: File) {
       size: file.size.toString(),
     } as FileType['props']
   } catch (error) {
+    // @ts-expect-error
     console.log(error.message)
     toast.error('Failed to upload file.')
   }

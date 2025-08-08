@@ -529,7 +529,6 @@ describe('HMBlock to EditorBlock', () => {
         link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
         attributes: {
-          // @ts-expect-error
           width: '80%',
         },
         revision: 'revision123',
@@ -911,7 +910,6 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [],
         attributes: {
           childrenType: 'Ordered',
-          // @ts-expect-error
           start: '5',
         },
       }

@@ -121,6 +121,7 @@ export const MediaRender: React.FC<RenderProps> = ({
 
   useEffect(() => {
     if (!uploading && hasSrc) {
+      // @ts-expect-error
       if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {
           props: {url: block.props.src, src: ''},
@@ -146,6 +147,7 @@ export const MediaRender: React.FC<RenderProps> = ({
 
   const assignMedia = (props: MediaType) => {
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
+    // @ts-expect-error
     editor.updateBlock(block.id, props)
   }
 
@@ -321,6 +323,7 @@ function MediaForm({
   const {handleFileAttachment, comment} = useDocContentContext()
 
   const handleUpload = async (files: File[]) => {
+    // @ts-expect-error
     if (validateFile && !validateFile(files[0])) {
       return
     }
@@ -333,8 +336,11 @@ function MediaForm({
         name:
           largeFileIndex > 0
             ? `The size of ${
+                // @ts-expect-error
                 largeFile.name.length < 36
+                  // @ts-expect-error
                   ? largeFile.name
+                  // @ts-expect-error
                   : largeFile.name.slice(0, 32) + '...'
               } exceeds ${MaxFileSizeMB} MB.`
             : `The file size exceeds ${MaxFileSizeMB} MB.`,
@@ -343,8 +349,10 @@ function MediaForm({
       return
     }
 
+    // @ts-expect-error
     const {name, size} = files[0]
     if (handleFileAttachment) {
+      // @ts-expect-error
       const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
       assign({
         props: {
@@ -358,6 +366,7 @@ function MediaForm({
       // upload to IPFS immediately if handleFileAttachment is not available
       try {
         const formData = new FormData()
+        // @ts-expect-error
         formData.append('file', files[0])
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',

@@ -20,27 +20,40 @@ export const lightDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
+      // @ts-expect-error
       text: defaultColorScheme[5],
+      // @ts-expect-error
       background: defaultColorScheme[0],
     },
     tooltip: {
+      // @ts-expect-error
       text: defaultColorScheme[5],
+      // @ts-expect-error
       background: defaultColorScheme[1],
     },
     hovered: {
+      // @ts-expect-error
       text: defaultColorScheme[5],
+      // @ts-expect-error
       background: defaultColorScheme[1],
     },
     selected: {
+      // @ts-expect-error
       text: defaultColorScheme[0],
+      // @ts-expect-error
       background: defaultColorScheme[5],
     },
     disabled: {
+      // @ts-expect-error
       text: defaultColorScheme[3],
+      // @ts-expect-error
       background: defaultColorScheme[1],
     },
+    // @ts-expect-error
     shadow: defaultColorScheme[2],
+    // @ts-expect-error
     border: defaultColorScheme[1],
+    // @ts-expect-error
     sideMenu: defaultColorScheme[2],
     highlightColors: {
       gray: {
@@ -93,27 +106,40 @@ export const darkDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
+      // @ts-expect-error
       text: defaultColorScheme[2],
+      // @ts-expect-error
       background: defaultColorScheme[6],
     },
     tooltip: {
+      // @ts-expect-error
       text: defaultColorScheme[2],
+      // @ts-expect-error
       background: defaultColorScheme[7],
     },
     hovered: {
+      // @ts-expect-error
       text: defaultColorScheme[2],
+      // @ts-expect-error
       background: defaultColorScheme[7],
     },
     selected: {
+      // @ts-expect-error
       text: defaultColorScheme[2],
+      // @ts-expect-error
       background: defaultColorScheme[8],
     },
     disabled: {
+      // @ts-expect-error
       text: defaultColorScheme[5],
+      // @ts-expect-error
       background: defaultColorScheme[7],
     },
+    // @ts-expect-error
     shadow: defaultColorScheme[8],
+    // @ts-expect-error
     border: defaultColorScheme[7],
+    // @ts-expect-error
     sideMenu: defaultColorScheme[4],
     highlightColors: {
       gray: {

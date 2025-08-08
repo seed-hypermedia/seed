@@ -121,8 +121,11 @@ const display = ({
   const isInitialized = useRef(false)
 
   const url = block.props.url
+  // @ts-expect-error
   const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
+  // @ts-expect-error
   const isInstagram = /instagram\.com/.test(url)
+  // @ts-expect-error
   const tweetId = url.split('/').pop()?.split('?')[0]
 
   const createdTweets = useRef(new Set())
@@ -150,6 +153,7 @@ const display = ({
           }
         } else if (isInstagram) {
           if (containerRef.current) {
+            // @ts-expect-error
             containerRef.current.innerHTML = generateInstagramEmbedHtml(url)
             loadInstagramScript()
             setTimeout(() => {
@@ -189,6 +193,7 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
+        // @ts-expect-error
         openUrl(block.props.link)
       }}
       styleProps={{

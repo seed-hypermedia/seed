@@ -1,3 +1,4 @@
+// @ts-expect-error
 import {Block, BlockNoteEditor, HMBlockSchema} from '@'
 import {updateGroup} from '@/block-utils'
 import {Box, Menu} from '@mantine/core'
@@ -55,8 +56,8 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
 
   _.forEach(groups, (groupedItems) => {
     renderedItems.push(
-      <Menu.Label key={groupedItems[0].group}>
-        {groupedItems[0].group}
+      <Menu.Label key={groupedItems[0]?.group}>
+        {groupedItems[0]?.group}
       </Menu.Label>,
     )
 
@@ -161,7 +162,6 @@ var turnIntoItems = [
       editor.updateBlock(block, {
         type: 'code-block',
         props: {},
-        // @ts-expect-error
         content: block.content,
       })
     },

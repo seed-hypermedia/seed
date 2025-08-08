@@ -27,5 +27,5 @@ export const useBlockNote = <
     }
     editorRef.current = initEditor(options)
     return editorRef.current
-  }, deps) //eslint-disable-line react-hooks/exhaustive-deps
+  }, deps)
 }

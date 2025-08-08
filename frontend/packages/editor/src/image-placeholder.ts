@@ -32,6 +32,7 @@ export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
       mergeAttributes({
         ...blockContentDOMAttributes,
         class: mergeCSSClasses(
+          // @ts-expect-error
           styles.blockContent,
           blockContentDOMAttributes.class,
         ),

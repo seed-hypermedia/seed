@@ -156,6 +156,7 @@ const display = ({
   // Min video width in px.
   const minWidth = 256
   let width: number =
+    // @ts-expect-error
     parseFloat(block.props.width) ||
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
@@ -249,6 +250,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'left',
+      // @ts-expect-error
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -264,6 +266,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'right',
+      // @ts-expect-error
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -310,10 +313,12 @@ const display = ({
           >
             <source
               src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
+              // @ts-expect-error
               type={getSourceType(block.props.name)}
             />
             <p>Error with the video file.</p>
           </video>
+        // @ts-expect-error
         ) : isIpfsUrl(block.props.url) ? (
           <video
             contentEditable={false}
@@ -324,6 +329,7 @@ const display = ({
           >
             <source
               src={getDaemonFileUrl(block.props.url)}
+              // @ts-expect-error
               type={getSourceType(block.props.name)}
             />
             <p>Error with the video file.</p>

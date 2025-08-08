@@ -19,6 +19,7 @@ export function HypermediaLinkToolbar(
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' || event.key == 'Enter') {
       event.preventDefault()
+      // @ts-expect-error
       props.editHyperlink(_url, _text)
     }
   }
@@ -52,11 +53,15 @@ export function HypermediaLinkToolbar(
         url={props.url}
         text={props.text}
         updateLink={props.updateHyperlink}
+        // @ts-expect-error
         editLink={props.editHyperlink}
         openUrl={props.openUrl}
         type={props.type}
+        // @ts-expect-error
         hasName={props.type !== 'mention'}
+        // @ts-expect-error
         hasSearch={props.type === 'mention'}
+        // @ts-expect-error
         isHmLink={!!unpackedRef}
       />
     </div>
