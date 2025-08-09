@@ -747,13 +747,3 @@ export async function loadSiteResource<T>(
     {status: id ? 200 : 404},
   )
 }
-
-export async function loadComment(
-  id: UnpackedHypermediaId,
-): Promise<HMComment> {
-  const c = await queryClient.comments.getComment({
-    id: id.uid,
-  })
-  const comment = c.toJson({emitDefaultValues: true}) as unknown as HMComment
-  return comment
-}

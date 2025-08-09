@@ -1,5 +1,6 @@
 import {getResource} from '@/loaders'
 import {parseRequest} from '@/request'
+import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {hmId, HMResource} from '@shm/shared'
@@ -23,5 +24,5 @@ export const loader = async ({
   }
   const id = hmId(uid, {path: path || [], version, latest})
   const resource = await getResource(id)
-  return wrapJSON(resource)
+  return withCors(wrapJSON(resource))
 }

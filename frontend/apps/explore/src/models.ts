@@ -17,12 +17,12 @@ export function useRootDocuments() {
 }
 
 export function useResource(hmId: UnpackedHypermediaId) {
-  let url = `entity/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
+  let url = `resource/${hmId.uid}${hmIdPathToEntityQueryPath(hmId.path)}`
   if (hmId.version) {
     url += `?v=${hmId.version}`
   }
   return useQuery({
-    queryKey: ['entity', hmId],
+    queryKey: ['resource', hmId],
     queryFn: () => getAPI<any>(url),
   })
 }

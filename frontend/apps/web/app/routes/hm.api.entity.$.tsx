@@ -1,5 +1,6 @@
 import {resolveHMDocument} from '@/loaders'
 import {parseRequest} from '@/request'
+import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {HMDocument, hmId} from '@shm/shared'
@@ -23,5 +24,5 @@ export const loader = async ({
   }
   const id = hmId(uid, {path: path || [], version, latest})
   const loaded = await resolveHMDocument(id)
-  return wrapJSON(loaded)
+  return withCors(wrapJSON(loaded))
 }
