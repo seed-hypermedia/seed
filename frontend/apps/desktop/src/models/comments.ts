@@ -87,8 +87,16 @@ function queryComment(
     queryFn: async () => {
       if (!commentId) return null
       try {
+        const tsId = commentId.path?.[0]
+        if (!tsId) {
+          console.warn(
+            'commentId provided to queryComment with no tsId',
+            commentId,
+          )
+          return null
+        }
         const comment = await grpcClient.comments.getComment({
-          id: commentId.uid + '/' + commentId.path?.join('/'),
+          id: commentId.uid + '/' + tsId,
         })
         return toPlainMessage(comment) as HMComment
       } catch (error: any) {
