@@ -84,26 +84,24 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <AccessoryContent title="Feed">
-      <div ref={scrollContainerRef} className="overflow-y-auto h-full">
-        {allEvents.map((event, index) => {
-          const isLast = index === allEvents.length - 1
-          return (
-            <div key={event.id} ref={isLast ? lastElementRef : undefined}>
-              <FeedEvent event={event} />
-            </div>
-          )
-        })}
-        {isFetchingNextPage && (
-          <div className="py-3 text-center text-muted-foreground">
-            Loading more...
+      {allEvents.map((event, index) => {
+        const isLast = index === allEvents.length - 1
+        return (
+          <div key={event.id} ref={isLast ? lastElementRef : undefined}>
+            <FeedEvent event={event} />
           </div>
-        )}
-        {!hasNextPage && allEvents.length > 0 && (
-          <div className="py-3 text-center text-muted-foreground">
-            No more events
-          </div>
-        )}
-      </div>
+        )
+      })}
+      {isFetchingNextPage && (
+        <div className="py-3 text-center text-muted-foreground">
+          Loading more...
+        </div>
+      )}
+      {!hasNextPage && allEvents.length > 0 && (
+        <div className="py-3 text-center text-muted-foreground">
+          No more events
+        </div>
+      )}
     </AccessoryContent>
   )
 }
