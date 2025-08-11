@@ -151,6 +151,7 @@ function FavoritesSection() {
         const metadata = id.path?.length
           ? document?.metadata
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
+        if (!metadata) return null
         return (
           <SmallListItem
             key={id.id}

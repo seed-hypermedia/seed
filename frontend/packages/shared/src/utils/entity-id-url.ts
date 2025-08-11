@@ -114,7 +114,8 @@ function getHMQueryString({
 }
 
 function packBaseId(uid: string, path?: string[] | null) {
-  const restPath = path?.length ? `/${path.join('/')}` : ''
+  const filteredPath = path?.filter((p) => p !== '') || []
+  const restPath = filteredPath.length ? `/${filteredPath.join('/')}` : ''
   return `${HYPERMEDIA_SCHEME}://${uid}${restPath}`
 }
 
