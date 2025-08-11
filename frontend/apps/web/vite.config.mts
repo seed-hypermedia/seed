@@ -34,13 +34,14 @@ let config = {
   ssr: {
     noExternal: ['react-icons'],
   },
-  define: {
-    // Define process.env as an empty object to prevent "process is not defined" errors
-    // Vite will replace individual process.env.VARIABLE_NAME references at build time
-    'process.env': {
-      NODE_ENV: process.env.NODE_ENV || 'development',
-    },
-  },
+  // DISABLED FOR NOW, suspected to be overwrtiting the runtime env vars
+  // define: {
+  //   // Define process.env as an empty object to prevent "process is not defined" errors
+  //   // Vite will replace individual process.env.VARIABLE_NAME references at build time
+  //   'process.env': {
+  //     NODE_ENV: process.env.NODE_ENV || 'development',
+  //   },
+  // },
   optimizeDeps: {
     exclude:
       process.env.NODE_ENV === 'production'
