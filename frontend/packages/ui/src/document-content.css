@@ -131,3 +131,18 @@ p.block-paragraph.is-comment *:not(.text-code) {
   > [data-list-type='Group'] {
   padding-left: 0;
 }
+
+.hm-embed-range-wrapper span:not(.hm-embed-range) {
+  display: none !important;
+}
+
+.hm-embed-range-wrapper span.hm-embed-range:before,
+.hm-embed-range-wrapper span.hm-embed-range:after {
+  content: '...';
+}
+
+.hm-embed-range-wrapper span.hm-embed-range {
+  font-size: 1.4em !important;
+  font-weight: lighter !important;
+  font-style: italic !important;
+}

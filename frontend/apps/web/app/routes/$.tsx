@@ -1,5 +1,10 @@
 import {useFullRender} from '@/cache-policy'
-import {DocumentPage, documentPageHeaders, documentPageMeta} from '@/document'
+import {
+  links as documentLinks,
+  DocumentPage,
+  documentPageHeaders,
+  documentPageMeta,
+} from '@/document'
 import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
@@ -12,6 +17,8 @@ import {hmId} from '@shm/shared'
 type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
+
+export const links = () => [...documentLinks()]
 
 export const meta: MetaFunction<typeof loader> = (args) => {
   const payload = unwrap<DocumentPayload>(args.data)

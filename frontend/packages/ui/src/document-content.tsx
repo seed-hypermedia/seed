@@ -1305,7 +1305,8 @@ function InlineContentView({
       )
     if (styles.underline) classes.push('underline')
     if (styles.strike) classes.push('line-through')
-    if (styles.range || isRange) classes.push('bg-brand-10')
+    if (styles.range || isRange)
+      classes.push('hm-embed-range bg-brand-10 hover:cursor-default')
 
     return classes.join(' ')
   }
@@ -1771,6 +1772,7 @@ export function ContentEmbed({
       </BlockNotFoundError>
     )
   }
+
   return (
     // <DocContentProvider
     //   {...context}
@@ -1779,9 +1781,13 @@ export function ContentEmbed({
     // >
     <EmbedWrapper
       embedView={props.block.attributes?.view}
-      depth={props.depth}
+      depth={props.depth || 1}
       id={narrowHmId(props)}
       parentBlockId={parentBlockId || ''}
+      isRange={
+        !!props.blockRange &&
+        ('start' in props.blockRange || 'end' in props.blockRange)
+      }
     >
       {content}
     </EmbedWrapper>

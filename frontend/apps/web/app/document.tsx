@@ -71,12 +71,15 @@ import {getOptimizedImageUrl, WebSiteProvider} from './providers'
 import {supportedLanguages} from '@shm/shared/language-packs'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import documentContentStyles from '@shm/ui/document-content.css?url'
 import {useMedia} from '@shm/ui/use-media'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
 export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>
   loaderHeaders
+
+export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 
 export const documentPageMeta = ({
   data,

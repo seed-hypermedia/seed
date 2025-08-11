@@ -55,6 +55,7 @@ function EmbedWrapper({
   depth,
   viewType = 'Content',
   hideBorder = false,
+  isRange = false,
   ...props
 }: PropsWithChildren<
   {
@@ -63,6 +64,7 @@ function EmbedWrapper({
     depth?: number
     viewType?: 'Content' | 'Card'
     hideBorder?: boolean
+    isRange?: boolean
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const docContentContext = useDocContentContext()
@@ -152,6 +154,7 @@ function EmbedWrapper({
         //   : 'bg-transparent hover:bg-transparent',
         !hideBorder && 'border-l-primary border-l-3',
         'm-0 rounded-none',
+        isRange && 'hm-embed-range-wrapper',
       )}
       data-content-type="embed"
       data-url={id ? packHmId(id) : ''}
@@ -173,17 +176,15 @@ function EmbedWrapper({
       }
       data-docid={id?.blockRef ? undefined : id?.id}
       onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         const selection = window.getSelection()
         const hasSelection = selection && selection.toString().length > 0
         if (hasSelection) {
-          e.preventDefault()
-          e.stopPropagation()
           return
         }
 
         if (route.key != 'document') {
-          e.preventDefault()
-          e.stopPropagation()
           return
         }
         // if the embed is from the same document, we replace the current route, if not, we navigate forward

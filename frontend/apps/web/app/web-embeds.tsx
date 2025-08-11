@@ -11,6 +11,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   narrowHmId,
+  packHmId,
   queryBlockSortedItems,
   UnpackedHypermediaId,
   useUniversalAppContext,
@@ -19,6 +20,7 @@ import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
+  blockStyles,
   CommentContentEmbed,
   ContentEmbed,
   DocumentCardGrid,
@@ -31,30 +33,56 @@ import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
-import {useMemo, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 
 injectModels()
 
 function EmbedWrapper({
   id,
   hideBorder = false,
+  viewType = 'Content',
   children,
+  isRange = false,
 }: React.PropsWithChildren<{
   id: UnpackedHypermediaId
   parentBlockId: string | null
   hideBorder?: boolean
+  viewType?: 'Content' | 'Card'
   embedView?: HMEmbedView
+  isRange?: boolean
 }>) {
   const docContext = useDocContentContext()
   const {originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
   return (
     <div
+      contentEditable={false}
       className={cn(
-        'w-full',
-        hideBorder && 'border-[3px] border-l border-transparent',
+        'block-embed flex flex-col',
+        blockStyles,
+        // isHighlight
+        //   ? routeParams?.blockRef == id?.blockRef
+        //     ? 'bg-secondary'
+        //     : 'bg-transparent'
+        //   : 'bg-transparent hover:bg-transparent',
+        !hideBorder && 'border-l-primary border-l-3',
+        'm-0 rounded-none',
+        isRange && 'hm-embed-range-wrapper',
       )}
+      data-content-type="embed"
+      data-url={id ? packHmId(id) : ''}
+      data-view={viewType}
+      data-blockid={
+        id &&
+        id.blockRange &&
+        'expanded' in id.blockRange &&
+        id.blockRange.expanded
+          ? id?.blockRef
+          : undefined
+      }
+      data-docid={id?.blockRef ? undefined : id?.id}
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
