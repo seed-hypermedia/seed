@@ -121,7 +121,6 @@ export function WebDocContentProvider({
           : null
       }
       onBlockCommentClick={onBlockCommentClick}
-      // @ts-expect-error
       onBlockCitationClick={onBlockCitationClick}
       routeParams={routeParams}
       textUnit={18}

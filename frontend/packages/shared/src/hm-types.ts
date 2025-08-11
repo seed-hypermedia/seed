@@ -1,4 +1,5 @@
 import {PlainMessage} from '@bufbuild/protobuf'
+import * as z from 'zod'
 import {
   Contact,
   type Account,
@@ -10,8 +11,7 @@ import {
   type Document,
   type DocumentChangeInfo,
   type DocumentInfo,
-} from '@shm/shared'
-import * as z from 'zod'
+} from './client/grpc-types'
 
 export const ExactBlockRangeSchema = z.object({
   start: z.number(),

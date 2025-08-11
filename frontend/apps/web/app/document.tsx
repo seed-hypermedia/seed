@@ -657,6 +657,7 @@ function InnerDocumentPage(
                             />
                           )}
                           <WebDocContentProvider
+                            // @ts-expect-error
                             onBlockCitationClick={
                               activityEnabled ? onBlockCitationClick : undefined
                             }

@@ -1600,6 +1600,7 @@ export function ContentEmbed({
       depth: number
       parentBlockId: string
       embedView?: HMEmbedView
+      isRange?: boolean
     }>
   >
   parentBlockId: string | null

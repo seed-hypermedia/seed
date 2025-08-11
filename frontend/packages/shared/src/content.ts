@@ -1,4 +1,4 @@
-import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
+import {PlainMessage} from '@bufbuild/protobuf'
 import {Contact} from './client'
 import {
   HMBlock,
@@ -84,25 +84,19 @@ export function sortNewsEntries(
   return [...items].sort(lastUpdateSort)
 }
 
-function lastUpdateSort(
-  a: {updateTime?: PlainMessage<Timestamp>},
-  b: {updateTime?: PlainMessage<Timestamp>},
-) {
+function lastUpdateSort(a: HMDocumentInfo, b: HMDocumentInfo) {
   return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
 }
 
-function lastUpdateOfEntry(entry: {updateTime?: PlainMessage<Timestamp>}) {
+function lastUpdateOfEntry(entry: HMDocumentInfo) {
   return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0
 }
 
-function createTimeSort(
-  a: {createTime?: PlainMessage<Timestamp>},
-  b: {createTime?: PlainMessage<Timestamp>},
-) {
+function createTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
   return createTimeOfEntry(b) - createTimeOfEntry(a)
 }
 
-function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
+function createTimeOfEntry(entry: HMDocumentInfo) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
 }
 
