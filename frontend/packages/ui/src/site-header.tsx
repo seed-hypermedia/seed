@@ -596,7 +596,7 @@ function GotoLatestBanner({
 
 function HypermediaHostBanner({origin}: {origin?: string}) {
   return (
-    <div className="w-full bg-(--brand5) p-1">
+    <div className="bg-primary w-full p-1">
       <p className="flex flex-wrap items-center justify-center gap-1 text-sm text-white">
         <span>Hosted on</span>
         <a href="/" className="underline">

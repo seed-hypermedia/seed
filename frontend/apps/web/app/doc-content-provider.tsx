@@ -47,8 +47,8 @@ export function WebDocContentProvider({
       comments: number
     }
   >
-  onBlockCitationClick?: (blockId?: string) => void
-  onBlockCommentClick?: (blockId?: string) => void
+  onBlockCitationClick?: (blockId?: string | null) => void
+  onBlockCommentClick?: (blockId?: string | null) => void
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
@@ -56,10 +56,13 @@ export function WebDocContentProvider({
   const context = useUniversalAppContext()
   return (
     <DocContentProvider
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
       entityComponents={{
         Document: EmbedDocument,
         Inline: EmbedInline,
         Query: QueryBlockWeb,
+        Comment: () => null,
       }}
       entityId={id}
       supportDocuments={supportDocuments}
