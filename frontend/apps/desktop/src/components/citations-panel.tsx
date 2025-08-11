@@ -145,7 +145,7 @@ export function CommentCitationEntry({
 }) {
   const citationTargetFragment = citation.targetFragment
   const citationTarget = citation.targetId
-  // @ts-expect-error
+
   const comment = useComment(citation.source.id)
   const focusedComment = useMemo(() => {
     if (!comment.data) return comment.data
