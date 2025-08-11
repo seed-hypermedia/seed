@@ -20,7 +20,7 @@ import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
-import {fetchAndSaveWpPosts} from './wordpress-import'
+import {fetchAndSaveWpPosts, WpPost} from './wordpress-import'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -82,6 +82,13 @@ export function extractMetaTags(html: string) {
   return metaTags
 }
 
+type WpImportStatus =
+  | {mode: 'fetching'}
+  | {mode: 'ready'; total: number}
+  | {mode: 'error'; error: string}
+
+const wpImportStatus: Record<string, WpImportStatus> = {}
+
 type ImportStatus =
   | {
       mode: 'importing'
@@ -126,11 +133,10 @@ async function importWpSite(url: string, importId: string) {
 }
 
 export function startWpImport(siteUrl: string, importId: string) {
-  importingStatus[importId] = {mode: 'importing'}
-  console.log('here???????')
+  wpImportStatus[importId] = {mode: 'fetching'}
   importWpSite(siteUrl, importId)
     .then((result) => {
-      console.log(result)
+      wpImportStatus[importId] = {mode: 'ready', total: result.count}
       // importingStatus[importId] = {mode: 'ready', result: result}
     })
     .catch((error) => {
@@ -265,13 +271,6 @@ export const webImportingApi = t.router({
       startImport(input.url, importId)
       return {importId}
     }),
-  importWpSite: t.procedure
-    .input(z.object({url: z.string()}).strict())
-    .mutation(async ({input}) => {
-      const importId = nanoid(10)
-      startWpImport(input.url, importId)
-      return {importId}
-    }),
   importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {
     return importingStatus[input]
   }),
@@ -300,6 +299,46 @@ export const webImportingApi = t.router({
         })
       }
       return {}
+    }),
+  importWpSite: t.procedure
+    .input(z.object({url: z.string()}).strict())
+    .mutation(async ({input}) => {
+      const importId = nanoid(10)
+      startWpImport(input.url, importId)
+      return {importId}
+    }),
+  importWpSiteStatus: t.procedure
+    .input(z.string())
+    .query(async ({input}) => wpImportStatus[input] ?? null),
+
+  importWpSiteConfirm: t.procedure
+    .input(
+      z
+        .object({
+          importId: z.string(),
+          destinationId: z.string(),
+          signAccountUid: z.string(),
+          limit: z.number().int().positive().optional(),
+        })
+        .strict(),
+    )
+    .mutation(async ({input}) => {
+      const {importId, destinationId, signAccountUid, limit} = input
+      const p = join(
+        userDataPath,
+        'importer',
+        'wordpress',
+        importId,
+        'posts.json',
+      )
+      const buf = await readFile(p, 'utf-8')
+      let posts: any[] = JSON.parse(buf)
+      if (limit) posts = posts.slice(0, limit)
+
+      for (const post of posts) {
+        await importWpPost({post, destinationId, signAccountUid, importId})
+      }
+      return {imported: posts.length}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const file = await downloadFile(input)
@@ -381,4 +420,89 @@ function changesForBlockNodes(
   })
 
   return changes
+}
+
+function stripHtml(s: string) {
+  return s.replace(/<[^>]*>/g, '').trim()
+}
+
+export async function importWpPost({
+  post,
+  destinationId,
+  signAccountUid,
+  importId,
+}: {
+  post: WpPost
+  destinationId: string
+  signAccountUid: string
+  importId: string
+}) {
+  const parentId = unpackHmId(destinationId)
+  if (!parentId) {
+    throw new Error('Invalid destination id')
+  }
+
+  // Title
+  const title = stripHtml(post.title?.rendered ?? 'Untitled')
+
+  // Compute document path from the WP post URL
+  const linkUrl = new URL(post.link)
+  const linkSegments = linkUrl.pathname.split('/').filter(Boolean)
+  const docPath = [...(parentId.path || []), ...linkSegments]
+
+  // Convert HTML to blocks
+  const html = post.content?.rendered ?? ''
+  const blocks = await htmlToBlocks(html, /*sourcePath*/ post.link, {
+    uploadLocalFile,
+    resolveHMLink: async (href: string) => {
+      // Convert absolute site-internal links into Hypermedia doc links
+      try {
+        const u = new URL(href, linkUrl.origin)
+        // Only rewrite links that stay on the same host
+        if (u.host === linkUrl.host) {
+          const p = u.pathname.split('/').filter(Boolean)
+          const resultLink = packHmId(
+            hmId(parentId.uid, {path: [...(parentId.path || []), ...p]}),
+          )
+          return resultLink
+        }
+      } catch (e) {
+        console.log('something wrong with converting internal url:\n', e)
+      }
+      return href
+    },
+  })
+
+  // Publish date
+  const displayPublishTime = post.date_gmt
+    ? new Date(post.date_gmt).toDateString()
+    : post.date
+    ? new Date(post.date).toDateString()
+    : null
+
+  const changes: DocumentChange[] = []
+  function addChange(op: PartialMessage<DocumentChange>['op']) {
+    changes.push(new DocumentChange({op}))
+  }
+
+  addChange({
+    case: 'setMetadata',
+    value: {key: 'name', value: title || 'Untitled'},
+  })
+
+  if (displayPublishTime) {
+    addChange({
+      case: 'setMetadata',
+      value: {key: 'displayPublishTime', value: displayPublishTime},
+    })
+  }
+
+  changes.push(...changesForBlockNodes(blocks, ''))
+
+  await grpcClient.documents.createDocumentChange({
+    signingKeyName: signAccountUid,
+    account: parentId.uid,
+    path: hmIdPathToEntityQueryPath(docPath),
+    changes,
+  })
 }

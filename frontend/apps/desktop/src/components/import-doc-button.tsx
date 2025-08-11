@@ -287,22 +287,144 @@ function WordpressImportDialog({
   const startImport = trpc.webImporting.importWpSite.useMutation()
 
   return (
-    <div className="flex flex-col gap-3">
-      <DialogTitle>Import WordPress Site</DialogTitle>
-      <ImportURLForm
-        defaultUrl={input.defaultUrl}
-        onSubmit={(url) => {
-          const hostname = new URL(url).host
-          setHostname(hostname)
-          startImport.mutateAsync({url}).then(({importId}) => {
-            console.log('here?????', importId)
-            setImportId(importId)
-          })
+    <>
+      {importId && hostname ? (
+        <WordpressImportInProgress
+          id={importId}
+          hostname={hostname}
+          destinationId={input.destinationId}
+          onComplete={onClose}
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          <DialogTitle>Import WordPress Site</DialogTitle>
+          <ImportURLForm
+            defaultUrl={input.defaultUrl}
+            onSubmit={(url) => {
+              const host = new URL(url).host
+              setHostname(host)
+              startImport.mutateAsync({url}).then(({importId}) => {
+                setImportId(importId)
+              })
+              toast('Import Started.')
+            }}
+          />
+        </div>
+      )}
+    </>
+  )
+}
 
-          toast('Import Started.')
-          console.log('url', url)
-        }}
-      />
+function WordpressImportInProgress({
+  id,
+  hostname,
+  destinationId,
+  onComplete,
+}: {
+  id: string
+  hostname: string
+  destinationId: UnpackedHypermediaId
+  onComplete: () => void
+}) {
+  const {data: status} = trpc.webImporting.importWpSiteStatus.useQuery(id, {
+    refetchInterval: 300,
+  })
+
+  const confirmWp = trpc.webImporting.importWpSiteConfirm.useMutation()
+
+  const accounts = useMyAccountsWithWriteAccess(destinationId)
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
+  useEffect(() => {
+    if (!selectedAccount && accounts[0]?.data?.id.uid) {
+      setSelectedAccount(accounts[0].data?.id.uid)
+    }
+  }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
+
+  const ready = status?.mode === 'ready' ? status : undefined
+  const total = ready?.total ?? ready?.total ?? ready?.result?.total ?? 0
+
+  if (ready && !confirmWp.isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <DialogTitle>Ready to import from {hostname}</DialogTitle>
+        <SizableText>{total} posts ready for import</SizableText>
+
+        {selectedAccount && (
+          <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select Account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts
+                .map((a) => {
+                  const id = a.data?.id
+                  if (!id) return null
+                  return (
+                    <SelectItem key={id.uid} value={id.uid}>
+                      <div className="flex items-center gap-2">
+                        <HMIcon
+                          size={24}
+                          id={id}
+                          metadata={a.data?.document?.metadata}
+                        />
+                        {a.data?.document?.metadata.name || ''}
+                      </div>
+                    </SelectItem>
+                  )
+                })
+                .filter(Boolean)}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Button
+          variant="ghost"
+          onClick={() => {
+            if (!selectedAccount) {
+              toast.error('No account found')
+              return
+            }
+            confirmWp
+              .mutateAsync({
+                importId: id,
+                destinationId: destinationId.id,
+                signAccountUid: selectedAccount,
+              })
+              .then(() => {
+                toast.success('Import Complete.')
+                onComplete()
+              })
+              .catch((e) => toast.error(e?.message ?? 'Import failed'))
+          }}
+        >
+          {`Import & Publish ${total} posts`}
+        </Button>
+      </div>
+    )
+  }
+
+  if (status?.mode === 'fetching' || confirmWp.isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <DialogTitle>Importing from {hostname}...</DialogTitle>
+        <SizableText>Preparing posts…</SizableText>
+        <Spinner size="small" />
+      </div>
+    )
+  }
+
+  if (status?.mode === 'error') {
+    return (
+      <div className="flex flex-col gap-4">
+        <DialogTitle>Error importing from {hostname}</DialogTitle>
+        <SizableText color="destructive">Error: {status.error}</SizableText>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <DialogTitle color="$red10">Unrecognized status?</DialogTitle>
     </div>
   )
 }
