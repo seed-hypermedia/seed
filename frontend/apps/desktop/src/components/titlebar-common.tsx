@@ -489,9 +489,11 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useResource(id)
-  const showPublishSiteButton = {}
-  // @ts-expect-error
-  isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
+  const showPublishSiteButton =
+    isHomeDoc &&
+    canEditDoc &&
+    entity.data?.type === 'document' &&
+    !entity.data.document?.metadata.siteUrl
   return (
     <TitlebarSection>
       {showPublishSiteButton ? (
