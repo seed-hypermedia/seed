@@ -84,7 +84,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
     <>
       {isFocused && !isLocked && !isWindowTooNarrowForHoverSidebar ? (
         <div
-          className="absolute top-0 bottom-0 left-[-20px] z-[900] rounded-lg bg-gray-100 opacity-0 hover:opacity-10 dark:bg-gray-900"
+          className="absolute top-0 bottom-0 left-[-20px] z-50 rounded-lg bg-gray-100 opacity-0 hover:opacity-10 dark:bg-gray-900"
           style={{width: HoverRegionWidth + 20}}
           onMouseEnter={ctx.onMenuHoverDelayed}
           onMouseLeave={ctx.onMenuHoverLeave}
@@ -99,6 +99,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         ref={ref}
         collapsible
         id="sidebar"
+        order={1}
         className="h-full"
         onCollapse={() => {
           ctx.onCloseSidebar()

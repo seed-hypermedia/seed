@@ -469,7 +469,7 @@ function AutocompletePopupInner(
             onClose()
           }}
         />
-        <div className="border-border bg-background absolute z-[9999] flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
+        <div className="border-border bg-background absolute z-50 flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
           {/* <div>Query: "{text}"</div> */}
           {isOptionsEmpty(suggestions) && (
             <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">

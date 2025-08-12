@@ -32,7 +32,7 @@ export function AutoUpdater() {
 
   return (
     <div
-      className="absolute right-5 bottom-5 z-[900] flex min-h-[100px] min-w-[360px] flex-col gap-4 rounded bg-white p-4 shadow-md dark:bg-black"
+      className="absolute right-5 bottom-5 z-40 flex min-h-[100px] min-w-[360px] flex-col gap-4 rounded bg-white p-4 shadow-md dark:bg-black"
       style={{
         transform:
           updateStatus?.type == 'update-available' ||

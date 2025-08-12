@@ -402,7 +402,7 @@ function MediaForm({
       {...(isEmbed ? {} : dragProps)}
     >
       {drag && !isEmbed && (
-        <div className="absolute top-0 left-0 z-[5] flex h-full w-full items-center justify-center rounded-sm bg-white/50">
+        <div className="absolute top-0 left-0 z-5 flex h-full w-full items-center justify-center rounded-sm bg-white/50">
           <SizableText weight="bold">DROP MEDIA HERE</SizableText>
         </div>
       )}

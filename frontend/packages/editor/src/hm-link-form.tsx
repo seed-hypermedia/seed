@@ -82,7 +82,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   }
 
   return (
-    <div className="z-[5] flex flex-col gap-2">
+    <div className="z-5 flex flex-col gap-2">
       <LinkTypeDropdown
         selected={selectedType}
         onSelect={(val) => {
@@ -372,7 +372,7 @@ const SearchInput = ({
     <div
       className={cn(
         'search-dropdown-content',
-        'absolute z-[99999] flex max-h-[500px] flex-col gap-2 overflow-scroll',
+        'absolute z-50 flex max-h-[500px] flex-col gap-2 overflow-scroll',
         'rounded-b-md border-t-transparent px-3 py-3',
         'bg-muted shadow-md',
         focused ? 'flex' : 'hidden',
@@ -494,7 +494,7 @@ export function LinkTypeDropdown({
 
   const dropdown = (
     <div
-      className="bg-background absolute z-[99999] flex flex-col rounded-md py-2 shadow-md"
+      className="bg-background absolute z-50 flex flex-col rounded-md py-2 shadow-md"
       style={{
         top: inputPosition ? inputPosition.bottom + 5 : 0,
         left: inputPosition?.left ?? 0,

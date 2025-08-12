@@ -35,7 +35,7 @@ export const CodeBlockView = ({
     >
       {hovered && (
         <div
-          className="absolute top-2 right-3 z-[5] flex w-[150px] items-center gap-4 p-1"
+          className="absolute top-2 right-3 z-5 flex w-[150px] items-center gap-4 p-1"
           contentEditable={false}
         >
           <div className="relative w-full">
@@ -48,7 +48,7 @@ export const CodeBlockView = ({
               <ChevronDown className="h-4 w-4 opacity-50" />
             </Button>
             {open && (
-              <div className="border-muted bg-popover hide-scrollbar absolute left-0 z-[200000] mt-1 max-h-[60vh] w-full overflow-y-auto rounded-md border p-1 shadow-md">
+              <div className="border-muted bg-popover hide-scrollbar absolute left-0 z-50 mt-1 max-h-[60vh] w-full overflow-y-auto rounded-md border p-1 shadow-md">
                 {languages.map((item, i) => (
                   <Button
                     key={item}

@@ -142,7 +142,7 @@ function DevTools() {
         <ReactQueryDevtools />
       </div>
       <div
-        className="absolute bottom-5 left-15 z-[1000] bg-white dark:bg-black"
+        className="absolute bottom-5 left-15 z-40 bg-white dark:bg-black"
         style={{
           boxShadow: dialogBoxShadow,
         }}

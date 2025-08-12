@@ -209,7 +209,7 @@ export function LibraryListItem({
             </div>
           ))}
           {entry.authors.length > editors.length && editors.length != 0 ? (
-            <div className="border-background bg-background z-[1] -ml-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200">
+            <div className="border-background bg-background z-1 -ml-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200">
               <span className="text-muted-foreground text-[10px] font-bold">
                 +{entry.authors.length - editors.length - 1}
               </span>

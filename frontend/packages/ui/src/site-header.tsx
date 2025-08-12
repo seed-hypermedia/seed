@@ -475,7 +475,7 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'bg-background fixed inset-0 z-[800] h-screen transition-transform duration-200 md:hidden',
+        'bg-background fixed inset-0 z-40 h-screen transition-transform duration-200 md:hidden',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
@@ -529,7 +529,7 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        'pointer-events-none absolute top-12 right-0 left-0 z-[999] flex w-full justify-center px-4',
+        'pointer-events-none absolute top-12 right-0 left-0 z-40 flex w-full justify-center px-4',
       )}
     >
       <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">

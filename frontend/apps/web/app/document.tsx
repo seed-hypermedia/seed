@@ -603,7 +603,7 @@ function InnerDocumentPage(
             >
               <div className="relative flex h-full flex-col" ref={elementRef}>
                 {media.gtSm ? (
-                  <div className="dark:bg-background absolute top-2 right-2 z-[999] rounded-md bg-white shadow-md">
+                  <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
                     {!activePanel &&
                     activityEnabled &&
                     interactionSummary.data ? (

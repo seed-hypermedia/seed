@@ -389,7 +389,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="dark:bg-background absolute top-2 right-2 z-[999] rounded-md bg-white shadow-md">
+    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
       <div className="flex">
         <InteractionSummaryItem
           label="version"

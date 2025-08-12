@@ -395,7 +395,7 @@ function QuerySettings({
     <>
       <div
         className={`query-settings editor-controls absolute left-0 flex h-full w-full items-start justify-end gap-2 p-2 ${
-          popoverState.open ? 'z-[999] opacity-100' : 'z-20 opacity-0'
+          popoverState.open ? 'z-40 opacity-100' : 'z-20 opacity-0'
         } group-hover:opacity-100`}
         onClick={
           popoverState.open
@@ -718,10 +718,10 @@ export function QuerySearch({
       {showSearch ? (
         <>
           <div
-            className="fixed inset-0 z-[800]"
+            className="fixed inset-0 z-40"
             onClick={() => setShowSearch(false)}
           />
-          <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-[800] h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
+          <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
             <SearchInput
               onClose={() => setShowSearch(false)}
               allowWebURL={allowWebURL}

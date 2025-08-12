@@ -190,7 +190,7 @@ export const MediaContainer = ({
       }
     >
       {drag && !isEmbed && (
-        <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 z-5 flex items-center justify-center">
           <div className="bg-background border-muted relative flex rounded-md border-2 px-4 py-2">
             <Text className="font-mono text-sm">Drop to replace</Text>
           </div>
@@ -211,7 +211,7 @@ export const MediaContainer = ({
           <Button
             variant="ghost"
             size="xs"
-            className="dark:bg-background bg-muted absolute top-2 right-2 z-[4] w-[60px]"
+            className="dark:bg-background bg-muted absolute top-2 right-2 z-3 w-[60px]"
             onClick={() =>
               assign({
                 props: {

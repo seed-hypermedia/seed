@@ -1138,7 +1138,7 @@ export function OnboardingDebugBox() {
   if (IS_PROD_DESKTOP) return null
 
   return (
-    <div className="bg-background border-border no-window-drag absolute top-4 right-4 z-[1000] max-h-[300px] w-[300px] rounded-lg border p-2 opacity-80 shadow-lg">
+    <div className="bg-background border-border no-window-drag absolute top-4 right-4 z-40 max-h-[300px] w-[300px] rounded-lg border p-2 opacity-80 shadow-lg">
       <ScrollArea>
         <div className="p-3">
           <Text size="md" style={{fontFamily: 'monospace'}}>
@@ -1177,7 +1177,7 @@ function StepWrapper({
       <div className="window-drag bg-primary flex flex-1 flex-col items-center justify-center gap-4 bg-gradient-to-b from-green-50 to-green-100 p-4">
         <div className="no-window-drag flex h-[600px] w-[600px] flex-col items-center justify-center gap-6">
           {onPrev ? (
-            <div className="no-window-drag absolute top-10 left-15 z-[900]">
+            <div className="no-window-drag absolute top-10 left-15 z-40">
               <Button size="icon" onClick={onPrev}>
                 <ArrowLeft className="text-secondary-foreground size-5" />
               </Button>
@@ -1269,7 +1269,7 @@ export function ResetOnboardingButton() {
   if (IS_PROD_DESKTOP) return null
 
   return (
-    <div className="no-window-drag absolute right-2.5 bottom-2.5 z-[900] flex gap-2">
+    <div className="no-window-drag absolute right-2.5 bottom-2.5 z-40 flex gap-2">
       <Button size="sm" onClick={() => dispatchEditPopover(true)}>
         show Edit Dialog
       </Button>

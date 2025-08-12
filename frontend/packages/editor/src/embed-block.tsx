@@ -305,7 +305,7 @@ const EmbedLauncherInput = ({
     <div
       className={cn(
         focused ? 'flex' : 'hidden',
-        'absolute top-full left-0 z-[999] max-h-[400px] w-full overflow-auto overflow-x-hidden',
+        'absolute top-full left-0 z-40 max-h-[400px] w-full overflow-auto overflow-x-hidden',
         'flex-col px-3 py-3 opacity-100',
         'bg-muted',
         'rounded-br-md rounded-bl-md',

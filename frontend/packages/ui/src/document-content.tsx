@@ -149,7 +149,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="bg-background-hover border-border dark:bg-background fixed right-16 bottom-16 z-[9999] flex flex-col gap-1 rounded-md border bg-white p-2">
+        <div className="bg-background-hover border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -303,7 +303,7 @@ export function DocContent({
       <div
         ref={bubble}
         className={cn(
-          'absolute top-0 left-0 z-[99999] transition-[opacity,transform] duration-200 ease-out select-none',
+          'absolute top-0 left-0 z-50 transition-[opacity,transform] duration-200 ease-out select-none',
           media.gtSm &&
             !state.matches('disable') &&
             state.matches({active: 'selected'})
@@ -686,7 +686,7 @@ export function BlockNodeContent({
               size="icon"
               variant="ghost"
               className={cn(
-                'bg-background hover:bg-background border-border absolute left-[-24px] z-50 size-6 border p-0 opacity-0 select-none hover:opacity-100 dark:hover:bg-black',
+                'bg-background hover:bg-background border-border absolute left-[-24px] z-20 size-6 border p-0 opacity-0 select-none hover:opacity-100 dark:hover:bg-black',
                 childrenType && ['Unordered', 'Ordered'].includes(childrenType)
                   ? 'top-2'
                   : 'top-4',
@@ -717,7 +717,7 @@ export function BlockNodeContent({
           <div
             className={cn(
               'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
-              hover && 'z-[999]',
+              hover && 'z-10',
             )}
             style={{
               borderRadius: layoutUnit / 4,
@@ -1071,7 +1071,7 @@ function BlockContentImage({
   const maximizedContent = modalState !== 'closed' && (
     <div
       className={cn(
-        'fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm',
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm',
         modalState === 'opening' ? 'animate-in fade-in duration-300' : '',
       )}
       onClick={handleClose}
