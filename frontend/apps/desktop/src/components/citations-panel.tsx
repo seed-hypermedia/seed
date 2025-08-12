@@ -112,7 +112,7 @@ function ResourcePreview({
   const doc = useResource(id)
   if (doc.isInitialLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -125,11 +125,11 @@ function ResourcePreview({
   }
   // todo, handle other resource types. type error below is reminding us of that.
   return (
-    <div className="flex overflow-y-auto flex-col gap-3 p-4 w-full max-w-xl max-h-96">
+    <div className="flex max-h-96 w-full max-w-xl flex-col gap-3 overflow-y-auto p-4">
       <SizableText size="2xl" weight="bold" className="px-2">
         {metadata?.name || 'Untitled'}
       </SizableText>
-      <div className="flex-shrink-0 w-full h-px bg-gray-200 dark:bg-gray-800" />
+      <div className="h-px w-full flex-shrink-0 bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
         <BlocksContent blocks={content} parentBlockId={null} />
       </AppDocContentProvider>

@@ -43,14 +43,14 @@ export function ContactToken({
             {metadata?.name}
           </a>
         </HoverCardTrigger>
-        <HoverCardContent className="p-0 w-full max-w-100" align="end">
+        <HoverCardContent className="w-full max-w-100 p-0" align="end">
           <ResourcePreview metadata={metadata} id={id} />
         </HoverCardContent>
       </HoverCard>
     )
   }
   return (
-    <a className="inline-flex gap-1 items-center" {...linkProps}>
+    <a className="inline-flex items-center gap-1" {...linkProps}>
       {icon}
       <SizableText weight="bold">{metadata?.name}</SizableText>
     </a>

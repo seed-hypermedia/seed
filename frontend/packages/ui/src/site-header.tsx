@@ -312,7 +312,6 @@ function HeaderLinkItem({
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
-      {/* @ts-expect-error */}
       <a
         className={cn(
           'cursor-pointer truncate px-1 font-bold transition-colors select-none',
@@ -451,7 +450,6 @@ export function SiteHeaderMenu({
                   {handler: 'onClick'},
                 )
                 return (
-                  // @ts-expect-error
                   <DropdownMenuItem key={item.key} {...linkProps}>
                     {item.metadata.name}
                   </DropdownMenuItem>

@@ -54,7 +54,6 @@ export const loader = async ({
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
-    // @ts-expect-error
     documentId = hmId(pathParts[1], {
       path: pathParts.slice(2),
       version,

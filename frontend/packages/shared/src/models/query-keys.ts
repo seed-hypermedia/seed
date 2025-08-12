@@ -116,7 +116,7 @@ export function labelOfQueryKey(key: QueryKey) {
     // feed
     case queryKeys.FEED:
       return 'Activity Feed'
-    case queryKeys.FEED_LATEST_EVENT:
+    case queryKeys.RESOURCE_FEED_LATEST_EVENT:
       return 'Activity Feed Latest Event'
 
     // daemon

@@ -361,7 +361,6 @@ function DocButtonLink({
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
   return (
-    // @ts-expect-error
     <a {...linkProps} className="white-space-wrap font-bold underline">
       {name}
     </a>

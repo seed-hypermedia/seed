@@ -363,7 +363,6 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, targetDocId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
-      invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       clearTimeout(saveTimeoutRef.current)

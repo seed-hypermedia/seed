@@ -338,8 +338,8 @@ function BreadcrumbTitle({
   if (isAllError || !displayItems.length) return null
 
   return (
-    <div ref={containerObserverRef} className="flex gap-2 items-center">
-      <div className="flex overflow-hidden gap-2 items-center h-full shrink-1">
+    <div ref={containerObserverRef} className="flex items-center gap-2">
+      <div className="flex h-full shrink-1 items-center gap-2 overflow-hidden">
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
@@ -351,7 +351,7 @@ function BreadcrumbTitle({
         })}
       </div>
       {!hideControls ? (
-        <div className="flex flex-1 justify-start items-center shrink-0">
+        <div className="flex flex-1 shrink-0 items-center justify-start">
           <PendingDomain id={entityId} />
           <FavoriteButton id={entityId} />
           <CopyReferenceButton
@@ -398,13 +398,13 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   )
   if (!pendingDomain) return null
   return (
-    <div className="p-2 no-window-drag">
+    <div className="no-window-drag p-2">
       <HoverCard>
         <HoverCardTrigger>
           <Spinner size="small" />
         </HoverCardTrigger>
         <HoverCardContent side="bottom" align="start">
-          <div className="gap-4 p-3 no-window-drag">
+          <div className="no-window-drag gap-4 p-3">
             {pendingDomain.status === 'waiting-dns' ? (
               <DNSInstructions
                 hostname={pendingDomain.hostname}
@@ -504,7 +504,7 @@ function BreadcrumbItem({
   const observerRef = useSizeObserver(onSize)
   if (details.isLoading) {
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -531,12 +531,12 @@ function BreadcrumbItem({
           <Button
             size="iconSm"
             variant="ghost"
-            className="m-0 no-window-drag"
+            className="no-window-drag m-0"
             onClick={() => {
               navigate({key: 'document', id})
             }}
           >
-            <AlertCircle size={18} className="text-red-700 size-4" />
+            <AlertCircle size={18} className="size-4 text-red-700" />
           </Button>
         </Tooltip>
       )
@@ -546,7 +546,7 @@ function BreadcrumbItem({
   if (!details?.name) return null
 
   let content = isActive ? (
-    <div className="flex gap-2 items-center">
+    <div className="flex items-center gap-2">
       <TitleText fontWeight="bold">{details.name}</TitleText>
       {draft ? <DraftBadge /> : null}
     </div>
@@ -569,7 +569,7 @@ function BreadcrumbItem({
           <HoverCardContent
             side="bottom"
             align="start"
-            className="p-1 w-full max-w-lg"
+            className="w-full max-w-lg p-1"
           >
             <PathItemCard details={details} homeMetadata={homeMetadata} />
           </HoverCardContent>
@@ -609,7 +609,7 @@ function PathItemCard({
       <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
       {directoryItems?.length ? (
         <>
-          <ScrollArea className="overflow-y-auto flex-1 py-0">
+          <ScrollArea className="flex-1 overflow-y-auto py-0">
             <div>
               {directoryItems?.map((item) => {
                 return (
@@ -663,13 +663,13 @@ function URLCardSection({
       <div className="flex items-stretch rounded-md border">
         <Button
           size="xs"
-          className="overflow-hidden flex-1 justify-start text-left border-none hover:cursor-pointer"
+          className="flex-1 justify-start overflow-hidden border-none text-left hover:cursor-pointer"
           onClick={() => {
             const url = siteBaseUrlWithProtocol + '/' + path.join('/')
             externalOpen(url)
           }}
         >
-          <span className="text-xs truncate text-muted-foreground">
+          <span className="text-muted-foreground truncate text-xs">
             {siteBaseUrl}
 
             {path &&
@@ -699,7 +699,7 @@ export function Title({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   return (
-    <div className="flex flex-1 gap-2 items-center self-stretch pl-2 max-w-full min-w-64">
+    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch pl-2">
       <TitleContent size={size} onPublishSite={onPublishSite} />
     </div>
   )
@@ -758,10 +758,10 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     )
 
   return (
-    <div className="flex overflow-hidden flex-1 gap-2 items-stretch justify-stretch">
-      <File className="self-center size-4" />
+    <div className="flex flex-1 items-stretch justify-stretch gap-2 overflow-hidden">
+      <File className="size-4 self-center" />
       <TitleTextButton
-        className="font-bold no-window-drag"
+        className="no-window-drag font-bold"
         onClick={() => {
           navigate({key: 'drafts'})
         }}

@@ -112,7 +112,7 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
 
 type UseRouteLinkOpts = {
   replace?: boolean
-  onPress?: React.ComponentProps<'button'>['onClick']
+  onPress?: React.MouseEventHandler<HTMLElement>
   handler?: 'onClick' | 'onPress'
 }
 
@@ -177,7 +177,7 @@ export function useRouteLink(
   })
 
   const clickHandler = context.openRoute
-    ? (e: React.MouseEvent<HTMLButtonElement>) => {
+    ? (e: React.MouseEvent<HTMLElement>) => {
         e?.stopPropagation()
         if (e.metaKey) {
           if (context.openRouteNewWindow) {

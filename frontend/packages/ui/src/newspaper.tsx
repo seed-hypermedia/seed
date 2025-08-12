@@ -52,7 +52,6 @@ export function DocumentCard({
     : undefined
 
   return (
-    // @ts-expect-error
     <div
       data-docid={docId?.id}
       className={cn(

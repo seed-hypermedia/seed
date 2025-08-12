@@ -1394,7 +1394,6 @@ function InlineContentView({
             <a
               key={index}
               {...linkProps}
-              // @ts-expect-error
               onClick={onPress}
               className={cn(
                 'cursor-pointer break-all transition-colors',
@@ -2340,7 +2339,6 @@ export function InlineEmbedButton({
     {handler: 'onClick'},
   )
   return (
-    // @ts-expect-error
     <a
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}

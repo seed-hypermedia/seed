@@ -6,7 +6,6 @@ export const loader = apiGetter(async ({pathParts}) => {
   const [_api, _citations, uid, ...restPath] = pathParts
   const result = await queryClient.entities.listEntityMentions({
     id: packHmId(
-      // @ts-expect-error
       hmId(uid, {
         path: restPath,
       }),

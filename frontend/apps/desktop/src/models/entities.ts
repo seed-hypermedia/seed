@@ -107,7 +107,6 @@ export function useUndeleteEntity(
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       }
       invalidateQueries([queryKeys.FEED])
-      invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])

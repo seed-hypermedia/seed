@@ -3,7 +3,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useTx, useTxUtils} from '@shm/shared/translation'
+import {useTx} from '@shm/shared/translation'
 import {ContactToken} from './contact-token'
 import {EventDescriptionText, EventRow, EventTimestamp} from './feed'
 import {ResourceToken} from './resource-token'
@@ -20,7 +20,6 @@ export function DocumentCitationEntry({
 }) {
   if (!citation.author || !citation.document) return null
   const tx = useTx()
-  const {formattedDateShort} = useTxUtils()
   return (
     <EventRow>
       <ContactToken

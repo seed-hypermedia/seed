@@ -246,7 +246,6 @@ function getHmIdOfRequest(
     return hmId(originAccountId, {path: [], version, latest})
   }
   if (pathParts[0] === 'hm') {
-    // @ts-expect-error
     return hmId(pathParts[1], {path: pathParts.slice(2), version, latest})
   }
   if (!originAccountId) return null

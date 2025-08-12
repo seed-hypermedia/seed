@@ -190,8 +190,8 @@ export function hmId(
   const effectivePath = opts.path || path || null
   return {
     ...opts,
-    uid,
-    id: packBaseId(uid, effectivePath),
+    uid: uid || '',
+    id: uid ? packBaseId(uid, effectivePath) : '',
     path: effectivePath,
     version: opts.version || null,
     blockRef: opts.blockRef || null,

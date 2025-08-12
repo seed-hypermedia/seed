@@ -93,12 +93,12 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
         )
       })}
       {isFetchingNextPage && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           Loading more...
         </div>
       )}
       {!hasNextPage && allEvents.length > 0 && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           No more events
         </div>
       )}

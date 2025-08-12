@@ -39,7 +39,7 @@ export function EventDescriptionText({children}: {children: React.ReactNode}) {
 export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
   if (!time) return null
   return (
-    <SizableText size="sm" className="px-2 py-1 text-muted-foreground">
+    <SizableText size="sm" className="text-muted-foreground px-2 py-1">
       {formattedDateShort(time)}
     </SizableText>
   )

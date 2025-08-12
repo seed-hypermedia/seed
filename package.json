@@ -5,7 +5,7 @@
     "test": "yarn web:test && yarn shared:test",
     "shared:test": "yarn workspace @shm/shared test",
     "format:check": "yarn workspaces foreach -pt run format:check",
-    "typecheck": "echo 'Checking types across all workspaces...' && yarn workspaces foreach -pt run typecheck",
+    "typecheck": "echo '🛠️ Building shared packages types...' && yarn workspace @shm/shared build:types && echo '✅ Types built Successfully' && echo '🛠️ Checking types across all workspaces...' && yarn workspaces foreach -pt run typecheck && echo '✅ Types checked Successfully'",
     "format:write": "yarn workspaces foreach -pt run format:write",
     "web": "SEED_IS_GATEWAY=true SEED_SIGNING_ENABLED=true SEED_BASE_URL=http://localhost:3000 && yarn workspace @shm/web dev",
     "web:dev": "yarn web:prod && SEED_IS_GATEWAY=true SEED_SIGNING_ENABLED=true SEED_BASE_URL=http://localhost:3000 yarn web:start",

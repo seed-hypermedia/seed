@@ -1,5 +1,5 @@
 import {useMachine} from '@xstate/react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {assign, setup} from 'xstate'
 import {isSurrogate} from './client/unicode'
 import {HMBlockNode} from './hm-types'
@@ -51,36 +51,143 @@ function getBlockNodeById(
   return res || null
 }
 
-export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
+const defaultContext = {
+  selection: null,
+  blockId: '',
+  rangeStart: null,
+  rangeEnd: null,
+  mouseDown: false,
+}
+
+type MachineContext = {
+  selection: Selection | null
+  blockId: string
+  rangeStart: number | null
+  rangeEnd: number | null
+  mouseDown: boolean
+}
+
+type MachineEvents =
+  | {type: 'SELECT'}
+  | {type: 'CREATE_COMMENT'}
+  | {type: 'COMMENT_CANCEL'}
+  | {type: 'COMMENT_SUBMIT'}
+  | {type: 'MOUSEDOWN'}
+  | {type: 'MOUSEUP'}
+  | {type: 'ENABLE'}
+  | {type: 'DISABLE'}
+
+const rangeSelectionMachine = setup({
+  types: {
+    context: {} as MachineContext,
+    events: {} as MachineEvents,
+  },
+  actions: {
+    setMouse: assign(({context, event}) => {
+      return {
+        ...context,
+        mouseDown: event.type == 'MOUSEDOWN',
+      }
+    }),
+    setRange: () => {},
+    clearContext: assign(() => {
+      document.getSelection()?.empty()
+      return defaultContext
+    }),
+  },
+}).createMachine({
+  context: {
+    selection: null,
+    blockId: '',
+    rangeStart: null,
+    rangeEnd: null,
+    mouseDown: false,
+  },
+  id: 'Range Selection',
+  initial: 'disable',
+  on: {
+    ENABLE: {
+      target: '.idle',
+    },
+    DISABLE: {
+      target: '.disable',
+    },
+    MOUSEDOWN: {
+      actions: ['setMouse'],
+    },
+    MOUSEUP: {
+      actions: ['setMouse'],
+    },
+  },
+  states: {
+    disable: {},
+    idle: {
+      on: {
+        SELECT: {
+          target: 'active',
+        },
+      },
+    },
+    active: {
+      initial: 'selecting',
+      states: {
+        selecting: {
+          after: {
+            '300': {
+              target: 'selected',
+              guard: ({context}) => !context.mouseDown,
+            },
+          },
+          on: {
+            SELECT: {
+              target: 'selecting',
+              reenter: true,
+            },
+            MOUSEUP: {
+              target: 'selected',
+            },
+          },
+        },
+        selected: {
+          entry: ['setRange'],
+          on: {
+            SELECT: {
+              target: 'selecting',
+              action: ['clearContext'],
+            },
+            CREATE_COMMENT: {
+              target: '#Range Selection.idle',
+              actions: ['clearContext'],
+            },
+          },
+        },
+        commenting: {
+          on: {
+            COMMENT_SUBMIT: {
+              target: '#Range Selection.idle',
+            },
+            COMMENT_CANCEL: {
+              target: 'selected',
+            },
+          },
+        },
+      },
+    },
+  },
+})
+
+export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
+  state: any
+  send: any
+  actor: any
+  coords: {top: number; left: number}
+  wrapper: React.RefObject<HTMLDivElement>
+  bubble: React.RefObject<HTMLDivElement>
+} {
   const machine = useMemo(
     () =>
-      setup({
-        types: {
-          context: defaultContext as {
-            selection: Selection | null
-            blockId: string
-            rangeStart: number | null
-            rangeEnd: number | null
-            mouseDown: boolean
-          },
-          events: {} as
-            | {type: 'SELECT'}
-            | {type: 'CREATE_COMMENT'}
-            | {type: 'COMMENT_CANCEL'}
-            | {type: 'COMMENT_SUBMIT'}
-            | {type: 'MOUSEDOWN'}
-            | {type: 'MOUSEUP'}
-            | {type: 'ENABLE'}
-            | {type: 'DISABLE'},
-        },
+      rangeSelectionMachine.provide({
         actions: {
-          setMouse: assign(({context, event}) => {
-            return {
-              ...context,
-              mouseDown: event.type == 'MOUSEDOWN',
-            }
-          }),
-          // @ts-expect-error
           setRange: assign(() => {
             let sel = window.getSelection()
             if (sel && sel.rangeCount > 0) {
@@ -185,90 +292,8 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
                 rangeEnd,
               }
             }
-          }),
-          clearContext: assign(() => {
-            document.getSelection()?.empty()
             return defaultContext
           }),
-        },
-      }).createMachine({
-        context: {
-          selection: null,
-          blockId: '',
-          rangeStart: null,
-          rangeEnd: null,
-          mouseDown: false,
-        },
-        id: 'Range Selection',
-        initial: 'disable',
-        on: {
-          ENABLE: {
-            target: '.idle',
-          },
-          DISABLE: {
-            target: '.disable',
-          },
-          MOUSEDOWN: {
-            actions: ['setMouse'],
-          },
-          MOUSEUP: {
-            actions: ['setMouse'],
-          },
-        },
-        states: {
-          disable: {},
-          idle: {
-            on: {
-              SELECT: {
-                target: 'active',
-              },
-            },
-          },
-          active: {
-            initial: 'selecting',
-            states: {
-              selecting: {
-                after: {
-                  '300': {
-                    target: 'selected',
-                    guard: ({context}) => !context.mouseDown,
-                  },
-                },
-                on: {
-                  SELECT: {
-                    target: 'selecting',
-                    reenter: true,
-                  },
-                  MOUSEUP: {
-                    target: 'selected',
-                  },
-                },
-              },
-              selected: {
-                entry: ['setRange'],
-                on: {
-                  SELECT: {
-                    target: 'selecting',
-                    action: ['clearContext'],
-                  },
-                  CREATE_COMMENT: {
-                    target: '#Range Selection.idle',
-                    actions: ['clearContext'],
-                  },
-                },
-              },
-              commenting: {
-                on: {
-                  COMMENT_SUBMIT: {
-                    target: '#Range Selection.idle',
-                  },
-                  COMMENT_CANCEL: {
-                    target: 'selected',
-                  },
-                },
-              },
-            },
-          },
         },
       }),
     [documentContent],
@@ -354,14 +379,6 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
     wrapper,
     bubble,
   }
-}
-
-const defaultContext = {
-  selection: null,
-  blockId: '',
-  rangeStart: null,
-  rangeEnd: null,
-  mouseDown: false,
 }
 
 function getParentElId(el: Node | null) {

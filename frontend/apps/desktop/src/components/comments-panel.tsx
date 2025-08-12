@@ -192,7 +192,6 @@ function CommentBlockAccessory({
               citation={citation}
               key={citation.source.id.id}
               accounts={accounts}
-              // @ts-expect-error
               targetDomain={targetDomain}
             />
           )

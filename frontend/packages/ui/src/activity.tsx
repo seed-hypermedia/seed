@@ -5,6 +5,7 @@ import {
   HMAccountsMetadata,
   HMActivitySummary,
   HMChangeGroup,
+  HMChangeSummary,
   HMComment,
   hmId,
   HMLibraryDocument,
@@ -160,7 +161,7 @@ export function ChangeGroup({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   if (!isCollapsed || item.changes.length <= 1) {
-    return item.changes.map((change) => {
+    return item.changes.map((change: HMChangeSummary) => {
       const isActive = activeChangeIds?.has(change.id) || false
       return (
         <ChangeItem
@@ -205,14 +206,7 @@ function ExpandChangeGroupButton({
       >
         <Version size={16} color="white" />
       </div>
-      <HMIcon
-        // @ts-expect-error
-        flexGrow={0}
-        flexShrink={0}
-        size={iconSize}
-        id={author.id}
-        metadata={author.metadata}
-      />
+      <HMIcon size={iconSize} id={author.id} metadata={author.metadata} />
       <div className="flex flex-1 flex-col justify-start">
         <p className="h-[${iconSize}px] flex w-full items-center justify-start gap-2 overflow-hidden">
           <SizableText
