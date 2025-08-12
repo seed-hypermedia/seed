@@ -64,6 +64,7 @@ function DocumentCitationToken({
     return (
       <HoverCard>
         <HoverCardTrigger asChild>
+          {/* @ts-expect-error */}
           <a
             {...linkProps}
             className={cn(
@@ -83,6 +84,7 @@ function DocumentCitationToken({
     )
   }
   return (
+    // @ts-expect-error
     <a {...linkProps} className={className}>
       {metadata?.name}
     </a>

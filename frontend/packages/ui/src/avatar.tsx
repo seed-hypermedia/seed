@@ -60,7 +60,7 @@ export function UIAvatar({
             lineHeight: `${size / 2}px`,
           }}
         >
-          {text.toUpperCase()}
+          {text?.toUpperCase() || '?'}
         </SizableText>
       )}
     </div>

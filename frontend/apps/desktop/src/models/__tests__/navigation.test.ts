@@ -11,7 +11,9 @@ describe('getNavigationChanges', () => {
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
 
     expect(result).toHaveLength(1)
+    // @ts-ignore
     expect(result[0].op.case).toBe('replaceBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       id: 'navigation',
       type: 'Group',
@@ -32,19 +34,25 @@ describe('getNavigationChanges', () => {
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
 
     expect(result).toHaveLength(3)
+    // @ts-ignore
     expect(result[0].op.case).toBe('replaceBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       id: 'navigation',
       type: 'Group',
     })
+    // @ts-ignore
     expect(result[1].op.case).toBe('replaceBlock')
+    // @ts-ignore
     expect(result[1].op.value).toMatchObject({
       id: 'nav1',
       text: 'Home',
       link: 'hm://home',
       type: 'Link',
     })
+    // @ts-ignore
     expect(result[2].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[2].op.value).toMatchObject({
       blockId: 'nav1',
       leftSibling: '',
@@ -67,20 +75,26 @@ describe('getNavigationChanges - update scenarios', () => {
     ]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(3)
+    // @ts-ignore
     expect(result[0].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       blockId: 'nav1',
       parent: 'navigation',
       leftSibling: '',
     })
+    // @ts-ignore
     expect(result[1].op.case).toBe('replaceBlock')
+    // @ts-ignore
     expect(result[1].op.value).toMatchObject({
       id: 'nav2',
       text: 'About',
       link: 'hm://about',
       type: 'Link',
     })
+    // @ts-ignore
     expect(result[2].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[2].op.value).toMatchObject({
       blockId: 'nav2',
       parent: 'navigation',
@@ -101,9 +115,13 @@ describe('getNavigationChanges - update scenarios', () => {
     ]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(2)
+    // @ts-ignore
     expect(result[0].op.case).toBe('deleteBlock')
+    // @ts-ignore
     expect(result[0].op.value).toBe('nav2')
+    // @ts-ignore
     expect(result[1].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[1].op.value).toMatchObject({
       blockId: 'nav1',
       parent: 'navigation',
@@ -125,13 +143,17 @@ describe('getNavigationChanges - update scenarios', () => {
     ]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(2)
+    // @ts-ignore
     expect(result[0].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       blockId: 'nav2',
       leftSibling: '',
       parent: 'navigation',
     })
+    // @ts-ignore
     expect(result[1].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[1].op.value).toMatchObject({
       blockId: 'nav1',
       leftSibling: 'nav2',
@@ -151,14 +173,18 @@ describe('getNavigationChanges - update scenarios', () => {
     ]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(2)
+    // @ts-ignore
     expect(result[0].op.case).toBe('replaceBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       id: 'nav1',
       text: 'Homepage',
       link: 'hm://home',
       type: 'Link',
     })
+    // @ts-ignore
     expect(result[1].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[1].op.value).toMatchObject({
       blockId: 'nav1',
       parent: 'navigation',
@@ -178,7 +204,9 @@ describe('getNavigationChanges - update scenarios', () => {
     ]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(1)
+    // @ts-ignore
     expect(result[0].op.case).toBe('moveBlock')
+    // @ts-ignore
     expect(result[0].op.value).toMatchObject({
       blockId: 'nav1',
       parent: 'navigation',

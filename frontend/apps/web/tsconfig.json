@@ -1,12 +1,14 @@
 {
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "**/.server/**/*.ts",
-    "**/.server/**/*.tsx",
-    "**/.client/**/*.ts",
-    "**/.client/**/*.tsx",
-    "app/shims/react-native-svg.js"
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "app/**/.server/**/*.ts",
+    "app/**/.server/**/*.tsx",
+    "app/**/.client/**/*.ts",
+    "app/**/.client/**/*.tsx",
+    "app/shims/react-native-svg.js",
+    "devicelink/**/*.ts",
+    "devicelink/**/*.tsx"
   ],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
@@ -22,6 +24,18 @@
     "allowJs": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "disableSourceOfProjectReferenceRedirect": true,
+    "noResolve": false,
+
+    // Enhanced Strictness - Industry Standard
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Error Prevention
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./app/*"],
@@ -31,5 +45,17 @@
       "@shm/ui/*": ["../../packages/ui/src/*"]
     },
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "../../packages/**/*",
+    "../desktop/**/*",
+    "../emails/**/*",
+    "../explore/**/*",
+    "../landing/**/*",
+    "../performance/**/*",
+    "../performance-dashboard/**/*",
+    "../perf-web/**/*"
+  ],
+  "references": []
 }

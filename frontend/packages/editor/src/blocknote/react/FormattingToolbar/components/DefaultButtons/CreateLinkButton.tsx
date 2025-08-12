@@ -1,4 +1,4 @@
-import {BlockNoteEditor, BlockSchema} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema} from '../../../../core'
 import {useCallback, useState} from 'react'
 import {RiLink} from 'react-icons/ri'
 import {useEditorSelectionChange} from '../../../hooks/useEditorSelectionChange'

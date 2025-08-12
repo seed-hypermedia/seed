@@ -205,6 +205,7 @@ function DonateForm({
   const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
     {
       mode: 'even',
+      // @ts-ignore
       amount: DEFAULT_PAYMENT_AMOUNTS[0],
       recipients: authors
         .filter((a) => allowed.has(a.id.uid))

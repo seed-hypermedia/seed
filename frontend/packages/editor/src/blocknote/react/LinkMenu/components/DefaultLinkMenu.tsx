@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../core'
 import {createStyles, Menu} from '@mantine/core'
 import {LinkMenuItem} from './LinkMenuItem'
 import {LinkMenuProps} from './LinkMenuPositioner'

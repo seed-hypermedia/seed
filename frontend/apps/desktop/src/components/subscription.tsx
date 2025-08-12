@@ -61,8 +61,10 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           <PopoverTrigger>
             <Button size="xs" variant={isSubscribed ? 'outline' : 'brand'}>
               {subscription.subscription == 'space' ? (
+                // @ts-expect-error
                 <SubscribeSpace size={20} className="text-brand-5" />
               ) : subscription.subscription == 'document' ? (
+                // @ts-expect-error
                 <Subscribe size={20} className="text-brand-5" />
               ) : undefined}
               {subscription.subscription == 'none' ? 'Subscribe' : 'Subscribed'}
@@ -200,6 +202,7 @@ function SubscriptionOptionButton({
 } & VariantProps<typeof buttonVariants>) {
   let icon = null
   if (active) {
+    // @ts-expect-error
     icon = <Check size={24} className="text-brand-4" />
   } else if (Icon) {
     icon = <Icon size={24} />

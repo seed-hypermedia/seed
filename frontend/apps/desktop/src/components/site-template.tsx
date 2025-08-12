@@ -43,12 +43,16 @@ export function SiteTemplate({
     hmId(templates.documentation),
   )
   const blogTemplateDocument =
+    // @ts-ignore
     blogTemplate.data?.type === 'document'
-      ? blogTemplate.data.document
+      ? // @ts-ignore
+        blogTemplate.data.document
       : undefined
   const documentationTemplateDocument =
+    // @ts-ignore
     documentationTemplate.data?.type === 'document'
-      ? documentationTemplate.data.document
+      ? // @ts-ignore
+        documentationTemplate.data.document
       : undefined
   function confirmTemplate() {
     const targetId = route.id?.uid
@@ -238,8 +242,10 @@ function TemplateItem({
   onPressExternal?: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
   const resource = useSubscribedResource(hmId(template))
-  const document =
-    resource.data?.type === 'document' ? resource.data.document : undefined
+  const document = {
+    /* @ts-ignore */
+  }
+  resource.data?.type === 'document' ? resource.data.document : undefined
   return (
     <div
       className={cn(

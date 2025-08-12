@@ -73,6 +73,7 @@ export const loader = async ({
   let citationCount = dedupedDocCitations.length
   let commentCount = 0
   const blocks: Record<string, {citations: number; comments: number}> = {}
+  // @ts-expect-error
   dedupedDocCitations.forEach((mention) => {
     if (!mention.source.id) return false
     const targetFragment = mention.targetFragment

@@ -1,4 +1,4 @@
-import {Block, BlockNoteEditor, BlockSchema} from '@/blocknote/core'
+import {Block, BlockNoteEditor, BlockSchema} from '../../../../core'
 import {Menu, createStyles} from '@mantine/core'
 import {ReactNode} from 'react'
 

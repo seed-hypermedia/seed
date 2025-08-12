@@ -54,6 +54,7 @@ export const updateBlockCommand =
           block,
           state,
 
+          // @ts-ignore
           oldNodeType,
           newNodeType,
           blockInfo,
@@ -92,12 +93,14 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
   if (block.content) {
     if (typeof block.content === 'string') {
       // Adds a single text node with no marks to the content.
+      // @ts-expect-error
       content = inlineContentToNodes([block.content], state.schema)
     } else if (Array.isArray(block.content)) {
       // Adds a text node with the provided styles converted into marks to the content,
       // for each InlineContent object.
       content = inlineContentToNodes(block.content, state.schema)
     } else {
+      // @ts-expect-error
       throw new UnreachableCaseError(block.content.type)
     }
   } else {
@@ -182,6 +185,7 @@ function updateChildren<BSchema extends BlockSchema>(
       // Inserts a new blockGroup containing the child nodes created earlier.
       state.tr.insert(
         blockInfo.blockContent.afterPos,
+        // @ts-ignore
         state.schema.nodes['blockGroup'].createChecked({}, childNodes),
       )
     }
@@ -204,6 +208,7 @@ export function updateBlock<BSchema extends BlockSchema>(
     throw new Error(`Block with ID ${id} not found`)
   }
 
+  // @ts-ignore
   ttEditor.commands.command(({state, dispatch}) => {
     updateBlockCommand(
       posInfo.posBeforeNode,

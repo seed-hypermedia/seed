@@ -10,10 +10,12 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(2)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'Hello world',
     })
+    // @ts-expect-error
     expect(blocks[1].block).toMatchObject({
       type: 'Paragraph',
       text: 'Another paragraph',
@@ -27,6 +29,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
@@ -41,6 +44,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
@@ -54,6 +58,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -73,6 +78,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -89,6 +95,7 @@ describe('htmlToBlocks', () => {
   it('converts italic text to annotations (em) tag', async () => {
     const html = '<p>hello <em>world</em>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -105,6 +112,7 @@ describe('htmlToBlocks', () => {
   it('converts underline text to annotations (u) tag', async () => {
     const html = '<p>hello <u>world</u>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -121,6 +129,7 @@ describe('htmlToBlocks', () => {
   it('converts strikethrough text to annotations (s) tag', async () => {
     const html = '<p>hello <s>world</s>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -137,6 +146,7 @@ describe('htmlToBlocks', () => {
   it('converts strikethrough text to annotations (del) tag', async () => {
     const html = '<p>hello <del>world</del>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -153,6 +163,7 @@ describe('htmlToBlocks', () => {
   it('converts code text to annotations (code) tag', async () => {
     const html = '<p>hello <code>world</code>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -169,6 +180,7 @@ describe('htmlToBlocks', () => {
   it('supports combined bold+italic annotations', async () => {
     const html = '<p>hello <strong><em>world</em></strong>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello world!',
@@ -190,6 +202,7 @@ describe('htmlToBlocks', () => {
   it('supports overlapping bold+italic annotations', async () => {
     const html = '<p>hello <strong>good <em>world</em></strong>!</p>'
     const blocks = await htmlToBlocks(html, '/test/path', {})
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'hello good world!',
@@ -214,11 +227,14 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄a',
       link: '',
+      // @ts-expect-error
       revision: blocks[0].block.revision as string,
+      // @ts-expect-error
       id: blocks[0].block.id as string,
       annotations: [
         {
@@ -236,11 +252,14 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄foobar',
       link: '',
+      // @ts-expect-error
       revision: blocks[0].block.revision as string,
+      // @ts-expect-error
       id: blocks[0].block.id as string,
       annotations: [
         {
@@ -261,11 +280,14 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {resolveHMLink})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '😄foobar',
       link: '',
+      // @ts-expect-error
       revision: blocks[0].block.revision as string,
+      // @ts-expect-error
       id: blocks[0].block.id as string,
       annotations: [
         {
@@ -285,6 +307,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo bar baz qux',
@@ -315,10 +338,12 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(3)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo',
     })
+    // @ts-expect-error
     expect(blocks[1].block).toMatchObject({
       type: 'Paragraph',
       text: 'bar',
@@ -330,6 +355,7 @@ describe('htmlToBlocks', () => {
         } satisfies HMAnnotation,
       ],
     })
+    // @ts-expect-error
     expect(blocks[2].block).toMatchObject({
       type: 'Paragraph',
       text: 'baz',
@@ -367,6 +393,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://TestCID',
@@ -390,6 +417,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'WebEmbed',
       link: 'https://www.instagram.com/reel/DHmR21qs2cy/?utm_source=ig_embed&utm_campaign=loading',
@@ -406,6 +434,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'WebEmbed',
       link: 'https://twitter.com/xlavapies/status/1816008976179351682',
@@ -421,6 +450,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Video',
       link: 'https://www.youtube.com/embed/3cWPFs-qGzc',
@@ -442,6 +472,7 @@ describe('htmlToBlocks', () => {
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Image',
       link: 'ipfs://QmTestCID',
@@ -465,20 +496,26 @@ describe('htmlToBlocks', () => {
     `
     const blocks = await htmlToBlocks(html, '/test/path', {})
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Heading',
       text: 'Hello',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.length).toBe(2)
+    // @ts-expect-error
     expect(blocks[0].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'World',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].block).toMatchObject({
       type: 'Heading',
       text: 'Foo',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.length).toBe(1)
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'Bar',
@@ -495,24 +532,31 @@ describe('htmlToBlocks', () => {
     `
     const blocks = await htmlToBlocks(html, '/test/path', {})
     expect(blocks).toHaveLength(2)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Heading',
       text: 'Hello',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.length).toBe(2)
+    // @ts-expect-error
     expect(blocks[0].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].block).toMatchObject({
       type: 'Paragraph',
       text: 'f2',
     })
+    // @ts-expect-error
     expect(blocks[1].block).toMatchObject({
       type: 'Heading',
       text: 'World',
     })
+    // @ts-expect-error
     expect(blocks[1].children?.length).toBe(1)
+    // @ts-expect-error
     expect(blocks[1].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'bar',
@@ -528,20 +572,26 @@ describe('htmlToBlocks', () => {
 `
     const blocks = await htmlToBlocks(html, '/test/path', {})
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Heading',
       text: 'Hello',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.length).toBe(2)
+    // @ts-expect-error
     expect(blocks[0].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].block).toMatchObject({
       type: 'Heading',
       text: 'bar',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.length).toBe(1)
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'bar',
@@ -557,20 +607,26 @@ describe('htmlToBlocks', () => {
 `
     const blocks = await htmlToBlocks(html, '/test/path', {})
     expect(blocks).toHaveLength(1)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Heading',
       text: 'Hello',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.length).toBe(2)
+    // @ts-expect-error
     expect(blocks[0].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'foo',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].block).toMatchObject({
       type: 'Heading',
       text: 'bar',
     })
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.length).toBe(1)
+    // @ts-expect-error
     expect(blocks[0].children?.[1].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: 'bar',
@@ -585,15 +641,19 @@ describe('htmlToBlocks', () => {
 <p>2</p>`
     const blocks = await htmlToBlocks(html, '/test/path', {})
     expect(blocks).toHaveLength(2)
+    // @ts-expect-error
     expect(blocks[0].block).toMatchObject({
       type: 'Paragraph',
       text: '1',
     })
+    // @ts-expect-error
     expect(blocks[1].block).toMatchObject({
       type: 'Heading',
       text: 'foo',
     })
+    // @ts-expect-error
     expect(blocks[1].children?.length).toBe(1)
+    // @ts-expect-error
     expect(blocks[1].children?.[0].block).toMatchObject({
       type: 'Paragraph',
       text: '2',

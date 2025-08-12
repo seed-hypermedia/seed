@@ -66,8 +66,10 @@ export async function saveMarkdownFile(
         request.on('response', (response) => {
           const mimeType = response.headers['content-type']
           const extension = Array.isArray(mimeType)
-            ? mime.getExtension(mimeType[0])
-            : mime.getExtension(mimeType)
+            ? // @ts-ignore
+              mime.getExtension(mimeType[0])
+            : // @ts-ignore
+              mime.getExtension(mimeType)
           const filenameWithExt = `${filename}.${extension}`
           if (response.statusCode === 200) {
             const chunks: Buffer[] = []
@@ -118,6 +120,7 @@ export async function saveMarkdownFile(
     } catch (err) {
       success = {
         success: false,
+        // @ts-expect-error
         message: `Error processing media files: ${err.message || err}.`,
       }
       error('Error processing media files:', err)

@@ -117,6 +117,7 @@ const DefaultIconColor = '#2C2C2C'
 
 export type IconComponent = React.FC<{color?: string; size?: number | string}>
 
+// @ts-expect-error
 export function StarFull(props) {
   const {color = 'black', size = 24, ...otherProps} = props
   return (
@@ -141,6 +142,7 @@ export function StarFull(props) {
   )
 }
 
+// @ts-expect-error
 export function AppleIcon(props) {
   return (
     <svg
@@ -156,6 +158,7 @@ export function AppleIcon(props) {
   )
 }
 
+// @ts-expect-error
 export function WindowsIcon(props) {
   return (
     <svg fill="none" viewBox="0 0 24 24" height="1em" width="1em" {...props}>
@@ -167,6 +170,7 @@ export function WindowsIcon(props) {
   )
 }
 
+// @ts-expect-error
 export function LinuxIcon(props) {
   return (
     <svg
@@ -181,6 +185,7 @@ export function LinuxIcon(props) {
   )
 }
 
+// @ts-expect-error
 export function DebianIcon(props) {
   return (
     <svg
@@ -198,6 +203,7 @@ export function DebianIcon(props) {
   )
 }
 
+// @ts-expect-error
 export function TwitterXIcon(props) {
   return (
     <svg

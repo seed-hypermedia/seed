@@ -1,4 +1,4 @@
-import {BlockNoteEditor, BlockSchema} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema} from '../../../../core'
 import {Menu} from '@mantine/core'
 import {useCallback, useState} from 'react'
 import {ColorIcon} from '../../../SharedComponents/ColorPicker/components/ColorIcon'

@@ -146,6 +146,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
   const signingAccount = useMemo(() => {
+    // @ts-ignore
     return accts.length ? accts[0].data : undefined
   }, [accts])
   const createDraft = trpc.drafts.write.useMutation()
@@ -188,6 +189,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
+        // @ts-expect-error
         queryClient,
         grpcClient,
         gwUrl,
@@ -223,6 +225,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
         editor,
       ).then((draftIds) => {
         if (draftIds.draftIds.length === 1) {
+          // @ts-ignore
           navigate({key: 'draft', id: draftIds.draftIds[0]})
         }
         return draftIds.draftIds.length
@@ -344,8 +347,10 @@ function WebImportInProgress({
                         <HMIcon
                           size={24}
                           id={id}
+                          // @ts-expect-error
                           metadata={a.data?.document?.metadata}
                         />
+                        {/* @ts-expect-error */}
                         {a.data?.document?.metadata.name || ''}
                       </div>
                     </SelectItem>
@@ -501,9 +506,11 @@ const ImportDocumentsWithFeedback = (
 
           if (
             firstNonEmptyLineIndex !== -1 &&
+            // @ts-ignore
             lines[firstNonEmptyLineIndex].startsWith('# ')
           ) {
             // Extract the h1 as the title and update documentTitle
+            // @ts-ignore
             documentTitle = lines[firstNonEmptyLineIndex]
               .replace('# ', '')
               .trim()

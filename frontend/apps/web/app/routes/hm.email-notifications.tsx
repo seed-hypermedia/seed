@@ -203,6 +203,7 @@ function AccountValueCheckbox({
   return (
     <FullCheckbox
       paddingLeft={30}
+      // @ts-expect-error
       value={account[field]}
       onValue={() => {
         setAccount({accountId: account.id, [field]: !account[field]})

@@ -1,9 +1,10 @@
-import {Block, BlockNoteEditor} from '@/blocknote'
-import {createReactBlockSpec} from '@/blocknote/react'
-import {SwitcherItem} from '@/launcher-item'
-import {MediaContainer} from '@/media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
+import {Block, BlockNoteEditor} from './blocknote'
+import {createReactBlockSpec} from './blocknote/react'
+// @ts-expect-error
+import {SwitcherItem} from './launcher-item'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
@@ -111,7 +112,9 @@ const Render = (
           const fullHmId = hmIdWithVersion(
             res?.id,
             res?.version,
+            // @ts-expect-error
             res?.blockRef,
+            // @ts-expect-error
             res?.blockRange,
           )
           if (fullHmId) {

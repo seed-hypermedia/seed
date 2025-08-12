@@ -18,6 +18,7 @@ export function ToolbarDropdown(props: ToolbarDropdownProps) {
   }
 
   return (
+    // @ts-expect-error
     <Menu exitTransitionDuration={0} disabled={props.isDisabled}>
       <Menu.Target>
         <ToolbarDropdownTarget

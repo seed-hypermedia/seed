@@ -361,6 +361,7 @@ function DocButtonLink({
 }) {
   const linkProps = useRouteLink({key: 'document', id: docId})
   return (
+    // @ts-expect-error
     <a {...linkProps} className="white-space-wrap font-bold underline">
       {name}
     </a>
@@ -467,6 +468,7 @@ function signedCommentToHMComment(
   id: string,
   signedComment: SignedComment,
 ): HMComment {
+  // @ts-expect-error
   return {
     content: signedComment.body.map(publishableBlockToHMBlockNode),
     author: base58btc.encode(signedComment.signer),

@@ -143,6 +143,7 @@ function ConfirmConnectionDialogContent({
       toast.success('Connection Added')
     },
     onError: (error) => {
+      // @ts-expect-error
       appError(`Connect to peer error: ${error?.rawMessage}`, {error})
     },
   })

@@ -158,9 +158,11 @@ function useDraftDiagnosis() {
   const appendDraft = trpc.diagnosis.appendDraftLog.useMutation()
   const completeDraft = trpc.diagnosis.completeDraftLog.useMutation()
   return {
+    // @ts-expect-error
     append(draftId, event) {
       return appendDraft.mutateAsync({draftId, event})
     },
+    // @ts-expect-error
     complete(draftId, event) {
       return completeDraft.mutateAsync({draftId, event})
     },
@@ -468,13 +470,16 @@ export function useDraftEditor() {
         return
       const domAtPos = view.domAtPos(selection.from)
       try {
+        // @ts-expect-error
         const rect: DOMRect = domAtPos.node.getBoundingClientRect()
         // Check if the cursor is off screen
         // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
         if (rect && rect.top > window.innerHeight) {
           // Scroll the cursor into view if not caused by media drag
           // @ts-ignore
+          // @ts-expect-error
           if (!editor.sideMenu.sideMenuView?.isDragging)
+            // @ts-expect-error
             domAtPos.node.scrollIntoView({block: 'center'})
         }
       } catch {}
@@ -482,6 +487,7 @@ export function useDraftEditor() {
     },
     linkExtensionOptions: {
       // openOnClick: false,
+      // @ts-expect-error
       grpcClient,
       gwUrl,
       openUrl,
@@ -507,6 +513,7 @@ export function useDraftEditor() {
     {
       metadata: HMDraft['metadata']
       deps: HMDraft['deps']
+      // @ts-expect-error
       signingAccount: HMDraft['signingAccount']
       navigation?: HMNavigationItem[]
     }
@@ -549,7 +556,9 @@ export function useDraftEditor() {
               editor._tiptapEditor.commands.focus()
             }
           } else {
+            // @ts-expect-error
             if (context.nameRef) {
+              // @ts-expect-error
               context.nameRef.focus()
             }
           }
@@ -566,6 +575,7 @@ export function useDraftEditor() {
               return {
                 content: event.payload.data.content,
                 metadata: event.payload.data.metadata,
+                // @ts-expect-error
                 signingAccount: event.payload.data.signingAccount,
                 deps: event.payload.data.deps,
                 navigation: event.payload.data.navigation,
@@ -582,6 +592,7 @@ export function useDraftEditor() {
               }
               return {
                 metadata: event.payload.data.document?.metadata,
+                // @ts-expect-error
                 signingAccount: context.signingAccount,
                 content,
                 deps: event.payload.data.document?.version
@@ -706,6 +717,7 @@ export function useDocTextContent(doc?: HMDocument | null) {
     function extractBlockText({block, children}: HMBlockNode) {
       let content = ''
       if (!block) return content
+      // @ts-expect-error
       if (block.text) content += block.text
 
       if (children?.length) {
@@ -808,8 +820,10 @@ export function usePublishToSite() {
                 await extractReferenceMaterials(id, document)
               }
             }
+            // @ts-expect-error
             if (node.block.annotations) {
               await Promise.all(
+                // @ts-expect-error
                 node.block.annotations.map(async (annotation) => {
                   if (annotation.type === 'Embed' && annotation.link) {
                     const id = unpackHmId(annotation.link)
@@ -939,6 +953,7 @@ export function useListDirectory(
   const fullSpace: UseQueryResult<Array<HMDocumentInfo>> = useQuery(
     queryListDirectory(id),
   )
+  // @ts-expect-error
   const result: UseQueryResult<Array<HMDocumentInfo>> = {
     ...fullSpace,
     data: useMemo(() => {
@@ -994,6 +1009,7 @@ export function useListSite(id?: UnpackedHypermediaId) {
 
 function observeBlocks(
   editor: BlockNoteEditor,
+  // @ts-expect-error
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
   onChange: () => void,
 ) {

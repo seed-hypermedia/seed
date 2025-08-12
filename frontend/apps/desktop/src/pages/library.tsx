@@ -96,6 +96,7 @@ export default function LibraryPage() {
   const [addSiteOpen, setAddSiteOpen] = useState(false)
   const menu = useMemo(() => {
     const siteMenuItems =
+      // @ts-expect-error
       library?.sites?.map((site) => {
         const id = hmId(site.id)
         return {
@@ -112,6 +113,7 @@ export default function LibraryPage() {
     return {
       siteMenuItems,
     }
+    // @ts-expect-error
   }, [library?.sites, replace])
 
   return (

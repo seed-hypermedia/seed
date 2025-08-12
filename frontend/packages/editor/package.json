@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "format:check": "prettier --check .",
-    "format:write": "prettier --write ."
+    "format:write": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "build:types": "tsc -p tsconfig.types.json"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

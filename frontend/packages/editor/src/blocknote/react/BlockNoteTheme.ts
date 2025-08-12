@@ -1,4 +1,4 @@
-import {bnBlockStyles} from '@/blocknote/core'
+import {bnBlockStyles} from '../core'
 import {CSSObject, MantineThemeOverride} from '@mantine/core'
 import _ from 'lodash'
 
@@ -203,6 +203,7 @@ export const blockNoteToMantineTheme = (theme: Theme): MantineThemeOverride => {
                 fontFamily: theme.fontFamily,
               },
               // Placeholders
+              // @ts-expect-error
               [`.${bnBlockStyles.isEmpty} .${bnBlockStyles.inlineContent}:before, .${bnBlockStyles.isFilter} .${bnBlockStyles.inlineContent}:before`]:
                 {
                   color: theme.colors.sideMenu,
@@ -351,6 +352,7 @@ export const blockNoteToMantineTheme = (theme: Theme): MantineThemeOverride => {
                 },
               },
             },
+            // @ts-expect-error
             theme.componentStyles?.(theme).SideMenu || {},
           ),
         }),

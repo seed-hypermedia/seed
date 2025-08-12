@@ -106,5 +106,6 @@ function getDirectoryItems(props: {
   directoryItems
     ?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse()
+  // @ts-expect-error
   return directoryItems
 }

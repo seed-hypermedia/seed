@@ -1,8 +1,4 @@
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  DefaultBlockSchema,
-} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema, DefaultBlockSchema} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {sticky} from 'tippy.js'
@@ -33,15 +29,12 @@ export const FormattingToolbarPositioner = <
     })
   }, [props.editor])
 
-  const getReferenceClientRect = useMemo(
-    () => {
-      if (!referencePos) {
-        return undefined
-      }
-      return () => referencePos.current!
-    },
-    [referencePos.current], // eslint-disable-line
-  )
+  const getReferenceClientRect = useMemo(() => {
+    if (!referencePos) {
+      return undefined
+    }
+    return () => referencePos.current!
+  }, [referencePos.current])
 
   const formattingToolbarElement = useMemo(() => {
     const FormattingToolbar =

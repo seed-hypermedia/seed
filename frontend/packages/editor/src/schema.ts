@@ -1,17 +1,17 @@
-import {BlockSchema, TypesMatch} from '@/blocknote'
+import {BlockSchema, TypesMatch} from './blocknote'
 import {
   defaultBlockSchema,
   defaultProps,
-} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {ButtonBlock} from '@/button'
-import {EmbedBlock} from '@/embed-block'
-import {FileBlock} from '@/file'
-import {HMHeadingBlockContent} from '@/heading-component-plugin'
-import {ImageBlock} from '@/image'
-import {MathBlock} from '@/math'
-import CodeBlockLowlight from '@/tiptap-extension-code-block'
-import {VideoBlock} from '@/video'
-import {WebEmbed} from '@/web-embed'
+} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {ButtonBlock} from './button'
+import {EmbedBlock} from './embed-block'
+import {FileBlock} from './file'
+import {HMHeadingBlockContent} from './heading-component-plugin'
+import {ImageBlock} from './image'
+import {MathBlock} from './math'
+import CodeBlockLowlight from './tiptap-extension-code-block'
+import {VideoBlock} from './video'
+import {WebEmbed} from './web-embed'
 import {common, createLowlight} from 'lowlight'
 
 export const hmBlockSchema: BlockSchema = {

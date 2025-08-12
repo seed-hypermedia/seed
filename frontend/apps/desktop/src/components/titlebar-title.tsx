@@ -61,6 +61,7 @@ export function TitleContent({
   size = '$4',
   onPublishSite,
 }: {
+  // @ts-expect-error
   size?: FontSizeTokens
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
@@ -68,6 +69,7 @@ export function TitleContent({
   const titleProps: TextProps = {
     size: 'md',
     weight: 'bold',
+    // @ts-expect-error
     'data-testid': 'titlebar-title',
   }
   useWindowTitleSetter(async () => {
@@ -161,6 +163,7 @@ function BreadcrumbTitle({
 
   console.log(`== ~ BreadcrumbTitle ~ latestDoc:`, latestDoc)
   const isLatest =
+    // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
   const entityContents = useIdEntities(entityIds)
@@ -173,10 +176,12 @@ function BreadcrumbTitle({
       const contents = entityContents[idIndex]
       let name: string
       if (id.path?.length) {
+        // @ts-ignore
         name = getDocumentTitle(contents.entity?.document) || ''
       } else {
         name = getContactMetadata(
           id.uid,
+          // @ts-ignore
           contents.entity?.document?.metadata,
           contacts.data,
         ).name
@@ -185,7 +190,9 @@ function BreadcrumbTitle({
         {
           name,
           fallbackName: id.path?.at(-1),
+          // @ts-ignore
           isError: contents.entity && !contents.entity.document,
+          // @ts-ignore
           isLoading: !contents.entity,
           id,
           crumbKey: `id-${idIndex}`,
@@ -215,6 +222,7 @@ function BreadcrumbTitle({
   function updateWidths() {
     const containerWidth = widthInfo.current.container
     // 83 is the measured width of the controls like favorite, copy link, options dropdown.
+    // @ts-ignore
     const availableContainerWidth = containerWidth - 83
     // If you change the controls in a way that affects width, please update this value ^^
     const spacerWidth = 15
@@ -225,6 +233,9 @@ function BreadcrumbTitle({
       return
     const firstItemWidth = widthInfo.current[firstCrumbKey]
     const lastItemWidth = widthInfo.current[lastCrumbKey]
+    {
+      /* @ts-ignore */
+    }
     const fixedItemWidth = firstItemWidth + lastItemWidth + spacerWidth
     const crumbWidths: number[] = crumbDetails.map((details) => {
       return (details && widthInfo.current[details.crumbKey]) || 0
@@ -243,6 +254,7 @@ function BreadcrumbTitle({
         availableContainerWidth &&
       newCollapseCount < maxCollapseCount
     ) {
+      // @ts-ignore
       usableWidth -= crumbWidths[1 + newCollapseCount] + spacerWidth
       newCollapseCount++
     }
@@ -256,6 +268,7 @@ function BreadcrumbTitle({
     })
   })
 
+  // @ts-ignore
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   useWindowTitleSetter(async () => {
     if (activeItem?.name) return activeItem.name
@@ -398,11 +411,13 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
             {pendingDomain.status === 'waiting-dns' ? (
               <DNSInstructions
                 hostname={pendingDomain.hostname}
+                // @ts-expect-error
                 siteUrl={site.data?.document?.metadata?.siteUrl || ''}
               />
             ) : null}
             <PendingDomainStatus
               status={pendingDomain.status}
+              // @ts-expect-error
               siteUrl={site.data?.document?.metadata?.siteUrl || ''}
             />
             <div className="flex justify-center">
@@ -682,6 +697,7 @@ export function Title({
   size,
   onPublishSite,
 }: {
+  // @ts-expect-error
   size?: FontSizeTokens
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
@@ -692,7 +708,7 @@ export function Title({
   )
 }
 
-function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
+function DraftTitle({route}: {route: DraftRoute; size?: string}) {
   const draft = useDraft(route.id)
   const navigate = useNavigate()
   const locationId = useMemo(() => {

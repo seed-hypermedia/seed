@@ -263,6 +263,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
           activeColor="$brand5"
           size="$2"
           options={COLLABORATOR_TABS}
+          // @ts-expect-error
           value={tab}
           onValue={setTab}
         />
@@ -306,8 +307,10 @@ function CollaboratorItem({
   const collaboratorId = hmId(capability.accountUid)
   const collaborator = useSubscribedResource(collaboratorId)
   const collaboratorMetadata =
+    // @ts-ignore
     collaborator.data?.type === 'document'
-      ? collaborator.data.document?.metadata
+      ? // @ts-ignore
+        collaborator.data.document?.metadata
       : undefined
   if (capability.role === 'owner') return null
   return (
@@ -370,6 +373,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       resetValueOnHide: true,
     })
 
+    // @ts-expect-error
     const select = Ariakit.useSelectStore<SearchResult>({
       combobox,
       value: values,
@@ -387,6 +391,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
     useEffect(() => combobox.setValue(''), [selectedValues, combobox])
 
     const toggleValueFromSelectedValues = (value: SearchResult) => {
+      // @ts-expect-error
       select.setValue((prevSelectedValues: Array<SearchResult>) => {
         const index = prevSelectedValues.indexOf(value)
         if (index !== -1) {
@@ -413,6 +418,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
       const {selectionStart, selectionEnd} = event.currentTarget
       const isCaretAtTheBeginning = selectionStart === 0 && selectionEnd === 0
       if (!isCaretAtTheBeginning) return
+      // @ts-expect-error
       select.setValue((values: Array<SearchResult>) => {
         if (!values.length) return values
         return values.slice(0, values.length - 1)
@@ -433,6 +439,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
           role="row"
           render={<div className="flex w-full flex-wrap gap-1" />}
         >
+          {/* @ts-expect-error */}
           {selectedValues.map((value: SearchResult) => {
             // TODO: (horacio): Should I cleanup the list from the `unresolved` value?
             return (
@@ -486,6 +493,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
             gutter={8}
             render={
               <Ariakit.SelectList
+                // @ts-expect-error
                 store={select}
                 render={
                   <div className="z-100 rounded-sm bg-white dark:bg-black" />

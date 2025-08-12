@@ -287,6 +287,7 @@ function InnerDocumentPage(
 
   const {blockRef, blockRange} = useMemo(() => {
     const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
+    // @ts-expect-error
     let blockRef = match ? match[1].substring(1) : undefined
     if (blockRef?.endsWith('+')) {
       // TODO: Do something for expanded ref?
@@ -648,6 +649,7 @@ function InnerDocumentPage(
                               breadcrumbs={props.breadcrumbs}
                               docMetadata={document.metadata}
                               docId={id}
+                              // @ts-expect-error
                               authors={document.authors.map(
                                 (author) => accountsMetadata[author],
                               )}
@@ -655,6 +657,7 @@ function InnerDocumentPage(
                             />
                           )}
                           <WebDocContentProvider
+                            // @ts-expect-error
                             onBlockCitationClick={
                               activityEnabled ? onBlockCitationClick : undefined
                             }
@@ -1037,6 +1040,7 @@ function WebCitationsPanel({
   return (
     <div className="flex flex-col gap-2 p-3">
       {blockId ? (
+        // @ts-expect-error
         <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
       ) : null}
       {displayCitations ? (

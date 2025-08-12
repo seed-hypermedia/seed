@@ -1,7 +1,7 @@
 // this file exists so you know what may need to be invalidated from the cache when you make changes.
 
-import {abbreviateCid} from '@shm/shared'
 import {QueryKey} from '@tanstack/react-query'
+import {abbreviateCid} from '../utils'
 
 export const queryKeys = {
   // Organized by the model file that is responsible for querying + mutating the keys

@@ -82,9 +82,11 @@ export const loader = async ({
       }),
     )
 
+    // @ts-expect-error
     result = {
       thread,
       commentGroups: commentGroups,
+      // @ts-expect-error
       authors: Object.fromEntries(
         authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),

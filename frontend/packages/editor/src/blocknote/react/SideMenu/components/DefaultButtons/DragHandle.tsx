@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../../core'
 import {Menu} from '@mantine/core'
 import {MdDragIndicator} from 'react-icons/md'
 import {DefaultDragHandleMenu} from '../DragHandleMenu/DefaultDragHandleMenu'

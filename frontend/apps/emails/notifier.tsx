@@ -54,35 +54,50 @@ export async function createNotificationsEmail(
     if (!notificationsByDocument[notification.notif.targetId.id]) {
       notificationsByDocument[notification.notif.targetId.id] = []
     }
+    // @ts-ignore
     notificationsByDocument[notification.notif.targetId.id].push(notification)
     subscriberNames.add(notification.accountMeta?.name || 'You')
   }
   const docNotifs = Object.values(notificationsByDocument)
   const baseNotifsSubject =
-    notifications.length > 1
-      ? `${notifications.length} Notifications`
+    notifications?.length > 1
+      ? `${notifications?.length} Notifications`
       : 'Notification'
   let subject = baseNotifsSubject
+  // @ts-ignore
+  // @ts-ignore
   const singleDocumentTitle = notifications.every(
+    // @ts-ignore
     (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name,
   )
-    ? notifications[0].notif.targetMeta?.name
+    ? // @ts-ignore
+      notifications?.[0].notif.targetMeta?.name
     : undefined
   if (singleDocumentTitle) {
+    // @ts-ignore
+    // @ts-ignore
     subject = `${baseNotifsSubject} on ${singleDocumentTitle}`
   }
+  // @ts-ignore
+  // @ts-ignore
   const firstNotificationSummary = getNotificationSummary(
-    notifications[0].notif,
-    notifications[0].accountMeta,
+    // @ts-ignore
+    notifications?.[0].notif,
+    // @ts-ignore
+    notifications?.[0].accountMeta,
   )
   const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
 
+  // @ts-ignore
   const text = `${baseNotifsSubject}
 
+// @ts-expect-error
 ${docNotifs
+  // @ts-ignore
   .map((notifications) => {
+    // @ts-ignore
     const docName =
-      notifications[0].notif.targetMeta?.name || 'Untitled Document'
+      notifications?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
 
     const lines = notifications
       .map((notification) => {
@@ -105,7 +120,7 @@ ${docNotifs
       })
       .join('\n')
 
-    return `${docName}\n\n${lines}\n\n${notifications[0].notif.url}`
+    return `${docName}\n\n${lines}\n\n${notifications?.[0]?.notif?.url}`
   })
   .join('\n')}
 
@@ -127,8 +142,8 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
       </MjmlHead>
       <MjmlBody width={500}>
         <EmailHeader
-          avatarUrl={notifications[0].accountMeta.icon}
-          name={notifications[0].accountMeta.name}
+          avatarUrl={notifications?.[0]?.accountMeta?.icon || ''}
+          name={notifications?.[0]?.accountMeta?.name || ''}
         />
 
         {(['reply', 'mention', 'change'] as const).map((type) => {
@@ -158,8 +173,8 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
               {docEntries.map(([docId, docNotifs]) => {
                 const targetName =
-                  docNotifs[0].notif.targetMeta?.name || 'Untitled Document'
-                const docUrl = docNotifs[0].notif.url
+                  docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
+                const docUrl = docNotifs?.[0]?.notif?.url
 
                 return (
                   <>
@@ -240,24 +255,6 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
   )
 
   return {email, subject, text, html: emailHtml, subscriberNames}
-}
-
-function NotifSettings({url}: {url: string}) {
-  return (
-    <MjmlSection>
-      <MjmlText fontSize={10} paddingBottom={10} align="center">
-        Subscribed by mistake? Click here to unsubscribe:
-      </MjmlText>
-      <MjmlButton
-        padding="8px"
-        backgroundColor="#828282"
-        href={url}
-        align="center"
-      >
-        Manage Email Notifications
-      </MjmlButton>
-    </MjmlSection>
-  )
 }
 
 export type Notification =

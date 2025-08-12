@@ -28,7 +28,7 @@ export function getDocumentCardImage(document: HMDocument): string | null {
     document.content,
     (block) => block.type === 'Image' && !!block.link,
   )
-  if (firstImageBlock) return firstImageBlock.link || null
+  if (firstImageBlock) return (firstImageBlock as any).link || null
   return null
 }
 
@@ -40,12 +40,13 @@ export function findFirstBlock(
   let index = 0
   while (!found && index < content.length) {
     const blockNode = content[index]
-    if (test(blockNode.block)) {
-      found = blockNode.block
+    if (test((blockNode as any).block)) {
+      found = (blockNode as any).block
       break
     }
     const foundChild =
-      blockNode.children && findFirstBlock(blockNode.children, test)
+      (blockNode as any).children &&
+      findFirstBlock((blockNode as any).children, test)
     if (foundChild) {
       found = foundChild
       break

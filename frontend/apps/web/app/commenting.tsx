@@ -217,6 +217,7 @@ export function LocalWebCommenting({
         entityComponents={{
           Document: EmbedDocument,
           Comment: () => null,
+          // @ts-expect-error
           Inline: EmbedInline,
           Query: QueryBlockWeb,
         }}
@@ -420,6 +421,7 @@ export function useOpenUrlWeb() {
   }
 }
 
+// @ts-expect-error
 function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
   useEffect(() => {
     setHasPromptedEmailNotifications(true)

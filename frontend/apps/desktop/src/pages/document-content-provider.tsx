@@ -56,6 +56,7 @@ export function AppDocContentProvider({
         contacts={contacts}
         entityComponents={{
           Document: EmbedDocument,
+          // @ts-expect-error
           Inline: EmbedInline,
           Query: QueryBlockDesktop,
         }}
@@ -89,9 +90,13 @@ export function AppDocContentProvider({
         openUrl={openUrl}
         saveCidAsFile={saveCidAsFile}
         routeParams={{
+          // @ts-expect-error
           uid: route.id?.uid || undefined,
+          // @ts-expect-error
           version: route.id?.version || undefined,
+          // @ts-expect-error
           blockRef: route.id?.blockRef || undefined,
+          // @ts-expect-error
           blockRange: route.id?.blockRange || undefined,
         }}
         onHoverIn={(id) => {

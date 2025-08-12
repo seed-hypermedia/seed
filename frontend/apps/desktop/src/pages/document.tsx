@@ -235,6 +235,7 @@ function _MainDocumentPage({
     },
   )
   const loadedCommentResource =
+    // @ts-ignore
     resource.data?.type === 'comment' ? resource.data : undefined
   useEffect(() => {
     if (loadedCommentResource) {
@@ -259,6 +260,7 @@ function _MainDocumentPage({
   )
 
   const document =
+    // @ts-ignore
     resource.data?.type === 'document' ? resource.data.document : undefined
   const metadata = document?.metadata
   // IMPORTANT: Always call hooks at the top level, before any early returns
@@ -282,14 +284,20 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
+  // @ts-ignore
   if (resource.isInitialLoading) return null
 
+  // @ts-ignore
   if (resource.data?.type === 'redirect') {
     return (
+      // @ts-ignore
       <DocRedirected docId={id} redirectTarget={resource.data.redirectTarget} />
     )
   }
 
+  {
+  }
+  // @ts-ignore
   if (resource.data?.type === 'not-found') {
     return <DocDiscovery />
   }
@@ -301,6 +309,7 @@ function _MainDocumentPage({
     // this data attribute is used by the hypermedia highlight component
     <div data-docid={id.id} className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
+        // @ts-ignore
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
         document={document}
@@ -346,6 +355,7 @@ function _MainDocumentPage({
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
+                  // @ts-ignore
                   resource={resource.data}
                   isBlockFocused={isBlockFocused}
                 />
@@ -792,6 +802,7 @@ function DocPageContent({
           string,
           {citations: number; comments: number}
         > = {}
+        // @ts-ignore
         citations.data.forEach((citation) => {
           const sourceId = citation.source.id
           if (!sourceId) return false

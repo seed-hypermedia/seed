@@ -326,7 +326,7 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
       wrapper.current?.removeEventListener('touchend', handleMouseDown(false))
     }
 
-    function handleSelectionChange(e: any) {
+    function handleSelectionChange() {
       if (wrapper.current) {
         const selection = window.getSelection()
         if (
@@ -340,7 +340,7 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>) {
     }
 
     function handleMouseDown(mouseDown: boolean) {
-      return function handleMouseDown(e: any) {
+      return function handleMouseDown() {
         actor.send({type: mouseDown ? 'MOUSEDOWN' : 'MOUSEUP'})
       }
     }
@@ -366,7 +366,7 @@ const defaultContext = {
 
 function getParentElId(el: Node | null) {
   if (!el) return null
-  // @ts-expect-error - this is a HTMLElement but TS says Node
+  // @ts-expect-error
   if (el.id) return el.id
   if (!el.parentElement) return null
   return getParentElId(el.parentElement)
@@ -374,7 +374,7 @@ function getParentElId(el: Node | null) {
 
 function getRangeOffset(el: Node | null) {
   if (!el) return 0
-  // @ts-expect-error - this is a HTMLElement but TS says Node
+  // @ts-expect-error
   if (el.dataset?.rangeOffset != null) return Number(el.dataset?.rangeOffset)
   if (!el.parentElement) return 0
   return getRangeOffset(el.parentElement)

@@ -18,7 +18,9 @@ export function DocumentHeadItems({
       <DonateButton
         authors={authors
           .map((author) => {
+            // @ts-expect-error
             if (!author.data?.document) return null
+            // @ts-expect-error
             return {id: author.data.id, metadata: author.data.document.metadata}
           })
           .filter((a) => !!a)}

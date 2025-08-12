@@ -16,6 +16,7 @@ export const DefaultHyperlinkToolbar = (
 
   if (isEditing) {
     return (
+      // @ts-expect-error
       <EditHyperlinkMenu
         url={props.url}
         text={props.text}

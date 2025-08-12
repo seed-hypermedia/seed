@@ -1,10 +1,10 @@
-import {findNextBlock, findPreviousBlock} from '@/block-utils'
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
-import {HMBlockSchema} from '@/schema'
+import {findNextBlock, findPreviousBlock} from './block-utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {getBlockInfoFromSelection} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {HMBlockSchema} from './schema'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
@@ -75,6 +75,7 @@ const Render = (
       if (block.content[0]) {
         try {
           mathRef.current.style.color = ''
+          // @ts-expect-error
           katex.render(block.content[0].text, mathRef.current, {
             throwOnError: true,
             displayMode: true,
@@ -83,6 +84,7 @@ const Render = (
           if (e instanceof katex.ParseError) {
             mathRef.current.innerText =
               "Error in LaTeX '" +
+              // @ts-expect-error
               block.content[0].text +
               "':\n" +
               e.message.split(':')[1]
@@ -133,7 +135,9 @@ const Render = (
   }, [isContentSmallerThanContainer])
 
   // Update measurements when content changes
+  // @ts-ignore
   useEffect(() => {
+    // @ts-expect-error
     if (block.content[0] && block.content[0].text) {
       // Use a timeout to ensure KaTeX has finished rendering
       const timerId = setTimeout(() => {
@@ -145,6 +149,7 @@ const Render = (
   }, [block.content, measureContentAndContainer])
 
   // Also measure after mathRef updates (when KaTeX rendering is done)
+  // @ts-ignore
   useEffect(() => {
     if (mathRef.current) {
       // Use MutationObserver to detect when KaTeX finishes rendering
@@ -165,6 +170,7 @@ const Render = (
   }, [measureContentAndContainer])
 
   // Add resize observer to handle container size changes
+  // @ts-ignore
   useEffect(() => {
     const container = containerRef.current
 
@@ -307,9 +313,11 @@ const Render = (
                 }
               }}
               placeholder="E = mc^2"
+              // @ts-expect-error
               value={block.content[0]?.text ?? ''}
               onChange={(e) => {
                 const newText = e.target.value
+                // @ts-expect-error
                 if (newText !== block.content?.[0]?.text) {
                   editor.updateBlock(
                     block,

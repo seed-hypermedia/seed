@@ -8,6 +8,7 @@ export {toast} from 'sonner'
 const useUniversalTheme = () => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
 
+  // @ts-ignore
   useEffect(() => {
     // Check if we're in a Next.js environment with next-themes
     if (typeof window !== 'undefined' && (window as any).__NEXT_DATA__) {

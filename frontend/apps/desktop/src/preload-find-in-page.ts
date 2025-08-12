@@ -18,10 +18,12 @@ ipcRenderer.addListener('appWindowEvent', (info, event) => {
 })
 
 contextBridge.exposeInMainWorld('ipc', {
+  // @ts-expect-error
   send: (cmd, args) => {
     ipcRenderer.send(cmd, args)
   },
   listen: async (cmd: string, handler: (event: any) => void) => {
+    // @ts-expect-error
     const innerHandler = (info, payload: any) => {
       handler({info, payload})
     }

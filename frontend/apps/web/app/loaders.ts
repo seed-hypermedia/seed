@@ -83,6 +83,7 @@ export async function getAccount(
 ): Promise<HMMetadataPayload> {
   try {
     if (discover && false) {
+      // @ts-expect-error
       await discoverDocument(accountUid, [], undefined)
     }
     const grpcAccount = await queryClient.documents.getAccount({
@@ -147,6 +148,7 @@ export async function getDocument(
 ): Promise<HMDocument> {
   const {version, uid, latest} = resourceId
   if (discover && false) {
+    // @ts-expect-error
     return await discoverDocument(
       uid,
       resourceId.path || [],
@@ -246,6 +248,7 @@ async function loadResourcePayload(
   const refs = extractRefs(document.content)
   let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
     await Promise.all(
+      // @ts-expect-error
       refs.map(async (ref) => {
         try {
           const doc = await resolveHMDocument(ref.refId)
@@ -369,6 +372,7 @@ export async function getResource(id: UnpackedHypermediaId) {
         type: 'document',
         id,
         document: prepareHMDocument(resource.kind.value),
+        // @ts-expect-error
       } satisfies HMResourceDocument
     }
     throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
@@ -675,6 +679,7 @@ export async function loadAuthors(
   return Object.fromEntries(
     accountMetas.map((meta) => {
       const key = Object.keys(meta)[0]
+      // @ts-expect-error
       return [key, meta[key]]
     }),
   )

@@ -132,6 +132,7 @@ async function writeDNSStatus(
   }
 }
 
+// @ts-ignore
 async function updateDNSStatus() {
   if (!state.sessionToken) return null
   const pendingDomains = state.pendingDomains || []

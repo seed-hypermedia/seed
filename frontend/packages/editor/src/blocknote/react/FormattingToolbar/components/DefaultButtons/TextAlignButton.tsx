@@ -3,7 +3,7 @@ import {
   BlockSchema,
   DefaultProps,
   PartialBlock,
-} from '@/blocknote/core'
+} from '../../../../core'
 import {useCallback, useMemo, useState} from 'react'
 import {IconType} from 'react-icons'
 import {

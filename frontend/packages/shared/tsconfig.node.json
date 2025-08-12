@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    // Build Configuration
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "ES2022",
     "lib": ["ES2023"],
@@ -13,12 +14,24 @@
     "moduleDetection": "force",
     "noEmit": true,
 
-    /* Linting */
+    /* Type Checking - Enhanced Strictness */
     "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    /* Error Prevention */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+
+    "paths": {
+      "@shm/ui/*": ["../ui/src/*"],
+      "@shm/shared/*": ["./src/*"]
+    }
   },
   "include": ["vite.config.ts"]
 }

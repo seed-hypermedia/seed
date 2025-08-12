@@ -72,6 +72,7 @@ export function ActivityList({
 }) {
   const latestDoc = useResource({...docId, version: null, latest: true})
   const latestDocChanges = new Set<string>(
+    // @ts-expect-error
     latestDoc?.data?.document?.version?.split('.') || [],
   )
   const comments = useAllDocumentComments(docId)
@@ -199,6 +200,7 @@ export function ActivityList({
           </Text>
         </Button>
       )}
+      {/* @ts-ignore */}
       {activityWithGroups.slice(-visibleCount).map((activityItem) => {
         if (activityItem.type === 'commentGroup') {
           return (
@@ -217,6 +219,9 @@ export function ActivityList({
           )
         }
         if (activityItem.type === 'changeGroup') {
+          {
+            /* @ts-ignore */
+          }
           const author = changeAuthors[activityItem.changes[0].author]
           if (!author) return null
           return (

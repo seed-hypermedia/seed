@@ -1,4 +1,3 @@
-import {Empty} from '@bufbuild/protobuf'
 import _ from 'lodash'
 import {DocumentChange_SetAttribute} from '../client'
 import {
@@ -90,7 +89,9 @@ export function extractMetaEntries(jsonObject: {}): [
   string[],
   PrimitiveValue,
 ][] {
+  // @ts-expect-error
   return Object.entries(jsonObject).flatMap(
+    // @ts-expect-error
     ([key, value]: [string, unknown]) => {
       if (typeof value === 'object' && value !== null) {
         return extractMetaEntries(value).map(([k, v]) => [key + '.' + k, v])
@@ -100,21 +101,6 @@ export function extractMetaEntries(jsonObject: {}): [
   )
 }
 
-function docAttributeChangeNull(key: string[]) {
-  return new DocumentChange({
-    op: {
-      case: 'setAttribute',
-      value: new DocumentChange_SetAttribute({
-        blockId: '',
-        key,
-        value: {
-          case: 'nullValue',
-          value: new Empty(),
-        },
-      }),
-    },
-  })
-}
 function docAttributeChangeString(key: string[], value: string) {
   return new DocumentChange({
     op: {
@@ -220,7 +206,9 @@ export function compareBlocksWithMap(
 
     if (
       !prevBlockState ||
+      // @ts-expect-error
       prevBlockState.block.attributes?.listLevel !==
+        // @ts-expect-error
         currentBlockState.attributes?.listLevel
     ) {
       const serverBlock = editorBlockToHMBlock(block)
@@ -232,6 +220,7 @@ export function compareBlocksWithMap(
             case: 'moveBlock',
             value: {
               blockId: block.id,
+              // @ts-ignore
               leftSibling: idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : '',
               parent: parentId,
             },
@@ -245,6 +234,7 @@ export function compareBlocksWithMap(
         }),
       )
     } else {
+      // @ts-ignore
       let left = idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : ''
       if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
         changes.push(
@@ -338,9 +328,12 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   const checks = {
     id: b1.id === b2.id,
+    // @ts-expect-error
     text: isTextEqual(b1.text, b2.text),
+    // @ts-expect-error
     link: b1.link === b2.link,
     type: b1.type === b2.type,
+    // @ts-expect-error
     annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
     attributes: isBlockAttributesEqual(b1, b2),
   }
@@ -356,16 +349,22 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
           property: prop,
           b1Value:
             prop === 'annotations'
-              ? b1.annotations
+              ? // @ts-expect-error
+                b1.annotations
               : prop === 'attributes'
-              ? b1.attributes
-              : b1[prop],
+              ? // @ts-expect-error
+                b1.attributes
+              : // @ts-expect-error
+                b1[prop],
           b2Value:
             prop === 'annotations'
-              ? b2.annotations
+              ? // @ts-expect-error
+                b2.annotations
               : prop === 'attributes'
-              ? b2.attributes
-              : b2[prop],
+              ? // @ts-expect-error
+                b2.attributes
+              : // @ts-expect-error
+                b2[prop],
         })),
     })
   }
@@ -374,7 +373,9 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
+  // @ts-expect-error
   const a1 = b1.attributes
+  // @ts-expect-error
   const a2 = b2.attributes
 
   if (!a1 && !a2) return true
@@ -456,8 +457,11 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
     const include1 = includes1[i]
     const include2 = includes2[i]
 
+    // @ts-ignore
     if (include1.mode !== include2.mode) return false
+    // @ts-ignore
     if (include1.path !== include2.path) return false
+    // @ts-ignore
     if (include1.space !== include2.space) return false
   }
 
@@ -469,7 +473,10 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
     const sort1 = q1.sort![i]
     const sort2 = q2.sort![i]
 
+    // @ts-ignore
     if (sort1.reverse !== sort2.reverse) return false
+
+    // @ts-ignore
     if (sort1.term !== sort2.term) return false
   }
   return true

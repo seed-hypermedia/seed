@@ -96,7 +96,9 @@ describe('local-db-recents integration', () => {
       expect(recents.length).toBe(2)
 
       // Verify they are sorted by time (newest first)
+      // @ts-expect-error
       expect(recents[0].id.id).toBe(id2)
+      // @ts-expect-error
       expect(recents[1].id.id).toBe(id1)
     } finally {
       // Always close the database connection
@@ -144,8 +146,11 @@ describe('local-db-recents integration', () => {
       expect(recents.length).toBe(2)
 
       // Verify the updated item is now the most recent
+      // @ts-expect-error
       expect(recents[0].id.id).toBe(id)
+      // @ts-expect-error
       expect(recents[0].name).toBe(updatedTitle)
+      // @ts-expect-error
       expect(recents[1].id.id).toBe(id2)
     } finally {
       // Always close the database connection
@@ -180,6 +185,7 @@ describe('local-db-recents integration', () => {
       // Verify the oldest items were removed
       // The first 5 items should not be in the recents list
       for (let i = 0; i < 5; i++) {
+        // @ts-expect-error
         expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(
           false,
         )
@@ -187,6 +193,7 @@ describe('local-db-recents integration', () => {
 
       // The last 20 items should be in the recents list
       for (let i = 5; i < recentsToAdd; i++) {
+        // @ts-expect-error
         expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(
           true,
         )

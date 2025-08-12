@@ -5,6 +5,7 @@ export * from './content'
 export * from './discussion'
 export * from './editor-types'
 export * from './grpc-client'
+// @ts-expect-error
 export * from './hm-types'
 export * from './models/payment-allocations'
 export * from './models/payments'

@@ -80,12 +80,30 @@ export default defineConfig(({command, mode}) => {
     },
     // Define environment variables that will be replaced at build time
     define: {
+      // Define process object for the renderer process (browser environment)
+      process: JSON.stringify({
+        env: {},
+        platform: process.platform,
+        arch: process.arch,
+        versions: process.versions,
+      }),
+      global: 'globalThis',
+
       // This will be replaced with the actual value during build
       // In development it's true, in production it's false
       __SHOW_OB_RESET_BTN__: !!process.env.SHOW_OB_RESET_BTN,
-      // Define process.env as an empty object to prevent "process is not defined" errors
-      // Vite will replace individual process.env.VARIABLE_NAME references at build time
-      'process.env': {},
+
+      // Electron Forge environment variables
+      MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(
+        process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL,
+      ),
+      MAIN_WINDOW_VITE_NAME: JSON.stringify(process.env.MAIN_WINDOW_VITE_NAME),
+      FIND_IN_PAGE_VITE_DEV_SERVER_URL: JSON.stringify(
+        process.env.FIND_IN_PAGE_VITE_DEV_SERVER_URL,
+      ),
+      FIND_IN_PAGE_VITE_NAME: JSON.stringify(
+        process.env.FIND_IN_PAGE_VITE_NAME,
+      ),
     },
   }
 

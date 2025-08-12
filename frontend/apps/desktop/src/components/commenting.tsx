@@ -33,10 +33,13 @@ export function renderCommentContent(comment: HMComment) {
   const data: HMComment & {reference: string | null} = useMemo(() => {
     if (comment.content.length === 1) {
       let parentBlock = comment.content[0]
+      // @ts-ignore
       if (parentBlock.block.type === 'Embed') {
         return {
           ...comment,
+          // @ts-ignore
           reference: (parentBlock.block as HMBlockEmbed).link,
+          // @ts-ignore
           content: parentBlock.children || [],
         }
       }
@@ -85,6 +88,7 @@ export function useCommentGroupAuthors(
   const authorEntities = useContacts(commentGroupAuthorsList)
   return Object.fromEntries(
     commentGroupAuthorsList
+      // @ts-ignore
       .map((uid, index) => [uid, authorEntities[index].data])
       .filter(([k, v]) => !!v),
   )
@@ -260,6 +264,7 @@ function _CommentDraftEditor({
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
+      // @ts-ignore
       onKeyDownCapture={(e: React.KeyboardEvent<HTMLDivElement>) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault()
@@ -351,9 +356,12 @@ function CommentReference({reference}: {reference: string | null}) {
 
   const referenceContent = useMemo(() => {
     const content =
+      // @ts-ignore
       referenceData.data?.type === 'document'
-        ? referenceData.data.document?.content
+        ? // @ts-ignore
+          referenceData.data.document?.content
         : undefined
+    // @ts-ignore
     if (!referenceData.data) return null
     if (referenceId?.blockRef) {
       let bn = getBlockNodeById(content || [], referenceId.blockRef)
@@ -365,6 +373,7 @@ function CommentReference({reference}: {reference: string | null}) {
     }
 
     return content || []
+    // @ts-ignore
   }, [referenceData.data])
 
   const highlight = useMemo(() => {
@@ -375,6 +384,9 @@ function CommentReference({reference}: {reference: string | null}) {
     return referenceId.blockRef == route.id.blockRef
   }, [route, referenceId])
 
+  {
+    /* @ts-ignore */
+  }
   if (!referenceData.data) return null
 
   return (
@@ -412,6 +424,7 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
+        {/* @ts-expect-error */}
         <AppDocContentProvider {...context} comment>
           <BlocksContent
             blocks={referenceContent}

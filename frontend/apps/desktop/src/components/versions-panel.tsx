@@ -8,8 +8,10 @@ export function VersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const activeChangeIds = useVersionChanges(docId)
   const currentEntity = useSubscribedResource({...docId, version: null})
   const currentDocument =
+    // @ts-ignore
     currentEntity.data?.type === 'document'
-      ? currentEntity.data.document
+      ? // @ts-ignore
+        currentEntity.data.document
       : undefined
   const changes = useDocumentChanges(docId)
   return (

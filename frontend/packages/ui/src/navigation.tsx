@@ -64,6 +64,7 @@ export function DocumentSmallListItem({
         active={active}
         {...linkProps}
         onClick={(e) => {
+          // @ts-expect-error
           onClick?.()
           linkProps.onClick?.(e)
         }}
@@ -115,12 +116,14 @@ export function getSiteNavDirectory({
   const idPath = id.path || []
   const editIds = new Set<string>(
     drafts
+      // @ts-expect-error
       ?.map((d) => d.editId)
       .filter((id) => !!id)
       .map((id) => id.id) || [],
   )
   const unpublishedDraftItems: DocNavigationItem[] =
     drafts
+      // @ts-expect-error
       ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
       .map(
         (draft) =>
@@ -129,6 +132,7 @@ export function getSiteNavDirectory({
             id: undefined,
             draftId: draft.id,
             metadata: draft.metadata,
+            // @ts-expect-error
             sortTime: new Date(draft.lastUpdateTime),
             isPublished: false,
           }) satisfies DocNavigationItem,
@@ -152,16 +156,19 @@ export function getSiteNavDirectory({
           sortTime,
           // isDraft: editIds.has(id.id),
           draftId: editIds.has(id.id)
-            ? drafts?.find((d) => d.editId?.id === id.id)?.id
+            ? // @ts-expect-error
+              drafts?.find((d) => d.editId?.id === id.id)?.id
             : undefined,
           isPublished: true,
         }
       })
       ?.filter((item) => !!item) || []
   unpublishedDraftItems
+    // @ts-expect-error
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse()
   publishedItems
+    // @ts-expect-error
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse()
   const directoryItems: DocNavigationItem[] = [

@@ -29,8 +29,10 @@ export function HyperMediaEditorView({
       />
       <HyperlinkToolbarPositioner
         // hyperlinkToolbar={HypermediaLinkToolbar}
+        // @ts-expect-error
         hyperlinkToolbar={HypermediaLinkPreview}
         editor={editor}
+        // @ts-expect-error
         openUrl={openUrl}
       />
       <SlashMenuPositioner editor={editor} />

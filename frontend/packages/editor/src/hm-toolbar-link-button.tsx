@@ -2,7 +2,7 @@ import {
   BlockNoteEditor,
   BlockSchema,
   useEditorSelectionChange,
-} from '@/blocknote'
+} from './blocknote'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
@@ -65,6 +65,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       const $urlPos = state.doc.resolve(state.selection.from)
       const linkMarks = $urlPos.parent.firstChild!.marks
       if (linkMarks && linkMarks.length > 0) {
+        // @ts-ignore
         const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
         view.dispatch(
           view.state.tr

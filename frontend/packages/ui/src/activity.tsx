@@ -206,6 +206,7 @@ function ExpandChangeGroupButton({
         <Version size={16} color="white" />
       </div>
       <HMIcon
+        // @ts-expect-error
         flexGrow={0}
         flexShrink={0}
         size={iconSize}

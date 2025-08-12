@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../core'
 
 import {Toolbar} from '../../SharedComponents/Toolbar/components/Toolbar'
 import {ToggledStyleButton} from './DefaultButtons/ToggledStyleButton'

@@ -1,4 +1,4 @@
-import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '@/blocknote/core'
+import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '../core'
 import {MantineProvider, createStyles} from '@mantine/core'
 import {EditorContent} from '@tiptap/react'
 import {HTMLAttributes, ReactNode, useEffect, useMemo, useState} from 'react'
@@ -32,7 +32,19 @@ function BaseBlockNoteView<BSchema extends BlockSchema>(
       {props.children || (
         <>
           <FormattingToolbarPositioner editor={props.editor} />
-          <HyperlinkToolbarPositioner editor={props.editor} />
+          // @ts-expect-error
+          <HyperlinkToolbarPositioner
+            editor={props.editor}
+            openUrl={(url?: string, newWindow?: boolean) => {
+              if (url) {
+                if (newWindow) {
+                  window.open(url, '_blank')
+                } else {
+                  window.location.href = url
+                }
+              }
+            }}
+          />
           <SlashMenuPositioner editor={props.editor} />
           <SideMenuPositioner editor={props.editor} />
           <LinkMenuPositioner editor={props.editor} />

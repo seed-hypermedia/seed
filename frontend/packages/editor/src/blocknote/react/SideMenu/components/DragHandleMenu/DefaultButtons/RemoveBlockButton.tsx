@@ -1,4 +1,4 @@
-import {BlockSchema} from '@/blocknote/core'
+import {BlockSchema} from '../../../../../core'
 import {Delete} from '@shm/ui/icons'
 import {ReactNode} from 'react'
 import {DragHandleMenuProps} from '../DragHandleMenu'

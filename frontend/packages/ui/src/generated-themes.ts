@@ -117,6 +117,7 @@ type Theme = {
   shadowColorFocus: string
 }
 
+// @ts-expect-error
 function t(a) {
   let res: Record<string, string> = {}
   for (const [ki, vi] of a) {

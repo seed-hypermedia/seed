@@ -24,6 +24,7 @@ export default function DraftsPage() {
   const allLocationParents = useMemo(() => {
     const allLocationParents = new Set<string>()
     drafts.data?.forEach((draft) => {
+      // @ts-expect-error
       const contextId = draft.editId || draft.locationId
       if (contextId) {
         const uid = contextId.uid
@@ -43,21 +44,27 @@ export default function DraftsPage() {
   const draftItems = useMemo(() => {
     return drafts.data?.map((item) => {
       let breadcrumbs: HMMetadataPayload[] = []
+      // @ts-expect-error
       const contextId = item.editId || item.locationId
       if (contextId) {
         const uid = contextId.uid
         const parentPaths = getParentPaths(contextId.path)
-        breadcrumbs = (
-          contextId === item.editId ? parentPaths.slice(0, -1) : parentPaths
-        ).map((path) => {
-          const id = hmId(uid, {path})
-          return {
-            id,
-            metadata:
-              entities.find((e) => e.data?.id.id === id.id)?.data?.document
-                ?.metadata ?? null,
-          }
-        })
+        // @ts-expect-error
+        breadcrumbs =
+          // @ts-expect-error
+          contextId === item.editId
+            ? parentPaths.slice(0, -1)
+            : parentPaths.map((path) => {
+                const id = hmId(uid, {path})
+                return {
+                  id,
+                  metadata:
+                    entities.find((e) => {
+                      return e.data?.id.id === id.id
+                      // @ts-expect-error
+                    })?.data?.document?.metadata ?? null,
+                }
+              })
       }
       return {
         ...item,
@@ -107,7 +114,7 @@ export function DraftItem({
         <div className="flex-1 overflow-hidden">
           <div className="flex items-center gap-1 overflow-hidden">
             {breadcrumbs.map((breadcrumb, idx) => (
-              <React.Fragment key={breadcrumb.id.uid || idx}>
+              <React.Fragment key={breadcrumb.id?.uid || idx}>
                 <Button
                   variant="link"
                   size="xs"

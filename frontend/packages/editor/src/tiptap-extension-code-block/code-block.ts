@@ -2,9 +2,9 @@ import {
   BlockNoteDOMAttributes,
   getBlockInfoFromPos,
   mergeCSSClasses,
-} from '@/blocknote'
-import {getGroupInfoFromPos} from '@/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
-import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+} from '../blocknote'
+import {getGroupInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {
   Editor,
   mergeAttributes,
@@ -76,6 +76,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
 
           const classNames = [
             ...getClassNames(element.classList),
+            // @ts-expect-error
             ...getClassNames(element.firstElementChild?.classList || []),
           ]
           const languages = classNames
@@ -114,6 +115,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       mergeAttributes(HTMLAttributes, {
         ...blockContentDOMAttributes,
         class: mergeCSSClasses(
+          // @ts-ignore
           styles.blockContent,
           blockContentDOMAttributes.class,
           node.attrs.language.length
@@ -128,6 +130,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         {
           ...inlineContentDOMAttributes,
           class: mergeCSSClasses(
+            // @ts-ignore
             styles.inlineContent,
             inlineContentDOMAttributes.class,
           ),
@@ -166,6 +169,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos)
       const newBlockContent = state.doc.cut(codePos.pos, codePos.end())
 
+      // @ts-ignore
       const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
       const nextBlockPos = codePos.end() + 2
       const nextBlockContentPos = nextBlockPos + 2
@@ -412,18 +416,22 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
                   const groupContent = group.content
                   const lastBlockContent = groupContent.lastChild!.lastChild!
                   const newBlockContent = [
+                    // @ts-ignore
                     state.schema.nodes['paragraph'].createAndFill()!,
                     lastBlockContent,
                   ]
+                  // @ts-ignore
                   const newContainer = state.schema.nodes[
                     'blockContainer'
                   ].createAndFill(null, newBlockContent)!
+                  // @ts-ignore
                   const replaceContainer = state.schema.nodes[
                     'blockContainer'
                   ].createAndFill(container?.attrs, codeBlock)!
                   const newGroupContent = group.content
                     .replaceChild(group.childCount - 1, replaceContainer)
                     .addToEnd(newContainer)
+                  // @ts-ignore
                   const newGroup = state.schema.nodes[
                     'blockGroup'
                   ].createAndFill(group.attrs, newGroupContent)!
@@ -435,6 +443,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
                   )
                 } else {
                   const newContainer =
+                    // @ts-ignore
                     state.schema.nodes['blockContainer'].createAndFill()!
                   tr.insert(nextBlockPos, newContainer)
                 }

@@ -2,12 +2,14 @@
   "name": "@shm/shared",
   "version": "0.1.0",
   "main": "src/index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "vitest --run",
     "test:w": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --project tsconfig.app.json",
+    "build:types": "tsc -p tsconfig.types.json"
   },
   "keywords": [],
   "author": "",

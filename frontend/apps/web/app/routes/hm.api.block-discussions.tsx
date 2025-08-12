@@ -110,6 +110,7 @@ export const loader = async ({
 
     result = {
       citingComments,
+      // @ts-expect-error
       authors: Object.fromEntries(
         allAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
       ),

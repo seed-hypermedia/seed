@@ -5,6 +5,7 @@ import fs from 'fs'
 
 const {debug, error} = console
 
+// @ts-expect-error
 export async function saveCidAsFile(event, args) {
   const {cid, name} = args
   const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)

@@ -11,6 +11,7 @@ import {
 function getFee(amount: number) {
   return Math.ceil(amount * SHM_FEE)
 }
+// @ts-expect-error
 function amountWithFee(amount: number) {
   return amount + getFee(amount)
 }

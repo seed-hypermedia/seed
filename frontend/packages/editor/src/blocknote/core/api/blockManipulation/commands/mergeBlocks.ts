@@ -1,4 +1,4 @@
-import {selectableNodeTypes} from '@/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
+import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
 import {Node} from 'prosemirror-model'
 import {EditorState, NodeSelection} from 'prosemirror-state'
 import {

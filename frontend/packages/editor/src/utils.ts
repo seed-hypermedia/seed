@@ -1,5 +1,5 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import type {BlockIdentifier} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
 import {HMBlockChildrenTypeSchema} from '@shm/shared'
@@ -15,6 +15,7 @@ export function youtubeParser(url: string) {
   var regExp =
     /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
   var match = url.match(regExp)
+  // @ts-ignore
   return match && match[7].length == 11 ? match[7] : false
 }
 
@@ -33,6 +34,7 @@ export function camelToFlat(camel: string) {
   return camelCase
 }
 
+// @ts-expect-error
 export const timeoutPromise = (promise, delay, reason) =>
   Promise.race([
     promise,
@@ -55,6 +57,7 @@ export function setGroupTypes(
         block.props &&
         block.props.childrenType
       ) {
+        // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
           if (child.type.name === 'blockGroup') {
             setTimeout(() => {
@@ -142,16 +145,21 @@ export function serverBlockNodesFromEditorBlocks(
     const childGroup = getBlockGroup(editor, block.id)
     const serverBlock = editorBlockToHMBlock(block)
     if (childGroup) {
+      // @ts-expect-error
       if (!serverBlock.attributes) {
+        // @ts-expect-error
         serverBlock.attributes = {}
       }
       const childrenType = HMBlockChildrenTypeSchema.safeParse(childGroup.type)
       if (childrenType.success) {
+        // @ts-expect-error
         serverBlock.attributes.childrenType = childrenType.data
       } else {
+        // @ts-expect-error
         serverBlock.attributes.childrenType = 'Group'
       }
       if (childGroup.start)
+        // @ts-expect-error
         serverBlock.attributes.start = childGroup.start.toString()
     }
     return new BlockNode({

@@ -36,6 +36,7 @@ export function PageHeader({
   return (
     <div id="page-header">
       <Container
+        // @ts-expect-error
         $gtSm={{
           marginTop: hasCover ? -40 : 0,
           paddingTop: !hasCover ? 60 : '$4',
@@ -51,6 +52,7 @@ export function PageHeader({
               <HMIcon size={100} id={docId} metadata={docMetadata} />
             </div>
           ) : null}
+          {/* @ts-expect-error */}
           <Breadcrumbs breadcrumbs={breadcrumbs} originHomeId={originHomeId} />
           <SizableText size="4xl" weight="bold">
             {docMetadata?.name}

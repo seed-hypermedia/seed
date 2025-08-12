@@ -2,8 +2,8 @@ import {
   BlockNoteEditor,
   BlockNoteEditorOptions,
   DefaultBlockSchema,
-} from '@/blocknote/core'
-import {HMBlockSchema} from '@/schema'
+} from '../../core'
+import {HMBlockSchema} from '../../../schema'
 import {DependencyList, useMemo, useRef} from 'react'
 
 const initEditor = <BSchema extends HMBlockSchema>(
@@ -27,5 +27,5 @@ export const useBlockNote = <
     }
     editorRef.current = initEditor(options)
     return editorRef.current
-  }, deps) //eslint-disable-line react-hooks/exhaustive-deps
+  }, deps)
 }

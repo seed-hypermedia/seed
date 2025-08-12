@@ -11,16 +11,21 @@ export function removeUnderlines() {
     for (let i = 0; i < numChildElements; i++) {
       const node = tree.children[i]
 
+      // @ts-ignore
       if (node.type === 'element') {
         // Recursively removes underlines from child elements.
+        // @ts-ignore
         removeUnderlinesHelper(node)
 
         if ((node as HASTElement).tagName === 'u') {
           // Lifts child nodes outside underline element, deletes the underline element, and updates current index &
           // the number of child elements.
+          // @ts-ignore
           if (node.children.length > 0) {
+            // @ts-ignore
             tree.children.splice(i, 1, ...node.children)
 
+            // @ts-ignore
             const numElementsAdded = node.children.length - 1
             numChildElements += numElementsAdded
             i += numElementsAdded

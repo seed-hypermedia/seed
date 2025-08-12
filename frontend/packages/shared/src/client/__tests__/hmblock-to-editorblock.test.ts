@@ -746,6 +746,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'Query',
         text: ``,
         annotations: [],
+        // @ts-expect-error
         attributes: {
           style: 'Card',
           columnCount: 1,

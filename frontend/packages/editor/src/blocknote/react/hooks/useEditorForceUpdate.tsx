@@ -25,6 +25,5 @@ export const useEditorForceUpdate = (editor: Editor) => {
     return () => {
       editor.off('transaction', callback)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor])
 }

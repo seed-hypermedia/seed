@@ -1,29 +1,66 @@
 {
   "compilerOptions": {
-    // "target": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "commonjs",
-    "baseUrl": ".",
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    // Language and Environment
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "jsx": "preserve",
-    "incremental": true,
-    "plugins": [],
+
+    // Module Resolution
+    "baseUrl": ".",
     "paths": {
-      "@shm/ui/*": ["../../packages/ui/src/*"],
-      "@shm/shared/*": ["../../packages/shared/src/*"],
-      "@shm/editor/*": ["../../packages/editor/src/*"],
+      "@shm/ui/*": ["../ui/src/*"],
+      "@shm/shared/*": ["../shared/src/*"],
+      "@shm/editor/*": ["./src/*"],
       "@/*": ["./src/*"],
       "@": ["./src/index"]
-    }
+    },
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+
+    // Type Checking - Balanced Strictness
+    "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+
+    // Error Prevention (commented out aggressive ones)
+    // "noUnusedLocals": true,           // Can be overwhelming in development
+    // "noUnusedParameters": true,       // Often parameters are kept for interface compliance
+    // "exactOptionalPropertyTypes": true, // Very strict, can be problematic with existing APIs
+    // "verbatimModuleSyntax": true,     // Forces type-only imports, can be disruptive
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+
+    // Best Practices
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "allowJs": true,
+    "checkJs": false,
+
+    // Emit
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+
+    // Performance
+    "skipLibCheck": true,
+    "incremental": true,
+
+    // Experimental
+    "plugins": []
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }

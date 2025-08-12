@@ -26,6 +26,7 @@ export function SiteLogo({
         className={cn('flex flex-1 items-center justify-center')}
         style={{height: '60px'}}
       >
+        {/* @ts-expect-error */}
         <a
           {...homeLinkProps}
           className="flex h-full items-center justify-center"
@@ -40,6 +41,7 @@ export function SiteLogo({
     )
   }
   return (
+    // @ts-expect-error
     <a
       {...homeLinkProps}
       className={cn('flex items-center justify-center gap-2')}

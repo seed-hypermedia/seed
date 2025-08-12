@@ -1,8 +1,10 @@
-import {invalidateQueries, LIGHTNING_API_URL, queryKeys} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
 import {z} from 'zod'
-import {HMInvoice, UnpackedHypermediaId} from '.'
+import {LIGHTNING_API_URL} from '../constants'
+import {HMInvoice, UnpackedHypermediaId} from '../hm-types'
+import {invalidateQueries} from './query-client'
+import {queryKeys} from './query-keys'
 
 export function useAllowedPaymentRecipients(accountUids: string[]) {
   return useQuery({

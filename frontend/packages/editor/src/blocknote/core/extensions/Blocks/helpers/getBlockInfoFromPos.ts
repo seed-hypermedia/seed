@@ -85,6 +85,7 @@ export function getNearestBlockPos(doc: Node, pos: number) {
   console.warn(`Position ${pos} is not within a blockContainer node.`)
 
   const resolvedPos = doc.resolve(
+    // @ts-ignore
     allBlockContainerPositions.find((position) => position >= pos) ||
       allBlockContainerPositions[allBlockContainerPositions.length - 1],
   )

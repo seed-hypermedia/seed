@@ -71,6 +71,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   }, [theme])
 
   // Listen for system theme changes
+  // @ts-expect-error
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')

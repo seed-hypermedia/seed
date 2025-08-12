@@ -152,6 +152,7 @@ export function useLibrary({
         (acct) => favorites?.find((fav) => fav && fav.uid === acct.id),
       )
     }
+    // @ts-expect-error
     items = accts?.map((account) => {
       const plainAccount = toPlainMessage(account)
       return {

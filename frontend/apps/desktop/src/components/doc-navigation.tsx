@@ -33,6 +33,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   const entity = useSubscribedResource(id, true) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
   const document =
+    // @ts-ignore
     entity.data?.type === 'document' ? entity.data.document : undefined
   const createDraft = useCreateDraft({
     locationUid: id.uid,

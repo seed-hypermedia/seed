@@ -34,6 +34,7 @@ export function EntityVersionsAccessory({
             const author = authorQ?.data
               ? {
                   id: authorQ.data.id,
+                  // @ts-expect-error
                   metadata: authorQ.data.document?.metadata,
                 }
               : null

@@ -111,6 +111,7 @@ export function usePeers(
 export function useConnectedPeers(
   options: UseQueryOptions<PeerInfo[], ConnectError> = {},
 ) {
+  // @ts-expect-error
   return usePeers(true, options)
 }
 

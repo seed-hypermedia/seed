@@ -4,14 +4,14 @@ import {
   getBlockInfoFromSelection,
   PropSchema,
   updateGroupCommand,
-} from '@/blocknote/core'
+} from './blocknote/core'
 import {
   BlockTypeDropdownItem,
   FormattingToolbarProps,
   useEditorContentChange,
   useEditorSelectionChange,
-} from '@/blocknote/react'
-import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
+} from './blocknote/react'
+import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {EditorToggledStyle, HMBlockChildrenType} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {

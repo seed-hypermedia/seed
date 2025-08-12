@@ -1,6 +1,7 @@
 import {queryClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
+// @ts-expect-error
 import {HMDocumentChangeInfo} from './hm.api.changes'
 
 export type HMDocumentChangesPayload = {

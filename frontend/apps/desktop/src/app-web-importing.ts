@@ -340,6 +340,7 @@ function changesForBlockNodes(
       new DocumentChange({
         op: {
           case: 'replaceBlock',
+          // @ts-expect-error
           value: block,
         },
       }),

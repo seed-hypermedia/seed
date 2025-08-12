@@ -53,6 +53,7 @@ function getDraggableBlockFromCoords(
     node &&
     node.parentNode &&
     node.parentNode !== view.dom &&
+    // @ts-expect-error
     !node.hasAttribute?.('data-id')
   ) {
     node = node.parentNode as HTMLElement
@@ -61,6 +62,7 @@ function getDraggableBlockFromCoords(
     return undefined
   }
 
+  // @ts-expect-error
   return {node, id: node.getAttribute('data-id')!}
 }
 
@@ -148,6 +150,7 @@ function setDragImage(view: EditorView, from: number, to = from) {
 
   for (let i = parent.childElementCount - 1; i >= 0; i--) {
     if (i > lastSelectedBlockIndex || i < firstSelectedBlockIndex) {
+      // @ts-ignore
       parentClone.removeChild(parentClone.children[i])
     }
   }
@@ -458,12 +461,15 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     }
 
     if (
+      // @ts-expect-error
       !block.node?.hasAttribute('data-node-type') &&
+      // @ts-expect-error
       !block.node?.getAttribute('data-node-type') == 'blockContainer'
     ) {
       return
     }
 
+    // @ts-expect-error
     this.hoveredBlock = block.node
     // Gets the block's content node, which lets to ignore child blocks when determining the block menu's position.
     const blockContent = block.node.firstChild as HTMLElement

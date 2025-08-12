@@ -4,11 +4,11 @@ import {
   DefaultBlockSchema,
   LinkMenuProsemirrorPlugin,
   LinkMenuState,
-} from '@/blocknote/core'
+} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {LinkMenuItem} from '@/blocknote/core/extensions/LinkMenu/LinkMenuItem'
+import {LinkMenuItem} from '../../../core/extensions/LinkMenu/LinkMenuItem'
 import {DefaultLinkMenu} from './DefaultLinkMenu'
 
 export type LinkMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
@@ -41,6 +41,7 @@ export const LinkMenuPositioner = <
   useEffect(() => {
     return props.editor.linkMenu.onUpdate((linkMenuState) => {
       setShow(linkMenuState.show)
+      // @ts-expect-error
       setRef(linkMenuState.ref)
       // @ts-ignore
       setItems(linkMenuState.items)
@@ -97,6 +98,7 @@ export const LinkMenuPositioner = <
       animation={'fade'}
       placement="bottom-start"
       // Enable built-in boundary detection
+      // @ts-expect-error
       flipOnUpdate={true}
       // Prevent overflow by adjusting position
       popperOptions={{

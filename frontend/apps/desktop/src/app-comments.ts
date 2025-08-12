@@ -6,6 +6,7 @@ import {commentDraftStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 // Define interface for the electron store instance
+// @ts-ignore
 interface CommentStore extends Store<Record<string, any>> {
   get: (key: string) => any
   set: (key: string, value: any) => void

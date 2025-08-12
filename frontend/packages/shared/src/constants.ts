@@ -2,57 +2,56 @@
 
 // we are using this ternary ugly thing with `import.meta.env?` and `process.env` because this variables will be loaded in different runtimes, and not in all runtines both "ways" are available.
 
+// Safely access import.meta.env even under tsconfigs that don't allow import.meta
+const IME: Record<string, any> = (() => {
+  try {
+    // eslint-disable-next-line no-eval
+    const env = (0, eval)('import.meta.env')
+    return env ?? {}
+  } catch {
+    return {}
+  }
+})()
+
 export const HYPERMEDIA_SCHEME = 'hm'
 
 export const DEFAULT_GATEWAY_URL: string =
-  (import.meta.env && import.meta.env.VITE_GATEWAY_URL) ||
-  process.env.VITE_GATEWAY_URL ||
-  'https://hyper.media'
+  IME.VITE_GATEWAY_URL || process.env.VITE_GATEWAY_URL || 'https://hyper.media'
 
 export const P2P_PORT =
-  (import.meta.env && import.meta.env.VITE_DESKTOP_P2P_PORT) ||
-  process.env.VITE_DESKTOP_P2P_PORT ||
-  56000
+  IME.VITE_DESKTOP_P2P_PORT || process.env.VITE_DESKTOP_P2P_PORT || 56000
 
 export const DAEMON_HTTP_PORT =
   process.env.DAEMON_HTTP_PORT ||
-  (import.meta.env && import.meta.env.VITE_DESKTOP_HTTP_PORT) ||
+  IME.VITE_DESKTOP_HTTP_PORT ||
   process.env.VITE_DESKTOP_HTTP_PORT ||
   56001
 export const DAEMON_GRPC_PORT =
-  (import.meta.env && import.meta.env.VITE_DESKTOP_GRPC_PORT) ||
-  process.env.VITE_DESKTOP_GRPC_PORT ||
-  56002
+  IME.VITE_DESKTOP_GRPC_PORT || process.env.VITE_DESKTOP_GRPC_PORT || 56002
 
 export const METRIC_SERVER_HTTP_PORT =
-  (import.meta.env && import.meta.env.VITE_METRIC_SERVER_HTTP_PORT) ||
+  IME.VITE_METRIC_SERVER_HTTP_PORT ||
   process.env.VITE_METRIC_SERVER_HTTP_PORT ||
   56003
 
 export const DAEMON_HOSTNAME =
-  (import.meta.env && import.meta.env.VITE_DESKTOP_HOSTNAME) ||
-  process.env.VITE_DESKTOP_HOSTNAME
+  IME.VITE_DESKTOP_HOSTNAME || process.env.VITE_DESKTOP_HOSTNAME
 
 export const DESKTOP_APPDATA =
-  (import.meta.env && import.meta.env.VITE_DESKTOP_APPDATA) ||
-  process.env.VITE_DESKTOP_APPDATA ||
-  'Seed'
+  IME.VITE_DESKTOP_APPDATA || process.env.VITE_DESKTOP_APPDATA || 'Seed'
 
 export const VERSION =
-  (import.meta.env && import.meta.env.VITE_VERSION) ||
-  process.env.VITE_VERSION ||
-  '0.0.100-dev'
+  IME.VITE_VERSION || process.env.VITE_VERSION || '0.0.100-dev'
 
 export const COMMIT_HASH =
-  (import.meta.env && import.meta.env.VITE_COMMIT_HASH) ||
+  IME.VITE_COMMIT_HASH ||
   process.env.VITE_COMMIT_HASH ||
   'LOCAL_abcdefghijklmnopqrst0123456789qwertyuiopasdfghjklzxcvbnm'
 
 // this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
 
 export const IS_PROD_DESKTOP =
-  !!(import.meta.env && import.meta.env.PROD) ||
-  process.env.NODE_ENV === 'production'
+  !!IME.PROD || process.env.NODE_ENV === 'production'
 
 export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
@@ -78,6 +77,7 @@ export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/g
 
 const WEB_ENV = (() => {
   try {
+    // @ts-expect-error
     return window.ENV || {}
   } catch (e) {
     return {}
@@ -89,18 +89,17 @@ export const SITE_BASE_URL = WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL
 export const LIGHTNING_API_URL =
   WEB_ENV.LIGHTNING_API_URL ||
   process.env.LIGHTNING_API_URL ||
-  (import.meta.env && import.meta.env.VITE_LIGHTNING_API_URL) ||
+  IME.VITE_LIGHTNING_API_URL ||
   'https://ln.seed.hyper.media'
 
 export const VITE_DESKTOP_SENTRY_DSN =
-  (import.meta.env && import.meta.env.VITE_DESKTOP_SENTRY_DSN) ||
-  process.env.VITE_DESKTOP_SENTRY_DSN
+  IME.VITE_DESKTOP_SENTRY_DSN || process.env.VITE_DESKTOP_SENTRY_DSN
 
 export const BIG_INT = 2 ** 25 // 2^31 was too big for grpc
 
 export const SEED_HOST_URL =
   process.env.VITE_SEED_HOST_URL ||
-  (import.meta.env && import.meta.env.VITE_SEED_HOST_URL) ||
+  IME.VITE_SEED_HOST_URL ||
   'http://localhost:5555'
 
 export const WEB_IDENTITY_ORIGIN =

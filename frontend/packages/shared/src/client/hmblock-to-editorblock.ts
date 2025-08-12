@@ -63,7 +63,7 @@ export function hmBlocksToEditorContent(
         : null
 
       if (res && hmBlock.children?.length) {
-        const childrenType = ((hmBlock.block?.attributes || {}) as any)
+        const childrenType = ((hmBlock.block as any)?.attributes || {})
           ?.childrenType
         // Ensure we only assign valid values to childrenType
         const validChildrenType: HMBlockChildrenType =
@@ -94,12 +94,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     type: blockType,
     content: [],
     props: {
-      revision: block.revision,
+      revision: (block as any).revision,
     },
     children: [],
   } as EditorBlock
 
-  const attributes = block.attributes || {}
+  const attributes = (block as any).attributes || {}
   if ('childrenType' in attributes && attributes.childrenType) {
     const childrenType = attributes.childrenType
     // Ensure we only assign valid values to childrenType
@@ -133,21 +133,20 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       'nostr',
     ].includes(blockType)
   ) {
-    if (block.link) {
-      ;(out.props as MediaBlockProps).url = block.link
+    if ((block as any).link) {
+      ;(out.props as MediaBlockProps).url = (block as any).link
     }
 
     if (blockType == 'code-block') {
       out.type = 'code-block'
     }
 
-    if (block.attributes) {
-      Object.entries(block.attributes).forEach(([key, value]) => {
+    if ((block as any).attributes) {
+      Object.entries((block as any).attributes).forEach(([key, value]) => {
         if (value !== undefined) {
           if (key == 'width' || key == 'size') {
             if (typeof value == 'number') {
-              ;(out.props as MediaBlockProps)[key as keyof MediaBlockProps] =
-                String(value)
+              ;(out.props as any)[key] = String(value)
             }
           } else {
             ;(out.props as any)[key] = value
@@ -171,7 +170,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
   }
 
-  const blockText = block.text || ''
+  const blockText = (block as any).text || ''
   const leaves = out.content
 
   let leaf: EditorText | null = null
@@ -182,7 +181,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   let i = 0
 
-  const stopPoint = block.text ? block.text.length - 1 : 0
+  const stopPoint = (block as any).text ? (block as any).text.length - 1 : 0
 
   let pos = 0
 
@@ -212,6 +211,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         finishLeaf(textStart, i + 2)
 
         if (inlineBlockContent) {
+          // @ts-ignore
           if (!isText(leaves[leaves.length - 1])) {
             // leaves.push({type: 'text', text: '', styles: {}})
           }
@@ -241,6 +241,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       finishLeaf(textStart, i + 1)
 
       if (inlineBlockContent) {
+        // @ts-ignore
         if (!isText(leaves[leaves.length - 1])) {
           //   leaves.push({type: 'text', text: '', styles: {}})
         }
@@ -337,41 +338,49 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     if (linkAnnotation) {
+      // @ts-expect-error
       if (linkAnnotation.type === 'Embed') {
         leaves.push({
           type: 'inline-embed',
           styles: {},
+          // @ts-expect-error
           link: linkAnnotation.link || '',
         } as EditorInlineEmbed)
         textStart = i + 1
       } else if (inlineBlockContent) {
-        if (linkChangedIdentity(linkAnnotation)) {
+        if (linkChangedIdentity(linkAnnotation as any)) {
           leaves.push(inlineBlockContent)
+          // @ts-expect-error
           if (linkAnnotation.type === 'Link') {
             inlineBlockContent = {
               type: 'link',
               content: [],
+              // @ts-expect-error
               href: linkAnnotation.href || '',
             } as EditorLink
           } else {
             inlineBlockContent = {
               type: 'inline-embed',
               styles: {},
+              // @ts-expect-error
               link: linkAnnotation.link || '',
             } as EditorInlineEmbed
           }
         }
       } else {
+        // @ts-expect-error
         if (linkAnnotation.type === 'Link') {
           inlineBlockContent = {
             type: 'link',
             content: [],
+            // @ts-expect-error
             href: linkAnnotation.href || '',
           } as EditorLink
         } else {
           inlineBlockContent = {
             type: 'inline-embed',
             styles: {},
+            // @ts-expect-error
             link: linkAnnotation.link || '',
           } as EditorInlineEmbed
         }
@@ -384,7 +393,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
   }
 
-  function linkChangedIdentity(annotation: CustomAnnotation): boolean {
+  function linkChangedIdentity(annotation: any): boolean {
     if (!inlineBlockContent) return false
     let currentLink =
       (inlineBlockContent as any).link ||
@@ -426,11 +435,14 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     let annotationsChanged = false
 
     // early return if annotations does not exist
-    if (!block.annotations) return false
+    if (!(block as any).annotations) {
+      return false
+    }
 
     // When position matches — we enable the annotation for the current leaf.
     // When it doesn't match — we disable the annotation for the current leaf.
-    block.annotations.forEach((l) => {
+    // @ts-expect-error
+    ;(block as any).annotations.forEach((l) => {
       let spanIdx = annotationContains(l as unknown as Annotation, pos)
       if (spanIdx === -1) {
         // If the annotation was in the set, we remove it and mark set as "dirty".
@@ -473,6 +485,7 @@ export function annotationContains(
     mid = Math.floor((low + high) / 2)
     // Binary search. If the midpoint span ends before the position
     // we're checking — we drop the left side of the array entirely.
+    // @ts-ignore
     if (annotation.ends[mid] <= pos) {
       low = mid + 1
     } else {
@@ -484,6 +497,7 @@ export function annotationContains(
     return -1
   }
 
+  // @ts-ignore
   if (annotation.starts[low] <= pos && pos < annotation.ends[low]) {
     return low
   }

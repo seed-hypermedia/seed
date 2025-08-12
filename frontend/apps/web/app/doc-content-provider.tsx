@@ -60,6 +60,7 @@ export function WebDocContentProvider({
       onHoverOut={onHoverOut}
       entityComponents={{
         Document: EmbedDocument,
+        // @ts-expect-error
         Inline: EmbedInline,
         Query: QueryBlockWeb,
         Comment: () => null,

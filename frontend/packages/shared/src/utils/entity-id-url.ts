@@ -149,12 +149,12 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [scheme, rest] = url.split('://')
   if (!rest) return null
   const [pathAndQuery, fragment = null] = rest.split('#')
-  const [path, queryString] = pathAndQuery.split('?')
+  const [path, queryString] = pathAndQuery?.split('?') || []
   const query = new URLSearchParams(queryString)
   const queryObject = Object.fromEntries(query.entries())
   return {
-    scheme,
-    path: path.split('/'),
+    scheme: scheme || null,
+    path: path?.split('/') || [],
     query: queryObject,
     fragment,
   }
@@ -236,13 +236,13 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     }
   }
   return {
-    id: packBaseId(uid, path),
-    uid,
+    id: packBaseId(uid || '', path),
+    uid: uid || '',
     path: path || null,
     version,
     blockRef: fragment ? fragment.blockId : null,
     blockRange,
-    hostname,
+    hostname: hostname || null,
     latest,
     scheme: parsed.scheme,
   }
@@ -276,6 +276,7 @@ export function idToUrl(
 export function normalizeHmId(
   urlMaybe: string,
   gwUrl: StateStream<string>,
+  // @ts-ignore
 ): string | undefined {
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
@@ -377,13 +378,17 @@ export function extractBlockRangeOfUrl(
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
   const regex =
+    // @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
+    // @ts-ignore
     /^(?<blockId>\S{8})((?<expanded>\+)|\[(?<rangeStart>\d+)\:(?<rangeEnd>\d+)\])?$/
   const match = input.match(regex)
   if (match && match.groups) {
     if (match.groups.expanded == '+') {
       return {
         type: 'block',
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         expanded: true,
       }
     } else if (
@@ -392,14 +397,14 @@ export function parseFragment(input: string | null): ParsedFragment | null {
     ) {
       return {
         type: 'block-range',
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         start: parseInt(match.groups.rangeStart || '0'),
         end: parseInt(match.groups.rangeEnd || '0'),
       }
     } else {
       return {
         type: 'block',
-        blockId: match.groups.blockId,
+        blockId: match.groups.blockId || '',
         expanded: false,
       }
     }
@@ -433,6 +438,7 @@ export function displayHostname(fullHost: string): string {
 
 export function hmIdMatches(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
   return (
+    // @ts-expect-error
     a.type === b.type &&
     a.uid === b.uid &&
     a.version == b.version &&

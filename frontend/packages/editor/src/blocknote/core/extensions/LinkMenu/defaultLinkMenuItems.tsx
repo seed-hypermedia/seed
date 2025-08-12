@@ -1,5 +1,5 @@
-import {HMBlockSchema} from '@/schema'
-import {youtubeParser} from '@/utils'
+import {HMBlockSchema} from '../../../../schema'
+import {youtubeParser} from '../../../../utils'
 import {
   createHMUrl,
   isHypermediaScheme,
@@ -279,6 +279,7 @@ export function getLinkMenuItems({
         },
       }
 
+      // @ts-expect-error
       linkMenuItems = [mediaItem, ...linkMenuItems]
     }
   }
@@ -306,9 +307,11 @@ function insertNode(
     )
     let originalLastContent = state.doc.cut($pos.pos, $pos.end())
     const originalContent: Node[] = []
+    // @ts-ignore
     originalStartContent.descendants((childNode) => {
       if (childNode.type.name === 'text') originalContent.push(childNode)
     })
+    // @ts-ignore
     originalLastContent.descendants((childNode) => {
       if (childNode.type.name === 'text') originalContent.push(childNode)
     })

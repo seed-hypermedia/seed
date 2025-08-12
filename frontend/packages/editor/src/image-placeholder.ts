@@ -1,5 +1,5 @@
-import {createTipTapBlock, mergeCSSClasses} from '@/blocknote'
-import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {createTipTapBlock, mergeCSSClasses} from './blocknote'
+import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {mergeAttributes} from '@tiptap/core'
 
 export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
@@ -32,6 +32,7 @@ export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
       mergeAttributes({
         ...blockContentDOMAttributes,
         class: mergeCSSClasses(
+          // @ts-expect-error
           styles.blockContent,
           blockContentDOMAttributes.class,
         ),

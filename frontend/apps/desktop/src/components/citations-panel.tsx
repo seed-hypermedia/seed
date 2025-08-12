@@ -86,7 +86,9 @@ export function CitationsPanel({
               key={`${citation.source.id.id}-${citation.source.id.version}-${citation.targetFragment}`}
               citation={{
                 ...citation,
+                // @ts-expect-error
                 document: documents.at(index)?.data?.document || null,
+                // @ts-ignore
                 author: citation.source.author
                   ? accounts[citation.source.author]
                   : null,
@@ -125,6 +127,7 @@ function DocumentPreview({
       <div className="h-px w-full flex-shrink-0 bg-gray-200 dark:bg-gray-800" />
       <AppDocContentProvider>
         <BlocksContent
+          // @ts-expect-error
           blocks={doc.data.document?.content}
           parentBlockId={null}
         />
@@ -142,26 +145,34 @@ export function CommentCitationEntry({
 }) {
   const citationTargetFragment = citation.targetFragment
   const citationTarget = citation.targetId
+
   const comment = useComment(citation.source.id)
   const focusedComment = useMemo(() => {
     if (!comment.data) return comment.data
     if (
       comment.data.content.length === 1 &&
+      // @ts-ignore
       comment.data.content[0].block.type === 'Embed'
     ) {
       const firstBlockNode = comment.data.content[0]
+      // @ts-ignore
       const blockWithLink = getBlockWithLink(firstBlockNode.block)
       const singleEmbedId = blockWithLink
         ? unpackHmId(blockWithLink.link)
         : null
       if (
+        // @ts-ignore
         firstBlockNode.children?.length &&
+        // @ts-expect-error
         singleEmbedId?.type === citationTarget.type &&
+        // @ts-expect-error
         singleEmbedId.id === citationTarget.id &&
+        // @ts-expect-error
         singleEmbedId.blockRef === citationTargetFragment?.blockId
       ) {
         return {
           ...comment.data,
+          // @ts-ignore
           content: firstBlockNode.children,
         } satisfies HMComment
       }

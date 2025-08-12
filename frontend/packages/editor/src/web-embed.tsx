@@ -1,11 +1,11 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
-import {MediaContainer} from '@/media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
-import {isValidUrl} from '@/utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
+import {isValidUrl} from './utils'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -121,8 +121,11 @@ const display = ({
   const isInitialized = useRef(false)
 
   const url = block.props.url
+  // @ts-ignore
   const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
+  // @ts-ignore
   const isInstagram = /instagram\.com/.test(url)
+  // @ts-ignore
   const tweetId = url.split('/').pop()?.split('?')[0]
 
   const createdTweets = useRef(new Set())
@@ -150,6 +153,7 @@ const display = ({
           }
         } else if (isInstagram) {
           if (containerRef.current) {
+            // @ts-expect-error
             containerRef.current.innerHTML = generateInstagramEmbedHtml(url)
             loadInstagramScript()
             setTimeout(() => {
@@ -189,6 +193,7 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
+        // @ts-expect-error
         openUrl(block.props.link)
       }}
       styleProps={{

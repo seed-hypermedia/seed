@@ -25,14 +25,13 @@ export class AnnotationSet {
         ends: [],
       })
 
-      // @ts-expect-error fix this type error to work with the new Struct type
-      annotation.attributes = annotation.attributes?.toJson()
+      annotation.attributes = annotation.attributes?.toJson() as any
 
       if (type == 'Link' || type == 'Embed') {
-        annotation.link = attributes!.link
+        annotation.link = (attributes as any)!.link
 
         // delete annotation.attributes
-        delete annotation.attributes?.link
+        delete (annotation.attributes as any)?.link
       }
 
       // if (typeof annotation.link == 'string' && annotation.link.length == 0) {
@@ -75,6 +74,7 @@ export class AnnotationSet {
     let out: Annotation[] = new Array(keys.length)
     // Then we add annotations in the proper order.
     for (let i in keys) {
+      // @ts-ignore
       const annotation = this.annotations.get(keys[i])
       if (annotation) out[i] = annotation
     }
@@ -83,7 +83,7 @@ export class AnnotationSet {
       let startA = a.starts[0]
       let startB = b.starts[0]
 
-      return startA - startB
+      return (startA || 0) - (startB || 0)
     })
 
     return out as HMAnnotations

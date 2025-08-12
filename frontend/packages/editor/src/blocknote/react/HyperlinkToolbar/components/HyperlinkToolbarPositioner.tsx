@@ -5,11 +5,11 @@ import {
   DefaultBlockSchema,
   HyperlinkToolbarProsemirrorPlugin,
   HyperlinkToolbarState,
-} from '@/blocknote/core'
+} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {HMBlockSchema} from '@/schema'
+import {HMBlockSchema} from '../../../../schema'
 import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
 export type HyperlinkToolbarProps = Pick<
@@ -96,6 +96,7 @@ export const HyperlinkToolbarPositioner = <
         stopEditing={!show}
         // @ts-ignore
         editor={props.editor}
+        // @ts-expect-error
         type={type}
         id={id}
         setHovered={(hovering: boolean) =>

@@ -86,6 +86,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       <LinkTypeDropdown
         selected={selectedType}
         onSelect={(val) => {
+          // @ts-expect-error
           setSelectedType(val)
           props.onChangeType?.(val)
         }}
@@ -246,8 +247,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                     to: posBeforeNode + 1 + contentNode.nodeSize,
                   }
                 } else {
+                  // @ts-ignore
                   contentNode.descendants((child, childPos) => {
                     const linkMark = child.marks?.find(
+                      // @ts-ignore
                       (mark) => mark.type.name === 'link',
                     )
                     if (linkMark) {
@@ -393,6 +396,7 @@ const SearchInput = ({
             item={item}
             key={item.key}
             selected={focusedIndex === itemIndex}
+            // @ts-expect-error
             onFocus={() => {
               setFocusedIndex(itemIndex)
             }}
@@ -438,6 +442,7 @@ const SearchInput = ({
           if (e.nativeEvent.key === 'Enter') {
             const item = activeItems[focusedIndex]
             if (item) {
+              // @ts-expect-error
               item.onSelect()
             } else {
               e.preventDefault()

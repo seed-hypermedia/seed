@@ -28,6 +28,7 @@ export async function querySearch(
   const result = await grpcClient.entities.searchEntities(query)
   return {
     searchQuery,
+    // @ts-expect-error
     entities: result.entities
       .map((entity) => {
         const id = unpackHmId(entity.id)

@@ -26,6 +26,7 @@ export const loader = async ({request}: {request: Request}) => {
 
   return wrapJSON<SearchPayload>({
     searchQuery,
+    // @ts-expect-error
     entities: result.entities
       .map((entity) => {
         const id = unpackHmId(entity.id)

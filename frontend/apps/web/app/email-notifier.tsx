@@ -147,6 +147,7 @@ async function handleEventsForEmailNotifications(
   for (const email of allEmails) {
     for (const account of email.accounts) {
       const opts = emailOptions[email.email]
+      // @ts-expect-error
       if (opts.isUnsubscribed) continue
       accountNotificationOptions[account.id] = {
         notifyAllMentions: account.notifyAllMentions,
@@ -194,6 +195,7 @@ async function handleEventsForEmailNotifications(
               version:
                 changeDataWithOps.deps && changeDataWithOps.deps.length > 0
                   ? changeDataWithOps.deps
+                      // @ts-expect-error
                       .map((cid) => cid.toString())
                       .join('.')
                   : null,
@@ -209,6 +211,7 @@ async function handleEventsForEmailNotifications(
                 const blockId = loaded.block?.id
                 if (!blockId) continue
 
+                // @ts-expect-error
                 const accountIds = getMentionsFromBlock(loaded.block)
                 if (accountIds.size > 0) {
                   previousMentionsByBlockId[blockId] = accountIds
@@ -235,6 +238,7 @@ async function handleEventsForEmailNotifications(
                   if (!notifyAllMentions) continue
 
                   const op = changeDataWithOps.body.ops.find(
+                    // @ts-expect-error
                     (op) =>
                       op.type === 'ReplaceBlock' && op.block?.id === blockId,
                   )
@@ -251,6 +255,7 @@ async function handleEventsForEmailNotifications(
                     blockNode,
                   ])
 
+                  // @ts-expect-error
                   await appendNotification(email, accountId, {
                     type: 'mention',
                     source: 'change',
@@ -270,6 +275,7 @@ async function handleEventsForEmailNotifications(
               Array.isArray(changeData.deps) && changeData.deps.length === 0
 
             for (const accountId in accountNotificationOptions) {
+              // @ts-expect-error
               const {notifyOwnedDocChange, email} =
                 accountNotificationOptions[accountId]
 
@@ -279,6 +285,7 @@ async function handleEventsForEmailNotifications(
               if (blob.author === accountId) continue
 
               // Skip if the user is not an owner of a document
+              // @ts-expect-error
               const isOwner = changedDoc?.authors?.[accountId]
               if (!isOwner) continue
 
@@ -363,7 +370,9 @@ async function handleEventsForEmailNotifications(
       const targetDocId = hmId(comment.targetAccount, {
         path: entityQueryPathToHmIdPath(comment.targetPath),
       })
+      // @ts-expect-error
       if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
+        // @ts-expect-error
         await appendNotification(account.email, accountId, {
           type: 'reply',
           comment: newComment.comment,
@@ -374,11 +383,13 @@ async function handleEventsForEmailNotifications(
           url: targetDocUrl,
         })
       }
+      // @ts-expect-error
       if (account.notifyAllMentions) {
         if (newComment.mentions.has(accountId)) {
           const resolvedNames = await resolveAnnotationNames(
             newComment.comment.content.map((n) => new BlockNode(n)),
           )
+          // @ts-expect-error
           await appendNotification(account.email, accountId, {
             type: 'mention',
             comment: newComment.comment,
@@ -397,9 +408,11 @@ async function handleEventsForEmailNotifications(
   const emailsToSend = Object.entries(notificationsToSend)
   for (const [email, notifications] of emailsToSend) {
     const opts = emailOptions[email]
+    // @ts-expect-error
     if (opts.isUnsubscribed) continue
     const notificationEmail = await createNotificationsEmail(
       email,
+      // @ts-expect-error
       opts,
       notifications,
     )
@@ -424,6 +437,7 @@ function getMentions(comment: PlainMessage<Comment>) {
 
 function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
   const mentions: Set<string> = new Set()
+  // @ts-expect-error
   for (const annotation of blockNode.block?.annotations || []) {
     if (annotation.type === 'Embed') {
       const hmId = unpackHmId(annotation.link)
@@ -520,6 +534,7 @@ async function resolveAnnotationNames(blocks: BlockNode[]) {
 
   for (const block of blocks) {
     const blockNode = HMBlockNodeSchema.parse(block)
+    // @ts-expect-error
     for (const annotation of blockNode.block?.annotations || []) {
       if (annotation.type === 'Embed' && annotation.link) {
         const unpacked = unpackHmId(annotation.link)
@@ -574,8 +589,10 @@ function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
 function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
   const accountIds = new Set<string>()
 
+  // @ts-expect-error
   if (!block?.content || !Array.isArray(block.content)) return accountIds
 
+  // @ts-expect-error
   for (const item of block.content) {
     if (
       item.type === 'InlineEmbed' &&

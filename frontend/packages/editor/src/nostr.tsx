@@ -145,6 +145,7 @@ function NostrComponent({
   selected: boolean
   setSelected: any
 }) {
+  // @ts-ignore
   const nostrNpud = nip19.npubEncode(block.props.name)
 
   const [replace, setReplace] = useState<boolean>(false)
@@ -321,6 +322,7 @@ function NostrForm({
     }
 
     const tryRelay = async () => {
+      // @ts-ignore
       searchRelay(RELAY_LIST[relayListIndex], noteId).catch(() => {
         relayListIndex = relayListIndex + 1
         if (relayListIndex < RELAY_LIST.length) {

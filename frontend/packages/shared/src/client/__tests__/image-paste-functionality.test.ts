@@ -79,6 +79,7 @@ describe('Image Paste Functionality', () => {
 
       // Should find direct image and not process HTML
       expect(foundDirectImage).toBe(true)
+      // @ts-expect-error
       expect(mockClipboardItems[1].getAsString).not.toHaveBeenCalled()
     })
   })

@@ -75,6 +75,7 @@ export function WindowsLinuxTitleBar({
         <WindowsLinuxWindowControls />
       </div>
 
+      {/* @ts-expect-error */}
       <TitlebarWrapper platform={platform}>
         <div className="window-drag flex justify-between pr-2">
           <div className="window-drag flex min-w-min basis-0 items-center">

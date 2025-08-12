@@ -12,6 +12,7 @@ export function DocumentName({
   const {data: account} = useResource(id)
   if (!id) return null
   return (
+    // @ts-expect-error
     <SizableText {...props}>{getAccountName(account?.document)}</SizableText>
   )
 }

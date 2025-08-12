@@ -18,21 +18,31 @@ export default function DeletedContent() {
       renderItem={({item}) => {
         return (
           <div className="flex w-full max-w-[600px] items-center gap-2 px-4 py-1.5">
-            <Tooltip content={`Reason: ${item.deletedReason}`}>
+            // @ts-expect-error
+            <Tooltip
+              content={`Reason: ${
+                // @ts-expect-error
+                item.deletedReason
+              }`}
+            >
               <SizableText weight="bold" color="destructive">
+                {/* @ts-expect-error */}
                 {item.metadata}
               </SizableText>
             </Tooltip>
             <div className="flex-1" />
             <Tooltip
               content={`You deleted this on ${formattedDateLong(
+                // @ts-expect-error
                 item.deleteTime,
               )}`}
             >
               <SizableText color="muted">
+                {/* @ts-expect-error */}
                 {formattedDateMedium(item.deleteTime)}
               </SizableText>
             </Tooltip>
+            {/* @ts-expect-error */}
             <UndeleteButton item={item} />
           </div>
         )

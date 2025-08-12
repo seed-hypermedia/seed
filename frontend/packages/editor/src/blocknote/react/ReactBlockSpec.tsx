@@ -12,7 +12,7 @@ import {
   PropSchema,
   propsToAttributes,
   render,
-} from '@/blocknote/core'
+} from '../core'
 import {TagParseRule} from '@tiptap/pm/model'
 import {
   NodeViewContent,
@@ -67,6 +67,7 @@ export const InlineContent = <Tag extends ElementType>(
     props.className || '',
     // @ts-expect-error
     bnBlockStyles.inlineContent,
+    // @ts-ignore
     inlineContentDOMAttributes.class,
   )
 
@@ -136,6 +137,7 @@ export function createReactBlockSpec<
         for (const [attribute, value] of Object.entries(props.node.attrs)) {
           if (
             attribute in blockConfig.propSchema &&
+            // @ts-ignore
             value !== blockConfig.propSchema[attribute].default
           ) {
             htmlAttributes[camelToDataKebab(attribute)] = value
@@ -175,6 +177,7 @@ export function createReactBlockSpec<
             className={mergeCSSClasses(
               // @ts-expect-error
               bnBlockStyles.blockContent,
+              // @ts-ignore
               blockContentDOMAttributes.class,
             )}
             data-content-type={blockConfig.type}

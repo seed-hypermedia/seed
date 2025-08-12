@@ -1,0 +1,43 @@
+{
+  "folders": [
+    {
+      "name": "Root",
+      "path": "."
+    },
+    {
+      "name": "Shared Package",
+      "path": "./frontend/packages/shared"
+    },
+    {
+      "name": "UI Package",
+      "path": "./frontend/packages/ui"
+    },
+    {
+      "name": "Editor Package",
+      "path": "./frontend/packages/editor"
+    },
+    {
+      "name": "Desktop App",
+      "path": "./frontend/apps/desktop"
+    },
+    {
+      "name": "Web App",
+      "path": "./frontend/apps/web"
+    },
+    {
+      "name": "Emails App",
+      "path": "./frontend/apps/emails"
+    }
+  ],
+  "settings": {
+    "typescript.preferences.includePackageJsonAutoImports": "on",
+    "typescript.suggest.autoImports": true,
+    "typescript.updateImportsOnFileMove.enabled": "always"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.vscode-typescript-next",
+      "esbenp.prettier-vscode"
+    ]
+  }
+}

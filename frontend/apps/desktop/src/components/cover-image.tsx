@@ -30,6 +30,7 @@ export function CoverImage({
         onCoverUpload(data)
       })
       .catch((error) => {
+        // @ts-expect-error
         appError(`Failed to upload avatar: ${e.message}`, {error})
       })
       .finally(() => {

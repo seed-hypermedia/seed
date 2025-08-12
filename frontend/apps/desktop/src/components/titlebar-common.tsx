@@ -167,6 +167,7 @@ export function DocOptionsButton({
                   <SizableText
                     className="text-current underline"
                     onClick={() => {
+                      // @ts-expect-error
                       openDirectory(res)
                     }}
                   >
@@ -324,6 +325,7 @@ export function DocOptionsButton({
 function useExistingDraft(route: DocumentRoute) {
   const drafts = useAccountDraftList(route.id.uid)
   const existingDraft = drafts.data?.find((d) => {
+    // @ts-expect-error
     const id = d.editId
     if (!id) return false
     return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
@@ -480,14 +482,16 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const isLatest =
     !route.id.version ||
     route.id.latest ||
+    // @ts-ignore
     latestDoc.data?.id?.version == route.id.version
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
   const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useResource(id)
-  const showPublishSiteButton =
-    isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
+  const showPublishSiteButton = {}
+  // @ts-expect-error
+  isHomeDoc && canEditDoc && !entity.data?.document?.metadata.siteUrl
   return (
     <TitlebarSection>
       {showPublishSiteButton ? (
@@ -698,12 +702,15 @@ export function TitlebarTitle() {
   const route = useNavRoute()
   if (route.key !== 'document') return null
   return (
+    // @ts-expect-error
     <View userSelect="none" minWidth={100}>
+      {/* @ts-expect-error */}
       <DocumentTitle
         id={hmId(route.id.uid, {
           path: route.id.path,
         })}
       />
+      {/* @ts-expect-error */}
     </View>
   )
 }

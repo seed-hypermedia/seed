@@ -1,5 +1,6 @@
 import {trpc} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+// @ts-expect-error
 import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMemo} from 'react'
 

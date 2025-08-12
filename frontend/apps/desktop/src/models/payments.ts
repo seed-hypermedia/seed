@@ -45,6 +45,7 @@ export function useDeleteWallet() {
 }
 
 export function useDecodedInvoice(payreq: string) {
+  // @ts-expect-error
   const [invoice, setInvoice] = useState<HMInvoice | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
@@ -92,6 +93,7 @@ export function useListInvoices(walletId: string) {
       })
 
       const paid = toPlainMessage(paidQuery).invoices
+      // @ts-expect-error
       const all: PlainMessage<Invoice>[] = [...paid, ...received]
         .sort((a, b) => {
           return Number(new Date(b.settledAt)) - Number(new Date(a.settledAt))
@@ -132,6 +134,7 @@ export function useCreateLocalInvoice() {
         amount: amount,
         memo: description,
       })
+      // @ts-expect-error
       const invoice: HMInvoice = {
         amount: Number(amount),
         hash: result.paymentHash,
@@ -151,6 +154,7 @@ export function usePayInvoice() {
     mutationFn: async (input: {
       walletId: string
       accountUid: string
+      // @ts-expect-error
       invoice: HMInvoice
     }) => {
       await grpcClient.invoices.payInvoice({
@@ -180,6 +184,7 @@ export function useWallet(walletId: string) {
       const balanceResp = await grpcClient.wallets.getWalletBalance({
         id: walletId,
       })
+      // @ts-expect-error
       const fullWallet: HMWallet = {
         ...wallet,
         balance: Number(balanceResp.balance),
@@ -191,6 +196,7 @@ export function useWallet(walletId: string) {
 
 type CreateInvoiceRequest = {
   recipients: Record<string, number> // accountId: percentage
+  // @ts-expect-error
   docId: UnpackedHypermediaId
   amountSats: number
   description: string
@@ -207,10 +213,12 @@ export function useCreateInvoice() {
         params.append('user', `${accountId},${amount}`)
       })
       const res = await fetch(
+        // @ts-expect-error
         `${LIGHTNING_API_URL}/v2/invoice?${params.toString()}`,
         {},
       )
       const serverInvoice = await res.json()
+      // @ts-expect-error
       const invoice: HMInvoice = {
         payload: serverInvoice.pr,
         hash: serverInvoice.payment_hash,

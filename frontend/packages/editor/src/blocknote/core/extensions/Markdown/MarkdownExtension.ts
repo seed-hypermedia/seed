@@ -1,9 +1,9 @@
-import {getPrevBlockInfo} from '@/blocknote/core/api/blockManipulation/commands/mergeBlocks'
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {getPrevBlockInfo} from '../../api/blockManipulation/commands/mergeBlocks'
+import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
-} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+} from '../Blocks/helpers/getBlockInfoFromPos'
 import {Editor, Extension} from '@tiptap/core'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
@@ -45,11 +45,13 @@ function replaceSelectedBlock(group: Node, editor: Editor) {
     // or add a child group to the previous block.
     if (prevBlockInfo) {
       const {block, childContainer} = prevBlockInfo
+      // @ts-ignore
       const newBlock = state.schema.nodes['blockContainer'].create(
         block.node.attrs,
         childContainer
           ? [
               block.node.firstChild!,
+              // @ts-ignore
               state.schema.nodes['blockGroup'].create(
                 childContainer.node.attrs,
                 [
@@ -80,6 +82,7 @@ function replaceSelectedBlock(group: Node, editor: Editor) {
         state.selection.$from.start() - 4,
       )
       const {block, childContainer} = parentBlockInfo
+      // @ts-ignore
       const newBlock = state.schema.nodes['blockContainer'].create(
         block.node.attrs,
         [block.node.firstChild!, group],
@@ -107,6 +110,7 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
     if (node.type.name === 'blockGroup') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
+        // @ts-ignore
         const container = editor.schema.nodes['blockContainer'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node),
@@ -116,8 +120,10 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
     } else if (node.type.name !== 'blockContainer') {
       let nodeToInsert = node
       if (node.type.name === 'text') {
+        // @ts-ignore
         nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
       }
+      // @ts-ignore
       const container = editor.schema.nodes['blockContainer'].create(
         null,
         nodeToInsert,
@@ -126,6 +132,7 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
     } else if (node.firstChild?.type.name === 'blockGroup') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
+        // @ts-ignore
         const container = editor.schema.nodes['blockContainer'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node.firstChild!),
@@ -200,6 +207,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                   )
 
                   if (nodes.length) {
+                    // @ts-ignore
                     const root = this.editor.schema.nodes['blockGroup'].create(
                       {},
                       nodes,
@@ -226,6 +234,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                   // @ts-ignore
                   organizedBlocks,
                 )
+                // @ts-expect-error
                 setGroupTypes(bnEditor._tiptapEditor, organizedBlocks)
               })
 

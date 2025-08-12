@@ -156,7 +156,7 @@ function FavoritesSection() {
           <SmallListItem
             key={id.id}
             docId={id.id}
-            title={metadata.name}
+            title={metadata?.name || 'Untitled'}
             icon={<HMIcon id={id} metadata={metadata} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
             onClick={() => {
@@ -191,6 +191,7 @@ function AccountsSection() {
     >
       {accounts.map((account) => {
         if (!account.data) return null
+        // @ts-expect-error
         const {id, document} = account.data
         const metadata = getContactMetadata(
           id.uid,

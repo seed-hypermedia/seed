@@ -173,6 +173,7 @@ export function useDeleteContact() {
       if (!selectedAccount) throw new Error('No selected account')
       await grpcClient.documents.deleteContact({
         id: contact.id,
+        // @ts-expect-error
         account: contact.account,
         signingKeyName: selectedAccount,
       })
@@ -202,12 +203,16 @@ export function useConnectionSummary() {
 }
 
 export function useAccountWithDevices(accountId: string) {
+  // @ts-expect-error
   const account = useAccount_deprecated(accountId)
   const peers = useConnectedPeers()
   return {
+    // @ts-expect-error
     ...account.data,
+    // @ts-expect-error
     profile: account.data?.profile,
 
+    // @ts-expect-error
     devices: Object.values(account?.data?.devices || {}).map(
       // TODO: FIX TYPES
       (device: any) => {
@@ -234,11 +239,13 @@ export function useConnectPeer(
       // the peer string may be: https://any-web/hm/connect#<encoded_paylod>
       const connectionStringMatch = peer.match(/connect#([\w\-\+]+)/)
       if (connectionStringMatch) {
+        // @ts-ignore
         encodedPayload = connectionStringMatch[1]
       }
       // the peer string may be hm://connect/<encoded_payload>
       const connectionString2Match = peer.match(/connect\/([\w\-\+]+)/)
       if (connectionString2Match && !encodedPayload) {
+        // @ts-ignore
         encodedPayload = connectionString2Match[1]
       }
       let addrs: string[] | null = null

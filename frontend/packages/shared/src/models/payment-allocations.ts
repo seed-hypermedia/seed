@@ -107,10 +107,6 @@ export function applyTotalAmount(amountString: string) {
       return {...allocation, amount}
     }
     if (allocation.mode === 'custom') {
-      const prevSubtotal = allocation.amounts.reduce(
-        (acc, {amount}) => acc + amount,
-        0,
-      )
       const newEstimatedSubtotal = amount * (1 - SHM_FEE) // this is an estimate due to questionable rounding. this may be a bug?!
       const amounts = allocation.amounts.map(({account, ratio}) => ({
         account,

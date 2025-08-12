@@ -150,6 +150,7 @@ export function SiteHeader({
             <>
               <MobileSearch
                 originHomeId={originHomeId}
+                // @ts-expect-error
                 onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
                   console.log('SEARCH RESULT', item) // TODO: navigate to the document with the correct URL based on the site
@@ -159,6 +160,7 @@ export function SiteHeader({
                 <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
                   {items?.map((item) => (
                     <DocumentSmallListItem
+                      // @ts-expect-error
                       onPress={() => {
                         setIsMobileMenuOpen(false)
                       }}
@@ -219,6 +221,7 @@ function NavItems({
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
+              // @ts-expect-error
               onPress={onPress}
               key={id.path?.join('/') || id.id}
               metadata={doc.metadata}
@@ -259,7 +262,6 @@ function MobileMenuOutline({
 export function SmallSiteHeader({
   originHomeMetadata,
   originHomeId,
-  siteHost,
 }: {
   originHomeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
@@ -310,6 +312,7 @@ function HeaderLinkItem({
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
+      {/* @ts-expect-error */}
       <a
         className={cn(
           'cursor-pointer truncate px-1 font-bold transition-colors select-none',
@@ -321,44 +324,6 @@ function HeaderLinkItem({
         {getMetadataName(metadata)}
       </a>
       {draftId ? <DraftBadge /> : null}
-    </div>
-  )
-}
-
-function DropdownLinkItem({
-  item,
-  docId,
-}: {
-  item: DocNavigationItem
-  docId: UnpackedHypermediaId | null
-}) {
-  const isActive =
-    !!item.id &&
-    !!docId &&
-    item.id.uid === docId.uid &&
-    !!docId?.path &&
-    !!item.id?.path &&
-    docId.path.join('/').startsWith(item.id.path.join('/'))
-
-  const linkProps = useRouteLink(
-    item.draftId
-      ? {key: 'draft', id: item.draftId}
-      : item.id
-      ? {key: 'document', id: item.id}
-      : item.webUrl || '',
-    {handler: 'onClick'},
-  )
-
-  return (
-    <div
-      className={cn(
-        'hover:bg-accent flex cursor-pointer items-center gap-2 p-2',
-        isActive && 'bg-accent',
-      )}
-      {...linkProps}
-    >
-      <span className="text-sm">{getMetadataName(item.metadata)}</span>
-      {item.draftId && <DraftBadge />}
     </div>
   )
 }
@@ -486,6 +451,7 @@ export function SiteHeaderMenu({
                   {handler: 'onClick'},
                 )
                 return (
+                  // @ts-expect-error
                   <DropdownMenuItem key={item.key} {...linkProps}>
                     {item.metadata.name}
                   </DropdownMenuItem>

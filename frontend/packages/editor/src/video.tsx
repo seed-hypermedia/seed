@@ -1,11 +1,11 @@
-import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
-import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
-import {MediaContainer} from '@/media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
-import {HMBlockSchema} from '@/schema'
-import {isValidUrl, youtubeParser} from '@/utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
+import {isValidUrl, youtubeParser} from './utils'
 import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {toast} from '@shm/ui/toast'
@@ -156,6 +156,7 @@ const display = ({
   // Min video width in px.
   const minWidth = 256
   let width: number =
+    // @ts-ignore
     parseFloat(block.props.width) ||
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
@@ -249,6 +250,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'left',
+      // @ts-ignore
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -264,6 +266,7 @@ const display = ({
 
     resizeParamsRef.current = {
       handleUsed: 'right',
+      // @ts-ignore
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
@@ -310,11 +313,13 @@ const display = ({
           >
             <source
               src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
+              // @ts-ignore
               type={getSourceType(block.props.name)}
             />
             <p>Error with the video file.</p>
           </video>
-        ) : isIpfsUrl(block.props.url) ? (
+        ) : // @ts-ignore
+        isIpfsUrl(block.props.url) ? (
           <video
             contentEditable={false}
             playsInline
@@ -324,6 +329,7 @@ const display = ({
           >
             <source
               src={getDaemonFileUrl(block.props.url)}
+              // @ts-ignore
               type={getSourceType(block.props.name)}
             />
             <p>Error with the video file.</p>

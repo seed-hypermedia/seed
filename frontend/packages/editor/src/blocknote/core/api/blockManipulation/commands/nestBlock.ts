@@ -106,6 +106,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // If there are children of the unnested block,
         // create a new group for them and attach to block content.
         if (children) {
+          // @ts-ignore
           const blockGroup = state.schema.nodes['blockGroup'].create(
             childGroup
               ? {
@@ -122,6 +123,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         }
         // Create and insert the manually built block instead of
         // using tiptap's liftListItem command.
+        // @ts-ignore
         const block = state.schema.nodes['blockContainer'].create(
           blockInfo.block.node.attrs,
           blockContent,

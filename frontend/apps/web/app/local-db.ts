@@ -74,6 +74,7 @@ function storeGet<T>(store: IDBObjectStore, key: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const doGet = store.get(key)
     doGet.onsuccess = (event) => {
+      // @ts-expect-error
       resolve(event.target?.result)
     }
     doGet.onerror = (error) => {
@@ -126,7 +127,9 @@ function storeGetAllKeys(store: IDBObjectStore): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const r = store.getAllKeys()
     r.onsuccess = (event) => {
+      // @ts-expect-error
       const keys = event.target.result
+      // @ts-expect-error
       resolve(keys.map((v) => v.toString()))
     }
     r.onerror = (error) => {
@@ -139,6 +142,7 @@ function storeIndexGetAll<T>(store: IDBObjectStore | IDBIndex): Promise<T[]> {
   return new Promise((resolve, reject) => {
     const r = store.getAll()
     r.onsuccess = (event) => {
+      // @ts-expect-error
       resolve(event.target.result)
     }
     r.onerror = (error) => {

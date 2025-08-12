@@ -3,11 +3,11 @@ import {
   TypesMatch,
   defaultBlockSchema,
   defaultProps,
-} from '@/blocknote'
+} from './blocknote'
 import {common, createLowlight} from 'lowlight'
 import {ButtonBlock} from './button'
 // import {EmbedBlock} from "./embed-block";
-import {HMHeadingBlockContent} from '@/heading-component-plugin'
+import {HMHeadingBlockContent} from './heading-component-plugin'
 import {FileBlock} from './file'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'

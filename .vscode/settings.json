@@ -55,6 +55,10 @@
   },
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.preferences.useAliasesForRenames": false,
+  // Force TypeScript to use project references and strict mode
+  "typescript.disableAutomaticTypeAcquisition": false,
   "[terraform]": {
     "editor.defaultFormatter": "hashicorp.terraform"
   },

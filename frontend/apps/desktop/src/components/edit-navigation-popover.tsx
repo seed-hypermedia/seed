@@ -94,6 +94,7 @@ function EditNavigation({
         const sourceIndex = docNav.findIndex(
           (item) => item.id === source.data.id,
         )
+        // @ts-ignore
         const overIndex = docNav.findIndex((item) => item.id === over.data.id)
 
         if (sourceIndex === -1 || overIndex === -1) {
@@ -102,6 +103,7 @@ function EditNavigation({
 
         const newItems = [...docNav]
         const [removed] = newItems.splice(sourceIndex, 1)
+        // @ts-ignore
         newItems.splice(overIndex, 0, removed)
         onDocNav(newItems)
       },
@@ -327,8 +329,10 @@ function HMDocURLInput({
   const entity = useResource(id)
   let label = link || 'URL or Search Documents'
   let fontClass = 'text-muted-foreground'
+  // @ts-expect-error
   if (link === entity.data?.id.id && entity.data?.document?.metadata.name) {
     fontClass = 'text-primary'
+    // @ts-expect-error
     label = entity.data.document.metadata.name
   } else if (link) {
     label = link

@@ -170,6 +170,7 @@ export const BlockGroup = Node.create<{
         {
           ...blockGroupDOMAttributes,
           class: mergeCSSClasses(
+            // @ts-ignore
             styles.blockGroup,
             blockGroupDOMAttributes.class,
           ),

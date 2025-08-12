@@ -1,5 +1,5 @@
-import {mergeCSSClasses} from '@/blocknote'
-import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {mergeCSSClasses} from '../blocknote'
+import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {
   NodeViewProps,
   NodeViewWrapper,
@@ -39,6 +39,7 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
             ),
           )}
           className={mergeCSSClasses(
+            // @ts-ignore
             styles.blockContent,
             blockContentDOMAttributes.class,
             language.length ? this.options.languageClassPrefix + language : '',

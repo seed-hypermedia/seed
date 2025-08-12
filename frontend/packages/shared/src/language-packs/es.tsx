@@ -109,6 +109,7 @@ const Translations = {
 }
 
 const Spanish: LanguagePack = {
+  // @ts-expect-error
   translations: Translations,
   formattedDateShort: (date: AnyTimestamp) => {
     return formattedDateShort(

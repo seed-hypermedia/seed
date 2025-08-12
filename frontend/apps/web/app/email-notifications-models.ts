@@ -3,6 +3,7 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {cborEncode, postCBOR, signObject} from './api'
 import {useLocalKeyPair} from './auth'
 import {preparePublicKey} from './auth-utils'
+// @ts-expect-error
 import type {EmailNotifierAction} from './routes/hm.api.email-notifier.$.tsx'
 
 export function useEmailNotifications() {

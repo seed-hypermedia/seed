@@ -1,4 +1,4 @@
-import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
+import {PlainMessage} from '@bufbuild/protobuf'
 import {Contact} from './client'
 import {
   HMBlock,
@@ -9,7 +9,7 @@ import {
   HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
-import {UnpackedHypermediaId, unpackHmId} from './utils'
+import {unpackHmId} from './utils'
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
@@ -84,25 +84,19 @@ export function sortNewsEntries(
   return [...items].sort(lastUpdateSort)
 }
 
-function lastUpdateSort(
-  a: {updateTime?: PlainMessage<Timestamp>},
-  b: {updateTime?: PlainMessage<Timestamp>},
-) {
+function lastUpdateSort(a: HMDocumentInfo, b: HMDocumentInfo) {
   return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
 }
 
-function lastUpdateOfEntry(entry: {updateTime?: PlainMessage<Timestamp>}) {
+function lastUpdateOfEntry(entry: HMDocumentInfo) {
   return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0
 }
 
-function createTimeSort(
-  a: {createTime?: PlainMessage<Timestamp>},
-  b: {createTime?: PlainMessage<Timestamp>},
-) {
+function createTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
   return createTimeOfEntry(b) - createTimeOfEntry(a)
 }
 
-function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
+function createTimeOfEntry(entry: HMDocumentInfo) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
 }
 
@@ -127,8 +121,8 @@ function titleOfEntry(entry: HMDocumentInfo) {
 function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
   const a = titleOfEntry(ea)
   const b = titleOfEntry(eb)
-  if (a < b) return 1
-  if (a > b) return -1
+  if (a && b && a < b) return 1
+  if (a && b && a > b) return -1
   return 0
 }
 
@@ -144,7 +138,7 @@ export function queryBlockSortedItems({
 
   if (sort.length !== 1) return res
 
-  const sortTerm = sort[0].term
+  const sortTerm = sort?.[0]?.term
 
   if (sortTerm == 'Title') {
     res = [...entries].sort(titleSort)
@@ -167,13 +161,13 @@ export function queryBlockSortedItems({
   //   return entries
   // }
 
-  return sort[0].reverse ? [...res].reverse() : res
+  return sort?.[0]?.reverse ? [...res].reverse() : res
 }
 
 export type RefDefinition = {
   blockId: string
   link: string
-  refId: UnpackedHypermediaId
+  refId: any
 }
 
 export function extractRefs(
@@ -192,7 +186,8 @@ export function extractRefs(
           refId,
         })
     }
-    block.block.annotations?.forEach((annotation) => {
+    // @ts-expect-error
+    ;(block.block as any).annotations?.forEach((annotation) => {
       if (annotation.type === 'Embed') {
         refs.push({
           blockId: block.block.id,
@@ -226,8 +221,8 @@ export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
 export function plainTextOfContent(content?: HMBlockNode[]): string {
   let textContent = ''
   content?.forEach((bn) => {
-    if (bn.block?.text) {
-      textContent += bn.block?.text + ' '
+    if ((bn.block as any)?.text) {
+      textContent += (bn.block as any)?.text + ' '
     }
   })
   return textContent
@@ -238,8 +233,8 @@ export function getDocumentImage(document: HMDocument): string | null {
   if (coverImage) return coverImage
   const firstImageBlock = findFirstBlock<HMBlockImage>(
     document.content,
-    // @ts-expect-error not sure what I'm supposed to be doing here...
-    (block) => block.type === 'Image' && !!block.link,
+    (block): block is HMBlockImage =>
+      block.type === 'Image' && !!(block as any).link,
   )
   if (firstImageBlock) return firstImageBlock.link || null
   return null
@@ -253,11 +248,14 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
   let index = 0
   while (!found && index < content.length) {
     const blockNode = content[index]
+    // @ts-ignore
     if (test(blockNode.block)) {
+      // @ts-ignore
       found = blockNode.block
       break
     }
     const foundChild =
+      // @ts-ignore
       blockNode.children && findFirstBlock(blockNode.children, test)
     if (foundChild) {
       found = foundChild

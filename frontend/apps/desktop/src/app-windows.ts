@@ -70,6 +70,7 @@ function focusExistingWindow(browserWindow: BrowserWindow): void {
   browserWindow.show()
 }
 
+// @ts-ignore
 export function closeAppWindow(windowId: string) {
   const window = allWindows.get(windowId)
   if (!window) return null
@@ -440,6 +441,7 @@ export function createAppWindow(
         accessoryWidth: accessoryWidth || 20,
         selectedIdentity: selectedIdentity || null,
       }))
+      // @ts-ignore
       updateRecentRoute(routes[routeIndex])
     },
   )
