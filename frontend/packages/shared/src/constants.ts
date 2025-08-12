@@ -19,6 +19,15 @@ const IME: Record<string, any> = (() => {
   }
 })()
 
+const WEB_ENV = (() => {
+  try {
+    // @ts-expect-error
+    return window.ENV || {}
+  } catch (e) {
+    return {}
+  }
+})()
+
 export const HYPERMEDIA_SCHEME = 'hm'
 
 export const DEFAULT_GATEWAY_URL: string =
@@ -56,31 +65,10 @@ console.log(`== ~ DAEMON_HTTP_URL:`, DAEMON_HTTP_URL)
 
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
-const appFileURL = DAEMON_HOSTNAME
-  ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
-  : undefined
-
-console.log(`== ~ appFileURL:`, appFileURL)
-const webFileURL = IME.SEED_BASE_URL ? `${IME.SEED_BASE_URL}/ipfs` : undefined
-
-console.log(`== ~ webFileURL:`, webFileURL)
-export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app and web, in dev and prod.
-  IME.DAEMON_FILE_URL ?? // first we check for an explicit configuration which is used in web dev script
-  webFileURL ?? // then we handle web production which has SEED_BASE_URL set
-  appFileURL ?? // appFileURL for desktop
-  '/ipfs'
+export const DAEMON_FILE_URL = `${DAEMON_HTTP_URL}/ipfs`
 
 console.log(`== ~ DAEMON_FILE_URL:`, DAEMON_FILE_URL)
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
-
-const WEB_ENV = (() => {
-  try {
-    // @ts-expect-error
-    return window.ENV || {}
-  } catch (e) {
-    return {}
-  }
-})()
 
 export const SITE_BASE_URL = WEB_ENV.SITE_BASE_URL || IME.SEED_BASE_URL
 
