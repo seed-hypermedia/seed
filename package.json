@@ -18,6 +18,8 @@
     "web:perf": "yarn workspace @shm/perf-web start --url http://localhost:3000 --app web",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
     "types:suppress": "node scripts/suppress-ts-errors.mjs",
+    "types:count": "node scripts/count-ts-directives.mjs",
+    "types:dashboard": "mkdir -p reports/ts-directives && echo '[]' > reports/ts-directives/existing-data.json && node scripts/count-ts-directives.mjs --output=json --output-file=reports/ts-directives/current.json && node scripts/generate-ts-dashboard.mjs",
     "desktop:make": "yarn workspace @shm/desktop make",
     "desktop:package": "yarn workspace @shm/desktop package",
     "desktop:test:package": "yarn workspace @shm/desktop package:test",

@@ -1,0 +1,140 @@
+name: Track TypeScript Directives (AWS S3)
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch: # Allow manual triggering
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/count-ts-directives.mjs"
+      - "scripts/generate-ts-dashboard.mjs"
+      - ".github/workflows/track-ts-directives-s3.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  track-directives:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Create reports directory
+        run: mkdir -p reports/ts-directives
+
+      - name: Run TypeScript directive count
+        run: |
+          echo "🔍 Running TypeScript directive analysis..."
+          # Generate JSON output using direct file writing (avoids shell redirection buffer limits)
+          node scripts/count-ts-directives.mjs --output=json --output-file=reports/ts-directives/current.json
+
+          # Verify JSON is valid
+          if ! jq empty reports/ts-directives/current.json 2>/dev/null; then
+            echo "❌ Generated JSON is invalid, retrying..."
+            node scripts/count-ts-directives.mjs --output=json --output-file=reports/ts-directives/current.json
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.S3_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
+          aws-region: eu-west-2
+
+      - name: Download existing historical data from S3
+        run: |
+          echo "📥 Downloading existing historical data from S3..."
+          echo "🪣 Bucket: seedappdev"
+          echo "📁 Path: 'metrics/ts-metrics'"
+
+          S3_PATH="metrics/ts-metrics"
+
+          # Try to download existing data, create empty if it doesn't exist
+          aws s3 cp "s3://seedappdev/${S3_PATH}/historical-data.json" reports/ts-directives/existing-data.json || echo '[]' > reports/ts-directives/existing-data.json
+
+          echo "📊 Downloaded existing data (or created empty dataset)"
+
+      - name: Generate historical data and dashboard
+        run: |
+          echo "📊 Generating dashboard..."
+          node scripts/generate-ts-dashboard.mjs
+
+      - name: Deploy to S3
+        run: |
+          echo "🚀 Deploying dashboard to S3..."
+
+          S3_PATH="metrics/ts-metrics"
+          BUCKET="seedappdev"
+
+          echo "📤 Syncing files to s3://${BUCKET}/${S3_PATH}/"
+
+          # Sync dashboard files to S3
+          aws s3 sync reports/ts-directives/dashboard/ "s3://${BUCKET}/${S3_PATH}/" --delete
+
+          # Set proper content types and cache headers
+          echo "🏷️  Setting content types and cache headers..."
+          aws s3 cp "s3://${BUCKET}/${S3_PATH}/index.html" "s3://${BUCKET}/${S3_PATH}/index.html" \
+            --content-type "text/html" \
+            --cache-control "max-age=300" \
+            --metadata-directive REPLACE
+
+          aws s3 cp "s3://${BUCKET}/${S3_PATH}/historical-data.json" "s3://${BUCKET}/${S3_PATH}/historical-data.json" \
+            --content-type "application/json" \
+            --cache-control "max-age=300" \
+            --metadata-directive REPLACE
+
+          aws s3 cp "s3://${BUCKET}/${S3_PATH}/current-data.json" "s3://${BUCKET}/${S3_PATH}/current-data.json" \
+            --content-type "application/json" \
+            --cache-control "max-age=300" \
+            --metadata-directive REPLACE
+
+      #   - name: Invalidate CloudFront (if using CDN)
+      #     if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+      #     run: |
+      #       echo "🔄 Invalidating CloudFront cache..."
+      #       S3_PATH="metrics/ts-metrics"
+      #       aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/${S3_PATH}/*"
+      - name: Output dashboard URL
+        run: |
+          echo "📈 TypeScript Directives Dashboard updated!"
+
+          S3_PATH="metrics/ts-metrics"
+          BUCKET="seedappdev"
+          REGION="eu-west-2"
+
+          # Determine the correct URL format based on region
+          if [ "$REGION" = "us-east-1" ]; then
+            S3_URL="https://${BUCKET}.s3-website.amazonaws.com/${S3_PATH}/"
+          else
+            S3_URL="https://${BUCKET}.s3-website-${REGION}.amazonaws.com/${S3_PATH}/"
+          fi
+
+          echo "🌐 Dashboard URL: $S3_URL"
+
+          # Extract current metrics for summary
+          TOTAL=$(jq -r '.totalDirectives' reports/ts-directives/current.json)
+          FILES=$(jq -r '.filesWithDirectives' reports/ts-directives/current.json)
+
+          echo "📊 Current status: $TOTAL directives across $FILES files"
+
+        #   # If CloudFront is configured, show that URL too
+        #   if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+        #     CLOUDFRONT_URL="${{ secrets.CLOUDFRONT_URL || 'https://your-distribution.cloudfront.net' }}"
+        #     echo "⚡ CloudFront URL: ${CLOUDFRONT_URL}/${S3_PATH}/"
+        #   fi
