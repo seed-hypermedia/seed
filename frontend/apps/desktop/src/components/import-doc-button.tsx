@@ -341,7 +341,7 @@ function WordpressImportInProgress({
   }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
 
   const ready = status?.mode === 'ready' ? status : undefined
-  const total = ready?.total ?? ready?.total ?? ready?.result?.total ?? 0
+  const total = ready?.total ?? ready?.total ?? 0
 
   if (ready && !confirmWp.isLoading) {
     return (

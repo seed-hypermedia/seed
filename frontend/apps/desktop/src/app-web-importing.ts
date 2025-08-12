@@ -497,6 +497,32 @@ export async function importWpPost({
     })
   }
 
+  let coverUrl: string | undefined =
+    post._embedded?.['wp:featuredmedia']?.[0]?.source_url
+
+  if (!coverUrl && post.featured_media) {
+    try {
+      const mediaRes = await fetch(
+        `${linkUrl.origin}/wp-json/wp/v2/media/${post.featured_media}`,
+      )
+      if (mediaRes.ok) {
+        const media = await mediaRes.json()
+        coverUrl = media?.source_url
+      }
+    } catch {}
+  }
+
+  if (coverUrl?.startsWith('http')) {
+    try {
+      const file = await downloadFile(coverUrl)
+      const cid = await uploadFile(file)
+      // const ipfsUrl = cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`
+      addChange({case: 'setMetadata', value: {key: 'cover', value: cid}})
+    } catch (e) {
+      console.warn('Cover upload failed:', (e as any)?.message || e)
+    }
+  }
+
   changes.push(...changesForBlockNodes(blocks, ''))
 
   await grpcClient.documents.createDocumentChange({
