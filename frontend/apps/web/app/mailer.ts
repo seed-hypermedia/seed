@@ -13,7 +13,6 @@ dotenv.config()
 
 const transporter = ENABLE_EMAIL_NOTIFICATIONS
   ? nodemailer.createTransport({
-      // @ts-expect-error not sure whats wrong here.. something wrong with the types
       host: NOTIFY_SMTP_HOST,
       port: NOTIFY_SMTP_PORT,
       secure: true,
