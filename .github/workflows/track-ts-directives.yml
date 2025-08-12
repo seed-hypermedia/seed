@@ -60,13 +60,13 @@ jobs:
       - name: Download existing historical data from S3
         run: |
           echo "📥 Downloading existing historical data from S3..."
-          echo "🪣 Bucket: seedappdev"
-          echo "📁 Path: 'metrics/ts-metrics'"
+          echo "🪣 Bucket: seeddevmetrics"
+          echo "📁 Path: 'ts-metrics'"
 
-          S3_PATH="metrics/ts-metrics"
+          S3_PATH="ts-metrics"
 
           # Try to download existing data, create empty if it doesn't exist
-          aws s3 cp "s3://seedappdev/${S3_PATH}/historical-data.json" reports/ts-directives/existing-data.json || echo '[]' > reports/ts-directives/existing-data.json
+          aws s3 cp "s3://seeddevmetrics/${S3_PATH}/historical-data.json" reports/ts-directives/existing-data.json || echo '[]' > reports/ts-directives/existing-data.json
 
           echo "📊 Downloaded existing data (or created empty dataset)"
 
@@ -79,8 +79,8 @@ jobs:
         run: |
           echo "🚀 Deploying dashboard to S3..."
 
-          S3_PATH="metrics/ts-metrics"
-          BUCKET="seedappdev"
+          S3_PATH="ts-metrics"
+          BUCKET="seeddevmetrics"
 
           echo "📤 Syncing files to s3://${BUCKET}/${S3_PATH}/"
 
@@ -108,14 +108,14 @@ jobs:
       #     if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
       #     run: |
       #       echo "🔄 Invalidating CloudFront cache..."
-      #       S3_PATH="metrics/ts-metrics"
+      #       S3_PATH="ts-metrics"
       #       aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/${S3_PATH}/*"
       - name: Output dashboard URL
         run: |
           echo "📈 TypeScript Directives Dashboard updated!"
 
-          S3_PATH="metrics/ts-metrics"
-          BUCKET="seedappdev"
+          S3_PATH="ts-metrics"
+          BUCKET="seeddevmetrics"
           REGION="eu-west-2"
 
           # Determine the correct URL format based on region
