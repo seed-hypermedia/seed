@@ -1,6 +1,5 @@
 import {
   getRoleName,
-  HMCapability,
   useAddCapabilities,
   useAllDocumentCapabilities,
   useSelectedAccountCapability,
@@ -13,7 +12,11 @@ import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {Role} from '@shm/shared/client/grpc-types'
 import {getContactMetadata} from '@shm/shared/content'
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  HMCapability,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -51,15 +54,15 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col">
       <Button
-        className="h-auto w-full"
+        className="w-full h-auto"
         variant="ghost"
         onClick={() => {
           navigate({key: 'contact', id: hmId(id.uid)})
         }}
       >
         <HMIcon metadata={metadata} id={id} size={24} />
-        <div className="flex flex-1 items-center gap-2 overflow-hidden">
-          <SizableText size="sm" className="flex-1 truncate text-left">
+        <div className="flex overflow-hidden flex-1 gap-2 items-center">
+          <SizableText size="sm" className="flex-1 text-left truncate">
             {metadata?.name}
           </SizableText>
           <SizableText size="xs" color="muted">
@@ -133,7 +136,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   if (!myCapability) return null
   return (
     <div className="flex flex-col gap-2">
-      <div className="border-border flex overflow-hidden rounded-md border-1">
+      <div className="flex overflow-hidden rounded-md border-border border-1">
         <div className="flex flex-1">
           <TagInput
             label="Members"
@@ -319,8 +322,8 @@ function CollaboratorItem({
       className="w-full"
     >
       <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate text-left">
+      <div className="flex overflow-hidden flex-1 gap-2 items-center">
+        <SizableText size="sm" className="flex-1 text-left truncate">
           {
             getContactMetadata(
               capability.accountUid,
@@ -433,11 +436,11 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
         aria-label={label}
         className="tag-grid"
         onClick={() => comboboxRef.current?.focus()}
-        render={<div className="flex flex-1 rounded-md p-1" />}
+        render={<div className="flex flex-1 p-1 rounded-md" />}
       >
         <Ariakit.CompositeRow
           role="row"
-          render={<div className="flex w-full flex-wrap gap-1" />}
+          render={<div className="flex flex-wrap gap-1 w-full" />}
         >
           {/* @ts-expect-error */}
           {selectedValues.map((value: SearchResult) => {
@@ -450,7 +453,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 onKeyDown={onItemKeyDown}
                 onFocus={combobox.hide}
                 render={
-                  <div className="bg-background border-border flex min-h-6 items-center gap-1 rounded-md border p-1 px-2 hover:bg-black/10 dark:hover:bg-white/10" />
+                  <div className="flex gap-1 items-center p-1 px-2 rounded-md border bg-background border-border min-h-6 hover:bg-black/10 dark:hover:bg-white/10" />
                 }
               >
                 {'unresolved' in value && value.unresolved ? (
@@ -466,7 +469,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               </Ariakit.CompositeItem>
             )
           })}
-          <div role="cell" className="flex flex-1 flex-col">
+          <div role="cell" className="flex flex-col flex-1">
             <Ariakit.CompositeItem
               id={comboboxId}
               render={
@@ -496,7 +499,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 // @ts-expect-error
                 store={select}
                 render={
-                  <div className="z-100 rounded-sm bg-white dark:bg-black" />
+                  <div className="bg-white rounded-sm z-100 dark:bg-black" />
                 }
               />
             }
@@ -551,7 +554,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
           />
         }
       >
-        <div className="flex flex-1 justify-start gap-2">
+        <div className="flex flex-1 gap-2 justify-start">
           {/* <Ariakit.SelectItemCheck /> */}
           {metadata && props.member?.id ? (
             <HMIcon size={16} metadata={metadata} id={props.member?.id} />

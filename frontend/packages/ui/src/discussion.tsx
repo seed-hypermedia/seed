@@ -22,7 +22,11 @@ import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
-import {BlocksContent, getBlockNodeById} from './document-content'
+import {
+  BlocksContent,
+  DocContentProvider,
+  getBlockNodeById,
+} from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -54,10 +58,10 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <div className="relative flex flex-col gap-2">
+    <div className="flex relative flex-col gap-2">
       {commentGroup.comments.length > 1 && (
         <div
-          className="bg-border absolute w-px"
+          className="absolute w-px bg-border"
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,
@@ -104,19 +108,50 @@ export function Comment({
   highlight = false,
   onDelete,
   targetDomain,
+  heading,
 }: {
   comment: HMComment
   replyCount?: number
   isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
-  renderCommentContent: (comment: HMComment) => ReactNode
+  renderCommentContent?: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
   onDelete?: () => void
   targetDomain?: string
+  heading?: ReactNode
 }) {
+  let renderContent = renderCommentContent
+  if (!renderContent) {
+    renderContent = (comment) => (
+      <DocContentProvider
+        entityId={hmId(comment.id)}
+        entityComponents={{
+          Document: () => null,
+          Inline: () => null,
+          Query: () => null,
+          Comment: () => null,
+        }}
+        onBlockCopy={() => {}}
+        onBlockReply={() => {}}
+        onBlockCommentClick={() => {}}
+        onBlockCitationClick={() => {}}
+        layoutUnit={14}
+        textUnit={14}
+        debug={false}
+        collapsedBlocks={new Set()}
+        setCollapsedBlocks={() => {}}
+      >
+        <BlocksContent
+          hideCollapseButtons
+          blocks={comment.content}
+          parentBlockId={null}
+        />
+      </DocContentProvider>
+    )
+  }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const discussionsContext = useDiscussionsContext()
   const authorHmId =
@@ -149,17 +184,17 @@ export function Comment({
   return (
     <div
       className={cn(
-        'group relative flex gap-1 rounded-lg p-2',
+        'flex relative gap-1 p-2 rounded-lg group',
         highlight ? 'bg-secondary dark:bg-brand-10' : '', // TODO: review color for dark theme
       )}
     >
       {isLast ? (
         <div
           className={cn(
-            'absolute z-1 w-3',
+            'absolute w-3 z-1',
             highlight
               ? 'bg-secondary dark:bg-brand-10' // TODO: review color for dark theme
-              : 'dark:bg-background bg-white',
+              : 'bg-white dark:bg-background',
           )}
           style={{
             height: `calc(100% - ${avatarSize + 12}px)`,
@@ -168,44 +203,49 @@ export function Comment({
           }}
         />
       ) : null}
-      <div className="relative mt-0.5 min-w-5">
-        {/* @ts-expect-error */}
-        <div
-          className={cn(
-            'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
-            highlight
-              ? 'outline-secondary hover:outline-secondary'
-              : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
-          )}
-          {...authorLink}
-        />
-        {authorHmId && (
-          <div className="size-5">
-            <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
-          </div>
-        )}
-      </div>
-      <div className="flex w-full flex-1 flex-col gap-1">
-        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
-          <div className="flex items-baseline gap-1 overflow-hidden">
-            <button
-              className={cn(
-                'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
-                authorLink ? 'cursor-pointer' : '',
-              )}
-              {...authorLink}
-            >
-              {authorMetadata?.name || '...'}
-            </button>
 
-            <CommentDate comment={comment} />
-          </div>
-          <div className="flex items-center gap-2">
+      {heading ? null : (
+        <div className="relative mt-0.5 min-w-5">
+          <div
+            className={cn(
+              'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
+              highlight
+                ? 'outline-secondary hover:outline-secondary'
+                : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
+            )}
+            {...authorLink}
+          />
+          {authorHmId && (
+            <div className="size-5">
+              <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex flex-col flex-1 gap-1 w-full">
+        {heading ? <div className="inline">{heading}</div> : null}
+        <div className="flex overflow-hidden gap-2 justify-between items-center pr-2 group">
+          {heading ? null : (
+            <div className="flex overflow-hidden gap-1 items-baseline">
+              <button
+                className={cn(
+                  'px-1 h-5 text-sm font-bold truncate rounded transition-colors hover:bg-accent',
+                  authorLink ? 'cursor-pointer' : '',
+                )}
+                {...authorLink}
+              >
+                {authorMetadata?.name || '...'}
+              </button>
+
+              <CommentDate comment={comment} />
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
                 size="iconSm"
                 variant="ghost"
-                className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                className="opacity-0 transition-opacity duration-200 ease-in-out text-muted-foreground group-hover:opacity-100"
                 onClick={() => {
                   const url = getUrl(hmId(comment.id))
                   copyTextToClipboard(url)
@@ -223,9 +263,9 @@ export function Comment({
             ) : null}
           </div>
         </div>
-        <div className="-ml-2">{renderCommentContent(comment)}</div>
+        <div className="-ml-2">{renderContent(comment)}</div>
         {!highlight && (
-          <div className="mb-2 -ml-1 flex items-center gap-2 py-1">
+          <div className="flex gap-2 items-center py-1 mb-2 -ml-1">
             {replyCount ? (
               <Button
                 variant="ghost"
@@ -285,7 +325,7 @@ function CommentDate({comment}: {comment: HMComment}) {
   return (
     // @ts-expect-error
     <a
-      className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"
+      className="text-xs underline truncate rounded text-muted-foreground hover:text-muted-foreground"
       {...link}
     >
       {formattedDateMedium(comment.createTime)}
@@ -307,8 +347,8 @@ export function QuotedDocBlock({
   }, [doc.content, blockId])
 
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
+    <div className="rounded-lg bg-brand-50 dark:bg-brand-950">
+      <div className="flex relative gap-1 p-2 rounded-lg transition-all duration-200 ease-in-out">
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>

@@ -176,7 +176,7 @@ export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
 }
 
 export function hmId(
-  uid: string,
+  idPath: string | null | undefined,
   opts: {
     version?: string | null
     blockRef?: string | null
@@ -186,12 +186,13 @@ export function hmId(
     hostname?: string | null
   } = {},
 ): UnpackedHypermediaId {
-  if (!uid) throw new Error('uid is required')
+  const [uid, ...path] = (idPath || '').split('/')
+  const effectivePath = opts.path || path || null
   return {
     ...opts,
     uid,
-    id: packBaseId(uid, opts.path),
-    path: opts.path || null,
+    id: packBaseId(uid, effectivePath),
+    path: effectivePath,
     version: opts.version || null,
     blockRef: opts.blockRef || null,
     blockRange: opts.blockRange || null,
