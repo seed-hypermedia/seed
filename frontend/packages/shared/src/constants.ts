@@ -5,9 +5,15 @@
 // Safely access import.meta.env even under tsconfigs that don't allow import.meta
 const IME: Record<string, any> = (() => {
   try {
-    // eslint-disable-next-line no-eval
-    const env = (0, eval)('import.meta.env')
-    return env ?? {}
+    // Check if we're in a Vite environment by looking for import.meta
+    if (typeof globalThis !== 'undefined' && 'importMeta' in globalThis) {
+      return (globalThis as any).importMeta?.env ?? {}
+    }
+    // Try direct access in modern environments
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env
+    }
+    return {}
   } catch {
     return {}
   }
@@ -60,19 +66,27 @@ export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||
   `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
 
+console.log(`== ~ DAEMON_HTTP_URL:`, DAEMON_HTTP_URL)
+
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
 const appFileURL = DAEMON_HOSTNAME
   ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
   : undefined
+
+console.log(`== ~ appFileURL:`, appFileURL)
 const webFileURL = process.env.SEED_BASE_URL
   ? `${process.env.SEED_BASE_URL}/ipfs`
   : undefined
+
+console.log(`== ~ webFileURL:`, webFileURL)
 export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app and web, in dev and prod.
   process.env.DAEMON_FILE_URL ?? // first we check for an explicit configuration which is used in web dev script
   webFileURL ?? // then we handle web production which has SEED_BASE_URL set
   appFileURL ?? // appFileURL for desktop
   '/ipfs'
+
+console.log(`== ~ DAEMON_FILE_URL:`, DAEMON_FILE_URL)
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
 const WEB_ENV = (() => {
