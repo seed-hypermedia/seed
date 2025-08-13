@@ -4,10 +4,13 @@
 
 const IME: Record<string, any> = (() => {
   try {
-    const global = globalThis as any
-    const importMeta = global['import'] && global['import']['meta']
-    if (importMeta && importMeta.env) {
-      return importMeta.env
+    // Check if we're in a Vite environment by looking for import.meta
+    if (typeof globalThis !== 'undefined' && 'importMeta' in globalThis) {
+      return (globalThis as any).importMeta?.env ?? {}
+    }
+    // Try direct access in modern environments
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env
     }
     return {}
   } catch {
@@ -67,6 +70,7 @@ export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
 
 export const DAEMON_HTTP_URL =
+  IME.DAEMON_HTTP_URL ||
   process.env.DAEMON_HTTP_URL ||
   `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
 
@@ -131,7 +135,7 @@ console.log('📊 Constants Configuration:')
 console.log('  HYPERMEDIA_SCHEME:', HYPERMEDIA_SCHEME)
 console.log('  DEFAULT_GATEWAY_URL:', DEFAULT_GATEWAY_URL)
 console.log('  P2P_PORT:', P2P_PORT)
-console.log('  DAEMON_HTTP_PORT:', DAEMON_HTTP_PORT)
+console.log('  DAEMON_HTTP_PORT:', IME.VITE_DESKTOP_HTTP_PORT, DAEMON_HTTP_PORT)
 console.log('  DAEMON_GRPC_PORT:', DAEMON_GRPC_PORT)
 console.log('  METRIC_SERVER_HTTP_PORT:', METRIC_SERVER_HTTP_PORT)
 console.log('  DAEMON_HOSTNAME:', DAEMON_HOSTNAME)
