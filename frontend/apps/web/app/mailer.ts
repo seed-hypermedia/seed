@@ -11,17 +11,21 @@ import nodemailer from 'nodemailer'
 
 dotenv.config()
 
-const transporter = ENABLE_EMAIL_NOTIFICATIONS
-  ? nodemailer.createTransport({
-      host: NOTIFY_SMTP_HOST,
-      port: NOTIFY_SMTP_PORT,
-      secure: true,
-      auth: {
-        user: NOTIFY_SMTP_USER,
-        pass: NOTIFY_SMTP_PASSWORD,
-      },
-    })
-  : null
+const transporter =
+  ENABLE_EMAIL_NOTIFICATIONS &&
+  NOTIFY_SMTP_HOST &&
+  NOTIFY_SMTP_USER &&
+  NOTIFY_SMTP_PASSWORD
+    ? nodemailer.createTransport({
+        host: NOTIFY_SMTP_HOST as string,
+        port: NOTIFY_SMTP_PORT ? parseInt(NOTIFY_SMTP_PORT, 10) : 587,
+        secure: true,
+        auth: {
+          user: NOTIFY_SMTP_USER as string,
+          pass: NOTIFY_SMTP_PASSWORD as string,
+        },
+      } as nodemailer.TransportOptions)
+    : null
 
 export async function sendEmail(
   to: string,
