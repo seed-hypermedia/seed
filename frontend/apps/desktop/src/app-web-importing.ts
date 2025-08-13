@@ -83,8 +83,9 @@ export function extractMetaTags(html: string) {
 }
 
 type WpImportStatus =
-  | {mode: 'fetching'}
+  | {mode: 'fetching'; page: number; totalPages: number; fetched: number}
   | {mode: 'ready'; total: number}
+  | {mode: 'importing'; processed: number; total: number; currentId?: number}
   | {mode: 'error'; error: string}
 
 const wpImportStatus: Record<string, WpImportStatus> = {}
@@ -126,14 +127,22 @@ async function startImport(url: string, importId: string) {
 }
 
 async function importWpSite(url: string, importId: string) {
-  return await fetchAndSaveWpPosts(url, importId)
-  // (status) => {
-  //   importingStatus[importId] = {...status, mode: 'scraping'}
-  // }
+  return await fetchAndSaveWpPosts(
+    url,
+    importId,
+    (page, totalPages, fetched) => {
+      wpImportStatus[importId] = {mode: 'fetching', page, totalPages, fetched}
+    },
+  )
 }
 
 export function startWpImport(siteUrl: string, importId: string) {
-  wpImportStatus[importId] = {mode: 'fetching'}
+  wpImportStatus[importId] = {
+    mode: 'fetching',
+    page: 0,
+    totalPages: 0,
+    fetched: 0,
+  }
   importWpSite(siteUrl, importId)
     .then((result) => {
       wpImportStatus[importId] = {mode: 'ready', total: result.count}
@@ -335,9 +344,31 @@ export const webImportingApi = t.router({
       let posts: any[] = JSON.parse(buf)
       if (limit) posts = posts.slice(0, limit)
 
-      for (const post of posts) {
-        await importWpPost({post, destinationId, signAccountUid, importId})
+      wpImportStatus[importId] = {
+        mode: 'importing',
+        processed: 0,
+        total: posts.length,
       }
+
+      let processed = 0
+      for (const post of posts) {
+        wpImportStatus[importId] = {
+          mode: 'importing',
+          processed,
+          total: posts.length,
+          currentId: post.id,
+        }
+        await importWpPost({post, destinationId, signAccountUid, importId})
+        processed++
+        wpImportStatus[importId] = {
+          mode: 'importing',
+          processed,
+          total: posts.length,
+        }
+      }
+
+      wpImportStatus[importId] = {mode: 'ready', total: posts.length}
+
       return {imported: posts.length}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {

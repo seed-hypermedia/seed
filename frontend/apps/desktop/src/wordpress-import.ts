@@ -18,7 +18,11 @@ export type WpPost = {
   }
 }
 
-export async function fetchAndSaveWpPosts(siteUrl: string, importId: string) {
+export async function fetchAndSaveWpPosts(
+  siteUrl: string,
+  importId: string,
+  onProgress?: (page: number, totalPages: number, fetched: number) => void,
+) {
   const outputDir = path.join(userDataPath, 'importer', 'wordpress', importId)
   await fs.mkdir(outputDir, {recursive: true})
 
@@ -148,6 +152,10 @@ export async function fetchAndSaveWpPosts(siteUrl: string, importId: string) {
     all.push(...batch)
 
     const totalPages = parseInt(res.headers.get('X-WP-TotalPages') || '1', 10)
+
+    // report after each page
+    onProgress?.(page, totalPages, all.length)
+
     if (page >= totalPages) break
     // if (page >= 1) break
     page++
@@ -161,40 +169,40 @@ export async function fetchAndSaveWpPosts(siteUrl: string, importId: string) {
   return {count: all.length}
 }
 
-// helper: skip obvious tracking pixels (1×1, opacity:0, etc.)
-const isLikelyTracker = (tag: string, absUrl: string) => {
-  const w = tag.match(/\bwidth="(\d+)"/i)?.[1]
-  const h = tag.match(/\bheight="(\d+)"/i)?.[1]
-  const style = tag.match(/\bstyle="([^"]*)"/i)?.[1]?.toLowerCase() || ''
-  const u = absUrl.toLowerCase()
-  if ((w === '1' && h === '1') || w === '0' || h === '0') return true
-  if (
-    /opacity\s*:\s*0/.test(style) ||
-    /max-height\s*:\s*1px/.test(style) ||
-    /max-width\s*:\s*1px/.test(style) ||
-    /display\s*:\s*none/.test(style) ||
-    /visibility\s*:\s*hidden/.test(style)
-  )
-    return true
-  if (
-    u.includes('count.gif') ||
-    u.includes('/pixel') ||
-    u.includes('tracker') ||
-    u.includes('analytics') ||
-    u.includes('counter.')
-  )
-    return true
-  return false
-}
+// // helper: skip obvious tracking pixels (1×1, opacity:0, etc.)
+// const isLikelyTracker = (tag: string, absUrl: string) => {
+//   const w = tag.match(/\bwidth="(\d+)"/i)?.[1]
+//   const h = tag.match(/\bheight="(\d+)"/i)?.[1]
+//   const style = tag.match(/\bstyle="([^"]*)"/i)?.[1]?.toLowerCase() || ''
+//   const u = absUrl.toLowerCase()
+//   if ((w === '1' && h === '1') || w === '0' || h === '0') return true
+//   if (
+//     /opacity\s*:\s*0/.test(style) ||
+//     /max-height\s*:\s*1px/.test(style) ||
+//     /max-width\s*:\s*1px/.test(style) ||
+//     /display\s*:\s*none/.test(style) ||
+//     /visibility\s*:\s*hidden/.test(style)
+//   )
+//     return true
+//   if (
+//     u.includes('count.gif') ||
+//     u.includes('/pixel') ||
+//     u.includes('tracker') ||
+//     u.includes('analytics') ||
+//     u.includes('counter.')
+//   )
+//     return true
+//   return false
+// }
 
-// helper: pick file extension from URL (best-effort)
-const extFromUrl = (u: string) => {
-  try {
-    const p = new URL(u).pathname
-    const raw = p.split('.').pop() || ''
-    const clean = raw.split('?')[0].split('#')[0].toLowerCase()
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'].includes(clean))
-      return clean
-  } catch {}
-  return 'jpg'
-}
+// // helper: pick file extension from URL
+// const extFromUrl = (u: string) => {
+//   try {
+//     const p = new URL(u).pathname
+//     const raw = p.split('.').pop() || ''
+//     const clean = raw.split('?')[0].split('#')[0].toLowerCase()
+//     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'].includes(clean))
+//       return clean
+//   } catch {}
+//   return 'jpg'
+// }
