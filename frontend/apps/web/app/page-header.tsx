@@ -35,17 +35,7 @@ export function PageHeader({
   const isHomeDoc = !docId?.path?.length
   return (
     <div id="page-header">
-      <Container
-        // @ts-expect-error
-        $gtSm={{
-          marginTop: hasCover ? -40 : 0,
-          paddingTop: !hasCover ? 60 : '$4',
-        }}
-        $gtLg={{maxWidth: 1200}}
-        className="dark:bg-background bg-white"
-        borderTopLeftRadius="$2"
-        borderTopRightRadius="$2"
-      >
+      <Container className="dark:bg-background bg-white">
         <div className="flex flex-col gap-4">
           {!isHomeDoc && docId && hasIcon ? (
             <div className={`mt-[${hasCover ? -80 : 0}px]`}>
