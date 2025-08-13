@@ -547,8 +547,6 @@ export function BlockNodeContent({
 
   const isEmbed = blockNode.block?.type == 'Embed'
 
-  const [isHighlight, setHighlight] = useState(false)
-
   // Clone block and add the highlight annotation
   const modifiedBlock = useMemo(() => {
     if (
@@ -577,13 +575,15 @@ export function BlockNodeContent({
     return clonedBlock
   }, [blockNode.block, routeParams?.blockRef, routeParams?.blockRange])
 
+  const isHighlight = useMemo(() => {
+    return (
+      routeParams?.blockRef == blockNode.block?.id &&
+      !comment &&
+      !routeParams?.blockRange
+    )
+  }, [routeParams?.blockRef, routeParams?.blockRange, comment, blockNode.block])
+
   useEffect(() => {
-    let val = routeParams?.blockRef == blockNode.block?.id && !comment
-
-    if (!routeParams?.blockRange || isHighlight) setHighlight(val)
-
-    if (!val || !elm.current) return
-
     const container = document.querySelector('.base-doc-container')
     if (!container) return
 
