@@ -96,7 +96,7 @@ export function OnboardingDialog() {
       <DialogPortal>
         <DialogOverlay />
         <DialogContent
-          className="no-window-drag h-8/10 max-h-[800px] w-9/10 max-w-6xl p-0"
+          className="no-window-drag flex min-h-[500px] flex-col items-center justify-center overflow-y-scroll p-0"
           showCloseButton={false}
         >
           <Onboarding
@@ -337,7 +337,12 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   }
 
   return (
-    <div className="bg-background window-drag flex flex-1 flex-col">
+    <div
+      className={cn(
+        'bg-background window-drag flex flex-1 flex-col',
+        !modal && 'size-full',
+      )}
+    >
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep

@@ -380,8 +380,11 @@ function MainApp({}: {}) {
 
   let mainContent = showOnboarding ? (
     <>
-      <Onboarding onComplete={handleOnboardingComplete} />
+      <div className="fixed inset-0 size-full overflow-hidden overflow-y-scroll bg-red-500">
+        <Onboarding modal={false} onComplete={handleOnboardingComplete} />
+      </div>
       {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
+      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
     </>
   ) : (
     <>
