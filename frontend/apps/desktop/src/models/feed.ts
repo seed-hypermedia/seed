@@ -254,7 +254,10 @@ export function useDocFeed(docId: UnpackedHypermediaId) {
       }
     },
     {
-      getNextPageParam: (lastPage) => lastPage.nextPageToken,
+      getNextPageParam: (lastPage, allPages) => {
+        const next = lastPage.nextPageToken
+        return next || undefined
+      },
     },
   )
 }
