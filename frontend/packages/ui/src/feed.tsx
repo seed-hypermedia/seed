@@ -1,12 +1,49 @@
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
+import {NavRoute} from '@shm/shared/routes'
+import {useRouteLink} from '@shm/shared/routing'
 import {formattedDateShort} from '@shm/shared/utils'
 import {ContactToken} from './contact-token'
 import {ResourceToken} from './resource-token'
 import {SizableText} from './text'
 
-export function EventRow({children}: {children: React.ReactNode}) {
-  return <div className="">{children}</div>
+export function EventRow({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+}) {
+  return (
+    <div className="break-words" onClick={onClick}>
+      {children}
+    </div>
+  )
+}
+
+export function RouteEventRow({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  const linkProps = useRouteLink(route)
+  return (
+    <div className="break-words" {...linkProps}>
+      {children}
+    </div>
+  )
+}
+
+export function EventRowInline({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  return <RouteEventRow route={route}>{children}</RouteEventRow>
 }
 
 export function EventContact({contact}: {contact?: HMContactItem}) {

@@ -73,7 +73,9 @@ async function loadCapabilityEvent(
   event: Event,
 ): Promise<LoadedCapabilityEvent | null> {
   const {author, resource} = event.data.value || {}
-  const {observeTime} = event
+  const {observeTime, data: caapabilityBlob} = event
+  const newBlob = event.data.case === 'newBlob' ? event.data.value : null
+  const {blobType, cid} = newBlob || {}
 
   if (!author || !resource) {
     return null
@@ -83,6 +85,14 @@ async function loadCapabilityEvent(
   const resourceId = unpackHmId(resource)
 
   if (!resourceId) {
+    console.error('loadCapabilityEvent Error, unpacking resource id', resource)
+    return null
+  }
+
+  // first get the capability blob
+  const capabilityBlob = cid ? await loadBlob<unknown>(cid) : null
+  if (!capabilityBlob) {
+    console.error('loadCapabilityEvent Error, loading capability blob', cid)
     return null
   }
 
@@ -94,6 +104,8 @@ async function loadCapabilityEvent(
       id: authorId,
       metadata: await getMetadata(authorId),
     },
+    targetId: null,
+    targetMetadata: null,
     time: observeTime || {seconds: 0, nanos: 0},
     delegates: [], // TODO: Load actual delegates when capability loading is implemented
     capabilityId: resourceId,

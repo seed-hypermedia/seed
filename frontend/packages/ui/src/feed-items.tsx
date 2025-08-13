@@ -5,30 +5,36 @@ import {
   LoadedDocUpdateEvent,
   LoadedFeedEvent,
 } from '@shm/shared/feed-types'
+import {NavRoute} from '@shm/shared/routes'
 import {Comment} from './discussion'
 import {
   EventContact,
   EventContacts,
   EventDescriptionText,
   EventRow,
+  EventRowInline,
   EventTimestamp,
 } from './feed'
 import {ResourceToken} from './resource-token'
 
 export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
+  const route: NavRoute = {
+    key: 'document',
+    id: event.docId,
+  }
   return (
-    <EventRow>
+    <EventRowInline route={route}>
       <EventContact contact={event.author} />
       <EventDescriptionText>updated</EventDescriptionText>
       <ResourceToken id={event.docId} metadata={event.document.metadata} />
       <EventTimestamp time={event.time} />
-    </EventRow>
+    </EventRowInline>
   )
 }
 
 export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
   return (
-    <>
+    <EventRow>
       {event.comment && (
         <Comment
           comment={event.comment}
@@ -47,30 +53,43 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
           }
         />
       )}
-    </>
+    </EventRow>
   )
 }
 
 export function CapabilityBlobEvent({event}: {event: LoadedCapabilityEvent}) {
+  const route: NavRoute | null = event.targetId
+    ? {
+        key: 'document',
+        id: event.targetId,
+        accessory: {
+          key: 'collaborators',
+        },
+      }
+    : null
   return (
-    <EventRow>
+    <EventRowInline route={route}>
       <EventContact contact={event.author} />
       <EventDescriptionText>invited</EventDescriptionText>
       <EventContacts contacts={event.delegates} />
       <EventDescriptionText>as collaborators</EventDescriptionText>
       <EventTimestamp time={event.time} />
-    </EventRow>
+    </EventRowInline>
   )
 }
 
 export function ContactBlobEvent({event}: {event: LoadedContactEvent}) {
+  const route: NavRoute = {
+    key: 'document',
+    id: event.contact.id,
+  }
   return (
-    <EventRow>
+    <EventRowInline route={route}>
       <EventContact contact={event.author} />
       <EventDescriptionText>updated their contact for</EventDescriptionText>
       <EventContact contact={event.contact} />
       <EventTimestamp time={event.time} />
-    </EventRow>
+    </EventRowInline>
   )
 }
 

@@ -35,6 +35,8 @@ export type LoadedCapabilityEvent = {
   delegates: HMContactItem[]
   capabilityId: UnpackedHypermediaId
   capability: HMCapability
+  targetId: UnpackedHypermediaId | null
+  targetMetadata: HMMetadata | null
 }
 
 export type LoadedCommentEvent = {

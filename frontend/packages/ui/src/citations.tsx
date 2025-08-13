@@ -3,9 +3,10 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {NavRoute} from '@shm/shared/routes'
 import {useTx} from '@shm/shared/translation'
 import {ContactToken} from './contact-token'
-import {EventDescriptionText, EventRow, EventTimestamp} from './feed'
+import {EventDescriptionText, EventRowInline, EventTimestamp} from './feed'
 import {ResourceToken} from './resource-token'
 
 export function DocumentCitationEntry({
@@ -20,8 +21,12 @@ export function DocumentCitationEntry({
 }) {
   if (!citation.author || !citation.document) return null
   const tx = useTx()
+  const route: NavRoute = {
+    key: 'document',
+    id: citation.source.id,
+  }
   return (
-    <EventRow>
+    <EventRowInline route={route}>
       <ContactToken
         id={citation.author.id}
         metadata={citation.author.metadata}
@@ -34,6 +39,6 @@ export function DocumentCitationEntry({
         metadata={citation.document.metadata}
         ResourcePreview={ResourcePreview}
       />
-    </EventRow>
+    </EventRowInline>
   )
 }

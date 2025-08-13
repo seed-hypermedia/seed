@@ -1,7 +1,7 @@
-import {useRouteLink} from '@shm/shared'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
+import {useRouteLink} from '@shm/shared/routing'
 import {HMIcon} from './hm-icon'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {cn} from './utils'
 
 export function ResourceToken({
@@ -25,8 +25,9 @@ export function ResourceToken({
       <HMIcon size={20} id={id} metadata={metadata} />
     ) : null
 
-  const className =
-    'dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200! hover:dark:border-gray-600 hover:dark:text-white text-sm bg-gray-200 border border-gray-300 px-1 py-0 rounded mt-1.5 whitespace-wrap break-all inline-flex items-center gap-1'
+  const baseClassName =
+    'inline text-sm align-middle whitespace-normal break-words bg-gray-100 border hover:dark:text-white dark:bg-gray-800 hover:bg-gray-200'
+  const previewTriggerClassName = 'inline-block align-middle whitespace-nowrap'
   if (ResourcePreview) {
     return (
       <HoverCard>
@@ -34,13 +35,16 @@ export function ResourceToken({
           <a
             {...linkProps}
             className={cn(
-              className,
+              baseClassName,
+              previewTriggerClassName,
 
               // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
               'text-secondary-foreground',
             )}
           >
-            {icon}
+            {icon ? (
+              <span className="mr-1 inline-block align-middle">{icon}</span>
+            ) : null}
             {metadata?.name}
           </a>
         </HoverCardTrigger>
@@ -51,8 +55,10 @@ export function ResourceToken({
     )
   }
   return (
-    <a {...linkProps} className={className}>
-      {icon}
+    <a {...linkProps} className={baseClassName}>
+      {icon ? (
+        <span className="mr-1 inline-block align-middle">{icon}</span>
+      ) : null}
       {metadata?.name}
     </a>
   )
