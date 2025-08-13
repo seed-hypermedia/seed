@@ -403,11 +403,28 @@ function WordpressImportInProgress({
     )
   }
 
-  if (status?.mode === 'fetching' || confirmWp.isLoading) {
+  if (status && status.mode === 'fetching') {
+    const pct =
+      status.totalPages > 0
+        ? Math.min(100, Math.round((status.page / status.totalPages) * 100))
+        : 0
+
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Importing from {hostname}...</DialogTitle>
-        <SizableText>Preparing posts…</SizableText>
+        <DialogTitle>Importing from {hostname}…</DialogTitle>
+        <SizableText>
+          Page {status.page} / {status.totalPages || '…'}
+        </SizableText>
+        <SizableText color="muted" size="sm">
+          {status.fetched} posts discovered so far
+        </SizableText>
+        {/* Replace this with whatever progress component you use */}
+        <div className="bg-muted h-2 w-full rounded">
+          <div
+            className="bg-foreground h-2 rounded"
+            style={{width: `${pct}%`, transition: 'width .2s ease'}}
+          />
+        </div>
         <Spinner size="small" />
       </div>
     )
