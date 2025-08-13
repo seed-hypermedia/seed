@@ -72,17 +72,7 @@ export const DAEMON_HTTP_URL =
 
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
-const appFileURL = DAEMON_HOSTNAME
-  ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
-  : undefined
-const webFileURL = process.env.SEED_BASE_URL
-  ? `${process.env.SEED_BASE_URL}/ipfs`
-  : undefined
-export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app and web, in dev and prod.
-  process.env.DAEMON_FILE_URL ?? // first we check for an explicit configuration which is used in web dev script
-  webFileURL ?? // then we handle web production which has SEED_BASE_URL set
-  appFileURL ?? // appFileURL for desktop
-  '/ipfs'
+export const DAEMON_FILE_URL = `${DAEMON_HTTP_URL}/ipfs`
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
 export const SITE_BASE_URL = WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL
