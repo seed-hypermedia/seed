@@ -112,7 +112,7 @@ export function WebDocContentProvider({
                 toast.error('Failed to create block link')
                 return
               }
-              window.navigator.clipboard.writeText(href)
+              window.navigator.clipboard.writeText(`${siteHost}${href}`)
               navigate(href, {
                 replace: true,
               })
