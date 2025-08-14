@@ -491,6 +491,7 @@ export function BlockNodeContent({
     setCollapsedBlocks,
   } = useDocContentContext()
   const [hover, setHover] = useState(false)
+  const [isHighlight, setHighlight] = useState(false)
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,
@@ -575,15 +576,17 @@ export function BlockNodeContent({
     return clonedBlock
   }, [blockNode.block, routeParams?.blockRef, routeParams?.blockRange])
 
-  const isHighlight = useMemo(() => {
-    return (
+  useEffect(() => {
+    let val =
       routeParams?.blockRef == blockNode.block?.id &&
       !comment &&
       !routeParams?.blockRange
-    )
-  }, [routeParams?.blockRef, routeParams?.blockRange, comment, blockNode.block])
 
-  useEffect(() => {
+    if (!routeParams?.blockRange || isHighlight) {
+      setHighlight(val)
+    }
+
+    if (!val || !elm.current) return
     const container = document.querySelector('.base-doc-container')
     if (!container) return
 
