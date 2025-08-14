@@ -1,4 +1,6 @@
-import {createHmDocLink_DEPRECATED} from '@shm/shared'
+import {hmId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {packHmId} from '@shm/shared/utils'
 import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {Input} from '@shm/ui/components/input'
@@ -61,19 +63,15 @@ export const EditHyperlinkMenu = forwardRef<
                 // @ts-expect-error
                 defaultValue={!!unpackedRef.latest}
                 onCheckedChange={(newValue) => {
-                  let newUrl = createHmDocLink_DEPRECATED({
-                    // @ts-expect-error
-                    documentId: unpackedRef?.id,
-                    // @ts-expect-error
-                    version: unpackedRef?.version,
-                    // @ts-expect-error
-                    blockRef: unpackedRef?.blockRef,
-                    // @ts-expect-error
-                    variants: unpackedRef?.variants,
-                    latest: newValue != 'indeterminate' ? newValue : false,
-                  })
-
-                  console.log('== NEW URL', newValue)
+                  let unpacked = unpackedRef as UnpackedHypermediaId
+                  let newUrl = packHmId(
+                    hmId(unpacked.uid, {
+                      version: unpacked.version,
+                      blockRef: unpacked.blockRef,
+                      blockRange: unpacked.blockRange,
+                      latest: newValue != 'indeterminate' ? newValue : false,
+                    }),
+                  )
 
                   // @ts-expect-error
                   props.editHyperlink(newUrl, props.text, true)

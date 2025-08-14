@@ -277,7 +277,6 @@ export function idToUrl(
 export function normalizeHmId(
   urlMaybe: string,
   gwUrl: StateStream<string>,
-  // @ts-ignore
 ): string | undefined {
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
@@ -292,31 +291,9 @@ export function normalizeHmId(
       )
     }
     return undefined
+  } else {
+    return undefined
   }
-}
-
-// TODO: migrate to existing ID functions
-export function createHmDocLink_DEPRECATED({
-  documentId,
-  version,
-  blockRef,
-  blockRange,
-  latest,
-}: {
-  documentId: string
-  version?: string | null
-  blockRef?: string | null
-  blockRange?: ExactBlockRange | ExpandedBlockRange | null
-  latest?: boolean
-}): string {
-  let res = documentId
-  res += getHMQueryString({version, latest})
-  if (blockRef) {
-    res += `${
-      !blockRef.startsWith('#') ? '#' : ''
-    }${blockRef}${serializeBlockRange(blockRange)}`
-  }
-  return res
 }
 
 function serializeQueryString(query: Record<string, string | null>) {
@@ -379,10 +356,6 @@ export function extractBlockRangeOfUrl(
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
   const regex =
-    // @ts-ignore
-    // @ts-ignore
-    // @ts-ignore
-    // @ts-ignore
     /^(?<blockId>\S{8})((?<expanded>\+)|\[(?<rangeStart>\d+)\:(?<rangeEnd>\d+)\])?$/
   const match = input.match(regex)
   if (match && match.groups) {
