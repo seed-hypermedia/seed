@@ -144,6 +144,7 @@ export default function PublishDraftButton() {
         .then(async (res) => {
           const resultDocId = hmId(res.account, {
             path: entityQueryPathToHmIdPath(res.path),
+            latest: true,
           })
           if (resultDocId && draftId)
             await deleteDraft
