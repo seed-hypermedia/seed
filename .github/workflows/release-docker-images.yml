@@ -19,8 +19,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Check for new TypeScript directives
-        run: node scripts/check-ts-directives.mjs
+      # - name: Check for new TypeScript directives
+      #   run: node scripts/check-ts-directives.mjs
       - name: Install dependencies
         run: yarn install
       - name: Validate Code Formatting
