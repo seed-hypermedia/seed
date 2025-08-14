@@ -355,30 +355,34 @@ export function extractBlockRangeOfUrl(
 
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
-  const regex =
-    /^(?<blockId>\S{8})((?<expanded>\+)|\[(?<rangeStart>\d+)\:(?<rangeEnd>\d+)\])?$/
+  const regex = /^(\S{8})((\+)|\[(\d+)\:(\d+)\])?$/
   const match = input.match(regex)
-  if (match && match.groups) {
-    if (match.groups.expanded == '+') {
+  if (match) {
+    const blockId = match[1] || ''
+    const expanded = match[3] // '+' or undefined
+    const rangeStart = match[4] // start number or undefined
+    const rangeEnd = match[5] // end number or undefined
+
+    if (expanded === '+') {
       return {
         type: 'block',
-        blockId: match.groups.blockId || '',
+        blockId,
         expanded: true,
       }
     } else if (
-      typeof match.groups.rangeStart != 'undefined' ||
-      typeof match.groups.rangeEnd != 'undefined'
+      typeof rangeStart !== 'undefined' &&
+      typeof rangeEnd !== 'undefined'
     ) {
       return {
         type: 'block-range',
-        blockId: match.groups.blockId || '',
-        start: parseInt(match.groups.rangeStart || '0'),
-        end: parseInt(match.groups.rangeEnd || '0'),
+        blockId,
+        start: parseInt(rangeStart),
+        end: parseInt(rangeEnd),
       }
     } else {
       return {
         type: 'block',
-        blockId: match.groups.blockId || '',
+        blockId,
         expanded: false,
       }
     }

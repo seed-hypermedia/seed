@@ -1,5 +1,11 @@
 import {describe, expect, test} from 'vitest'
-import {hmId, packHmId, parseCustomURL, unpackHmId} from '../entity-id-url'
+import {
+  hmId,
+  packHmId,
+  parseCustomURL,
+  parseFragment,
+  unpackHmId,
+} from '../entity-id-url'
 
 describe('unpackHmId', () => {
   test('unpacks hm://abc', () => {
@@ -129,6 +135,45 @@ describe('hmId', () => {
       blockRef: null,
       blockRange: null,
       path: ['def', 'a', 'b'],
+    })
+  })
+})
+
+describe('parseFragment', () => {
+  test('parses simple block reference', () => {
+    expect(parseFragment('XK6l8B4d')).toEqual({
+      type: 'block',
+      blockId: 'XK6l8B4d',
+      expanded: false,
+    })
+  })
+
+  test('parses expanded block reference', () => {
+    expect(parseFragment('XK6l8B4d+')).toEqual({
+      type: 'block',
+      blockId: 'XK6l8B4d',
+      expanded: true,
+    })
+  })
+
+  test('parses block range reference', () => {
+    expect(parseFragment('XK6l8B4d[21:41]')).toEqual({
+      type: 'block-range',
+      blockId: 'XK6l8B4d',
+      start: 21,
+      end: 41,
+    })
+  })
+
+  test('handles null input', () => {
+    expect(parseFragment(null)).toBeNull()
+  })
+
+  test('handles invalid input', () => {
+    expect(parseFragment('invalid')).toEqual({
+      type: 'block',
+      blockId: 'invalid',
+      expanded: false,
     })
   })
 })
