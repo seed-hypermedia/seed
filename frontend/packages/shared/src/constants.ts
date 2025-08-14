@@ -9,7 +9,9 @@ const IME: Record<string, any> = (() => {
       return (globalThis as any).importMeta?.env ?? {}
     }
     // Try direct access in modern environments
+    // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
       return import.meta.env
     }
     return {}
