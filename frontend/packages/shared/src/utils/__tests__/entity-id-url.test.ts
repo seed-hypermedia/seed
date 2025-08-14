@@ -18,7 +18,7 @@ describe('unpackHmId', () => {
       blockRange: null,
       blockRef: null,
       path: [],
-      latest: false,
+      latest: true,
     })
   })
   test('unpacks hm://foo#bar', () => {
@@ -33,7 +33,7 @@ describe('unpackHmId', () => {
       },
       blockRef: 'bar',
       path: [],
-      latest: false,
+      latest: true,
     })
   })
   test('unpacks hm://foo?v=bar', () => {
@@ -73,7 +73,7 @@ describe('unpackHmId', () => {
         blockRange: {
           expanded: false,
         },
-        latest: false,
+        latest: true,
         blockRef: 'block',
         id: 'hm://1',
         path: [],
