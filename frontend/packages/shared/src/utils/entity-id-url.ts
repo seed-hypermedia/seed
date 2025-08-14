@@ -220,7 +220,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     return null
   }
   const version = parsed.query.v || null
-  const latest = parsed.query.l === null || parsed.query.l === ''
+  const latest = parsed.query.l === null || parsed.query.l === '' || !version
   const fragment = parseFragment(parsed.fragment)
 
   let blockRange = null
