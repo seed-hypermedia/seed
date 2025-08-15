@@ -71,6 +71,7 @@ import React, {
 } from 'react'
 import {createPortal} from 'react-dom'
 import {Button} from './button'
+import {Badge} from './components/badge'
 import {CheckboxField} from './components/checkbox'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
@@ -84,6 +85,7 @@ import {
 } from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
 import {HMIcon} from './hm-icon'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
@@ -638,6 +640,92 @@ export function BlockNodeContent({
 
   const tx = useTxString()
 
+  const hoverCardContent = (
+    <HoverCardContent side="top" align="end" className="w-auto p-0">
+      {citationsCount?.citations ? (
+        <BubbleButton
+          layoutUnit={layoutUnit}
+          tooltip={tx(
+            'block_citation_count',
+            ({count}) =>
+              `${count} ${pluralS(count, 'document')} citing this block`,
+            {count: citationsCount.citations},
+          )}
+          onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+        >
+          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <SizableText color="muted" size="xs">
+            {citationsCount.citations ? String(citationsCount.citations) : ' '}
+          </SizableText>
+        </BubbleButton>
+      ) : null}
+
+      {onBlockReply ? (
+        <BubbleButton
+          tooltip="Reply to block"
+          layoutUnit={layoutUnit}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockReply(blockNode.block.id)
+            } else {
+              console.error('onBlockReply Error: no blockId available')
+            }
+          }}
+        >
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+        </BubbleButton>
+      ) : null}
+      {onBlockCommentClick ? (
+        <BubbleButton
+          layoutUnit={layoutUnit}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockCommentClick(
+                blockNode.block.id,
+                undefined,
+                citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+              )
+            } else {
+              console.error('onBlockCommentClick Error: no blockId available')
+            }
+          }}
+          tooltip={
+            citationsCount?.comments
+              ? tx(
+                  'block_comment_count',
+                  ({count}) => `${count} ${pluralS(count, 'comment')}`,
+                  {count: citationsCount.comments},
+                )
+              : tx('Comment on this block')
+          }
+        >
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <SizableText color="muted" size="xs">
+            {citationsCount?.comments ? String(citationsCount.comments) : ' '}
+          </SizableText>
+        </BubbleButton>
+      ) : null}
+      {onBlockCopy ? (
+        <BubbleButton
+          tooltip={tx('copy_block_exact', 'Copy Block Link (Exact Version)')}
+          layoutUnit={layoutUnit}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockCopy(blockNode.block.id, {expanded: true})
+            } else {
+              console.error('onBlockCopy Error: no blockId available')
+            }
+          }}
+        >
+          <Link color="currentColor" className="size-3 opacity-50" />
+        </BubbleButton>
+      ) : null}
+    </HoverCardContent>
+  )
+
+  const blockCitationCount =
+    (citationsCount?.citations || 0) + (citationsCount?.comments || 0)
+
   return (
     <div
       id={comment ? undefined : blockNode.block?.id}
@@ -647,6 +735,7 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content',
         isHighlight ? 'bg-brand-12' : 'bg-transparent',
+        hover && 'bg-background dark:bg-black',
       )}
       style={{
         borderRadius: layoutUnit / 4,
@@ -708,171 +797,42 @@ export function BlockNodeContent({
             </Button>
           </Tooltip>
         ) : null}
+        <HoverCard openDelay={500} closeDelay={500}>
+          <HoverCardTrigger>
+            <BlockContent
+              // @ts-expect-error
+              block={modifiedBlock}
+              depth={depth}
+              parentBlockId={parentBlockId}
+              // {...interactiveProps}
+            />
+          </HoverCardTrigger>
 
-        <BlockContent
-          // @ts-expect-error
-          block={modifiedBlock}
-          depth={depth}
-          parentBlockId={parentBlockId}
-          // {...interactiveProps}
-        />
-        {embedDepth ? null : (
-          <div
-            className={cn(
-              'absolute top-2 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-44px]',
-              hover && 'z-10',
+          {hoverCardContent}
+        </HoverCard>
+        {embedDepth
+          ? null
+          : blockCitationCount > 0 && (
+              <div
+                className={cn(
+                  'absolute top-0 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-18px]',
+                  hover && 'z-10',
+                )}
+                style={{
+                  borderRadius: layoutUnit / 4,
+                }}
+                onMouseEnter={() => setHover(true)}
+                onMouseLeave={() => setHover(false)}
+              >
+                <HoverCard openDelay={0}>
+                  <HoverCardTrigger>
+                    <Badge variant="outline">{blockCitationCount}</Badge>
+                  </HoverCardTrigger>
+
+                  {hoverCardContent}
+                </HoverCard>
+              </div>
             )}
-            style={{
-              borderRadius: layoutUnit / 4,
-            }}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-          >
-            {citationsCount?.citations ? (
-              <Tooltip
-                content={tx(
-                  'block_citation_count',
-                  ({count}) =>
-                    `${count} ${pluralS(count, 'document')} citing this block`,
-                  {count: citationsCount.citations},
-                )}
-                delay={800}
-              >
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="rounded-sm select-none"
-                  style={{
-                    padding: layoutUnit / 4,
-                    // @ts-expect-error
-                    marginHorozontal: layoutUnit / 4,
-                  }}
-                  onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
-                >
-                  <BlockQuote
-                    color="currentColor"
-                    className="size-3 opacity-50"
-                  />
-                  <SizableText color="muted" size="xs">
-                    {citationsCount.citations
-                      ? String(citationsCount.citations)
-                      : ' '}
-                  </SizableText>
-                </Button>
-              </Tooltip>
-            ) : null}
-
-            {onBlockReply ? (
-              <Tooltip content="Reply to block" delay={800}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="rounded-sm opacity-0 select-none hover:opacity-100"
-                  style={{
-                    padding: layoutUnit / 4,
-                    // @ts-expect-error
-                    marginHorozontal: layoutUnit / 4,
-                    opacity: hover ? 1 : 0,
-                  }}
-                  onClick={() => {
-                    if (blockNode.block?.id) {
-                      onBlockReply(blockNode.block.id)
-                    } else {
-                      console.error('onBlockReply Error: no blockId available')
-                    }
-                  }}
-                >
-                  <MessageSquare
-                    color="currentColor"
-                    className="size-3 opacity-50"
-                  />
-                </Button>
-              </Tooltip>
-            ) : null}
-            {onBlockCommentClick ? (
-              <Tooltip
-                content={
-                  citationsCount?.comments
-                    ? tx(
-                        'block_comment_count',
-                        ({count}) => `${count} ${pluralS(count, 'comment')}`,
-                        {count: citationsCount.comments},
-                      )
-                    : tx('Comment on this block')
-                }
-                delay={800}
-              >
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="rounded-sm opacity-0 select-none hover:opacity-100"
-                  style={{
-                    padding: layoutUnit / 4,
-                    // @ts-expect-error
-                    marginHorozontal: layoutUnit / 4,
-                    opacity: hover ? 1 : 0,
-                  }}
-                  onClick={() => {
-                    if (blockNode.block?.id) {
-                      onBlockCommentClick(
-                        blockNode.block.id,
-                        undefined,
-                        citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                      )
-                    } else {
-                      console.error(
-                        'onBlockCommentClick Error: no blockId available',
-                      )
-                    }
-                  }}
-                >
-                  <MessageSquare
-                    color="currentColor"
-                    className="size-3 opacity-50"
-                  />
-                  <SizableText color="muted" size="xs">
-                    {citationsCount?.comments
-                      ? String(citationsCount.comments)
-                      : ' '}
-                  </SizableText>
-                </Button>
-              </Tooltip>
-            ) : null}
-            {onBlockCopy ? (
-              <Tooltip
-                content={tx(
-                  'copy_block_exact',
-                  'Copy Block Link (Exact Version)',
-                )}
-                delay={800}
-              >
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="rounded-sm opacity-0 select-none hover:opacity-100"
-                  style={{
-                    padding: layoutUnit / 4,
-                    // @ts-expect-error
-                    marginHorozontal: layoutUnit / 4,
-                    opacity: hover ? 1 : 0,
-                  }}
-                  onClick={() => {
-                    if (blockNode.block?.id) {
-                      onBlockCopy(blockNode.block.id, {expanded: true})
-                    } else {
-                      console.error('onBlockCopy Error: no blockId available')
-                    }
-                  }}
-                >
-                  <Link color="currentColor" className="size-3 opacity-50" />
-                  <SizableText color="muted" size="xs">
-                    {' '}
-                  </SizableText>
-                </Button>
-              </Tooltip>
-            ) : null}
-          </div>
-        )}
       </div>
       {bnChildren && _expanded ? (
         <BlockNodeList
@@ -2443,5 +2403,37 @@ export function DocumentCardGrid({
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}
     </div>
+  )
+}
+
+function BubbleButton({
+  tooltip,
+  layoutUnit,
+
+  onClick,
+  children,
+}: {
+  tooltip: string
+  layoutUnit: number
+
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip content={tooltip} delay={800}>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="rounded-sm select-none hover:opacity-100"
+        style={{
+          padding: layoutUnit / 4,
+          // @ts-expect-error
+          marginHorozontal: layoutUnit / 4,
+        }}
+        onClick={onClick}
+      >
+        {children}
+      </Button>
+    </Tooltip>
   )
 }
