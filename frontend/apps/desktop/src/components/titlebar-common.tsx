@@ -272,6 +272,7 @@ export function DocOptionsButton({
           onImportFile: importing.importFile,
           onImportDirectory: importing.importDirectory,
           onImportWebSite: importing.importWebSite,
+          onImportWordpress: importing.importWordpress,
         })
       },
     })
