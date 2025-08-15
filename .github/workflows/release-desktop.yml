@@ -73,7 +73,7 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-latest
+          - os: windows-2025
             arch: x64
             goarch: amd64
             daemon_name: x86_64-pc-windows-msvc
@@ -88,7 +88,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-latest'
+        if: matrix.config.os != 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
@@ -128,7 +128,7 @@ jobs:
         env:
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-latest'
+        if: matrix.config.os != 'windows-2025'
         run: |
           yarn desktop:make --arch=${{ matrix.config.arch }}
         env:
