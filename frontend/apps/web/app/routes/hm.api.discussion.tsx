@@ -32,10 +32,7 @@ export const loader = async ({
   const commentId = url.searchParams.get('commentId')
   if (!targetId) throw new Error('targetId is required')
   if (!commentId) throw new Error('commentId is required')
-  console.log({
-    targetId,
-    commentId,
-  })
+
   let result: HMDiscussionPayload | {error: string}
   try {
     const data = await queryClient.comments.listComments({
@@ -43,7 +40,6 @@ export const loader = async ({
       targetPath: hmIdPathToEntityQueryPath(targetId.path),
       pageSize: BIG_INT,
     })
-    console.log({data: data.toJson({emitDefaultValues: true})})
 
     const allComments = data.comments.map(
       (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
@@ -59,16 +55,18 @@ export const loader = async ({
     let selectedComment = focusedComment
     while (selectedComment?.replyParent) {
       const parentComment =
-        allComments.find((c) => c.id === selectedComment.replyParent) || null
+        allComments.find((c) => c.id == selectedComment.replyParent) || null
       if (!parentComment) break
       thread.unshift(parentComment)
       selectedComment = parentComment
     }
 
     const authorAccounts = new Set<string>()
+    // add all authors from the thread
     thread.forEach((comment) => {
-      authorAccounts.add(comment.author)
+      if (comment.author) authorAccounts.add(comment.author)
     })
+    // add all authors from the comment groups
     commentGroups.forEach((group) => {
       group.comments.forEach((comment) => {
         authorAccounts.add(comment.author)
@@ -82,14 +80,27 @@ export const loader = async ({
       }),
     )
 
-    // @ts-expect-error
+    const authors = Object.fromEntries(
+      authorAccountUids
+        .map((acctUid, idx) => {
+          const account = accounts[idx]
+          return [
+            acctUid,
+            account
+              ? {
+                  id: account.id,
+                  metadata: account.metadata,
+                }
+              : null,
+          ]
+        })
+        .filter(([, account]) => account !== null),
+    ) as HMAccountsMetadata
+
     result = {
       thread,
       commentGroups: commentGroups,
-      // @ts-expect-error
-      authors: Object.fromEntries(
-        authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
-      ),
+      authors,
     } satisfies HMDiscussionPayload
   } catch (e: any) {
     result = {error: e.message}

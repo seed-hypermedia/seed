@@ -19,7 +19,7 @@ import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {MessageSquareOff} from 'lucide-react'
-import {memo, useEffect, useMemo, useState} from 'react'
+import {memo, useEffect, useState} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
 import {
@@ -57,7 +57,7 @@ function _DiscussionsPanel(props: {
   if (accessory.openBlockId) {
     return (
       <CommentBlockAccessory
-        resourceId={docId}
+        docId={docId}
         onBack={() => onAccessory({key: 'discussions'})}
         blockId={accessory.openBlockId}
         targetDomain={targetDomain}
@@ -72,7 +72,6 @@ function AllComments(props: {
   targetDomain?: string
 }) {
   const {docId, targetDomain} = props
-  console.log('== DISCUSSIONS PANEL ~ AllComments ~ docId:', docId)
   const comments = useAllDiscussions(docId)
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
@@ -138,26 +137,24 @@ function AllComments(props: {
 }
 
 function CommentBlockAccessory({
-  resourceId,
+  docId,
   blockId,
   autoFocus,
   onBack,
   targetDomain,
 }: {
-  resourceId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
   blockId: string
   autoFocus?: boolean
   onBack: () => void
   targetDomain?: string
 }) {
   const tx = useTxString()
-  const resource = useResource(resourceId)
-  const docId = resource.data?.type === 'document' ? resourceId : undefined
   const citations = useDocumentCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (
       citation.targetFragment?.blockId === blockId &&
-      citation.source.type === 'c'
+      citation.source.type == 'c'
     )
   })
   const accountIds = new Set<string>()
@@ -169,10 +166,9 @@ function CommentBlockAccessory({
   let quotedContent = null
 
   if (!docId) return null
-  // @ts-expect-error
-  if (doc.data?.document) {
+
+  if (doc.data?.type == 'document' && doc.data.document) {
     quotedContent = (
-      // @ts-expect-error
       <QuotedDocBlock docId={docId} blockId={blockId} doc={doc.data.document} />
     )
   } else if (doc.isInitialLoading) {
@@ -226,19 +222,19 @@ function CommentReplyAccessory({
   isReplying?: boolean
   targetDomain?: string
 }) {
-  const comments = useAllDiscussions(docId)
-  const threadComments = useCommentParents(comments.data, commentId)
-
-  console.log(`== ~ CommentReplyAccessory ~ threadComments:`, threadComments)
-  const threadAuthorIds = useMemo(() => {
-    return threadComments?.map((doc) => doc.author) || []
-  }, [threadComments])
-  const commentAuthors = useContacts(threadAuthorIds)
-  const rootCommentId = threadComments?.at(0)?.id
   const tx = useTxString()
   const myAccountId = useSelectedAccountId()
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
+  const comments = useAllDiscussions(docId)
+  const commentGroups = useCommentGroups(comments.data, commentId)
+  const threadComments = useCommentParents(comments.data, commentId)
+
+  const commentAuthors = useContacts(
+    Array.from(threadComments?.authorAccounts || []),
+  )
+
+  const rootCommentId = threadComments?.thread.at(0)?.id
 
   return (
     <AccessoryContent
@@ -246,19 +242,32 @@ function CommentReplyAccessory({
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (
-        threadComments.length > 0 ? (
+        threadComments.thread.length > 0 ? (
           <CommentGroup
             commentGroup={{
               id: rootCommentId,
-              comments: threadComments,
+              comments: threadComments.thread,
               moreCommentsCount: 0,
               type: 'commentGroup',
             }}
             authors={Object.fromEntries(
-              threadAuthorIds
-                // @ts-ignore
-                .map((id, index) => [id, commentAuthors[index].data])
-                .filter(([id, v]) => !!v),
+              commentAuthors
+                .map((contact, index) => {
+                  const accountUid = Array.from(
+                    threadComments?.authorAccounts || [],
+                  )[index]
+                  const account = contact.data
+                  return [
+                    accountUid,
+                    account
+                      ? {
+                          id: account.id,
+                          metadata: account.metadata,
+                        }
+                      : null,
+                  ]
+                })
+                .filter(([, account]) => account !== null),
             )}
             onDelete={(id) => {
               if (!myAccountId) return

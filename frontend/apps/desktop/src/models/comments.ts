@@ -145,7 +145,7 @@ export function useAllDiscussions(
       })
       return res.comments.map((c) =>
         c.toJson({emitDefaultValues: true}),
-      ) as HMComment[]
+      ) as Array<HMComment>
     },
     enabled: !!docId && opts?.enabled !== false,
     refetchInterval: 10_000,

@@ -76,16 +76,23 @@ export function useCommentParents(
     const parentThread: HMComment[] = [focusedComment]
     while (selectedComment?.replyParent) {
       const parentComment: HMComment | null | undefined = selectedComment
-        ? comments?.find((c) => c.id === selectedComment?.replyParent)
+        ? comments?.find((c) => c.id == selectedComment?.replyParent)
         : null
-      if (!parentComment) {
-        selectedComment = null
-        break
-      }
+      if (!parentComment) break
+
       parentThread.unshift(parentComment)
       selectedComment = parentComment
     }
-    return parentThread
+
+    const authorAccounts = new Set<string>()
+    comments?.forEach((comment) => {
+      if (comment.author) authorAccounts.add(comment.author)
+    })
+
+    return {
+      thread: parentThread,
+      authorAccounts: Array.from(authorAccounts),
+    }
   }, [comments, focusedCommentId])
 }
 

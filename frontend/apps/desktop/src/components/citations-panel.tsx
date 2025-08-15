@@ -164,18 +164,14 @@ export function CommentCitationEntry({
         ? unpackHmId(blockWithLink.link)
         : null
       if (
-        // @ts-ignore
+        firstBlockNode &&
         firstBlockNode.children?.length &&
-        // @ts-expect-error
-        singleEmbedId?.type === citationTarget.type &&
-        // @ts-expect-error
+        singleEmbedId &&
         singleEmbedId.id === citationTarget.id &&
-        // @ts-expect-error
         singleEmbedId.blockRef === citationTargetFragment?.blockId
       ) {
         return {
           ...comment.data,
-          // @ts-ignore
           content: firstBlockNode.children,
         } satisfies HMComment
       }

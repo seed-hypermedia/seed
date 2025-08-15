@@ -26,8 +26,8 @@ export const loader = async ({
   const blockId = url.searchParams.get('blockId')
   if (!targetId) throw new Error('targetId is required')
   if (!blockId) throw new Error('blockId is required')
-  // TODO: fix types of comments here
-  let result: any | {error: string}
+
+  let result: HMBlockDiscussionsPayload | {error: string}
 
   try {
     const res = await queryClient.entities.listEntityMentions({
@@ -41,30 +41,39 @@ export const loader = async ({
       try {
         const sourceId = unpackHmId(mention.source)
         if (!sourceId) continue
-        console.log('~~ TODO: fix this', mention.sourceType)
-        // mention.sourceType
-        // if (mention.source?.type !== 'c') continue
+
+        // ignore if not a comment
+        if (mention.sourceType !== 'Comment') continue
+        // ignore if not citing the block
         if (mention.targetFragment !== blockId) continue
         try {
+          // get the comment from the server
           const serverComment = await queryClient.comments.getComment({
             id: mention.sourceBlob?.cid,
           })
+          // ignore if not found
           if (!serverComment) continue
+          // convert to HMComment
           const comment = serverComment.toJson({
             emitDefaultValues: true,
           }) as HMComment
+          // add to all comments
           allComments.push(comment)
 
+          // get the target fragment
           const targetFragment = parseFragment(mention.targetFragment)
+          // get the target id
           const citationTargetId = hmId(targetId.uid, {
             path: targetId.path,
             version: mention.targetVersion,
           })
 
+          // get the author
           const author = comment.author
             ? await getAccount(comment.author)
             : null
 
+          // add to citing comments
           citingComments.push({
             source: {
               id: sourceId,
@@ -97,23 +106,22 @@ export const loader = async ({
       }
     }
 
-    const allAccounts = new Set<string>()
-    citingComments.forEach((citation) => {
-      if (citation.comment) allAccounts.add(citation.comment.author)
-    })
-    const allAccountUids = Array.from(allAccounts)
-    const accounts = await Promise.all(
-      allAccountUids.map(async (accountUid) => {
-        return await getAccount(accountUid)
-      }),
-    )
+    const accounts = citingComments
+      .filter((c) => !!c.author)
+      .map((citation) => citation.author)
+      .reduce((acc, author) => {
+        if (!author || !author.id.id || !author.metadata) return acc
+
+        acc[author.id.id] = {
+          id: author.id,
+          metadata: author.metadata,
+        }
+        return acc
+      }, {} as HMAccountsMetadata)
 
     result = {
       citingComments,
-      // @ts-expect-error
-      authors: Object.fromEntries(
-        allAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
-      ),
+      authors: accounts,
     } satisfies HMBlockDiscussionsPayload
   } catch (e: any) {
     result = {error: e.message}
