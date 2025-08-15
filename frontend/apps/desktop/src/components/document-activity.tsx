@@ -1,4 +1,4 @@
-import {useAllDocumentComments} from '@/models/comments'
+import {useAllDiscussions} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
@@ -75,7 +75,7 @@ export function ActivityList({
     // @ts-expect-error
     latestDoc?.data?.document?.version?.split('.') || [],
   )
-  const comments = useAllDocumentComments(docId)
+  const comments = useAllDiscussions(docId)
 
   const commentGroups = useCommentGroups(comments.data)
   const activeChangeIds = useVersionChanges(docId)

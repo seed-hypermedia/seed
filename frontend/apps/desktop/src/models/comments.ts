@@ -49,7 +49,7 @@ export function useCommentReplies(
   targetCommentId: string,
   targetDocId: UnpackedHypermediaId | undefined,
 ) {
-  const comments = useAllDocumentComments(targetDocId)
+  const comments = useAllDiscussions(targetDocId)
   return useMemo(() => {
     const thread = comments.data?.filter(
       (c) => c.replyParent === targetCommentId,
@@ -131,7 +131,7 @@ export function useComments(commentIds: UnpackedHypermediaId[] = []) {
   })
 }
 
-export function useAllDocumentComments(
+export function useAllDiscussions(
   docId: UnpackedHypermediaId | null | undefined,
   opts?: {enabled?: boolean},
 ) {

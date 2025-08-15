@@ -2,7 +2,7 @@ import {createComment, postCBOR} from '@/api'
 import {LocalWebIdentity, useCreateAccount} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import {CommentEditor2} from '@shm/editor/comment-editor'
+import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
@@ -233,7 +233,7 @@ export function LocalWebCommenting({
         collapsedBlocks={new Set()}
         setCollapsedBlocks={() => {}}
       >
-        <CommentEditor2
+        <CommentEditor
           autoFocus={autoFocus}
           handleSubmit={handleSubmit}
           submitButton={({getContent, reset}) => {

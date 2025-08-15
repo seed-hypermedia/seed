@@ -1,5 +1,5 @@
 import {useDocumentCitations} from '@/models/citations'
-import {useAllDocumentComments, useDeleteComment} from '@/models/comments'
+import {useAllDiscussions, useDeleteComment} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccountId} from '@/selected-account'
@@ -31,38 +31,35 @@ import {
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
-function _DiscussionsPanel({
-  docId,
-  onAccessory,
-  accessory: {openComment, openBlockId, blockRange, autoFocus, isReplying},
-}: {
+function _DiscussionsPanel(props: {
   docId: UnpackedHypermediaId
   accessory: DocumentDiscussionsAccessory
   onAccessory: (acc: DocumentDiscussionsAccessory) => void
 }) {
+  const {docId, accessory, onAccessory} = props
   const homeDoc = useResource(hmId(docId.uid))
   const targetDomain =
     homeDoc.data?.type === 'document'
       ? homeDoc.data.document.metadata.siteUrl
       : undefined
-  if (openComment) {
+
+  if (accessory.openComment) {
     return (
       <CommentReplyAccessory
         docId={docId}
         onBack={() => onAccessory({key: 'discussions'})}
-        commentId={openComment}
-        isReplying={isReplying}
+        commentId={accessory.openComment}
+        isReplying={accessory.isReplying}
         targetDomain={targetDomain}
       />
     )
   }
-  if (openBlockId) {
+  if (accessory.openBlockId) {
     return (
       <CommentBlockAccessory
         resourceId={docId}
-        blockId={openBlockId}
-        autoFocus={autoFocus}
         onBack={() => onAccessory({key: 'discussions'})}
+        blockId={accessory.openBlockId}
         targetDomain={targetDomain}
       />
     )
@@ -70,14 +67,13 @@ function _DiscussionsPanel({
   return <AllComments docId={docId} targetDomain={targetDomain} />
 }
 
-function AllComments({
-  docId,
-  targetDomain,
-}: {
+function AllComments(props: {
   docId: UnpackedHypermediaId
   targetDomain?: string
 }) {
-  const comments = useAllDocumentComments(docId)
+  const {docId, targetDomain} = props
+  console.log('== DISCUSSIONS PANEL ~ AllComments ~ docId:', docId)
+  const comments = useAllDiscussions(docId)
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
   const myAccountId = useSelectedAccountId()
@@ -129,7 +125,11 @@ function AllComments({
   }
   return (
     <AccessoryContent
-      footer={<CommentBox docId={docId} backgroundColor="$colorTransparent" />}
+      header={
+        <div className="border-border bg-background rounded-md border py-2 dark:bg-black">
+          <CommentBox docId={docId} />
+        </div>
+      }
     >
       {panelContent}
       {deleteCommentDialog.content}
@@ -226,8 +226,10 @@ function CommentReplyAccessory({
   isReplying?: boolean
   targetDomain?: string
 }) {
-  const comments = useAllDocumentComments(docId)
+  const comments = useAllDiscussions(docId)
   const threadComments = useCommentParents(comments.data, commentId)
+
+  console.log(`== ~ CommentReplyAccessory ~ threadComments:`, threadComments)
   const threadAuthorIds = useMemo(() => {
     return threadComments?.map((doc) => doc.author) || []
   }, [threadComments])
@@ -237,15 +239,10 @@ function CommentReplyAccessory({
   const myAccountId = useSelectedAccountId()
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
+
   return (
     <AccessoryContent
-      footer={
-        <CommentBox
-          docId={docId}
-          autoFocus={isReplying}
-          replyCommentId={commentId}
-        />
-      }
+      footer={<CommentBox replyCommentId={commentId} docId={docId} />}
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (
@@ -310,7 +307,7 @@ function FocusedCommentReplies({
   targetDomain?: string
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
-  const comments = useAllDocumentComments(docId)
+  const comments = useAllDiscussions(docId)
   useEffect(() => {
     setIsOpen(defaultOpen)
   }, [commentId, defaultOpen])

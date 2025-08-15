@@ -3,6 +3,7 @@ import {useContacts, useSelectedAccountContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {useSelectedAccount} from '@/selected-account'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -95,20 +96,27 @@ export function useCommentGroupAuthors(
 }
 
 export const CommentBox = memo(_CommentBox)
-function _CommentBox({
-  docId,
-  backgroundColor = 'transparent',
-  quotingBlockId,
-  replyCommentId,
-  autoFocus,
-}: {
+function _CommentBox(props: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
   replyCommentId?: string
   autoFocus?: boolean
 }) {
-  const draft = useCommentDraft(docId, undefined)
+  const {
+    docId,
+    backgroundColor = 'transparent',
+    quotingBlockId,
+    replyCommentId,
+    autoFocus,
+  } = props
+
+  const account = useSelectedAccount()
+  const draft = useCommentDraft(
+    quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
+    undefined,
+  )
+  console.log('== DISCUSSIONS PANEL ~ CommentBox ~ docId:', docId, draft)
   const route = useNavRoute()
   const replace = useNavigate('replace')
   let content = null
@@ -133,54 +141,67 @@ function _CommentBox({
   }, [docId.id, replyCommentId])
 
   if (draft.isInitialLoading) return null
-  if (draft.data || isStartingComment || autoFocus) {
+
+  if (!account) {
     content = (
-      <CommentDraftEditor
-        docId={docId}
-        autoFocus={isStartingComment || autoFocus}
-        initCommentDraft={draft.data}
-        quotingBlockId={quotingBlockId}
-        replyCommentId={replyCommentId}
-        onDiscardDraft={() => {
-          setIsStartingComment(false)
-        }}
-        onSuccess={({id}) => {
-          if (route.key === 'document' && !!id) {
-            const accessory = route.accessory
-            const discussionsAccessory =
-              accessory?.key === 'discussions' ? accessory : null
-            replace({
-              ...route,
-              id: {
-                ...route.id,
-              },
-              accessory: discussionsAccessory
-                ? {
-                    ...discussionsAccessory,
-                    openComment: id,
-                  }
-                : undefined,
-            })
-          }
-        }}
-      />
+      <span className="text-sm font-thin italic">No account is loaded</span>
     )
   } else {
-    content = (
-      <Button
-        variant="ghost"
-        className="text-muted-foreground m-0 h-auto flex-1 items-start justify-start border-0 px-[18px] py-4 text-left text-base hover:bg-transparent focus:bg-transparent"
-        style={{backgroundColor: backgroundColor}}
-        onClick={() => {
-          setIsStartingComment(true)
-        }}
-      >
-        <span className="text-sm font-thin italic">
-          {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
-        </span>
-      </Button>
-    )
+    if (draft.data || isStartingComment || autoFocus) {
+      content = (
+        <CommentDraftEditor
+          docId={docId}
+          autoFocus={isStartingComment || autoFocus}
+          initCommentDraft={draft.data}
+          quotingBlockId={quotingBlockId}
+          replyCommentId={replyCommentId}
+          onDiscardDraft={() => {
+            setIsStartingComment(false)
+          }}
+          onSuccess={({id}) => {
+            if (route.key === 'document' && !!id) {
+              const accessory = route.accessory
+              const discussionsAccessory =
+                accessory?.key === 'discussions' ? accessory : null
+              replace({
+                ...route,
+                id: {
+                  ...route.id,
+                },
+                accessory: discussionsAccessory
+                  ? {
+                      ...discussionsAccessory,
+                      openComment: id,
+                    }
+                  : undefined,
+              })
+            }
+          }}
+        />
+      )
+      console.log(
+        '== DISCUSSIONS PANEL ~ draft.data || isStartingComment || autoFocus:',
+        content,
+      )
+    } else {
+      console.log('== DISCUSSIONS PANEL ~ CommentBox ~ content ELSE', content)
+      content = (
+        <Button
+          variant="ghost"
+          className="text-muted-foreground m-0 h-auto flex-1 items-start justify-start border-0 px-[18px] py-3 text-left text-base hover:bg-transparent focus:bg-transparent"
+          style={{backgroundColor: backgroundColor}}
+          onClick={() => {
+            setIsStartingComment(true)
+          }}
+        >
+          <span className="text-sm font-thin italic">
+            {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
+          </span>
+        </Button>
+      )
+    }
   }
+
   return (
     <div className="rounded-lg" onClick={onClick}>
       {content}
@@ -253,7 +274,7 @@ function _CommentDraftEditor({
   return (
     <div
       ref={sizeObserverdRef}
-      className="comment-editor mt-1 flex flex-1 flex-col px-4"
+      className="comment-editor mt-1 flex flex-1 flex-col gap-2 px-4"
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement
 

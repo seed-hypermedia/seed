@@ -160,14 +160,14 @@ export function useAllDiscussions(
 
 export function useBlockDiscussions(
   id: UnpackedHypermediaId,
-  blockId: string,
-  opts: {enabled?: boolean} = {},
+  blockId?: string,
+  opts: {enabled?: boolean} = {enabled: true},
 ) {
   const response = useAPI<HMBlockDiscussionsPayload>(
     `/hm/api/block-discussions?targetId=${id.id}&blockId=${blockId}`,
     {
       queryKey: [queryKeys.BLOCK_DISCUSSIONS, id.id, blockId],
-      enabled: opts.enabled,
+      enabled: !!blockId && opts.enabled,
     },
   )
   return response

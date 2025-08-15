@@ -11,7 +11,7 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDocumentCitations, useSortedCitations} from '@/models/citations'
-import {useAllDocumentComments} from '@/models/comments'
+import {useAllDiscussions} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
@@ -381,7 +381,7 @@ const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
 function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   const {docCitations} = useSortedCitations(docId)
   const changes = useDocumentChanges(docId)
-  const comments = useAllDocumentComments(docId)
+  const comments = useAllDiscussions(docId)
 
   const route = useNavRoute()
   const docRoute = route.key === 'document' ? route : null

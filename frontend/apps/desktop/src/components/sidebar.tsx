@@ -202,7 +202,7 @@ function AccountsSection() {
           <SmallListItem
             key={id.uid}
             docId={id.id}
-            title={metadata.name}
+            title={metadata?.name || 'Untitled'}
             icon={<HMIcon id={id} metadata={metadata} size={20} />}
             onClick={() => {
               navigate({key: 'document', id: latestId(id)})

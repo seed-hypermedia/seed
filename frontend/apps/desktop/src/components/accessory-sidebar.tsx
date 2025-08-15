@@ -1,6 +1,6 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSortedCitations} from '@/models/citations'
-import {useAllDocumentComments} from '@/models/comments'
+import {useAllDiscussions} from '@/models/comments'
 import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
@@ -136,7 +136,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
   const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
-  const comments = useAllDocumentComments(docId, {
+  const comments = useAllDiscussions(docId, {
     enabled: isDocument,
   })
   const commentCount = comments.data?.length || undefined
@@ -220,7 +220,11 @@ export function AccessoryContent({
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden" {...props}>
-      {header ? <div className="p-3">{header}</div> : null}
+      {header ? (
+        <div className="border-border max-h-1/2 border-b p-4">
+          <ScrollArea>{header}</ScrollArea>
+        </div>
+      ) : null}
       <ScrollArea>
         <div className={cn('flex flex-col gap-2 p-3', header && 'pt-0')}>
           {children}
