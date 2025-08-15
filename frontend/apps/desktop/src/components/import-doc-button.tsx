@@ -340,10 +340,19 @@ function WordpressImportInProgress({
     }
   }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
 
-  const ready = status?.mode === 'ready' ? status : undefined
-  const total = ready?.total ?? ready?.total ?? 0
+  // No status yet, neutral loading state
+  if (!status) {
+    return (
+      <div className="flex flex-col gap-4">
+        <DialogTitle>Preparing import from {hostname}…</DialogTitle>
+        <Spinner size="small" />
+      </div>
+    )
+  }
 
-  if (ready && !confirmWp.isLoading) {
+  // Ready to import
+  if (status.mode === 'ready' && !confirmWp.isLoading) {
+    const total = status.total ?? 0
     return (
       <div className="flex flex-col gap-4">
         <DialogTitle>Ready to import from {hostname}</DialogTitle>
@@ -405,22 +414,19 @@ function WordpressImportInProgress({
     )
   }
 
-  if (status && status.mode === 'fetching') {
+  // Publishing to Seed
+  if (status.mode === 'importing') {
     const pct =
-      status.totalPages > 0
-        ? Math.min(100, Math.round((status.page / status.totalPages) * 100))
+      status.total > 0
+        ? Math.min(100, Math.round((status.processed / status.total) * 100))
         : 0
-
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Importing from {hostname}…</DialogTitle>
+        <DialogTitle>Publishing documents</DialogTitle>
         <SizableText>
-          Page {status.page} / {status.totalPages || '…'}
+          {status.processed} / {status.total} posts
+          {status.currentId ? ` (post #${status.currentId})` : ''}
         </SizableText>
-        <SizableText color="muted" size="sm">
-          {status.fetched} posts discovered so far
-        </SizableText>
-        {/* Replace this with whatever progress component you use */}
         <div className="bg-muted h-2 w-full rounded">
           <div
             className="bg-foreground h-2 rounded"
@@ -432,7 +438,41 @@ function WordpressImportInProgress({
     )
   }
 
-  if (status?.mode === 'error') {
+  // Fetching posts
+  if (status.mode === 'fetching' || confirmWp.isLoading) {
+    const pct =
+      status.mode === 'fetching' && status.totalPages > 0
+        ? Math.min(100, Math.round((status.page / status.totalPages) * 100))
+        : 0
+
+    return (
+      <div className="flex flex-col gap-4">
+        <DialogTitle>Importing from {hostname}…</DialogTitle>
+        {status.mode === 'fetching' ? (
+          <>
+            <SizableText>
+              Page {status.page} / {status.totalPages || '…'}
+            </SizableText>
+            <SizableText color="muted" size="sm">
+              {status.fetched} posts discovered so far
+            </SizableText>
+            <div className="bg-muted h-2 w-full rounded">
+              <div
+                className="bg-foreground h-2 rounded"
+                style={{width: `${pct}%`, transition: 'width .2s ease'}}
+              />
+            </div>
+          </>
+        ) : (
+          <SizableText>Importing…</SizableText>
+        )}
+        <Spinner size="small" />
+      </div>
+    )
+  }
+
+  // Error
+  if (status.mode === 'error') {
     return (
       <div className="flex flex-col gap-4">
         <DialogTitle>Error importing from {hostname}</DialogTitle>
@@ -441,9 +481,10 @@ function WordpressImportInProgress({
     )
   }
 
+  // Fallback
   return (
     <div className="flex flex-col gap-4">
-      <DialogTitle color="$red10">Unrecognized status?</DialogTitle>
+      <DialogTitle color="$red10">Unrecognized import status</DialogTitle>
     </div>
   )
 }
