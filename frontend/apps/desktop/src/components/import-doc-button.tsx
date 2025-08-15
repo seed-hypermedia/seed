@@ -365,8 +365,10 @@ function WordpressImportInProgress({
                         <HMIcon
                           size={24}
                           id={id}
+                          // @ts-expect-error
                           metadata={a.data?.document?.metadata}
                         />
+                        {/* @ts-expect-error */}
                         {a.data?.document?.metadata.name || ''}
                       </div>
                     </SelectItem>
