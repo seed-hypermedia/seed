@@ -96,7 +96,7 @@ export function OnboardingDialog() {
       <DialogPortal>
         <DialogOverlay />
         <DialogContent
-          className="no-window-drag flex min-h-[500px] flex-col items-center justify-center overflow-y-scroll p-0"
+          className="no-window-drag flex h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px] flex-col overflow-y-scroll p-0"
           showCloseButton={false}
         >
           <Onboarding
