@@ -10,7 +10,8 @@ export type WpPost = {
   date_gmt?: string
   title: {rendered: string}
   content: {rendered: string; protected?: boolean}
-  featured_media?: number
+  excerpt?: {rendered: string; protected?: boolean} // Document summary
+  featured_media?: number // Cover image
   _embedded?: {
     ['wp:featuredmedia']?: Array<{
       source_url?: string
@@ -131,7 +132,7 @@ export async function fetchAndSaveWpPosts(
   while (true) {
     const url =
       `${base}/wp-json/wp/v2/posts?per_page=${perPage}&page=${page}` +
-      `&_embed=1&_fields=id,link,slug,date_gmt,title,content,featured_media`
+      `&_embed=1&_fields=id,link,slug,date_gmt,title,content,excerpt,featured_media`
     const res = await fetch(url)
     if (!res.ok) {
       if (res.status === 400 || res.status === 404) break
@@ -157,7 +158,6 @@ export async function fetchAndSaveWpPosts(
     onProgress?.(page, totalPages, all.length)
 
     if (page >= totalPages) break
-    // if (page >= 1) break
     page++
   }
 

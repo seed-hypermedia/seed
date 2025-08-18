@@ -554,6 +554,15 @@ export async function importWpPost({
     }
   }
 
+  if (post.excerpt?.rendered) {
+    const plain = stripHtml(post.excerpt.rendered)
+    const decoded = decodeHtmlEntities(plain)
+    addChange({
+      case: 'setMetadata',
+      value: {key: 'summary', value: decoded.trim()},
+    })
+  }
+
   changes.push(...changesForBlockNodes(blocks, ''))
 
   await grpcClient.documents.createDocumentChange({
@@ -562,4 +571,42 @@ export async function importWpPost({
     path: hmIdPathToEntityQueryPath(docPath),
     changes,
   })
+}
+
+function decodeHtmlEntities(input: string): string {
+  const named: Record<string, string> = {
+    amp: '&',
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+    nbsp: ' ',
+    hellip: '…',
+    ndash: '–',
+    mdash: '—',
+    rsquo: '’',
+    lsquo: '‘',
+    rdquo: '”',
+    ldquo: '“',
+  }
+
+  let out = input.replace(/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g, (_, ent) => {
+    if (ent[0] === '#') {
+      const code =
+        ent[1].toLowerCase() === 'x'
+          ? parseInt(ent.slice(2), 16)
+          : parseInt(ent.slice(1), 10)
+      if (!Number.isNaN(code)) return String.fromCodePoint(code)
+      return _
+    }
+    return ent in named ? named[ent] : _
+  })
+
+  // // Uncomment to remove brackets and trim space from ellipsis
+  // out = out
+  //   .replace(/\s*\[\s*(?:…|&hellip;|\.{3})\s*\]\s*$/i, '...')
+  //   .replace(/…\s*$/, '...')
+  //   .replace(/\s+(\.\.\.)$/, '...') // trim space before ...
+
+  return out
 }
