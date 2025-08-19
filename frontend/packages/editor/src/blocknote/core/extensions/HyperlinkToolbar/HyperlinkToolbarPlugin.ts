@@ -10,13 +10,21 @@ import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 
+export type HyperlinkNodeType =
+  | 'link'
+  | 'inline-embed'
+  | 'embed'
+  | 'card'
+  | 'button'
+  | null
+
 export type HyperlinkToolbarState = BaseUiElementState & {
   // The link node's URL
   url: string
   // The text of the link or button. Not relevant with mention and embed
   text: string
   // Type of the link node
-  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
+  type: HyperlinkNodeType
   id: string
 
   props?: {
@@ -42,8 +50,10 @@ function getNodeIdFromCoords(
     return undefined
   }
 
-  let node =
-    view.nodeDOM(pos.inside) || (view.domAtPos(pos.pos).node as HTMLElement)
+  let node: Node | null =
+    (pos.inside >= 0 ? view.nodeDOM(pos.inside) : null) ??
+    view.domAtPos(pos.pos).node
+  if (!node) return undefined
   // let atomNode = view.nodeDOM(pos.inside) as HTMLElement
 
   if (node === view.dom) {
@@ -51,21 +61,22 @@ function getNodeIdFromCoords(
     return undefined
   }
 
-  while (
-    node &&
-    node.parentNode &&
-    node.parentNode !== view.dom &&
-    // @ts-expect-error
-    !node.hasAttribute?.('data-id')
-  ) {
-    node = node.parentNode as HTMLElement
-  }
-  if (!node) {
-    return undefined
-  }
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentNode
+  let el = node as HTMLElement | null
 
-  // @ts-expect-error
-  return {node, id: node.getAttribute('data-id')!}
+  while (
+    el &&
+    el.parentNode &&
+    el.parentNode !== view.dom &&
+    !(el as any).hasAttribute?.('data-id')
+  ) {
+    el = el.parentNode as HTMLElement
+  }
+  if (!el) return undefined
+
+  const id = (el as any).getAttribute?.('data-id')
+  if (!id) return undefined
+  return {node: el, id}
 }
 
 class HyperlinkToolbarView<BSchema extends BlockSchema> {
@@ -93,15 +104,11 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     ) => void,
   ) {
     this.updateHyperlinkToolbar = () => {
-      if (!this.hyperlinkToolbarState) {
-        throw new Error('Attempting to update uninitialized hyperlink toolbar')
-      }
-
+      if (!this.hyperlinkToolbarState) return
       updateHyperlinkToolbar(this.hyperlinkToolbarState)
     }
 
     this.startMenuUpdateTimer = () => {
-      // console.log(this.isHoveringToolbar)
       this.menuUpdateTimer = setTimeout(() => {
         this.update()
         if (!this.isHoveringToolbar) {
@@ -133,53 +140,55 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     this.stopMenuUpdateTimer()
 
-    const tiptap = this.editor._tiptapEditor
-    const coords = {
-      left: event.clientX,
-      top: event.clientY,
-    }
-    if (target.closest('.link')) {
-      const nodeId = getNodeIdFromCoords(coords, this.pmView)
-      if (nodeId?.id) this.hoveredId = nodeId.id
-    } else if (target.closest('.inline-embed-token')) {
-      const nodeId = getNodeIdFromCoords(coords, this.pmView)
-      if (nodeId?.id) this.hoveredId = nodeId.id
+    const coords = {left: event.clientX, top: event.clientY}
+    let nextId: string | undefined
+    if (target.closest('.link') || target.closest('.inline-embed-token')) {
+      nextId = getNodeIdFromCoords(coords, this.pmView)?.id
     } else if (target.closest('[data-content-type="button"]')) {
       if (target.tagName === 'BUTTON' || target.closest('button')) {
-        const nodeId = getNodeIdFromCoords(coords, this.pmView)
-        if (nodeId?.id) this.hoveredId = nodeId.id
+        nextId = getNodeIdFromCoords(coords, this.pmView)?.id
       }
-    } else if (target.closest('[data-content-type="embed"]')) {
-      if (
-        target.closest('[data-content-type="embed"]')?.getAttribute('data-url')
-      ) {
-        const nodeId = getNodeIdFromCoords(coords, this.pmView)
-        if (nodeId?.id) this.hoveredId = nodeId.id
-      }
+    } else if (
+      target.closest('[data-content-type="embed"]')?.getAttribute('data-url')
+    ) {
+      nextId = getNodeIdFromCoords(coords, this.pmView)?.id
     }
 
-    this.startMenuUpdateTimer()
+    if (nextId) {
+      if (nextId !== this.hoveredId) this.hoveredId = nextId
+    }
 
+    // Defer recalculation/close
+    this.startMenuUpdateTimer()
     return false
   }
 
   clickHandler = (event: MouseEvent) => {
+    const target = event.target as Node | null
+    if (!target) return
+    if (
+      this.isHoveringToolbar ||
+      (target as HTMLElement).closest?.('.hyperlink-preview-toolbar')
+    ) {
+      return
+    }
+
     const editorWrapper = this.pmView.dom.parentElement!
+    const clickedOutsideEditor = !(
+      editorWrapper === target || editorWrapper?.contains(target)
+    )
 
     if (
       // Toolbar is open.
       (this.selectedNode || this.hoveredId) &&
-      // An element is clicked.
-      event &&
-      event.target &&
       // The clicked element is not the editor.
-      !(
-        editorWrapper === (event.target as Node) ||
-        editorWrapper?.contains(event.target as Node)
-      )
+      clickedOutsideEditor
     ) {
       if (this.hyperlinkToolbarState?.show) {
-        this.hyperlinkToolbarState.show = false
+        this.hyperlinkToolbarState = {
+          ...this.hyperlinkToolbarState,
+          show: false,
+        }
         this.updateHyperlinkToolbar()
       }
     }
@@ -216,7 +225,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     let range = this.selectedNodeRange || this.hoveredNodeRange
     const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
 
-    // console.log(this.hoveredId, this.hoveredNode, this.hoveredNodeRange)
     const nodeAndRange = getNodeAndRange(
       markOrNode,
       range,
@@ -274,13 +282,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
   resetHyperlink() {
     // @ts-ignore
+    if (!this.hyperlinkToolbarState) return
     this.hyperlinkToolbarState = {
       ...this.hyperlinkToolbarState,
       show: false,
       url: '',
       text: '',
-      // @ts-expect-error
-      type: '',
+      type: null,
       id: '',
     }
     this.isHoveringToolbar = false
@@ -335,15 +343,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   //   }
   // }
 
-  update() {
-    // if (!this.pmView.hasFocus()) {
-    //   return
-    // }
-
+  private updateFromSelection(): HyperlinkToolbarState | null {
     this.selectedNode = undefined
     this.selectedNodeRange = undefined
-    this.hoveredNode = undefined
-    this.hoveredNodeRange = undefined
+    let nextState: HyperlinkToolbarState | null = null
 
     const marksAtPos = this.pmView.state.selection.$from.marks()
 
@@ -407,14 +410,15 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this.selectedNodeRange!.from,
         this.pmView.state,
       )
+      const nodeRect = posToDOMRect(
+        this.pmView,
+        this.hoveredNodeRange!.from,
+        this.hoveredNodeRange!.to,
+      )
       if (this.selectedNode instanceof Mark) {
-        this.hyperlinkToolbarState = {
+        nextState = {
           show: this.pmView.state.selection.empty,
-          referencePos: posToDOMRect(
-            this.pmView,
-            this.selectedNodeRange!.from,
-            this.selectedNodeRange!.to,
-          ),
+          referencePos: nodeRect,
           url: this.selectedNode!.attrs.href,
           text: this.pmView.state.doc.textBetween(
             this.selectedNodeRange!.from,
@@ -425,13 +429,9 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         }
       } else if (this.selectedNode instanceof PMNode) {
         if (this.selectedNode.type.name === 'inline-embed')
-          this.hyperlinkToolbarState = {
+          nextState = {
             show: true,
-            referencePos: posToDOMRect(
-              this.pmView,
-              this.selectedNodeRange!.from,
-              this.selectedNodeRange!.to,
-            ),
+            referencePos: nodeRect,
             url: this.selectedNode!.attrs.link,
             text: ' ',
             type: 'inline-embed',
@@ -442,51 +442,62 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             .node as HTMLElement
           const buttonElement = dom.querySelector('button')
 
-          if (buttonElement) {
-            const buttonRect = buttonElement.getBoundingClientRect()
-            this.hyperlinkToolbarState = {
-              show: true,
-              referencePos: buttonRect,
-              url: this.selectedNode!.attrs.url,
-              text: this.selectedNode!.attrs.name,
-              type: 'button',
-              id: container ? container.attrs.id : '',
-              props: {
-                alignment:
-                  this.selectedNode!.attrs.alignment.length > 0
-                    ? this.selectedNode!.attrs.alignment
-                    : 'flex-start',
-              },
-            }
+          const buttonRect =
+            buttonElement?.getBoundingClientRect?.() ?? nodeRect
+
+          // console.log('~~~~~ UPDATING SELECTED BUTTON', this.selectedNode)
+
+          const alignAttr = this.selectedNode!.attrs.alignment
+          const alignment =
+            typeof alignAttr === 'string' && alignAttr.length > 0
+              ? alignAttr
+              : 'flex-start'
+
+          nextState = {
+            show: true,
+            referencePos: buttonRect,
+            url: this.selectedNode!.attrs.url,
+            text: this.selectedNode!.attrs.name,
+            type: 'button',
+            id: container ? container.attrs.id : '',
+            props: {
+              // @ts-ignore
+              alignment: alignment,
+            },
           }
         } else if (this.selectedNode.type.name === 'embed') {
-          if (!this.selectedNode.attrs.url.length) return
+          if (!this.selectedNode.attrs.url.length) return null
           const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
             .node as HTMLElement
           const embedElement = dom.querySelector('[data-content-type="embed"]')
-          if (embedElement) {
-            const embedRect = embedElement.getBoundingClientRect()
-            const embedTopRightRect = new DOMRect(
-              embedRect.right - 162,
-              embedRect.top + 12,
-              1,
-              1,
-            )
-            this.hyperlinkToolbarState = {
-              show: true,
-              referencePos: embedTopRightRect,
-              url: this.selectedNode!.attrs.url,
-              text: '',
-              type: this.selectedNode.attrs.view === 'Card' ? 'card' : 'embed',
-              id: container ? container.attrs.id : '',
-            }
+          const embedRect = embedElement?.getBoundingClientRect?.() ?? nodeRect
+          const embedTopRightRect = new DOMRect(
+            embedRect.right - 162,
+            embedRect.top + 12,
+            1,
+            1,
+          )
+          nextState = {
+            show: true,
+            referencePos: embedTopRightRect,
+            url: this.selectedNode!.attrs.url,
+            text: '',
+            type: this.selectedNode.attrs.view === 'Card' ? 'card' : 'embed',
+            id: container ? container.attrs.id : '',
           }
         }
       }
-      this.updateHyperlinkToolbar()
 
-      return
+      return nextState
     }
+
+    return nextState
+  }
+
+  private updateFromHover(): HyperlinkToolbarState | null {
+    this.hoveredNode = undefined
+    this.hoveredNodeRange = undefined
+    let nextState: HyperlinkToolbarState | null = null
 
     if (this.hoveredId) {
       const {state} = this.editor._tiptapEditor
@@ -532,16 +543,19 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           }
         }
       } catch (e) {
-        let missingId
+        let stillExists = false
         // @ts-ignore
-        state.doc.descendants((node, pos) => {
-          if (node.attrs.id && node.attrs.id === this.hoveredId) {
-            missingId = this.hoveredId
+        state.doc.descendants((node) => {
+          if (node.attrs?.id === this.hoveredId) {
+            stillExists = true
+            return false
           }
         })
 
-        if (!missingId) {
+        if (!stillExists) {
+          this.hoveredId = undefined
           this.resetHyperlink()
+          return null
         }
       }
     }
@@ -551,15 +565,15 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this.hoveredNodeRange!.from,
         this.pmView.state,
       )
-      const rect = posToDOMRect(
+      const nodeRect = posToDOMRect(
         this.pmView,
         this.hoveredNodeRange!.from,
         this.hoveredNodeRange!.to,
       )
       if (this.hoveredNode instanceof Mark) {
-        this.hyperlinkToolbarState = {
+        nextState = {
           show: this.pmView.state.selection.empty,
-          referencePos: rect,
+          referencePos: nodeRect,
           url: this.hoveredNode!.attrs.href,
           text: this.pmView.state.doc.textBetween(
             this.hoveredNodeRange!.from,
@@ -570,9 +584,9 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         }
       } else if (this.hoveredNode instanceof PMNode) {
         if (this.hoveredNode.type.name === 'inline-embed')
-          this.hyperlinkToolbarState = {
+          nextState = {
             show: true,
-            referencePos: rect,
+            referencePos: nodeRect,
             url: this.hoveredNode!.attrs.link,
             text: ' ',
             type: 'inline-embed',
@@ -583,56 +597,78 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             .node as HTMLElement
           const buttonElement = dom.querySelector('button')
 
-          if (buttonElement) {
-            const buttonRect = buttonElement.getBoundingClientRect()
+          const buttonRect =
+            buttonElement?.getBoundingClientRect?.() ?? nodeRect
 
-            this.hyperlinkToolbarState = {
-              show: true,
-              referencePos: buttonRect,
-              url: this.hoveredNode!.attrs.url,
-              text: this.hoveredNode!.attrs.name,
-              type: 'button',
-              id: container ? container.attrs.id : '',
-              props: {
-                alignment:
-                  this.hoveredNode!.attrs.alignment.length > 0
-                    ? this.hoveredNode!.attrs.alignment
-                    : 'flex-start',
-              },
-            }
+          // console.log('~~~~ UPDATING BUTTON', this.hoveredNode)
+
+          const alignAttr = this.hoveredNode!.attrs.alignment
+          const alignment =
+            typeof alignAttr === 'string' && alignAttr.length > 0
+              ? alignAttr
+              : 'flex-start'
+
+          nextState = {
+            show: true,
+            referencePos: buttonRect,
+            url: this.hoveredNode!.attrs.url,
+            text: this.hoveredNode!.attrs.name,
+            type: 'button',
+            id: container ? container.attrs.id : '',
+            props: {
+              // @ts-ignore
+              alignment: alignment,
+            },
           }
         } else if (this.hoveredNode.type.name === 'embed') {
           const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
             .node as HTMLElement
           const embedElement = dom.querySelector('[data-content-type="embed"]')
-          if (embedElement) {
-            const embedRect = embedElement.getBoundingClientRect()
-            const embedTopRightRect = new DOMRect(
-              embedRect.right - 162,
-              embedRect.top + 12,
-              1,
-              1,
-            )
-            this.hyperlinkToolbarState = {
-              show: true,
-              referencePos: embedTopRightRect,
-              url: this.hoveredNode!.attrs.url,
-              text: '',
-              type: this.hoveredNode.attrs.view === 'Card' ? 'card' : 'embed',
-              id: container ? container.attrs.id : '',
-            }
+          const embedRect = embedElement?.getBoundingClientRect?.() ?? nodeRect
+          const embedTopRightRect = new DOMRect(
+            embedRect.right - 162,
+            embedRect.top + 12,
+            1,
+            1,
+          )
+          nextState = {
+            show: true,
+            referencePos: embedTopRightRect,
+            url: this.hoveredNode!.attrs.url,
+            text: '',
+            type: this.hoveredNode.attrs.view === 'Card' ? 'card' : 'embed',
+            id: container ? container.attrs.id : '',
           }
         }
       }
-      this.updateHyperlinkToolbar()
 
+      return nextState
+    }
+
+    return nextState
+  }
+
+  update() {
+    // if (!this.pmView.hasFocus()) {
+    //   return
+    // }
+
+    const selectionState = this.updateFromSelection()
+    if (selectionState) {
+      this.hyperlinkToolbarState = selectionState
+      this.updateHyperlinkToolbar()
+      return
+    }
+    const hoverState = this.updateFromHover()
+    if (hoverState) {
+      this.hyperlinkToolbarState = hoverState
+      this.updateHyperlinkToolbar()
       return
     }
 
     // Hides menu.
     if (
       this.hyperlinkToolbarState?.show &&
-      // prevHyperlinkMark &&
       !this.selectedNode &&
       !this.hoveredId &&
       !this.isHoveringToolbar
@@ -644,23 +680,23 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this.pmView,
         this,
       )
-
       if (
         this.hyperlinkToolbarState.type === 'link' &&
-        markOrNode?.attrs.href.length === 0
+        markOrNode?.attrs?.href?.length === 0 &&
+        range
       ) {
-        if (range && markOrNode)
-          this.pmView.dispatch(
-            this.pmView.state.tr
-              .removeMark(range.from, range.to, markOrNode.type as MarkType)
-              .setMeta('preventAutolink', true),
-          )
+        this.pmView.dispatch(
+          this.pmView.state.tr
+            .removeMark(
+              range.from,
+              range.to,
+              (markOrNode as Mark).type as MarkType,
+            )
+            .setMeta('preventAutolink', true),
+        )
       }
-      this.hyperlinkToolbarState.show = false
-
+      this.hyperlinkToolbarState = {...this.hyperlinkToolbarState, show: false}
       this.updateHyperlinkToolbar()
-
-      return
     }
   }
 

@@ -1,3 +1,5 @@
+import Tippy from '@tippyjs/react'
+import {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BaseUiElementState,
   BlockNoteEditor,
@@ -6,8 +8,6 @@ import {
   HyperlinkToolbarProsemirrorPlugin,
   HyperlinkToolbarState,
 } from '../../../core'
-import Tippy from '@tippyjs/react'
-import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
 import {HMBlockSchema} from '../../../../schema'
 import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
@@ -58,16 +58,9 @@ export const HyperlinkToolbarPositioner = <
     )
   }, [props.editor])
 
-  const getReferenceClientRect = useMemo(
-    () => {
-      if (!referencePos.current) {
-        return undefined
-      }
-
-      return () => referencePos.current!
-    },
-    [referencePos.current], // eslint-disable-line
-  )
+  const getReferenceClientRect = useCallback(() => {
+    return referencePos.current ?? new DOMRect()
+  }, [])
 
   const hyperlinkToolbarElement = useMemo(() => {
     if (!type || !id) {
