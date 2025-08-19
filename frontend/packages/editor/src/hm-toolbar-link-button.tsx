@@ -1,8 +1,3 @@
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  useEditorSelectionChange,
-} from './blocknote'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
@@ -22,6 +17,11 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {Check, Link, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
+import {
+  BlockNoteEditor,
+  BlockSchema,
+  useEditorSelectionChange,
+} from './blocknote'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
@@ -104,9 +104,10 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             popoverProps.onOpenChange(false)
             props.editor.focus()
             if (url) {
-              setLink(selectedUrl, text, url)
+              // TODO: find out why text needs to be here
+              setLink(selectedUrl, undefined, url)
             } else {
-              setLink(selectedUrl, text)
+              setLink(selectedUrl, undefined)
             }
           }}
           onCancel={() => popoverProps.onOpenChange(false)}
