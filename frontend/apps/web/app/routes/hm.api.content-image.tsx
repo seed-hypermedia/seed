@@ -2,7 +2,6 @@ import {queryClient} from '@/client'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
-  HMDocumentSchema,
   HMMetadataPayload,
   UnpackedHypermediaId,
   clipContentBlocks,
@@ -14,6 +13,7 @@ import {
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
 } from '@shm/shared'
+import {prepareHMDocument} from '@shm/shared/document-utils'
 import {readFileSync} from 'fs'
 import {join} from 'path'
 import satori from 'satori'
@@ -289,25 +289,15 @@ export const loader = async ({request}: {request: Request}) => {
     }),
   )
 
-  const document = HMDocumentSchema.parse(rawDoc.toJson())
+  const document = prepareHMDocument(rawDoc)
   if (!document) throw new Error('Document not found')
   const authors = await Promise.all(
     (document?.authors || []).map(async (authorUid) => {
       const rawDoc = await queryClient.documents.getDocument({
         account: authorUid,
       })
-      const rawDocJson = rawDoc.toJson({emitDefaultValues: true})
-      const document = HMDocumentSchema.safeParse(rawDocJson)
-      if (!document.success) {
-        console.error(
-          'Failed to parse author document for ',
-          authorUid,
-          document.error,
-        )
-        console.error(rawDocJson)
-        throw new Error('Failed to parse author document')
-      }
-      return document.data
+      const authorDoc = prepareHMDocument(rawDoc)
+      return authorDoc
     }),
   )
   console.log('~ authors', authors)

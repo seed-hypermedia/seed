@@ -3,13 +3,13 @@ import {
   entityQueryPathToHmIdPath,
   Event,
   HMComment,
-  HMDocumentSchema,
   hmId,
   packHmId,
   queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
+import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   LoadedCapabilityEvent,
   LoadedCommentEvent,
@@ -191,7 +191,7 @@ async function loadDocUpdateEvent(
     type: 'doc-update',
     time: toHMTimestamp(refData.ts),
     docId: exactDocId,
-    document: HMDocumentSchema.parse(docResource.kind.value.toJson()),
+    document: prepareHMDocument(docResource.kind.value),
     author: {
       id: authorId,
       metadata: await getMetadata(authorId),

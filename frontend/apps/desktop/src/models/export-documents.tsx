@@ -1,11 +1,10 @@
 import {useAppContext} from '@/app-context'
 import {grpcClient} from '@/grpc-client'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {getDocumentTitle} from '@shm/shared/content'
+import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@shm/shared/editor-types'
-import {HMDocumentMetadataSchema, HMDocumentSchema} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {SizableText} from '@shm/ui/text'
@@ -27,13 +26,7 @@ export function useExportDocuments() {
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
         })
-        const hmDocParse = HMDocumentSchema.safeParse({
-          ...toPlainMessage(doc),
-          metadata: HMDocumentMetadataSchema.parse(
-            doc.metadata?.toJson({emitDefaultValues: true}),
-          ),
-        })
-        const hmDoc = hmDocParse.success ? hmDocParse.data : null
+        const hmDoc = prepareHMDocument(doc)
         if (!hmDoc) return null
         const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(
           hmDoc.content,

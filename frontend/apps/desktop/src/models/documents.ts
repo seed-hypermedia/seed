@@ -13,6 +13,7 @@ import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs} from '@shm/shared/content'
+import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@shm/shared/editor-types'
 import {
   HMBlock,
@@ -20,7 +21,6 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
-  HMDocumentSchema,
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
@@ -243,9 +243,7 @@ export function usePublishDraft(
                 changes: allChanges,
                 capability: capabilityId,
               })
-            const resultDoc: HMDocument = HMDocumentSchema.parse(
-              publishedDoc.toJson(),
-            )
+            const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
             return resultDoc
           } else {
             throw Error('PUBLISH ERROR: Please select an account to sign first')
@@ -753,8 +751,7 @@ function useGetDoc() {
       version: id.version || undefined,
     })
 
-    const doc = HMDocumentSchema.parse(apiDoc.toJson())
-    return doc
+    return prepareHMDocument(apiDoc)
   }
   return getDoc
 }

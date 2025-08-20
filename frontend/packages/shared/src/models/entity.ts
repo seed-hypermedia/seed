@@ -52,17 +52,7 @@ export async function loadResource(
 
   //   documentParseAdjustments(serverDocument)
   //   // console.log('serverDocument', serverDocument.toJson())
-  //   const result = HMDocumentSchema.safeParse(serverDocument)
-  //   if (result.success) {
-  //     const document = result.data
-  //     return {
-  //       id: {...id, version: document.version},
-  //       document,
-  //     }
-  //   } else {
-  //     console.error('Invalid Document Data', serverDocument, result.error)
-  //     return {id, document: undefined}
-  //   }
+  //   return { document: prepareHMDocument(serverDocument), id: {...id, version: serverDocument.version} }
   // } catch (e) {
   //   const error = getErrorMessage(e)
   //   if (error instanceof HMRedirectError) {

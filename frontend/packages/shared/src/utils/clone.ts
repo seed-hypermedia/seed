@@ -1,5 +1,6 @@
 import {Struct} from '@bufbuild/protobuf'
 import {DocumentChange} from '../client'
+import {prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
 import {HMBlockNode, HMDocumentSchema} from '../hm-types'
 import {
@@ -42,15 +43,13 @@ export async function cloneSiteFromTemplate({
       `[Clone] Target home document version: ${targetHomeDoc.version}`,
     )
 
-    const targetHomeDocEntity = HMDocumentSchema.parse(targetHomeDoc.toJson())
+    const targetHomeDocEntity = prepareHMDocument(targetHomeDoc)
 
     console.log('[Clone] Fetching template home document...')
     const templateHomeDoc = await client.documents.getDocument({
       account: templateId,
     })
-    const templateHomeDocEntity = HMDocumentSchema.parse(
-      templateHomeDoc.toJson(),
-    )
+    const templateHomeDocEntity = prepareHMDocument(templateHomeDoc)
     console.log('[Clone] Template home document parsed successfully')
 
     // remove the template name so it will not override the current target name

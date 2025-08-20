@@ -585,7 +585,7 @@ async function fetchEntityTitle(
   //       const authorHomeDocRaw = await grpcClient.documents.getDocument({
   //         account: comment.author,
   //       })
-  //       const authorHomeDoc = HMDocumentSchema.parse(authorHomeDocRaw.toJson())
+  //       const authorHomeDoc = prepareHMDocument(authorHomeDocRaw)
   //       return {
   //         title: `Comment from ${
   //           authorHomeDoc.metadata?.name ||

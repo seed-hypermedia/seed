@@ -996,7 +996,7 @@ export const HMBlockGroupSchema = z.object({
 export const HMBlockLinkSchema = z.object({
   type: z.literal('Link'),
   id: z.string(),
-  link: z.string(),
+  link: z.string().optional(),
   text: z.string(),
 })
 

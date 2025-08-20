@@ -39,30 +39,70 @@ function sanitizeBlockNode(node: any): any | null {
   }
 }
 
-function sanitizeBlockNodes(nodes: any[]): any[] {
-  if (!Array.isArray(nodes)) return []
-  return nodes.map(sanitizeBlockNode).filter(Boolean)
-}
-
 function sanitizeDocumentStructure(docJSON: any) {
   const content = sanitizeBlockNodes(docJSON?.content)
 
-  const hasDetached = !!docJSON?.detachedBlocks
-  const detachedBlocks = hasDetached
-    ? Object.fromEntries(
-        Object.entries(docJSON.detachedBlocks)
-          .map(([key, blockNode]) => [key, sanitizeBlockNode(blockNode)])
-          .filter(([, node]) => node != null),
-      )
-    : undefined
+  const detachedBlocks = docJSON?.detachedBlocks || {}
 
   const next: any = {
     ...docJSON,
     content,
+    detachedBlocks: Object.fromEntries(
+      Object.entries(detachedBlocks).map(([key, blockNode]) => [
+        key,
+        sanitizeBlockNode(blockNode),
+      ]),
+    ),
   }
 
-  if (hasDetached) next.detachedBlocks = detachedBlocks
   return next
+}
+
+function sanitizeBlockNodes(nodes: any[]): any[] {
+  if (!Array.isArray(nodes)) return []
+
+  const sanitizeNode = (node: any): any | null => {
+    if (!node || typeof node !== 'object') return null
+    const block = node.block
+    if (!block || typeof block !== 'object') return null
+
+    const type = block.type
+
+    // Drop clearly invalid blocks that require a link
+    const requiresLinkTypes = new Set([
+      'Link',
+      'Image',
+      'Video',
+      'File',
+      'WebEmbed',
+      'Nostr',
+      'Embed',
+      'Button',
+    ])
+
+    if (requiresLinkTypes.has(type)) {
+      if (typeof block.link !== 'string') {
+        return null
+      }
+      // Ensure required text for Link exists at least as empty string
+      if (type === 'Link' && typeof block.text !== 'string') {
+        block.text = ''
+      }
+    }
+
+    // Recurse into children
+    const children = Array.isArray(node.children) ? node.children : []
+    const newChildren = sanitizeBlockNodes(children)
+
+    return newChildren === children
+      ? node
+      : {
+          ...node,
+          children: newChildren,
+        }
+  }
+
+  return nodes.map(sanitizeNode).filter((n): n is NonNullable<typeof n> => !!n)
 }
 
 export function prepareHMDocument(apiDoc: Document): HMDocument {
@@ -74,6 +114,7 @@ export function prepareHMDocument(apiDoc: Document): HMDocument {
     return document
   } catch (error) {
     console.error('~~ Error parsing document', error, docJSON)
+    console.error(JSON.stringify(docJSON, null, 2))
     throw error
   }
 }
