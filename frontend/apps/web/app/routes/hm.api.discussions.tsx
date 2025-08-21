@@ -5,6 +5,7 @@ import {Params} from '@remix-run/react'
 import {
   BIG_INT,
   getCommentGroups,
+  hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
@@ -48,14 +49,25 @@ export const loader = async ({
     const authorAccountUids = Array.from(authorAccounts)
     const accounts = await Promise.all(
       authorAccountUids.map(async (accountUid) => {
-        return await getAccount(accountUid, {discover: true})
+        try {
+          return await getAccount(accountUid, {discover: true})
+        } catch (e) {
+          console.error(`Error fetching account ${accountUid}`, e)
+          return null
+        }
       }),
     )
 
     result = {
       discussions: commentGroups,
       authors: Object.fromEntries(
-        authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx] || {}]),
+        authorAccountUids.map((acctUid, idx) => {
+          const account = accounts[idx]
+          if (!account) {
+            return [acctUid, {id: hmId(acctUid), metadata: null}]
+          }
+          return [acctUid, account]
+        }),
       ),
     } satisfies ListDiscussionsResponse
   } catch (error: any) {

@@ -18,6 +18,7 @@ import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock
 import {BIG_INT} from '@shm/shared/constants'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
+  HMBlockNodeSchema,
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
@@ -130,7 +131,16 @@ export function useComments(commentIds: UnpackedHypermediaId[] = []) {
       const res = await grpcClient.comments.batchGetComments({
         ids: commentIds.map((c) => c.id),
       })
-      return res.comments
+      return res.comments.map((comment) => {
+        const plain = toPlainMessage(comment)
+        return {
+          ...plain,
+          content: plain.content.map((blockNode) => {
+            const parsed = HMBlockNodeSchema.safeParse(blockNode)
+            return parsed.success ? parsed.data : blockNode
+          }),
+        } as HMComment
+      })
     },
   })
 }
@@ -148,9 +158,17 @@ export function useAllDiscussions(
         targetPath: hmIdPathToEntityQueryPath(docId.path),
         pageSize: BIG_INT,
       })
-      return res.comments.map((c) =>
-        c.toJson({emitDefaultValues: true}),
-      ) as Array<HMComment>
+      return res.comments.map((c) => {
+        const json = c.toJson({emitDefaultValues: true}) as any
+        return {
+          ...json,
+          content:
+            json.content?.map((blockNode: any) => {
+              const parsed = HMBlockNodeSchema.safeParse(blockNode)
+              return parsed.success ? parsed.data : blockNode
+            }) || [],
+        } as HMComment
+      })
     },
     enabled: !!docId && opts?.enabled !== false,
     refetchInterval: 10_000,

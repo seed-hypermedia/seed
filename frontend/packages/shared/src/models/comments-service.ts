@@ -1,7 +1,7 @@
 import {
-  HMAccountsMetadata,
   HMCommentGroup,
   HMCommentsPayload,
+  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '../hm-types'
 
@@ -16,7 +16,7 @@ export type ListCommentsByIdRequest = {
 
 export type ListCommentsResponse = {
   comments: HMCommentsPayload['comments']
-  authors: Record<string, HMAccountsMetadata>
+  authors: Record<string, HMMetadataPayload>
 }
 
 export type ListDiscussionsRequest = {
@@ -26,7 +26,7 @@ export type ListDiscussionsRequest = {
 
 export type ListDiscussionsResponse = {
   discussions: Array<HMCommentGroup>
-  authors: Record<string, HMAccountsMetadata>
+  authors: Record<string, HMMetadataPayload>
 }
 
 export interface CommentsService {

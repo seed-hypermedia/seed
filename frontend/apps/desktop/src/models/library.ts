@@ -134,7 +134,7 @@ export function useLibrary({
     }
     items = documents?.map((doc) => ({
       ...doc,
-      type: 'document',
+      type: 'document' as const,
       latestComment: doc.activitySummary?.latestCommentId
         ? comments.data?.find(
             (c) => c?.id === doc.activitySummary?.latestCommentId,
@@ -157,7 +157,7 @@ export function useLibrary({
       const plainAccount = toPlainMessage(account)
       return {
         ...plainAccount,
-        type: 'site',
+        type: 'site' as const,
         latestComment: account.activitySummary?.latestCommentId
           ? comments.data?.find(
               (c) => c?.id === account.activitySummary?.latestCommentId,
@@ -185,7 +185,7 @@ function useAllDocuments(enabled: boolean) {
         return {
           ...toPlainMessage(docInfo),
           metadata: HMDocumentMetadataSchema.parse(docInfo.metadata),
-          type: 'document',
+          type: 'document' as const,
           path: entityQueryPathToHmIdPath(docInfo.path),
         } as HMDocumentInfo
       })
@@ -229,11 +229,11 @@ export function useSiteLibrary(
     .map((commentId) => hmId(commentId))
   const comments = useComments(commentIds || [])
 
-  const data: HMLibraryDocument[] =
+  const data =
     siteDocuments.data?.documents.map((doc) => ({
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
-      type: 'document',
+      type: 'document' as const,
       latestComment: comments.data?.find(
         (c) => c?.id === doc.activitySummary?.latestCommentId,
       ),

@@ -9,13 +9,13 @@ import {useNavigate} from '@/utils/useNavigate'
 import {queryClient, queryKeys} from '@shm/shared'
 
 import {
-  HMAccountsMetadata,
   HMBlockEmbed,
   HMComment,
   HMCommentDraft,
   HMCommentGroup,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -68,7 +68,7 @@ export function renderCommentContent(comment: HMComment) {
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
-): HMAccountsMetadata {
+): ListDiscussionsResponse['authors'] {
   const commentGroupAuthors = new Set<string>()
   commentGroups.forEach((commentGroup) => {
     commentGroup.comments.forEach((comment) => {

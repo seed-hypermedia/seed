@@ -2,14 +2,14 @@ import {useDocumentCitations} from '@/models/citations'
 import {useAllDiscussions, useDeleteComment} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccountId} from '@/selected-account'
 
 import {useCommentGroups, useCommentParents} from '@shm/shared/comments'
 
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentDiscussionsAccessory} from '@shm/shared/routes'
-import {useTx, useTxString} from '@shm/shared/translation'
+import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -17,13 +17,12 @@ import {Button} from '@shm/ui/button'
 import {
   CommentGroup,
   Discussions,
+  EmptyDiscussions,
   QuotedDocBlock,
   useDeleteCommentDialog,
 } from '@shm/ui/comments'
-import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {MessageSquareOff} from 'lucide-react'
 import {memo, useEffect, useState} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
@@ -43,7 +42,6 @@ function _DiscussionsPanel(props: {
 }) {
   const {docId, accessory, onAccessory} = props
   const homeDoc = useResource(hmId(docId.uid))
-  const myAccount = useSelectedAccount()
   const targetDomain =
     homeDoc.data?.type === 'document'
       ? homeDoc.data.document.metadata.siteUrl
@@ -73,78 +71,14 @@ function _DiscussionsPanel(props: {
   return (
     <>
       <Discussions
-        commentEditor={<CommentBox docId={docId} au />}
+        commentEditor={<CommentBox docId={docId} />}
         targetId={docId}
         renderCommentContent={renderCommentContent}
+        onStartDiscussion={() => {
+          triggerCommentDraftFocus(docId.id, undefined)
+        }}
       />
     </>
-  )
-}
-
-function AllComments(props: {
-  docId: UnpackedHypermediaId
-  targetDomain?: string
-}) {
-  const {docId, targetDomain} = props
-  const comments = useAllDiscussions(docId)
-
-  const commentGroups = useCommentGroups(comments.data)
-  const authors = useCommentGroupAuthors(commentGroups.data)
-  const myAccountId = useSelectedAccountId()
-  const deleteComment = useDeleteComment()
-  const deleteCommentDialog = useDeleteCommentDialog()
-  let panelContent = null
-  if (comments.isLoading && !comments.data) {
-    panelContent = null
-  } else if (comments.data) {
-    panelContent =
-      commentGroups.data?.length > 0 ? (
-        commentGroups.data?.map((cg, idx) => {
-          return (
-            <div
-              className="flex flex-col px-2"
-              key={cg.id}
-              style={{
-                marginBottom: commentGroups.data?.length - 1 > idx ? '$4' : 0,
-              }}
-            >
-              <CommentGroup
-                currentAccountId={myAccountId ?? undefined}
-                onDelete={(id) => {
-                  if (!myAccountId) return
-                  deleteCommentDialog.open({
-                    onConfirm: () => {
-                      deleteComment.mutate({
-                        commentId: id,
-                        targetDocId: docId,
-                        signingAccountId: myAccountId,
-                      })
-                    },
-                  })
-                }}
-                key={cg.id}
-                commentGroup={cg}
-                authors={authors}
-                renderCommentContent={renderCommentContent}
-                enableReplies={true}
-                targetDomain={targetDomain}
-              />
-              {commentGroups.data?.length - 1 > idx && <Separator />}
-            </div>
-          )
-        })
-      ) : (
-        <EmptyDiscussions docId={docId} />
-      )
-  }
-  return (
-    <AccessoryContent>
-      <div className="border-border bg-background rounded-md border py-2 dark:bg-black">
-        <CommentBox docId={docId} autoFocus />
-      </div>
-      {panelContent}
-      {deleteCommentDialog.content}
-    </AccessoryContent>
   )
 }
 
@@ -205,12 +139,16 @@ function CommentBlockAccessory({
           )
         })
       ) : (
-        <EmptyDiscussions docId={docId} commentId={blockId} />
+        <EmptyDiscussions
+          onStartDiscussion={() => {
+            triggerCommentDraftFocus(docId.id, blockId)
+          }}
+        />
       )
   }
   return (
     <AccessoryContent
-      footer={<CommentBox docId={docId} quotingBlockId={blockId} au />}
+      footer={<CommentBox docId={docId} quotingBlockId={blockId} />}
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       <AppDocContentProvider docId={docId}>
@@ -249,7 +187,7 @@ function CommentReplyAccessory({
 
   return (
     <AccessoryContent
-      footer={<CommentBox replyCommentId={commentId} docId={docId} au />}
+      footer={<CommentBox replyCommentId={commentId} docId={docId} />}
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (
@@ -301,7 +239,11 @@ function CommentReplyAccessory({
             targetDomain={targetDomain}
           />
         ) : (
-          <EmptyDiscussions docId={docId} commentId={commentId} />
+          <EmptyDiscussions
+            onStartDiscussion={() => {
+              triggerCommentDraftFocus(docId.id, commentId)
+            }}
+          />
         )
       ) : null}
       <FocusedCommentReplies
@@ -360,31 +302,12 @@ function FocusedCommentReplies({
           )
         })
       ) : (
-        <EmptyDiscussions docId={docId} commentId={commentId} />
+        <EmptyDiscussions
+          onStartDiscussion={() => {
+            triggerCommentDraftFocus(docId.id, commentId)
+          }}
+        />
       )}
-    </div>
-  )
-}
-
-function EmptyDiscussions({
-  docId,
-  commentId,
-}: {
-  docId: UnpackedHypermediaId
-  commentId?: string
-}) {
-  const tx = useTx()
-  return (
-    <div className="flex flex-col items-center gap-4 p-4">
-      <MessageSquareOff size={48} className="size-25 text-gray-200" />
-      <SizableText size="xl">No discussions</SizableText>
-      <Button
-        size="lg"
-        variant="brand"
-        onClick={() => triggerCommentDraftFocus(docId.id, commentId)}
-      >
-        {tx('Start a Discussion')}
-      </Button>
     </div>
   )
 }

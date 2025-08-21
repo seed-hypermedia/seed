@@ -2,7 +2,7 @@ import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, unpackHmId} from '@shm/shared'
+import {BIG_INT, hmId, unpackHmId} from '@shm/shared'
 import {HMCitationsPayload, HMComment} from '@shm/shared/hm-types'
 import {ListCommentsResponse} from '@shm/shared/models/comments-service'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -42,7 +42,7 @@ export const loader = async ({
           return await getAccount(accountUid, {discover: true})
         } catch (e) {
           console.error(`Error fetching account ${accountUid}`, e)
-          return {}
+          return null
         }
       }),
     )
@@ -50,7 +50,13 @@ export const loader = async ({
     result = {
       comments: allComments,
       authors: Object.fromEntries(
-        allAccountUids.map((acctUid, idx) => [acctUid, accounts[idx] || {}]),
+        allAccountUids.map((acctUid, idx) => {
+          const account = accounts[idx]
+          if (!account) {
+            return [acctUid, {id: hmId(acctUid), metadata: null}]
+          }
+          return [acctUid, account]
+        }),
       ),
     } satisfies ListCommentsResponse
   } catch (e: any) {

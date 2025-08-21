@@ -65,11 +65,13 @@ export function Discussions({
   commentId,
   renderCommentContent,
   commentEditor,
+  onStartDiscussion,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
+  onStartDiscussion?: () => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -103,12 +105,7 @@ export function Discussions({
           )
         })
       ) : (
-        <EmptyDiscussions
-          onStartDiscussion={() => {}}
-          enableWebSigning={false}
-          docId={targetId}
-          replyComment={undefined}
-        />
+        <EmptyDiscussions onStartDiscussion={onStartDiscussion} />
       )
   }
 
@@ -158,7 +155,7 @@ export function CommentGroup({
             isLast={isLastCommentInGroup}
             key={comment.id}
             comment={comment}
-            authorMetadata={authors?.[comment.author]}
+            authorMetadata={authors?.[comment.author]?.metadata}
             authorId={comment.author}
             renderCommentContent={renderCommentContent}
             replyCount={
@@ -480,17 +477,9 @@ function DeleteCommentDialog({
 }
 
 export function EmptyDiscussions({
-  docId,
-  replyComment,
-  enableWebSigning,
   onStartDiscussion,
-  quotingBlockId,
 }: {
-  docId: UnpackedHypermediaId
-  replyComment?: HMComment
-  enableWebSigning: boolean
   onStartDiscussion?: () => void
-  quotingBlockId?: string
 }) {
   const tx = useTxString()
   return (
@@ -500,17 +489,7 @@ export function EmptyDiscussions({
       <Button
         variant="brand"
         onClick={() => {
-          if (enableWebSigning) {
-            onStartDiscussion?.()
-          } else {
-            console.log('redirectToWebIdentityCommenting')
-            // redirectToWebIdentityCommenting(docId, {
-            //   replyCommentId: replyComment?.id,
-            //   replyCommentVersion: replyComment?.version,
-            //   rootReplyCommentVersion: replyComment?.threadRootVersion,
-            //   quotingBlockId,
-            // })
-          }
+          onStartDiscussion?.()
         }}
       >
         {tx('Start a Discussion')}
