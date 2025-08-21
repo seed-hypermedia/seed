@@ -60,13 +60,12 @@ export function useCommentsService(params: ListDiscussionsRequest) {
 
   console.log('== ~ CommentsService ~ useCommentsService ~ context:', params)
   return useQuery({
-    queryKey: ['comments', params.targetId, params.commentId],
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId, params.commentId],
     queryFn: async (): Promise<ListCommentsResponse> => {
       if (!context.service) {
         return {comments: [], authors: {}}
       }
       const res = await context.service.listComments(params)
-      console.log('== ~ CommentsService ~ useCommentsService ~ context:', res)
       return res
     },
     enabled: !!context.service,
@@ -86,11 +85,9 @@ export function useDiscussionsService(params: ListDiscussionsRequest) {
       if (!context.service) {
         return {discussions: [], authors: {}}
       }
+
       const res = await context.service.listDiscussions(params)
-      console.log(
-        '== ~ CommentsService ~ useDiscussionsService ~ context:',
-        res,
-      )
+
       return res
     },
     enabled: !!context.service,

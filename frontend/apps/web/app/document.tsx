@@ -516,6 +516,7 @@ function InnerDocumentPage(
     ) : null
 
   if (activityEnabled && activePanel?.type == 'discussions') {
+    console.log('======== activePanel', activePanel)
     panel = (
       <WebDiscussionsPanel
         handleStartDiscussion={() => {

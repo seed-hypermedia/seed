@@ -11,9 +11,12 @@ import {
   hmId,
   HMMetadata,
   UnpackedHypermediaId,
+  useCommentGroups,
+  useCommentParents,
   useRouteLink,
 } from '@shm/shared'
 import {
+  useCommentsService,
   useCommentsServiceContext,
   useDiscussionsService,
 } from '@shm/shared/comments-service-provider'
@@ -23,7 +26,7 @@ import {useResourceUrl} from '@shm/shared/url'
 import {ChevronRight, Link, MessageSquareOff, Trash2} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
-import {AccessoryContent} from './accessories'
+import {AccessoryBackButton, AccessoryContent} from './accessories'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {
@@ -42,21 +45,98 @@ import {cn} from './utils'
 
 const avatarSize = 18
 
-export function DiscussionsPanel({
+export function CommentDiscussions({
   targetId,
   commentId,
   renderCommentContent,
+  onBack,
+  commentEditor,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   renderCommentContent?: (comment: HMComment) => ReactNode
+  commentEditor?: ReactNode
+  onStartDiscussion?: () => void
+  onBack?: () => void
 }) {
+  const commentsService = useCommentsService({targetId})
+  if (!commentId) return null
+  const parentThread = useCommentParents(
+    commentsService.data?.comments,
+    commentId,
+  )
+  const commentGroupReplies = useCommentGroups(
+    commentsService.data?.comments,
+    commentId,
+  )
+
   return (
-    <Discussions
-      targetId={targetId}
-      commentId={commentId}
-      renderCommentContent={renderCommentContent}
-    />
+    <AccessoryContent>
+      <AccessoryBackButton onClick={onBack} />
+      {commentId && parentThread ? (
+        parentThread.thread.length > 0 ? (
+          <CommentGroup
+            commentGroup={{
+              id: commentId,
+              comments: parentThread.thread,
+              moreCommentsCount: 0,
+              type: 'commentGroup',
+            }}
+            authors={commentsService.data?.authors}
+            onDelete={(id) => {
+              console.log('TODO: delete comment', id)
+              // if (!myAccountId) return
+              // deleteCommentDialog.open({
+              //   onConfirm: () => {
+              //     deleteComment.mutate({
+              //       commentId: id,
+              //       targetDocId: docId,
+              //       signingAccountId: myAccountId,
+              //     })
+              //     if (id === commentId) {
+              //       onBack()
+              //     }
+              //   },
+              // })
+            }}
+            // currentAccountId={myAccountId ?? undefined}
+            renderCommentContent={renderCommentContent}
+            highlightLastComment
+            // targetDomain={targetDomain}
+          />
+        ) : (
+          <EmptyDiscussions />
+        )
+      ) : null}
+      <div className="border-border relative max-h-1/2 border-b py-4">
+        <div
+          className="bg-border absolute w-px"
+          style={{
+            height: 32,
+            top: -12,
+            left: 32 / 2 - 1,
+          }}
+        />
+        {commentEditor}
+      </div>
+      {commentGroupReplies.data?.length > 0 ? (
+        commentGroupReplies.data.map((cg, idx) => {
+          return (
+            <div
+              key={cg.id}
+              className={cn(
+                'border-border border-b',
+                commentGroupReplies.data.length - 1 > idx && 'mb-4',
+              )}
+            >
+              <CommentGroup key={cg.id} commentGroup={cg} />
+            </div>
+          )
+        })
+      ) : (
+        <EmptyDiscussions />
+      )}
+    </AccessoryContent>
   )
 }
 
@@ -65,13 +145,13 @@ export function Discussions({
   commentId,
   renderCommentContent,
   commentEditor,
-  onStartDiscussion,
+  onBack,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
-  onStartDiscussion?: () => void
+  onBack?: () => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -105,12 +185,15 @@ export function Discussions({
           )
         })
       ) : (
-        <EmptyDiscussions onStartDiscussion={onStartDiscussion} />
+        <EmptyDiscussions />
       )
   }
 
   return (
-    <AccessoryContent header={commentEditor}>{panelContent}</AccessoryContent>
+    <AccessoryContent header={commentEditor}>
+      {commentId ? <AccessoryBackButton onClick={onBack} /> : null}
+      {panelContent}
+    </AccessoryContent>
   )
 }
 
@@ -218,6 +301,7 @@ export function Comment({
         onBlockCitationClick={() => {}}
         layoutUnit={14}
         textUnit={14}
+        comment
         debug={false}
         collapsedBlocks={new Set()}
         setCollapsedBlocks={() => {}}
@@ -476,24 +560,12 @@ function DeleteCommentDialog({
   )
 }
 
-export function EmptyDiscussions({
-  onStartDiscussion,
-}: {
-  onStartDiscussion?: () => void
-}) {
+export function EmptyDiscussions() {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquareOff className="size-25" size={48} color="$color8" />
+      <MessageSquareOff className="size-25 text-gray-200" size={48} />
       <SizableText size="md">{tx('No discussions')}</SizableText>
-      <Button
-        variant="brand"
-        onClick={() => {
-          onStartDiscussion?.()
-        }}
-      >
-        {tx('Start a Discussion')}
-      </Button>
     </div>
   )
 }

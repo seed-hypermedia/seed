@@ -735,7 +735,7 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content',
         isHighlight ? 'bg-brand-12' : 'bg-transparent',
-        hover && 'bg-background dark:bg-black',
+        !comment && hover && 'bg-background dark:bg-black',
       )}
       style={{
         borderRadius: layoutUnit / 4,

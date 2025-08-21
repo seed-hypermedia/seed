@@ -22,7 +22,6 @@ async function getCommentsAuthors(
           id: accountUid,
         })
         if (account && account.metadata) {
-          console.log('== ~ CommentsService ~ listComments ~ account:', account)
           authorAccounts.set(
             accountUid,
             (account.metadata?.toJson({
@@ -52,7 +51,6 @@ export class DesktopCommentsService implements CommentsService {
       pageSize: BIG_INT,
     })
 
-    console.log('== ~ CommentsService ~ listComments ~ res:', res)
     const comments = res.comments.map((c) =>
       c.toJson({emitDefaultValues: true}),
     ) as Array<HMComment>
@@ -76,7 +74,6 @@ export class DesktopCommentsService implements CommentsService {
   async listDiscussions(
     params: ListDiscussionsRequest,
   ): Promise<ListDiscussionsResponse> {
-    console.log('== ~ CommentsService ~ listDiscussions ~ params:', params)
     const res = await grpcClient.comments.listComments({
       targetAccount: params.targetId.uid,
       targetPath: hmIdPathToEntityQueryPath(params.targetId.path),

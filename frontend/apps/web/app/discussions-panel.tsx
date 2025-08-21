@@ -7,17 +7,16 @@ import {
 } from '@shm/shared/hm-types'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {Button} from '@shm/ui/button'
 import {
   Comment,
+  CommentDiscussions,
   CommentGroup,
   Discussions,
+  EmptyDiscussions,
   QuotedDocBlock,
 } from '@shm/ui/comments'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {MessageSquareOff} from 'lucide-react'
 import React, {useCallback, useMemo} from 'react'
 
 import {getCommentTargetId} from '@shm/shared'
@@ -39,7 +38,6 @@ type DiscussionsPanelProps = {
   comment?: HMComment
   blockId?: string
   handleBack: () => void
-  handleStartDiscussion?: () => void
   commentEditor?: React.ReactNode
 }
 
@@ -47,7 +45,6 @@ export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   const {homeId, comment, blockId, siteHost, handleBack, commentEditor} = props
-
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -82,9 +79,11 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
   if (comment) {
     return (
-      <CommentDiscussion
-        {...props}
-        handleBack={handleBack}
+      <CommentDiscussions
+        onBack={handleBack}
+        commentId={comment.id}
+        commentEditor={commentEditor}
+        targetId={props.docId}
         renderCommentContent={renderCommentContent}
       />
     )
@@ -96,6 +95,15 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
+        onStartDiscussion={() => {
+          if (props.enableWebSigning) {
+            props.handleStartDiscussion?.()
+          } else {
+            redirectToWebIdentityCommenting(props.docId, {
+              quotingBlockId: blockId,
+            })
+          }
+        }}
       />
     </>
   )
@@ -107,7 +115,6 @@ function BlockDiscussions({
   document,
   siteHost,
   originHomeId,
-  handleStartDiscussion,
   renderCommentContent,
   enableWebSigning,
   handleBack,
@@ -135,12 +142,7 @@ function BlockDiscussions({
             ),
         )
       ) : (
-        <EmptyDiscussions
-          onStartDiscussion={handleStartDiscussion}
-          enableWebSigning={enableWebSigning}
-          docId={docId}
-          quotingBlockId={blockId}
-        />
+        <EmptyDiscussions />
       )
   }
   return (
@@ -231,45 +233,6 @@ function CommentDiscussion(
         </div>
       ) : null}
       <div className="flex flex-col">{panelContent}</div>
-    </div>
-  )
-}
-
-export function EmptyDiscussions({
-  docId,
-  replyComment,
-  enableWebSigning,
-  onStartDiscussion,
-  quotingBlockId,
-}: {
-  docId: UnpackedHypermediaId
-  replyComment?: HMComment
-  enableWebSigning: boolean
-  onStartDiscussion?: () => void
-  quotingBlockId?: string
-}) {
-  const tx = useTxString()
-  return (
-    <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquareOff className="size-25" size={48} color="$color8" />
-      <SizableText size="md">{tx('No discussions')}</SizableText>
-      <Button
-        variant="brand"
-        onClick={() => {
-          if (enableWebSigning) {
-            onStartDiscussion?.()
-          } else {
-            redirectToWebIdentityCommenting(docId, {
-              replyCommentId: replyComment?.id,
-              replyCommentVersion: replyComment?.version,
-              rootReplyCommentVersion: replyComment?.threadRootVersion,
-              quotingBlockId,
-            })
-          }
-        }}
-      >
-        {tx('Start a Discussion')}
-      </Button>
     </div>
   )
 }

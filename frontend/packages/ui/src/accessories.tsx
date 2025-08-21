@@ -41,6 +41,7 @@ export function AccessoryContent({
   footer?: React.ReactNode
   header?: React.ReactNode
   title?: string
+  className?: string
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden" {...props}>

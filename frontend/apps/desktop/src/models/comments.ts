@@ -57,13 +57,13 @@ export function useCommentReplies(
 
 export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
-  replyCommentId: string | undefined,
+  commentId: string | undefined,
   opts?: Parameters<typeof trpc.comments.getCommentDraft.useQuery>[1],
 ) {
   const comment = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
-      replyCommentId,
+      replyCommentId: commentId,
     },
     opts,
   )
@@ -184,14 +184,14 @@ export function useCommentEditor(
   targetDocId: UnpackedHypermediaId,
   {
     onDiscardDraft,
-    replyCommentId,
+    commentId,
     initCommentDraft,
     onSuccess,
     quotingBlockId,
   }: {
     initCommentDraft?: HMCommentDraft | null | undefined
     onDiscardDraft?: () => void
-    replyCommentId?: string
+    commentId?: string
     onSuccess?: (commentId: {id: string}) => void
     quotingBlockId?: string
   } = {},
@@ -246,7 +246,7 @@ export function useCommentEditor(
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,
-      replyCommentId,
+      replyCommentId: commentId,
     })
     invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
@@ -364,7 +364,7 @@ export function useCommentEditor(
         : content
       const resultComment = await grpcClient.comments.createComment({
         content: publishContent,
-        replyParent: replyCommentId || undefined,
+        replyParent: commentId || undefined,
         targetAccount: targetDocId.uid,
         targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
         signingKeyName,
@@ -393,7 +393,7 @@ export function useCommentEditor(
       shouldClearEditorRef.current = true
       removeDraft.mutate({
         targetDocId: targetDocId.id,
-        replyCommentId,
+        replyCommentId: commentId,
       })
       pushComments.mutate({
         targetDocId,
@@ -431,7 +431,7 @@ export function useCommentEditor(
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
       removeDraft.mutate({
         targetDocId: targetDocId.id,
-        replyCommentId,
+        replyCommentId: commentId,
       })
     }
 

@@ -90,14 +90,14 @@ function _CommentBox(props: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
-  replyCommentId?: string
+  commentId?: string
   autoFocus?: boolean
 }) {
   const {
     docId,
     backgroundColor = 'transparent',
     quotingBlockId,
-    replyCommentId,
+    commentId,
     autoFocus,
   } = props
 
@@ -106,22 +106,20 @@ function _CommentBox(props: {
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
     undefined,
   )
-
-  console.log(`== ~ _CommentBox ~ draft:`, draft.data)
   const [isStartingComment, setIsStartingComment] = useState(false)
   function focusEditor() {
     setIsStartingComment(true)
   }
 
   useEffect(() => {
-    const focusKey = `${docId.id}-${replyCommentId || quotingBlockId}`
+    const focusKey = `${docId.id}-${commentId || quotingBlockId}`
     const subscribers = focusSubscribers.get(focusKey)
     if (subscribers) {
       subscribers.add(focusEditor)
     } else {
       focusSubscribers.set(focusKey, new Set([focusEditor]))
     }
-  }, [docId.id, replyCommentId])
+  }, [docId.id, commentId])
 
   if (draft.isInitialLoading) return null
 
@@ -139,7 +137,7 @@ function _CommentBox(props: {
           autoFocus={isStartingComment || autoFocus}
           initCommentDraft={draft.data}
           quotingBlockId={quotingBlockId}
-          replyCommentId={replyCommentId}
+          commentId={commentId}
           onDiscardDraft={() => {
             setIsStartingComment(false)
           }}
@@ -169,6 +167,9 @@ function _CommentBox(props: {
               queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
             })
             queryClient.invalidateQueries({
+              queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
+            })
+            queryClient.invalidateQueries({
               queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
             })
             queryClient.invalidateQueries({
@@ -188,7 +189,7 @@ function _CommentBox(props: {
           }}
         >
           <span className="text-sm font-thin italic">
-            {replyCommentId ? 'Reply in Discussion' : 'Start a new Discussion'}
+            {commentId ? 'Reply in Discussion' : 'Start a new Discussion'}
           </span>
         </Button>
       )
@@ -214,11 +215,8 @@ function _CommentBox(props: {
   )
 }
 
-export function triggerCommentDraftFocus(
-  docId: string,
-  replyCommentId?: string,
-) {
-  const focusKey = `${docId}-${replyCommentId}`
+export function triggerCommentDraftFocus(docId: string, commentId?: string) {
+  const focusKey = `${docId}-${commentId}`
   const subscribers = focusSubscribers.get(focusKey)
   if (subscribers) {
     subscribers.forEach((fn) => fn())
@@ -232,7 +230,7 @@ function _CommentDraftEditor({
   docId,
   onDiscardDraft,
   autoFocus,
-  replyCommentId,
+  commentId,
   initCommentDraft,
   onSuccess,
   quotingBlockId,
@@ -240,7 +238,7 @@ function _CommentDraftEditor({
   docId: UnpackedHypermediaId
   onDiscardDraft?: () => void
   autoFocus?: boolean
-  replyCommentId?: string
+  commentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
   onSuccess?: (commentId: {id: string}) => void
   quotingBlockId?: string
@@ -254,7 +252,7 @@ function _CommentDraftEditor({
     docId,
     {
       onDiscardDraft,
-      replyCommentId,
+      commentId,
       initCommentDraft,
       onSuccess,
       quotingBlockId,
@@ -270,7 +268,7 @@ function _CommentDraftEditor({
     editor,
     // include this because if autoFocus is true when the reply commentID or docId changes, we should focus again
     docId.id,
-    replyCommentId,
+    commentId,
   ])
   const contacts = useSelectedAccountContacts()
 
