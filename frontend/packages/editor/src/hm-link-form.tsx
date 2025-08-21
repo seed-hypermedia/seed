@@ -494,7 +494,7 @@ export function LinkTypeDropdown({
 
   const dropdown = (
     <div
-      className="bg-background absolute z-50 flex flex-col rounded-md py-2 shadow-md"
+      className="bg-background absolute z-[99999] flex flex-col rounded-md py-2 shadow-md"
       style={{
         top: inputPosition ? inputPosition.bottom + 5 : 0,
         left: inputPosition?.left ?? 0,
