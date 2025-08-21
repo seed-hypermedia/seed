@@ -31,12 +31,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui/toast'
-import {
-  UseQueryOptions,
-  useMutation,
-  useQueries,
-  useQuery,
-} from '@tanstack/react-query'
+import {UseQueryOptions, useMutation, useQuery} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
@@ -45,6 +40,7 @@ import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
 import {siteDiscover} from './web-links'
 
+// TODO: REMOVE THIS
 export function useCommentReplies(
   targetCommentId: string,
   targetDocId: UnpackedHypermediaId | undefined,
@@ -118,6 +114,7 @@ function queryComment(
   }
 }
 
+// TODO: REMOVE THIS
 export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
@@ -125,12 +122,20 @@ export function useComment(
   return useQuery(queryComment(grpcClient, id, opts))
 }
 
+// TODO: REMOVE THIS
 export function useComments(commentIds: UnpackedHypermediaId[] = []) {
-  return useQueries({
-    queries: commentIds.map((commentId) => queryComment(grpcClient, commentId)),
+  return useQuery({
+    queryKey: [queryKeys.COMMENTS_BATCH],
+    queryFn: async function () {
+      const res = await grpcClient.comments.batchGetComments({
+        ids: commentIds.map((c) => c.id),
+      })
+      return res.comments
+    },
   })
 }
 
+// TODO: REMOVE THIS
 export function useAllDiscussions(
   docId: UnpackedHypermediaId | null | undefined,
   opts?: {enabled?: boolean},

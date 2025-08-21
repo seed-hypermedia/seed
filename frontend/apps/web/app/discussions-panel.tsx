@@ -8,7 +8,12 @@ import {
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
-import {Comment, CommentGroup, QuotedDocBlock} from '@shm/ui/discussion'
+import {
+  Comment,
+  CommentGroup,
+  Discussions,
+  QuotedDocBlock,
+} from '@shm/ui/comments'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -21,7 +26,7 @@ import {AccessoryBackButton} from '@shm/ui/accessories'
 import {cn} from '@shm/ui/utils'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
-import {useAllDiscussions, useBlockDiscussions, useDiscussion} from './models'
+import {useBlockDiscussions, useDiscussion} from './models'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
@@ -35,12 +40,13 @@ type DiscussionsPanelProps = {
   blockId?: string
   handleBack: () => void
   handleStartDiscussion?: () => void
+  commentEditor?: React.ReactNode
 }
 
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {homeId, comment, blockId, siteHost, handleBack} = props
+  const {homeId, comment, blockId, siteHost, handleBack, commentEditor} = props
 
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
@@ -85,59 +91,14 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   }
 
   return (
-    <AllDiscussions {...props} renderCommentContent={renderCommentContent} />
+    <>
+      <Discussions
+        commentEditor={commentEditor}
+        targetId={props.docId}
+        renderCommentContent={renderCommentContent}
+      />
+    </>
   )
-}
-
-export function AllDiscussions({
-  docId,
-  comment,
-  enableWebSigning,
-  handleStartDiscussion,
-  renderCommentContent,
-}: DiscussionsPanelProps & {
-  renderCommentContent: (comment: HMComment) => React.ReactNode
-}) {
-  const allDiscussions = useAllDiscussions(docId)
-  const commentGroups = allDiscussions?.data?.commentGroups || []
-  let panelContent = null
-  if (allDiscussions.isLoading && !allDiscussions.data) {
-    panelContent = (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  } else if (allDiscussions.data) {
-    panelContent =
-      commentGroups?.length > 0 ? (
-        commentGroups?.map((cg, idx) => {
-          return (
-            <div
-              key={cg.id}
-              className={cn(
-                'border-border border-b px-3',
-                commentGroups.length - 1 > idx && 'mb-4',
-              )}
-            >
-              <CommentGroup
-                commentGroup={cg}
-                authors={allDiscussions?.data?.authors}
-                renderCommentContent={renderCommentContent}
-                enableReplies
-              />
-            </div>
-          )
-        })
-      ) : (
-        <EmptyDiscussions
-          onStartDiscussion={handleStartDiscussion}
-          enableWebSigning={enableWebSigning}
-          docId={docId}
-          replyComment={comment}
-        />
-      )
-  }
-  return <div className="flex flex-col gap-4 p-3">{panelContent}</div>
 }
 
 function BlockDiscussions({

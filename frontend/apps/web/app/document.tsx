@@ -14,14 +14,14 @@ import {
   HMMetadata,
   hostnameStripProtocol,
   NavRoute,
-  pluralS,
   routeToHref,
   UnpackedHypermediaId,
   useUniversalAppContext,
   WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
-import {DiscussionsProvider} from '@shm/shared/discussions-provider'
+import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import '@shm/shared/styles/document.css'
+import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
@@ -29,7 +29,6 @@ import {DocumentCitationEntry} from '@shm/ui/citations'
 import {
   Drawer,
   DrawerContent,
-  DrawerFooter,
   DrawerHeader,
   DrawerTrigger,
 } from '@shm/ui/components/drawer'
@@ -73,6 +72,7 @@ import {useTx, useTxString} from '@shm/shared/translation'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {useMedia} from '@shm/ui/use-media'
+import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
@@ -231,7 +231,7 @@ function InnerDocumentPage(
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
-
+  const commentsService = new WebCommentsService()
   let panel: any = null
   let panelTitle: string = ''
 
@@ -496,25 +496,23 @@ function InnerDocumentPage(
 
   const commentEditor =
     activePanel?.type == 'discussions' ? (
-      <div className="w-full px-4 py-2">
-        {enableWebSigning || WEB_IDENTITY_ENABLED ? (
-          <WebCommenting
-            autoFocus={editorAutoFocus}
-            docId={id}
-            replyCommentId={activePanel.comment?.id}
-            replyCommentVersion={activePanel.comment?.version}
-            rootReplyCommentVersion={
-              activePanel.comment?.threadRootVersion ||
-              activePanel.comment?.version
-            }
-            quotingBlockId={activePanel.blockId}
-            enableWebSigning={enableWebSigning || false}
-            onSuccess={({response}) => {
-              setCommentPanel(response.comment)
-            }}
-          />
-        ) : null}
-      </div>
+      enableWebSigning || WEB_IDENTITY_ENABLED ? (
+        <WebCommenting
+          autoFocus={editorAutoFocus}
+          docId={id}
+          replyCommentId={activePanel.comment?.id}
+          replyCommentVersion={activePanel.comment?.version}
+          rootReplyCommentVersion={
+            activePanel.comment?.threadRootVersion ||
+            activePanel.comment?.version
+          }
+          quotingBlockId={activePanel.blockId}
+          enableWebSigning={enableWebSigning || false}
+          onSuccess={({response}) => {
+            // setCommentPanel(response.comment)
+          }}
+        />
+      ) : null
     ) : null
 
   if (activityEnabled && activePanel?.type == 'discussions') {
@@ -523,6 +521,7 @@ function InnerDocumentPage(
         handleStartDiscussion={() => {
           setEditorAutoFocus(true)
         }}
+        commentEditor={commentEditor}
         blockId={activePanel.blockId}
         comment={activePanel.comment}
         handleBack={() => {
@@ -573,7 +572,8 @@ function InnerDocumentPage(
       />
     )
   return (
-    <DiscussionsProvider
+    <CommentsProvider
+      service={commentsService}
       onReplyClick={onReplyClick}
       onReplyCountClick={onReplyCountClick}
     >
@@ -752,10 +752,6 @@ function InnerDocumentPage(
                   <div className="flex-1 overflow-hidden">
                     <ScrollArea>{panel}</ScrollArea>
                   </div>
-
-                  <div className="border-sidebar-border shrink-0 border-t p-2">
-                    {commentEditor}
-                  </div>
                 </Panel>
               </>
             ) : null}
@@ -785,14 +781,13 @@ function InnerDocumentPage(
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <ScrollArea>{panel}</ScrollArea>
                   </div>
-                  <DrawerFooter>{commentEditor}</DrawerFooter>
                 </div>
               </DrawerContent>
             </Drawer>
           </>
         )}
       </div>
-    </DiscussionsProvider>
+    </CommentsProvider>
   )
 }
 

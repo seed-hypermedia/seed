@@ -1,4 +1,5 @@
-import {pluralS, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared'
+import {pluralS} from '@shm/shared/utils/language'
 import React from 'react'
 
 export type TabType =
@@ -21,9 +22,9 @@ const Tab: React.FC<TabProps> = ({id, label, isActive, onClick}) => {
   return (
     <li role="presentation">
       <button
-        className={`inline-block p-2 border-transparent whitespace-nowrap flex-shrink-0 ${
+        className={`inline-block flex-shrink-0 border-transparent p-2 whitespace-nowrap ${
           isActive
-            ? 'text-blue-600 rounded-none border-0 border-b-2 border-blue-600'
+            ? 'rounded-none border-0 border-b-2 border-blue-600 text-blue-600'
             : 'rounded-none border-none hover:text-gray-600'
         }`}
         onClick={() => onClick(id)}
@@ -104,7 +105,7 @@ const Tabs: React.FC<TabsProps> = ({
   return (
     <div className="mb-4 border-b border-gray-200">
       <ul
-        className="flex overflow-x-auto flex-nowrap px-2 text-sm font-medium text-center md:px-0"
+        className="flex flex-nowrap overflow-x-auto px-2 text-center text-sm font-medium md:px-0"
         role="tablist"
       >
         {tabs.map((tab) => (

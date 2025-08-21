@@ -5,6 +5,7 @@ import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
+import {DesktopCommentsService} from '@/desktop-comments-service'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useSelectedAccountContacts} from '@/models/contacts'
@@ -27,7 +28,7 @@ import {
   chromiumSupportedVideoMimeTypes,
   generateBlockId,
 } from '@shm/editor/utils'
-import {DiscussionsProvider} from '@shm/shared/discussions-provider'
+import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
   HMEntityContent,
@@ -58,6 +59,7 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {
+  const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
   const replace = useNavigate('replace')
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
@@ -174,7 +176,8 @@ export default function DraftPage() {
   const headerDocId = locationId || (!!homeEntity.data && editId)
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <DiscussionsProvider
+      <CommentsProvider
+        service={commentsService}
         onReplyClick={(replyComment) => {
           replace({
             ...route,
@@ -256,7 +259,7 @@ export default function DraftPage() {
             </div>
           </AccessoryLayout>
         </div>
-      </DiscussionsProvider>
+      </CommentsProvider>
     </ErrorBoundary>
   )
 }

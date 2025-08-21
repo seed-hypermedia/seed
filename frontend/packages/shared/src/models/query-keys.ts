@@ -91,6 +91,7 @@ export const queryKeys = {
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
   BLOCK_DISCUSSIONS: 'BLOCK_DISCUSSIONS', //, docId.id: string, blockId: string
+  COMMENTS_BATCH: 'COMMENTS_BATCH',
 
   SETTINGS: 'SETTINGS', // key: string
 

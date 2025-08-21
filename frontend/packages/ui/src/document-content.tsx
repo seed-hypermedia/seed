@@ -22,7 +22,6 @@ import {
   isHypermediaScheme,
   narrowHmId,
   packHmId,
-  pluralS,
   unpackHmId,
   useHover,
   useLowlight,
@@ -38,6 +37,7 @@ import {
   EntityComponentProps,
 } from '@shm/shared/document-content-types'
 import {useTxString} from '@shm/shared/translation'
+import {pluralS} from '@shm/shared/utils/language'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -1593,7 +1593,6 @@ export function ContentEmbed({
   }, [isExpanded, props.block.id])
 
   const embedData = useMemo(() => {
-    console.log(props, document)
     const selectedBlock =
       props.blockRef && document?.content
         ? getBlockNodeById(document.content, props.blockRef)

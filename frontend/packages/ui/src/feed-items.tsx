@@ -6,7 +6,7 @@ import {
   LoadedFeedEvent,
 } from '@shm/shared/feed-types'
 import {NavRoute} from '@shm/shared/routes'
-import {Comment} from './discussion'
+import {Comment} from './comments'
 import {
   EventContact,
   EventContacts,

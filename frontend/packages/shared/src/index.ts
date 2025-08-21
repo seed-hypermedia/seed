@@ -1,8 +1,8 @@
 export * from './citation-deduplication'
 export * from './client'
+export * from './comments'
 export * from './constants'
 export * from './content'
-export * from './discussion'
 export * from './editor-types'
 export * from './grpc-client'
 // @ts-expect-error

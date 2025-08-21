@@ -1,6 +1,7 @@
 import {ChevronLeft} from 'lucide-react'
 import {HTMLAttributes} from 'react'
 import {Button} from './button'
+import {ScrollArea} from './components/scroll-area'
 import {cn} from './utils'
 
 export function AccessoryBackButton({
@@ -26,5 +27,34 @@ export function AccessoryBackButton({
       <ChevronLeft size={16} />
       {label || 'Back'}
     </Button>
+  )
+}
+
+export function AccessoryContent({
+  children,
+  footer,
+  header,
+  title,
+  ...props
+}: {
+  children?: React.ReactNode
+  footer?: React.ReactNode
+  header?: React.ReactNode
+  title?: string
+}) {
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden" {...props}>
+      <ScrollArea>
+        {header ? (
+          <div className="border-border max-h-1/2 border-b p-4">{header}</div>
+        ) : null}
+        <div className={cn('flex flex-col gap-2 p-3')}>{children}</div>
+      </ScrollArea>
+      {footer ? (
+        <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">
+          <ScrollArea>{footer}</ScrollArea>
+        </div>
+      ) : null}
+    </div>
   )
 }

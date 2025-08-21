@@ -6,6 +6,8 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {queryClient, queryKeys} from '@shm/shared'
+
 import {
   HMAccountsMetadata,
   HMBlockEmbed,
@@ -16,6 +18,7 @@ import {
 } from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
+import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
   BlocksContent,
@@ -26,6 +29,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useStream} from '@shm/ui/use-stream'
+import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {useSizeObserver} from './app-embeds'
 import {HyperMediaEditorView} from './editor'
@@ -53,21 +57,7 @@ export function renderCommentContent(comment: HMComment) {
   }, [comment])
 
   return (
-    <AppDocContentProvider
-      comment
-
-      // onBlockReply={onBlockReply}
-      // onBlockReply={() => {}}
-      // onBlockCopy={(
-      //   blockId: string,
-      //   blockRange: BlockRange | ExpandedBlockRange | undefined,
-      // ) => {
-      //   const url = `hm://c/${comment.id}#${blockId}${serializeBlockRange(
-      //     blockRange,
-      //   )}`
-      //   copyUrlToClipboardWithFeedback(url, 'Comment Block')
-      // }}
-    >
+    <AppDocContentProvider comment>
       <div className="flex w-full flex-col">
         <CommentReference reference={data.reference} />
         <BlocksContent blocks={data.content} parentBlockId={null} />
@@ -116,16 +106,9 @@ function _CommentBox(props: {
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
     undefined,
   )
-  console.log('== DISCUSSIONS PANEL ~ CommentBox ~ docId:', docId, draft)
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-  let content = null
-  let onClick = undefined
-  const [isStartingComment, setIsStartingComment] = useState(false)
-  // useEffect(() => {
-  //   triggerCommentDraftFocus(docId.id, replyCommentId)
-  // })
 
+  console.log(`== ~ _CommentBox ~ draft:`, draft.data)
+  const [isStartingComment, setIsStartingComment] = useState(false)
   function focusEditor() {
     setIsStartingComment(true)
   }
@@ -141,6 +124,8 @@ function _CommentBox(props: {
   }, [docId.id, replyCommentId])
 
   if (draft.isInitialLoading) return null
+
+  let content = null
 
   if (!account) {
     content = (
@@ -159,32 +144,40 @@ function _CommentBox(props: {
             setIsStartingComment(false)
           }}
           onSuccess={({id}) => {
-            if (route.key === 'document' && !!id) {
-              const accessory = route.accessory
-              const discussionsAccessory =
-                accessory?.key === 'discussions' ? accessory : null
-              replace({
-                ...route,
-                id: {
-                  ...route.id,
-                },
-                accessory: discussionsAccessory
-                  ? {
-                      ...discussionsAccessory,
-                      openComment: id,
-                    }
-                  : undefined,
-              })
-            }
+            setIsStartingComment(false)
+            // if (route.key === 'document' && !!id) {
+            //   const accessory = route.accessory
+            //   const discussionsAccessory =
+            //     accessory?.key === 'discussions' ? accessory : null
+            //   replace({
+            //     ...route,
+            //     id: {
+            //       ...route.id,
+            //     },
+            //     accessory: discussionsAccessory
+            //       ? {
+            //           ...discussionsAccessory,
+            //           openComment: id,
+            //         }
+            //       : undefined,
+            //   })
+            // }
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
+            })
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
+            })
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
+            })
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.DOC_CITATIONS], // all docs
+            })
           }}
         />
       )
-      console.log(
-        '== DISCUSSIONS PANEL ~ draft.data || isStartingComment || autoFocus:',
-        content,
-      )
     } else {
-      console.log('== DISCUSSIONS PANEL ~ CommentBox ~ content ELSE', content)
       content = (
         <Button
           variant="ghost"
@@ -203,8 +196,20 @@ function _CommentBox(props: {
   }
 
   return (
-    <div className="rounded-lg" onClick={onClick}>
-      {content}
+    <div className="flex w-full items-start gap-2">
+      <div className="flex shrink-0 grow-0">
+        {account?.document?.metadata ? (
+          <HMIcon
+            id={account.id}
+            metadata={account.document.metadata}
+            size={32}
+          />
+        ) : (
+          <UIAvatar id="?" label="?" size={32} />
+        )}
+      </div>
+
+      <div className="bg-muted w-full flex-1 rounded-md">{content}</div>
     </div>
   )
 }
@@ -309,40 +314,31 @@ function _CommentDraftEditor({
         <div className="flex flex-1 items-center">
           <AutosaveIndicator isSaved={isSaved} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <Tooltip
             content={`Publish Comment as "${account?.document?.metadata.name}"`}
           >
             <Button
               className="w-full flex-1"
-              size="sm"
+              size="icon"
               onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation()
                 onSubmit()
               }}
               disabled={!isSaved.get()}
             >
-              {account ? (
-                <HMIcon
-                  id={account.id}
-                  metadata={account.document?.metadata}
-                  size={16}
-                />
-              ) : null}
-              Publish
+              <SendHorizonal className="size-4" />
             </Button>
           </Tooltip>
           <Tooltip content="Discard Comment Draft">
             <Button
               size="icon"
-              className="size-7"
               onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation()
                 onDiscard()
               }}
-              variant="destructive"
             >
-              <Trash className="size-4" />
+              <Trash className="text-destructive size-4" />
             </Button>
           </Tooltip>
         </div>

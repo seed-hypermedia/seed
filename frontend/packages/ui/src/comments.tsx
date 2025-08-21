@@ -5,7 +5,6 @@ import {
 import {
   formattedDateMedium,
   getCommentTargetId,
-  HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
   HMDocument,
@@ -14,12 +13,17 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {useDiscussionsContext} from '@shm/shared/discussions-provider'
+import {
+  useCommentsServiceContext,
+  useDiscussionsService,
+} from '@shm/shared/comments-service-provider'
+import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {ChevronRight, Link, Trash2} from 'lucide-react'
+import {ChevronRight, Link, MessageSquareOff, Trash2} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
+import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {
@@ -30,11 +34,88 @@ import {
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {Spinner} from './spinner'
+import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 import {cn} from './utils'
 
 const avatarSize = 18
+
+export function DiscussionsPanel({
+  targetId,
+  commentId,
+  renderCommentContent,
+}: {
+  targetId: UnpackedHypermediaId
+  commentId?: string
+  renderCommentContent?: (comment: HMComment) => ReactNode
+}) {
+  return (
+    <Discussions
+      targetId={targetId}
+      commentId={commentId}
+      renderCommentContent={renderCommentContent}
+    />
+  )
+}
+
+export function Discussions({
+  targetId,
+  commentId,
+  renderCommentContent,
+  commentEditor,
+}: {
+  targetId: UnpackedHypermediaId
+  commentId?: string
+  renderCommentContent?: (comment: HMComment) => ReactNode
+  commentEditor?: ReactNode
+}) {
+  const discussionsService = useDiscussionsService({targetId, commentId})
+
+  let panelContent = null
+
+  if (discussionsService.isLoading && !discussionsService.data) {
+    panelContent = (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  } else if (discussionsService.data) {
+    panelContent =
+      discussionsService.data.discussions?.length > 0 ? (
+        discussionsService.data.discussions?.map((cg, idx) => {
+          return (
+            <div
+              key={cg.id}
+              className={cn(
+                'border-border border-b',
+                discussionsService.data.discussions.length - 1 > idx && 'mb-4',
+              )}
+            >
+              <CommentGroup
+                commentGroup={cg}
+                authors={discussionsService.data.authors}
+                renderCommentContent={renderCommentContent}
+                enableReplies
+              />
+            </div>
+          )
+        })
+      ) : (
+        <EmptyDiscussions
+          onStartDiscussion={() => {}}
+          enableWebSigning={false}
+          docId={targetId}
+          replyComment={undefined}
+        />
+      )
+  }
+
+  return (
+    <AccessoryContent header={commentEditor}>{panelContent}</AccessoryContent>
+  )
+}
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
 export function CommentGroup({
@@ -48,8 +129,8 @@ export function CommentGroup({
   targetDomain,
 }: {
   commentGroup: HMCommentGroup
-  authors?: HMAccountsMetadata | undefined
-  renderCommentContent: (comment: HMComment) => ReactNode
+  authors?: ListDiscussionsResponse['authors']
+  renderCommentContent?: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   highlightLastComment?: boolean
   onDelete?: (commentId: string) => void
@@ -65,7 +146,7 @@ export function CommentGroup({
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,
-            left: avatarSize - 1,
+            left: avatarSize / 2,
           }}
         />
       )}
@@ -77,8 +158,8 @@ export function CommentGroup({
             isLast={isLastCommentInGroup}
             key={comment.id}
             comment={comment}
-            authorMetadata={authors?.[comment.author]?.metadata}
-            authorId={authors?.[comment.author]?.id.uid}
+            authorMetadata={authors?.[comment.author]}
+            authorId={comment.author}
             renderCommentContent={renderCommentContent}
             replyCount={
               isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
@@ -153,7 +234,7 @@ export function Comment({
     )
   }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
-  const discussionsContext = useDiscussionsContext()
+  const CommentsContext = useCommentsServiceContext()
   const authorHmId =
     comment.author || authorId ? hmId(authorId || comment.author) : null
   const authorLink = useRouteLink(
@@ -184,7 +265,7 @@ export function Comment({
   return (
     <div
       className={cn(
-        'group relative flex gap-1 rounded-lg p-2',
+        'group relative flex gap-1 rounded-lg',
         highlight ? 'bg-secondary dark:bg-brand-10' : '', // TODO: review color for dark theme
       )}
     >
@@ -197,8 +278,8 @@ export function Comment({
               : 'dark:bg-background bg-white',
           )}
           style={{
-            height: `calc(100% - ${avatarSize + 12}px)`,
-            left: 12,
+            height: `calc(100% - ${avatarSize}px)`,
+            left: 3,
             bottom: 0,
           }}
         />
@@ -272,7 +353,7 @@ export function Comment({
                 className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
                 size="xs"
                 onClick={() => {
-                  discussionsContext.onReplyCountClick(comment)
+                  CommentsContext.onReplyCountClick(comment)
                 }}
               >
                 <ChevronRight className="size-3" />
@@ -284,14 +365,14 @@ export function Comment({
                 )}
               </Button>
             ) : null}
-            {enableReplies || discussionsContext.onReplyClick ? (
+            {enableReplies || CommentsContext.onReplyClick ? (
               <Button
                 variant="ghost"
                 size="xs"
                 className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
                 onClick={() => {
-                  if (discussionsContext.onReplyClick) {
-                    discussionsContext.onReplyClick(comment)
+                  if (CommentsContext.onReplyClick) {
+                    CommentsContext.onReplyClick(comment)
                   }
                 }}
               >
@@ -395,5 +476,45 @@ function DeleteCommentDialog({
         Delete Comment
       </Button>
     </>
+  )
+}
+
+export function EmptyDiscussions({
+  docId,
+  replyComment,
+  enableWebSigning,
+  onStartDiscussion,
+  quotingBlockId,
+}: {
+  docId: UnpackedHypermediaId
+  replyComment?: HMComment
+  enableWebSigning: boolean
+  onStartDiscussion?: () => void
+  quotingBlockId?: string
+}) {
+  const tx = useTxString()
+  return (
+    <div className="flex flex-col items-center gap-4 py-4">
+      <MessageSquareOff className="size-25" size={48} color="$color8" />
+      <SizableText size="md">{tx('No discussions')}</SizableText>
+      <Button
+        variant="brand"
+        onClick={() => {
+          if (enableWebSigning) {
+            onStartDiscussion?.()
+          } else {
+            console.log('redirectToWebIdentityCommenting')
+            // redirectToWebIdentityCommenting(docId, {
+            //   replyCommentId: replyComment?.id,
+            //   replyCommentVersion: replyComment?.version,
+            //   rootReplyCommentVersion: replyComment?.threadRootVersion,
+            //   quotingBlockId,
+            // })
+          }
+        }}
+      >
+        {tx('Start a Discussion')}
+      </Button>
+    </div>
   )
 }

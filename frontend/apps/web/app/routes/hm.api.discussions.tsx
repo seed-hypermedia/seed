@@ -8,16 +8,10 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMComment,
-  HMCommentGroup,
-} from '@shm/shared/hm-types'
+import {HMComment} from '@shm/shared/hm-types'
+import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 
-export type HMDiscussionsPayload = {
-  commentGroups: HMCommentGroup[]
-  authors: HMAccountsMetadata
-}
+export type HMDiscussionsPayload = ListDiscussionsResponse
 
 export const loader = async ({
   request,
@@ -58,16 +52,14 @@ export const loader = async ({
       }),
     )
 
-    // @ts-expect-error
     result = {
-      commentGroups: commentGroups,
-      // @ts-expect-error
+      discussions: commentGroups,
       authors: Object.fromEntries(
-        authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx]]),
+        authorAccountUids.map((acctUid, idx) => [acctUid, accounts[idx] || {}]),
       ),
-    } satisfies HMDiscussionsPayload
+    } satisfies ListDiscussionsResponse
   } catch (error: any) {
-    console.error('=== comment error', error)
+    console.error('=== Discussions API error', error)
     result = {error: error.message}
   }
 

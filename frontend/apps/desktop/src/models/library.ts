@@ -136,9 +136,9 @@ export function useLibrary({
       ...doc,
       type: 'document',
       latestComment: doc.activitySummary?.latestCommentId
-        ? comments.find(
-            (c) => c.data?.id === doc.activitySummary?.latestCommentId,
-          )?.data
+        ? comments.data?.find(
+            (c) => c?.id === doc.activitySummary?.latestCommentId,
+          )
         : undefined,
     }))
   } else {
@@ -159,9 +159,9 @@ export function useLibrary({
         ...plainAccount,
         type: 'site',
         latestComment: account.activitySummary?.latestCommentId
-          ? comments.find(
-              (c) => c.data?.id === account.activitySummary?.latestCommentId,
-            )?.data
+          ? comments.data?.find(
+              (c) => c?.id === account.activitySummary?.latestCommentId,
+            )
           : undefined,
       }
     })
@@ -234,9 +234,9 @@ export function useSiteLibrary(
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
-      latestComment: comments.find(
-        (c) => c.data?.id === doc.activitySummary?.latestCommentId,
-      )?.data,
+      latestComment: comments.data?.find(
+        (c) => c?.id === doc.activitySummary?.latestCommentId,
+      ),
     })) || []
 
   return {

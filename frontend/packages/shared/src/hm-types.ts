@@ -629,6 +629,7 @@ export const HMCommentSchema = z.object({
   capability: z.string().optional(),
   content: z.array(HMBlockNodeSchema),
   createTime: HMTimestampSchema,
+  updateTime: HMTimestampSchema,
 })
 
 export type HMComment = z.infer<typeof HMCommentSchema>
@@ -1147,9 +1148,8 @@ export type HMCommentCitation = HMCitation & {
 export type HMCitationsPayload = Array<HMDocumentCitation>
 
 export type HMCommentsPayload = {
-  allComments: HMComment[]
-  commentGroups: HMCommentGroup[]
-  commentAuthors: HMAccountsMetadata
+  comments: HMComment[]
+  authors: HMAccountsMetadata
 }
 
 export const HMPeerConnectionRequestSchema = z.object({

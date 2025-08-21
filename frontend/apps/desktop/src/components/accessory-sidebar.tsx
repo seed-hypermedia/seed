@@ -136,9 +136,11 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
   const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
+
   const comments = useAllDiscussions(docId, {
     enabled: isDocument,
   })
+
   const commentCount = comments.data?.length || undefined
   const citations = useSortedCitations(docId, {
     enabled: isDocument,
@@ -220,15 +222,11 @@ export function AccessoryContent({
 }) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden" {...props}>
-      {header ? (
-        <div className="border-border max-h-1/2 border-b p-4">
-          <ScrollArea>{header}</ScrollArea>
-        </div>
-      ) : null}
       <ScrollArea>
-        <div className={cn('flex flex-col gap-2 p-3', header && 'pt-0')}>
-          {children}
-        </div>
+        {header ? (
+          <div className="border-border max-h-1/2 border-b p-4">{header}</div>
+        ) : null}
+        <div className={cn('flex flex-col gap-2 p-3')}>{children}</div>
       </ScrollArea>
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">

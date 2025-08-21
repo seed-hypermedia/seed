@@ -6,8 +6,8 @@ import {
   formattedDateLong,
   formattedDateMedium,
   formattedDateShort,
-  pluralS,
 } from '../utils'
+import {pluralS} from '../utils/language'
 
 // // Use require to avoid ESM import issues
 // const esLocale = require('date-fns/locale/es')

@@ -4,6 +4,7 @@ import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useAccount} from '@shm/shared/src/models/entity'
 import {useTx} from '@shm/shared/translation'
+import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {cn} from '@shm/ui/utils'
@@ -314,19 +315,16 @@ export function CommentEditor({
     <div className="flex w-full items-start gap-2">
       <div className="flex shrink-0 grow-0">
         {account?.metadata ? (
-          <HMIcon
-            color={'$color8'}
-            id={account.id}
-            metadata={account.metadata}
-            size={32}
-          />
-        ) : null}
+          <HMIcon id={account.id} metadata={account.metadata} size={32} />
+        ) : (
+          <UIAvatar id="?" label="?" size={32} />
+        )}
       </div>
       <div className="bg-muted w-full flex-1 rounded-md">
         <div
           className={cn(
-            'comment-editor min-h-10 flex-1',
-            isEditorFocused ? 'justify-start px-3' : 'justify-center',
+            'comment-editor min-h-8 flex-1',
+            isEditorFocused ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
           )}
           // marginTop="$1"
 
@@ -379,15 +377,16 @@ export function CommentEditor({
                   editor._tiptapEditor.commands.focus()
                 }, 100)
               }}
+              className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
               variant="ghost"
-              className="justify-start"
+              size="sm"
             >
-              {tx('Start a Comment')}
+              {tx('Start a Discussion')}
             </Button>
           )}
         </div>
         {isEditorFocused ? (
-          <div className="flex self-end">
+          <div className="mx-2 mb-2 flex justify-end">
             {submitButton({
               reset,
               getContent,

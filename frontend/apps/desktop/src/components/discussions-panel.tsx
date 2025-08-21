@@ -2,19 +2,24 @@ import {useDocumentCitations} from '@/models/citations'
 import {useAllDiscussions, useDeleteComment} from '@/models/comments'
 import {useContacts, useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
-import {useSelectedAccountId} from '@/selected-account'
-import {DocumentDiscussionsAccessory, hmId, pluralS} from '@shm/shared'
-import {useCommentGroups, useCommentParents} from '@shm/shared/discussion'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+
+import {useCommentGroups, useCommentParents} from '@shm/shared/comments'
+
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
+import {DocumentDiscussionsAccessory} from '@shm/shared/routes'
 import {useTx, useTxString} from '@shm/shared/translation'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {
   CommentGroup,
+  Discussions,
   QuotedDocBlock,
   useDeleteCommentDialog,
-} from '@shm/ui/discussion'
+} from '@shm/ui/comments'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -38,6 +43,7 @@ function _DiscussionsPanel(props: {
 }) {
   const {docId, accessory, onAccessory} = props
   const homeDoc = useResource(hmId(docId.uid))
+  const myAccount = useSelectedAccount()
   const targetDomain =
     homeDoc.data?.type === 'document'
       ? homeDoc.data.document.metadata.siteUrl
@@ -64,7 +70,15 @@ function _DiscussionsPanel(props: {
       />
     )
   }
-  return <AllComments docId={docId} targetDomain={targetDomain} />
+  return (
+    <>
+      <Discussions
+        commentEditor={<CommentBox docId={docId} au />}
+        targetId={docId}
+        renderCommentContent={renderCommentContent}
+      />
+    </>
+  )
 }
 
 function AllComments(props: {
@@ -73,6 +87,7 @@ function AllComments(props: {
 }) {
   const {docId, targetDomain} = props
   const comments = useAllDiscussions(docId)
+
   const commentGroups = useCommentGroups(comments.data)
   const authors = useCommentGroupAuthors(commentGroups.data)
   const myAccountId = useSelectedAccountId()
@@ -123,13 +138,10 @@ function AllComments(props: {
       )
   }
   return (
-    <AccessoryContent
-      header={
-        <div className="border-border bg-background rounded-md border py-2 dark:bg-black">
-          <CommentBox docId={docId} />
-        </div>
-      }
-    >
+    <AccessoryContent>
+      <div className="border-border bg-background rounded-md border py-2 dark:bg-black">
+        <CommentBox docId={docId} autoFocus />
+      </div>
       {panelContent}
       {deleteCommentDialog.content}
     </AccessoryContent>
@@ -198,7 +210,7 @@ function CommentBlockAccessory({
   }
   return (
     <AccessoryContent
-      footer={<CommentBox docId={docId} quotingBlockId={blockId} />}
+      footer={<CommentBox docId={docId} quotingBlockId={blockId} au />}
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       <AppDocContentProvider docId={docId}>
@@ -227,7 +239,6 @@ function CommentReplyAccessory({
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const comments = useAllDiscussions(docId)
-  const commentGroups = useCommentGroups(comments.data, commentId)
   const threadComments = useCommentParents(comments.data, commentId)
 
   const commentAuthors = useContacts(
@@ -238,7 +249,7 @@ function CommentReplyAccessory({
 
   return (
     <AccessoryContent
-      footer={<CommentBox replyCommentId={commentId} docId={docId} />}
+      footer={<CommentBox replyCommentId={commentId} docId={docId} au />}
     >
       <AccessoryBackButton onClick={onBack} label={tx('All Discussions')} />
       {rootCommentId && threadComments ? (

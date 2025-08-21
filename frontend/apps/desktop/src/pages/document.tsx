@@ -6,6 +6,7 @@ import {DocumentHeadItems} from '@/components/document-head-items'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useTemplateDialog} from '@/components/site-template'
+import {DesktopCommentsService} from '@/desktop-comments-service'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
@@ -41,12 +42,12 @@ import {
   hmId,
   HMQueryResult,
   HMResource,
-  pluralS,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {DiscussionsProvider} from '@shm/shared/discussions-provider'
+import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
+import {pluralS} from '@shm/shared/utils/language'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
@@ -75,6 +76,7 @@ import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
+  const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
   const docId = route.key === 'document' && route.id
   useDocumentRead(docId)
@@ -119,7 +121,8 @@ export default function DocumentPage() {
 
   return (
     <>
-      <DiscussionsProvider
+      <CommentsProvider
+        service={commentsService}
         onReplyClick={(replyComment) => {
           replace({
             ...route,
@@ -174,7 +177,7 @@ export default function DocumentPage() {
         </div>
         {templateDialogContent}
         {notifSettingsDialog.content}
-      </DiscussionsProvider>
+      </CommentsProvider>
     </>
   )
 }

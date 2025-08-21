@@ -66,6 +66,10 @@ export type WebCommentingProps = {
  * This is the main commenting component. It is used to create a new comment.
  */
 export default function WebCommenting(props: WebCommentingProps) {
+  console.log(
+    `\n\n=================================== ~ WebCommenting ~ props:`,
+    props,
+  )
   if (!props.enableWebSigning) {
     return <ExternalWebCommenting {...props} />
   }
@@ -85,6 +89,7 @@ export function ExternalWebCommenting(props: WebCommentingProps) {
           quotingBlockId: props.quotingBlockId,
         })
       }}
+      className="w-full"
     >
       {tx(
         'comment_with_identity',
@@ -247,7 +252,7 @@ export function LocalWebCommenting({
                 )}
               >
                 <button
-                  className={`plausible-event-name=start-create-account m-2 flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700`}
+                  className={`plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700`}
                   onClick={() => handleSubmit(getContent, reset)}
                 >
                   <SendHorizontal size={20} />

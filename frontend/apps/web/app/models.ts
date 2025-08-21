@@ -20,7 +20,7 @@ import {HMDiscussionsPayload} from './routes/hm.api.discussions'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
-async function queryAPI<ResponsePayloadType>(url: string) {
+export async function queryAPI<ResponsePayloadType>(url: string) {
   const response = await fetch(url)
   const fullData = await response.json()
   const data = unwrap<ResponsePayloadType>(fullData)

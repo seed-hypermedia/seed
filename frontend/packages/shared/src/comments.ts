@@ -1,18 +1,16 @@
 import {useMemo} from 'react'
-import {
-  entityQueryPathToHmIdPath,
-  HMComment,
-  HMCommentGroup,
-  hmId,
-  UnpackedHypermediaId,
-} from '.'
+import {HMComment, HMCommentGroup, UnpackedHypermediaId} from './hm-types'
+import {hmId} from './utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from './utils/path-api'
 
 export function getCommentGroups(
   comments?: Array<HMComment>,
   targetCommentId?: string,
 ): HMCommentGroup[] {
   const groups: HMCommentGroup[] = []
+
   if (!comments) return groups
+
   comments?.forEach((comment) => {
     if (
       comment.replyParent === targetCommentId ||
@@ -30,6 +28,7 @@ export function getCommentGroups(
   groups.forEach((group) => {
     // @ts-ignore
     let comment: HMComment | null = group.comments[0]
+
     while (comment) {
       const nextComments = comments?.filter(
         (c) => c.replyParent === comment?.id,
@@ -62,7 +61,20 @@ export function getCommentGroups(
     group.moreCommentsCount = moreComments.size - 1
   })
 
-  return groups
+  // Sort groups by first comment's updateTime (newest first)
+  const sortedGroups = groups.sort((a, b) => {
+    const aTime =
+      a.comments[0]?.updateTime && typeof a.comments[0]?.updateTime == 'string'
+        ? new Date(a.comments[0]?.updateTime).getTime()
+        : 0
+    const bTime =
+      b.comments[0]?.updateTime && typeof b.comments[0]?.updateTime == 'string'
+        ? new Date(b.comments[0]?.updateTime).getTime()
+        : 1
+    return bTime - aTime // Newest first (descending order)
+  })
+
+  return sortedGroups
 }
 
 export function useCommentParents(

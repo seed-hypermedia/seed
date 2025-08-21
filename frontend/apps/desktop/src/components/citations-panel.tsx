@@ -19,7 +19,7 @@ import {
 import {useResolvedResources, useResource} from '@shm/shared/models/entity'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
-import {Comment} from '@shm/ui/discussion'
+import {Comment} from '@shm/ui/comments'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'

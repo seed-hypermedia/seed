@@ -3,7 +3,7 @@ import {useContactList} from '@/models/contacts'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
-import {useCommentGroups} from '@shm/shared/discussion'
+import {useCommentGroups} from '@shm/shared/comments'
 import {
   HMAccountsMetadata,
   HMChangeGroup,
@@ -17,7 +17,7 @@ import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
-import {CommentGroup} from '@shm/ui/discussion'
+import {CommentGroup} from '@shm/ui/comments'
 import {ChevronUp} from '@shm/ui/icons'
 
 import {hmId} from '@shm/shared'
