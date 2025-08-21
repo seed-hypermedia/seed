@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getDocument} from '@/loaders'
 import {
   BIG_INT,
@@ -33,7 +33,7 @@ export async function discoverDocument(
     try {
       console.log('will discoverEntity', discoverRequest)
       const discoverResp =
-        await queryClient.entities.discoverEntity(discoverRequest)
+        await grpcClient.entities.discoverEntity(discoverRequest)
       console.log('~~ discoverEntity resp', discoverResp.toJson())
       if (checkDiscoverySuccess(discoverResp.version))
         return {version: discoverResp.version}
@@ -45,7 +45,7 @@ export async function discoverDocument(
         )},  error: ${e}`,
       )
       // becaue the discovery sometimes errors randomly, we still need to getDocument to get the equivalent of discoverResp.version
-      const doc = await queryClient.documents.getDocument({
+      const doc = await grpcClient.documents.getDocument({
         account: uid,
         path: hmIdPathToEntityQueryPath(path),
         version: version || undefined,
@@ -85,7 +85,7 @@ export async function discoverMedia(
 
   const doc = await getDocument(hmId(uid, {path, version}))
   extractIpfsCids(doc.content)
-  const comments = await queryClient.comments.listComments({
+  const comments = await grpcClient.comments.listComments({
     targetAccount: uid,
     targetPath: hmIdPathToEntityQueryPath(path),
     pageSize: BIG_INT,

@@ -20,7 +20,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 // import {CID} from 'multiformats/cid'
-import {queryClient} from './client'
+import {grpcClient} from './client'
 import {
   getAllEmails,
   getNotifierLastProcessedBlobCid,
@@ -62,7 +62,7 @@ async function handleEmailNotifications() {
 }
 
 async function resetNotifierLastProcessedBlobCid() {
-  const {events} = await queryClient.activityFeed.listEvents({
+  const {events} = await grpcClient.activityFeed.listEvents({
     pageToken: undefined,
     pageSize: 5,
   })
@@ -178,7 +178,7 @@ async function handleEventsForEmailNotifications(
 
             const changeCid = refData.heads?.[0]?.toString()
 
-            const changeData = await queryClient.documents.getDocumentChange({
+            const changeData = await grpcClient.documents.getDocumentChange({
               id: changeCid,
             })
 
@@ -306,7 +306,7 @@ async function handleEventsForEmailNotifications(
           }
         }
         if (blob.blobType !== 'Comment') continue
-        const comment = await queryClient.comments.getComment({id: blob.cid})
+        const comment = await grpcClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)
         const parentAuthors: Set<string> = new Set()
         for (const parentComment of parentComments) {
@@ -454,7 +454,7 @@ async function getParentComments(comment: PlainMessage<Comment>) {
   let currentComment = comment
   while (currentComment.replyParent) {
     try {
-      const parentComment = await queryClient.comments.getComment({
+      const parentComment = await grpcClient.comments.getComment({
         id: currentComment.replyParent,
       })
       const parentCommentPlain = toPlainMessage(parentComment)
@@ -479,7 +479,7 @@ async function getParentComments(comment: PlainMessage<Comment>) {
 }
 
 // to load change cid:
-//   queryClient.entities.getChange({
+//   grpcClient.entities.getChange({
 //     id:
 //   })
 
@@ -496,7 +496,7 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
   let currentPageToken: string | undefined
 
   while (true) {
-    const {events, nextPageToken} = await queryClient.activityFeed.listEvents({
+    const {events, nextPageToken} = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: 2,
     })
@@ -518,7 +518,7 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
 }
 
 async function resolveAccount(accountId: string) {
-  const account = await queryClient.documents.getAccount({id: accountId})
+  const account = await grpcClient.documents.getAccount({id: accountId})
   if (account.aliasAccount) {
     return await resolveAccount(account.aliasAccount)
   }

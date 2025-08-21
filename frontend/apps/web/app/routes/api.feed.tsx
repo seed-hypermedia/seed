@@ -1,10 +1,10 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
 
 export const loader = apiGetter(async (req) => {
   const nextPageToken = req.searchParams.get('nextPageToken') || undefined
   const pageSize = parseInt(req.searchParams.get('pageSize') || '10', 10)
-  const doc = await queryClient.activityFeed.listEvents({
+  const doc = await grpcClient.activityFeed.listEvents({
     pageSize,
     pageToken: nextPageToken,
   })

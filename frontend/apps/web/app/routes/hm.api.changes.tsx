@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -27,12 +27,12 @@ export const loader = async ({
   if (!id) throw new Error('id is required')
   let result: ChangesPayload
   try {
-    const latestDoc = await queryClient.documents.getDocument({
+    const latestDoc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
       version: undefined,
     })
-    const res = await queryClient.documents.listDocumentChanges({
+    const res = await grpcClient.documents.listDocumentChanges({
       account: id.uid,
       path: id.path && id.path.length > 0 ? '/' + id.path.join('/') : '',
       version: latestDoc.version,

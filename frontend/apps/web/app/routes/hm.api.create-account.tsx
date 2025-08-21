@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 
@@ -30,7 +30,7 @@ export const action: ActionFunction = async ({request}) => {
   const payload = cborDecode(new Uint8Array(cborData)) as CreateAccountPayload
 
   if (payload.icon) {
-    const storedImageResult = await queryClient.daemon.storeBlobs({
+    const storedImageResult = await grpcClient.daemon.storeBlobs({
       blobs: [
         {
           cid: payload.icon.cid,
@@ -40,7 +40,7 @@ export const action: ActionFunction = async ({request}) => {
     })
   }
 
-  const storedGenesisResult = await queryClient.daemon.storeBlobs({
+  const storedGenesisResult = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         cid: payload.genesis.cid,
@@ -48,7 +48,7 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   })
-  const storedHomeResult = await queryClient.daemon.storeBlobs({
+  const storedHomeResult = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         cid: payload.home.cid,
@@ -56,7 +56,7 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   })
-  const storedRefResult = await queryClient.daemon.storeBlobs({
+  const storedRefResult = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         data: payload.ref,

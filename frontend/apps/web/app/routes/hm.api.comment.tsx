@@ -1,5 +1,5 @@
 import {SignedComment} from '@/api'
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 import {
@@ -62,8 +62,8 @@ export const action: ActionFunction = async ({request}) => {
   }
   const cborData = await request.arrayBuffer()
   const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
-  await queryClient.daemon.storeBlobs({blobs: commentPayload.blobs})
-  const resultComment = await queryClient.daemon.storeBlobs({
+  await grpcClient.daemon.storeBlobs({blobs: commentPayload.blobs})
+  const resultComment = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         data: commentPayload.comment,
@@ -86,7 +86,7 @@ export const action: ActionFunction = async ({request}) => {
     hmId(signerUid, {}),
     ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
   ]
-  const commentResult = await queryClient.comments.getComment({
+  const commentResult = await grpcClient.comments.getComment({
     id: resultCommentId,
   })
   return json({

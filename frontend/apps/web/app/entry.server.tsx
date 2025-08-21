@@ -19,7 +19,7 @@ import * as isbotModule from 'isbot'
 import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
-import {queryClient} from './client'
+import {grpcClient} from './client'
 import {initDatabase} from './db'
 import {initEmailNotifier} from './email-notifier'
 import {getDocument} from './loaders'
@@ -96,7 +96,7 @@ async function connectToWebIdentityOrigin() {
     return
   }
   try {
-    const peers = (await queryClient.networking.listPeers({})).peers
+    const peers = (await grpcClient.networking.listPeers({})).peers
     const identityOriginInfoReq = await fetch(
       `${WEB_IDENTITY_ORIGIN}/hm/api/config`,
     )
@@ -129,7 +129,7 @@ async function connectToWebIdentityOrigin() {
         ' Peer ID: ' +
         identityOriginPeerId,
     )
-    await queryClient.networking.connect({
+    await grpcClient.networking.connect({
       addrs: identityOriginInfo.addrs,
     })
   } catch (e) {

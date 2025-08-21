@@ -9,4 +9,4 @@ export const transport = createGrpcWebTransport({
   // interceptors: [loggingInterceptor],
 })
 
-export const queryClient = createGRPCClient(transport)
+export const grpcClient = createGRPCClient(transport)

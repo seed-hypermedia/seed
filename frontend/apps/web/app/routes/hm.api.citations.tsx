@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getAccount, resolveHMDocument} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
@@ -22,7 +22,7 @@ export const loader = async ({
   if (!id) throw new Error('id is required')
   let result: HMCitationsPayload | {error: string}
   try {
-    const res = await queryClient.entities.listEntityMentions({
+    const res = await grpcClient.entities.listEntityMentions({
       id: id.id,
       pageSize: BIG_INT,
     })

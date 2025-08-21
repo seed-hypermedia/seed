@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {BIG_INT, ConnectionStatus} from '@shm/shared'
 
@@ -11,7 +11,7 @@ const ConnectionStatusKeys = {
 } as const
 
 export const loader = apiGetter(async (req) => {
-  const peerList = await queryClient.networking.listPeers({
+  const peerList = await grpcClient.networking.listPeers({
     pageSize: BIG_INT,
   })
   return {

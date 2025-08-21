@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
@@ -36,7 +36,7 @@ export const loader = async ({
   if (!id) throw new Error('id is required')
   let result: DirectoryPayload
   try {
-    const res = await queryClient.documents.listDocuments({
+    const res = await grpcClient.documents.listDocuments({
       account: id.uid,
     })
     const pathPrefix = id.path ? '/' + id.path.join('/') : '/'
@@ -71,7 +71,7 @@ export const loader = async ({
     })
     const accounts = await Promise.all(
       Array.from(allAuthors).map(async (authorUid) => {
-        const res = await queryClient.documents.getDocument({
+        const res = await grpcClient.documents.getDocument({
           account: authorUid,
         })
         const authorAccount = {

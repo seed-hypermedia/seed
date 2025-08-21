@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {wrapJSON} from '@/wrapping'
 import {SearchPayload, unpackHmId} from '@shm/shared'
 
@@ -16,7 +16,7 @@ export const loader = async ({request}: {request: Request}) => {
       ? parseInt(contextSizeRaw, 10)
       : 26
 
-  const result = await queryClient.entities.searchEntities({
+  const result = await grpcClient.entities.searchEntities({
     query: searchQuery,
     includeBody,
     contextSize,

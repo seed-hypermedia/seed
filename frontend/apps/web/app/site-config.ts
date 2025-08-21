@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {SITE_BASE_URL} from '@shm/shared'
 import {readFileSync} from 'fs'
 import fs, {readFile} from 'fs/promises'
@@ -156,7 +156,7 @@ export async function applyConfigSubscriptions() {
   } else {
     throw new Error('No site config loaded!')
   }
-  const subs = await queryClient.subscriptions.listSubscriptions({})
+  const subs = await grpcClient.subscriptions.listSubscriptions({})
   const toUnsubscribe: {account: string; path: string}[] = []
   subs.subscriptions.forEach((sub) => {
     if (!siteAccounts.has(sub.account) || sub.path !== '')
@@ -165,7 +165,7 @@ export async function applyConfigSubscriptions() {
   await Promise.all(
     toUnsubscribe.map(async ({account, path}) => {
       console.log('Unsubscribing from ', account, path)
-      await queryClient.subscriptions.unsubscribe({
+      await grpcClient.subscriptions.unsubscribe({
         account,
         path,
       })
@@ -183,7 +183,7 @@ export async function applyConfigSubscriptions() {
   await Promise.all(
     toSubscribe.map(async ({account}) => {
       console.log('Subscribing to ', account)
-      await queryClient.subscriptions.subscribe({
+      await grpcClient.subscriptions.subscribe({
         account,
         path: '',
         recursive: true,

@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 
@@ -16,7 +16,7 @@ export type DelegateDeviceResponsePayload = {
 }
 
 async function storeBlob(blob: Uint8Array) {
-  const result = await queryClient.daemon.storeBlobs({
+  const result = await grpcClient.daemon.storeBlobs({
     blobs: [{data: blob}],
   })
   return result.cids[0]

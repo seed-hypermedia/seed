@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {
   entityQueryPathToHmIdPath,
@@ -42,14 +42,14 @@ export const loader = apiGetter(async (req) => {
   const [_api, _list, uid] = pathParts
 
   if (uid) {
-    const docs = await queryClient.documents.listDocuments({
+    const docs = await grpcClient.documents.listDocuments({
       account: uid,
       pageSize: BIG_INT,
     })
     const {invalidDocuments, documents} = processDocuments(docs.documents)
     return {invalidDocuments, documents} satisfies ListAPIResponse
   } else {
-    const rootDocs = await queryClient.documents.listRootDocuments({
+    const rootDocs = await grpcClient.documents.listRootDocuments({
       pageSize: BIG_INT,
     })
     const {invalidDocuments, documents} = processDocuments(rootDocs.documents)

@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
@@ -35,7 +35,7 @@ export const loader = async ({
 
   let result: HMDiscussionPayload | {error: string}
   try {
-    const data = await queryClient.comments.listComments({
+    const data = await grpcClient.comments.listComments({
       targetAccount: targetId.uid,
       targetPath: hmIdPathToEntityQueryPath(targetId.path),
       pageSize: BIG_INT,

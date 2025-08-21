@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
@@ -40,12 +40,12 @@ export const loader = async ({
       blocks: {},
     })
   }
-  const mentions = await queryClient.entities.listEntityMentions({
+  const mentions = await grpcClient.entities.listEntityMentions({
     id: id.id,
     pageSize: BIG_INT,
   })
 
-  const comments = await queryClient.comments.listComments({
+  const comments = await grpcClient.comments.listComments({
     targetAccount: id.uid,
     targetPath: hmIdPathToEntityQueryPath(id.path),
     pageSize: BIG_INT,
@@ -96,12 +96,12 @@ export const loader = async ({
     }
   })
 
-  const latestDoc = await queryClient.documents.getDocument({
+  const latestDoc = await grpcClient.documents.getDocument({
     account: id.uid,
     path: hmIdPathToEntityQueryPath(id.path),
     version: undefined,
   })
-  const changes = await queryClient.documents.listDocumentChanges({
+  const changes = await grpcClient.documents.listDocumentChanges({
     account: id.uid,
     path: id.path && id.path.length > 0 ? '/' + id.path.join('/') : '',
     version: latestDoc.version,

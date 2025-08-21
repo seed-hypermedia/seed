@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {
@@ -37,7 +37,7 @@ export const loader = async ({
   try {
     const targetAccount = id.uid
     const targetPath = hmIdPathToEntityQueryPath(id.path)
-    const res = await queryClient.comments.listComments({
+    const res = await grpcClient.comments.listComments({
       targetAccount,
       targetPath,
       pageSize: BIG_INT,
@@ -53,7 +53,7 @@ export const loader = async ({
         allAccounts.add(comment.author)
       })
     })
-    const siteDocs = await queryClient.documents.listDocuments({
+    const siteDocs = await grpcClient.documents.listDocuments({
       account: id.uid,
       pageSize: BIG_INT,
     })
@@ -78,17 +78,17 @@ export const loader = async ({
           ),
         }
       })
-    const doc = await queryClient.documents.getDocument({
+    const doc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: targetPath,
       version: id.version || undefined,
     })
-    const latestDoc = await queryClient.documents.getDocument({
+    const latestDoc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: targetPath,
       version: undefined,
     })
-    const changesQuery = await queryClient.documents.listDocumentChanges({
+    const changesQuery = await grpcClient.documents.listDocumentChanges({
       account: id.uid,
       path: targetPath,
       version: doc.version,

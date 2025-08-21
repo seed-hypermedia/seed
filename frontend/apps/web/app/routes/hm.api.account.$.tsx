@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -6,7 +6,7 @@ import {Params} from '@remix-run/react'
 import {HMDocumentMetadataSchema, hmId, HMMetadataPayload} from '@shm/shared'
 
 async function getAccount(accountUid: string) {
-  const grpcAccount = await queryClient.documents.getAccount({
+  const grpcAccount = await grpcClient.documents.getAccount({
     id: accountUid,
   })
 

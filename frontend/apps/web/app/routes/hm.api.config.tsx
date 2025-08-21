@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import type {LoaderFunction} from '@remix-run/node'
@@ -9,8 +9,8 @@ export const loader: LoaderFunction = async ({request}) => {
   const {hostname} = parseRequest(request)
   const config = await getConfig(hostname)
   if (!config) throw new Error(`No config defined for ${hostname}`)
-  const daemonInfo = await queryClient.daemon.getInfo({})
-  const peerInfo = await queryClient.networking.getPeerInfo({
+  const daemonInfo = await grpcClient.daemon.getInfo({})
+  const peerInfo = await grpcClient.networking.getPeerInfo({
     deviceId: daemonInfo.peerId,
   })
   return json({

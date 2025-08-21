@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
@@ -30,7 +30,7 @@ export const loader = async ({
   let result: HMBlockDiscussionsPayload | {error: string}
 
   try {
-    const res = await queryClient.entities.listEntityMentions({
+    const res = await grpcClient.entities.listEntityMentions({
       id: targetId.id,
       pageSize: BIG_INT,
     })
@@ -48,7 +48,7 @@ export const loader = async ({
         if (mention.targetFragment !== blockId) continue
         try {
           // get the comment from the server
-          const serverComment = await queryClient.comments.getComment({
+          const serverComment = await grpcClient.comments.getComment({
             id: mention.sourceBlob?.cid,
           })
           // ignore if not found

@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {getConfig, writeConfig} from '@/site-config'
 import type {ActionFunction} from '@remix-run/node'
@@ -40,7 +40,7 @@ export const action: ActionFunction = async ({request}) => {
     console.log('REGISTERING SITE', JSON.stringify(input, null, 2))
     const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`)
     console.log('networking.connect', addrs)
-    await queryClient.networking.connect({
+    await grpcClient.networking.connect({
       addrs,
     })
     console.log('writing config for', url.hostname)

@@ -51,7 +51,7 @@ import {
   HMRedirectError,
 } from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
-import {queryClient} from './client'
+import {grpcClient} from './client'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
 import {discoverDocument} from './utils/discovery'
@@ -61,7 +61,7 @@ export async function getMetadata(
   id: UnpackedHypermediaId,
 ): Promise<HMMetadataPayload> {
   try {
-    const rawDoc = await queryClient.documents.getDocument({
+    const rawDoc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.latest ? undefined : id.version || undefined,
@@ -86,7 +86,7 @@ export async function getAccount(
       // @ts-expect-error
       await discoverDocument(accountUid, [], undefined)
     }
-    const grpcAccount = await queryClient.documents.getAccount({
+    const grpcAccount = await grpcClient.documents.getAccount({
       id: accountUid,
     })
     const serverAccount = toPlainMessage(grpcAccount)
@@ -107,7 +107,7 @@ export async function getAccount(
 
 export async function getComment(id: string): Promise<HMComment | null> {
   try {
-    const rawDoc = await queryClient.comments.getComment({
+    const rawDoc = await grpcClient.comments.getComment({
       id,
     })
     return HMCommentSchema.parse(rawDoc.toJson())
@@ -157,7 +157,7 @@ export async function getDocument(
     )
   }
   const path = hmIdPathToEntityQueryPath(resourceId.path)
-  const apiDoc = await queryClient.documents
+  const apiDoc = await grpcClient.documents
     .getDocument({
       account: uid,
       path,
@@ -192,8 +192,8 @@ export async function resolveHMDocument(
   }
 }
 
-const getDirectory = getDiretoryWithClient(queryClient)
-const getQueryResults = getQueryResultsWithClient(queryClient)
+const getDirectory = getDiretoryWithClient(grpcClient)
+const getQueryResults = getQueryResultsWithClient(grpcClient)
 
 export function getOriginRequestData(parsedRequest: ParsedRequest) {
   const enableWebSigning =
@@ -357,7 +357,7 @@ async function loadResourcePayload(
 
 export async function getResource(id: UnpackedHypermediaId) {
   try {
-    const resource = await queryClient.resources.getResource({
+    const resource = await grpcClient.resources.getResource({
       iri: packHmId(id),
     })
     if (resource.kind.case === 'comment') {
@@ -397,7 +397,7 @@ export async function loadResource(
   parsedRequest: ParsedRequest,
 ): Promise<WebResourcePayload> {
   try {
-    const resource = await queryClient.resources.getResource({
+    const resource = await grpcClient.resources.getResource({
       iri: packHmId(id),
     })
     if (resource.kind.case === 'comment') {

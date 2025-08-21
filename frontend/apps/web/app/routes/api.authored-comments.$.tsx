@@ -1,10 +1,10 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {BIG_INT} from '@shm/shared'
 
 export const loader = apiGetter(async ({pathParts}) => {
   const [_api, _citations, uid] = pathParts
-  const result = await queryClient.comments.listCommentsByAuthor({
+  const result = await grpcClient.comments.listCommentsByAuthor({
     author: uid,
     pageSize: BIG_INT,
   })

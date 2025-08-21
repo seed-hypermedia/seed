@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
 import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
@@ -67,7 +67,7 @@ export const action: ActionFunction = async ({request}) => {
 
 async function getCommentExists(commentId: string) {
   try {
-    await queryClient.comments.getComment({
+    await grpcClient.comments.getComment({
       id: commentId,
     })
     return true
@@ -89,7 +89,7 @@ async function syncComment({
   targetId: UnpackedHypermediaId
 }) {
   console.log('syncing comment1', targetId)
-  const discovered = await queryClient.entities.discoverEntity({
+  const discovered = await grpcClient.entities.discoverEntity({
     account: targetId.uid,
     path: hmIdPathToEntityQueryPath(targetId.path),
     recursive: true,
@@ -98,7 +98,7 @@ async function syncComment({
     async () => {
       console.log('checking comment', commentId)
       try {
-        const comment = await queryClient.comments.getComment({
+        const comment = await grpcClient.comments.getComment({
           id: commentId,
         })
         console.log('comment', comment)

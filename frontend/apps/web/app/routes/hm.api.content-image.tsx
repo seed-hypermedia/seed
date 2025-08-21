@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
@@ -265,7 +265,7 @@ export const loader = async ({request}: {request: Request}) => {
   if (!version) throw new Error('Missing version')
   let content: null | JSX.Element = null
   const docId = hmId(space, {path: entityQueryPathToHmIdPath(path || '')})
-  const rawDoc = await queryClient.documents.getDocument({
+  const rawDoc = await grpcClient.documents.getDocument({
     account: space,
     version,
     path: path || '',
@@ -276,7 +276,7 @@ export const loader = async ({request}: {request: Request}) => {
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
       console.log('will get breadcrumb', crumbPath)
-      const document = await queryClient.documents.getDocument({
+      const document = await grpcClient.documents.getDocument({
         account: space,
         path: hmIdPathToEntityQueryPath(crumbPath),
       })
@@ -293,7 +293,7 @@ export const loader = async ({request}: {request: Request}) => {
   if (!document) throw new Error('Document not found')
   const authors = await Promise.all(
     (document?.authors || []).map(async (authorUid) => {
-      const rawDoc = await queryClient.documents.getDocument({
+      const rawDoc = await grpcClient.documents.getDocument({
         account: authorUid,
       })
       const authorDoc = prepareHMDocument(rawDoc)

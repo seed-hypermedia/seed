@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
 import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
 // @ts-expect-error
@@ -12,12 +12,12 @@ export type HMDocumentChangesPayload = {
 export const loader = apiGetter(async (req) => {
   const [_api, _changes, uid, ...restPath] = req.pathParts
   const path = hmIdPathToEntityQueryPath(restPath)
-  const latestDoc = await queryClient.documents.getDocument({
+  const latestDoc = await grpcClient.documents.getDocument({
     account: uid,
     path,
     version: undefined,
   })
-  const result = await queryClient.documents.listDocumentChanges({
+  const result = await grpcClient.documents.listDocumentChanges({
     account: uid,
     path,
     version: latestDoc.version,

@@ -1,4 +1,4 @@
-import {queryClient} from '@/client'
+import {grpcClient} from '@/client'
 import {ActionFunction, json} from '@remix-run/node'
 
 // TODO: this is a debug endpoint for storing blobs, we should probably use higher level actions to avoid abuse
@@ -15,7 +15,7 @@ export const action: ActionFunction = async ({request}) => {
   }
 
   const cborData = await request.arrayBuffer()
-  const storeResult = await queryClient.daemon.storeBlobs({
+  const storeResult = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         // @ts-expect-error
