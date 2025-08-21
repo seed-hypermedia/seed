@@ -519,9 +519,6 @@ function InnerDocumentPage(
     console.log('======== activePanel', activePanel)
     panel = (
       <WebDiscussionsPanel
-        handleStartDiscussion={() => {
-          setEditorAutoFocus(true)
-        }}
         commentEditor={commentEditor}
         blockId={activePanel.blockId}
         comment={activePanel.comment}

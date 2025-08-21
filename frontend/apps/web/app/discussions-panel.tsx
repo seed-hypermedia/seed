@@ -95,15 +95,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
-        onStartDiscussion={() => {
-          if (props.enableWebSigning) {
-            props.handleStartDiscussion?.()
-          } else {
-            redirectToWebIdentityCommenting(props.docId, {
-              quotingBlockId: blockId,
-            })
-          }
-        }}
       />
     </>
   )

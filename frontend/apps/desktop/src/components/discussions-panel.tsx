@@ -61,9 +61,6 @@ function _DiscussionsPanel(props: {
         commentEditor={commentEditor}
         targetId={docId}
         renderCommentContent={renderCommentContent}
-        onStartDiscussion={() => {
-          triggerCommentDraftFocus(docId.id, undefined)
-        }}
       />
     )
   }
@@ -74,9 +71,6 @@ function _DiscussionsPanel(props: {
         commentEditor={commentEditor}
         targetId={docId}
         renderCommentContent={renderCommentContent}
-        onStartDiscussion={() => {
-          triggerCommentDraftFocus(docId.id, undefined)
-        }}
       />
     </>
   )
