@@ -372,7 +372,7 @@ const SearchInput = ({
     <div
       className={cn(
         'search-dropdown-content',
-        'absolute z-50 flex max-h-[500px] flex-col gap-2 overflow-scroll',
+        'absolute z-[99999] flex max-h-[500px] flex-col gap-2 overflow-scroll',
         'rounded-b-md border-t-transparent px-3 py-3',
         'bg-muted shadow-md',
         focused ? 'flex' : 'hidden',
