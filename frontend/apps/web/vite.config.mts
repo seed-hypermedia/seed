@@ -40,6 +40,8 @@ let config = {
   //   // Vite will replace individual process.env.VARIABLE_NAME references at build time
   //   'process.env': {
   //     NODE_ENV: process.env.NODE_ENV || 'development',
+  //     SEED_SIGNING_ENABLED: process.env.SEED_SIGNING_ENABLED,
+  //     SEED_BASE_URL: process.env.SEED_BASE_URL,
   //   },
   // },
   optimizeDeps: {
