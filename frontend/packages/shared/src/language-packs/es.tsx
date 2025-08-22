@@ -70,6 +70,7 @@ const Translations = {
     'No recibirás ninguna notificación.',
   'Start a Discussion': 'Comenta',
   'No discussions': 'No hay debates',
+  'Be the first to reply': 'Se el primero en responder',
   version_from: (args: {date: string}) => `Versión del ${args.date}`,
   'Go to Latest': 'Ir a Última',
   copy_block_range: 'Copiar rango de bloques',

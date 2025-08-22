@@ -23,7 +23,6 @@ import {getCommentTargetId} from '@shm/shared'
 import {useTxString} from '@shm/shared/translation'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {cn} from '@shm/ui/utils'
-import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDocContentProvider} from './doc-content-provider'
 import {useBlockDiscussions, useDiscussion} from './models'
 
@@ -133,7 +132,7 @@ function BlockDiscussions({
             ),
         )
       ) : (
-        <EmptyDiscussions />
+        <EmptyDiscussions emptyReplies />
       )
   }
   return (
