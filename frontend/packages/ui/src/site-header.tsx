@@ -282,6 +282,32 @@ export function SmallSiteHeader({
   )
 }
 
+function OverflowMenuItem({
+  item,
+}: {
+  item: {
+    key: string
+    id?: UnpackedHypermediaId
+    draftId?: string | null
+    metadata: HMMetadata
+    webUrl?: string
+  }
+}) {
+  const linkProps = useRouteLink(
+    item.draftId
+      ? {key: 'draft', id: item.draftId}
+      : item.id
+      ? {key: 'document', id: item.id}
+      : item.webUrl || '',
+    {handler: 'onClick'},
+  )
+  return (
+    <DropdownMenuItem {...linkProps}>
+      {item.metadata.name}
+    </DropdownMenuItem>
+  )
+}
+
 function HeaderLinkItem({
   id,
   metadata,
@@ -440,21 +466,9 @@ export function SiteHeaderMenu({
               side="bottom"
               align="end"
             >
-              {overflowItems.map((item) => {
-                const linkProps = useRouteLink(
-                  item.draftId
-                    ? {key: 'draft', id: item.draftId}
-                    : item.id
-                    ? {key: 'document', id: item.id}
-                    : item.webUrl || '',
-                  {handler: 'onClick'},
-                )
-                return (
-                  <DropdownMenuItem key={item.key} {...linkProps}>
-                    {item.metadata.name}
-                  </DropdownMenuItem>
-                )
-              })}
+              {overflowItems.map((item) => (
+                <OverflowMenuItem key={item.key} item={item} />
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </Tooltip>
