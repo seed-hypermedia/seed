@@ -302,9 +302,7 @@ function OverflowMenuItem({
     {handler: 'onClick'},
   )
   return (
-    <DropdownMenuItem {...linkProps}>
-      {item.metadata.name}
-    </DropdownMenuItem>
+    <DropdownMenuItem {...linkProps}>{item.metadata.name}</DropdownMenuItem>
   )
 }
 

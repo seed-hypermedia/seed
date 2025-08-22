@@ -94,7 +94,7 @@ function sanitizeBlockNodes(nodes: any[]): any[] {
     if (Array.isArray(block.annotations)) {
       block.annotations = block.annotations.filter((annotation: any) => {
         if (!annotation || typeof annotation !== 'object') return false
-        
+
         // If it's a Link or Embed annotation, ensure it has a link field
         if (annotation.type === 'Link' || annotation.type === 'Embed') {
           if (typeof annotation.link !== 'string') {
