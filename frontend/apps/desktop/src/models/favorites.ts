@@ -13,11 +13,11 @@ export type FavoriteItem = {
 export function useFavorites() {
   const favoritesQuery = trpc.favorites.get.useQuery()
   const {favorites} = useMemo(() => {
-    const unpackedIds = favoritesQuery.data?.favorites.map((favorite) => {
+    const unpackedIds = favoritesQuery.data?.favorites?.map((favorite) => {
       return unpackHmId(favorite.url)
     })
     return {
-      favorites: unpackedIds,
+      favorites: unpackedIds || [],
     }
   }, [favoritesQuery.data])
   return favorites
