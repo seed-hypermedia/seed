@@ -188,7 +188,7 @@ setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
   }
 })
 
-async function getAccount(accountUid: string) {
+export async function getAccount(accountUid: string) {
   try {
     const grpcAccount = await grpcClient.documents.getAccount({
       id: accountUid,

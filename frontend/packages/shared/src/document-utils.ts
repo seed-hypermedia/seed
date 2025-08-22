@@ -90,6 +90,27 @@ function sanitizeBlockNodes(nodes: any[]): any[] {
       }
     }
 
+    // Sanitize annotations to ensure link annotations have the link field
+    if (Array.isArray(block.annotations)) {
+      block.annotations = block.annotations.filter((annotation: any) => {
+        if (!annotation || typeof annotation !== 'object') return false
+        
+        // If it's a Link or Embed annotation, ensure it has a link field
+        if (annotation.type === 'Link' || annotation.type === 'Embed') {
+          if (typeof annotation.link !== 'string') {
+            // For Link annotations, we can set an empty string as a fallback
+            if (annotation.type === 'Link') {
+              annotation.link = ''
+              return true
+            }
+            // For Embed annotations, the link is required, so filter it out
+            return false
+          }
+        }
+        return true
+      })
+    }
+
     // Recurse into children
     const children = Array.isArray(node.children) ? node.children : []
     const newChildren = sanitizeBlockNodes(children)

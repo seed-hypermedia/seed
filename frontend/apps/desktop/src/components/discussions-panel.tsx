@@ -18,11 +18,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {memo} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 import {CommentCitationEntry} from './citations-panel'
-import {
-  CommentBox,
-  renderCommentContent,
-  triggerCommentDraftFocus,
-} from './commenting'
+import {CommentBox, renderCommentContent} from './commenting'
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
@@ -133,7 +129,7 @@ function CommentBlockAccessory({
           )
         })
       ) : (
-        <EmptyDiscussions />
+        <EmptyDiscussions emptyReplies />
       )
   }
   return (

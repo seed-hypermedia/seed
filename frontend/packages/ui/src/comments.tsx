@@ -23,7 +23,7 @@ import {
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {ChevronRight, Link, MessageSquareOff, Trash2} from 'lucide-react'
+import {ChevronRight, Link, MessageSquare, Trash2} from 'lucide-react'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import {AccessoryBackButton, AccessoryContent} from './accessories'
@@ -70,6 +70,11 @@ export function CommentDiscussions({
     commentId,
   )
 
+  console.log(
+    `== ~ COMMENT commentsService.data?.authors:`,
+    commentsService.data?.authors,
+  )
+
   return (
     <AccessoryContent>
       <AccessoryBackButton onClick={onBack} />
@@ -105,7 +110,7 @@ export function CommentDiscussions({
             // targetDomain={targetDomain}
           />
         ) : (
-          <EmptyDiscussions />
+          <EmptyDiscussions emptyReplies />
         )
       ) : null}
       <div className="border-border relative max-h-1/2 border-b py-4">
@@ -129,12 +134,16 @@ export function CommentDiscussions({
                 commentGroupReplies.data.length - 1 > idx && 'mb-4',
               )}
             >
-              <CommentGroup key={cg.id} commentGroup={cg} />
+              <CommentGroup
+                key={cg.id}
+                commentGroup={cg}
+                authors={commentsService.data?.authors}
+              />
             </div>
           )
         })
       ) : (
-        <EmptyDiscussions />
+        <EmptyDiscussions emptyReplies />
       )}
     </AccessoryContent>
   )
@@ -154,7 +163,6 @@ export function Discussions({
   onBack?: () => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
-
   let panelContent = null
 
   if (discussionsService.isLoading && !discussionsService.data) {
@@ -218,6 +226,8 @@ export function CommentGroup({
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
+
+  console.log(`== ~ COMMENT commentGroup.comments:`, commentGroup.comments)
   return (
     <div className="relative flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (
@@ -230,6 +240,7 @@ export function CommentGroup({
           }}
         />
       )}
+
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
         const isCurrentAccountComment = comment.author === currentAccountId
@@ -284,6 +295,7 @@ export function Comment({
   targetDomain?: string
   heading?: ReactNode
 }) {
+  console.log('== ~ Comment ~ authorMetadata:', authorMetadata)
   let renderContent = renderCommentContent
   if (!renderContent) {
     renderContent = (comment) => (
@@ -560,12 +572,18 @@ function DeleteCommentDialog({
   )
 }
 
-export function EmptyDiscussions() {
+export function EmptyDiscussions({
+  emptyReplies = false,
+}: {
+  emptyReplies?: boolean
+}) {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquareOff className="size-25 text-gray-200" size={48} />
-      <SizableText size="md">{tx('No discussions')}</SizableText>
+      <MessageSquare className="size-25 text-gray-200" size={48} />
+      <SizableText size="md">
+        {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
+      </SizableText>
     </div>
   )
 }

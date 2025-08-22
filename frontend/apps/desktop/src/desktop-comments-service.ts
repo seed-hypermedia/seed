@@ -1,4 +1,5 @@
-import {BIG_INT, getCommentGroups, HMComment, HMMetadata} from '@shm/shared'
+import {getAccount} from '@/models/entities'
+import {BIG_INT, getCommentGroups, HMComment, HMMetadataPayload} from '@shm/shared'
 import {
   CommentsService,
   ListCommentsByIdRequest,
@@ -13,21 +14,16 @@ import {grpcClient} from './grpc-client'
 async function getCommentsAuthors(
   authorUids: Array<string>,
 ): Promise<ListCommentsResponse['authors']> {
-  const authorAccounts = new Map<string, HMMetadata>()
+  const authorAccounts = new Map<string, HMMetadataPayload>()
 
   await Promise.all(
     authorUids.map(async (accountUid) => {
       try {
-        let account = await grpcClient.documents.getAccount({
-          id: accountUid,
-        })
-        if (account && account.metadata) {
-          authorAccounts.set(
-            accountUid,
-            (account.metadata?.toJson({
-              emitDefaultValues: true,
-            }) as HMMetadata) || {},
-          )
+        let account = await getAccount(accountUid)
+
+        console.log(`== ~ getCommentsAuthors ~ account:`, account)
+        if (account) {
+          authorAccounts.set(accountUid, account)
         }
       } catch (error) {
         // ignore fetch account error
@@ -58,7 +54,9 @@ export class DesktopCommentsService implements CommentsService {
     const authorAccounts = new Set<string>()
 
     comments.forEach((c) => {
-      authorAccounts.add(c.author)
+      if (c.author && c.author.trim() !== '') {
+        authorAccounts.add(c.author)
+      }
     })
 
     const authorAccountUids = Array.from(authorAccounts)
@@ -82,7 +80,9 @@ export class DesktopCommentsService implements CommentsService {
     const authorAccounts = new Set<string>()
 
     const comments = res.comments.map((c) => {
-      authorAccounts.add(c.author)
+      if (c.author && c.author.trim() !== '') {
+        authorAccounts.add(c.author)
+      }
       return c.toJson({emitDefaultValues: true})
     }) as Array<HMComment>
 
