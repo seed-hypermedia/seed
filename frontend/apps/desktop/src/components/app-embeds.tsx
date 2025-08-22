@@ -56,6 +56,7 @@ function EmbedWrapper({
   viewType = 'Content',
   hideBorder = false,
   isRange = false,
+  embedView,
   ...props
 }: PropsWithChildren<
   {
@@ -65,6 +66,7 @@ function EmbedWrapper({
     viewType?: 'Content' | 'Card'
     hideBorder?: boolean
     isRange?: boolean
+    embedView?: any
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const docContentContext = useDocContentContext()
