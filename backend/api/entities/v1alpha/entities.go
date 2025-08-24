@@ -236,15 +236,30 @@ SELECT
   blob_id,
   version,
   block_id,
-  ts
+  ts,
+  type
   from fts_index
   WHERE type IN ('title', 'document', 'meta')
-  AND type = :type
   AND ts >= :Ts
   AND genesis_blob = :genesisBlobID
   AND rowid != :rowID
   ORDER BY ts ASC
 `)
+
+var qGetMovedBlocks = dqb.Str(`
+SELECT
+  sb.extra_attrs->>'redirect' AS redirect,
+  r.iri,
+  dg.is_deleted
+  from structural_blobs sb
+  JOIN resources r ON r.id = sb.resource
+  JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
+  WHERE sb.type = 'Ref'
+  AND sb.extra_attrs->>'redirect' != ''
+  AND sb.genesis_blob IN (SELECT value FROM json_each(:genesisBlobJson));
+`)
+
+// get the extra_attrs->>'redirect' != ” for the same genesis blob and if its not null then put that as a iri
 var qGetFTS = dqb.Str(`
 WITH fts_data AS (
   SELECT
@@ -336,7 +351,7 @@ FROM fts_data AS f
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
 WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
-AND document_generations.is_deleted = False
+-- AND document_generations.is_deleted = False
 ORDER BY
   (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
   f.rank ASC
@@ -390,6 +405,7 @@ type searchResult struct {
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
 	commentKey    commentIdentifier
+	isDeleted     bool
 }
 
 // SearchEntities implements the Fuzzy search of entities.
@@ -626,10 +642,50 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	timesCalled := 0
 	iter := 0
 	//prevIter := 0
+	genesisBlobIDs := make([]string, 0, len(searchResults))
+	for _, match := range bodyMatches {
+		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
+	}
+	type movedResource struct {
+		newIri    string
+		oldIri    string
+		isDeleted bool
+	}
+	var movedResources []movedResource
+	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
+
+	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+			movedResources = append(movedResources, movedResource{
+				newIri:    stmt.ColumnText(0),
+				oldIri:    stmt.ColumnText(1),
+				isDeleted: stmt.ColumnInt(2) == 1,
+			})
+			return nil
+		}, genesisBlobJson)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, movedResource := range movedResources {
+		for i, result := range searchResults {
+			if result.iri == movedResource.oldIri {
+				if movedResource.isDeleted {
+					searchResults[i].isDeleted = true
+				} else {
+					searchResults[i].iri = movedResource.newIri
+				}
+			}
+		}
+	}
 	for _, match := range bodyMatches {
 		//startParents := time.Now()
 		var parentTitles []string
 		var err error
+		if searchResults[match.Index].isDeleted {
+			// Skip deleted resources
+			continue
+		}
 		if searchResults[match.Index].contentType != "contact" {
 			if parentTitles, err = getParentsFcn(match); err != nil {
 				return nil, err
@@ -667,17 +723,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
 						blockID := stmt.ColumnText(2)
+						changeType := stmt.ColumnText(4)
 						currentChange := Change{
 							blobID:  stmt.ColumnInt64(0),
 							version: stmt.ColumnText(1),
 							ts:      timestamppb.New(ts),
 						}
-						if blockID == searchResults[match.Index].blockID {
+						if searchResults[match.Index].contentType == changeType && blockID == searchResults[match.Index].blockID {
 							return errSameBlockChangeDetected
 						}
 						latestUnrelated = currentChange
 						return nil
-					}, searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
 				})
 				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
 					//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
