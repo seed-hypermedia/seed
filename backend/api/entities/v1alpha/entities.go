@@ -18,6 +18,7 @@ import (
 	"seed/backend/hmnet/syncing"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -741,7 +742,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 
 			var errSameBlockChangeDetected = errors.New("same block change detected")
-			if latestUnrelated.version != searchResults[match.Index].latestVersion {
+			if !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
 				timesCalled++
 				//prevIter = iter
 				relatedFound := false
@@ -770,7 +771,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					relatedFound = true
 					//fmt.Println("Found related change:", currentChange, "BlockID:", searchResults[match.Index].blockID)
 				}
-				if !relatedFound && latestUnrelated.version != searchResults[match.Index].latestVersion {
+				if !relatedFound && !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
 					//fmt.Println("Found unrelated change:", latestUnrelated, "for:", searchResults[match.Index])
 					latestUnrelated.version = searchResults[match.Index].latestVersion
 				}
@@ -787,7 +788,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			searchResults[match.Index].blobID = latestUnrelated.blobID
 			searchResults[match.Index].versionTime = latestUnrelated.ts
 			totalLatestBlockTime += time.Since(startLatestBlockTime)
-			if searchResults[match.Index].latestVersion == searchResults[match.Index].version {
+			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
 			}
 
