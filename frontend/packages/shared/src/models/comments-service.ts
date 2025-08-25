@@ -29,6 +29,12 @@ export type ListDiscussionsResponse = {
   authors: Record<string, HMMetadataPayload>
 }
 
+export type ListCommentsByReferenceRequest = {
+  targetId: UnpackedHypermediaId
+}
+
+export type ListCommentsByReferenceResponse = ListCommentsResponse
+
 export interface CommentsService {
   /**
    * Raw comment operations - returns flat list of comments
@@ -64,4 +70,13 @@ export interface CommentsService {
   //    onCopy(commentId: string): Promise<void>
   //    onReply(commentId: string): Promise<void>
   //    onReplyCount(commentId: string): Promise<number>
+
+  /**
+   * List comments by reference - returns comments with authors metadata
+   * This is used for the view when a block is focused in the discussions panel.
+   * Uses the BatchGetComments RPC
+   */
+  listCommentsByReference(
+    params: ListCommentsByReferenceRequest,
+  ): Promise<ListCommentsByReferenceResponse>
 }

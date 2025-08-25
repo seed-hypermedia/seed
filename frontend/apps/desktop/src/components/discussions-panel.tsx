@@ -9,6 +9,7 @@ import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {
+  BlockDiscussions,
   CommentDiscussions,
   Discussions,
   EmptyDiscussions,
@@ -35,19 +36,33 @@ function _DiscussionsPanel(props: {
       : undefined
 
   const commentEditor = (
-    <CommentBox docId={docId} commentId={accessory.openComment} />
+    <CommentBox
+      docId={docId}
+      commentId={accessory.openComment}
+      quotingBlockId={accessory.openBlockId}
+    />
   )
 
   if (accessory.openBlockId) {
+    const targetId = hmId(docId.uid, {
+      ...docId,
+      blockRef: accessory.openBlockId,
+    })
     return (
-      <CommentBlockAccessory
-        docId={docId}
-        onBack={() => onAccessory({key: 'discussions'})}
-        blockId={accessory.openBlockId}
-        targetDomain={targetDomain}
-      />
+      <AppDocContentProvider docId={targetId}>
+        <BlockDiscussions targetId={targetId} commentEditor={commentEditor} />
+      </AppDocContentProvider>
     )
   }
+
+  // return (
+  //   <CommentBlockAccessory
+  //     docId={docId}
+  //     onBack={() => onAccessory({key: 'discussions'})}
+  //     blockId={accessory.openBlockId}
+  //     targetDomain={targetDomain}
+  //   />
+  // )
 
   if (accessory.openComment) {
     return (
@@ -86,6 +101,7 @@ function CommentBlockAccessory({
   targetDomain?: string
 }) {
   const tx = useTxString()
+
   const citations = useDocumentCitations(docId)
   const citationsForBlock = citations.data?.filter((citation) => {
     return (

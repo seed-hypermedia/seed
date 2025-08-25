@@ -3,6 +3,8 @@ import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {HMComment} from './hm-types'
 import {
   CommentsService,
+  ListCommentsByReferenceRequest,
+  ListCommentsByReferenceResponse,
   ListCommentsResponse,
   ListDiscussionsRequest,
   ListDiscussionsResponse,
@@ -87,6 +89,26 @@ export function useDiscussionsService(params: ListDiscussionsRequest) {
       }
 
       const res = await context.service.listDiscussions(params)
+
+      return res
+    },
+    enabled: !!context.service,
+  })
+}
+
+export function useBlockDiscussionsService(
+  params: ListCommentsByReferenceRequest,
+) {
+  const context = useCommentsServiceContext()
+
+  return useQuery({
+    queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
+    queryFn: async (): Promise<ListCommentsByReferenceResponse> => {
+      if (!context.service) {
+        return {comments: [], authors: {}}
+      }
+
+      const res = await context.service.listCommentsByReference(params)
 
       return res
     },

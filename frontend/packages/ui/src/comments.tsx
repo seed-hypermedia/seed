@@ -16,11 +16,13 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {
+  useBlockDiscussionsService,
   useCommentsService,
   useCommentsServiceContext,
   useDiscussionsService,
 } from '@shm/shared/comments-service-provider'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
+import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
 import {ChevronRight, Link, MessageSquare, Trash2} from 'lucide-react'
@@ -295,7 +297,7 @@ export function Comment({
   targetDomain?: string
   heading?: ReactNode
 }) {
-  console.log('== ~ Comment ~ authorMetadata:', authorMetadata)
+  const tx = useTxString()
   let renderContent = renderCommentContent
   if (!renderContent) {
     renderContent = (comment) => (
@@ -327,16 +329,17 @@ export function Comment({
     )
   }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
-  const CommentsContext = useCommentsServiceContext()
+  const commentsContext = useCommentsServiceContext()
+
   const authorHmId =
     comment.author || authorId ? hmId(authorId || comment.author) : null
+
   const authorLink = useRouteLink(
     authorHmId ? {key: 'document', id: authorHmId} : null,
     {
       handler: 'onClick',
     },
   )
-  const tx = useTxString()
 
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
@@ -446,7 +449,7 @@ export function Comment({
                 className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
                 size="xs"
                 onClick={() => {
-                  CommentsContext.onReplyCountClick(comment)
+                  commentsContext.onReplyCountClick(comment)
                 }}
               >
                 <ChevronRight className="size-3" />
@@ -458,14 +461,14 @@ export function Comment({
                 )}
               </Button>
             ) : null}
-            {enableReplies || CommentsContext.onReplyClick ? (
+            {enableReplies || commentsContext.onReplyClick ? (
               <Button
                 variant="ghost"
                 size="xs"
                 className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
                 onClick={() => {
-                  if (CommentsContext.onReplyClick) {
-                    CommentsContext.onReplyClick(comment)
+                  if (commentsContext.onReplyClick) {
+                    commentsContext.onReplyClick(comment)
                   }
                 }}
               >
@@ -585,5 +588,66 @@ export function EmptyDiscussions({
         {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
       </SizableText>
     </div>
+  )
+}
+
+export function BlockDiscussions({
+  targetId,
+  renderCommentContent,
+  commentEditor,
+}: {
+  targetId: UnpackedHypermediaId
+  renderCommentContent?: (comment: HMComment) => ReactNode
+  commentEditor?: ReactNode
+}) {
+  const commentsService = useBlockDiscussionsService({targetId})
+  const doc = useResource(targetId)
+  let quotedContent = null
+  let panelContent = null
+
+  if (!targetId) return null
+
+  if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
+    quotedContent = (
+      <QuotedDocBlock
+        docId={targetId}
+        blockId={targetId.blockRef}
+        doc={doc.data.document}
+      />
+    )
+  } else if (doc.isInitialLoading) {
+    quotedContent = (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (commentsService.data) {
+    panelContent = (
+      <>
+        {commentsService.data.comments.map((comment) => {
+          return (
+            <Comment
+              key={comment.id}
+              comment={comment}
+              authorId={comment.author}
+              authorMetadata={
+                commentsService.data.authors[comment.author]?.metadata
+              }
+              renderCommentContent={renderCommentContent}
+            />
+          )
+        })}
+      </>
+    )
+  }
+
+  return (
+    <AccessoryContent>
+      {quotedContent}
+      {commentEditor}
+      <div className="mt-4 bg-red-500">{panelContent}</div>
+    </AccessoryContent>
   )
 }

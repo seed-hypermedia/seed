@@ -4,10 +4,14 @@ import {
   getCommentGroups,
   HMComment,
   HMMetadataPayload,
+  parseFragment,
+  unpackHmId,
 } from '@shm/shared'
 import {
   CommentsService,
   ListCommentsByIdRequest,
+  ListCommentsByReferenceRequest,
+  ListCommentsByReferenceResponse,
   ListCommentsRequest,
   ListCommentsResponse,
   ListDiscussionsRequest,
@@ -26,7 +30,6 @@ async function getCommentsAuthors(
       try {
         let account = await getAccount(accountUid)
 
-        console.log(`== ~ getCommentsAuthors ~ account:`, account)
         if (account) {
           authorAccounts.set(accountUid, account)
         }
@@ -44,8 +47,6 @@ export class DesktopCommentsService implements CommentsService {
   async listComments(
     params: ListCommentsRequest,
   ): Promise<ListCommentsResponse> {
-    console.log('== ~ CommentsService ~ listComments ~ params:', params)
-
     const res = await grpcClient.comments.listComments({
       targetAccount: params.targetId.uid,
       targetPath: hmIdPathToEntityQueryPath(params.targetId.path),
@@ -101,9 +102,67 @@ export class DesktopCommentsService implements CommentsService {
     }
   }
 
-  listCommentsById(
+  async listCommentsById(
     params: ListCommentsByIdRequest,
   ): Promise<ListCommentsResponse> {
     throw new Error('Method not implemented.')
+  }
+
+  async listCommentsByReference(
+    params: ListCommentsByReferenceRequest,
+  ): Promise<ListCommentsByReferenceResponse> {
+    const citations = await grpcClient.entities.listEntityMentions({
+      id: params.targetId.id,
+      pageSize: BIG_INT,
+      pageToken: '',
+    })
+
+    const commentCitations = citations.mentions.filter((m) => {
+      if (m.sourceType != 'Comment') return false
+      const targetFragment = parseFragment(m.targetFragment)
+      if (!targetFragment) return false
+      return targetFragment.blockId == params.targetId.blockRef
+    })
+
+    const commentIds = commentCitations
+      .map((c) => {
+        const id = unpackHmId(c.source)
+        if (!id) return null
+        return `${id.uid}/${id.path}`
+      })
+      .filter(Boolean) as Array<string>
+
+    const res = await grpcClient.comments.batchGetComments({
+      ids: commentIds,
+    })
+
+    const authorAccounts = new Set<string>()
+
+    const comments = res.comments
+      .sort((a, b) => {
+        const aTime =
+          a?.updateTime && typeof a?.updateTime == 'string'
+            ? new Date(a?.updateTime).getTime()
+            : 0
+        const bTime =
+          b?.updateTime && typeof b?.updateTime == 'string'
+            ? new Date(b?.updateTime).getTime()
+            : 1
+        return aTime - bTime // Newest first (descending order)
+      })
+      .map((c) => {
+        if (c.author && c.author.trim() !== '') {
+          authorAccounts.add(c.author)
+        }
+        return c.toJson({emitDefaultValues: true})
+      }) as Array<HMComment>
+
+    const authorAccountUids = Array.from(authorAccounts)
+    const authors = await getCommentsAuthors(authorAccountUids)
+
+    return {
+      comments,
+      authors,
+    }
   }
 }
