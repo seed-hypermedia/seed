@@ -250,7 +250,18 @@ var qGetMovedBlocks = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
-  dg.is_deleted
+  dg.is_deleted,
+  (
+    SELECT json_group_array(
+             json_object(
+               'codec',    b2.codec,
+               'multihash', hex(b2.multihash)
+             )
+           )
+    FROM json_each(dg.heads) AS a
+      JOIN blobs AS b2
+        ON b2.id = a.value
+  ) AS heads
   from structural_blobs sb
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
@@ -647,19 +658,34 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
 	}
 	type movedResource struct {
-		newIri    string
-		oldIri    string
-		isDeleted bool
+		newIri        string
+		oldIri        string
+		isDeleted     bool
+		latestVersion string
 	}
 	var movedResources []movedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+			var heads []head
+			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
+				return err
+			}
+
+			cids := make([]cid.Cid, len(heads))
+			for i, h := range heads {
+				mhBinary, err := hex.DecodeString(h.Multihash)
+				if err != nil {
+					return err
+				}
+				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
+			}
 			movedResources = append(movedResources, movedResource{
-				newIri:    stmt.ColumnText(0),
-				oldIri:    stmt.ColumnText(1),
-				isDeleted: stmt.ColumnInt(2) == 1,
+				newIri:        stmt.ColumnText(0),
+				oldIri:        stmt.ColumnText(1),
+				isDeleted:     stmt.ColumnInt(2) == 1,
+				latestVersion: docmodel.NewVersion(cids...).String(),
 			})
 			return nil
 		}, genesisBlobJson)
@@ -675,6 +701,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				} else {
 					searchResults[i].iri = movedResource.newIri
 				}
+				searchResults[i].latestVersion = movedResource.latestVersion
 			}
 		}
 	}
