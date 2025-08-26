@@ -4,7 +4,6 @@ import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useSelectedAccountId} from '@/selected-account'
 import {trpc} from '@/trpc'
-import {appRouteOfId, isHttpUrl, useNavRoute} from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -20,6 +19,11 @@ import {
   parseFragment,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
+import {
+  appRouteOfId,
+  isHttpUrl,
+  useNavRoute,
+} from '@shm/shared/utils/navigation'
 import {
   RecentSearchResultItem,
   SearchInput as SearchInputUI,

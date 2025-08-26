@@ -2,7 +2,6 @@ import {useAllDiscussions} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
-import {useNavRoute} from '@/utils/navigation'
 import {useCommentGroups} from '@shm/shared/comments'
 import {
   HMAccountsMetadata,
@@ -15,6 +14,7 @@ import {
 import {getActivityTime} from '@shm/shared/models/activity'
 import {DocumentAccessory} from '@shm/shared/routes'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {CommentGroup} from '@shm/ui/comments'

@@ -14,9 +14,9 @@ import {Button, ButtonProps} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactNode} from 'react'
 import {useDeleteEntities} from '../models/entities'
-import {useAppDialog} from './dialog'
 
 export type DeleteDialogProps = {
   trigger?: (props: {onClick: ButtonProps['onClick']}) => JSX.Element

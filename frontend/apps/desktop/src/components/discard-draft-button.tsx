@@ -1,5 +1,5 @@
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
-import {useNavigationDispatch, useNavRoute} from '@/utils/navigation'
+import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Trash} from 'lucide-react'

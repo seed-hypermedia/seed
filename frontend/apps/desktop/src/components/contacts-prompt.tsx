@@ -1,16 +1,16 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {Button} from '@shm/ui/button'
+import {
+  DialogClose,
+  DialogDescription,
+  DialogTitle,
+} from '@shm/ui/components/dialog'
 import {Textarea} from '@shm/ui/components/textarea'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {UserPlus} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
-import {
-  DialogClose,
-  DialogDescription,
-  DialogTitle,
-} from '@shm/ui/universal-dialog'
 import {base58btc} from 'multiformats/bases/base58'
 import {useMemo, useState} from 'react'
 import appError from '../errors'

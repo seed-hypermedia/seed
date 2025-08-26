@@ -2,7 +2,6 @@ import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {useAccountsMetadata, useSubscribedResource} from '@/models/entities'
 import {LibraryData} from '@/models/library'
-import {useNavRoute} from '@/utils/navigation'
 import {getContactMetadata, queryBlockSortedItems} from '@shm/shared/content'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {
@@ -17,6 +16,7 @@ import {useResources} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDate} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
   BlockContentUnknown,

@@ -1,12 +1,15 @@
 import {usePublishToSite} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {createWebHMUrl, packHmId} from '@shm/shared/utils/entity-id-url'
+import {NavigationContext} from '@shm/shared/utils/navigation'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
+import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
 import {
@@ -14,8 +17,6 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
-import {NavigationContext} from '../utils/navigation'
-import {DialogDescription, DialogTitle, useAppDialog} from './dialog'
 type IsPublishedState = null | boolean // null: determined checked yet
 
 export function useCopyReferenceUrl(

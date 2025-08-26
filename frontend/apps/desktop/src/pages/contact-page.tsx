@@ -9,7 +9,6 @@ import {
 } from '@/models/contacts'
 import {useSubscribedResources} from '@/models/entities'
 import {useSelectedAccount} from '@/selected-account'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -22,7 +21,9 @@ import {
   hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -31,7 +32,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   ArrowUpRight,

@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
-import {appRouteOfId, isHttpUrl} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {appRouteOfId, isHttpUrl} from '@shm/shared/utils/navigation'
 import {toast} from '@shm/ui/toast'
 import {useMemo} from 'react'
 

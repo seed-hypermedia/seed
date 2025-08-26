@@ -20,6 +20,7 @@ import {AlertCircle, CircleDollarSign, Copy, PartyPopper} from 'lucide-react'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './components/checkbox'
+import {DialogDescription, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
@@ -27,7 +28,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
-import {DialogDescription, DialogTitle, useAppDialog} from './universal-dialog'
+import {useAppDialog} from './universal-dialog'
 
 async function sendWeblnPayment(invoice: string) {
   // @ts-expect-error

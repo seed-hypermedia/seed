@@ -50,19 +50,14 @@ function _DiscussionsPanel(props: {
     })
     return (
       <AppDocContentProvider docId={targetId}>
-        <BlockDiscussions targetId={targetId} commentEditor={commentEditor} />
+        <BlockDiscussions
+          targetId={targetId}
+          commentEditor={commentEditor}
+          onBack={() => onAccessory({key: 'discussions'})}
+        />
       </AppDocContentProvider>
     )
   }
-
-  // return (
-  //   <CommentBlockAccessory
-  //     docId={docId}
-  //     onBack={() => onAccessory({key: 'discussions'})}
-  //     blockId={accessory.openBlockId}
-  //     targetDomain={targetDomain}
-  //   />
-  // )
 
   if (accessory.openComment) {
     return (

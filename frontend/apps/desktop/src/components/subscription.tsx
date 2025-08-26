@@ -27,9 +27,9 @@ import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {VariantProps} from 'class-variance-authority'
-import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
   const subscription = useSubscription(id)

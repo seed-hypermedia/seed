@@ -1,5 +1,5 @@
-import {appRouteOfId} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
+import {appRouteOfId} from '@shm/shared/utils/navigation'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 

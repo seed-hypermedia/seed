@@ -12,16 +12,13 @@ import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
+import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {
-  DialogDescription,
-  DialogTitle,
-  useAppDialog,
-} from '@shm/ui/universal-dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {LogOut, Megaphone, Pencil} from 'lucide-react'
 import {BlockView} from 'multiformats'

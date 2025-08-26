@@ -1,19 +1,17 @@
+import {
+  NavContextProvider,
+  NavigationContext,
+  useNavigation,
+} from '@shm/shared/utils/navigation'
+import * as React from 'react'
 import {FC, useMemo, useState} from 'react'
+
+import {ButtonProps} from '@shm/ui/button'
 import * as AlertDialog from './components/alert-dialog'
 import * as Dialog from './components/dialog'
-export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogOverlay,
-  DialogTitle,
-} from './components/dialog'
 
-export const AlertDialogContent = AlertDialog.AlertDialogContent
-
-export const DialogCloseButton = Dialog.DialogClose
+export const dialogBoxShadow =
+  'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
 
 function getComponent(isAlert?: boolean) {
   const Component = isAlert
@@ -47,7 +45,7 @@ export function AppDialog<
 }: {
   TriggerComponent: React.FC<
     {
-      onPress?: (e: MouseEvent) => void
+      onClick: ButtonProps['onClick']
       children: React.ReactNode
     } & TriggerComponentProps
   >
@@ -61,11 +59,12 @@ export function AppDialog<
 }) {
   const Component = getComponent(isAlert)
   const [isOpen, setIsOpen] = useState(false)
+  const nav = useNavigation(undefined)
   return (
     <Component.Root onOpenChange={setIsOpen} open={isOpen}>
       <Component.Trigger asChild>
         <TriggerComponent
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+          onClick={(e) => {
             e.stopPropagation()
             setIsOpen(true)
           }}
@@ -75,16 +74,18 @@ export function AppDialog<
         </TriggerComponent>
       </Component.Trigger>
       <Component.Portal>
-        <Component.Overlay onClick={() => setIsOpen(false)} />
-        <Component.Content>
-          <ContentComponent
-            isOpen={isOpen}
-            onClose={() => {
-              setIsOpen(false)
-            }}
-            {...contentComponentProps}
-          />
-        </Component.Content>
+        <NavContextProvider value={nav}>
+          <Component.Overlay onClick={() => setIsOpen(false)} />
+          <Component.Content>
+            <ContentComponent
+              isOpen={isOpen}
+              onClose={() => {
+                setIsOpen(false)
+              }}
+              {...contentComponentProps}
+            />
+          </Component.Content>
+        </NavContextProvider>
       </Component.Portal>
     </Component.Root>
   )
@@ -99,9 +100,11 @@ export function useAppDialog<DialogInput>(
     isAlert?: boolean
     onClose?: () => void
     contentClassName?: string
+    overrideNavigation?: NavigationContext
   },
 ) {
   const [openState, setOpenState] = useState<null | DialogInput>(null)
+  const nav = useNavigation(options?.overrideNavigation)
 
   const Component = getComponent(options?.isAlert)
   const onClose = options?.onClose
@@ -120,28 +123,30 @@ export function useAppDialog<DialogInput>(
       content: (
         <Component.Root
           modal
-          onOpenChange={(isOpen) => {
+          onOpenChange={(isOpen: boolean) => {
             if (isOpen) throw new Error('Cannot open app dialog')
             close()
           }}
           open={!!openState}
         >
           <Component.Portal>
-            <Component.Overlay />
-            <Component.Content className={options?.contentClassName}>
-              {openState && (
-                <DialogContentComponent
-                  input={openState}
-                  onClose={() => {
-                    setOpenState(null)
-                    onClose?.()
-                  }}
-                />
-              )}
-            </Component.Content>
+            <NavContextProvider value={nav}>
+              <Component.Overlay onClick={close} />
+              <Component.Content>
+                {openState && (
+                  <DialogContentComponent
+                    input={openState}
+                    onClose={() => {
+                      setOpenState(null)
+                      onClose?.()
+                    }}
+                  />
+                )}
+              </Component.Content>
+            </NavContextProvider>
           </Component.Portal>
         </Component.Root>
       ),
     }
-  }, [Component, DialogContentComponent, openState, onClose])
+  }, [Component, DialogContentComponent, nav, openState, onClose])
 }

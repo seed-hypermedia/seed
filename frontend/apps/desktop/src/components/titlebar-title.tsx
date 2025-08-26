@@ -12,7 +12,6 @@ import {useIdEntities, useItemsFromId} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   hmId,
@@ -24,6 +23,7 @@ import {
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   HoverCard,
   HoverCardContent,

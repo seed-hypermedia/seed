@@ -15,11 +15,6 @@ import {useHostSession} from '@/models/host'
 import {useSelectedAccount} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
-import {
-  useNavRoute,
-  useNavigationDispatch,
-  useNavigationState,
-} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -33,6 +28,11 @@ import {
   latestId,
   pathMatches,
 } from '@shm/shared/utils/entity-id-url'
+import {
+  useNavRoute,
+  useNavigationDispatch,
+  useNavigationState,
+} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
   Popover,
@@ -56,6 +56,7 @@ import {SizableText} from '@shm/ui/text'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useStream} from '@shm/ui/use-stream'
 import {
   ArrowLeftFromLine,
@@ -70,7 +71,6 @@ import {
 import {nanoid} from 'nanoid'
 import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
 import {BranchDialog} from './branch-dialog'
-import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'

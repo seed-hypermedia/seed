@@ -29,9 +29,10 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "../../packages/ui/src/forms.tsx",
-    "../../packages/ui/src/form-input.tsx"
+    ".next/types/**/*.ts"
+    // "../../packages/ui/src/forms.tsx",
+    // "../../packages/ui/src/form-input.tsx",
+    // "../../packages/shared/src/utils/navigation.tsx"
   ],
   "exclude": ["node_modules"]
 }

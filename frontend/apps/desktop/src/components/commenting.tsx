@@ -4,9 +4,9 @@ import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {queryClient, queryKeys} from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 
 import {
   HMBlockEmbed,

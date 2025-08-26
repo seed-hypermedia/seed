@@ -51,6 +51,7 @@ import {
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
 import {Checkbox} from '@shm/ui/components/checkbox'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -79,7 +80,7 @@ import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   AtSign,

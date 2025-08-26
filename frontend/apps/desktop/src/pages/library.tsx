@@ -10,7 +10,6 @@ import {
   useLibrary,
   useSiteLibrary,
 } from '@/models/library'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {
@@ -23,6 +22,7 @@ import {
 } from '@shm/shared/hm-types'
 import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'

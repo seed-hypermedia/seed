@@ -1,6 +1,6 @@
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
-import {useAppDialog} from './dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export type ImportedDocument = {
   markdownContent: string

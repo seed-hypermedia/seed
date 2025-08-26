@@ -1,4 +1,3 @@
-import {DialogDescription, DialogTitle, useAppDialog} from '@/components/dialog'
 import {useCurrencyComparisons} from '@/models/compare-currencies'
 import {
   useCreateLocalInvoice,
@@ -21,6 +20,7 @@ import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
+import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
@@ -46,6 +46,7 @@ import {InfoListHeader, TableList} from '@shm/ui/table-list'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 

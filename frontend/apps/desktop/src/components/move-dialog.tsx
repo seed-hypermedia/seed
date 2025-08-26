@@ -5,11 +5,11 @@ import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
-import {DialogTitle} from './dialog'
 import {LocationPicker} from './location-picker'
 export function MoveDialog({
   onClose,

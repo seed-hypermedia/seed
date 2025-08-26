@@ -1,7 +1,10 @@
+import {
+  useNavigationDispatch,
+  useNavigationState,
+} from '@shm/shared/utils/navigation'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useStream} from '@shm/ui/use-stream'
 import {PropsWithChildren, createContext, useContext, useMemo} from 'react'
-import {useNavigationDispatch, useNavigationState} from './utils/navigation'
 
 type SidebarContextValue = {
   onMenuHover: () => void

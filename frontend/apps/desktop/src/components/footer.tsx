@@ -1,7 +1,7 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
-import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'

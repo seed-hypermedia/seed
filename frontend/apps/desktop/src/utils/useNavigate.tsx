@@ -1,7 +1,7 @@
 import {useIPC} from '@/app-context'
 import {NavRoute} from '@shm/shared/routes'
+import {NavMode, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {startTransition, useCallback} from 'react'
-import {NavMode, useNavigationDispatch} from './navigation'
 import {encodeRouteToPath} from './route-encoding'
 import {getRouteWindowType, getWindowType} from './window-types'
 

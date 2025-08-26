@@ -207,6 +207,70 @@ export function Discussions({
   )
 }
 
+export function BlockDiscussions({
+  targetId,
+  renderCommentContent,
+  commentEditor,
+  onBack,
+}: {
+  targetId: UnpackedHypermediaId
+  renderCommentContent?: (comment: HMComment) => ReactNode
+  commentEditor?: ReactNode
+  onBack?: () => void
+}) {
+  const commentsService = useBlockDiscussionsService({targetId})
+  const doc = useResource(targetId)
+  let quotedContent = null
+  let panelContent = null
+
+  if (!targetId) return null
+
+  if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
+    quotedContent = (
+      <QuotedDocBlock
+        docId={targetId}
+        blockId={targetId.blockRef}
+        doc={doc.data.document}
+      />
+    )
+  } else if (doc.isInitialLoading) {
+    quotedContent = (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (commentsService.data) {
+    panelContent = (
+      <>
+        {commentsService.data.comments.map((comment) => {
+          return (
+            <Comment
+              key={comment.id}
+              comment={comment}
+              authorId={comment.author}
+              authorMetadata={
+                commentsService.data.authors[comment.author]?.metadata
+              }
+              renderCommentContent={renderCommentContent}
+            />
+          )
+        })}
+      </>
+    )
+  }
+
+  return (
+    <AccessoryContent>
+      <AccessoryBackButton onClick={onBack} />
+      {quotedContent}
+      {commentEditor}
+      <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
+    </AccessoryContent>
+  )
+}
+
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
 export function CommentGroup({
   commentGroup,
@@ -588,66 +652,5 @@ export function EmptyDiscussions({
         {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
       </SizableText>
     </div>
-  )
-}
-
-export function BlockDiscussions({
-  targetId,
-  renderCommentContent,
-  commentEditor,
-}: {
-  targetId: UnpackedHypermediaId
-  renderCommentContent?: (comment: HMComment) => ReactNode
-  commentEditor?: ReactNode
-}) {
-  const commentsService = useBlockDiscussionsService({targetId})
-  const doc = useResource(targetId)
-  let quotedContent = null
-  let panelContent = null
-
-  if (!targetId) return null
-
-  if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
-    quotedContent = (
-      <QuotedDocBlock
-        docId={targetId}
-        blockId={targetId.blockRef}
-        doc={doc.data.document}
-      />
-    )
-  } else if (doc.isInitialLoading) {
-    quotedContent = (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
-
-  if (commentsService.data) {
-    panelContent = (
-      <>
-        {commentsService.data.comments.map((comment) => {
-          return (
-            <Comment
-              key={comment.id}
-              comment={comment}
-              authorId={comment.author}
-              authorMetadata={
-                commentsService.data.authors[comment.author]?.metadata
-              }
-              renderCommentContent={renderCommentContent}
-            />
-          )
-        })}
-      </>
-    )
-  }
-
-  return (
-    <AccessoryContent>
-      {quotedContent}
-      {commentEditor}
-      <div className="mt-4 bg-red-500">{panelContent}</div>
-    </AccessoryContent>
   )
 }

@@ -45,8 +45,9 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
-import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
 import {

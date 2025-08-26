@@ -4,13 +4,13 @@ import {useAllDiscussions} from '@/models/comments'
 import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
+import {DocAccessoryOption} from '@shm/shared'
+import {useTx} from '@shm/shared/translation'
 import {
   useNavigationDispatch,
   useNavigationState,
   useRouteDocId,
-} from '@/utils/navigation'
-import {DocAccessoryOption} from '@shm/shared'
-import {useTx} from '@shm/shared/translation'
+} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,

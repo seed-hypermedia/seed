@@ -7,7 +7,6 @@ import {
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Contact} from '@shm/shared'
@@ -19,6 +18,7 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {
   contentLayoutUnit,

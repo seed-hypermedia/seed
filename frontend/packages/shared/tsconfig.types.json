@@ -5,10 +5,10 @@
     "emitDeclarationOnly": true,
     "declarationMap": false,
     "outDir": "./dist",
-    "rootDir": "./src",
     "noEmit": false,
     "incremental": false,
     "composite": false
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

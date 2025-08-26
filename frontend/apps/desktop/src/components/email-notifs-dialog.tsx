@@ -3,9 +3,9 @@ import {
   useSetEmailNotifications,
 } from '@/models/email-notifications'
 import {useTx} from '@shm/shared/translation'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {UIEmailNotificationsForm} from '@shm/ui/email-notifications'
 import {Spinner} from '@shm/ui/spinner'
-import {DialogTitle} from '@shm/ui/universal-dialog'
 
 export function NotifSettingsDialog({
   onClose,

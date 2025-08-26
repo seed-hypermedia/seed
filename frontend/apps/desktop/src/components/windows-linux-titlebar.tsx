@@ -1,9 +1,9 @@
 import {useIPC, useWindowUtils} from '@/app-context'
 import {WindowsLinuxWindowControls} from '@/components/window-controls'
-import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
+import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {
   Menubar,
   MenubarContent,

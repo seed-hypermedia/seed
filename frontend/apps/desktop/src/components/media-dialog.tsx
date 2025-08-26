@@ -1,7 +1,7 @@
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useAppDialog} from './dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export function useMediaDialog() {
   return useAppDialog(MediaDialog, {isAlert: true})

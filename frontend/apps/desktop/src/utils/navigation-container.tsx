@@ -1,5 +1,4 @@
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {dialogBoxShadow} from '@/components/dialog'
 import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -11,12 +10,6 @@ import {
 } from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
-import {Button} from '@shm/ui/button'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
-import {ReactNode, useEffect, useMemo} from 'react'
-import {useAppContext, useIPC} from '../app-context'
 import {
   NavAction,
   NavContextProvider,
@@ -24,7 +17,13 @@ import {
   navStateReducer,
   setAppNavDispatch,
   useNavRoute,
-} from './navigation'
+} from '@shm/shared/utils/navigation'
+import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
+import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
+import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
+import {ReactNode, useEffect, useMemo} from 'react'
+import {useAppContext, useIPC} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
 

@@ -10,11 +10,11 @@ import {
   useListSite,
 } from '@/models/documents'
 import {useSubscribedResource} from '@/models/entities'
-import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getDraftNodesOutline, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Add} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {

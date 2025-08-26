@@ -17,6 +17,11 @@ import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
+import {
+  DialogClose,
+  DialogDescription,
+  DialogTitle,
+} from '@shm/ui/components/dialog'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -32,12 +37,7 @@ import {
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {
-  DialogCloseButton,
-  DialogDescription,
-  DialogTitle,
-  useAppDialog,
-} from '@shm/ui/universal-dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
@@ -67,7 +67,7 @@ export function ImportDialog({
       <DialogDescription>
         You can import a single Markdown file, or a folder of Markdown files.
       </DialogDescription>
-      <DialogCloseButton />
+      <DialogClose />
       <div className="flex flex-col gap-4">
         <Button
           className="border-border border"

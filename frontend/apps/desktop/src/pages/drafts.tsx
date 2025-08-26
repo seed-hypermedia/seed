@@ -1,7 +1,6 @@
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useDraftList} from '@/models/documents'
-import {useNavigationDispatch} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateMedium,
@@ -13,6 +12,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useResources} from '@shm/shared/models/entity'
+import {useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'

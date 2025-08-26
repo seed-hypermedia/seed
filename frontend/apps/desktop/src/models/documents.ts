@@ -41,6 +41,7 @@ import {
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
@@ -63,7 +64,6 @@ import {nanoid} from 'nanoid'
 import {useEffect, useMemo} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
-import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
 import {useConnectPeer} from './contacts'

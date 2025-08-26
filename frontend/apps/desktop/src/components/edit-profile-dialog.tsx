@@ -1,4 +1,4 @@
-import {useAppDialog} from './dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export function useEditProfileDialog() {
   // for some reason the dialog doesn't work if the input is falsy
