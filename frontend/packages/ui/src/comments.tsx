@@ -53,6 +53,7 @@ export function CommentDiscussions({
   renderCommentContent,
   onBack,
   commentEditor,
+  targetDomain,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -60,6 +61,7 @@ export function CommentDiscussions({
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
   onBack?: () => void
+  targetDomain?: string
 }) {
   const commentsService = useCommentsService({targetId})
   if (!commentId) return null
@@ -109,7 +111,7 @@ export function CommentDiscussions({
             // currentAccountId={myAccountId ?? undefined}
             renderCommentContent={renderCommentContent}
             highlightLastComment
-            // targetDomain={targetDomain}
+            targetDomain={targetDomain}
           />
         ) : (
           <EmptyDiscussions emptyReplies />
@@ -140,6 +142,7 @@ export function CommentDiscussions({
                 key={cg.id}
                 commentGroup={cg}
                 authors={commentsService.data?.authors}
+                targetDomain={targetDomain}
               />
             </div>
           )
@@ -157,12 +160,14 @@ export function Discussions({
   renderCommentContent,
   commentEditor,
   onBack,
+  targetDomain,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   onBack?: () => void
+  targetDomain?: string
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
   let panelContent = null
@@ -190,6 +195,7 @@ export function Discussions({
                 authors={discussionsService.data.authors}
                 renderCommentContent={renderCommentContent}
                 enableReplies
+                targetDomain={targetDomain}
               />
             </div>
           )
@@ -212,11 +218,13 @@ export function BlockDiscussions({
   renderCommentContent,
   commentEditor,
   onBack,
+  targetDomain,
 }: {
   targetId: UnpackedHypermediaId
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   onBack?: () => void
+  targetDomain?: string
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -253,6 +261,7 @@ export function BlockDiscussions({
               authorMetadata={
                 commentsService.data.authors[comment.author]?.metadata
               }
+              targetDomain={targetDomain}
               renderCommentContent={renderCommentContent}
             />
           )
@@ -309,7 +318,7 @@ export function CommentGroup({
 
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
-        const isCurrentAccountComment = comment.author === currentAccountId
+        // const isCurrentAccountComment = comment.author === currentAccountId
         return (
           <Comment
             isLast={isLastCommentInGroup}
@@ -323,9 +332,10 @@ export function CommentGroup({
             }
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
-            onDelete={
-              isCurrentAccountComment ? () => onDelete?.(comment.id) : undefined
-            }
+            // TODO: uncomment this when we have a way to delete comments
+            // onDelete={
+            //   isCurrentAccountComment ? () => onDelete?.(comment.id) : undefined
+            // }
             targetDomain={targetDomain}
           />
         )

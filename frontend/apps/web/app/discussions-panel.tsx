@@ -43,7 +43,7 @@ type DiscussionsPanelProps = {
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {homeId, comment, blockId, siteHost, handleBack, commentEditor} = props
+  const {homeId, comment, blockId, commentEditor, siteHost, handleBack, commentEditorm targetDomain} = props
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -84,6 +84,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
+        targetDomain={targetDomain}
       />
     )
   }
@@ -94,6 +95,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
+        targetDomain={targetDomain}
       />
     </>
   )
@@ -150,78 +152,6 @@ function BlockDiscussions({
           <QuotedDocBlock docId={docId} blockId={blockId} doc={document!} />
         </WebDocContentProvider>
       </div>
-      <div className="flex flex-col">{panelContent}</div>
-    </div>
-  )
-}
-
-function CommentDiscussion(
-  props: DiscussionsPanelProps & {
-    renderCommentContent: (comment: HMComment) => React.ReactNode
-  },
-) {
-  const {comment, renderCommentContent, handleBack} = props
-  const tx = useTxString()
-  const discussion = useDiscussion(getCommentTargetId(comment), comment?.id)
-
-  if (!discussion.data) return null
-  const {thread, authors, commentGroups} = discussion.data
-
-  const rootCommentId = thread?.at(0)?.id
-
-  let panelContent = null
-  if (discussion.isInitialLoading) {
-    panelContent = <Spinner />
-  } else if (discussion.data) {
-    panelContent =
-      commentGroups?.length > 0
-        ? commentGroups?.map((cg, idx) => {
-            return (
-              <div
-                key={cg.id}
-                className={cn(
-                  'border-border border-b px-3',
-                  commentGroups.length - 1 > idx && 'mb-4',
-                )}
-              >
-                <CommentGroup
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={authors}
-                  renderCommentContent={renderCommentContent}
-                  enableReplies
-                />
-              </div>
-            )
-          })
-        : null
-  }
-
-  return (
-    <div className="flex flex-col gap-2 p-3">
-      <div className="mx-3 mb-0 flex flex-col">
-        <AccessoryBackButton
-          onClick={handleBack}
-          label={tx('All Discussions')}
-        />
-      </div>
-
-      {rootCommentId && thread ? (
-        <div className="rounded-md p-3">
-          <CommentGroup
-            commentGroup={{
-              id: rootCommentId,
-              comments: thread,
-              moreCommentsCount: 0,
-              type: 'commentGroup',
-            }}
-            authors={authors}
-            renderCommentContent={renderCommentContent}
-            highlightLastComment
-            enableReplies
-          />
-        </div>
-      ) : null}
       <div className="flex flex-col">{panelContent}</div>
     </div>
   )
