@@ -20,7 +20,13 @@ import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
-import {fetchAndSaveWpPosts, WpPost} from './wordpress-import'
+import {
+  getWpPosts,
+  getWpPostsFromFile,
+  loadWpPosts,
+  WpImportStatus,
+  WpPost,
+} from './wordpress-import'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -82,12 +88,6 @@ export function extractMetaTags(html: string) {
   return metaTags
 }
 
-type WpImportStatus =
-  | {mode: 'fetching'; page: number; totalPages: number; fetched: number}
-  | {mode: 'ready'; total: number}
-  | {mode: 'importing'; processed: number; total: number; currentId?: number}
-  | {mode: 'error'; error: string}
-
 const wpImportStatus: Record<string, WpImportStatus> = {}
 
 type ImportStatus =
@@ -127,13 +127,9 @@ async function startImport(url: string, importId: string) {
 }
 
 async function importWpSite(url: string, importId: string) {
-  return await fetchAndSaveWpPosts(
-    url,
-    importId,
-    (page, totalPages, fetched) => {
-      wpImportStatus[importId] = {mode: 'fetching', page, totalPages, fetched}
-    },
-  )
+  return await getWpPosts(url, importId, (page, totalPages, fetched) => {
+    wpImportStatus[importId] = {mode: 'fetching', page, totalPages, fetched}
+  })
 }
 
 export function startWpImport(siteUrl: string, importId: string) {
@@ -316,6 +312,14 @@ export const webImportingApi = t.router({
       startWpImport(input.url, importId)
       return {importId}
     }),
+  importWpFile: t.procedure
+    .input(z.object({xmlText: z.string()}).strict())
+    .mutation(async ({input}) => {
+      const importId = nanoid(10)
+      const {total} = await getWpPostsFromFile(input.xmlText, importId)
+      wpImportStatus[importId] = {mode: 'ready', total}
+      return {importId, total}
+    }),
   importWpSiteStatus: t.procedure
     .input(z.string())
     .query(async ({input}) => wpImportStatus[input] ?? null),
@@ -328,34 +332,38 @@ export const webImportingApi = t.router({
           destinationId: z.string(),
           signAccountUid: z.string(),
           limit: z.number().int().positive().optional(),
+          offset: z.number().int().min(0).optional(),
+          concurrency: z.number().int().min(1).max(16).optional(),
         })
         .strict(),
     )
     .mutation(async ({input}) => {
-      const {importId, destinationId, signAccountUid, limit} = input
-      const p = join(
-        userDataPath,
-        'importer',
-        'wordpress',
+      const {
         importId,
-        'posts.json',
-      )
-      const buf = await readFile(p, 'utf-8')
-      let posts: any[] = JSON.parse(buf)
-      if (limit) posts = posts.slice(0, limit)
+        destinationId,
+        signAccountUid,
+        limit,
+        offset = 0,
+        concurrency = 5,
+      } = input
+      const {posts: loaded, total} = await loadWpPosts(importId, {
+        offset,
+        limit,
+      })
+      let posts: any[] = loaded
 
       wpImportStatus[importId] = {
         mode: 'importing',
         processed: 0,
-        total: posts.length,
+        total,
       }
 
       let processed = 0
-      for (const post of posts) {
+      await withConcurrency(posts, concurrency, async (post) => {
         wpImportStatus[importId] = {
           mode: 'importing',
           processed,
-          total: posts.length,
+          total,
           currentId: post.id,
         }
         await importWpPost({post, destinationId, signAccountUid, importId})
@@ -363,13 +371,27 @@ export const webImportingApi = t.router({
         wpImportStatus[importId] = {
           mode: 'importing',
           processed,
-          total: posts.length,
+          total,
         }
-      }
+      })
+      // for (const post of posts) {
+      //   wpImportStatus[importId] = {
+      //     mode: 'importing',
+      //     processed,
+      //     total: posts.length,
+      //     currentId: post.id,
+      //   }
+      //   await importWpPost({post, destinationId, signAccountUid, importId})
+      //   processed++
+      //   wpImportStatus[importId] = {
+      //     mode: 'importing',
+      //     processed,
+      //     total: posts.length,
+      //   }
+      // }
 
-      wpImportStatus[importId] = {mode: 'ready', total: posts.length}
-
-      return {imported: posts.length}
+      wpImportStatus[importId] = {mode: 'ready', total}
+      return {imported: total}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const file = await downloadFile(input)
@@ -476,10 +498,18 @@ export async function importWpPost({
   // Title
   const title = stripHtml(post.title?.rendered ?? 'Untitled')
 
-  // Compute document path from the WP post URL
   const linkUrl = new URL(post.link)
-  const linkSegments = linkUrl.pathname.split('/').filter(Boolean)
-  const docPath = [...(parentId.path || []), ...linkSegments]
+
+  let baseSeg =
+    (post.slug && toSlug(post.slug)) ||
+    (lastPathSegment(linkUrl) && toSlug(lastPathSegment(linkUrl)!)) ||
+    (post.title?.rendered && toSlug(stripHtml(post.title.rendered))) ||
+    ''
+
+  if (!baseSeg) baseSeg = post.id != null ? `post-${post.id}` : 'post'
+  // baseSeg = post.id != null ? `${baseSeg}-${post.id}` : baseSeg
+
+  const docPath = [...(parentId.path || []), baseSeg]
 
   // Convert HTML to blocks
   const html = post.content?.rendered ?? ''
@@ -573,6 +603,21 @@ export async function importWpPost({
   })
 }
 
+function toSlug(s: string): string {
+  const decoded = decodeHtmlEntities(s || '')
+  const ascii = decoded.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  return ascii
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // non-alnum → dash
+    .replace(/^-+|-+$/g, '') // trim dashes
+    .slice(0, 80) // keep it reasonable
+}
+
+function lastPathSegment(u: URL): string | null {
+  const segs = u.pathname.split('/').filter(Boolean)
+  return segs.length ? segs[segs.length - 1] : null
+}
+
 function decodeHtmlEntities(input: string): string {
   const named: Record<string, string> = {
     amp: '&',
@@ -609,4 +654,32 @@ function decodeHtmlEntities(input: string): string {
   //   .replace(/\s+(\.\.\.)$/, '...') // trim space before ...
 
   return out
+}
+
+async function withConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, idx: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let i = 0
+  let active = 0
+
+  return new Promise((resolve, reject) => {
+    const next = () => {
+      if (i >= items.length && active === 0) return resolve(results)
+      while (active < limit && i < items.length) {
+        const idx = i++
+        active++
+        worker(items[idx], idx)
+          .then((r) => (results[idx] = r))
+          .catch(reject)
+          .finally(() => {
+            active--
+            next()
+          })
+      }
+    }
+    next()
+  })
 }

@@ -6,6 +6,7 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {ScrapeStatus} from '@/web-scraper'
+import {WpImportStatus} from '@/wordpress-import'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
@@ -17,10 +18,18 @@ import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
+import {Label} from '@shm/ui/components/label'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
+import {
+  File,
+  FileInput,
+  FileOutput,
+  Folder,
+  FolderInput,
+  Globe,
+} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {
   Select,
@@ -58,7 +67,8 @@ export function ImportDialog({
     onImportFile: () => void
     onImportDirectory: () => void
     onImportWebSite: () => void
-    onImportWordpress: () => void
+    onImportWordpressSite: () => void
+    onImportWordpressFile: () => void
   }
   onClose: () => void
 }) {
@@ -108,11 +118,22 @@ export function ImportDialog({
           variant="ghost"
           onClick={() => {
             onClose()
-            input.onImportWordpress()
+            input.onImportWordpressSite()
+          }}
+        >
+          <FileOutput className="size-3" />
+          Import WordPress Site
+        </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportWordpressFile()
           }}
         >
           <File className="size-3" />
-          Import WordPress Site
+          Import WordPress File
         </Button>
       </div>
     </>
@@ -251,161 +272,307 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   }
 
   const webImporting = useWebImporting()
-  const wpImporting = useWordpressImporting()
+  const wpSiteImporting = useWordpressSiteImporting()
+  const wpFileImporting = useWordpressFileImporting()
 
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
     importWebSite: () => webImporting.open({destinationId: parentId}),
-    importWordpress: () => wpImporting.open({destinationId: parentId}),
+    importWordpressSite: () => wpSiteImporting.open({destinationId: parentId}),
+    importWordpressFile: () => wpFileImporting.open({destinationId: parentId}),
     content: (
       <>
         {importDialog.content}
         {webImporting.content}
-        {wpImporting.content}
+        {wpSiteImporting.content}
+        {wpFileImporting.content}
       </>
     ),
   }
 }
 
-export function useWordpressImporting() {
-  return useAppDialog(WordpressImportDialog)
+function AccountPicker({
+  destinationId,
+  value,
+  onChange,
+}: {
+  destinationId: UnpackedHypermediaId
+  value: string | null
+  onChange: (v: string) => void
+}) {
+  const accounts = useMyAccountsWithWriteAccess(destinationId)
+  useEffect(() => {
+    if (!value && accounts[0]?.data?.id.uid) {
+      onChange(accounts[0].data.id.uid)
+    }
+  }, [accounts.map((a) => a.data?.id.uid).join(','), value])
+
+  if (!accounts.length) return null
+
+  return (
+    <Select value={value ?? ''} onValueChange={onChange}>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder="Select Account" />
+      </SelectTrigger>
+      <SelectContent>
+        {accounts
+          .map((a) => {
+            const id = a.data?.id
+            if (!id) return null
+            return (
+              <SelectItem key={id.uid} value={id.uid}>
+                <div className="flex items-center gap-2">
+                  <HMIcon
+                    size={24}
+                    id={id}
+                    // @ts-ignore
+                    metadata={a.data?.document?.metadata}
+                  />
+                  {/* @ts-ignore */}
+                  {a.data?.document?.metadata?.name || ''}
+                </div>
+              </SelectItem>
+            )
+          })
+          .filter(Boolean)}
+      </SelectContent>
+    </Select>
+  )
 }
 
-function WordpressImportDialog({
+export function useWordpressSiteImporting() {
+  return useAppDialog(WordpressSiteImportDialog)
+}
+
+export function useWordpressFileImporting() {
+  return useAppDialog(WordpressFileImportDialog)
+}
+
+function WordpressFileImportDialog({
   onClose,
   input,
 }: {
   onClose: () => void
-  input: {
-    destinationId: UnpackedHypermediaId
-    defaultUrl?: string
+  input: {destinationId: UnpackedHypermediaId}
+}) {
+  const [importId, setImportId] = useState<string | null>(null)
+  const start = trpc.webImporting.importWpFile.useMutation()
+
+  if (importId) {
+    return (
+      <WpFileProgressData
+        id={importId}
+        destinationId={input.destinationId}
+        onComplete={onClose}
+      />
+    )
   }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DialogTitle>Import WordPress file</DialogTitle>
+      <SizableText color="muted" size="sm">
+        Upload a WordPress export file.
+      </SizableText>
+
+      <div className="bg-background flex h-12 w-full items-center rounded-md px-3">
+        <Label
+          htmlFor="wordpress-file-input"
+          className="flex cursor-pointer items-center gap-2"
+        >
+          <SizableText className="truncate overflow-hidden whitespace-nowrap">
+            Choose WXR or XML file
+          </SizableText>
+        </Label>
+
+        <input
+          id="wordpress-file-input"
+          type="file"
+          accept=".xml,.wxr,application/xml,text/xml"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            try {
+              const text = await file.text()
+              const {importId} = await start.mutateAsync({xmlText: text})
+              setImportId(importId)
+              toast('Upload complete. Parsing…')
+            } catch (err: any) {
+              toast.error(err?.message ?? 'Failed to upload WXR')
+            } finally {
+              // allow re-selecting the same file again
+              e.currentTarget.value = ''
+            }
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function WordpressSiteImportDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {destinationId: UnpackedHypermediaId; defaultUrl?: string}
 }) {
   const [importId, setImportId] = useState<string | null>(null)
   const [hostname, setHostname] = useState<string | null>(null)
   const startImport = trpc.webImporting.importWpSite.useMutation()
 
+  if (importId) {
+    return (
+      <WpSiteProgressData
+        id={importId}
+        hostname={hostname}
+        destinationId={input.destinationId}
+        onComplete={onClose}
+      />
+    )
+  }
+
   return (
-    <>
-      {importId && hostname ? (
-        <WordpressImportInProgress
-          id={importId}
-          hostname={hostname}
-          destinationId={input.destinationId}
-          onComplete={onClose}
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          <DialogTitle>Import WordPress Site</DialogTitle>
-          <ImportURLForm
-            defaultUrl={input.defaultUrl}
-            onSubmit={(url) => {
-              const host = new URL(url).host
-              setHostname(host)
-              startImport.mutateAsync({url}).then(({importId}) => {
-                setImportId(importId)
-              })
-              toast('Import Started.')
-            }}
-          />
-        </div>
-      )}
-    </>
+    <div className="flex flex-col gap-3">
+      <DialogTitle>Import WordPress Site</DialogTitle>
+      <ImportURLForm
+        defaultUrl={input.defaultUrl}
+        onSubmit={(url) => {
+          const host = new URL(url).host
+          setHostname(host)
+          startImport
+            .mutateAsync({url})
+            .then(({importId}) => setImportId(importId))
+          toast('Import Started.')
+        }}
+      />
+    </div>
   )
 }
 
-function WordpressImportInProgress({
+function WpSiteProgressData({
   id,
   hostname,
   destinationId,
   onComplete,
 }: {
   id: string
-  hostname: string
+  hostname: string | null
   destinationId: UnpackedHypermediaId
   onComplete: () => void
 }) {
   const {data: status} = trpc.webImporting.importWpSiteStatus.useQuery(id, {
     refetchInterval: 300,
   })
+  const confirm = trpc.webImporting.importWpSiteConfirm.useMutation()
 
-  const confirmWp = trpc.webImporting.importWpSiteConfirm.useMutation()
+  return (
+    <WpImportProgressView
+      hostname={hostname}
+      destinationId={destinationId}
+      status={status}
+      isConfirming={confirm.isLoading}
+      onConfirm={async (signAccountUid) => {
+        await confirm.mutateAsync({
+          importId: id,
+          destinationId: destinationId.id,
+          signAccountUid,
+        })
+      }}
+      onComplete={onComplete}
+    />
+  )
+}
+function WpFileProgressData({
+  id,
+  destinationId,
+  onComplete,
+}: {
+  id: string
+  destinationId: UnpackedHypermediaId
+  onComplete: () => void
+}) {
+  const {data: status} = trpc.webImporting.importWpSiteStatus.useQuery(id, {
+    refetchInterval: 300,
+  })
+  const confirm = trpc.webImporting.importWpSiteConfirm.useMutation()
 
-  const accounts = useMyAccountsWithWriteAccess(destinationId)
+  return (
+    <WpImportProgressView
+      hostname={null}
+      destinationId={destinationId}
+      status={status}
+      isConfirming={confirm.isLoading}
+      onConfirm={async (signAccountUid) => {
+        await confirm.mutateAsync({
+          importId: id,
+          destinationId: destinationId.id,
+          signAccountUid,
+        })
+      }}
+      onComplete={onComplete}
+    />
+  )
+}
+
+function WpImportProgressView({
+  hostname,
+  destinationId,
+  status,
+  isConfirming,
+  onConfirm,
+  onComplete,
+}: {
+  hostname: string | null
+  destinationId: UnpackedHypermediaId
+  status?: WpImportStatus
+  isConfirming: boolean
+  onConfirm: (signAccountUid: string) => Promise<void>
+  onComplete: () => void
+}) {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
-  useEffect(() => {
-    if (!selectedAccount && accounts[0]?.data?.id.uid) {
-      setSelectedAccount(accounts[0].data?.id.uid)
-    }
-  }, [selectedAccount, accounts.map((a) => a.data?.id.uid)])
 
-  // No status yet, neutral loading state
+  // Neutral loading state
   if (!status) {
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Preparing import from {hostname}…</DialogTitle>
+        <DialogTitle>
+          Preparing import{hostname ? ` from ${hostname}` : ''}…
+        </DialogTitle>
         <Spinner size="small" />
       </div>
     )
   }
 
   // Ready to import
-  if (status.mode === 'ready' && !confirmWp.isLoading) {
+  if (status.mode === 'ready' && !isConfirming) {
     const total = status.total ?? 0
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Ready to import from {hostname}</DialogTitle>
+        <DialogTitle>
+          Ready to import{hostname ? ` from ${hostname}` : ''}
+        </DialogTitle>
         <SizableText>{total} posts ready for import</SizableText>
 
-        {selectedAccount && (
-          <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select Account" />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts
-                .map((a) => {
-                  const id = a.data?.id
-                  if (!id) return null
-                  return (
-                    <SelectItem key={id.uid} value={id.uid}>
-                      <div className="flex items-center gap-2">
-                        <HMIcon
-                          size={24}
-                          id={id}
-                          // @ts-expect-error
-                          metadata={a.data?.document?.metadata}
-                        />
-                        {/* @ts-expect-error */}
-                        {a.data?.document?.metadata.name || ''}
-                      </div>
-                    </SelectItem>
-                  )
-                })
-                .filter(Boolean)}
-            </SelectContent>
-          </Select>
-        )}
+        <AccountPicker
+          destinationId={destinationId}
+          value={selectedAccount}
+          onChange={setSelectedAccount}
+        />
 
         <Button
           variant="ghost"
-          onClick={() => {
-            if (!selectedAccount) {
-              toast.error('No account found')
-              return
+          onClick={async () => {
+            if (!selectedAccount) return toast.error('No account found')
+            try {
+              await onConfirm(selectedAccount)
+              toast.success('Import Complete.')
+              onComplete()
+            } catch (e: any) {
+              toast.error(e?.message ?? 'Import failed')
             }
-            confirmWp
-              .mutateAsync({
-                importId: id,
-                destinationId: destinationId.id,
-                signAccountUid: selectedAccount,
-              })
-              .then(() => {
-                toast.success('Import Complete.')
-                onComplete()
-              })
-              .catch((e) => toast.error(e?.message ?? 'Import failed'))
           }}
         >
           {`Import & Publish ${total} posts`}
@@ -415,17 +582,20 @@ function WordpressImportInProgress({
   }
 
   // Publishing to Seed
-  if (status.mode === 'importing') {
+  if (status.mode === 'importing' || isConfirming) {
+    const processed = status.mode === 'importing' ? status.processed : 0
+    const total = status.mode === 'importing' ? status.total : 0
     const pct =
-      status.total > 0
-        ? Math.min(100, Math.round((status.processed / status.total) * 100))
-        : 0
+      total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
+
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Publishing documents</DialogTitle>
+        <DialogTitle>Creating documents…</DialogTitle>
         <SizableText>
-          {status.processed} / {status.total} posts
-          {status.currentId ? ` (post #${status.currentId})` : ''}
+          {processed} / {total} posts
+          {status.mode === 'importing' && status.currentId
+            ? ` (post #${status.currentId})`
+            : ''}
         </SizableText>
         <div className="bg-muted h-2 w-full rounded">
           <div
@@ -439,33 +609,28 @@ function WordpressImportInProgress({
   }
 
   // Fetching posts
-  if (status.mode === 'fetching' || confirmWp.isLoading) {
+  if (status.mode === 'fetching') {
     const pct =
-      status.mode === 'fetching' && status.totalPages > 0
+      status.totalPages > 0
         ? Math.min(100, Math.round((status.page / status.totalPages) * 100))
         : 0
-
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Importing from {hostname}…</DialogTitle>
-        {status.mode === 'fetching' ? (
-          <>
-            <SizableText>
-              Page {status.page} / {status.totalPages || '…'}
-            </SizableText>
-            <SizableText color="muted" size="sm">
-              {status.fetched} posts discovered so far
-            </SizableText>
-            <div className="bg-muted h-2 w-full rounded">
-              <div
-                className="bg-foreground h-2 rounded"
-                style={{width: `${pct}%`, transition: 'width .2s ease'}}
-              />
-            </div>
-          </>
-        ) : (
-          <SizableText>Importing…</SizableText>
-        )}
+        <DialogTitle>
+          Importing{hostname ? ` from ${hostname}` : ''}…
+        </DialogTitle>
+        <SizableText>
+          Page {status.page} / {status.totalPages || '…'}
+        </SizableText>
+        <SizableText color="muted" size="sm">
+          {status.fetched} posts discovered so far
+        </SizableText>
+        <div className="bg-muted h-2 w-full rounded">
+          <div
+            className="bg-foreground h-2 rounded"
+            style={{width: `${pct}%`, transition: 'width .2s ease'}}
+          />
+        </div>
         <Spinner size="small" />
       </div>
     )
@@ -475,7 +640,9 @@ function WordpressImportInProgress({
   if (status.mode === 'error') {
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Error importing from {hostname}</DialogTitle>
+        <DialogTitle>
+          Error{hostname ? ` importing from ${hostname}` : ' during import'}
+        </DialogTitle>
         <SizableText color="destructive">Error: {status.error}</SizableText>
       </div>
     )

@@ -13,7 +13,11 @@ export async function htmlToBlocks(
   } = {},
 ): Promise<HMBlockNode[]> {
   const {uploadLocalFile, resolveHMLink} = opts
-  const $ = cheerio.load(html)
+
+  const cleanedHtml = preprocessWpHtml(html)
+
+  const $ = cheerio.load(cleanedHtml)
+
   const blocks: HMBlockNode[] = []
 
   // Helper function to get heading level from tag name
@@ -70,6 +74,31 @@ export async function htmlToBlocks(
       (hasWhitespaceOutsideFormatting ||
         (formattingTagCount === 1 && context?.hasNewlinesBefore === true))
     )
+  }
+
+  function preprocessWpHtml(input: string): string {
+    let s = (input ?? '').replace(/^\uFEFF/, '').trim()
+
+    // Remove ALL HTML comments
+    s = s.replace(/<!--[\s\S]*?-->/g, '')
+
+    // Remove non-content containers (run twice in case of nesting)
+    for (let i = 0; i < 2; i++) {
+      s = s
+        .replace(/<!--\[if[\s\S]*?endif\]-->/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+        .replace(/<template[\s\S]*?<\/template>/gi, '')
+        .replace(/<link[^>]+rel=["']?stylesheet["']?[^>]*>/gi, '')
+    }
+
+    // If no actual tags remain, wrap in a paragraph so the parser has a block
+    if (!/<[a-z][\s\S]*?>/i.test(s)) {
+      s = `<p>${s}</p>`
+    }
+
+    return s
   }
 
   // Helper function to create a heading block
@@ -233,7 +262,12 @@ export async function htmlToBlocks(
   }
 
   // First pass: process all elements and collect them
-  const children = $('body').children().toArray()
+  let children
+  if ($('body').length) {
+    children = $('body').children().toArray()
+  } else {
+    children = $.root().children().toArray()
+  }
   const processedElements: Array<{
     type: 'heading' | 'content'
     level?: number
@@ -246,7 +280,7 @@ export async function htmlToBlocks(
 
     // Check if there are newlines before this element by looking at the original HTML
     // @ts-ignore
-    const hasNewlinesBefore = i > 0 && html.includes('\n\n<' + el.name)
+    const hasNewlinesBefore = i > 0 && cleanedHtml.includes('\n\n<' + el.name)
 
     // Check if it's a heading
     // @ts-ignore
