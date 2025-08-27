@@ -640,7 +640,7 @@ export function BlockNodeContent({
 
   const tx = useTxString()
 
-  const hoverCardContent = (
+  const hoverCardContent = !comment ? (
     <HoverCardContent side="top" align="end" className="w-auto p-0">
       {citationsCount?.citations ? (
         <BubbleButton
@@ -655,7 +655,9 @@ export function BlockNodeContent({
         >
           <BlockQuote color="currentColor" className="size-3 opacity-50" />
           <SizableText color="muted" size="xs">
-            {citationsCount.citations ? String(citationsCount.citations) : ' '}
+            {citationsCount.citations
+              ? String(citationsCount.citations)
+              : undefined}
           </SizableText>
         </BubbleButton>
       ) : null}
@@ -701,7 +703,9 @@ export function BlockNodeContent({
         >
           <MessageSquare color="currentColor" className="size-3 opacity-50" />
           <SizableText color="muted" size="xs">
-            {citationsCount?.comments ? String(citationsCount.comments) : ' '}
+            {citationsCount?.comments
+              ? String(citationsCount.comments)
+              : undefined}
           </SizableText>
         </BubbleButton>
       ) : null}
@@ -721,7 +725,7 @@ export function BlockNodeContent({
         </BubbleButton>
       ) : null}
     </HoverCardContent>
-  )
+  ) : null
 
   const blockCitationCount =
     (citationsCount?.citations || 0) + (citationsCount?.comments || 0)
