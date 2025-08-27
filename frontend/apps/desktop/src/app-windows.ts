@@ -9,6 +9,7 @@ import {
   app,
   globalShortcut,
   nativeTheme,
+  shell,
 } from 'electron'
 import path from 'node:path'
 import {z} from 'zod'
@@ -334,6 +335,78 @@ export function createAppWindow(
       else windowLogger.error(message)
     },
   )
+
+  // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
+  browserWindow.webContents.setWindowOpenHandler(
+    ({url, frameName, features}) => {
+      // Log for debugging
+      debug('Window open request', {url, frameName, features})
+
+      // Open all external URLs in the default browser
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        shell.openExternal(url)
+      }
+
+      // Deny the window creation - we've handled it by opening in default browser
+      return {action: 'deny'}
+    },
+  )
+
+  // Handle navigation attempts within the main frame
+  browserWindow.webContents.on('will-navigate', (event, url) => {
+    // Allow navigation for the main app (localhost in dev, file:// in production)
+    if (url.includes('localhost') || url.startsWith('file://')) {
+      return
+    }
+
+    // Prevent navigation and open in external browser instead
+    event.preventDefault()
+    shell.openExternal(url)
+  })
+
+  // Handle navigation in frames (for iframe content like YouTube embeds)
+  browserWindow.webContents.on('will-frame-navigate', (event) => {
+    const {url, isMainFrame} = event
+
+    // Only handle iframe navigations, not main frame
+    if (!isMainFrame) {
+      // Allow embed domains to load their content
+      const allowedEmbedDomains = [
+        'youtube.com',
+        'youtube-nocookie.com',
+        'twitter.com',
+        'x.com',
+        'platform.twitter.com',
+        'instagram.com',
+        'cdninstagram.com',
+      ]
+
+      const isAllowedEmbed = allowedEmbedDomains.some((domain) =>
+        url.includes(domain),
+      )
+
+      if (!isAllowedEmbed) {
+        // If it's not an allowed embed domain, open in external browser
+        event.preventDefault()
+        shell.openExternal(url)
+      }
+      // Otherwise allow the embed to load normally
+    }
+  })
+
+  // Additional handler for any child windows that might slip through
+  browserWindow.webContents.on('did-create-window', (childWindow, details) => {
+    // Log for debugging
+    debug('Child window created', {url: details.url})
+
+    // Get the URL and open it externally
+    if (details.url) {
+      shell.openExternal(details.url)
+    }
+
+    // Close the child window immediately
+    childWindow.close()
+  })
 
   const windValue = {
     routes: initRoutes,

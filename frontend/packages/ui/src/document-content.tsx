@@ -1188,7 +1188,6 @@ function BlockContentVideo({
             <iframe
               className={cn('absolute top-0 left-0 h-full w-full')}
               src={getVideoIframeSrc(block.link)}
-              frameBorder="0"
               allowFullScreen
             />
           )}

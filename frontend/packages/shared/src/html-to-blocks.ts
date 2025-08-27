@@ -457,7 +457,11 @@ export async function htmlToBlocks(
       let link = null
       $el.find('a[href]').each((_, a) => {
         const href = $(a).attr('href')
-        if (href && /twitter.com\/[^/]+\/status\//.test(href)) {
+        if (
+          href &&
+          (/twitter.com\/[^/]+\/status\//.test(href) ||
+            /x.com\/[^/]+\/status\//.test(href))
+        ) {
           link = href
         }
       })
