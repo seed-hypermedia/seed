@@ -1,5 +1,4 @@
 import {grpcClient} from '@/client'
-import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {
@@ -9,7 +8,7 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
-import {HMComment} from '@shm/shared/hm-types'
+import {HMAccount, HMComment, HMMetadataPayload} from '@shm/shared/hm-types'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 
 export type HMDiscussionsPayload = ListDiscussionsResponse
@@ -47,28 +46,29 @@ export const loader = async ({
     })
 
     const authorAccountUids = Array.from(authorAccounts)
-    const accounts = await Promise.all(
-      authorAccountUids.map(async (accountUid) => {
-        try {
-          return await getAccount(accountUid, {discover: true})
-        } catch (e) {
-          console.error(`Error fetching account ${accountUid}`, e)
-          return null
-        }
-      }),
-    )
+    const _accounts = await grpcClient.documents.batchGetAccounts({
+      ids: authorAccountUids,
+    })
+
+    if (!_accounts?.accounts) {
+      throw new Error('No accounts found')
+    }
+
+    const authors: Record<string, HMMetadataPayload> = {}
+
+    Object.entries(_accounts.accounts).forEach(([id, account]) => {
+      let metadata = (
+        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
+      )?.metadata
+
+      if (metadata) {
+        authors[id] = {id: hmId(id), metadata}
+      }
+    })
 
     result = {
       discussions: commentGroups,
-      authors: Object.fromEntries(
-        authorAccountUids.map((acctUid, idx) => {
-          const account = accounts[idx]
-          if (!account) {
-            return [acctUid, {id: hmId(acctUid), metadata: null}]
-          }
-          return [acctUid, account]
-        }),
-      ),
+      authors,
     } satisfies ListDiscussionsResponse
   } catch (error: any) {
     console.error('=== Discussions API error', error)

@@ -1,18 +1,9 @@
 import {grpcClient} from '@/client'
-import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, hmId, parseFragment, unpackHmId} from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMComment,
-  HMCommentCitation,
-} from '@shm/shared/hm-types'
-
-export type HMBlockDiscussionsPayload = {
-  citingComments: HMCommentCitation[]
-  authors: HMAccountsMetadata
-}
+import {BIG_INT, HMAccount, hmId, parseFragment, unpackHmId} from '@shm/shared'
+import {HMComment, HMMetadataPayload} from '@shm/shared/hm-types'
+import {ListCommentsByReferenceResponse} from '@shm/shared/models/comments-service'
 
 export const loader = async ({
   request,
@@ -20,109 +11,86 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<HMBlockDiscussionsPayload>> => {
+}): Promise<WrappedResponse<ListCommentsByReferenceResponse>> => {
   const url = new URL(request.url)
   const targetId = unpackHmId(url.searchParams.get('targetId') || undefined)
   const blockId = url.searchParams.get('blockId')
   if (!targetId) throw new Error('targetId is required')
   if (!blockId) throw new Error('blockId is required')
 
-  let result: HMBlockDiscussionsPayload | {error: string}
+  let result: ListCommentsByReferenceResponse | {error: string}
 
   try {
-    const res = await grpcClient.entities.listEntityMentions({
+    const citations = await grpcClient.entities.listEntityMentions({
       id: targetId.id,
       pageSize: BIG_INT,
     })
 
-    const allComments: HMComment[] = []
-    const citingComments: HMCommentCitation[] = []
-    for (const mention of res.mentions) {
-      try {
-        const sourceId = unpackHmId(mention.source)
-        if (!sourceId) continue
+    const commentCitations = citations.mentions.filter((m) => {
+      if (m.sourceType != 'Comment') return false
+      const targetFragment = parseFragment(m.targetFragment)
+      if (!targetFragment) return false
+      return targetFragment.blockId == blockId
+    })
 
-        // ignore if not a comment
-        if (mention.sourceType !== 'Comment') continue
-        // ignore if not citing the block
-        if (mention.targetFragment !== blockId) continue
-        try {
-          // get the comment from the server
-          const serverComment = await grpcClient.comments.getComment({
-            id: mention.sourceBlob?.cid,
-          })
-          // ignore if not found
-          if (!serverComment) continue
-          // convert to HMComment
-          const comment = serverComment.toJson({
-            emitDefaultValues: true,
-          }) as HMComment
-          // add to all comments
-          allComments.push(comment)
+    const commentIds = commentCitations
+      .map((c) => {
+        const id = unpackHmId(c.source)
+        if (!id) return null
+        return `${id.uid}/${id.path}`
+      })
+      .filter(Boolean) as Array<string>
 
-          // get the target fragment
-          const targetFragment = parseFragment(mention.targetFragment)
-          // get the target id
-          const citationTargetId = hmId(targetId.uid, {
-            path: targetId.path,
-            version: mention.targetVersion,
-          })
+    const res = await grpcClient.comments.batchGetComments({
+      ids: commentIds,
+    })
 
-          // get the author
-          const author = comment.author
-            ? await getAccount(comment.author)
-            : null
+    const authorAccounts = new Set<string>()
 
-          // add to citing comments
-          citingComments.push({
-            source: {
-              id: sourceId,
-              type: 'c',
-              author: mention.sourceBlob?.author,
-              time: mention.sourceBlob?.createTime,
-            },
-            targetFragment,
-            targetId: citationTargetId,
-            isExactVersion: mention.isExactVersion,
-            comment,
-            author,
-          })
-        } catch (commentError: any) {
-          // Handle ConnectError for NotFound comments gracefully
-          if (
-            commentError?.code === 'not_found' ||
-            commentError?.message?.includes('not found')
-          ) {
-            console.warn(
-              `Comment ${mention.sourceBlob?.cid} not found, skipping`,
-            )
-            continue
-          }
-          // Re-throw other errors
-          throw commentError
+    const comments = res.comments
+      .sort((a, b) => {
+        const aTime =
+          a?.updateTime && typeof a?.updateTime == 'string'
+            ? new Date(a?.updateTime).getTime()
+            : 0
+        const bTime =
+          b?.updateTime && typeof b?.updateTime == 'string'
+            ? new Date(b?.updateTime).getTime()
+            : 1
+        return aTime - bTime // Newest first (descending order)
+      })
+      .map((c) => {
+        if (c.author && c.author.trim() !== '') {
+          authorAccounts.add(c.author)
         }
-      } catch (error) {
-        console.error('=== comment error', error)
-      }
+        return c.toJson({emitDefaultValues: true})
+      }) as Array<HMComment>
+
+    const authorAccountUids = Array.from(authorAccounts)
+    const _accounts = await grpcClient.documents.batchGetAccounts({
+      ids: authorAccountUids,
+    })
+
+    if (!_accounts?.accounts) {
+      throw new Error('No accounts found')
     }
 
-    const accounts = citingComments
-      .filter((c) => !!c.author)
-      .map((citation) => citation.author)
-      .reduce((acc, author) => {
-        if (!author || !author.id.id || !author.metadata) return acc
+    const authors: Record<string, HMMetadataPayload> = {}
 
-        acc[author.id.id] = {
-          id: author.id,
-          metadata: author.metadata,
-        }
-        return acc
-      }, {} as HMAccountsMetadata)
+    Object.entries(_accounts.accounts).forEach(([id, account]) => {
+      let metadata = (
+        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
+      )?.metadata
+
+      if (metadata) {
+        authors[id] = {id: hmId(id), metadata}
+      }
+    })
 
     result = {
-      citingComments,
-      authors: accounts,
-    } satisfies HMBlockDiscussionsPayload
+      comments,
+      authors,
+    }
   } catch (e: any) {
     result = {error: e.message}
   }

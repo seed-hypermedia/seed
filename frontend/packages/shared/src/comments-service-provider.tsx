@@ -59,8 +59,6 @@ export function useCommentsServiceContext() {
 
 export function useCommentsService(params: ListDiscussionsRequest) {
   const context = useCommentsServiceContext()
-
-  console.log('== ~ CommentsService ~ useCommentsService ~ context:', params)
   return useQuery({
     queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId, params.commentId],
     queryFn: async (): Promise<ListCommentsResponse> => {
@@ -107,9 +105,11 @@ export function useBlockDiscussionsService(
       if (!context.service) {
         return {comments: [], authors: {}}
       }
-
       const res = await context.service.listCommentsByReference(params)
-
+      // console.log(
+      //   `\n\n======================== ~ useBlockDiscussionsService ~ res:`,
+      //   res,
+      // )
       return res
     },
     enabled: !!context.service,

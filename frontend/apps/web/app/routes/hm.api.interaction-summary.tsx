@@ -8,6 +8,7 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
+import {parseFragment} from '@shm/shared/utils/entity-id-url'
 
 export type InteractionSummaryPayload = {
   citations: number
@@ -76,18 +77,16 @@ export const loader = async ({
   // @ts-expect-error
   dedupedDocCitations.forEach((mention) => {
     if (!mention.source.id) return false
-    const targetFragment = mention.targetFragment
-    const targetBlockId =
-      targetFragment.at(-1) === '+'
-        ? targetFragment.slice(0, -1)
-        : targetFragment
-    const blockCounts = targetBlockId
-      ? (blocks[targetBlockId] = blocks[targetBlockId] || {
+    const targetFragment = parseFragment(mention.targetFragment)
+
+    const blockCounts = targetFragment?.blockId
+      ? (blocks[targetFragment?.blockId] = blocks[targetFragment?.blockId] || {
           citations: 0,
           comments: 0,
         })
       : null
-    if (mention.source.type === 'c') {
+
+    if (mention.source.type == 'c') {
       if (blockCounts) blockCounts.comments += 1
       commentCount += 1
     }

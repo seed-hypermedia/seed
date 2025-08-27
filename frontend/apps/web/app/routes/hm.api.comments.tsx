@@ -1,9 +1,13 @@
 import {grpcClient} from '@/client'
-import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {BIG_INT, hmId, unpackHmId} from '@shm/shared'
-import {HMCitationsPayload, HMComment} from '@shm/shared/hm-types'
+import {
+  HMAccount,
+  HMCitationsPayload,
+  HMComment,
+  HMMetadataPayload,
+} from '@shm/shared/hm-types'
 import {ListCommentsResponse} from '@shm/shared/models/comments-service'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
@@ -35,29 +39,30 @@ export const loader = async ({
     allComments.forEach((comment) => {
       allAccounts.add(comment.author)
     })
-    const allAccountUids = Array.from(allAccounts)
-    const accounts = await Promise.all(
-      allAccountUids.map(async (accountUid) => {
-        try {
-          return await getAccount(accountUid, {discover: true})
-        } catch (e) {
-          console.error(`Error fetching account ${accountUid}`, e)
-          return null
-        }
-      }),
-    )
+    const authorAccountUids = Array.from(allAccounts)
+    const _accounts = await grpcClient.documents.batchGetAccounts({
+      ids: authorAccountUids,
+    })
+
+    if (!_accounts?.accounts) {
+      throw new Error('No accounts found')
+    }
+
+    const authors: Record<string, HMMetadataPayload> = {}
+
+    Object.entries(_accounts.accounts).forEach(([id, account]) => {
+      let metadata = (
+        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
+      )?.metadata
+
+      if (metadata) {
+        authors[id] = {id: hmId(id), metadata}
+      }
+    })
 
     result = {
       comments: allComments,
-      authors: Object.fromEntries(
-        allAccountUids.map((acctUid, idx) => {
-          const account = accounts[idx]
-          if (!account) {
-            return [acctUid, {id: hmId(acctUid), metadata: null}]
-          }
-          return [acctUid, account]
-        }),
-      ),
+      authors,
     } satisfies ListCommentsResponse
   } catch (e: any) {
     result = {error: e.message}

@@ -1,17 +1,19 @@
 import {grpcClient} from '@/client'
-import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {
   BIG_INT,
   getCommentGroups,
+  hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
 import {
+  HMAccount,
   HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
+  HMMetadataPayload,
 } from '@shm/shared/hm-types'
 
 export type HMDiscussionPayload = {
@@ -74,28 +76,25 @@ export const loader = async ({
     })
 
     const authorAccountUids = Array.from(authorAccounts)
-    const accounts = await Promise.all(
-      authorAccountUids.map(async (accountUid) => {
-        return await getAccount(accountUid)
-      }),
-    )
+    const _accounts = await grpcClient.documents.batchGetAccounts({
+      ids: authorAccountUids,
+    })
 
-    const authors = Object.fromEntries(
-      authorAccountUids
-        .map((acctUid, idx) => {
-          const account = accounts[idx]
-          return [
-            acctUid,
-            account
-              ? {
-                  id: account.id,
-                  metadata: account.metadata,
-                }
-              : null,
-          ]
-        })
-        .filter(([, account]) => account !== null),
-    ) as HMAccountsMetadata
+    if (!_accounts?.accounts) {
+      throw new Error('No accounts found')
+    }
+
+    const authors: Record<string, HMMetadataPayload> = {}
+
+    Object.entries(_accounts.accounts).forEach(([id, account]) => {
+      let metadata = (
+        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
+      )?.metadata
+
+      if (metadata) {
+        authors[id] = {id: hmId(id), metadata}
+      }
+    })
 
     result = {
       thread,

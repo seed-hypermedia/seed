@@ -14,9 +14,6 @@ import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
-import {HMBlockDiscussionsPayload} from './routes/hm.api.block-discussions'
-import {HMDiscussionPayload} from './routes/hm.api.discussion'
-import {HMDiscussionsPayload} from './routes/hm.api.discussions'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
@@ -124,50 +121,6 @@ export function useInteractionSummary(
     {
       queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id],
       enabled: opts.enabled,
-    },
-  )
-  return response
-}
-
-export function useDiscussion(
-  targetId: UnpackedHypermediaId | undefined,
-  commentId?: string,
-  opts: {enabled?: boolean} = {},
-) {
-  const response = useAPI<HMDiscussionPayload>(
-    `/hm/api/discussion?targetId=${targetId?.id}&commentId=${commentId}`,
-    {
-      queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId?.id, commentId],
-      enabled: opts.enabled && !!targetId && !!commentId,
-    },
-  )
-  return response
-}
-
-export function useAllDiscussions(
-  id: UnpackedHypermediaId,
-  opts: {enabled?: boolean} = {},
-) {
-  const response = useAPI<HMDiscussionsPayload>(
-    `/hm/api/discussions?targetId=${id.id}`,
-    {
-      queryKey: [queryKeys.DOCUMENT_DISCUSSION, id.id],
-      enabled: opts.enabled,
-    },
-  )
-  return response
-}
-
-export function useBlockDiscussions(
-  id: UnpackedHypermediaId,
-  blockId?: string,
-  opts: {enabled?: boolean} = {enabled: true},
-) {
-  const response = useAPI<HMBlockDiscussionsPayload>(
-    `/hm/api/block-discussions?targetId=${id.id}&blockId=${blockId}`,
-    {
-      queryKey: [queryKeys.BLOCK_DISCUSSIONS, id.id, blockId],
-      enabled: !!blockId && opts.enabled,
     },
   )
   return response

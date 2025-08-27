@@ -14,6 +14,15 @@ import {
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
 import {languagePacks} from '@shm/shared/language-packs'
+import {defaultRoute} from '@shm/shared/routes'
+import {
+  NavAction,
+  NavContextProvider,
+  NavState,
+  navStateReducer,
+  setAppNavDispatch,
+} from '@shm/shared/utils/navigation'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
@@ -121,6 +130,36 @@ export function WebSiteProvider(props: {
     }
     return undefined
   }, [props.prefersLanguages])
+
+  // Create navigation context
+  const navigation = useMemo(() => {
+    const initialNav: NavState = {
+      sidebarLocked: false,
+      routes: [defaultRoute],
+      routeIndex: 0,
+      lastAction: 'replace',
+    }
+    const [updateNavState, navState] = writeableStateStream(initialNav)
+
+    return {
+      dispatch(action: NavAction) {
+        const prevState = navState.get()
+        const newState = navStateReducer(prevState, action)
+        if (prevState !== newState) {
+          updateNavState(newState)
+        }
+      },
+      state: navState,
+    }
+  }, [])
+
+  useEffect(() => {
+    setAppNavDispatch(navigation.dispatch)
+    return () => {
+      setAppNavDispatch(null)
+    }
+  }, [navigation.dispatch])
+
   return (
     <UniversalAppProvider
       origin={props.origin}
@@ -132,6 +171,14 @@ export function WebSiteProvider(props: {
         window.open(url, '_blank')
       }}
       openRoute={(route: NavRoute, replace?: boolean) => {
+        // Update navigation state
+        if (replace) {
+          navigation.dispatch({type: 'replace', route})
+        } else {
+          navigation.dispatch({type: 'push', route})
+        }
+
+        // Handle browser navigation
         let href: undefined | string = undefined
         href = routeToHref(route, {
           originHomeId: props.originHomeId,
@@ -163,18 +210,20 @@ export function WebSiteProvider(props: {
         toast.success('Comment link copied to clipboard')
       }}
     >
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `window.ENV = ${JSON.stringify({
-            LIGHTNING_API_URL,
-            SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
-            WEB_IDENTITY_ORIGIN,
-            WEB_IDENTITY_ENABLED,
-            ENABLE_EMAIL_NOTIFICATIONS,
-          })}`,
-        }}
-      />
-      {props.children}
+      <NavContextProvider value={navigation}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.ENV = ${JSON.stringify({
+              LIGHTNING_API_URL,
+              SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
+              WEB_IDENTITY_ORIGIN,
+              WEB_IDENTITY_ENABLED,
+              ENABLE_EMAIL_NOTIFICATIONS,
+            })}`,
+          }}
+        />
+        {props.children}
+      </NavContextProvider>
     </UniversalAppProvider>
   )
 }

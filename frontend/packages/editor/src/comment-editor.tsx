@@ -361,10 +361,6 @@ export function CommentEditor({
             setIsDragging(true)
           }}
           onDrop={onDrop}
-          // gap="$4"
-          // paddingBottom="$2"
-          // bg="$color4"
-          // paddingHorizontal="$4"
         >
           {isEditorFocused ? (
             // @ts-expect-error

@@ -6,7 +6,9 @@ import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
 
-global.Buffer = global.Buffer || Buffer
+if (typeof global !== 'undefined') {
+  global.Buffer = global.Buffer || Buffer
+}
 
 export type PushAction = {type: 'push'; route: NavRoute}
 export type ReplaceAction = {type: 'replace'; route: NavRoute}

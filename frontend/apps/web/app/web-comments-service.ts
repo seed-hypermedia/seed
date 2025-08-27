@@ -24,6 +24,7 @@ export class WebCommentsService implements CommentsService {
     let res = await queryAPI<ListDiscussionsResponse>(queryUrl)
     return res
   }
+
   async listCommentsById(
     params: ListCommentsByIdRequest,
   ): Promise<ListCommentsResponse> {
@@ -33,8 +34,9 @@ export class WebCommentsService implements CommentsService {
   async listCommentsByReference(
     params: ListCommentsByReferenceRequest,
   ): Promise<ListCommentsResponse> {
-    // let queryUrl = `/hm/api/citations?id=${params.targetId}`
-    // let res = await queryAPI<ListDiscussionsResponse>(queryUrl)
-    throw new Error('Method not implemented.')
+    let queryUrl = `/hm/api/block-discussions?targetId=${params.targetId.id}&blockId=${params.targetId.blockRef}`
+    let res = await queryAPI<ListCommentsResponse>(queryUrl)
+
+    return res
   }
 }

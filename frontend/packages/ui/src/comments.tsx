@@ -74,11 +74,6 @@ export function CommentDiscussions({
     commentId,
   )
 
-  console.log(
-    `== ~ COMMENT commentsService.data?.authors:`,
-    commentsService.data?.authors,
-  )
-
   return (
     <AccessoryContent>
       <AccessoryBackButton onClick={onBack} />
@@ -252,18 +247,26 @@ export function BlockDiscussions({
   if (commentsService.data) {
     panelContent = (
       <>
-        {commentsService.data.comments.map((comment) => {
+        {commentsService.data.comments.map((comment, idx) => {
           return (
-            <Comment
+            <div
               key={comment.id}
-              comment={comment}
-              authorId={comment.author}
-              authorMetadata={
-                commentsService.data.authors[comment.author]?.metadata
-              }
-              targetDomain={targetDomain}
-              renderCommentContent={renderCommentContent}
-            />
+              className={cn(
+                'border-border border-b',
+                commentsService.data.comments.length - 1 > idx && 'mb-4',
+              )}
+            >
+              <Comment
+                key={comment.id}
+                comment={comment}
+                authorId={comment.author}
+                authorMetadata={
+                  commentsService.data.authors[comment.author]?.metadata
+                }
+                targetDomain={targetDomain}
+                renderCommentContent={renderCommentContent}
+              />
+            </div>
           )
         })}
       </>
@@ -287,8 +290,6 @@ export function CommentGroup({
   renderCommentContent,
   enableReplies = true,
   highlightLastComment = false,
-  onDelete,
-  currentAccountId,
   targetDomain,
 }: {
   commentGroup: HMCommentGroup
@@ -302,7 +303,6 @@ export function CommentGroup({
 }) {
   const lastComment = commentGroup.comments.at(-1)
 
-  console.log(`== ~ COMMENT commentGroup.comments:`, commentGroup.comments)
   return (
     <div className="relative flex flex-col gap-2">
       {commentGroup.comments.length > 1 && (

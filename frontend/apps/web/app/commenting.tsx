@@ -67,10 +67,6 @@ export type WebCommentingProps = {
  * This is the main commenting component. It is used to create a new comment.
  */
 export default function WebCommenting(props: WebCommentingProps) {
-  console.log(
-    `\n\n=================================== ~ WebCommenting ~ props:`,
-    props,
-  )
   if (!props.enableWebSigning) {
     return <ExternalWebCommenting {...props} />
   }
@@ -142,10 +138,17 @@ export function LocalWebCommenting({
         queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
       })
       queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
+      })
+      queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOC_CITATIONS], // all docs
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
       })
     },
   })

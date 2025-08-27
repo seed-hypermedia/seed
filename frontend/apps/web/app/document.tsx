@@ -508,15 +508,11 @@ function InnerDocumentPage(
           }
           quotingBlockId={activePanel.blockId}
           enableWebSigning={enableWebSigning || false}
-          onSuccess={({response}) => {
-            // setCommentPanel(response.comment)
-          }}
         />
       ) : null
     ) : null
 
   if (activityEnabled && activePanel?.type == 'discussions') {
-    console.log('======== activePanel', activePanel)
     panel = (
       <WebDiscussionsPanel
         commentEditor={commentEditor}
