@@ -40,7 +40,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, X} from 'lucide-react'
+import {MessageSquare} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
@@ -726,7 +726,7 @@ function InnerDocumentPage(
                         setDocumentPanel(null)
                       }}
                     >
-                      <X className="size-4" />
+                      <Close className="size-4" />
                     </Button>
                   </Tooltip>
                 </div>
@@ -767,7 +767,7 @@ function InnerDocumentPage(
                   {activitySummary}
                 </div>
                 <Button
-                  size="iconSm"
+                  size="icon"
                   onClick={() => setMobilePanelOpen(false)}
                   className="flex-0 shrink-0 grow-0"
                 >

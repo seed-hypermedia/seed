@@ -494,7 +494,7 @@ export function MobileMenu({
       <div className="sticky top-0 flex h-screen flex-col">
         <div className="flex flex-0 items-center justify-end p-4">
           <Button variant="ghost" size="icon" onClick={onClose}>
-            <Close size={24} />
+            <Close className="size-4" />
           </Button>
         </div>
         <ScrollArea className="mobile-menu h-3/4">
