@@ -38,36 +38,72 @@ export const loader: LoaderFunction = async ({params, request}) => {
   const pngCachePath = path.join(CACHE_PATH, `${CID}.${width}w.png`)
   const gifCachePath = path.join(CACHE_PATH, `${CID}.${width}w.gif`)
 
-  // Serve cached GIF if present
+  // Check if we have a cached version (prioritize GIF over PNG)
+  let cachedFile: Buffer | null = null
+  let cachedContentType: string | null = null
+
+  // First check for GIF cache
   try {
-    const cachedGif = await fs.readFile(gifCachePath)
-    return new Response(cachedGif, {
-      headers: {
-        'Content-Type': 'image/gif',
-        'Content-Length': String(cachedGif.length),
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    })
+    cachedFile = await fs.readFile(gifCachePath)
+    cachedContentType = 'image/gif'
   } catch (err) {
-    // File does not exist, proceed to download and resize
+    // GIF cache doesn't exist, check PNG cache
+    try {
+      cachedFile = await fs.readFile(pngCachePath)
+      cachedContentType = 'image/png'
+    } catch (err) {
+      // No cache exists, will need to fetch and process
+    }
   }
 
-  // Serve cached PNG if present
-  try {
-    const cachedPng = await fs.readFile(pngCachePath)
-    return new Response(cachedPng, {
-      headers: {
-        'Content-Type': 'image/png',
-        'Content-Length': String(cachedPng.length),
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    })
-  } catch (err) {
-    // File does not exist, proceed to download and resize
+  // If we have a cached file, serve it (with migration check)
+  if (cachedFile && cachedContentType) {
+    // Special case: if we only have PNG cache, check if the original is actually a GIF
+    if (cachedContentType === 'image/png') {
+      try {
+        await fs.access(gifCachePath)
+        // If we reach here, both PNG and GIF cache exist (shouldn't happen with our logic above)
+      } catch (err) {
+        // GIF cache doesn't exist. Let's verify the original isn't actually a GIF.
+        // If it is, we'll delete the PNG cache and re-process as GIF.
+        try {
+          const imageUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
+          const response = await fetch(imageUrl)
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer()
+            const imageBuffer = Buffer.from(arrayBuffer)
+            const type = await fromBuffer(imageBuffer)
+            const isGif = type?.ext === 'gif' || type?.mime === 'image/gif'
+            
+            if (isGif) {
+              // Original is a GIF but we have it cached as PNG - delete PNG cache and re-process
+              await fs.unlink(pngCachePath).catch(() => {}) // Ignore errors if file doesn't exist
+              cachedFile = null
+              cachedContentType = null
+              // This will fall through to the re-processing logic below
+            }
+          }
+        } catch (migrationErr) {
+          // If migration check fails, just serve the cached PNG
+          console.warn('Failed to check original file type for migration:', migrationErr)
+        }
+      }
+    }
+    
+    // If we still have a cached file after migration check, serve it
+    if (cachedFile && cachedContentType) {
+      return new Response(cachedFile, {
+        headers: {
+          'Content-Type': cachedContentType,
+          'Content-Length': String(cachedFile.length),
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      })
+    }
   }
 
   try {
-    // Fetch the original image or gif from the daemon
+    // Fetch the original image or gif from the daemon (reuse if we already fetched for migration)
     const imageUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
     const response = await fetch(imageUrl)
     if (!response.ok) throw new Error(`Failed to fetch image from ${imageUrl}`)
@@ -83,7 +119,8 @@ export const loader: LoaderFunction = async ({params, request}) => {
     await fs.mkdir(CACHE_PATH, {recursive: true})
 
     if (isGif) {
-      // Bypass Sharp to preserve gif animation
+      // For GIFs, we preserve the original to maintain animation
+      // We don't resize GIFs as it would break animation
       await fs.writeFile(gifCachePath, imageBuffer)
       return new Response(imageBuffer, {
         headers: {
