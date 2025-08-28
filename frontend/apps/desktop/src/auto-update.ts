@@ -709,7 +709,8 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 
                   // Create a temporary script to launch the new app after this one quits
                   const launchScriptPath = path.join(tempPath, 'launch-seed.sh')
-                  await fs.writeFile(
+                  const fsPromises = require('fs/promises')
+                  await fsPromises.writeFile(
                     launchScriptPath,
                     `#!/bin/bash
 sleep 1
