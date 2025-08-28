@@ -10,7 +10,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import React, {useMemo, useRef, useState} from 'react'
+import React, {useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
@@ -94,6 +94,38 @@ export function SiteHeader({
       ) : null}
     </>
   )
+
+  const headerRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const updateHeaderHeight = () => {
+      const headerHeight = headerRef.current?.offsetHeight || 60
+      console.log('=== HEIGHT', headerRef.current, headerHeight)
+      window.document.documentElement.style.setProperty(
+        '--site-header-h',
+        `${headerHeight}px`,
+      )
+    }
+
+    // Initial measurement
+    updateHeaderHeight()
+
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updateHeaderHeight)
+    if (headerRef.current) {
+      resizeObserver.observe(headerRef.current)
+    }
+
+    // Cleanup
+    return () => {
+      resizeObserver.disconnect()
+      window.document.documentElement.style.setProperty(
+        '--site-header-h',
+        '0px',
+      )
+    }
+  }, [headerRef.current])
+
   const isHomeDoc = !docId?.path?.length
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
@@ -107,6 +139,7 @@ export function SiteHeader({
         <HypermediaHostBanner origin={origin} />
       ) : null}
       <header
+        ref={headerRef}
         className={cn(
           'border-border dark:bg-background flex w-full border-b bg-white p-4',
           {
@@ -269,11 +302,11 @@ export function SmallSiteHeader({
 }) {
   return (
     <div
-      className="flex w-screen flex-col items-center bg-white dark:bg-black"
+      className="flex w-screen flex-col items-center bg-white p-3 dark:bg-black"
       // this data attribute is used by the hypermedia highlight component
       data-docid={originHomeId.id}
     >
-      <div className="flex w-full max-w-lg">
+      <div className="flex w-full max-w-2xl justify-center">
         <div className="px-4 py-2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
         </div>

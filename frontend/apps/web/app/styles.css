@@ -1,3 +1,7 @@
+:root {
+  --site-header-h: 60px;
+}
+
 body {
   margin: 0;
   padding: 0;

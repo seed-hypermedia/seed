@@ -11,10 +11,10 @@ let isGrpcReady = false
 const loggingInterceptor: Interceptor = (next) => async (req) => {
   const requestId = randomUUID()
   const startTime = Date.now()
-  
+
   connectionMonitor.trackRequest(requestId, req.method.name)
   log.debug(`🚀 Starting ${req.method.name}`, {requestId})
-  
+
   try {
     const result = await next(req)
     const duration = Date.now() - startTime
@@ -26,8 +26,12 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
   } catch (e: any) {
     const duration = Date.now() - startTime
     connectionMonitor.completeRequest(requestId, false)
-    log.error(`❌ ${req.method.name} failed`, {requestId, duration, error: e.message})
-    
+    log.error(`❌ ${req.method.name} failed`, {
+      requestId,
+      duration,
+      error: e.message,
+    })
+
     if (!isGrpcReady) throw e
     let error = e
 
@@ -44,7 +48,7 @@ const prodInter: Interceptor = (next) => async (req) => {
   const result = await next({
     ...req,
     init: {
-      ...req.init, 
+      ...req.init,
       redirect: 'follow',
       // Add timeout to prevent hanging requests
       signal: AbortSignal.timeout(30000), // 30 second timeout
@@ -53,20 +57,22 @@ const prodInter: Interceptor = (next) => async (req) => {
     log.error(`🌐 Network error for ${req.method.name}`, {
       message: e.message,
       cause: e.cause,
-      stack: e.stack?.slice(0, 200)
+      stack: e.stack?.slice(0, 200),
     })
-    
+
     if (!isGrpcReady) throw e
     if (e.message.match('fetch failed') && e.stack?.join('').match('undici')) {
-      log.error('🚨 Mysterious Undici Error via ConnectWeb - possible connection pool issue')
+      log.error(
+        '🚨 Mysterious Undici Error via ConnectWeb - possible connection pool issue',
+      )
       log.error('Undici error details', {error: e})
       // Consider restarting daemon connection here
     }
-    
+
     if (e.name === 'TimeoutError' || e.message.match('timeout')) {
       log.warn('⏰ Request timed out - daemon may be overloaded')
     }
-    
+
     throw e
   })
   return result

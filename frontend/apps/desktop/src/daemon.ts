@@ -158,7 +158,9 @@ export async function startMainDaemon(): Promise<{
   await tryUntilSuccess(
     async () => {
       log.debug('Checking HTTP endpoint health...')
-      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
+      const response = await fetch(
+        `http://localhost:${DAEMON_HTTP_PORT}/debug/version`,
+      )
       if (!response.ok) {
         throw new Error(`HTTP endpoint not ready: ${response.status}`)
       }

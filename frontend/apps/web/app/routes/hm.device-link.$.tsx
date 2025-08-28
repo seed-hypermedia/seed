@@ -108,7 +108,7 @@ export default function DeviceLinkPage() {
             siteHost={siteHost}
           />
         )}
-        <div className="w-full max-w-lg flex-1 gap-3 px-0 pt-4">
+        <div className="w-full max-w-2xl flex-1 gap-3 px-0 pt-4">
           <div className="px-4">
             <HMDeviceLink />
           </div>
