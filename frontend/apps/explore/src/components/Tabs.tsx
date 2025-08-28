@@ -1,5 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared'
-import {pluralS} from '@shm/shared/utils/language'
+import {pluralS, UnpackedHypermediaId} from '@shm/shared'
 import React from 'react'
 
 export type TabType =
