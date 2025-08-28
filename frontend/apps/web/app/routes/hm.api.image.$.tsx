@@ -74,7 +74,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
             const imageBuffer = Buffer.from(arrayBuffer)
             const type = await fromBuffer(imageBuffer)
             const isGif = type?.ext === 'gif' || type?.mime === 'image/gif'
-            
+
             if (isGif) {
               // Original is a GIF but we have it cached as PNG - delete PNG cache and re-process
               await fs.unlink(pngCachePath).catch(() => {}) // Ignore errors if file doesn't exist
@@ -85,11 +85,14 @@ export const loader: LoaderFunction = async ({params, request}) => {
           }
         } catch (migrationErr) {
           // If migration check fails, just serve the cached PNG
-          console.warn('Failed to check original file type for migration:', migrationErr)
+          console.warn(
+            'Failed to check original file type for migration:',
+            migrationErr,
+          )
         }
       }
     }
-    
+
     // If we still have a cached file after migration check, serve it
     if (cachedFile && cachedContentType) {
       return new Response(cachedFile, {

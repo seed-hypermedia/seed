@@ -18,32 +18,35 @@ export const action: ActionFunction = async ({request}) => {
     if (cid) {
       // Clear cache for specific CID
       const files = await fs.readdir(CACHE_PATH).catch(() => [])
-      const filesToDelete = files.filter(file => file.startsWith(cid))
-      
+      const filesToDelete = files.filter((file) => file.startsWith(cid))
+
       for (const file of filesToDelete) {
         await fs.unlink(path.join(CACHE_PATH, file)).catch(() => {})
       }
-      
+
       return json({
         success: true,
         message: `Cleared cache for CID: ${cid}`,
-        deletedFiles: filesToDelete.length
+        deletedFiles: filesToDelete.length,
       })
     } else {
       // Clear entire cache
       await fs.rm(CACHE_PATH, {recursive: true, force: true}).catch(() => {})
       await fs.mkdir(CACHE_PATH, {recursive: true}).catch(() => {})
-      
+
       return json({
         success: true,
-        message: 'Cleared entire image cache'
+        message: 'Cleared entire image cache',
       })
     }
   } catch (error) {
     console.error('Error clearing cache:', error)
-    return json({
-      error: 'Failed to clear cache',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, {status: 500})
+    return json(
+      {
+        error: 'Failed to clear cache',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      {status: 500},
+    )
   }
 }
