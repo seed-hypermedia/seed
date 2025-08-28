@@ -107,12 +107,12 @@ export async function startMainDaemon(): Promise<{
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
-      // log.rawMessage(line)
+      log.rawMessage(line)
     })
     // @ts-expect-error
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
-      // log.rawMessage(line)
+      log.rawMessage(line)
     })
     // @ts-expect-error
     daemonProcess.on('error', (err) => {
