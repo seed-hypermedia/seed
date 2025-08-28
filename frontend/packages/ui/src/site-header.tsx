@@ -487,7 +487,7 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'bg-background fixed inset-0 z-40 h-screen transition-transform duration-200 md:hidden',
+        'bg-background fixed inset-0 z-50 h-screen transition-transform duration-200 md:hidden',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
