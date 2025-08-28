@@ -597,10 +597,10 @@ function InnerDocumentPage(
                   ) : null}
                 </div>
               ) : null}
-              <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden bg-red-500">
+              <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
                 <ScrollArea>
                   <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col">
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-green-500">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       <DocumentCover cover={document.metadata.cover} />
 
                       <div
@@ -698,7 +698,7 @@ function InnerDocumentPage(
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex-none shrink-0 grow-0 bg-yellow-500">
+                    <div className="flex-none shrink-0 grow-0">
                       <PageFooter enableWebSigning={enableWebSigning} id={id} />
                     </div>
                   </div>
