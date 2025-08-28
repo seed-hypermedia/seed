@@ -153,6 +153,22 @@ export async function startMainDaemon(): Promise<{
     200, // try every 200ms
     30_000, // timeout after 10s
   )
+
+  // Also check HTTP endpoint is responding
+  await tryUntilSuccess(
+    async () => {
+      log.debug('Checking HTTP endpoint health...')
+      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
+      if (!response.ok) {
+        throw new Error(`HTTP endpoint not ready: ${response.status}`)
+      }
+      const version = await response.text()
+      log.info('HTTP endpoint is ready, version: ' + version)
+    },
+    'waiting for daemon HTTP to be ready',
+    200, // try every 200ms
+    30_000, // timeout after 30s
+  )
   markGRPCReady()
 
   const mainDaemon = {
