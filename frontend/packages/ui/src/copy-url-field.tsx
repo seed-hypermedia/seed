@@ -1,7 +1,7 @@
 import {useUniversalAppContext} from '@shm/shared/routing'
-import {Copy, ExternalLink} from '@shm/ui/icons'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
+import {Copy, ExternalLink} from './icons'
 import {Text} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'

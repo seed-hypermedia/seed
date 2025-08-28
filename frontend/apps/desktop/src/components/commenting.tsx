@@ -16,6 +16,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
+import {useStream} from '@shm/shared/use-stream'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -28,7 +29,6 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useStream} from '@shm/ui/use-stream'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {useSizeObserver} from './app-embeds'

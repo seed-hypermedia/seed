@@ -9,7 +9,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {usePopoverState} from '@shm/ui/use-popover-state'
+import {usePopoverState} from './use-popover-state'
 import {
   Fragment,
   PropsWithChildren,

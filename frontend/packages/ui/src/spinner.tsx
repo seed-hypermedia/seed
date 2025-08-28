@@ -1,4 +1,4 @@
-import {cn} from '@shm/ui/utils'
+import {cn} from './utils'
 import * as React from 'react'
 
 export type SpinnerProps = React.HTMLAttributes<HTMLDivElement> & {

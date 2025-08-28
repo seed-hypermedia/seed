@@ -6,7 +6,7 @@ import {
 import * as React from 'react'
 import {FC, useMemo, useState} from 'react'
 
-import {ButtonProps} from '@shm/ui/button'
+import {ButtonProps} from './button'
 import * as AlertDialog from './components/alert-dialog'
 import * as Dialog from './components/dialog'
 

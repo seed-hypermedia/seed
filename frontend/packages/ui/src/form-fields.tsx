@@ -1,4 +1,4 @@
-import {Label} from '@shm/ui/components/label'
+import {Label} from './components/label'
 import {PropsWithChildren} from 'react'
 import {Input} from './components/input'
 import {Switch, SwitchProps} from './components/switch'

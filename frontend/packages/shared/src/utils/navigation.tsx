@@ -1,10 +1,10 @@
-import {hmId} from '@shm/shared'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {defaultRoute, NavRoute} from '@shm/shared/routes'
-import {StateStream} from '@shm/shared/utils/stream'
-import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
+import {UnpackedHypermediaId} from '../hm-types'
+import {defaultRoute, NavRoute} from '../routes'
+import {useStream, useStreamSelector} from '../use-stream'
+import {hmId} from './entity-id-url'
+import {StateStream} from './stream'
 
 if (typeof global !== 'undefined') {
   global.Buffer = global.Buffer || Buffer

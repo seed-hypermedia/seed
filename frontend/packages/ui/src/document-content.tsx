@@ -43,7 +43,7 @@ import {
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'

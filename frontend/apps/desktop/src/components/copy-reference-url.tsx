@@ -1,5 +1,6 @@
 import {usePublishToSite} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
+import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, packHmId} from '@shm/shared/utils/entity-id-url'
 import {NavigationContext} from '@shm/shared/utils/navigation'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
@@ -10,7 +11,6 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
 import {
   usePushOnCopy,

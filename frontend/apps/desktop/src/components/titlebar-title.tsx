@@ -23,6 +23,7 @@ import {
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   HoverCard,
@@ -47,7 +48,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'

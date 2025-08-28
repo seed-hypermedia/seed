@@ -15,7 +15,7 @@ import {
 } from '@shm/shared'
 import {Button} from './button'
 
-import {Label} from '@shm/ui/components/label'
+import {Label} from './components/label'
 import {AlertCircle, CircleDollarSign, Copy, PartyPopper} from 'lucide-react'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'

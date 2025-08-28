@@ -7,7 +7,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {useImageUrl} from '@shm/ui/get-file-url'
+import {useImageUrl} from './get-file-url'
 import {HTMLAttributes, useMemo} from 'react'
 import {useDocContentContext} from './document-content'
 import {FacePile} from './face-pile'

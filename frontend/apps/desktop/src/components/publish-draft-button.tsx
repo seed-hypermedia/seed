@@ -10,6 +10,7 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -26,7 +27,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useStream} from '@shm/ui/use-stream'
 import {
   HTMLAttributes,
   PropsWithChildren,

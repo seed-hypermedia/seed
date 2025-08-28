@@ -10,12 +10,12 @@ import {
 } from '@shm/ui/components/popover'
 
 import {useAppContext} from '@/app-context'
+import {useStream} from '@shm/shared/use-stream'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import useMedia from '@shm/ui/use-media'
-import {useStream} from '@shm/ui/use-stream'
 import {cn} from '@shm/ui/utils'
 import {Plus, Settings} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'

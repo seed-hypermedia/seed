@@ -22,6 +22,7 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {
   displayHostname,
   hmId,
@@ -57,7 +58,6 @@ import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useStream} from '@shm/ui/use-stream'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,

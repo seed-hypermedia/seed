@@ -1,6 +1,6 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {useImageUrl} from '@shm/ui/get-file-url'
+import {useImageUrl} from './get-file-url'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'

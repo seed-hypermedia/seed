@@ -1,5 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
-import {useImageUrl} from '@shm/ui/get-file-url'
+import {useImageUrl} from './get-file-url'
 import {HMIcon} from './hm-icon'
 import {cn} from './utils'
 

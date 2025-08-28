@@ -31,8 +31,7 @@
     "allowUnusedLabels": false,
 
     "paths": {
-      "@shm/ui/*": ["../ui/src/*"],
-      "@shm/shared/*": ["./src/*"]
+      "@shm/ui/*": ["../ui/src/*"]
     }
   },
   "include": ["src"]

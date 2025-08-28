@@ -1,6 +1,6 @@
-import {Button} from '@shm/ui/button'
-import {Text} from '@shm/ui/text'
-import {useAppDialog} from '@shm/ui/universal-dialog'
+import {Button} from './button'
+import {Text} from './text'
+import {useAppDialog} from './universal-dialog'
 
 export function useDeleteCommentDraftDialog() {
   return useAppDialog(DeleteCommentDraftDialog, {isAlert: true})

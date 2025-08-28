@@ -1,6 +1,6 @@
 import {hmId, useUniversalAppContext} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {useStream} from '@shm/ui/use-stream'
+import {useStream} from '@shm/shared/use-stream'
 
 export function useSelectedAccount() {
   const {selectedIdentity} = useUniversalAppContext()

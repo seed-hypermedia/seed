@@ -1,5 +1,5 @@
-import type {StateStream} from '@shm/shared'
 import {useEffect, useState, useSyncExternalStore} from 'react'
+import type {StateStream} from './utils/stream'
 
 export function useStream<StreamValue>(
   stream?: StateStream<StreamValue> | undefined,

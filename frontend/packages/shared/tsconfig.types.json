@@ -7,7 +7,11 @@
     "outDir": "./dist",
     "noEmit": false,
     "incremental": false,
-    "composite": false
+    "composite": false,
+    "allowImportingTsExtensions": false,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx"]

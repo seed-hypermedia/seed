@@ -1,4 +1,4 @@
-import {SizableText} from '@shm/ui/text'
+import {SizableText} from './text'
 import {PropsWithChildren} from 'react'
 import {FieldErrors, FieldValues} from 'react-hook-form'
 import {Label} from './components/label'

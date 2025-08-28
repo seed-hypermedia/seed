@@ -1,5 +1,5 @@
-import {useImageUrl} from '@shm/ui/get-file-url'
-import {cn} from '@shm/ui/utils'
+import {useImageUrl} from './get-file-url'
+import {cn} from './utils'
 import {X} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
 import {createPortal} from 'react-dom'
