@@ -716,27 +716,27 @@ export function BlockNodeContent({
         </Button>
       ) : null}
 
-      <Button
-        size="icon"
-        variant="ghost"
-        className="rounded-sm select-none hover:opacity-100"
-        style={{
-          padding: layoutUnit / 4,
-          width: layoutUnit * 1.5,
-          height: layoutUnit * 1.25,
-        }}
-        onClick={() => {
-          if (blockNode.block?.id) {
-            navigator.clipboard.writeText(
-              `${window.location.origin}${window.location.pathname}#${blockNode.block?.id}`,
-            )
-          } else {
-            console.error('onBlockCopy Error: no blockId available')
-          }
-        }}
-      >
-        <Link color="currentColor" className="size-3 opacity-50" />
-      </Button>
+      {onBlockCopy ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="rounded-sm select-none hover:opacity-100"
+          style={{
+            padding: layoutUnit / 4,
+            width: layoutUnit * 1.5,
+            height: layoutUnit * 1.25,
+          }}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockCopy(blockNode.block.id, {expanded: true})
+            } else {
+              console.error('onBlockCopy Error: no blockId available')
+            }
+          }}
+        >
+          <Link color="currentColor" className="size-3 opacity-50" />
+        </Button>
+      ) : null}
     </div>
   ) : null
 
