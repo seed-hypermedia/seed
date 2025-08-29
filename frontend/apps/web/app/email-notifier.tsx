@@ -40,7 +40,7 @@ export async function initEmailNotifier() {
   setInterval(() => {
     handleEmailNotifications()
       .then(() => {
-        // console.log('Email notifications handled')
+        console.log('Email notifications handled')
       })
       .catch((err) => {
         console.error('Error handling email notifications', err)
@@ -418,7 +418,20 @@ async function handleEventsForEmailNotifications(
     )
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
-      await sendEmail(email, subject, {text, html})
+      console.log(`handleEventsForEmailNotifications: about to send email to ${email}`)
+      try {
+        // wrap send in a timeout so a stuck SMTP connection won't hang the notifier
+        const sendPromise = sendEmail(email, subject, {text, html})
+        const timeoutMs = 30_000 // 30 seconds
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('sendEmail timeout')), timeoutMs),
+        )
+        await Promise.race([sendPromise, timeoutPromise])
+        console.log(`handleEventsForEmailNotifications: sent email to ${email}`)
+      } catch (e) {
+        console.error(`handleEventsForEmailNotifications: failed sending email to ${email}`, e)
+        // continue processing other notifications; do not let a single send break the loop
+      }
     }
   }
 }
