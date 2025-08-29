@@ -9,9 +9,42 @@ function _ScrollArea(
     children,
     onScroll,
     ...props
-  }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>,
+  }: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
+    onScroll?: (e: React.UIEvent<HTMLElement>) => void
+  },
   ref: React.ForwardedRef<HTMLDivElement>,
 ) {
+  const scrollId = (props as any)['data-scroll-id']
+  if (scrollId === 'main-document-scroll') {
+    console.log('Main document ScrollArea rendering, onScroll:', !!onScroll)
+  }
+
+  const handleViewportRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !onScroll) return
+
+      // Wait a tick for Radix to set up its internal structure
+      setTimeout(() => {
+        // Check all possible scroll containers
+        const viewport = node
+        const firstChild = node.children[0] as HTMLElement
+        const handleScroll = (e: Event) => {
+          onScroll(e as any)
+        }
+
+        // Try both the viewport and its first child
+        if (viewport) {
+          viewport.addEventListener('scroll', handleScroll, {passive: true})
+        }
+
+        if (firstChild) {
+          firstChild.addEventListener('scroll', handleScroll, {passive: true})
+        }
+      }, 100)
+    },
+    [onScroll],
+  )
+
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -20,11 +53,9 @@ function _ScrollArea(
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
+        ref={handleViewportRef}
         data-slot="scroll-area-viewport"
         className="focus-visible:ring-ring/50 relative size-full h-full flex-1 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
-        onScroll={(e: any) => {
-          onScroll?.(e)
-        }}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

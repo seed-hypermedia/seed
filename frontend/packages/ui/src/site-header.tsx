@@ -3,14 +3,19 @@ import {
   HMDocument,
   HMEntityContent,
   HMMetadata,
-  HMQueryResult,
   hostnameStripProtocol,
   SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react'
+import React, {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
@@ -32,6 +37,7 @@ import {
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
+import useMedia from './use-media'
 import {cn} from './utils'
 
 // Stable width estimator functions
@@ -46,7 +52,7 @@ export function SiteHeader({
   supportDocuments,
   onBlockFocus,
   onShowMobileMenu,
-  supportQueries,
+  hideSiteBarClassName,
   origin,
   isLatest = true,
   editNavPane,
@@ -59,7 +65,7 @@ export function SiteHeader({
   supportDocuments?: HMEntityContent[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
-  supportQueries?: HMQueryResult[]
+  hideSiteBarClassName?: AutoHideSiteHeaderClassName
   origin?: string
   isLatest?: boolean
   editNavPane?: React.ReactNode
@@ -140,11 +146,13 @@ export function SiteHeader({
       <header
         ref={headerRef}
         className={cn(
-          'border-border dark:bg-background flex w-full border-b bg-white p-4',
+          'border-border dark:bg-background fixed z-50 flex w-full transform-gpu border-b bg-white p-4 transition-transform duration-200 sm:static',
           {
             'flex-col': isCenterLayout,
             'flex-row items-center': !isCenterLayout,
           },
+          hideSiteBarClassName,
+          'sm:translate-y-0',
         )}
         // this data attribute is used by the hypermedia highlight component
         data-docid={headerHomeId.id}
@@ -188,22 +196,21 @@ export function SiteHeader({
                   console.log('SEARCH RESULT', item) // TODO: navigate to the document with the correct URL based on the site
                 }}
               />
-              {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
-                <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
-                  {items?.map((item) => (
-                    <DocumentSmallListItem
-                      onClick={() => {
-                        setIsMobileMenuOpen(false)
-                      }}
-                      key={item.id?.id || ''}
-                      id={item.id}
-                      metadata={item.metadata}
-                      draftId={item.draftId}
-                      isPublished={item.isPublished}
-                    />
-                  ))}
-                </div>
-              )}
+
+              <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
+                {items?.map((item) => (
+                  <DocumentSmallListItem
+                    onClick={() => {
+                      setIsMobileMenuOpen(false)
+                    }}
+                    key={item.id?.id || ''}
+                    id={item.id}
+                    metadata={item.metadata}
+                    draftId={item.draftId}
+                    isPublished={item.isPublished}
+                  />
+                ))}
+              </div>
 
               {docId && document && !isHomeDoc && (
                 <MobileMenuOutline
@@ -563,7 +570,7 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        'pointer-events-none absolute top-12 right-0 left-0 z-40 flex w-full justify-center px-4',
+        'pointer-events-none absolute top-[calc(var(--site-header-h)+12px)] right-0 left-0 z-50 flex w-full justify-center px-4',
       )}
     >
       <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
@@ -607,4 +614,42 @@ function HypermediaHostBanner({origin}: {origin?: string}) {
       </p>
     </div>
   )
+}
+
+export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'
+
+export function useAutoHideSiteHeader() {
+  const media = useMedia()
+  const prevScrollPos = useRef(0)
+  const [className, setClassName] =
+    useState<AutoHideSiteHeaderClassName>('translate-y-0')
+
+  const onScroll = useCallback(
+    (e: any) => {
+      if (media.gtSm) return
+      if (!e.currentTarget) return
+
+      const currentScrollPos = e.currentTarget.scrollTop
+      const threshold = 10 // Add threshold to prevent flickering on small movements
+
+      // Only update if scroll difference is significant
+      if (Math.abs(currentScrollPos - prevScrollPos.current) < threshold) {
+        return
+      }
+
+      if (prevScrollPos.current > currentScrollPos) {
+        setClassName('translate-y-0')
+      } else {
+        setClassName('-translate-y-full')
+      }
+
+      prevScrollPos.current = currentScrollPos
+    },
+    [media.gtSm],
+  )
+
+  return {
+    hideSiteBarClassName: className,
+    onScroll,
+  }
 }

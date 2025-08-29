@@ -15,7 +15,7 @@ export function PageFooter({
 }) {
   const tx = useTx()
   return (
-    <div className="border-border mb-11 border-t p-2 sm:mb-0 sm:px-4 sm:py-2">
+    <div className="border-border mb-11 border-t px-3 py-2 sm:mb-0 sm:px-4 sm:py-2">
       <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
         {enableWebSigning ? <AccountFooterActionsLazy /> : <div />}
         <div className="flex items-center gap-4">

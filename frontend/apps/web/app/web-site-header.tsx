@@ -9,7 +9,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {DocNavigationItem} from '@shm/ui/navigation'
-import {SiteHeader} from '@shm/ui/site-header'
+import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
 export function WebSiteHeader(
   props: React.PropsWithChildren<{
@@ -22,6 +22,7 @@ export function WebSiteHeader(
     supportQueries?: HMQueryResult[]
     origin?: string
     isLatest?: boolean
+    hideSiteBarClassName?: AutoHideSiteHeaderClassName
   }>,
 ) {
   const isCenterLayout =
@@ -57,6 +58,7 @@ export function WebSiteHeader(
   return (
     <SiteHeader
       noScroll={props.noScroll}
+      hideSiteBarClassName={props.hideSiteBarClassName}
       {...props}
       isCenterLayout={isCenterLayout}
       items={items}

@@ -488,7 +488,6 @@ function _AppDocSiteHeader({
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
-      supportQueries={supportQueries}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}

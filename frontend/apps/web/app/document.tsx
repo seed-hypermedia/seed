@@ -64,6 +64,7 @@ import {supportedLanguages} from '@shm/shared/language-packs'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import documentContentStyles from '@shm/ui/document-content.css?url'
+import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {useMedia} from '@shm/ui/use-media'
 import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
@@ -242,6 +243,8 @@ function InnerDocumentPage(
     comment,
     isLatest,
   } = props
+
+  const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
 
   useEffect(() => {
     if (!id) return
@@ -566,6 +569,7 @@ function InnerDocumentPage(
     >
       <div className="bg-panel flex h-screen min-h-svh w-screen flex-col overflow-hidden">
         <WebSiteHeader
+          hideSiteBarClassName={hideSiteBarClassName}
           noScroll={!!panel}
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
@@ -598,8 +602,8 @@ function InnerDocumentPage(
                 </div>
               ) : null}
               <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
-                <ScrollArea>
-                  <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col">
+                <ScrollArea onScroll={onScroll}>
+                  <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0">
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       <DocumentCover cover={document.metadata.cover} />
 
