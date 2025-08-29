@@ -175,7 +175,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           onResize={(size) => {
             dispatch({type: 'accessoryWidth', value: size})
           }}
-          // className="px-2"
+          className="px-2"
         >
           <div
             className={cn(
