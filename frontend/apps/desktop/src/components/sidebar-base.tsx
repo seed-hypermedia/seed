@@ -170,7 +170,12 @@ function IdentitySelector() {
       }
       return null
     })
-    .filter((d) => !!d)
+    .filter((d) => {
+      if (!d) return false
+      if (typeof d.metadata === 'undefined') return false
+      return true
+    })
+
   useEffect(() => {
     const firstValidAccount = myAccounts?.find((a) => !!a.data?.id?.uid)?.data
       ?.id?.uid
@@ -224,26 +229,28 @@ function IdentitySelector() {
           align="end"
         >
           <ScrollArea className="h-full flex-1 overflow-y-auto">
-            {accountOptions.map((option) => (
-              <div
-                key={option.id.uid}
-                className={cn(
-                  'hover:bg-sidebar-accent flex flex-row items-center gap-4 rounded-md p-2',
-                  selectedAccount?.data?.id?.uid === option.id.uid
-                    ? 'bg-sidebar-accent'
-                    : '',
-                )}
-                onClick={() => {
-                  setSelectedIdentity?.(option.id.uid || null)
-                  setIsOpen(false)
-                }}
-              >
-                {option.id ? (
-                  <HMIcon id={option?.id} metadata={option?.metadata} />
-                ) : null}
-                {option.metadata?.name}
-              </div>
-            ))}
+            {accountOptions.map((option) =>
+              option ? (
+                <div
+                  key={option.id.uid}
+                  className={cn(
+                    'hover:bg-sidebar-accent flex flex-row items-center gap-4 rounded-md p-2',
+                    selectedAccount?.data?.id?.uid === option.id.uid
+                      ? 'bg-sidebar-accent'
+                      : '',
+                  )}
+                  onClick={() => {
+                    setSelectedIdentity?.(option.id.uid || null)
+                    setIsOpen(false)
+                  }}
+                >
+                  {option.id ? (
+                    <HMIcon id={option?.id} metadata={option?.metadata} />
+                  ) : null}
+                  {option.metadata?.name}
+                </div>
+              ) : null,
+            )}
           </ScrollArea>
           <CreateAccountButton />
         </PopoverContent>

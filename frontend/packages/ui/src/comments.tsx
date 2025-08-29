@@ -124,7 +124,7 @@ export function CommentDiscussions({
         {commentEditor}
       </div>
       {commentGroupReplies.data?.length > 0 ? (
-        commentGroupReplies.data.map((cg, idx) => {
+        commentGroupReplies.data.map((cg) => {
           return (
             <div key={cg.id} className={cn('border-border border-b p-2')}>
               <CommentGroup
@@ -170,7 +170,7 @@ export function Discussions({
   } else if (discussionsService.data) {
     panelContent =
       discussionsService.data.discussions?.length > 0 ? (
-        discussionsService.data.discussions?.map((cg, idx) => {
+        discussionsService.data.discussions?.map((cg) => {
           return (
             <div key={cg.id} className={cn('border-border border-b p-2')}>
               <CommentGroup
@@ -235,7 +235,7 @@ export function BlockDiscussions({
   if (commentsService.data) {
     panelContent = (
       <>
-        {commentsService.data.comments.map((comment, idx) => {
+        {commentsService.data.comments.map((comment) => {
           return (
             <div key={comment.id} className={cn('border-border border-b p-2')}>
               <Comment
