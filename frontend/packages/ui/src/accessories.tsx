@@ -18,7 +18,7 @@ export function AccessoryBackButton({
       variant="ghost"
       size="sm"
       className={cn(
-        'text-muted-foreground flex-1 justify-start rounded-lg p-2',
+        'text-muted-foreground m-2 flex-1 justify-start rounded-lg p-2',
         className,
       )}
       onClick={onClick}
@@ -49,7 +49,7 @@ export function AccessoryContent({
         {header ? (
           <div className="border-border max-h-1/2 border-b p-4">{header}</div>
         ) : null}
-        <div className={cn('flex flex-col gap-2 p-3')}>{children}</div>
+        <div className={cn('flex flex-col gap-2')}>{children}</div>
       </ScrollArea>
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">

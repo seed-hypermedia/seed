@@ -25,7 +25,8 @@ export function ContactToken({
     !id.path?.length || metadata?.icon ? (
       <HMIcon size={20} id={id} metadata={metadata} />
     ) : null
-  const className = 'inline-flex gap-1 items-center'
+  const className =
+    'h-5 truncate rounded px-1 text-sm font-bold inline-flex gap-1 items-center'
   if (ResourcePreview) {
     return (
       <HoverCard>
@@ -34,7 +35,6 @@ export function ContactToken({
             {...linkProps}
             className={cn(
               className,
-
               // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
               'text-secondary-foreground',
             )}
@@ -50,9 +50,18 @@ export function ContactToken({
     )
   }
   return (
-    <a className="inline-flex items-center gap-1" {...linkProps}>
+    <a
+      className="inline-flex items-center gap-1 overflow-hidden"
+      {...linkProps}
+    >
       {icon}
-      <SizableText weight="bold">{metadata?.name}</SizableText>
+      <SizableText
+        size="xs"
+        weight="bold"
+        className="h-5 truncate rounded text-sm font-bold"
+      >
+        {metadata?.name}
+      </SizableText>
     </a>
   )
 }

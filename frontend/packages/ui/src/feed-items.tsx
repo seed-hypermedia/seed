@@ -39,7 +39,7 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
         <Comment
           comment={event.comment}
           heading={
-            <>
+            <div className="flex w-full items-center overflow-hidden">
               <EventContact contact={event.author} />
               <EventDescriptionText>commented on</EventDescriptionText>
               {event.targetId ? (
@@ -49,7 +49,7 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
                 />
               ) : null}
               <EventTimestamp time={event.time} />
-            </>
+            </div>
           }
         />
       )}

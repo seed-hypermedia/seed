@@ -175,7 +175,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           onResize={(size) => {
             dispatch({type: 'accessoryWidth', value: size})
           }}
-          className="px-2"
+          // className="px-2"
         >
           <div
             className={cn(
@@ -226,7 +226,7 @@ export function AccessoryContent({
         {header ? (
           <div className="border-border max-h-1/2 border-b p-4">{header}</div>
         ) : null}
-        <div className={cn('flex flex-col gap-2 p-3')}>{children}</div>
+        <div className={cn('flex flex-col gap-2')}>{children}</div>
       </ScrollArea>
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">

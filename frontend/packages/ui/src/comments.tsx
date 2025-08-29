@@ -126,13 +126,7 @@ export function CommentDiscussions({
       {commentGroupReplies.data?.length > 0 ? (
         commentGroupReplies.data.map((cg, idx) => {
           return (
-            <div
-              key={cg.id}
-              className={cn(
-                'border-border border-b',
-                commentGroupReplies.data.length - 1 > idx && 'mb-4',
-              )}
-            >
+            <div key={cg.id} className={cn('border-border border-b p-2')}>
               <CommentGroup
                 key={cg.id}
                 commentGroup={cg}
@@ -178,13 +172,7 @@ export function Discussions({
       discussionsService.data.discussions?.length > 0 ? (
         discussionsService.data.discussions?.map((cg, idx) => {
           return (
-            <div
-              key={cg.id}
-              className={cn(
-                'border-border border-b',
-                discussionsService.data.discussions.length - 1 > idx && 'mb-4',
-              )}
-            >
+            <div key={cg.id} className={cn('border-border border-b p-2')}>
               <CommentGroup
                 commentGroup={cg}
                 authors={discussionsService.data.authors}
@@ -249,13 +237,7 @@ export function BlockDiscussions({
       <>
         {commentsService.data.comments.map((comment, idx) => {
           return (
-            <div
-              key={comment.id}
-              className={cn(
-                'border-border border-b',
-                commentsService.data.comments.length - 1 > idx && 'mb-4',
-              )}
-            >
+            <div key={comment.id} className={cn('border-border border-b p-2')}>
               <Comment
                 key={comment.id}
                 comment={comment}
@@ -304,14 +286,14 @@ export function CommentGroup({
   const lastComment = commentGroup.comments.at(-1)
 
   return (
-    <div className="relative flex flex-col gap-2">
+    <div className="relative flex flex-col gap-2 p-2">
       {commentGroup.comments.length > 1 && (
         <div
           className="bg-border absolute w-px"
           style={{
             height: `calc(100% - ${avatarSize / 2}px)`,
             top: avatarSize / 2,
-            left: avatarSize / 2,
+            left: avatarSize,
           }}
         />
       )}
@@ -456,7 +438,7 @@ export function Comment({
       ) : null}
 
       {heading ? null : (
-        <div className="relative mt-0.5 min-w-5">
+        <div className="relative mt-0.5 flex min-w-5">
           <div
             className={cn(
               'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
@@ -475,48 +457,55 @@ export function Comment({
       )}
       <div className="flex w-full flex-1 flex-col gap-1">
         {heading ? <div className="inline">{heading}</div> : null}
-        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
-          {heading ? null : (
-            <div className="flex items-baseline gap-1 overflow-hidden">
-              <button
-                className={cn(
-                  'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
-                  authorLink ? 'cursor-pointer' : '',
-                )}
-                {...authorLink}
-              >
-                {authorMetadata?.name || '...'}
-              </button>
+        {heading ? null : (
+          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+            {heading ? null : (
+              <div className="flex items-baseline gap-1 overflow-hidden">
+                <button
+                  className={cn(
+                    'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
+                    authorLink ? 'cursor-pointer' : '',
+                  )}
+                  {...authorLink}
+                >
+                  {authorMetadata?.name || '...'}
+                </button>
 
-              <CommentDate comment={comment} />
+                <CommentDate comment={comment} />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Tooltip content={tx('Copy Comment Link')}>
+                <Button
+                  size="iconSm"
+                  variant="ghost"
+                  className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                  onClick={() => {
+                    const url = getUrl(hmId(comment.id))
+                    copyTextToClipboard(url)
+                    toast.success('Copied Comment URL')
+                  }}
+                >
+                  <Link className="size-3" />
+                </Button>
+              </Tooltip>
+              {options.length > 0 ? (
+                <OptionsDropdown
+                  className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                  menuItems={options}
+                />
+              ) : null}
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <Tooltip content={tx('Copy Comment Link')}>
-              <Button
-                size="iconSm"
-                variant="ghost"
-                className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
-                onClick={() => {
-                  const url = getUrl(hmId(comment.id))
-                  copyTextToClipboard(url)
-                  toast.success('Copied Comment URL')
-                }}
-              >
-                <Link className="size-3" />
-              </Button>
-            </Tooltip>
-            {options.length > 0 ? (
-              <OptionsDropdown
-                className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
-                menuItems={options}
-              />
-            ) : null}
           </div>
-        </div>
-        <div className="-ml-2">{renderContent(comment)}</div>
+        )}
+        <div>{renderContent(comment)}</div>
         {!highlight && (
-          <div className="mb-2 -ml-1 flex items-center gap-2 py-1">
+          <div
+            className={cn(
+              '-ml-1 flex items-center gap-2 py-1',
+              !heading && 'mb-2',
+            )}
+          >
             {replyCount ? (
               <Button
                 variant="ghost"

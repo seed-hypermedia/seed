@@ -84,14 +84,17 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <AccessoryContent title="Feed">
-      {allEvents.map((event, index) => {
-        const isLast = index === allEvents.length - 1
-        return (
-          <div key={event.id} ref={isLast ? lastElementRef : undefined}>
-            <FeedEvent event={event} />
-          </div>
-        )
-      })}
+      <div className="flex flex-col">
+        {allEvents.map((event, index) => {
+          const isLast = index === allEvents.length - 1
+          const item = <FeedEvent event={event} />
+          return item ? (
+            <div key={event.id} ref={isLast ? lastElementRef : undefined}>
+              {item}
+            </div>
+          ) : null
+        })}
+      </div>
       {isFetchingNextPage && (
         <div className="text-muted-foreground py-3 text-center">
           Loading more...

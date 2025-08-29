@@ -1035,7 +1035,7 @@ function WebCitationsPanel({
   }, [citations.data, blockId])
   const tx = useTxString()
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className="flex flex-col gap-2">
       {blockId ? (
         // @ts-expect-error
         <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
@@ -1062,7 +1062,7 @@ function WebVersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const changes = useDocumentChanges(docId)
   const changesList = changes.data?.changes || []
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className="flex flex-col gap-2">
       {changesList.map((change, idx) => {
         const isCurrent = change.id === changes.data?.latestVersion
         return (

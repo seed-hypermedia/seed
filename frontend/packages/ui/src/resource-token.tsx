@@ -26,7 +26,7 @@ export function ResourceToken({
     ) : null
 
   const baseClassName =
-    'inline text-sm align-middle whitespace-normal break-words bg-gray-100 border hover:dark:text-white dark:bg-gray-800 hover:bg-gray-200'
+    'inline text-sm whitespace-normal bg-gray-100 border hover:dark:text-white dark:bg-gray-800 hover:bg-gray-200'
   const previewTriggerClassName = 'inline-block align-middle whitespace-nowrap'
   if (ResourcePreview) {
     return (
@@ -45,7 +45,7 @@ export function ResourceToken({
             {icon ? (
               <span className="mr-1 inline-block align-middle">{icon}</span>
             ) : null}
-            {metadata?.name}
+            <span className="truncate overflow-hidden">{metadata?.name}</span>
           </a>
         </HoverCardTrigger>
         <HoverCardContent className="w-full max-w-100 p-0" align="end">

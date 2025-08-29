@@ -6,16 +6,25 @@ import {formattedDateShort} from '@shm/shared/utils'
 import {ContactToken} from './contact-token'
 import {ResourceToken} from './resource-token'
 import {SizableText} from './text'
+import {cn} from './utils'
 
 export function EventRow({
   children,
   onClick,
+  className,
 }: {
   children: React.ReactNode
   onClick?: () => void
+  className?: string
 }) {
   return (
-    <div className="break-words" onClick={onClick}>
+    <div
+      className={cn(
+        'hover:bg-background m-2 rounded-md p-2 break-words transition-colors hover:dark:bg-black',
+        className,
+      )}
+      onClick={onClick}
+    >
       {children}
     </div>
   )
@@ -30,7 +39,10 @@ export function RouteEventRow({
 }) {
   const linkProps = useRouteLink(route)
   return (
-    <div className="break-words" {...linkProps}>
+    <div
+      className="hover:bg-background m-2 flex items-center rounded-md p-2 break-words hover:dark:bg-black"
+      {...linkProps}
+    >
       {children}
     </div>
   )
@@ -67,7 +79,7 @@ export function EventContacts({contacts}: {contacts: HMContactItem[]}) {
 
 export function EventDescriptionText({children}: {children: React.ReactNode}) {
   return (
-    <SizableText size="sm" className="px-2">
+    <SizableText size="xs" className="truncate overflow-hidden px-2">
       {children}
     </SizableText>
   )
@@ -76,7 +88,7 @@ export function EventDescriptionText({children}: {children: React.ReactNode}) {
 export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
   if (!time) return null
   return (
-    <SizableText size="sm" className="text-muted-foreground px-2 py-1">
+    <SizableText size="xs" className="text-muted-foreground self-end px-2 py-1">
       {formattedDateShort(time)}
     </SizableText>
   )
