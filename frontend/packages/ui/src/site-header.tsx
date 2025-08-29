@@ -637,10 +637,10 @@ export function useAutoHideSiteHeader() {
         return
       }
 
-      if (prevScrollPos.current > currentScrollPos) {
-        setClassName('translate-y-0')
-      } else {
+      if (currentScrollPos > prevScrollPos.current && currentScrollPos > 50) {
         setClassName('-translate-y-full')
+      } else {
+        setClassName('translate-y-0')
       }
 
       prevScrollPos.current = currentScrollPos
