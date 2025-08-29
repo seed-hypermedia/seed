@@ -27,7 +27,6 @@ import {
   DocNavigationItem,
   DocumentOutline,
   DocumentSmallListItem,
-  getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
@@ -100,7 +99,7 @@ export function SiteHeader({
   useLayoutEffect(() => {
     const updateHeaderHeight = () => {
       const headerHeight = headerRef.current?.offsetHeight || 60
-      console.log('=== HEIGHT', headerRef.current, headerHeight)
+
       window.document.documentElement.style.setProperty(
         '--site-header-h',
         `${headerHeight}px`,
@@ -193,8 +192,7 @@ export function SiteHeader({
                 <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
                   {items?.map((item) => (
                     <DocumentSmallListItem
-                      // @ts-expect-error
-                      onPress={() => {
+                      onClick={() => {
                         setIsMobileMenuOpen(false)
                       }}
                       key={item.id?.id || ''}
@@ -220,9 +218,8 @@ export function SiteHeader({
               )}
               {docId && isHomeDoc && (
                 <NavItems
-                  id={docId}
-                  supportQueries={supportQueries}
-                  onPress={() => {
+                  items={items}
+                  onClick={() => {
                     setIsMobileMenuOpen(false)
                   }}
                 />
@@ -236,27 +233,19 @@ export function SiteHeader({
 }
 
 function NavItems({
-  id,
-  supportQueries,
-  onPress,
+  items,
+  onClick,
 }: {
-  id: UnpackedHypermediaId
-  supportQueries?: HMQueryResult[]
-  onPress?: () => void
+  items?: DocNavigationItem[] | null
+  onClick?: () => void
 }) {
-  const directoryItems = getSiteNavDirectory({
-    id,
-    supportQueries,
-    // todo: pass drafts
-  })
   return (
-    <div className="flex flex-col gap-2.5">
-      {directoryItems
-        ? directoryItems.map((doc) => (
+    <div className="flex flex-col gap-2.5 px-2">
+      {items
+        ? items.map((doc) => (
             <DocumentSmallListItem
-              // @ts-expect-error
-              onPress={onPress}
-              key={id.path?.join('/') || id.id}
+              onClick={onClick}
+              key={doc.id?.id || ''}
               metadata={doc.metadata}
               id={doc.id}
               indented={0}

@@ -698,7 +698,7 @@ function InnerDocumentPage(
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex-none shrink-0 grow-0">
+                    <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
                       <PageFooter enableWebSigning={enableWebSigning} id={id} />
                     </div>
                   </div>
@@ -759,7 +759,7 @@ function InnerDocumentPage(
 
             <div
               className={cn(
-                'bg-panel fixed inset-0 z-50 flex h-full h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] md:hidden',
+                'bg-panel fixed inset-0 z-50 flex h-full h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
                 isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
               )}
             >
