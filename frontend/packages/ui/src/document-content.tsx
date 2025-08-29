@@ -43,7 +43,6 @@ import {
   loadInstagramScript,
   loadTwitterScript,
 } from '@shm/shared/utils/web-embed-scripts'
-import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
@@ -73,6 +72,13 @@ import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {Badge} from './components/badge'
 import {CheckboxField} from './components/checkbox'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from './components/popover'
+import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -500,6 +506,8 @@ export function BlockNodeContent({
     isFirstChild,
   )
 
+  const media = useMedia()
+
   const citationsCount =
     blockNode.block?.id && blockCitations
       ? blockCitations[blockNode.block?.id]
@@ -640,8 +648,100 @@ export function BlockNodeContent({
 
   const tx = useTxString()
 
+  // Mobile-friendly version without tooltips to avoid conflicts
+  const mobileCardContent = !comment ? (
+    <div className="flex">
+      {citationsCount?.citations ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="rounded-sm select-none hover:opacity-100"
+          style={{
+            padding: layoutUnit / 4,
+            width: layoutUnit * 1.5,
+            height: layoutUnit * 1.25,
+          }}
+          onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+        >
+          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <SizableText color="muted" size="xs">
+            {citationsCount.citations
+              ? String(citationsCount.citations)
+              : undefined}
+          </SizableText>
+        </Button>
+      ) : null}
+
+      {onBlockReply ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="rounded-sm select-none hover:opacity-100"
+          style={{
+            padding: layoutUnit / 4,
+            width: layoutUnit * 1.5,
+            height: layoutUnit * 1.25,
+          }}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockReply?.(blockNode.block?.id)
+            } else {
+              console.error('onBlockReply Error: no blockId available')
+            }
+          }}
+        >
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+        </Button>
+      ) : null}
+
+      {onBlockCommentClick ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="rounded-sm select-none hover:opacity-100"
+          style={{
+            padding: layoutUnit / 4,
+            width: layoutUnit * 1.5,
+            height: layoutUnit * 1.25,
+          }}
+          onClick={() => {
+            if (blockNode.block?.id) {
+              onBlockCommentClick?.(blockNode.block?.id, undefined, true)
+            } else {
+              console.error('onBlockComment Error: no blockId available')
+            }
+          }}
+        >
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+        </Button>
+      ) : null}
+
+      <Button
+        size="icon"
+        variant="ghost"
+        className="rounded-sm select-none hover:opacity-100"
+        style={{
+          padding: layoutUnit / 4,
+          width: layoutUnit * 1.5,
+          height: layoutUnit * 1.25,
+        }}
+        onClick={() => {
+          if (blockNode.block?.id) {
+            navigator.clipboard.writeText(
+              `${window.location.origin}${window.location.pathname}#${blockNode.block?.id}`,
+            )
+          } else {
+            console.error('onBlockCopy Error: no blockId available')
+          }
+        }}
+      >
+        <Link color="currentColor" className="size-3 opacity-50" />
+      </Button>
+    </div>
+  ) : null
+
   const hoverCardContent = !comment ? (
-    <HoverCardContent side="top" align="end" className="w-auto p-0">
+    <div className="flex">
       {citationsCount?.citations ? (
         <BubbleButton
           layoutUnit={layoutUnit}
@@ -724,7 +824,7 @@ export function BlockNodeContent({
           <Link color="currentColor" className="size-3 opacity-50" />
         </BubbleButton>
       ) : null}
-    </HoverCardContent>
+    </div>
   ) : null
 
   const blockCitationCount =
@@ -801,26 +901,46 @@ export function BlockNodeContent({
             </Button>
           </Tooltip>
         ) : null}
-        <HoverCard openDelay={500} closeDelay={500}>
-          <HoverCardTrigger>
-            <BlockContent
-              // @ts-expect-error
-              block={modifiedBlock}
-              depth={depth}
-              parentBlockId={parentBlockId}
-              // {...interactiveProps}
-            />
-          </HoverCardTrigger>
-
-          {hoverCardContent}
-        </HoverCard>
+        {media.gtSm ? (
+          <HoverCard openDelay={500} closeDelay={500}>
+            <HoverCardTrigger>
+              <BlockContent
+                // @ts-expect-error
+                block={modifiedBlock}
+                depth={depth}
+                parentBlockId={parentBlockId}
+                // {...interactiveProps}
+              />
+            </HoverCardTrigger>
+            <HoverCardContent side="top" align="end" className="w-auto p-0">
+              {hoverCardContent}
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          <Popover>
+            <PopoverTrigger asChild>
+              <div>
+                <BlockContent
+                  // @ts-expect-error
+                  block={modifiedBlock}
+                  depth={depth}
+                  parentBlockId={parentBlockId}
+                  // {...interactiveProps}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="end" className="w-auto p-0">
+              {mobileCardContent}
+            </PopoverContent>
+          </Popover>
+        )}
         {embedDepth
           ? null
           : blockCitationCount > 0 && (
               <div
                 className={cn(
-                  'absolute top-0 right-0 z-10 flex flex-col gap-2 pl-4 sm:right-[-18px]',
-                  hover && 'z-10',
+                  'absolute top-0 right-0 right-[-18px] flex flex-col gap-2 pl-4',
+                  hover && 'z-30',
                 )}
                 style={{
                   borderRadius: layoutUnit / 4,
@@ -828,13 +948,38 @@ export function BlockNodeContent({
                 onMouseEnter={() => setHover(true)}
                 onMouseLeave={() => setHover(false)}
               >
-                <HoverCard openDelay={0}>
-                  <HoverCardTrigger>
-                    <Badge variant="outline">{blockCitationCount}</Badge>
-                  </HoverCardTrigger>
-
-                  {hoverCardContent}
-                </HoverCard>
+                {media.gtSm ? (
+                  <HoverCard openDelay={0}>
+                    <HoverCardTrigger>
+                      <Badge variant="outline">{blockCitationCount}</Badge>
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      side="top"
+                      align="end"
+                      className="w-auto p-0"
+                    >
+                      {hoverCardContent}
+                    </HoverCardContent>
+                  </HoverCard>
+                ) : (
+                  <Popover>
+                    <PopoverAnchor>
+                      <PopoverTrigger asChild>
+                        <Badge variant="outline" className="cursor-pointer">
+                          {blockCitationCount}
+                        </Badge>
+                      </PopoverTrigger>
+                    </PopoverAnchor>
+                    <PopoverContent
+                      side="left"
+                      align="start"
+                      sideOffset={8}
+                      className="w-auto max-w-xs p-0"
+                    >
+                      {mobileCardContent}
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
             )}
       </div>
