@@ -567,7 +567,7 @@ function InnerDocumentPage(
       onReplyClick={onReplyClick}
       onReplyCountClick={onReplyCountClick}
     >
-      <div className="bg-panel flex h-screen min-h-svh w-screen flex-col overflow-hidden">
+      <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
         <WebSiteHeader
           hideSiteBarClassName={hideSiteBarClassName}
           noScroll={!!panel}
@@ -603,7 +603,7 @@ function InnerDocumentPage(
               ) : null}
               <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
                 <ScrollArea onScroll={onScroll}>
-                  <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0">
+                  <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       <DocumentCover cover={document.metadata.cover} />
 
@@ -763,7 +763,7 @@ function InnerDocumentPage(
 
             <div
               className={cn(
-                'bg-panel fixed inset-0 z-50 flex h-full h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
+                'bg-panel fixed inset-0 z-50 flex h-full h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
                 isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
               )}
             >
@@ -785,7 +785,7 @@ function InnerDocumentPage(
               </div>
 
               <div className="flex flex-1 flex-col overflow-hidden">
-                <ScrollArea>{panel}</ScrollArea>
+                <ScrollArea onScroll={onScroll}>{panel}</ScrollArea>
               </div>
             </div>
           </>

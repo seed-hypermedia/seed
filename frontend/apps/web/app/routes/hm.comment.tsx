@@ -44,8 +44,6 @@ import {useCallback, useMemo, useState} from 'react'
 
 import {defaultSiteIcon} from '@/meta'
 import {useTx} from '@shm/shared/translation'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {cn} from '@shm/ui/utils'
 import {CommentPayload} from './hm.api.comment'
@@ -212,148 +210,137 @@ export default function CreateComment() {
   }
 
   return (
-    <div className={windowContainerStyles}>
-      <div className={cn(panelContainerStyles)}>
-        <WebSiteProvider
-          origin={origin}
-          originHomeId={originHomeId}
-          siteHost={siteHost}
-        >
-          <ScrollArea>
-            <div className="flex min-h-full flex-1 flex-col items-center">
-              {originHomeMetadata && (
-                <SmallSiteHeader
-                  originHomeMetadata={originHomeMetadata}
+    <div className="bg-panel flex h-screen w-screen flex-col overflow-hidden">
+      <WebSiteProvider
+        origin={origin}
+        originHomeId={originHomeId}
+        siteHost={siteHost}
+      >
+        <div className="flex max-h-screen flex-1 flex-col items-center pr-3 md:pr-0">
+          {originHomeMetadata && (
+            <SmallSiteHeader
+              originHomeMetadata={originHomeMetadata}
+              originHomeId={originHomeId}
+              siteHost={siteHost}
+            />
+          )}
+
+          <div className="flex w-full max-w-2xl flex-1 flex-col gap-3 p-3 pt-4">
+            <div className="py-4">
+              <SizableText size="lg">
+                {replyComment
+                  ? tx(
+                      'replying_to',
+                      (args) => <>Replying to {args.replyAuthor}</>,
+                      {
+                        replyAuthor: (
+                          <SizableText size="lg" weight="bold">
+                            {replyComment.author.metadata?.name ??
+                              'Unknown Author'}
+                          </SizableText>
+                        ),
+                      },
+                    )
+                  : tx('comment_on', (args) => <>Comment on {args.target}</>, {
+                      target: (
+                        <DocButtonLink
+                          docId={targetId}
+                          name={
+                            targetDocument.metadata.name ?? 'Untitled Document'
+                          }
+                        />
+                      ),
+                    })}
+              </SizableText>
+            </div>
+            {quotingBlockId ? (
+              <div className="py-4">
+                <WebDocContentProvider
                   originHomeId={originHomeId}
                   siteHost={siteHost}
+                >
+                  <QuotedDocBlock
+                    docId={targetId}
+                    blockId={quotingBlockId}
+                    doc={targetDocument}
+                  />
+                </WebDocContentProvider>
+              </div>
+            ) : null}
+            <div className="py-4">
+              {replyComment ? (
+                <>
+                  <Comment
+                    isLast={!publishedComment}
+                    comment={replyComment.comment}
+                    renderCommentContent={renderCommentContent}
+                    authorMetadata={replyComment.author.metadata}
+                  />
+                </>
+              ) : null}
+              {publishedComment ? (
+                <>
+                  <SyncCommentFeedback
+                    isLoading={syncComment.isLoading}
+                    hostname={originUrlUrl?.hostname ?? ''}
+                    // @ts-expect-error - error types are bad...
+                    error={syncComment.error?.message}
+                    retry={retry}
+                  />
+                  <PublishedComment
+                    commentId={publishedComment.id}
+                    siteHost={siteHost}
+                    comment={publishedComment.raw}
+                    targetId={targetId}
+                    enableWebSigning={enableWebSigning}
+                    originHomeId={originHomeId}
+                    isFirst={!replyComment}
+                    isLast={true}
+                  />
+                </>
+              ) : null}
+            </div>
+            <div className="py-4">
+              {publishedComment ? null : (
+                <WebCommenting
+                  docId={targetId}
+                  replyCommentId={replyCommentId || undefined}
+                  replyCommentVersion={replyCommentVersion || undefined}
+                  rootReplyCommentVersion={rootReplyCommentVersion || undefined}
+                  enableWebSigning={enableWebSigning}
+                  quotingBlockId={quotingBlockId || undefined}
+                  commentingOriginUrl={originUrl}
+                  onSuccess={(result) => {
+                    if (originUrl) {
+                      setPublishedComment({
+                        id: result.response.commentId,
+                        raw: result.commentPayload,
+                      })
+                      function attemptSync() {
+                        syncComment.mutate({
+                          commentId: result.response.commentId,
+                          target: targetId.id,
+                          dependencies: result.response.dependencies,
+                        })
+                      }
+                      setRetry(() => attemptSync)
+                      attemptSync()
+                    }
+                  }}
                 />
               )}
-
-              <div className="flex w-full max-w-2xl flex-1 flex-col gap-3 p-3 pt-4">
-                <div className="py-4">
-                  <SizableText size="lg">
-                    {replyComment
-                      ? tx(
-                          'replying_to',
-                          (args) => <>Replying to {args.replyAuthor}</>,
-                          {
-                            replyAuthor: (
-                              <SizableText size="lg" weight="bold">
-                                {replyComment.author.metadata?.name ??
-                                  'Unknown Author'}
-                              </SizableText>
-                            ),
-                          },
-                        )
-                      : tx(
-                          'comment_on',
-                          (args) => <>Comment on {args.target}</>,
-                          {
-                            target: (
-                              <DocButtonLink
-                                docId={targetId}
-                                name={
-                                  targetDocument.metadata.name ??
-                                  'Untitled Document'
-                                }
-                              />
-                            ),
-                          },
-                        )}
-                  </SizableText>
-                </div>
-                {quotingBlockId ? (
-                  <div className="py-4">
-                    <WebDocContentProvider
-                      originHomeId={originHomeId}
-                      siteHost={siteHost}
-                    >
-                      <QuotedDocBlock
-                        docId={targetId}
-                        blockId={quotingBlockId}
-                        doc={targetDocument}
-                      />
-                    </WebDocContentProvider>
-                  </div>
-                ) : null}
-                <div className="py-4">
-                  {replyComment ? (
-                    <>
-                      <Comment
-                        isLast={!publishedComment}
-                        comment={replyComment.comment}
-                        renderCommentContent={renderCommentContent}
-                        authorMetadata={replyComment.author.metadata}
-                      />
-                    </>
-                  ) : null}
-                  {publishedComment ? (
-                    <>
-                      <SyncCommentFeedback
-                        isLoading={syncComment.isLoading}
-                        hostname={originUrlUrl?.hostname ?? ''}
-                        // @ts-expect-error - error types are bad...
-                        error={syncComment.error?.message}
-                        retry={retry}
-                      />
-                      <PublishedComment
-                        commentId={publishedComment.id}
-                        siteHost={siteHost}
-                        comment={publishedComment.raw}
-                        targetId={targetId}
-                        enableWebSigning={enableWebSigning}
-                        originHomeId={originHomeId}
-                        isFirst={!replyComment}
-                        isLast={true}
-                      />
-                    </>
-                  ) : null}
-                </div>
-                <div className="py-4">
-                  {publishedComment ? null : (
-                    <WebCommenting
-                      docId={targetId}
-                      replyCommentId={replyCommentId || undefined}
-                      replyCommentVersion={replyCommentVersion || undefined}
-                      rootReplyCommentVersion={
-                        rootReplyCommentVersion || undefined
-                      }
-                      enableWebSigning={enableWebSigning}
-                      quotingBlockId={quotingBlockId || undefined}
-                      commentingOriginUrl={originUrl}
-                      onSuccess={(result) => {
-                        if (originUrl) {
-                          setPublishedComment({
-                            id: result.response.commentId,
-                            raw: result.commentPayload,
-                          })
-                          function attemptSync() {
-                            syncComment.mutate({
-                              commentId: result.response.commentId,
-                              target: targetId.id,
-                              dependencies: result.response.dependencies,
-                            })
-                          }
-                          setRetry(() => attemptSync)
-                          attemptSync()
-                        }
-                      }}
-                    />
-                  )}
-                  {syncComment.isSuccess && originUrlUrl ? (
-                    <Button asChild variant="default">
-                      <a
-                        href={originUrl}
-                      >{`Go back to ${originUrlUrl.hostname}`}</a>
-                    </Button>
-                  ) : null}
-                </div>
-                <PageFooter enableWebSigning={enableWebSigning} />
-              </div>
+              {syncComment.isSuccess && originUrlUrl ? (
+                <Button asChild variant="default">
+                  <a
+                    href={originUrl}
+                  >{`Go back to ${originUrlUrl.hostname}`}</a>
+                </Button>
+              ) : null}
             </div>
-          </ScrollArea>
-        </WebSiteProvider>
-      </div>
+            <PageFooter enableWebSigning={enableWebSigning} />
+          </div>
+        </div>
+      </WebSiteProvider>
     </div>
   )
 }

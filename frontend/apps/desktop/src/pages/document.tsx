@@ -17,7 +17,6 @@ import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
   useDocumentRead,
-  useListDirectory,
   useSiteNavigationItems,
 } from '@/models/documents'
 import {
@@ -39,7 +38,6 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
-  HMQueryResult,
   HMResource,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -460,16 +458,8 @@ function _AppDocSiteHeader({
   supportDocuments?: HMEntityContent[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const docDir = useListDirectory(docId, {mode: 'Children'})
   const replace = useNavigate('replace')
   const route = useNavRoute()
-  const supportQueries = useMemo(() => {
-    const q: HMQueryResult[] = []
-    if (docDir.data) {
-      q.push({in: docId, results: docDir.data})
-    }
-    return q
-  }, [docId, docDir.data])
   const navItems = useSiteNavigationItems(siteHomeEntity)
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
