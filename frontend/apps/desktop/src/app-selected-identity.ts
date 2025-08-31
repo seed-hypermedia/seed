@@ -79,7 +79,7 @@ export function setGlobalSelectedIdentity(newIdentity: string | null) {
 }
 
 // Update available keys and auto-select if needed
-export async function updateAvailableKeys() {
+export async function updateAvailableKeys(options?: { forceSelect?: string }) {
   try {
     const keysResponse = await grpcClient.daemon.listKeys({})
     const newKeys = keysResponse.keys.map(key => key.accountId)
@@ -88,9 +88,18 @@ export async function updateAvailableKeys() {
     const keysChanged = newKeys.length !== availableKeys.length || 
       !newKeys.every(key => availableKeys.includes(key))
     
+    availableKeys = newKeys
+    
+    // If a specific account should be selected (e.g., from onboarding)
+    if (options?.forceSelect && newKeys.includes(options.forceSelect)) {
+      setGlobalSelectedIdentity(options.forceSelect)
+      log.info('Force selected identity', {
+        selectedIdentity: options.forceSelect,
+      })
+      return
+    }
+    
     if (keysChanged) {
-      availableKeys = newKeys
-      
       if (newKeys.length === 0) {
         // No accounts available anymore
         setGlobalSelectedIdentity(null)
@@ -108,6 +117,7 @@ export async function updateAvailableKeys() {
           selectedIdentity: newKeys[0],
         })
       }
+      // If the selected identity is still valid, keep it
     }
   } catch (error) {
     log.error('Failed to update available keys', {error})
