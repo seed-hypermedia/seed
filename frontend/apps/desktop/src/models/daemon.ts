@@ -136,6 +136,7 @@ export function useRegisterKey(
   >,
 ) {
   return useMutation({
+    ...opts,
     mutationFn: async ({name = '', mnemonic, passphrase}) => {
       const registration = await grpcClient.daemon.registerKey({
         name,
@@ -156,10 +157,16 @@ export function useRegisterKey(
         })
       return registration
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables, context) => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      // Update available keys and potentially auto-select the new account
+      // @ts-expect-error
+      await window.selectedIdentityAPI?.updateKeys?.()
+      // Call the original onSuccess if provided
+      if (opts?.onSuccess) {
+        opts.onSuccess(data, variables, context)
+      }
     },
-    ...opts,
   })
 }
 
@@ -168,6 +175,7 @@ export function useDeleteKey(
 ) {
   const deleteWords = trpc.secureStorage.delete.useMutation()
   return useMutation({
+    ...opts,
     mutationFn: async ({accountId}) => {
       const keys = await grpcClient.daemon.listKeys({})
       const keyToDelete = keys.keys.find((key) => accountId == key.publicKey)
@@ -178,10 +186,16 @@ export function useDeleteKey(
       await deleteWords.mutateAsync(keyToDelete.name)
       return deletedKey
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables, context) => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      // Update available keys and handle deleted account
+      // @ts-expect-error
+      await window.selectedIdentityAPI?.updateKeys?.()
+      // Call the original onSuccess if provided
+      if (opts?.onSuccess) {
+        opts.onSuccess(data, variables, context)
+      }
     },
-    ...opts,
   })
 }
 

@@ -16,13 +16,15 @@ export type AppWindowEvent =
   | {key: 'connectPeer'; connectionUrl: string}
   | {key: 'hypermediaHoverIn'; id: string}
   | {key: 'hypermediaHoverOut'; id: string}
+  | {key: 'selectedIdentityChanged'; selectedIdentity: string | null}
 
 export function useListenAppEvent(
   eventKey:
     | AppWindowSimpleEvent
     | 'connectPeer'
     | 'hypermediaHoverIn'
-    | 'hypermediaHoverOut',
+    | 'hypermediaHoverOut'
+    | 'selectedIdentityChanged',
   handlerFn: (event: AppWindowEvent) => void,
 ) {
   useEffect(() => {

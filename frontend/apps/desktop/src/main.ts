@@ -42,6 +42,7 @@ import {
   openInitialWindows,
   trpc,
 } from './app-api'
+import {initializeSelectedIdentity} from './app-selected-identity'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
@@ -122,6 +123,9 @@ app.on('will-finish-launching', () => {
 
 app.whenReady().then(() => {
   logger.debug('[MAIN]: Seed ready')
+  
+  // Initialize global selected identity
+  initializeSelectedIdentity()
 
   // Check if app was launched after update
   const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')

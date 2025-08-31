@@ -44,6 +44,11 @@ import {
   getFocusedWindow,
   getWindowsState,
 } from './app-windows'
+import {
+  getGlobalSelectedIdentity,
+  setGlobalSelectedIdentity,
+  initializeSelectedIdentity,
+} from './app-selected-identity'
 import * as log from './logger'
 ipcMain.on('invalidate_queries', (_event, info) => {
   appInvalidateQueries(info)
@@ -115,6 +120,20 @@ ipcMain.on('find_in_page_cancel', () => {
   }
 })
 
+// Selected identity IPC handlers
+ipcMain.handle('get-selected-identity', () => {
+  return getGlobalSelectedIdentity()
+})
+
+ipcMain.handle('set-selected-identity', (_event, newIdentity: string | null) => {
+  setGlobalSelectedIdentity(newIdentity)
+})
+
+ipcMain.handle('update-available-keys', async () => {
+  const {updateAvailableKeys} = await import('./app-selected-identity')
+  await updateAvailableKeys()
+})
+
 // duplicated logic with app-windows
 // nativeTheme.addListener('updated', () => {
 //   if (getAppTheme() === 'system') {
@@ -147,7 +166,6 @@ export function openInitialWindows() {
       trpc.createAppWindow({
         routes: window.routes,
         routeIndex: window.routeIndex,
-        selectedIdentity: window.selectedIdentity,
         sidebarLocked: window.sidebarLocked,
         sidebarWidth: window.sidebarWidth,
         bounds: window.bounds,
@@ -262,7 +280,6 @@ export const router = t.router({
           })
           .or(z.null())
           .optional(),
-        selectedIdentity: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({input}) => {
