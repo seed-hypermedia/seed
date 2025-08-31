@@ -6,11 +6,28 @@ export function getNavigationChanges(
   navigation: HMNavigationItem[] | undefined,
   oldNavigationBlockNode: HMBlockNode | null | undefined,
 ) {
+  console.log('🔍 DEBUG: getNavigationChanges called with:', {
+    navigationProvided: !!navigation,
+    navigationLength: navigation?.length || 0,
+    navigationItems: navigation,
+    oldNavigationBlockProvided: !!oldNavigationBlockNode,
+    oldNavigationBlock: oldNavigationBlockNode
+  })
+
   const ops: DocumentChange[] = []
+
+  // Special case: If navigation is undefined but there's existing navigation,
+  // it means no navigation changes were intended, so preserve existing navigation
+  if (navigation === undefined && oldNavigationBlockNode) {
+    console.log('🔍 DEBUG: No navigation changes intended, preserving existing navigation')
+    return ops
+  }
 
   // Case 1: No old navigation block exists
   if (!oldNavigationBlockNode) {
+    console.log('🔍 DEBUG: Case 1 - No old navigation block exists')
     if (navigation !== undefined) {
+      console.log('🔍 DEBUG: Creating new navigation with items:', navigation)
       // Create navigation group
       ops.push(
         new DocumentChange({
@@ -47,18 +64,30 @@ export function getNavigationChanges(
         )
         leftSibling = item.id
       })
+    } else {
+      console.log('🔍 DEBUG: No navigation provided, no changes generated')
     }
+    console.log('🔍 DEBUG: Case 1 returning', ops.length, 'operations')
     return ops
   }
 
   // Case 2: Update existing navigation
+  console.log('🔍 DEBUG: Case 2 - Update existing navigation')
   const oldChildren = oldNavigationBlockNode.children || []
   const newItems = navigation || []
+
+  console.log('🔍 DEBUG: Comparing old vs new navigation:', {
+    oldChildrenCount: oldChildren.length,
+    oldChildren: oldChildren.map(c => ({ id: c.block.id, type: c.block.type })),
+    newItemsCount: newItems.length,
+    newItems: newItems
+  })
 
   // Delete items that no longer exist
   const newItemIds = new Set(newItems.map((item) => item.id))
   oldChildren.forEach((child) => {
     if (!newItemIds.has(child.block.id)) {
+      console.log('🔍 DEBUG: Deleting navigation item:', child.block.id)
       ops.push(
         new DocumentChange({
           op: {case: 'deleteBlock', value: child.block.id},
@@ -100,5 +129,6 @@ export function getNavigationChanges(
     leftSibling = item.id
   })
 
+  console.log('🔍 DEBUG: Case 2 returning', ops.length, 'operations')
   return ops
 }
