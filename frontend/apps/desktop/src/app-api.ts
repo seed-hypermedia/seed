@@ -125,9 +125,12 @@ ipcMain.handle('get-selected-identity', () => {
   return getGlobalSelectedIdentity()
 })
 
-ipcMain.handle('set-selected-identity', (_event, newIdentity: string | null) => {
-  setGlobalSelectedIdentity(newIdentity)
-})
+ipcMain.handle(
+  'set-selected-identity',
+  (_event, newIdentity: string | null) => {
+    setGlobalSelectedIdentity(newIdentity)
+  },
+)
 
 ipcMain.handle('update-available-keys', async () => {
   const {updateAvailableKeys} = await import('./app-selected-identity')

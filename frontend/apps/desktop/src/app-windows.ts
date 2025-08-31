@@ -225,7 +225,6 @@ export function dispatchAllWindowsAppEvent(event: AppWindowEvent) {
   })
 }
 
-
 export function createAppWindow(
   input: Partial<AppWindow> & {id?: string},
 ): BrowserWindow {

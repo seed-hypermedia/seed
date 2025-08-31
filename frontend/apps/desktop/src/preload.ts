@@ -177,7 +177,8 @@ ipcRenderer.addListener('appWindowEvent', (info, event) => {
 // Expose selected identity API
 contextBridge.exposeInMainWorld('selectedIdentityAPI', {
   get: () => ipcRenderer.invoke('get-selected-identity'),
-  set: (newIdentity: string | null) => ipcRenderer.invoke('set-selected-identity', newIdentity),
+  set: (newIdentity: string | null) =>
+    ipcRenderer.invoke('set-selected-identity', newIdentity),
   updateKeys: () => ipcRenderer.invoke('update-available-keys'),
 })
 

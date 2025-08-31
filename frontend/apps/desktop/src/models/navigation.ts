@@ -11,7 +11,7 @@ export function getNavigationChanges(
     navigationLength: navigation?.length || 0,
     navigationItems: navigation,
     oldNavigationBlockProvided: !!oldNavigationBlockNode,
-    oldNavigationBlock: oldNavigationBlockNode
+    oldNavigationBlock: oldNavigationBlockNode,
   })
 
   const ops: DocumentChange[] = []
@@ -19,7 +19,9 @@ export function getNavigationChanges(
   // Special case: If navigation is undefined but there's existing navigation,
   // it means no navigation changes were intended, so preserve existing navigation
   if (navigation === undefined && oldNavigationBlockNode) {
-    console.log('🔍 DEBUG: No navigation changes intended, preserving existing navigation')
+    console.log(
+      '🔍 DEBUG: No navigation changes intended, preserving existing navigation',
+    )
     return ops
   }
 
@@ -78,9 +80,9 @@ export function getNavigationChanges(
 
   console.log('🔍 DEBUG: Comparing old vs new navigation:', {
     oldChildrenCount: oldChildren.length,
-    oldChildren: oldChildren.map(c => ({ id: c.block.id, type: c.block.type })),
+    oldChildren: oldChildren.map((c) => ({id: c.block.id, type: c.block.type})),
     newItemsCount: newItems.length,
-    newItems: newItems
+    newItems: newItems,
   })
 
   // Delete items that no longer exist

@@ -42,11 +42,11 @@ import {
   openInitialWindows,
   trpc,
 } from './app-api'
-import {initializeSelectedIdentity} from './app-selected-identity'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
+import {initializeSelectedIdentity} from './app-selected-identity'
 import {deleteWindowsState, getFocusedWindow} from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
@@ -123,7 +123,7 @@ app.on('will-finish-launching', () => {
 
 app.whenReady().then(() => {
   logger.debug('[MAIN]: Seed ready')
-  
+
   // Initialize global selected identity
   initializeSelectedIdentity()
 

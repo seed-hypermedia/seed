@@ -181,21 +181,21 @@ export function useDeleteKey(
       const keys = await grpcClient.daemon.listKeys({})
       const keyToDelete = keys.keys.find((key) => accountId == key.publicKey)
       if (!keyToDelete) throw new Error('Key not found')
-      
+
       // Store the accountId that's being deleted for use in onSuccess
       const deletedAccountId = keyToDelete.accountId || keyToDelete.publicKey
-      
+
       const deletedKey = await grpcClient.daemon.deleteKey({
         name: keyToDelete.name,
       })
       await deleteWords.mutateAsync(keyToDelete.name)
-      
+
       // Return both the deleted key and the account ID
-      return { deletedKey, deletedAccountId }
+      return {deletedKey, deletedAccountId}
     },
     onSuccess: async (data, variables, context) => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-      
+
       // Check if the deleted account was the selected one
       // @ts-expect-error
       const currentSelectedId = await window.selectedIdentityAPI?.get?.()
@@ -210,7 +210,7 @@ export function useDeleteKey(
         // @ts-expect-error
         await window.selectedIdentityAPI?.updateKeys?.()
       }
-      
+
       // Call the original onSuccess if provided
       if (opts?.onSuccess) {
         opts.onSuccess(data.deletedKey, variables, context)

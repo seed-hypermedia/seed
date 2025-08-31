@@ -15,12 +15,12 @@ let availableKeys: string[] = []
 // Initialize from storage on app start and verify it exists
 export async function initializeSelectedIdentity() {
   const storedIdentity = (appStore.get(SELECTED_IDENTITY_KEY) as string) || null
-  
+
   // Fetch available keys
   try {
     const keysResponse = await grpcClient.daemon.listKeys({})
-    availableKeys = keysResponse.keys.map(key => key.accountId)
-    
+    availableKeys = keysResponse.keys.map((key) => key.accountId)
+
     if (availableKeys.length === 0) {
       // No accounts available
       globalSelectedIdentity = null
@@ -59,7 +59,7 @@ export function setGlobalSelectedIdentity(newIdentity: string | null) {
   }
 
   globalSelectedIdentity = newIdentity
-  
+
   // Persist to storage
   if (newIdentity) {
     appStore.set(SELECTED_IDENTITY_KEY, newIdentity)
@@ -79,17 +79,18 @@ export function setGlobalSelectedIdentity(newIdentity: string | null) {
 }
 
 // Update available keys and auto-select if needed
-export async function updateAvailableKeys(options?: { forceSelect?: string }) {
+export async function updateAvailableKeys(options?: {forceSelect?: string}) {
   try {
     const keysResponse = await grpcClient.daemon.listKeys({})
-    const newKeys = keysResponse.keys.map(key => key.accountId)
-    
+    const newKeys = keysResponse.keys.map((key) => key.accountId)
+
     // Check if keys have changed
-    const keysChanged = newKeys.length !== availableKeys.length || 
-      !newKeys.every(key => availableKeys.includes(key))
-    
+    const keysChanged =
+      newKeys.length !== availableKeys.length ||
+      !newKeys.every((key) => availableKeys.includes(key))
+
     availableKeys = newKeys
-    
+
     // If a specific account should be selected (e.g., from onboarding)
     if (options?.forceSelect && newKeys.includes(options.forceSelect)) {
       setGlobalSelectedIdentity(options.forceSelect)
@@ -98,12 +99,15 @@ export async function updateAvailableKeys(options?: { forceSelect?: string }) {
       })
       return
     }
-    
+
     if (keysChanged) {
       if (newKeys.length === 0) {
         // No accounts available anymore
         setGlobalSelectedIdentity(null)
-      } else if (globalSelectedIdentity && !newKeys.includes(globalSelectedIdentity)) {
+      } else if (
+        globalSelectedIdentity &&
+        !newKeys.includes(globalSelectedIdentity)
+      ) {
         // Current selection is no longer valid, select first available
         setGlobalSelectedIdentity(newKeys[0])
         log.info('Current identity no longer available, auto-selected first', {

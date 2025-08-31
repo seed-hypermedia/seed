@@ -215,12 +215,17 @@ export function usePublishDraft(
 
       console.log('🔍 DEBUG: Navigation changes generated:', {
         changesCount: navigationChanges.length,
-        changes: navigationChanges.map(change => ({
+        changes: navigationChanges.map((change) => ({
           op: change.op.case,
-          blockId: change.op.case === 'replaceBlock' ? change.op.value.id : 
-                  change.op.case === 'moveBlock' ? change.op.value.blockId :
-                  change.op.case === 'deleteBlock' ? change.op.value : 'unknown'
-        }))
+          blockId:
+            change.op.case === 'replaceBlock'
+              ? change.op.value.id
+              : change.op.case === 'moveBlock'
+              ? change.op.value.blockId
+              : change.op.case === 'deleteBlock'
+              ? change.op.value
+              : 'unknown',
+        })),
       })
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)

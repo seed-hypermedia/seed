@@ -41,29 +41,31 @@ export function NavigationContainer({
   initialNav?: NavState
 }) {
   const {externalOpen} = useAppContext()
-  
+
   // Use global selected identity from main process
-  const [selectedIdentity, setSelectedIdentityState] = useState<string | null>(null)
-  
+  const [selectedIdentity, setSelectedIdentityState] = useState<string | null>(
+    null,
+  )
+
   // Load initial selected identity
   useEffect(() => {
     // @ts-expect-error
     window.selectedIdentityAPI?.get().then(setSelectedIdentityState)
   }, [])
-  
+
   // Listen for selected identity changes from other windows
   useListenAppEvent('selectedIdentityChanged', (event) => {
     if (typeof event === 'object' && 'selectedIdentity' in event) {
       setSelectedIdentityState(event.selectedIdentity)
     }
   })
-  
+
   // Function to update selected identity globally
   const setSelectedIdentity = useCallback((newIdentity: string | null) => {
     // @ts-expect-error
     window.selectedIdentityAPI?.set(newIdentity)
   }, [])
-  
+
   // Create selectedIdentity stream for compatibility
   const selectedIdentityStream = useMemo(() => {
     const [update, stream] = writeableStateStream(selectedIdentity)
@@ -71,7 +73,7 @@ export function NavigationContainer({
     update(selectedIdentity)
     return stream
   }, [selectedIdentity])
-  
+
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
 
