@@ -221,31 +221,31 @@ function BreadcrumbTitle({
   function updateWidths() {
     const containerWidth = widthInfo.current.container
     if (!containerWidth) return
-    
+
     // 83 is the measured width of the controls like favorite, copy link, options dropdown.
     const availableContainerWidth = containerWidth - 83
     const spacerWidth = 15
     const ellipsisWidth = 20
-    
+
     if (crumbDetails.length === 0) return
-    
+
     // Calculate total width needed
     const crumbWidths: number[] = crumbDetails.map((details) => {
       return (details && widthInfo.current[details.crumbKey]) || 0
     })
-    
+
     const separatorCount = crumbDetails.length - 1
     const totalSeparatorWidth = separatorCount * spacerWidth
     const totalCrumbWidth = crumbWidths.reduce((acc, w) => acc + w, 0)
     const totalNeededWidth = totalCrumbWidth + totalSeparatorWidth
-    
+
     // If everything fits, no constraints needed
     if (totalNeededWidth <= availableContainerWidth) {
       setCollapsedCount(0)
       setItemMaxWidths({})
       return
     }
-    
+
     // Try the original collapsing logic first
     const firstCrumbKey = crumbDetails[0]?.crumbKey
     const lastCrumbKey = crumbDetails.at(-1)?.crumbKey
@@ -254,44 +254,49 @@ function BreadcrumbTitle({
       setItemMaxWidths({})
       return
     }
-    
+
     const firstItemWidth = widthInfo.current[firstCrumbKey] || 0
     const lastItemWidth = widthInfo.current[lastCrumbKey] || 0
     const fixedItemWidth = firstItemWidth + lastItemWidth + spacerWidth
-    
+
     const middleCrumbWidths = crumbWidths.slice(1, -1)
-    let usableWidth = middleCrumbWidths.reduce((acc, w) => acc + w + spacerWidth, 0)
-    
+    let usableWidth = middleCrumbWidths.reduce(
+      (acc, w) => acc + w + spacerWidth,
+      0,
+    )
+
     const maxCollapseCount = crumbDetails.length - 2
     let newCollapseCount = 0
-    
+
     while (
-      usableWidth + fixedItemWidth + (newCollapseCount ? spacerWidth + ellipsisWidth : 0) >
+      usableWidth +
+        fixedItemWidth +
+        (newCollapseCount ? spacerWidth + ellipsisWidth : 0) >
         availableContainerWidth &&
       newCollapseCount < maxCollapseCount
     ) {
       usableWidth -= (middleCrumbWidths[newCollapseCount] || 0) + spacerWidth
       newCollapseCount++
     }
-    
+
     // Apply max-width constraints to non-last items if still overflowing
     const newMaxWidths: Record<string, number> = {}
-    const finalLayoutWidth = 
-      firstItemWidth + 
-      lastItemWidth + 
+    const finalLayoutWidth =
+      firstItemWidth +
+      lastItemWidth +
       (newCollapseCount > 0 ? ellipsisWidth + spacerWidth * 2 : spacerWidth) +
       usableWidth
-    
+
     if (finalLayoutWidth > availableContainerWidth) {
       const overflow = finalLayoutWidth - availableContainerWidth
       const visibleNonLastItems = [firstCrumbKey]
-      
+
       // Add visible middle items
       for (let i = newCollapseCount + 1; i < crumbDetails.length - 1; i++) {
         const key = crumbDetails[i]?.crumbKey
         if (key) visibleNonLastItems.push(key)
       }
-      
+
       if (visibleNonLastItems.length > 0) {
         const reductionPerItem = overflow / visibleNonLastItems.length
         visibleNonLastItems.forEach((key) => {
@@ -301,7 +306,7 @@ function BreadcrumbTitle({
         })
       }
     }
-    
+
     setCollapsedCount(newCollapseCount)
     setItemMaxWidths(newMaxWidths)
   }
@@ -387,8 +392,11 @@ function BreadcrumbTitle({
   if (isAllError || !displayItems.length) return null
 
   return (
-    <div ref={containerObserverRef} className="flex items-center gap-2 overflow-hidden">
-      <div className="flex h-full flex-1 min-w-0 items-center gap-2 overflow-hidden">
+    <div
+      ref={containerObserverRef}
+      className="flex items-center gap-2 overflow-hidden"
+    >
+      <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
@@ -596,17 +604,14 @@ function BreadcrumbItem({
   }
   if (!details?.name) return null
 
-  const textStyle = maxWidth ? { maxWidth: `${maxWidth}px` } : {}
-  
+  const textStyle = maxWidth ? {maxWidth: `${maxWidth}px`} : {}
+
   let content = isActive ? (
-    <div 
-      className="flex items-center gap-2 overflow-hidden min-w-0 max-w-full"
+    <div
+      className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden"
       style={textStyle}
     >
-      <TitleText 
-        fontWeight="bold" 
-        className={cn('truncate flex-1 min-w-0')}
-      >
+      <TitleText className={cn('min-w-0 flex-1 truncate font-bold')}>
         {details.name}
       </TitleText>
       {draft ? <DraftBadge className="flex-shrink-0" /> : null}
@@ -617,17 +622,14 @@ function BreadcrumbItem({
       onClick={() => {
         if (details.id) navigate({key: 'document', id: details.id})
       }}
-      className={cn(
-        'no-window-drag font-normal',
-        maxWidth ? 'truncate' : ''
-      )}
+      className={cn('no-window-drag font-normal', maxWidth ? 'truncate' : '')}
       style={textStyle}
     >
       {details.name}
     </TitleTextButton>
   )
   return (
-    <div className={cn("no-window-drag", isActive ? "flex-1 min-w-0" : "")}>
+    <div className={cn('no-window-drag', isActive ? 'min-w-0 flex-1' : '')}>
       <HoverCard>
         <HoverCardTrigger>{content}</HoverCardTrigger>
         {draft ? null : (

@@ -58,7 +58,7 @@ export const TitleText = (props) => (
   <SizableText
     name="TitlebarH1"
     size="sm"
-    className={titleTextClasses}
+    className={cn(titleTextClasses, props.className)}
     {...props}
   />
 )
