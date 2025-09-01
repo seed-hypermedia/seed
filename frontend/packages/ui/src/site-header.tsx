@@ -201,7 +201,6 @@ export function SiteHeader({
                 {items?.map((item) => {
                   // Skip items without id or draftId to prevent routing errors
                   if (!item.id && !item.draftId) return null
-                  
                   return (
                     <DocumentSmallListItem
                       onClick={() => {
@@ -257,7 +256,6 @@ function NavItems({
         ? items.map((doc) => {
             // Skip items without id or draftId to prevent routing errors
             if (!doc.id && !doc.draftId) return null
-            
             return (
               <DocumentSmallListItem
                 onClick={onClick}

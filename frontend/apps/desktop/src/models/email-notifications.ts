@@ -6,7 +6,6 @@ import {base58btc} from 'multiformats/bases/base58'
 import type {
   EmailNotifierAccountState,
   EmailNotifierAction,
-  // @ts-expect-error
 } from '../../../web/app/routes/hm.api.email-notifier.$.tsx'
 import {useGatewayUrl} from './gateway-settings'
 
@@ -22,33 +21,45 @@ export function createNotifierRequester(gatewayUrl: string | undefined) {
     accountUid: string,
     action: Omit<EmailNotifierAction, 'sig'>,
   ) {
-    if (!gatewayUrl || !accountUid) return null
-    const cborData = cborEncode(action)
-    const signResponse = await grpcClient.daemon.signData({
-      signingKeyName: accountUid,
-      // @ts-expect-error
-      data: cborData,
-    })
-    const signedPayload = {...action, sig: signResponse.signature}
-    const response = await fetch(
-      `${gatewayUrl}/hm/api/email-notifier/${accountUid}`,
-      {
-        method: 'POST',
-        body: cborEncode(signedPayload),
-        headers: {
-          'Content-Type': 'application/cbor',
+    try {
+      if (!gatewayUrl || !accountUid) return null
+
+      const cborData = cborEncode(action)
+      const signResponse = await grpcClient.daemon.signData({
+        signingKeyName: accountUid,
+        // @ts-expect-error
+        data: cborData,
+      })
+
+      const signedPayload = {...action, sig: signResponse.signature}
+      const response = await fetch(
+        `${gatewayUrl}/hm/api/email-notifier/${accountUid}`,
+        {
+          method: 'POST',
+          body: cborEncode(signedPayload),
+          headers: {
+            'Content-Type': 'application/cbor',
+          },
         },
-      },
-    )
-    if (!response.ok) {
-      try {
-        const error = await response.json()
-        throw new Error('Error fetching email notifications: ' + error.error)
-      } catch (e) {
-        throw new Error('Failed to fetch email notifications')
+      )
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to fetch email notifications'
+        try {
+          const error = await response.json()
+          errorMessage = 'Error fetching email notifications: ' + error.error
+        } catch {
+          // Use default error message if response parsing fails
+        }
+        console.warn('Email notification request failed:', errorMessage)
+        return null // Return null instead of throwing
       }
+
+      return response.json()
+    } catch (error) {
+      console.warn('Email notification request error:', error)
+      return null // Return null instead of throwing
     }
-    return response.json()
   }
   return notifierRequest
 }
@@ -107,8 +118,15 @@ export function useEmailNotifications(accountUid: string) {
   const emailNotifs = useQuery({
     queryKey: ['email-notifications', accountUid],
     queryFn: async () => {
-      return await getNotifs()
+      try {
+        return await getNotifs()
+      } catch (error) {
+        console.warn('Failed to get email notifications:', error)
+        return null
+      }
     },
+    retry: 1, // Only retry once to avoid excessive requests
+    retryDelay: 1000, // Wait 1 second before retry
   })
   return emailNotifs
 }
@@ -117,7 +135,16 @@ export function useSetEmailNotifications(accountUid: string) {
   const {setNotifs} = useEmailNotifierRequest(accountUid)
   const setEmailNotifs = useMutation({
     mutationFn: async (input: SetEmailNotificationsInput) => {
-      return await setNotifs(input)
+      try {
+        const result = await setNotifs(input)
+        if (result === null) {
+          throw new Error('Failed to update email notification settings')
+        }
+        return result
+      } catch (error) {
+        console.warn('Failed to set email notifications:', error)
+        throw error // Re-throw so the UI can handle it
+      }
     },
     onSuccess: () => {
       invalidateQueries(['email-notifications', accountUid])

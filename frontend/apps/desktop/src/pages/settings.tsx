@@ -675,9 +675,33 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
     emailNotifs.data?.account &&
     !emailNotifs.data.account.notifyAllMentions &&
     !emailNotifs.data.account.notifyAllReplies
+
+  const isLoading = emailNotifs.isLoading
+  const hasError = emailNotifs.isError && !emailNotifs.data
+  const hasAccount = emailNotifs.data?.account
+
   return (
     <SettingsSection title="Email Notifications">
-      {emailNotifs.data?.account ? (
+      {isLoading ? (
+        <div className="flex items-center gap-3">
+          <Spinner size="small" />
+          <SizableText className="text-muted-foreground">
+            Loading notification settings...
+          </SizableText>
+        </div>
+      ) : hasError ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <X className="text-destructive size-6" />
+            <SizableText className="text-destructive">
+              Unable to load email notification settings
+            </SizableText>
+          </div>
+          <SizableText className="text-muted-foreground text-sm">
+            This may be due to network issues or gateway configuration problems.
+          </SizableText>
+        </div>
+      ) : hasAccount ? (
         <div className="flex flex-col gap-3">
           <SizableText>
             Recipient Email:{' '}
@@ -706,10 +730,17 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
             </div>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <div className="flex items-center gap-3">
+          <SizableText className="text-muted-foreground">
+            No email notification settings configured
+          </SizableText>
+        </div>
+      )}
       <div className="flex">
         <Button
           size="sm"
+          disabled={isLoading || hasError}
           onClick={() =>
             notifSettingsDialog.open({
               accountUid,
@@ -1501,7 +1532,10 @@ function AppSettings() {
 
 const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
-    <TabsContent className="flex flex-1 flex-col gap-3" {...props}>
+    <TabsContent
+      className="flex flex-1 flex-col gap-3 overflow-hidden"
+      {...props}
+    >
       <ScrollArea>
         <div className="flex flex-1 flex-col gap-4 p-4 pb-5">
           {props.children}
