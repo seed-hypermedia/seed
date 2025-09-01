@@ -2009,7 +2009,7 @@ export function BlockContentFile({block}: BlockContentProps) {
     >
       <div className="relative flex w-full flex-1 items-center gap-2">
         <File size={18} className="flex-0" />
-        <SizableText className="flex-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap select-text">
+        <SizableText className="flex-1 truncate overflow-hidden text-sm whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (

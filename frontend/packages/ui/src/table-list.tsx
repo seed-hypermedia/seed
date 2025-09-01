@@ -131,7 +131,7 @@ export function InfoListItem({
           <SizableText
             key={index}
             size="xs"
-            className="block w-full overflow-hidden font-mono text-ellipsis whitespace-nowrap select-text"
+            className="block w-full truncate overflow-hidden font-mono whitespace-nowrap select-text"
           >
             {value}
           </SizableText>

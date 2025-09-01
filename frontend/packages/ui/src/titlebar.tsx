@@ -52,7 +52,7 @@ export const TitlebarSection = ({
 )
 
 const titleTextClasses =
-  'text-foreground m-0 max-w-full cursor-default overflow-hidden rounded-sm text-sm font-bold text-ellipsis whitespace-nowrap normal-case select-none hover:underline hover:decoration-current'
+  'text-foreground m-0 max-w-full cursor-default w-full rounded-sm text-sm font-bold truncate whitespace-nowrap normal-case select-none hover:underline hover:decoration-current truncate'
 
 export const TitleText = (props) => (
   <SizableText

@@ -15,7 +15,7 @@ export function TitlebarTitleSearch() {
     setShowLauncher(true)
   })
   return (
-    <div className="border-border relative flex w-full items-center gap-2">
+    <div className="border-border relative flex w-full items-center gap-2 overflow-hidden">
       <Button
         variant="ghost"
         size="icon"
