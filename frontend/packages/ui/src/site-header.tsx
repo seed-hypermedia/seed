@@ -198,18 +198,23 @@ export function SiteHeader({
               />
 
               <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
-                {items?.map((item) => (
-                  <DocumentSmallListItem
-                    onClick={() => {
-                      setIsMobileMenuOpen(false)
-                    }}
-                    key={item.id?.id || ''}
-                    id={item.id}
-                    metadata={item.metadata}
-                    draftId={item.draftId}
-                    isPublished={item.isPublished}
-                  />
-                ))}
+                {items?.map((item) => {
+                  // Skip items without id or draftId to prevent routing errors
+                  if (!item.id && !item.draftId) return null
+                  
+                  return (
+                    <DocumentSmallListItem
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                      }}
+                      key={item.id?.id || item.draftId || ''}
+                      id={item.id}
+                      metadata={item.metadata}
+                      draftId={item.draftId}
+                      isPublished={item.isPublished}
+                    />
+                  )
+                })}
               </div>
 
               {docId && document && !isHomeDoc && (
@@ -249,17 +254,22 @@ function NavItems({
   return (
     <div className="flex flex-col gap-2.5 px-2">
       {items
-        ? items.map((doc) => (
-            <DocumentSmallListItem
-              onClick={onClick}
-              key={doc.id?.id || ''}
-              metadata={doc.metadata}
-              id={doc.id}
-              indented={0}
-              draftId={doc.draftId}
-              isPublished={doc.isPublished}
-            />
-          ))
+        ? items.map((doc) => {
+            // Skip items without id or draftId to prevent routing errors
+            if (!doc.id && !doc.draftId) return null
+            
+            return (
+              <DocumentSmallListItem
+                onClick={onClick}
+                key={doc.id?.id || doc.draftId || ''}
+                metadata={doc.metadata}
+                id={doc.id}
+                indented={0}
+                draftId={doc.draftId}
+                isPublished={doc.isPublished}
+              />
+            )
+          })
         : null}
     </div>
   )
