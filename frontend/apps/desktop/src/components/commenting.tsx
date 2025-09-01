@@ -252,16 +252,14 @@ function _CommentDraftEditor({
     setIsHorizontal(rect.width > 322)
   })
 
-  const {editor, onSubmit, onDiscard, isSaved, account} = useCommentEditor(
-    docId,
-    {
+  const {editor, onSubmit, onDiscard, isSaved, account, isSubmitting} =
+    useCommentEditor(docId, {
       onDiscardDraft,
       commentId,
       initCommentDraft,
       onSuccess,
       quotingBlockId,
-    },
-  )
+    })
   const openUrl = useOpenUrl()
   useEffect(() => {
     if (autoFocus) {
@@ -324,10 +322,11 @@ function _CommentDraftEditor({
               className="w-full flex-1"
               size="icon"
               onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                if (isSubmitting) return
                 e.stopPropagation()
                 onSubmit()
               }}
-              disabled={!isSaved.get()}
+              disabled={!isSaved.get() || isSubmitting}
             >
               <SendHorizonal className="size-4" />
             </Button>

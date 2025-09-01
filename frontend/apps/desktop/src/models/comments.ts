@@ -35,7 +35,7 @@ import {toast} from '@shm/ui/toast'
 import {UseQueryOptions, useMutation, useQuery} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -378,6 +378,7 @@ export function useCommentEditor(
       return resultComment
     },
     onSuccess: (newComment: HMComment) => {
+      setIsSubmitting(false)
       invalidateQueries([
         queryKeys.DOCUMENT_DISCUSSION,
         targetDocId.uid,
@@ -401,9 +402,12 @@ export function useCommentEditor(
       onSuccess?.({id: newComment.id})
     },
     onError: (err: {message: string}) => {
+      setIsSubmitting(false)
       toast.error(`Failed to create comment: ${err.message}`)
     },
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   return useMemo(() => {
     function onSubmit() {
       if (!targetDocId.id) throw new Error('no targetDocId.id')
@@ -422,6 +426,7 @@ export function useCommentEditor(
       //     return false
       //   return true
       // })
+      setIsSubmitting(true)
       publishComment.mutate({
         content,
         signingKeyName: selectedAccount?.id.uid!,
@@ -441,6 +446,7 @@ export function useCommentEditor(
       onDiscard,
       isSaved,
       account: selectedAccount,
+      isSubmitting,
     }
   }, [targetDocId, selectedAccount?.id.uid])
 }

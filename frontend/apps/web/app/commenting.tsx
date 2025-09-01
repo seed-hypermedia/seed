@@ -181,6 +181,8 @@ export function LocalWebCommenting({
     })
   }
 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const handleSubmit = async (
     getContent: (
       prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -193,6 +195,8 @@ export function LocalWebCommenting({
     }>,
     reset: () => void,
   ) => {
+    if (isSubmitting) return // Prevent double submission
+
     if (!userKeyPair) {
       createAccount()
       return
@@ -202,22 +206,27 @@ export function LocalWebCommenting({
       return
     }
 
-    const commentPayload = await prepareComment(
-      getContent,
-      {
-        docId,
-        docVersion,
-        keyPair: userKeyPair,
-        replyCommentVersion,
-        rootReplyCommentVersion,
-        quotingBlockId,
-      },
-      commentingOriginUrl,
-    )
-    await postComment.mutateAsync(commentPayload)
-    reset()
-    onDiscardDraft?.()
-    await promptEmailNotifications()
+    try {
+      setIsSubmitting(true)
+      const commentPayload = await prepareComment(
+        getContent,
+        {
+          docId,
+          docVersion,
+          keyPair: userKeyPair,
+          replyCommentVersion,
+          rootReplyCommentVersion,
+          quotingBlockId,
+        },
+        commentingOriginUrl,
+      )
+      await postComment.mutateAsync(commentPayload)
+      reset()
+      onDiscardDraft?.()
+      await promptEmailNotifications()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -256,7 +265,10 @@ export function LocalWebCommenting({
                 )}
               >
                 <button
-                  className={`plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700`}
+                  disabled={isSubmitting}
+                  className={`plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700 ${
+                    isSubmitting ? 'cursor-not-allowed opacity-50' : ''
+                  }`}
                   onClick={() => handleSubmit(getContent, reset)}
                 >
                   <SendHorizontal size={20} />
