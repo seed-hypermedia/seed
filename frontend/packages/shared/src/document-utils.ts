@@ -18,23 +18,40 @@ const REQUIRES_LINK_TYPES = new Set([
   'Button',
 ])
 
-function sanitizeBlockNode(node: any): any | null {
+function sanitizeBlockNode(node: any, isNavigationChild: boolean = false): any | null {
   if (!node || typeof node !== 'object') return null
   const block = node.block
   if (!block || typeof block !== 'object') return null
 
   const type = block.type
+  let sanitizedBlock = block
 
   if (REQUIRES_LINK_TYPES.has(type)) {
-    if (typeof block.link !== 'string') return null
-    if (type === 'Link' && typeof block.text !== 'string') block.text = ''
+    // Special handling for navigation Link blocks - provide defaults instead of dropping
+    if (type === 'Link' && isNavigationChild) {
+      if (typeof block.link !== 'string' || typeof block.text !== 'string') {
+        sanitizedBlock = {
+          ...block,
+          link: typeof block.link === 'string' ? block.link : '',
+          text: typeof block.text === 'string' ? block.text : '',
+        }
+      }
+    } else {
+      // For non-navigation blocks, require link field
+      if (typeof block.link !== 'string') return null
+      if (type === 'Link' && typeof block.text !== 'string') {
+        // Create a new block object with the text field added
+        sanitizedBlock = {...block, text: ''}
+      }
+    }
   }
 
   const children = Array.isArray(node.children) ? node.children : []
-  const sanitizedChildren = sanitizeBlockNodes(children)
+  const sanitizedChildren = sanitizeBlockNodes(children, isNavigationChild)
 
   return {
     ...node,
+    block: sanitizedBlock,
     ...(sanitizedChildren.length ? {children: sanitizedChildren} : {}),
   }
 }
@@ -50,7 +67,8 @@ function sanitizeDocumentStructure(docJSON: any) {
     detachedBlocks: Object.fromEntries(
       Object.entries(detachedBlocks).map(([key, blockNode]) => [
         key,
-        sanitizeBlockNode(blockNode),
+        // Pass true for isNavigationChild when processing navigation block's children
+        sanitizeBlockNode(blockNode, key === 'navigation'),
       ]),
     ),
   }
@@ -58,12 +76,12 @@ function sanitizeDocumentStructure(docJSON: any) {
   return next
 }
 
-function sanitizeBlockNodes(nodes: any[]): any[] {
+function sanitizeBlockNodes(nodes: any[], isNavigationChild: boolean = false): any[] {
   if (!Array.isArray(nodes)) return []
 
   const sanitizeNode = (node: any): any | null => {
     if (!node || typeof node !== 'object') return null
-    const block = node.block
+    let block = node.block
     if (!block || typeof block !== 'object') return null
 
     const type = block.type
@@ -81,46 +99,76 @@ function sanitizeBlockNodes(nodes: any[]): any[] {
     ])
 
     if (requiresLinkTypes.has(type)) {
-      if (typeof block.link !== 'string') {
-        return null
-      }
-      // Ensure required text for Link exists at least as empty string
-      if (type === 'Link' && typeof block.text !== 'string') {
-        block.text = ''
+      // Special handling for navigation Link blocks - provide defaults instead of dropping
+      if (type === 'Link' && isNavigationChild) {
+        if (typeof block.link !== 'string' || typeof block.text !== 'string') {
+          block = {
+            ...block,
+            link: typeof block.link === 'string' ? block.link : '',
+            text: typeof block.text === 'string' ? block.text : '',
+          }
+        }
+      } else {
+        // For non-navigation blocks, require link field
+        if (typeof block.link !== 'string') {
+          return null
+        }
+        // Ensure required text for Link exists at least as empty string
+        if (type === 'Link' && typeof block.text !== 'string') {
+          block = {...block, text: ''}
+        }
       }
     }
 
     // Sanitize annotations to ensure link annotations have the link field
     if (Array.isArray(block.annotations)) {
-      block.annotations = block.annotations.filter((annotation: any) => {
-        if (!annotation || typeof annotation !== 'object') return false
+      const sanitizedAnnotations = block.annotations
+        .map((annotation: any) => {
+          if (!annotation || typeof annotation !== 'object') return null
 
-        // If it's a Link or Embed annotation, ensure it has a link field
-        if (annotation.type === 'Link' || annotation.type === 'Embed') {
-          if (typeof annotation.link !== 'string') {
-            // For Link annotations, we can set an empty string as a fallback
-            if (annotation.type === 'Link') {
-              annotation.link = ''
-              return true
+          // If it's a Link or Embed annotation, ensure it has a link field
+          if (annotation.type === 'Link' || annotation.type === 'Embed') {
+            if (typeof annotation.link !== 'string') {
+              // For Link annotations, we can set an empty string as a fallback
+              if (annotation.type === 'Link') {
+                return {...annotation, link: ''}
+              }
+              // For Embed annotations, the link is required, so filter it out
+              return null
             }
-            // For Embed annotations, the link is required, so filter it out
-            return false
           }
-        }
-        return true
-      })
+          return annotation
+        })
+        .filter((a: any) => a !== null)
+
+      // Only create a new block if annotations changed
+      if (
+        sanitizedAnnotations.length !== block.annotations.length ||
+        sanitizedAnnotations.some(
+          (a: any, i: number) => a !== block.annotations[i],
+        )
+      ) {
+        block = {...block, annotations: sanitizedAnnotations}
+      }
     }
 
     // Recurse into children
     const children = Array.isArray(node.children) ? node.children : []
-    const newChildren = sanitizeBlockNodes(children)
+    const newChildren = sanitizeBlockNodes(children, isNavigationChild)
 
-    return newChildren === children
-      ? node
-      : {
-          ...node,
-          children: newChildren,
-        }
+    // Return updated node with potentially modified block and children
+    const hasBlockChanges = block !== node.block
+    const hasChildrenChanges = newChildren !== children
+
+    if (!hasBlockChanges && !hasChildrenChanges) {
+      return node
+    }
+
+    return {
+      ...node,
+      ...(hasBlockChanges ? {block} : {}),
+      ...(hasChildrenChanges ? {children: newChildren} : {}),
+    }
   }
 
   return nodes.map(sanitizeNode).filter((n): n is NonNullable<typeof n> => !!n)
