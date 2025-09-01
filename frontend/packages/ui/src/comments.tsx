@@ -117,8 +117,8 @@ export function CommentDiscussions({
           className="bg-border absolute w-px"
           style={{
             height: 32,
-            top: -12,
-            left: 32 / 2 - 1,
+            top: 8,
+            left: avatarSize / 2 - 1,
           }}
         />
         {commentEditor}
@@ -291,9 +291,9 @@ export function CommentGroup({
         <div
           className="bg-border absolute w-px"
           style={{
-            height: `calc(100% - ${avatarSize / 2}px)`,
-            top: avatarSize / 2,
-            left: avatarSize,
+            height: `calc(100% - ${avatarSize * 2}px)`,
+            top: avatarSize + avatarSize / 2 - 1,
+            left: avatarSize + avatarSize / 2 - 1,
           }}
         />
       )}
@@ -417,8 +417,8 @@ export function Comment({
   return (
     <div
       className={cn(
-        'group relative flex gap-1 rounded-lg',
-        highlight ? 'bg-secondary dark:bg-brand-10' : '', // TODO: review color for dark theme
+        'group relative flex gap-1 rounded-lg p-2',
+        highlight && 'bg-accent', // TODO: review color for dark theme
       )}
     >
       {isLast ? (
@@ -426,7 +426,7 @@ export function Comment({
           className={cn(
             'absolute z-1 w-3',
             highlight
-              ? 'bg-secondary dark:bg-brand-10' // TODO: review color for dark theme
+              ? 'bg-accent' // TODO: review color for dark theme
               : 'dark:bg-background bg-white',
           )}
           style={{
