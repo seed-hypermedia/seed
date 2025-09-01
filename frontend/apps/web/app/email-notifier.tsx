@@ -29,39 +29,92 @@ import {
 import {getAccount, getDocument, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
+const redactEmail = (e?: string) =>
+  e ? e.replace(/^(.).+(@.*)$/, (_, a, b) => `${a}***${b}`) : e
+
+const log = (
+  level: 'debug' | 'info' | 'warn' | 'error',
+  msg: string,
+  meta: Record<string, any> = {},
+) => {
+  try {
+    const payload = {
+      ts: new Date().toISOString(),
+      lvl: level,
+      msg,
+      ...meta,
+    }
+    const line = JSON.stringify(payload)
+    if (level === 'error') console.error(line)
+    else if (level === 'warn') console.warn(line)
+    else if (level === 'info') console.log(line)
+    else console.debug(line)
+  } catch {}
+}
+
+const time = (label: string) => {
+  const start = Date.now()
+  return {
+    end: (extra?: Record<string, any>) =>
+      log('debug', `${label}.done`, {ms: Date.now() - start, ...extra}),
+  }
+}
+
 export async function initEmailNotifier() {
   if (!ENABLE_EMAIL_NOTIFICATIONS) return
   console.log('Email Notifications Enabled')
 
+  process.on('unhandledRejection', (e: any) =>
+    log('error', 'unhandled_rejection', {err: String(e?.stack || e)}),
+  )
+  process.on('uncaughtException', (e: any) =>
+    log('error', 'uncaught_exception', {err: String(e?.stack || e)}),
+  )
+
   await handleEmailNotifications()
 
-  const handleEmailNotificationsIntervalSeconds = 10
+  const handleEmailNotificationsIntervalSeconds = 30
 
-  setInterval(() => {
-    handleEmailNotifications()
-      .then(() => {
-        console.log('Email notifications handled')
-      })
-      .catch((err) => {
-        console.error('Error handling email notifications', err)
-      })
+  setInterval(async () => {
+    const runId = Math.random().toString(36).slice(2, 8)
+    const t = time('poll_cycle')
+    try {
+      log('info', 'poll_start', {runId})
+      await handleEmailNotifications()
+      log('info', 'poll_ok', {runId})
+    } catch (err: any) {
+      log('error', 'poll_err', {runId, err: String(err?.stack || err)})
+    } finally {
+      t.end({runId})
+    }
   }, 1000 * handleEmailNotificationsIntervalSeconds)
+
+  // setInterval(() => {
+  //   const runId = Math.random().toString(36).slice(2, 8)
+  //   const t = time('poll_cycle')
+  //   handleEmailNotifications()
+  //     .then(() => {
+  //       console.log('Email notifications handled')
+  //     })
+  //     .catch((err) => {
+  //       console.error('Error handling email notifications', err)
+  //     })
+  // }, 1000 * handleEmailNotificationsIntervalSeconds)
 }
 
 async function handleEmailNotifications() {
   const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
-  console.log(
-    '~~ handleEmailNotifications lastProcessedBlobCid',
-    lastProcessedBlobCid,
-  )
+  log('debug', 'last_blob_cid', {lastProcessedBlobCid})
   if (lastProcessedBlobCid) {
     await handleEmailNotificationsAfterBlobCid(lastProcessedBlobCid)
   } else {
+    log('warn', 'no_last_blob_cid')
     await resetNotifierLastProcessedBlobCid()
   }
 }
 
 async function resetNotifierLastProcessedBlobCid() {
+  const t = time('checkpoint_bootstrap')
   const {events} = await grpcClient.activityFeed.listEvents({
     pageToken: undefined,
     pageSize: 5,
@@ -72,27 +125,38 @@ async function resetNotifierLastProcessedBlobCid() {
     event.data.case === 'newBlob' && event.data.value?.cid
       ? event.data.value.cid
       : undefined
-  if (!lastBlobCid) return
+  if (!lastBlobCid) {
+    log('warn', 'checkpoint_bootstrap_no_events')
+    return
+  }
   setNotifierLastProcessedBlobCid(lastBlobCid)
+  log('info', 'checkpoint_bootstrap_set', {lastProcessedBlobCid: lastBlobCid})
+  t.end()
 }
 
 async function handleEmailNotificationsAfterBlobCid(
   lastProcessedBlobCid: string,
 ) {
   const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
-  console.log(
-    '~~ handleEmailNotificationsAfterBlobCid eventsToProcess',
-    eventsToProcess.length,
-  )
+  log('info', 'events_to_process', {
+    count: eventsToProcess.length,
+    firstCid: eventsToProcess.at(0)?.data.value?.cid,
+    lastCid: eventsToProcess.at(-1)?.data.value?.cid,
+  })
   if (eventsToProcess.length === 0) return
   await handleEventsForEmailNotifications(eventsToProcess)
   await markEventsAsProcessed(eventsToProcess)
+  log('info', 'checkpoint_advanced', {
+    from: lastProcessedBlobCid,
+    to: eventsToProcess.at(0)?.data.value?.cid,
+  })
 }
 
 async function handleEventsForEmailNotifications(
   events: PlainMessage<Event>[],
 ) {
-  console.log('~~ handleEventsForEmailNotifications', events.length)
+  // console.log('~~ handleEventsForEmailNotifications', events.length)
+  log('info', 'notif_build_start', {events: events.length})
   const allEmails = getAllEmails()
   const accountNotificationOptions: Record<
     string,
@@ -174,7 +238,9 @@ async function handleEventsForEmailNotifications(
             const unpacked = unpackHmId(blob.resource)
             if (!unpacked?.uid) continue
 
+            const tRef = time('ipfs_ref_load')
             const refData = await loadRefFromIpfs(blob.cid)
+            tRef.end({cid: blob.cid})
 
             const changeCid = refData.heads?.[0]?.toString()
 
@@ -406,6 +472,13 @@ async function handleEventsForEmailNotifications(
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
+  const emailCounts = Object.fromEntries(
+    emailsToSend.map(([k, v]) => [redactEmail(k), v.length]),
+  )
+  log('info', 'notif_build_result', {
+    recipients: Object.keys(emailCounts).length,
+    counts: emailCounts,
+  })
   for (const [email, notifications] of emailsToSend) {
     const opts = emailOptions[email]
     // @ts-expect-error
@@ -418,7 +491,9 @@ async function handleEventsForEmailNotifications(
     )
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
-      console.log(`handleEventsForEmailNotifications: about to send email to ${email}`)
+      console.log(
+        `handleEventsForEmailNotifications: about to send email to ${email}`,
+      )
       try {
         // wrap send in a timeout so a stuck SMTP connection won't hang the notifier
         const sendPromise = sendEmail(email, subject, {text, html})
@@ -429,7 +504,10 @@ async function handleEventsForEmailNotifications(
         await Promise.race([sendPromise, timeoutPromise])
         console.log(`handleEventsForEmailNotifications: sent email to ${email}`)
       } catch (e) {
-        console.error(`handleEventsForEmailNotifications: failed sending email to ${email}`, e)
+        console.error(
+          `handleEventsForEmailNotifications: failed sending email to ${email}`,
+          e,
+        )
         // continue processing other notifications; do not let a single send break the loop
       }
     }
@@ -505,18 +583,28 @@ async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
 }
 
 async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
+  const t = time('events_load_after_checkpoint')
   const eventsAfterBlobCid = []
   let currentPageToken: string | undefined
+  let numPages = 0
 
   while (true) {
+    numPages++
     const {events, nextPageToken} = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: 2,
     })
 
+    log('debug', 'events_page', {
+      page: numPages,
+      size: events.length,
+      nextPageToken: !!nextPageToken,
+    })
+
     for (const event of events) {
       if (event.data.case === 'newBlob' && event.data.value?.cid) {
         if (event.data.value.cid === lastProcessedBlobCid) {
+          t.end({numPages, loaded: eventsAfterBlobCid.length})
           return eventsAfterBlobCid
         }
         eventsAfterBlobCid.push(toPlainMessage(event))
@@ -527,6 +615,7 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
     currentPageToken = nextPageToken
   }
 
+  t.end({numPages, loaded: eventsAfterBlobCid.length})
   return eventsAfterBlobCid
 }
 
@@ -625,6 +714,9 @@ function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
 
 async function loadRefFromIpfs(cid: string): Promise<any> {
   const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
+  log('debug', 'ipfs_fetch_start', {cid, url})
+  const t = time('ipfs_fetch')
   const buffer = await fetch(url).then((res) => res.arrayBuffer())
+  t.end({cid})
   return cborDecode(new Uint8Array(buffer))
 }
