@@ -37,7 +37,7 @@ export function OptionsPanel({
 }) {
   return (
     <AccessoryContent>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 p-4">
         {isHomeDoc ? (
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
