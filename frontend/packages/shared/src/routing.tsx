@@ -3,7 +3,7 @@ import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import {createHMUrl, hmId, idToUrl, StateStream, unpackHmId} from './utils'
+import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -25,7 +25,7 @@ type UniversalAppContextValue = {
   hmUrlHref?: boolean
 
   languagePack?: LanguagePack
-  selectedIdentity?: StateStream<string | null>
+  selectedIdentity?: string | null
   setSelectedIdentity?: (keyId: string | null) => void
 }
 
@@ -48,7 +48,7 @@ export function UniversalAppProvider(props: {
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   hmUrlHref?: boolean
   languagePack?: LanguagePack
-  selectedIdentity?: StateStream<string | null>
+  selectedIdentity?: string | null
   setSelectedIdentity?: (keyId: string | null) => void
 }) {
   return (

@@ -156,7 +156,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
 
 function IdentitySelector() {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
-  const selectedIdentityValue = useStream(selectedIdentity)
+  const selectedIdentityValue = selectedIdentity
   const myAccounts = useMyAccounts()
   const accountOptions = myAccounts
     ?.map((a) => {
@@ -177,12 +177,23 @@ function IdentitySelector() {
     })
 
   useEffect(() => {
-    const firstValidAccount = myAccounts?.find((a) => !!a.data?.id?.uid)?.data
-      ?.id?.uid
-    if (setSelectedIdentity && !selectedIdentityValue && firstValidAccount) {
-      setSelectedIdentity(firstValidAccount)
+    // Check if current selected account is valid (exists in accountOptions)
+    const isSelectedAccountValid = accountOptions?.some(
+      (option) => option?.id.uid === selectedIdentityValue,
+    )
+
+    // Get the first valid account from the filtered options
+    const firstValidAccount = accountOptions?.[0]?.id.uid
+
+    // Set selected identity if:
+    // 1. No account is selected, OR
+    // 2. The selected account is not in the valid options list
+    if (setSelectedIdentity && firstValidAccount) {
+      if (!selectedIdentityValue || !isSelectedAccountValid) {
+        setSelectedIdentity(firstValidAccount)
+      }
     }
-  }, [setSelectedIdentity, selectedIdentityValue, myAccounts])
+  }, [setSelectedIdentity, selectedIdentityValue, accountOptions])
   const selectedAccount = myAccounts?.find(
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
@@ -201,7 +212,7 @@ function IdentitySelector() {
     )
   }
   return (
-    <div className="dark:hover:bg-background hover:border-border mb-2 flex w-full items-center rounded-md border border-transparent transition-all duration-200 ease-in-out hover:bg-white">
+    <div className="dark:bg-background border-border bg-background mb-2 flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3">
           <>
@@ -217,7 +228,7 @@ function IdentitySelector() {
 
             <p className="truncate text-sm select-none">
               {selectedAccountDoc?.metadata?.name ||
-                `?${selectedIdentityValue.slice(-8)}`}
+                `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
             </p>
 
             {/* </Button> */}

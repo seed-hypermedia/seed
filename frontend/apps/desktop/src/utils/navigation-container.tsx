@@ -66,13 +66,7 @@ export function NavigationContainer({
     window.selectedIdentityAPI?.set(newIdentity)
   }, [])
 
-  // Create selectedIdentity stream for compatibility
-  const selectedIdentityStream = useMemo(() => {
-    const [update, stream] = writeableStateStream(selectedIdentity)
-    // Update stream when state changes
-    update(selectedIdentity)
-    return stream
-  }, [selectedIdentity])
+  // No need for stream - just pass the state directly
 
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
@@ -147,7 +141,7 @@ export function NavigationContainer({
         onCopyReference(hmId)
       }}
       hmUrlHref={true}
-      selectedIdentity={selectedIdentityStream}
+      selectedIdentity={selectedIdentity}
       setSelectedIdentity={setSelectedIdentity}
     >
       <NavContextProvider value={navigation}>
