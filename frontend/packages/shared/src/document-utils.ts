@@ -18,7 +18,10 @@ const REQUIRES_LINK_TYPES = new Set([
   'Button',
 ])
 
-function sanitizeBlockNode(node: any, isNavigationChild: boolean = false): any | null {
+function sanitizeBlockNode(
+  node: any,
+  isNavigationChild: boolean = false,
+): any | null {
   if (!node || typeof node !== 'object') return null
   const block = node.block
   if (!block || typeof block !== 'object') return null
@@ -76,7 +79,10 @@ function sanitizeDocumentStructure(docJSON: any) {
   return next
 }
 
-function sanitizeBlockNodes(nodes: any[], isNavigationChild: boolean = false): any[] {
+function sanitizeBlockNodes(
+  nodes: any[],
+  isNavigationChild: boolean = false,
+): any[] {
   if (!Array.isArray(nodes)) return []
 
   const sanitizeNode = (node: any): any | null => {
