@@ -3,10 +3,23 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {invalidateQueries} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
-import type {
-  EmailNotifierAccountState,
-  EmailNotifierAction,
-} from '../../../web/app/routes/hm.api.email-notifier.$.tsx'
+// Types for email notifications - defined inline to avoid cross-workspace dependencies
+type EmailNotifierAccountState = {
+  account?: {
+    email: string
+    notifyAllMentions: boolean
+    notifyAllReplies: boolean
+    notifyOwnedDocChange: boolean
+  }
+}
+
+type EmailNotifierAction = {
+  action: string
+  signer: Uint8Array
+  time: number
+  sig?: Uint8Array
+  [key: string]: any
+}
 import {useGatewayUrl} from './gateway-settings'
 
 type SetEmailNotificationsInput = {

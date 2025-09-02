@@ -706,16 +706,16 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
           <SizableText>
             Recipient Email:{' '}
             <SizableText weight="bold">
-              {emailNotifs.data.account.email}
+              {emailNotifs.data?.account?.email}
             </SizableText>
           </SizableText>
-          {emailNotifs.data.account.notifyAllMentions && (
+          {emailNotifs.data?.account?.notifyAllMentions && (
             <CheckmarkRow checked label="Notify when someone mentions me" />
           )}
-          {emailNotifs.data.account.notifyAllReplies && (
+          {emailNotifs.data?.account?.notifyAllReplies && (
             <CheckmarkRow checked label="Notify when someone replies to me" />
           )}
-          {emailNotifs.data.account.notifyOwnedDocChange && (
+          {emailNotifs.data?.account?.notifyOwnedDocChange && (
             <CheckmarkRow
               checked
               label="Notify when someone changes a document I own"
