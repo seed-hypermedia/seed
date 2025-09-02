@@ -677,8 +677,8 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
     !emailNotifs.data.account.notifyAllReplies
 
   const isLoading = emailNotifs.isLoading
-  const hasError = emailNotifs.isError && !emailNotifs.data
-  const hasAccount = emailNotifs.data?.account
+  const hasError = emailNotifs.isError || !emailNotifs.data
+  const hasAccount = !!emailNotifs.data?.account
 
   return (
     <SettingsSection title="Email Notifications">
