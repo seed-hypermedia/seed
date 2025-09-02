@@ -64,6 +64,7 @@ type MachineContext = {
   blockId: string
   rangeStart: number | null
   rangeEnd: number | null
+  expanded: boolean
   mouseDown: boolean
 }
 
@@ -101,6 +102,7 @@ const rangeSelectionMachine = setup({
     blockId: '',
     rangeStart: null,
     rangeEnd: null,
+    expanded: false,
     mouseDown: false,
   },
   id: 'Range Selection',
@@ -190,6 +192,12 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
         actions: {
           setRange: assign(() => {
             let sel = window.getSelection()
+            console.log('[Selection Debug - Root]', {
+              hasSelection: !!sel,
+              rangeCount: sel?.rangeCount,
+              selectionText: sel?.toString(),
+            })
+
             if (sel && sel.rangeCount > 0) {
               const {anchorNode, anchorOffset, focusNode, focusOffset} = sel
               const anchorBlockId = getParentElId(anchorNode)
@@ -197,10 +205,93 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
               const anchorRangeOffset = getRangeOffset(anchorNode)
               const focusRangeOffset = getRangeOffset(focusNode)
 
+              console.log('[Selection Debug - Details]', {
+                anchorBlockId,
+                focusBlockId,
+                anchorOffset,
+                focusOffset,
+                anchorRangeOffset,
+                focusRangeOffset,
+                sameBlock: focusBlockId === anchorBlockId,
+                anchorNode: anchorNode?.nodeName,
+                focusNode: focusNode?.nodeName,
+              })
+
+              // Check for triple-click: when all offsets are 0 and we have selected text
+              const isTripleClick =
+                anchorOffset === 0 &&
+                focusOffset === 0 &&
+                anchorRangeOffset === 0 &&
+                focusRangeOffset === 0 &&
+                sel.toString().length > 0
+
+              if (isTripleClick && anchorBlockId) {
+                console.log('[Triple-click Debug - Same Block]', {
+                  anchorBlockId,
+                  selectionLength: sel.toString().length,
+                })
+                // Handle triple-click: select entire anchor block
+                if (documentContent) {
+                  const blockNode = getBlockNodeById(
+                    documentContent,
+                    anchorBlockId,
+                  )
+                  if (
+                    blockNode?.block &&
+                    'text' in blockNode.block &&
+                    blockNode.block.text
+                  ) {
+                    const blockText = blockNode.block.text
+                    return {
+                      ...defaultContext,
+                      selection: sel,
+                      blockId: anchorBlockId,
+                      rangeStart: 0,
+                      rangeEnd: utf16ToCodepointOffset(
+                        blockText,
+                        blockText.length,
+                      ),
+                      expanded: false,
+                    }
+                  }
+                }
+                // Fallback to DOM text if documentContent not available
+                const blockElement = document.getElementById(anchorBlockId)
+                if (blockElement) {
+                  const blockTextContent = blockElement.textContent || ''
+                  return {
+                    ...defaultContext,
+                    selection: sel,
+                    blockId: anchorBlockId,
+                    rangeStart: 0,
+                    rangeEnd: blockTextContent.length,
+                    expanded: false,
+                  }
+                }
+              }
+
               if (focusBlockId !== anchorBlockId) {
-                // Check if this is a triple-click scenario (all offsets are 0)
+                // Check if this is a triple-click scenario (all offsets are 0 and text is selected)
                 const isTripleClick =
-                  focusRangeOffset === 0 && focusOffset === 0
+                  anchorOffset === 0 &&
+                  focusOffset === 0 &&
+                  anchorRangeOffset === 0 &&
+                  focusRangeOffset === 0 &&
+                  sel.toString().length > 0
+
+                console.log('[Triple-click Debug]', {
+                  anchorBlockId,
+                  focusBlockId,
+                  anchorOffset,
+                  focusOffset,
+                  anchorRangeOffset,
+                  focusRangeOffset,
+                  isTripleClick,
+                  selection: {
+                    anchorNode: anchorNode?.nodeName,
+                    focusNode: focusNode?.nodeName,
+                  },
+                })
 
                 if (isTripleClick && anchorBlockId) {
                   // Handle triple-click: select entire anchor block
@@ -352,15 +443,37 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
     }
 
     function handleSelectionChange() {
+      console.log('[handleSelectionChange] Called')
       if (wrapper.current) {
         const selection = window.getSelection()
+        console.log('[handleSelectionChange] Selection details:', {
+          hasSelection: !!selection,
+          rangeCount: selection?.rangeCount,
+          isCollapsed: selection?.isCollapsed,
+          selectionText: selection?.toString(),
+          anchorNode: selection?.anchorNode?.nodeName,
+          focusNode: selection?.focusNode?.nodeName,
+          wrapperContainsAnchor: wrapper.current.contains(
+            selection?.anchorNode || null,
+          ),
+          wrapperContainsFocus: wrapper.current.contains(
+            selection?.focusNode || null,
+          ),
+        })
         if (
           selection &&
           wrapper.current.contains(selection.anchorNode) &&
           wrapper.current.contains(selection.focusNode)
         ) {
+          console.log('[handleSelectionChange] Sending SELECT event')
           actor.send({type: 'SELECT'})
+        } else {
+          console.log(
+            '[handleSelectionChange] Selection not within wrapper, skipping',
+          )
         }
+      } else {
+        console.log('[handleSelectionChange] No wrapper.current')
       }
     }
 
