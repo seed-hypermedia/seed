@@ -15,14 +15,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
     return (
       <TitlebarWrapper className="min-h-0" {...restProps}>
         <div className="window-drag flex w-full items-center justify-center">
-          <TitleText
-            marginHorizontal="$4"
-            fontWeight="bold"
-            f={1}
-            textAlign="center"
-          >
-            {cleanTitle}
-          </TitleText>
+          <TitleText className="text-center font-bold">{cleanTitle}</TitleText>
         </div>
       </TitlebarWrapper>
     )

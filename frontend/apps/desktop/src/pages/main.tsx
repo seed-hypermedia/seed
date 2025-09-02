@@ -71,7 +71,7 @@ export default function Main({className}: {className?: string}) {
     titlebar = (
       <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
-          <TitleText>Settings</TitleText>
+          <TitleText className="text-center font-bold">Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
       </TitlebarWrapper>
@@ -94,7 +94,9 @@ export default function Main({className}: {className?: string}) {
     titlebar = (
       <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
-          <TitleText>Review Deleted Content</TitleText>
+          <TitleText className="text-center font-bold">
+            Review Deleted Content
+          </TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
       </TitlebarWrapper>
