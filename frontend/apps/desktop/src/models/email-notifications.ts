@@ -3,6 +3,7 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {invalidateQueries} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
+import {useGatewayUrl} from './gateway-settings'
 // Types for email notifications - defined inline to avoid cross-workspace dependencies
 type EmailNotifierAccountState = {
   account?: {
@@ -20,7 +21,6 @@ type EmailNotifierAction = {
   sig?: Uint8Array
   [key: string]: any
 }
-import {useGatewayUrl} from './gateway-settings'
 
 type SetEmailNotificationsInput = {
   email: string
