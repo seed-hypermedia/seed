@@ -358,6 +358,36 @@ function renderBlock(
     )
   }
 
+  if (type === 'Code') {
+    return (
+      <MjmlText
+        align="left"
+        paddingBottom="8px"
+        fontSize="14px"
+        fontFamily="monospace"
+        color="#666"
+        backgroundColor="#f2f2f2"
+        padding="12px"
+        // borderRadius="4px"
+      >
+        <code>{text}</code>
+      </MjmlText>
+    )
+  }
+
+  if (type === 'Embed') {
+    return (
+      <MjmlButton
+        href={link}
+        backgroundColor="#346DB7"
+        fontSize="14px"
+        align="left"
+      >
+        Open Embed
+      </MjmlButton>
+    )
+  }
+
   return null
 }
 
@@ -441,10 +471,7 @@ function renderInlineTextWithAnnotations(
 }
 
 function getNotificationMeta(notification: Notification) {
-  const authorMeta =
-    notification.type === 'change' || notification.type === 'mention'
-      ? notification.authorMeta
-      : notification.commentAuthorMeta
+  const authorMeta = notification.authorMeta
 
   const authorName =
     authorMeta?.name ||
@@ -454,6 +481,7 @@ function getNotificationMeta(notification: Notification) {
 
   const createdAt =
     notification.type === 'reply' ||
+    notification.type === 'discussion' ||
     (notification.type === 'mention' && notification.source === 'comment')
       ? notification.comment.createTime?.seconds
         ? format(

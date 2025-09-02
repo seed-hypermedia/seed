@@ -100,6 +100,7 @@ async function handleEventsForEmailNotifications(
       notifyAllMentions: boolean
       notifyAllReplies: boolean
       notifyOwnedDocChange: boolean
+      notifySiteDiscussions: boolean
       email: string
     }
   > = {}
@@ -153,6 +154,7 @@ async function handleEventsForEmailNotifications(
         notifyAllMentions: account.notifyAllMentions,
         notifyAllReplies: account.notifyAllReplies,
         notifyOwnedDocChange: account.notifyOwnedDocChange,
+        notifySiteDiscussions: account.notifySiteDiscussions,
         email: email.email,
       }
     }
@@ -362,14 +364,37 @@ async function handleEventsForEmailNotifications(
     }
   }
   for (const newComment of newComments) {
+    const comment = newComment.comment
+    const targetDocUrl = `${SITE_BASE_URL}/hm/${comment.targetAccount}${comment.targetPath}`
+    const targetDocId = hmId(comment.targetAccount, {
+      path: entityQueryPathToHmIdPath(comment.targetPath),
+    })
+
+    const ownerId = comment.targetAccount
+    const ownerPrefs = accountNotificationOptions[ownerId]
+
+    const isNewDiscussion =
+      (!comment.threadRoot || comment.threadRoot === '') &&
+      (!comment.replyParent || comment.replyParent === '')
+
+    if (ownerPrefs && comment.author !== ownerId && isNewDiscussion) {
+      if (ownerPrefs.notifySiteDiscussions) {
+        await appendNotification(ownerPrefs.email, ownerId, {
+          type: 'discussion',
+          comment,
+          parentComments: newComment.parentComments,
+          authorMeta: newComment.commentAuthorMeta,
+          targetMeta: newComment.targetMeta,
+          targetId: targetDocId,
+          url: targetDocUrl,
+        })
+      }
+    }
+
     for (const accountId in accountNotificationOptions) {
-      if (newComment.comment.author === accountId) continue // don't notify the author for their own comments
+      if (comment.author === accountId) continue // don't notify the author for their own comments
       const account = accountNotificationOptions[accountId]
-      const comment = newComment.comment
-      const targetDocUrl = `${SITE_BASE_URL}/hm/${comment.targetAccount}${comment.targetPath}`
-      const targetDocId = hmId(comment.targetAccount, {
-        path: entityQueryPathToHmIdPath(comment.targetPath),
-      })
+
       // @ts-expect-error
       if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
         // @ts-expect-error
@@ -377,7 +402,7 @@ async function handleEventsForEmailNotifications(
           type: 'reply',
           comment: newComment.comment,
           parentComments: newComment.parentComments,
-          commentAuthorMeta: newComment.commentAuthorMeta,
+          authorMeta: newComment.commentAuthorMeta,
           targetMeta: newComment.targetMeta,
           targetId: targetDocId,
           url: targetDocUrl,
@@ -418,6 +443,7 @@ async function handleEventsForEmailNotifications(
     )
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
+      console.log('SENDING EMAIL!!!!', email)
       await sendEmail(email, subject, {text, html})
     }
   }

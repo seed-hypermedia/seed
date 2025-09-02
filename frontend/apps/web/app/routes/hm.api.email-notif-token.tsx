@@ -27,6 +27,7 @@ const emailNotifTokenAction = z.discriminatedUnion('action', [
     notifyAllMentions: z.boolean().optional(),
     notifyAllReplies: z.boolean().optional(),
     notifyOwnedDocChange: z.boolean().optional(),
+    notifySiteDiscussions: z.boolean().optional(),
   }),
 ])
 
@@ -55,6 +56,7 @@ export const action: ActionFunction = async ({request, params}) => {
       notifyAllMentions: body.notifyAllMentions,
       notifyAllReplies: body.notifyAllReplies,
       notifyOwnedDocChange: body.notifyOwnedDocChange,
+      notifySiteDiscussions: body.notifySiteDiscussions,
     })
     return json({})
   }

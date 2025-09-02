@@ -11,6 +11,7 @@ type EmailNotifierAccountState = {
     notifyAllMentions: boolean
     notifyAllReplies: boolean
     notifyOwnedDocChange: boolean
+    notifySiteDiscussions: boolean
   }
 }
 
@@ -27,6 +28,7 @@ type SetEmailNotificationsInput = {
   notifyAllMentions: boolean
   notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
+  notifySiteDiscussions: boolean
 }
 
 export function createNotifierRequester(gatewayUrl: string | undefined) {

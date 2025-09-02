@@ -14,6 +14,7 @@ const emailNotificationsSchema = z.object({
   notifyAllMentions: z.boolean(),
   notifyAllReplies: z.boolean(),
   notifyOwnedDocChange: z.boolean(),
+  notifySiteDiscussions: z.boolean(),
 })
 
 export function EmailNotificationsForm({

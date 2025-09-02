@@ -184,6 +184,12 @@ function EmailNotificationAccount({
         field="notifyOwnedDocChange"
         account={account}
       />
+      <AccountValueCheckbox
+        token={token}
+        label="Notify on created discussions in your site"
+        field="notifySiteDiscussions"
+        account={account}
+      />
     </div>
   )
 }
@@ -196,7 +202,11 @@ function AccountValueCheckbox({
 }: {
   token: string
   label: string
-  field: 'notifyAllMentions' | 'notifyAllReplies' | 'notifyOwnedDocChange'
+  field:
+    | 'notifyAllMentions'
+    | 'notifyAllReplies'
+    | 'notifyOwnedDocChange'
+    | 'notifySiteDiscussions'
   account: Email['accounts'][number]
 }) {
   const {mutate: setAccount, isLoading} = useSetAccountOptions(token)

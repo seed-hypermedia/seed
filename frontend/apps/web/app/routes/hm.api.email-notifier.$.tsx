@@ -41,6 +41,7 @@ const emailNotifierAction = z.discriminatedUnion('action', [
     notifyAllMentions: z.boolean(),
     notifyAllReplies: z.boolean(),
     notifyOwnedDocChange: z.boolean(),
+    notifySiteDiscussions: z.boolean(),
   }),
 ])
 
@@ -102,6 +103,7 @@ export const action = cborApiAction<EmailNotifierAction, any>(
         notifyAllMentions: restPayload.notifyAllMentions,
         notifyAllReplies: restPayload.notifyAllReplies,
         notifyOwnedDocChange: restPayload.notifyOwnedDocChange,
+        notifySiteDiscussions: restPayload.notifySiteDiscussions,
       })
       if (restPayload.email && !email) {
         const metadata = await getMetadata(hmId(accountId))
@@ -125,6 +127,7 @@ export const action = cborApiAction<EmailNotifierAction, any>(
           notifyAllMentions: restPayload.notifyAllMentions,
           notifyAllReplies: restPayload.notifyAllReplies,
           notifyOwnedDocChange: restPayload.notifyOwnedDocChange,
+          notifySiteDiscussions: restPayload.notifySiteDiscussions,
         })
       }
       return {}

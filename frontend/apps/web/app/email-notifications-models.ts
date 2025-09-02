@@ -35,6 +35,7 @@ export function useEmailNotifications() {
           notifyAllMentions: boolean
           notifyAllReplies: boolean
           notifyOwnedDocChange: boolean
+          notifySiteDiscussions: boolean
           email: string
         }
       }
@@ -53,11 +54,13 @@ export function useSetEmailNotifications() {
       notifyAllMentions,
       notifyAllReplies,
       notifyOwnedDocChange,
+      notifySiteDiscussions,
     }: {
       email: string
       notifyAllMentions: boolean
       notifyAllReplies: boolean
       notifyOwnedDocChange: boolean
+      notifySiteDiscussions: boolean
     }) => {
       if (!keyPair) {
         return null
@@ -71,6 +74,7 @@ export function useSetEmailNotifications() {
         notifyAllMentions,
         notifyAllReplies,
         notifyOwnedDocChange,
+        notifySiteDiscussions,
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(

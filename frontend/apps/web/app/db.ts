@@ -9,6 +9,7 @@ export type BaseAccount = {
   notifyAllMentions: boolean
   notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
+  notifySiteDiscussions: boolean
 }
 
 type BaseEmail = {
@@ -30,6 +31,7 @@ type DBAccount = {
   notifyAllMentions: number
   notifyAllReplies: number
   notifyOwnedDocChange: number
+  notifySiteDiscussions: number
 }
 
 type DBEmail = {
@@ -86,6 +88,16 @@ export async function initDatabase(): Promise<void> {
     `)
     version = 2
   }
+
+  if (version === 2) {
+    db.exec(`
+      BEGIN;
+      ALTER TABLE accounts ADD COLUMN notifySiteDiscussions BOOLEAN NOT NULL DEFAULT FALSE;
+      PRAGMA user_version = 3;
+      COMMIT;
+    `)
+    version = 3
+  }
 }
 
 export function cleanup(): void {
@@ -100,12 +112,14 @@ export function createAccount({
   notifyAllMentions = false,
   notifyAllReplies = false,
   notifyOwnedDocChange = false,
+  notifySiteDiscussions = false,
 }: {
   id: string
   email?: string
   notifyAllMentions?: boolean
   notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
+  notifySiteDiscussions?: boolean
 }): void {
   if (email) {
     const emailStmt = db.prepare(
@@ -114,7 +128,7 @@ export function createAccount({
     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
   }
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions) VALUES (?, ?, ?, ?, ?, ?)',
   )
   stmt.run(
     id,
@@ -122,6 +136,7 @@ export function createAccount({
     notifyAllMentions ? 1 : 0,
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
+    notifySiteDiscussions ? 1 : 0,
   )
 }
 
@@ -139,6 +154,7 @@ export function getAccount(id: string): Account | null {
     notifyAllMentions: Boolean(result.notifyAllMentions),
     notifyAllReplies: Boolean(result.notifyAllReplies),
     notifyOwnedDocChange: Boolean(result.notifyOwnedDocChange),
+    notifySiteDiscussions: Boolean(result.notifySiteDiscussions),
   }
 }
 
@@ -163,19 +179,22 @@ export function updateAccount(
     notifyAllMentions,
     notifyAllReplies,
     notifyOwnedDocChange,
+    notifySiteDiscussions,
   }: {
     notifyAllMentions?: boolean
     notifyAllReplies?: boolean
     notifyOwnedDocChange?: boolean
+    notifySiteDiscussions?: boolean
   },
 ): void {
   const stmt = db.prepare(`
-    UPDATE accounts SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ? WHERE id = ?
+    UPDATE accounts SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ? WHERE id = ?
   `)
   stmt.run(
     notifyAllMentions ? 1 : 0,
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
+    notifySiteDiscussions ? 1 : 0,
     id,
   )
 }
@@ -220,6 +239,7 @@ export function getEmailWithToken(emailAdminToken: string): Email | null {
       notifyAllMentions: Boolean(account.notifyAllMentions),
       notifyAllReplies: Boolean(account.notifyAllReplies),
       notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
+      notifySiteDiscussions: Boolean(account.notifySiteDiscussions),
     })),
   }
 }
@@ -257,6 +277,7 @@ export function getAllEmails(): Email[] {
         notifyAllMentions: Boolean(account.notifyAllMentions),
         notifyAllReplies: Boolean(account.notifyAllReplies),
         notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
+        notifySiteDiscussions: Boolean(account.notifySiteDiscussions),
       })),
     }
   })
@@ -268,12 +289,14 @@ export function setAccount({
   notifyAllMentions,
   notifyAllReplies,
   notifyOwnedDocChange,
+  notifySiteDiscussions,
 }: {
   id: string
   email?: string
   notifyAllMentions?: boolean
   notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
+  notifySiteDiscussions?: boolean
 }): void {
   const existingAccount = getAccount(id)
 
@@ -284,6 +307,7 @@ export function setAccount({
       notifyAllMentions,
       notifyAllReplies,
       notifyOwnedDocChange,
+      notifySiteDiscussions,
     })
     return
   }
@@ -302,7 +326,8 @@ export function setAccount({
     SET email = ?,
         notifyAllMentions = ?,
         notifyAllReplies = ?,
-        notifyOwnedDocChange = ?
+        notifyOwnedDocChange = ?,
+        notifySiteDiscussions = ?
     WHERE id = ?
   `)
 
@@ -316,6 +341,10 @@ export function setAccount({
     getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
     getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
     getBooleanValue(notifyOwnedDocChange, existingAccount.notifyOwnedDocChange),
+    getBooleanValue(
+      notifySiteDiscussions,
+      existingAccount.notifySiteDiscussions,
+    ),
     id,
   )
 }

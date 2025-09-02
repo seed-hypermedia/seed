@@ -14,6 +14,7 @@ const emailNotificationsSchema = z.object({
   notifyAllMentions: z.boolean(),
   notifyAllReplies: z.boolean(),
   notifyOwnedDocChange: z.boolean(),
+  notifySiteDiscussions: z.boolean(),
 })
 
 export type UIEmailNotificationsFormSchema = z.infer<
@@ -48,6 +49,7 @@ export function UIEmailNotificationsForm({
       notifyAllMentions: true,
       notifyAllReplies: true,
       notifyOwnedDocChange: true,
+      notifySiteDiscussions: true,
     },
   })
   function onSubmit(data: z.infer<typeof emailNotificationsSchema>) {
@@ -91,6 +93,11 @@ export function UIEmailNotificationsForm({
           label={tx('Someone changes a document I own')}
           control={control}
         />
+        <FormCheckbox
+          name="notifySiteDiscussions"
+          label={tx('Someone creates a discussion in my site')}
+          control={control}
+        />
       </div>
       <EmptyNotifWarning control={control} />
       <div className="flex items-center justify-end gap-3">
@@ -132,10 +139,15 @@ function EmptyNotifWarning({
     control,
     name: 'notifyOwnedDocChange',
   })
+  const {field: notifySiteDiscussions} = useController({
+    control,
+    name: 'notifySiteDiscussions',
+  })
   if (
     notifyAllMentionsField.value ||
     notifyAllRepliesField.value ||
-    notifyOwnedDocChangeField.value
+    notifyOwnedDocChangeField.value ||
+    notifySiteDiscussions.value
   )
     return null
   return (

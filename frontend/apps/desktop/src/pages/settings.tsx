@@ -674,11 +674,15 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
   const hasNoNotifs =
     emailNotifs.data?.account &&
     !emailNotifs.data.account.notifyAllMentions &&
-    !emailNotifs.data.account.notifyAllReplies
+    !emailNotifs.data.account.notifyAllReplies &&
+    !emailNotifs.data.account.notifyOwnedDocChange &&
+    !emailNotifs.data.account.notifySiteDiscussions
 
   const isLoading = emailNotifs.isLoading
-  const hasError = emailNotifs.isError || !emailNotifs.data
-  const hasAccount = !!emailNotifs.data?.account
+  const hasError = emailNotifs.isError && !emailNotifs.data
+  const hasAccount = emailNotifs.data?.account
+
+  console.log(emailNotifs.data, emailNotifs.isError)
 
   return (
     <SettingsSection title="Email Notifications">
@@ -719,6 +723,12 @@ function EmailNotificationSettings({accountUid}: {accountUid: string}) {
             <CheckmarkRow
               checked
               label="Notify when someone changes a document I own"
+            />
+          )}
+          {emailNotifs.data?.account?.notifySiteDiscussions && (
+            <CheckmarkRow
+              checked
+              label="Notify when someone creates a discussion in my site"
             />
           )}
           {hasNoNotifs ? (

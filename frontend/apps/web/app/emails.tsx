@@ -154,6 +154,7 @@ export async function sendNotificationWelcomeEmail(
     notifyAllMentions: boolean
     notifyAllReplies: boolean
     notifyOwnedDocChange: boolean
+    notifySiteDiscussions: boolean
   },
 ) {
   const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
@@ -163,7 +164,8 @@ export async function sendNotificationWelcomeEmail(
   if (
     opts.notifyAllMentions &&
     opts.notifyAllReplies &&
-    opts.notifyOwnedDocChange
+    opts.notifyOwnedDocChange &&
+    opts.notifySiteDiscussions
   ) {
     whenWillYouBeNotified =
       'when you are mentioned, when someone changes a document you own, or when someone replies to your comments.'
@@ -177,6 +179,8 @@ export async function sendNotificationWelcomeEmail(
   } else if (opts.notifyOwnedDocChange) {
     whenWillYouBeNotified = 'when someone changes a document you own.'
     notifiedFor = 'changes'
+  } else if (opts.notifySiteDiscussions) {
+    whenWillYouBeNotified = 'when someone creates a discussion in your site.'
   } else {
     return // notifs are disabled
   }
