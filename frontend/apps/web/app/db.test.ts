@@ -75,7 +75,7 @@ describe('Database', () => {
       const accountsSchema = db
         .prepare('PRAGMA table_info(accounts)')
         .all() as ColumnInfo[]
-      expect(accountsSchema).toHaveLength(6)
+      expect(accountsSchema).toHaveLength(7)
       expect(accountsSchema.find((c) => c.name === 'id')).toBeDefined()
       expect(accountsSchema.find((c) => c.name === 'email')).toBeDefined()
       expect(accountsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
@@ -87,6 +87,9 @@ describe('Database', () => {
       ).toBeDefined()
       expect(
         accountsSchema.find((c) => c.name === 'notifyOwnedDocChange'),
+      ).toBeDefined()
+      expect(
+        accountsSchema.find((c) => c.name === 'notifySiteDiscussions'),
       ).toBeDefined()
 
       // Check foreign key constraint
@@ -107,7 +110,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(2)
+      expect(version).toBe(3)
       db.close()
     })
   })
@@ -128,6 +131,7 @@ describe('Database', () => {
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       })
       expect(account?.createdAt).toBeDefined()
     })
@@ -148,6 +152,7 @@ describe('Database', () => {
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       })
       expect(account?.createdAt).toBeDefined()
     })
@@ -164,6 +169,7 @@ describe('Database', () => {
         notifyAllMentions: true,
         notifyAllReplies: true,
         notifyOwnedDocChange: true,
+        notifySiteDiscussions: true,
       })
 
       const account = getAccount(accountData.id)
@@ -172,6 +178,7 @@ describe('Database', () => {
         notifyAllMentions: true,
         notifyAllReplies: true,
         notifyOwnedDocChange: true,
+        notifySiteDiscussions: true,
       })
     })
 
@@ -196,6 +203,7 @@ describe('Database', () => {
         notifyAllMentions: accountData.notifyAllMentions,
         notifyAllReplies: accountData.notifyAllReplies,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       })
     })
 
@@ -223,6 +231,7 @@ describe('Database', () => {
         notifyAllMentions: updateData.notifyAllMentions,
         notifyAllReplies: updateData.notifyAllReplies,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       })
 
       // Verify new email was created
@@ -255,6 +264,7 @@ describe('Database', () => {
         notifyAllMentions: true,
         notifyAllReplies: false,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       })
     })
   })
@@ -268,6 +278,7 @@ describe('Database', () => {
         notifyAllMentions: true,
         notifyAllReplies: false,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       }
       const account2 = {
         id: 'test-id-2',
@@ -275,6 +286,7 @@ describe('Database', () => {
         notifyAllMentions: false,
         notifyAllReplies: true,
         notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
       }
 
       createAccount(account1)
@@ -301,6 +313,7 @@ describe('Database', () => {
             notifyAllMentions: account1.notifyAllMentions,
             notifyAllReplies: account1.notifyAllReplies,
             notifyOwnedDocChange: account1.notifyOwnedDocChange,
+            notifySiteDiscussions: account1.notifySiteDiscussions,
           }),
           expect.objectContaining({
             id: account2.id,
@@ -308,6 +321,7 @@ describe('Database', () => {
             notifyAllMentions: account2.notifyAllMentions,
             notifyAllReplies: account2.notifyAllReplies,
             notifyOwnedDocChange: account2.notifyOwnedDocChange,
+            notifySiteDiscussions: account2.notifySiteDiscussions,
           }),
         ]),
       )
