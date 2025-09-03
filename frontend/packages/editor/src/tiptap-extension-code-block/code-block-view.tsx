@@ -35,7 +35,7 @@ export const CodeBlockView = ({
     >
       {hovered && (
         <div
-          className="absolute top-2 right-3 z-5 flex w-[150px] items-center gap-4 p-1"
+          className="absolute top-2 right-4 z-5 flex w-[150px] items-center gap-4 p-1"
           contentEditable={false}
         >
           <div className="relative w-full">
@@ -66,8 +66,8 @@ export const CodeBlockView = ({
           </div>
         </div>
       )}
-      <pre>
-        <code className={`language-${language}`}>
+      <pre className="bg-muted rounded-md p-3">
+        <code className={`hljs language-${language}`}>
           <NodeViewContent />
         </code>
       </pre>

@@ -462,57 +462,26 @@ ol > [data-node-type='block-outer']::marker {
   padding: 0.75rem 1rem;
 }
 
-.hljs-comment,
-.hljs-quote {
-  color: var(--gray10);
+@layer components {
+  .hljs-comment, .hljs-quote { color: var(--hljs-comment); }
+
+  .hljs-variable, .hljs-template-variable, .hljs-attribute,
+  .hljs-tag, .hljs-name, .hljs-regexp, .hljs-link,
+  .hljs-selector-id, .hljs-selector-class { color: var(--hljs-red); }
+
+  .hljs-number, .hljs-meta, .hljs-built_in, .hljs-builtin-name,
+  .hljs-literal, .hljs-type, .hljs-params { color: var(--hljs-orange); }
+
+  .hljs-string, .hljs-symbol, .hljs-bullet { color: var(--hljs-green); }
+
+  .hljs-title, .hljs-section { color: var(--hljs-yellow); }
+
+  .hljs-keyword, .hljs-selector-tag { color: var(--hljs-blue); }
+
+  .hljs-emphasis { font-style: italic; }
+  .hljs-strong { font-weight: 700; }
 }
 
-.hljs-variable,
-.hljs-template-variable,
-.hljs-attribute,
-.hljs-tag,
-.hljs-name,
-.hljs-regexp,
-.hljs-link,
-.hljs-name,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: var(--red10);
-}
-
-.hljs-number,
-.hljs-meta,
-.hljs-built_in,
-.hljs-builtin-name,
-.hljs-literal,
-.hljs-type,
-.hljs-params {
-  color: var(--orange10);
-}
-
-.hljs-string,
-.hljs-symbol,
-.hljs-bullet {
-  color: var(--green10);
-}
-
-.hljs-title,
-.hljs-section {
-  color: var(--yellow11);
-}
-
-.hljs-keyword,
-.hljs-selector-tag {
-  color: var(--blue10);
-}
-
-.hljs-emphasis {
-  font-style: italic;
-}
-
-.hljs-strong {
-  font-weight: 700;
-}
 
 .side-menu {
   display: none !important;

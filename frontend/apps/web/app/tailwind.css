@@ -75,6 +75,12 @@
   --shadow-xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.1),
     0px 8px 10px -2px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+  --hljs-comment: theme(colors.zinc.500);
+  --hljs-red: theme(colors.red.500);
+  --hljs-orange: theme(colors.orange.500);
+  --hljs-green: theme(colors.green.500);
+  --hljs-yellow: theme(colors.yellow.600);
+  --hljs-blue: theme(colors.blue.500);
 }
 
 .dark {
@@ -146,6 +152,12 @@
   --shadow-xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.1),
     0px 8px 10px -2px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+  --hljs-comment: theme(colors.zinc.400);
+  --hljs-red:     theme(colors.red.400);
+  --hljs-orange:  theme(colors.orange.400);
+  --hljs-green:   theme(colors.green.400);
+  --hljs-yellow:  theme(colors.yellow.500);
+  --hljs-blue:    theme(colors.blue.400);
 }
 
 @theme inline {
