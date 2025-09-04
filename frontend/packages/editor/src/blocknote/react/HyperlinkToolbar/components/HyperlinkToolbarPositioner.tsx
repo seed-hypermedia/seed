@@ -98,7 +98,7 @@ export const HyperlinkToolbarPositioner = <
         toolbarProps={toolbarProps}
       />
     )
-  }, [props.hyperlinkToolbar, props.editor, text, url, show])
+  }, [props.hyperlinkToolbar, props.editor, text, url, show, toolbarProps, id])
 
   return (
     <Tippy
@@ -110,6 +110,27 @@ export const HyperlinkToolbarPositioner = <
       visible={show}
       animation={'fade'}
       placement={'bottom'}
+      popperOptions={{
+        strategy: 'fixed',
+        modifiers: [
+          {name: 'flip', enabled: false}, // disable flip to top
+          {
+            name: 'preventOverflow', // allow shifting
+            options: {
+              boundary: 'viewport',
+              rootBoundary: 'viewport',
+              tether: true,
+              altAxis: true,
+              padding: 8,
+            },
+          },
+          {name: 'offset', options: {offset: [0, 8]}},
+          {
+            name: 'computeStyles',
+            options: {adaptive: false, gpuAcceleration: false},
+          },
+        ],
+      }}
     />
   )
 }

@@ -136,7 +136,7 @@ export function HypermediaLinkPreview(
         props.setHovered?.(false)
         props.editor.hyperlinkToolbar.startHideTimer()
       }}
-      className="link-preview-toolbar bg-muted flex w-70 rounded-md p-2 shadow-lg"
+      className="link-preview-toolbar bg-muted flex max-h-[60vh] w-[320px] overflow-auto rounded-md p-2 shadow-lg"
     >
       {isEditing ? (
         <div className="flex flex-1 flex-col gap-2">

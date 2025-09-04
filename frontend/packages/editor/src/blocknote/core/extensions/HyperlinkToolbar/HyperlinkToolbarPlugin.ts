@@ -241,9 +241,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           link: url,
         })
       } else if (this.hyperlinkToolbarState.type === 'button') {
+        const alignment = this.hyperlinkToolbarState.props
+          ? this.hyperlinkToolbarState.props.alignment
+          : markOrNode?.attrs.alignment
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
           name: text,
+          alignment: alignment,
         })
       } else if (
         this.hyperlinkToolbarState.type === 'embed' ||
@@ -267,6 +271,11 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         range!.to = newLength
       }
     }
+
+    this.isHoveringToolbar = true
+    setTimeout(() => {
+      this.isHoveringToolbar = false
+    }, 200)
 
     this.pmView.dispatch(tr)
 
@@ -294,6 +303,41 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     this.isHoveringToolbar = false
     this.hoveredId = undefined
     this.updateHyperlinkToolbar()
+  }
+
+  updateFormRect() {
+    let markOrNode = this.selectedNode || this.hoveredNode
+    let range = this.selectedNodeRange || this.hoveredNodeRange
+    const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
+
+    const nodeAndRange = getNodeAndRange(
+      markOrNode,
+      range,
+      nodeId,
+      this.pmView,
+      this,
+    )
+    markOrNode = nodeAndRange.markOrNode
+    range = nodeAndRange.range
+
+    const nodeRect = posToDOMRect(this.pmView, range!.from, range!.to)
+
+    if (markOrNode && range && this.hyperlinkToolbarState) {
+      const dom = this.pmView.domAtPos(range!.from).node as HTMLElement
+      const buttonElement = dom.querySelector('button') as HTMLElement | null
+
+      const buttonRect = buttonElement?.getBoundingClientRect?.() ?? nodeRect
+
+      this.hyperlinkToolbarState = {
+        ...this.hyperlinkToolbarState,
+        referencePos: buttonRect,
+        props: {
+          alignment: markOrNode.attrs.alignment,
+        },
+      }
+
+      this.updateHyperlinkToolbar()
+    }
   }
 
   // deleteHyperlink() {
@@ -412,8 +456,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       )
       const nodeRect = posToDOMRect(
         this.pmView,
-        this.hoveredNodeRange!.from,
-        this.hoveredNodeRange!.to,
+        this.selectedNodeRange!.from,
+        this.selectedNodeRange!.to,
       )
       if (this.selectedNode instanceof Mark) {
         nextState = {
@@ -440,7 +484,9 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         else if (this.selectedNode.type.name === 'button') {
           const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
             .node as HTMLElement
-          const buttonElement = dom.querySelector('button')
+          const buttonElement = dom.querySelector(
+            'button',
+          ) as HTMLElement | null
 
           const buttonRect =
             buttonElement?.getBoundingClientRect?.() ?? nodeRect
@@ -595,12 +641,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         else if (this.hoveredNode.type.name === 'button') {
           const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
             .node as HTMLElement
-          const buttonElement = dom.querySelector('button')
+          const buttonElement = dom.querySelector(
+            'button',
+          ) as HTMLElement | null
 
           const buttonRect =
             buttonElement?.getBoundingClientRect?.() ?? nodeRect
-
-          // console.log('~~~~ UPDATING BUTTON', this.hoveredNode)
 
           const alignAttr = this.hoveredNode!.attrs.alignment
           const alignment =
@@ -770,6 +816,10 @@ export class HyperlinkToolbarProsemirrorPlugin<
    */
   public stopHideTimer = () => {
     this.view!.stopMenuUpdateTimer()
+  }
+
+  public updatePosition = () => {
+    this.view!.updateFormRect()
   }
 
   public highlightHyperlink() {}
