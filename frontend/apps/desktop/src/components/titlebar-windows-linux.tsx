@@ -81,7 +81,7 @@ export function WindowsLinuxTitleBar({
           <div className="window-drag flex min-w-min basis-0 items-center">
             {left}
           </div>
-          <div className="flex flex-1 items-center px-2">
+          <div className="flex flex-1 items-center overflow-x-hidden px-2">
             {/* <Title /> */}
             {title}
           </div>

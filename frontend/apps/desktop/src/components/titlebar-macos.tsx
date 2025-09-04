@@ -41,7 +41,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
             <NavigationButtons />
           </div>
         </div>
-        <div className="flex flex-1 items-center gap-2 overflow-hidden px-2">
+        <div className="flex flex-1 items-center gap-2 overflow-x-hidden px-2">
           <TitlebarTitleSearch />
         </div>
         <div className="flex-basis-0 window-drag flex min-w-min items-center justify-end">
