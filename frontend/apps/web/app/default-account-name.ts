@@ -91,6 +91,5 @@ const seedNouns = [
 ]
 
 function getRandomItem(array: string[]): string {
-  // @ts-expect-error
-  return array[Math.floor(Math.random() * array.length)]
+  return array[Math.floor(Math.random() * array.length)]!
 }

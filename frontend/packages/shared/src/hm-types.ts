@@ -525,7 +525,7 @@ export const HMTimestampSchema = z
   .strict()
   .or(z.string())
 
-// @ts-expect-error
+// @ts-expect-error - Complex recursive type incompatibility with Zod inference
 export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
   z.object({
     children: z.array(HMBlockNodeSchema).optional(),

@@ -30,12 +30,18 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 
+declare global {
+  interface Window {
+    webln?: {
+      enable(): Promise<void>
+      sendPayment(invoice: string): Promise<any>
+    }
+  }
+}
+
 async function sendWeblnPayment(invoice: string) {
-  // @ts-expect-error
   if (typeof window.webln !== 'undefined') {
-    // @ts-expect-error
     await window.webln.enable()
-    // @ts-expect-error
     return await window.webln.sendPayment(invoice)
   }
 }
@@ -206,8 +212,7 @@ function DonateForm({
   const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
     {
       mode: 'even',
-      // @ts-ignore
-      amount: DEFAULT_PAYMENT_AMOUNTS[0],
+      amount: DEFAULT_PAYMENT_AMOUNTS[0]!,
       recipients: authors
         .filter((a) => allowed.has(a.id.uid))
         .map((a) => a.id.uid),

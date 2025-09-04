@@ -56,7 +56,7 @@ export function FormCheckbox<Fields extends FieldValues>({
   return (
     <div className="flex gap-1">
       <FullCheckbox
-        // @ts-expect-error
+        // @ts-expect-error - react-hook-form field value type conflict with CheckedState
         value={c.field.value as CheckedState}
         label={label}
         onValue={c.field.onChange}

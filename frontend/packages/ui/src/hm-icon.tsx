@@ -76,9 +76,8 @@ export function LinkIcon({
         variant="ghost"
         size="icon"
         className="no-window-drag relative min-h-5 min-w-5 p-0"
-        // @ts-expect-error
-        style={{height: size}}
         {...linkProps}
+        style={{height: size} as React.CSSProperties}
       >
         {content}
       </Button>

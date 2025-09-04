@@ -26,8 +26,10 @@ export function TitlebarTitleSearch() {
       <div className="border-border no-window-drag relative flex w-full items-center gap-2">
         <PopoverTrigger
           className={cn(
-            'no-window-drag`',
+            'no-window-drag p-1`',
             buttonVariants({variant: 'ghost', size: 'icon'}),
+            // prevents focus ring that looks bad because of the overflow hidden in the parent
+            'focus-visible:ring-none focus-visible:border-0 focus-visible:ring-0',
           )}
         >
           <Search className="size-4" />
