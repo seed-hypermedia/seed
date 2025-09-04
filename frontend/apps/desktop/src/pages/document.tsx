@@ -41,7 +41,10 @@ import {
   HMResource,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {CommentsProvider} from '@shm/shared/comments-service-provider'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {pluralS} from '@shm/shared/utils/language'
@@ -76,11 +79,13 @@ import {AppDocContentProvider} from './document-content-provider'
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
-  const docId = route.key === 'document' && route.id
+
+  const docId = route.key == 'document' && route.id
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
+  const push = useNavigate('push')
 
   const {accessory, accessoryOptions} = useDocumentAccessory({docId})
 
@@ -122,24 +127,63 @@ export default function DocumentPage() {
       <CommentsProvider
         service={commentsService}
         onReplyClick={(replyComment) => {
-          replace({
-            ...route,
-            accessory: {
-              key: 'discussions',
-              openComment: replyComment.id,
-              isReplying: true,
-            },
+          const targetRoute = isRouteEqualToCommentTarget({
+            id: route.id,
+            comment: replyComment,
           })
+
+          console.log(`== ~ DocumentPage ~ targetRoute:`, targetRoute)
+
+          if (targetRoute) {
+            push({
+              key: 'document',
+              id: targetRoute,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          } else {
+            console.log('targetRoute is the same. replacing...')
+            replace({
+              ...route,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          }
           triggerCommentDraftFocus(docId.id, replyComment.id)
         }}
         onReplyCountClick={(replyComment) => {
-          replace({
-            ...route,
-            accessory: {
-              key: 'discussions',
-              openComment: replyComment.id,
-            },
+          const targetRoute = isRouteEqualToCommentTarget({
+            id: route.id,
+            comment: replyComment,
           })
+          if (targetRoute) {
+            // comment target is not the same as the route, so we need to change the whole route
+            push({
+              key: 'document',
+              id: targetRoute,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          } else {
+            // comment target is the same as the route, so we can replace safely
+            replace({
+              ...route,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          }
         }}
       >
         <div className="flex h-full flex-1 flex-col">

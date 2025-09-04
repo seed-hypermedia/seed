@@ -172,7 +172,7 @@ export function Discussions({
       discussionsService.data.discussions?.length > 0 ? (
         discussionsService.data.discussions?.map((cg) => {
           return (
-            <div key={cg.id} className={cn('border-border border-b p-2')}>
+            <div key={cg.id} className={cn('border-border border-b')}>
               <CommentGroup
                 commentGroup={cg}
                 authors={discussionsService.data.authors}
@@ -431,7 +431,7 @@ export function Comment({
           )}
           style={{
             height: `calc(100% - ${avatarSize}px)`,
-            left: 3,
+            left: avatarSize - 4,
             bottom: 0,
           }}
         />

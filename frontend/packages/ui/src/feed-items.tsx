@@ -6,7 +6,12 @@ import {
   LoadedFeedEvent,
 } from '@shm/shared/feed-types'
 import {NavRoute} from '@shm/shared/routes'
+import {useTxString} from '@shm/shared/translation'
+import {useResourceUrl} from '@shm/shared/url'
+import {useCallback} from 'react'
+import {Button} from './button'
 import {Comment} from './comments'
+import {copyTextToClipboard} from './copy-to-clipboard'
 import {
   EventContact,
   EventContacts,
@@ -15,7 +20,10 @@ import {
   EventRowInline,
   EventTimestamp,
 } from './feed'
+import {Link} from './icons'
 import {ResourceToken} from './resource-token'
+import {toast} from './toast'
+import {Tooltip} from './tooltip'
 
 export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
   const route: NavRoute = {
@@ -33,8 +41,15 @@ export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
 }
 
 export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
+  const tx = useTxString()
+  const getUrl = useResourceUrl(event.targetId?.hostname || undefined)
+  const handleCopyLink = useCallback(() => {
+    const url = getUrl(event.commentId)
+    copyTextToClipboard(url)
+    toast.success('Copied Comment URL')
+  }, [event.commentId])
   return (
-    <EventRow>
+    <EventRow onClick={handleCopyLink}>
       {event.comment && (
         <Comment
           comment={event.comment}
@@ -49,6 +64,16 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
                 />
               ) : null}
               <EventTimestamp time={event.time} />
+              <Tooltip content={tx('Copy Comment Link')}>
+                <Button
+                  size="iconSm"
+                  variant="ghost"
+                  className="text-muted-foreground opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
+                  onClick={handleCopyLink}
+                >
+                  <Link className="size-3" />
+                </Button>
+              </Tooltip>
             </div>
           }
         />

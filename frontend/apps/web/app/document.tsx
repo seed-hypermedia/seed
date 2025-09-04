@@ -19,7 +19,10 @@ import {
   useUniversalAppContext,
   WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
-import {CommentsProvider} from '@shm/shared/comments-service-provider'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
 import '@shm/shared/styles/document.css'
 import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
@@ -440,10 +443,27 @@ function InnerDocumentPage(
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (enableWebSigning) {
-        setEditorAutoFocus(true)
-        setCommentPanel(comment)
-        if (!media.gtSm) {
-          setMobilePanelOpen(true)
+        const targetId = isRouteEqualToCommentTarget({id, comment})
+
+        if (targetId) {
+          const route = {
+            key: 'document',
+            id,
+            accessory: {
+              key: 'discussions',
+              openComment: comment.id,
+            },
+          } as NavRoute
+          const href = routeToHref(route, context)
+          if (href) {
+            replace(href)
+          }
+        } else {
+          setEditorAutoFocus(true)
+          setCommentPanel(comment)
+          if (!media.gtSm) {
+            setMobilePanelOpen(true)
+          }
         }
       } else {
         redirectToWebIdentityCommenting(id, {

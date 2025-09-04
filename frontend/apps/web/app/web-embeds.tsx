@@ -14,12 +14,15 @@ import {
   packHmId,
   queryBlockSortedItems,
   UnpackedHypermediaId,
+  unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {Discussions} from '@shm/ui/comments'
 import {
+  BlockContentUnknown,
   blockStyles,
   CommentContentEmbed,
   ContentEmbed,
@@ -115,9 +118,13 @@ function EmbedWrapper({
 }
 
 export function EmbedDocument(props: EntityComponentProps) {
-  if (props.block.type !== 'Embed') return null
+  if (props.block.type !== 'Embed') {
+    return <BlockContentUnknown {...props} />
+  }
   if (props.block.attributes?.view == 'Card') {
     return <EmbedDocumentCard {...props} />
+  } else if (props.block.attributes?.view == 'Comments') {
+    return <EmbedDocumentComments {...props} />
   } else {
     return <EmbedDocumentContent {...props} />
   }
@@ -406,5 +413,23 @@ function QueryStyleList({
         )
       })}
     </div>
+  )
+}
+
+function EmbedDocumentComments(props: EntityComponentProps) {
+  const unpackedId = unpackHmId(
+    props.block.type === 'Embed' ? props.block.link : undefined,
+  )
+  if (!unpackedId) {
+    return <ErrorBlock message="Invalid embed link" />
+  }
+  return (
+    <EmbedWrapper
+      id={unpackedId}
+      parentBlockId={props.parentBlockId}
+      hideBorder
+    >
+      <Discussions targetId={unpackedId} />
+    </EmbedWrapper>
   )
 }

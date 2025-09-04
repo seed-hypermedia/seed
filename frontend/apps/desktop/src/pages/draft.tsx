@@ -27,7 +27,10 @@ import {
   chromiumSupportedVideoMimeTypes,
   generateBlockId,
 } from '@shm/editor/utils'
-import {CommentsProvider} from '@shm/shared/comments-service-provider'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
   HMEntityContent,
@@ -62,6 +65,7 @@ export default function DraftPage() {
   const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
   const replace = useNavigate('replace')
+  const push = useNavigate('push')
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   const {data, editor, send, state, actor} = useDraftEditor()
@@ -179,24 +183,61 @@ export default function DraftPage() {
       <CommentsProvider
         service={commentsService}
         onReplyClick={(replyComment) => {
-          replace({
-            ...route,
-            accessory: {
-              key: 'discussions',
-              openComment: replyComment.id,
-              isReplying: true,
-            },
+          const targetRoute = isRouteEqualToCommentTarget({
+            id: editId || locationId,
+            comment: replyComment,
           })
+
+          if (targetRoute) {
+            push({
+              key: 'document',
+              id: targetRoute,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          } else {
+            console.log('targetRoute is the same. replacing...')
+            replace({
+              ...route,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          }
           triggerCommentDraftFocus(route.id, replyComment.id)
         }}
         onReplyCountClick={(replyComment) => {
-          replace({
-            ...route,
-            accessory: {
-              key: 'discussions',
-              openComment: replyComment.id,
-            },
+          const targetRoute = isRouteEqualToCommentTarget({
+            id: editId || locationId,
+            comment: replyComment,
           })
+          if (targetRoute) {
+            // comment target is not the same as the route, so we need to change the whole route
+            push({
+              key: 'document',
+              id: targetRoute,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          } else {
+            // comment target is the same as the route, so we can replace safely
+            replace({
+              ...route,
+              accessory: {
+                key: 'discussions',
+                openComment: replyComment.id,
+                isReplying: true,
+              },
+            })
+          }
         }}
       >
         <div className="flex h-full flex-1">

@@ -15,9 +15,15 @@ import {
 import {useResources} from '@shm/shared/models/entity'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDate} from '@shm/shared/utils/date'
-import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {
+  hmId,
+  narrowHmId,
+  packHmId,
+  unpackHmId,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {Discussions} from '@shm/ui/comments'
 import {
   BlockContentUnknown,
   blockStyles,
@@ -63,7 +69,7 @@ function EmbedWrapper({
     id?: UnpackedHypermediaId
     parentBlockId: string | null
     depth?: number
-    viewType?: 'Content' | 'Card'
+    viewType?: 'Content' | 'Card' | 'Comments'
     hideBorder?: boolean
     isRange?: boolean
     embedView?: any
@@ -269,6 +275,8 @@ export function EmbedDocument(props: EntityComponentProps) {
   }
   if (props.block.attributes?.view == 'Card') {
     return <EmbedDocumentCard {...props} />
+  } else if (props.block.attributes?.view == 'Comments') {
+    return <EmbedDocumentComments {...props} />
   } else {
     return <EmbedDocumentContent {...props} />
   }
@@ -661,5 +669,23 @@ function QueryStyleList({items}: {items: any[]}) {
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       )}
     </div>
+  )
+}
+
+function EmbedDocumentComments(props: EntityComponentProps) {
+  const unpackedId = unpackHmId(
+    props.block.type === 'Embed' ? props.block.link : undefined,
+  )
+  if (!unpackedId) {
+    return <ErrorBlock message="Invalid embed link" />
+  }
+  return (
+    <EmbedWrapper
+      id={unpackedId}
+      parentBlockId={props.parentBlockId}
+      hideBorder
+    >
+      <Discussions targetId={unpackedId} />
+    </EmbedWrapper>
   )
 }

@@ -23,6 +23,7 @@ export function getNodesOutline(
   children: HMBlockNode[],
   entityId?: UnpackedHypermediaId,
   embeds?: HMEntityContent[],
+  visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
@@ -32,15 +33,25 @@ export function getNodesOutline(
         title: child.block.text,
         entityId: entityId,
         children:
-          child.children && getNodesOutline(child.children, entityId, embeds),
+          child.children &&
+          getNodesOutline(child.children, entityId, embeds, visitedEmbedIds),
       })
     } else if (
       child.block.type === 'Embed' &&
       child.block.attributes?.view !== 'Card'
     ) {
-      outline.push(...getEmbedOutline(child.block.id, child.block.link, embeds))
+      outline.push(
+        ...getEmbedOutline(
+          child.block.id,
+          child.block.link,
+          embeds,
+          visitedEmbedIds,
+        ),
+      )
     } else if (child.children) {
-      outline.push(...getNodesOutline(child.children, entityId, embeds))
+      outline.push(
+        ...getNodesOutline(child.children, entityId, embeds, visitedEmbedIds),
+      )
     }
   })
   return outline
@@ -50,10 +61,21 @@ function getEmbedOutline(
   blockId: string,
   link: string,
   embedEntities?: HMEntityContent[],
+  visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []
   const embedId = unpackHmId(link)
   if (embedId) {
+    // Check if we've already processed this embed to prevent circular references
+    const embedKey = embedId.id + (embedId.blockRef || '')
+    if (visitedEmbedIds.has(embedKey)) {
+      return outline // Return empty outline to break the cycle
+    }
+
+    // Mark this embed as visited
+    const newVisitedEmbedIds = new Set(visitedEmbedIds)
+    newVisitedEmbedIds.add(embedKey)
+
     const embedEntity = embedEntities?.find((e) => e.id.id === embedId.id)
     if (embedId.blockRef && embedEntity?.document?.content) {
       const embedBn = findContentBlock(
@@ -66,7 +88,12 @@ function getEmbedOutline(
           title: embedBn.block.text,
           entityId: embedId,
           children: embedBn.children
-            ? getNodesOutline(embedBn.children, embedId, embedEntities)
+            ? getNodesOutline(
+                embedBn.children,
+                embedId,
+                embedEntities,
+                newVisitedEmbedIds,
+              )
             : [],
         })
       }
@@ -79,6 +106,7 @@ function getEmbedOutline(
               embedEntity?.document?.content,
               embedId,
               embedEntities,
+              newVisitedEmbedIds,
             )
           : [],
       })
@@ -110,6 +138,7 @@ export function getDraftNodesOutline(
   children: HMDraft['content'],
   parentEntityId?: UnpackedHypermediaId,
   embeds?: HMEntityContent[],
+  visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
@@ -125,13 +154,25 @@ export function getDraftNodesOutline(
         entityId: parentEntityId,
         children:
           child.children &&
-          getDraftNodesOutline(child.children, parentEntityId, embeds),
+          getDraftNodesOutline(
+            child.children,
+            parentEntityId,
+            embeds,
+            visitedEmbedIds,
+          ),
       })
     } else if (child.type === 'embed' && child.props?.view !== 'Card') {
-      outline.push(...getEmbedOutline(child.id, child.props.url, embeds))
+      outline.push(
+        ...getEmbedOutline(child.id, child.props.url, embeds, visitedEmbedIds),
+      )
     } else if (child.children) {
       outline.push(
-        ...getDraftNodesOutline(child.children, parentEntityId, embeds),
+        ...getDraftNodesOutline(
+          child.children,
+          parentEntityId,
+          embeds,
+          visitedEmbedIds,
+        ),
       )
     }
   })

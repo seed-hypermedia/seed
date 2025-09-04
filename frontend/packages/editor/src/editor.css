@@ -463,25 +463,56 @@ ol > [data-node-type='block-outer']::marker {
 }
 
 @layer components {
-  .hljs-comment, .hljs-quote { color: var(--hljs-comment); }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--hljs-comment);
+  }
 
-  .hljs-variable, .hljs-template-variable, .hljs-attribute,
-  .hljs-tag, .hljs-name, .hljs-regexp, .hljs-link,
-  .hljs-selector-id, .hljs-selector-class { color: var(--hljs-red); }
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-attribute,
+  .hljs-tag,
+  .hljs-name,
+  .hljs-regexp,
+  .hljs-link,
+  .hljs-selector-id,
+  .hljs-selector-class {
+    color: var(--hljs-red);
+  }
 
-  .hljs-number, .hljs-meta, .hljs-built_in, .hljs-builtin-name,
-  .hljs-literal, .hljs-type, .hljs-params { color: var(--hljs-orange); }
+  .hljs-number,
+  .hljs-meta,
+  .hljs-built_in,
+  .hljs-builtin-name,
+  .hljs-literal,
+  .hljs-type,
+  .hljs-params {
+    color: var(--hljs-orange);
+  }
 
-  .hljs-string, .hljs-symbol, .hljs-bullet { color: var(--hljs-green); }
+  .hljs-string,
+  .hljs-symbol,
+  .hljs-bullet {
+    color: var(--hljs-green);
+  }
 
-  .hljs-title, .hljs-section { color: var(--hljs-yellow); }
+  .hljs-title,
+  .hljs-section {
+    color: var(--hljs-yellow);
+  }
 
-  .hljs-keyword, .hljs-selector-tag { color: var(--hljs-blue); }
+  .hljs-keyword,
+  .hljs-selector-tag {
+    color: var(--hljs-blue);
+  }
 
-  .hljs-emphasis { font-style: italic; }
-  .hljs-strong { font-weight: 700; }
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  .hljs-strong {
+    font-weight: 700;
+  }
 }
-
 
 .side-menu {
   display: none !important;

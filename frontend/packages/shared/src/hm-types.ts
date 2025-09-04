@@ -60,6 +60,7 @@ export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 export const HMEmbedViewSchema = z.union([
   z.literal('Content'),
   z.literal('Card'),
+  z.literal('Comments'),
 ])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
@@ -943,7 +944,7 @@ export type HMLoadedEmbed = {
   type: 'Embed'
   id: string
   link: string
-  view?: 'Content' | 'Card'
+  view?: 'Content' | 'Card' | 'Comments'
   authors: HMAccountsMetadata
   updateTime: HMTimestamp | null
   metadata: HMMetadata | null

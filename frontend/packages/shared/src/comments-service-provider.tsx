@@ -1,6 +1,6 @@
 import {useQuery} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
-import {HMComment} from './hm-types'
+import {HMComment, UnpackedHypermediaId} from './hm-types'
 import {
   CommentsService,
   ListCommentsByReferenceRequest,
@@ -10,19 +10,20 @@ import {
   ListDiscussionsResponse,
 } from './models/comments-service'
 import {queryKeys} from './models/query-keys'
+import {hmId} from './utils/entity-id-url'
 
 type CommentsProviderValue = {
-  onReplyClick: (replyComment: HMComment) => void
-  onReplyCountClick: (replyComment: HMComment) => void
+  onReplyClick: (comment: HMComment) => void
+  onReplyCountClick: (comment: HMComment) => void
   service: CommentsService | null
 }
 
 const defaultCommentsContext = {
-  onReplyClick: (replyComment: HMComment) => {
-    console.log('onReplyClick not implemented', replyComment)
+  onReplyClick: (comment: HMComment) => {
+    console.log('onReplyClick not implemented', comment)
   },
-  onReplyCountClick: (replyComment: HMComment) => {
-    console.log('onReplyCountClick not implemented', replyComment)
+  onReplyCountClick: (comment: HMComment) => {
+    console.log('onReplyCountClick not implemented', comment)
   },
   service: null,
 }
@@ -114,4 +115,31 @@ export function useBlockDiscussionsService(
     },
     enabled: !!context.service,
   })
+}
+
+export function isRouteEqualToCommentTarget({
+  id,
+  comment,
+}: {
+  id: UnpackedHypermediaId
+  comment: HMComment
+}): UnpackedHypermediaId | null {
+  if (!id) return null
+
+  const targetRoute = hmId(`${comment.targetAccount}${comment.targetPath}`, {
+    version: comment.targetVersion,
+  })
+
+  console.log({id, targetRoute})
+  console.log('targetRoute.uid == id.uid', targetRoute.uid == id.uid)
+  console.log('path', targetRoute.path?.join('/') == id.path?.join('/'))
+
+  if (
+    targetRoute.uid == id.uid &&
+    targetRoute.path?.join('/') == id.path?.join('/')
+  ) {
+    return null
+  }
+
+  return targetRoute
 }

@@ -4,6 +4,7 @@
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@shm/ui/*": ["./frontend/packages/ui/src/*"],
+      "@shm/shared": ["./frontend/packages/shared/src/index.ts"],
       "@shm/shared/*": ["./frontend/packages/shared/src/*"],
       "@shm/editor/*": ["./frontend/packages/editor/src/*"]
     },

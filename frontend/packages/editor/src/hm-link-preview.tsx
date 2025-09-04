@@ -100,9 +100,17 @@ export function HypermediaLinkPreview(
         props.type,
         node,
       )
-    } else if (type === 'embed' || type === 'card') {
+    } else if (type === 'embed' || type === 'card' || type === 'comments') {
       const node = schema.nodes.embed.create(
-        {url: props.url, view: type === 'embed' ? 'Content' : 'Card'},
+        {
+          url: props.url,
+          view:
+            type === 'embed'
+              ? 'Content'
+              : type === 'card'
+              ? 'Card'
+              : 'Comments',
+        },
         schema.text(' '),
       )
       insertNode(

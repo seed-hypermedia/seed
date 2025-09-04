@@ -38,6 +38,7 @@ const LINK_TYPES = [
   {value: 'inline-embed', label: 'Mention', icon: Quote},
   {value: 'button', label: 'Button', icon: CircleDot},
   {value: 'embed', label: 'Content Embed', icon: File},
+  {value: 'comments', label: 'Discussions Embed', icon: File},
   {value: 'card', label: 'Card', icon: PanelBottom},
 ]
 
@@ -48,7 +49,7 @@ export type HypermediaLinkFormProps = {
   url: string
   text: string
   isHmLink: boolean
-  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
+  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button' | 'comments'
   updateLink: (url: string, text: string, hideMenu: boolean) => void
   resetLink: () => void
   hasName?: boolean
