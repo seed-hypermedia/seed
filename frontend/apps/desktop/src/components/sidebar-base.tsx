@@ -116,7 +116,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
             `flex h-full w-full flex-col pr-1 pl-3 transition-all duration-200 ease-in-out`,
             isLocked
               ? 'relative'
-              : 'border-border bg-background absolute z-50 rounded-tr-lg rounded-br-lg border shadow-lg dark:bg-black',
+              : 'border-border bg-background absolute z-[51] rounded-tr-lg rounded-br-lg border shadow-lg dark:bg-black',
             isVisible ? 'opacity-100' : 'opacity-0',
           )}
           style={{
