@@ -6,18 +6,25 @@ describe('prepareHMDocument', () => {
   it('returns parsed document when schema validation succeeds', () => {
     const mockDoc = {
       toJson: () => ({
-        id: 'test-doc',
+        path: '/test/path',
         metadata: {
           createdAt: '2024-01-01T00:00:00Z',
           updatedAt: '2024-01-01T00:00:00Z',
         },
         content: [],
+        version: '1.0',
+        account: 'test-account',
+        authors: ['author1'],
+        genesis: 'genesis-id',
+        createTime: '2024-01-01T00:00:00Z',
+        updateTime: '2024-01-01T00:00:00Z',
       }),
     } as unknown as Document
 
     const result = prepareHMDocument(mockDoc)
     expect(result).toBeDefined()
     expect(result.account).toBeDefined()
+    expect(result.account).toBe('test-account')
   })
 
   it('returns document even when schema validation fails', () => {
@@ -115,12 +122,19 @@ describe('prepareHMComment', () => {
           updatedAt: '2024-01-01T00:00:00Z',
         },
         content: [],
+        version: '1.0',
+        author: 'test-author',
+        targetAccount: 'target-account',
+        targetVersion: 'target-version',
+        createTime: '2024-01-01T00:00:00Z',
+        updateTime: '2024-01-01T00:00:00Z',
       }),
     } as unknown as Comment
 
     const result = prepareHMComment(mockComment)
     expect(result).toBeDefined()
     expect(result.content).toBeDefined()
+    expect(result.author).toBe('test-author')
   })
 
   it('returns comment even when schema validation fails', () => {
