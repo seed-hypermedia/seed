@@ -911,7 +911,11 @@ export function BlockNodeContent({
                 // {...interactiveProps}
               />
             </HoverCardTrigger>
-            <HoverCardContent side="top" align="end" className="w-auto p-0">
+            <HoverCardContent
+              side="top"
+              align="end"
+              className="z-10 w-auto p-0"
+            >
               {hoverCardContent}
             </HoverCardContent>
           </HoverCard>
@@ -955,7 +959,7 @@ export function BlockNodeContent({
                     <HoverCardContent
                       side="top"
                       align="end"
-                      className="w-auto p-0"
+                      className="z-10 w-auto p-0"
                     >
                       {hoverCardContent}
                     </HoverCardContent>
