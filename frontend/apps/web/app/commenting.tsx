@@ -116,14 +116,15 @@ export function LocalWebCommenting({
   // const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
-  
+
   // Use draft persistence
-  const {draft, isLoading: isDraftLoading, saveDraft, removeDraft} = useCommentDraftPersistence(
-    docId.id,
-    replyCommentId,
-    quotingBlockId,
-  )
-  
+  const {
+    draft,
+    isLoading: isDraftLoading,
+    saveDraft,
+    removeDraft,
+  } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId)
+
   const postComment = useMutation({
     mutationFn: async (commentPayload: {
       comment: Uint8Array

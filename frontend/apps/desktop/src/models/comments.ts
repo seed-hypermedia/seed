@@ -234,7 +234,7 @@ export function useCommentEditor(
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
   const hasInitializedDraft = useRef(false)
-  
+
   function initDraft() {
     if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current
@@ -331,7 +331,11 @@ export function useCommentEditor(
   useEffect(() => {
     // Only initialize draft once when it first loads and editor is ready
     // Don't reinitialize during editing as this causes cursor position loss
-    if (readyEditor.current && initCommentDraft && !hasInitializedDraft.current) {
+    if (
+      readyEditor.current &&
+      initCommentDraft &&
+      !hasInitializedDraft.current
+    ) {
       hasInitializedDraft.current = true
       initDraft()
     }
@@ -464,11 +468,14 @@ export function useCommentEditor(
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
       // Clear the query cache immediately to prevent stale data on refresh
       queryClient.setQueryData(
-        ['trpc.comments.getCommentDraft', {
-          targetDocId: targetDocId.id,
-          replyCommentId: commentId,
-        }],
-        null
+        [
+          'trpc.comments.getCommentDraft',
+          {
+            targetDocId: targetDocId.id,
+            replyCommentId: commentId,
+          },
+        ],
+        null,
       )
       removeDraft.mutate({
         targetDocId: targetDocId.id,

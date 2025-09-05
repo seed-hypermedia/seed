@@ -224,32 +224,10 @@ export default function DocumentPage() {
   )
 }
 
-function BaseDocContainer({
-  children,
-  className,
-  ...props
-}: {children: ReactNode} & React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <Container clearVerticalSpace className={className} {...props}>
-      {children}
-    </Container>
-  )
-}
-
-function NewspaperDocContainer({children, ...props}: {children: ReactNode}) {
-  return (
-    <div className="p-0" {...props}>
-      {children}
-    </div>
-  )
-}
-
 function _MainDocumentPage({
   id,
   isBlockFocused,
   onScrollParamSet,
-  isCommentingPanelOpen,
-  onAccessory,
 }: {
   id: UnpackedHypermediaId
   isBlockFocused: boolean
@@ -388,7 +366,8 @@ function _MainDocumentPage({
               </div>
             ) : null}
 
-            <BaseDocContainer
+            <Container
+              clearVerticalSpace
               {...mainContentProps}
               className={cn(
                 mainContentProps.className,
@@ -405,7 +384,7 @@ function _MainDocumentPage({
                   isBlockFocused={isBlockFocused}
                 />
               </div>
-            </BaseDocContainer>
+            </Container>
             {showSidebars ? (
               <div
                 {...sidebarProps}

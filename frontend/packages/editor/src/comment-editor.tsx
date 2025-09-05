@@ -127,10 +127,16 @@ export function CommentEditor({
 }) {
   const {editor} = useCommentEditor(perspectiveAccountUid)
   // Check if we have non-empty draft content
-  const hasDraftContent = initialBlocks && initialBlocks.length > 0 && 
-    initialBlocks.some(block => {
+  const hasDraftContent =
+    initialBlocks &&
+    initialBlocks.length > 0 &&
+    initialBlocks.some((block) => {
       // Check if block has text content (for paragraph-like blocks)
-      if ('text' in block.block && typeof block.block.text === 'string' && block.block.text.trim().length > 0) {
+      if (
+        'text' in block.block &&
+        typeof block.block.text === 'string' &&
+        block.block.text.trim().length > 0
+      ) {
         return true
       }
       // Check if block has children
@@ -147,14 +153,19 @@ export function CommentEditor({
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
-  
+
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
   }
 
   // Initialize editor with draft content
   useEffect(() => {
-    if (initialBlocks && initialBlocks.length > 0 && !isInitializedRef.current && editor) {
+    if (
+      initialBlocks &&
+      initialBlocks.length > 0 &&
+      !isInitializedRef.current &&
+      editor
+    ) {
       isInitializedRef.current = true
       try {
         const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
@@ -172,20 +183,20 @@ export function CommentEditor({
   // Notify parent of content changes
   useEffect(() => {
     if (!onContentChange) return
-    
+
     const handleChange = () => {
       // Clear previous timeout
       if (contentChangeTimeoutRef.current) {
         clearTimeout(contentChangeTimeoutRef.current)
       }
-      
+
       // Debounce content change notifications
       contentChangeTimeoutRef.current = setTimeout(() => {
         try {
           const blocks = serverBlockNodesFromEditorBlocks(
             editor,
             // @ts-expect-error
-            editor.topLevelBlocks
+            editor.topLevelBlocks,
           )
           onContentChange(blocks.map((b) => b.toJson()) as HMBlockNode[])
         } catch (error) {
@@ -196,7 +207,7 @@ export function CommentEditor({
 
     // Listen to editor changes
     editor._tiptapEditor.on('update', handleChange)
-    
+
     return () => {
       editor._tiptapEditor.off('update', handleChange)
       if (contentChangeTimeoutRef.current) {
