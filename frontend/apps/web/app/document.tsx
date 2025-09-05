@@ -572,6 +572,7 @@ function InnerDocumentPage(
     panelTitle = tx('Citations')
   }
 
+  console.log('BLOCK CITATIONS', interactionSummary.data?.blocks)
   if (!document)
     return (
       <DocumentDiscoveryPage
