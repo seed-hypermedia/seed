@@ -188,15 +188,31 @@ export function prepareHMDocument(apiDoc: Document): HMDocument {
     const document = HMDocumentSchema.parse(docJSON)
     return document
   } catch (error) {
-    console.error('~~ Error parsing document', error, docJSON)
+    console.error(
+      '~~ Error parsing document, returning unvalidated document',
+      error,
+    )
     console.error(JSON.stringify(docJSON, null, 2))
-    throw error
+    // Return the document as-is even if schema validation fails
+    // This prevents the entire website from crashing due to parsing errors
+    return docJSON as HMDocument
   }
 }
 
 export function prepareHMComment(apiComment: Comment): HMComment {
   const commentJSON = apiComment.toJson() as any
   documentMetadataParseAdjustments(commentJSON.metadata)
-  const comment = HMCommentSchema.parse(commentJSON)
-  return comment
+  try {
+    const comment = HMCommentSchema.parse(commentJSON)
+    return comment
+  } catch (error) {
+    console.error(
+      '~~ Error parsing comment, returning unvalidated comment',
+      error,
+    )
+    console.error(JSON.stringify(commentJSON, null, 2))
+    // Return the document as-is even if schema validation fails
+    // This prevents the entire website from crashing due to parsing errors
+    return commentJSON as HMComment
+  }
 }
