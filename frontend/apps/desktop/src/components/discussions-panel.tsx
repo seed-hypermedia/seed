@@ -1,5 +1,7 @@
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 
+import {useDeleteComment} from '@/models/comments'
+import {useSelectedAccount} from '@/selected-account'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentDiscussionsAccessory} from '@shm/shared/routes'
@@ -8,8 +10,9 @@ import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
+  useDeleteCommentDialog,
 } from '@shm/ui/comments'
-import {memo} from 'react'
+import {memo, useCallback} from 'react'
 import {CommentBox, renderCommentContent} from './commenting'
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
@@ -20,6 +23,7 @@ function _DiscussionsPanel(props: {
   onAccessory: (acc: DocumentDiscussionsAccessory) => void
 }) {
   const {docId, accessory, onAccessory} = props
+  const selectedAccount = useSelectedAccount()
   const homeDoc = useResource(hmId(docId.uid))
   const targetDomain =
     homeDoc.data?.type === 'document'
@@ -34,6 +38,28 @@ function _DiscussionsPanel(props: {
     />
   )
 
+  const deleteComment = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
+
+  const onCommentDelete = useCallback(
+    (commentId: string, signingAccountId?: string) => {
+      if (!signingAccountId) return
+      console.log('-=- DELETE COMMENT', commentId, signingAccountId)
+      deleteCommentDialog.open({
+        onConfirm: () => {
+          deleteComment.mutate({
+            commentId,
+            targetDocId: docId,
+            signingAccountId,
+          })
+        },
+      })
+    },
+    [docId, selectedAccount?.id?.uid],
+  )
+
+  const currentAccountId = selectedAccount?.id.uid
+
   if (accessory.openBlockId) {
     const targetId = hmId(docId.uid, {
       ...docId,
@@ -41,11 +67,13 @@ function _DiscussionsPanel(props: {
     })
     return (
       <AppDocContentProvider docId={targetId}>
+        {deleteCommentDialog.content}
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
           onBack={() => onAccessory({key: 'discussions'})}
           targetDomain={targetDomain}
+          currentAccountId={currentAccountId}
         />
       </AppDocContentProvider>
     )
@@ -53,24 +81,32 @@ function _DiscussionsPanel(props: {
 
   if (accessory.openComment) {
     return (
-      <CommentDiscussions
-        onBack={() => onAccessory({key: 'discussions'})}
-        commentId={accessory.openComment}
-        commentEditor={commentEditor}
-        targetId={docId}
-        renderCommentContent={renderCommentContent}
-        targetDomain={targetDomain}
-      />
+      <>
+        {deleteCommentDialog.content}
+        <CommentDiscussions
+          onBack={() => onAccessory({key: 'discussions'})}
+          commentId={accessory.openComment}
+          commentEditor={commentEditor}
+          targetId={docId}
+          renderCommentContent={renderCommentContent}
+          targetDomain={targetDomain}
+          currentAccountId={currentAccountId}
+          onCommentDelete={onCommentDelete}
+        />
+      </>
     )
   }
 
   return (
     <>
+      {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
         targetId={docId}
         renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
+        currentAccountId={currentAccountId}
+        onCommentDelete={onCommentDelete}
       />
     </>
   )

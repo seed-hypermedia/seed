@@ -54,6 +54,8 @@ export function CommentDiscussions({
   onBack,
   commentEditor,
   targetDomain,
+  currentAccountId,
+  onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -62,6 +64,8 @@ export function CommentDiscussions({
   onStartDiscussion?: () => void
   onBack?: () => void
   targetDomain?: string
+  currentAccountId?: string
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const commentsService = useCommentsService({targetId})
   if (!commentId) return null
@@ -87,23 +91,8 @@ export function CommentDiscussions({
               type: 'commentGroup',
             }}
             authors={commentsService.data?.authors}
-            onDelete={(id) => {
-              console.log('TODO: delete comment', id)
-              // if (!myAccountId) return
-              // deleteCommentDialog.open({
-              //   onConfirm: () => {
-              //     deleteComment.mutate({
-              //       commentId: id,
-              //       targetDocId: docId,
-              //       signingAccountId: myAccountId,
-              //     })
-              //     if (id === commentId) {
-              //       onBack()
-              //     }
-              //   },
-              // })
-            }}
-            // currentAccountId={myAccountId ?? undefined}
+            onCommentDelete={onCommentDelete}
+            currentAccountId={currentAccountId}
             renderCommentContent={renderCommentContent}
             highlightLastComment
             targetDomain={targetDomain}
@@ -132,6 +121,7 @@ export function CommentDiscussions({
                 commentGroup={cg}
                 authors={commentsService.data?.authors}
                 targetDomain={targetDomain}
+                currentAccountId={currentAccountId}
               />
             </div>
           )
@@ -150,6 +140,8 @@ export function Discussions({
   commentEditor,
   onBack,
   targetDomain,
+  currentAccountId,
+  onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -157,6 +149,8 @@ export function Discussions({
   commentEditor?: ReactNode
   onBack?: () => void
   targetDomain?: string
+  currentAccountId?: string
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
   let panelContent = null
@@ -179,6 +173,8 @@ export function Discussions({
                 renderCommentContent={renderCommentContent}
                 enableReplies
                 targetDomain={targetDomain}
+                currentAccountId={currentAccountId}
+                onCommentDelete={onCommentDelete}
               />
             </div>
           )
@@ -202,12 +198,14 @@ export function BlockDiscussions({
   commentEditor,
   onBack,
   targetDomain,
+  currentAccountId,
 }: {
   targetId: UnpackedHypermediaId
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   onBack?: () => void
   targetDomain?: string
+  currentAccountId?: string
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -246,6 +244,7 @@ export function BlockDiscussions({
                   commentsService.data.authors[comment.author]?.metadata
                 }
                 targetDomain={targetDomain}
+                currentAccountId={currentAccountId}
                 renderCommentContent={renderCommentContent}
               />
             </div>
@@ -273,14 +272,16 @@ export function CommentGroup({
   enableReplies = true,
   highlightLastComment = false,
   targetDomain,
+  currentAccountId,
+  onCommentDelete,
 }: {
   commentGroup: HMCommentGroup
   authors?: ListDiscussionsResponse['authors']
   renderCommentContent?: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   highlightLastComment?: boolean
-  onDelete?: (commentId: string) => void
   currentAccountId?: string
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
@@ -300,7 +301,6 @@ export function CommentGroup({
 
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
-        // const isCurrentAccountComment = comment.author === currentAccountId
         return (
           <Comment
             isLast={isLastCommentInGroup}
@@ -314,10 +314,8 @@ export function CommentGroup({
             }
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
-            // TODO: uncomment this when we have a way to delete comments
-            // onDelete={
-            //   isCurrentAccountComment ? () => onDelete?.(comment.id) : undefined
-            // }
+            currentAccountId={currentAccountId}
+            onCommentDelete={onCommentDelete}
             targetDomain={targetDomain}
           />
         )
@@ -336,7 +334,8 @@ export function Comment({
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
-  onDelete,
+  onCommentDelete,
+  currentAccountId,
   targetDomain,
   heading,
 }: {
@@ -349,8 +348,9 @@ export function Comment({
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
-  onDelete?: () => void
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
+  currentAccountId?: string
   heading?: ReactNode
 }) {
   const tx = useTxString()
@@ -404,12 +404,12 @@ export function Comment({
   }, [defaultExpandReplies])
   const getUrl = useResourceUrl(targetDomain)
   const options: MenuItemType[] = []
-  if (onDelete) {
+  if (onCommentDelete) {
     options.push({
       icon: <Trash2 className="size-4" />,
       label: 'Delete',
       onClick: () => {
-        onDelete()
+        onCommentDelete(comment.id, currentAccountId)
       },
       key: 'delete',
     })
@@ -489,7 +489,7 @@ export function Comment({
                   <Link className="size-3" />
                 </Button>
               </Tooltip>
-              {options.length > 0 ? (
+              {currentAccountId == comment.author ? (
                 <OptionsDropdown
                   className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
                   menuItems={options}

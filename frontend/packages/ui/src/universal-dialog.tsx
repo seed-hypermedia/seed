@@ -110,6 +110,7 @@ export function useAppDialog<DialogInput>(
   const onClose = options?.onClose
   return useMemo(() => {
     function open(input: DialogInput) {
+      console.log('==- OPEN COMMENT ALERT')
       setOpenState(input)
     }
 

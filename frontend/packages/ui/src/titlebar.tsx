@@ -10,7 +10,7 @@ export const TitlebarWrapper = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'm-0 flex min-h-[40px] w-full flex-none flex-col items-stretch justify-center bg-transparent px-0 py-0',
+      'z-50 m-0 flex min-h-[40px] w-full flex-none flex-col items-stretch justify-center bg-transparent px-0 py-0',
       className,
     )}
     {...props}
