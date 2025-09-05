@@ -921,18 +921,25 @@ export function BlockNodeContent({
           </HoverCard>
         ) : (
           <Popover>
-            <PopoverTrigger asChild>
+            <PopoverAnchor asChild>
               <div>
-                <BlockContent
-                  // @ts-expect-error
-                  block={modifiedBlock}
-                  depth={depth}
-                  parentBlockId={parentBlockId}
-                  // {...interactiveProps}
-                />
+                <PopoverTrigger asChild>
+                  <BlockContent
+                    // @ts-expect-error
+                    block={modifiedBlock}
+                    depth={depth}
+                    parentBlockId={parentBlockId}
+                    // {...interactiveProps}
+                  />
+                </PopoverTrigger>
               </div>
-            </PopoverTrigger>
-            <PopoverContent side="top" align="end" className="w-auto p-0">
+            </PopoverAnchor>
+            <PopoverContent
+              side="top"
+              align="end"
+              sideOffset={8}
+              className="w-auto max-w-xs p-0"
+            >
               {mobileCardContent}
             </PopoverContent>
           </Popover>
