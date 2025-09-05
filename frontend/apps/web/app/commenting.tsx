@@ -31,6 +31,7 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
+import {useCommentDraftPersistence} from './comment-draft-utils'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -103,6 +104,7 @@ export function LocalWebCommenting({
   docId,
   replyCommentVersion,
   rootReplyCommentVersion,
+  replyCommentId,
   quotingBlockId,
   onDiscardDraft,
   onSuccess,
@@ -114,6 +116,14 @@ export function LocalWebCommenting({
   // const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
+  
+  // Use draft persistence
+  const {draft, isLoading: isDraftLoading, saveDraft, removeDraft} = useCommentDraftPersistence(
+    docId.id,
+    replyCommentId,
+    quotingBlockId,
+  )
+  
   const postComment = useMutation({
     mutationFn: async (commentPayload: {
       comment: Uint8Array
@@ -222,11 +232,17 @@ export function LocalWebCommenting({
       )
       await postComment.mutateAsync(commentPayload)
       reset()
+      removeDraft() // Remove draft after successful submission
       onDiscardDraft?.()
       await promptEmailNotifications()
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Don't render until draft is loaded
+  if (isDraftLoading) {
+    return <div className="w-full">Loading...</div>
   }
 
   return (
@@ -254,6 +270,12 @@ export function LocalWebCommenting({
         <CommentEditor
           autoFocus={autoFocus}
           handleSubmit={handleSubmit}
+          initialBlocks={draft || undefined}
+          onContentChange={saveDraft}
+          onDiscardDraft={() => {
+            removeDraft()
+            onDiscardDraft?.()
+          }}
           submitButton={({getContent, reset}) => {
             return (
               <Tooltip
@@ -277,7 +299,6 @@ export function LocalWebCommenting({
             )
           }}
           account={myAccount.data}
-          onDiscardDraft={onDiscardDraft}
           // perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
         />
       </DocContentProvider>

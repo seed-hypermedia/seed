@@ -104,7 +104,7 @@ function _CommentBox(props: {
   const account = useSelectedAccount()
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
-    undefined,
+    commentId,
   )
   const [isStartingComment, setIsStartingComment] = useState(false)
   function focusEditor() {

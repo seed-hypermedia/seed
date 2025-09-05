@@ -1,4 +1,5 @@
 import {EditorBlock, writeableStateStream} from '@shm/shared'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
@@ -7,9 +8,11 @@ import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Trash} from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -87,10 +90,15 @@ export function CommentEditor({
   account,
   autoFocus,
   perspectiveAccountUid,
+  onDiscardDraft,
+  initialBlocks,
+  onContentChange,
 }: {
   onDiscardDraft?: () => void
   account?: ReturnType<typeof useAccount>['data']
   autoFocus?: boolean
+  initialBlocks?: HMBlockNode[]
+  onContentChange?: (blocks: HMBlockNode[]) => void
   submitButton: (opts: {
     reset: () => void
     getContent: (
@@ -118,15 +126,84 @@ export function CommentEditor({
   perspectiveAccountUid?: string | null | undefined
 }) {
   const {editor} = useCommentEditor(perspectiveAccountUid)
+  // Check if we have non-empty draft content
+  const hasDraftContent = initialBlocks && initialBlocks.length > 0 && 
+    initialBlocks.some(block => {
+      // Check if block has text content (for paragraph-like blocks)
+      if ('text' in block.block && typeof block.block.text === 'string' && block.block.text.trim().length > 0) {
+        return true
+      }
+      // Check if block has children
+      if (block.children && block.children.length > 0) {
+        return true
+      }
+      return false
+    })
   const [isEditorFocused, setIsEditorFocused] = useState(
-    () => autoFocus || false,
+    () => autoFocus || hasDraftContent || false,
   )
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
+  const isInitializedRef = useRef(false)
+  const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
+  
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
   }
+
+  // Initialize editor with draft content
+  useEffect(() => {
+    if (initialBlocks && initialBlocks.length > 0 && !isInitializedRef.current && editor) {
+      isInitializedRef.current = true
+      try {
+        const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
+          childrenType: 'Group',
+        })
+        editor.removeBlocks(editor.topLevelBlocks)
+        // @ts-expect-error - EditorBlock type mismatch with BlockNote
+        editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
+      } catch (error) {
+        console.error('Failed to initialize editor with draft content:', error)
+      }
+    }
+  }, [initialBlocks, editor])
+
+  // Notify parent of content changes
+  useEffect(() => {
+    if (!onContentChange) return
+    
+    const handleChange = () => {
+      // Clear previous timeout
+      if (contentChangeTimeoutRef.current) {
+        clearTimeout(contentChangeTimeoutRef.current)
+      }
+      
+      // Debounce content change notifications
+      contentChangeTimeoutRef.current = setTimeout(() => {
+        try {
+          const blocks = serverBlockNodesFromEditorBlocks(
+            editor,
+            // @ts-expect-error
+            editor.topLevelBlocks
+          )
+          onContentChange(blocks.map((b) => b.toJson()) as HMBlockNode[])
+        } catch (error) {
+          console.error('Failed to notify content change:', error)
+        }
+      }, 500)
+    }
+
+    // Listen to editor changes
+    editor._tiptapEditor.on('update', handleChange)
+    
+    return () => {
+      editor._tiptapEditor.off('update', handleChange)
+      if (contentChangeTimeoutRef.current) {
+        clearTimeout(contentChangeTimeoutRef.current)
+      }
+    }
+  }, [editor, onContentChange])
 
   useEffect(() => {
     if (autoFocus) {
@@ -382,11 +459,32 @@ export function CommentEditor({
           )}
         </div>
         {isEditorFocused ? (
-          <div className="mx-2 mb-2 flex justify-end">
+          <div className="mx-2 mb-2 flex justify-end gap-2">
             {submitButton({
               reset,
               getContent,
             })}
+            {onDiscardDraft && (
+              <Tooltip content="Discard Comment Draft">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // Clear the editor content
+                    reset()
+                    // Reset the focused state
+                    setIsEditorFocused(false)
+                    // Reset initialization flag for potential new drafts
+                    isInitializedRef.current = false
+                    // Call the discard callback
+                    onDiscardDraft()
+                  }}
+                >
+                  <Trash className="text-destructive size-4" />
+                </Button>
+              </Tooltip>
+            )}
           </div>
         ) : null}
       </div>

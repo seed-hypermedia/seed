@@ -207,12 +207,20 @@ export function useCommentEditor(
   })
   const removeDraft = trpc.comments.removeCommentDraft.useMutation({
     onSuccess: () => {
-      invalidateQueries(['trpc.comments.getCommentDraft'])
+      // Reset the initialization flag when draft is removed
+      hasInitializedDraft.current = false
+      // Clear the editor immediately when discarding
+      editor.removeBlocks(editor.topLevelBlocks)
       onDiscardDraft?.()
-      // Only clear editor if this was triggered by successful comment publication
+      // Don't invalidate queries immediately - the draft is already removed
+      // Invalidating would cause a refetch which might get stale data
+      // Only invalidate if this was triggered by successful comment publication
       if (shouldClearEditorRef.current) {
         shouldClearEditorRef.current = false
-        editor.removeBlocks(editor.topLevelBlocks)
+        // After publishing, we can safely invalidate
+        setTimeout(() => {
+          invalidateQueries(['trpc.comments.getCommentDraft'])
+        }, 100)
       }
     },
   })
@@ -225,6 +233,8 @@ export function useCommentEditor(
 
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
+  const hasInitializedDraft = useRef(false)
+  
   function initDraft() {
     if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current
@@ -248,7 +258,9 @@ export function useCommentEditor(
       targetDocId: targetDocId.id,
       replyCommentId: commentId,
     })
-    invalidateQueries(['trpc.comments.getCommentDraft'])
+    // Don't invalidate queries during active editing - this causes re-renders
+    // The draft is already saved, no need to refetch it
+    // invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
   }
 
@@ -281,7 +293,10 @@ export function useCommentEditor(
 
     onEditorReady: (e) => {
       readyEditor.current = e
-      initDraft()
+      if (!hasInitializedDraft.current) {
+        hasInitializedDraft.current = true
+        initDraft()
+      }
     },
     blockSchema: getCommentEditorSchema(hmBlockSchema),
     getSlashMenuItems: () =>
@@ -312,6 +327,19 @@ export function useCommentEditor(
     delete commentsSchema.query
     return commentsSchema
   }
+
+  useEffect(() => {
+    // Only initialize draft once when it first loads and editor is ready
+    // Don't reinitialize during editing as this causes cursor position loss
+    if (readyEditor.current && initCommentDraft && !hasInitializedDraft.current) {
+      hasInitializedDraft.current = true
+      initDraft()
+    }
+    // Reset the flag when draft is cleared (null)
+    if (!initCommentDraft && hasInitializedDraft.current) {
+      hasInitializedDraft.current = false
+    }
+  }, [initCommentDraft])
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -434,6 +462,14 @@ export function useCommentEditor(
     }
     function onDiscard() {
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
+      // Clear the query cache immediately to prevent stale data on refresh
+      queryClient.setQueryData(
+        ['trpc.comments.getCommentDraft', {
+          targetDocId: targetDocId.id,
+          replyCommentId: commentId,
+        }],
+        null
+      )
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId: commentId,
