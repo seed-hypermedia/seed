@@ -23,7 +23,7 @@ export function TitlebarTitleSearch() {
   })
   return (
     <Popover {...popoverState}>
-      <div className="border-border no-window-drag relative flex w-full items-center gap-2">
+      <div className="border-border relative flex w-full items-center gap-2">
         <PopoverTrigger
           className={cn(
             'no-window-drag p-1`',
