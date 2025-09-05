@@ -491,6 +491,8 @@ export function Comment({
               </Tooltip>
               {currentAccountId == comment.author ? (
                 <OptionsDropdown
+                  side="bottom"
+                  align="end"
                   className="opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-100"
                   menuItems={options}
                 />
