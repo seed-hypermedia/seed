@@ -59,11 +59,17 @@ p.block-paragraph.is-comment *:not(.text-code) {
   display: block;
 }
 
-.blocknode-list > .blocknode-content > .relative > [data-slot="popover-trigger"] {
+.blocknode-list
+  > .blocknode-content
+  > .relative
+  > [data-slot='popover-trigger'] {
   display: contents;
 }
 
-.blocknode-list > .blocknode-content > .relative > [data-slot="tooltip-trigger"] {
+.blocknode-list
+  > .blocknode-content
+  > .relative
+  > [data-slot='tooltip-trigger'] {
   position: absolute;
   left: -24px;
   top: 0.5rem;
