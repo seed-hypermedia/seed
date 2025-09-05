@@ -201,7 +201,7 @@ function _CommentBox(props: {
   }
 
   return (
-    <div className="flex w-full items-start gap-2">
+    <div className="flex w-full items-start gap-2 px-4">
       <div className="flex shrink-0 grow-0">
         {account?.document?.metadata ? (
           <HMIcon
