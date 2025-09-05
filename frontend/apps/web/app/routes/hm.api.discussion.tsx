@@ -15,6 +15,7 @@ import {
   HMCommentGroup,
   HMMetadataPayload,
 } from '@shm/shared/hm-types'
+import {loadBatchAccounts} from '@shm/shared/models/entity'
 
 export type HMDiscussionPayload = {
   commentGroups: HMCommentGroup[]
@@ -76,25 +77,7 @@ export const loader = async ({
     })
 
     const authorAccountUids = Array.from(authorAccounts)
-    const _accounts = await grpcClient.documents.batchGetAccounts({
-      ids: authorAccountUids,
-    })
-
-    if (!_accounts?.accounts) {
-      throw new Error('No accounts found')
-    }
-
-    const authors: Record<string, HMMetadataPayload> = {}
-
-    Object.entries(_accounts.accounts).forEach(([id, account]) => {
-      let metadata = (
-        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
-      )?.metadata
-
-      if (metadata) {
-        authors[id] = {id: hmId(id), metadata}
-      }
-    })
+    const authors = await loadBatchAccounts(authorAccountUids)
 
     result = {
       thread,

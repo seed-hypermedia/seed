@@ -9,6 +9,7 @@ import {
   HMMetadataPayload,
 } from '@shm/shared/hm-types'
 import {ListCommentsResponse} from '@shm/shared/models/comments-service'
+import {loadBatchAccounts} from '@shm/shared/models/entity'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
 export const loader = async ({
@@ -40,25 +41,7 @@ export const loader = async ({
       allAccounts.add(comment.author)
     })
     const authorAccountUids = Array.from(allAccounts)
-    const _accounts = await grpcClient.documents.batchGetAccounts({
-      ids: authorAccountUids,
-    })
-
-    if (!_accounts?.accounts) {
-      throw new Error('No accounts found')
-    }
-
-    const authors: Record<string, HMMetadataPayload> = {}
-
-    Object.entries(_accounts.accounts).forEach(([id, account]) => {
-      let metadata = (
-        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
-      )?.metadata
-
-      if (metadata) {
-        authors[id] = {id: hmId(id), metadata}
-      }
-    })
+    const authors = await loadBatchAccounts(authorAccountUids)
 
     result = {
       comments: allComments,

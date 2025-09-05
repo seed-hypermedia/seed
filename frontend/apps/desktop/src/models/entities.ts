@@ -17,9 +17,11 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
+  createBatchAccountsResolver,
   getErrorMessage,
   HMRedirectError,
   setAccountQuery,
+  setBatchAccountQuery,
   setResourceQuery,
   useResources,
 } from '@shm/shared/models/entity'
@@ -212,7 +214,10 @@ export async function getAccount(accountUid: string) {
   }
 }
 
+const getBatchAccountsResolved = createBatchAccountsResolver(grpcClient)
+
 setAccountQuery(getAccount)
+setBatchAccountQuery(getBatchAccountsResolved)
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null

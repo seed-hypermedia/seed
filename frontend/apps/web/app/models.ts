@@ -7,10 +7,16 @@ import {
   setSearchQuery,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {setAccountQuery, setResourceQuery} from '@shm/shared/models/entity'
+import {
+  setAccountQuery,
+  setBatchAccountQuery,
+  setResourceQuery,
+  createBatchAccountsResolver,
+} from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {grpcClient} from './client'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
@@ -100,6 +106,8 @@ async function accountQuery(accountUid: string) {
   return response
 }
 
+const batchAccountQuery = createBatchAccountsResolver(grpcClient)
+
 export function useCitations(
   id: UnpackedHypermediaId,
   opts: {enabled?: boolean} = {},
@@ -143,4 +151,5 @@ export function injectModels() {
   setRecentsQuery(getRecents)
   setDeleteRecents(deleteRecent)
   setAccountQuery(accountQuery)
+  setBatchAccountQuery(batchAccountQuery)
 }

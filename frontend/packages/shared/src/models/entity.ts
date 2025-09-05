@@ -1,7 +1,10 @@
 import {ConnectError} from '@connectrpc/connect'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {RedirectErrorDetails} from '../client'
+import {GRPCClient} from '../grpc-client'
 import {
+  HMDocumentMetadataSchema,
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
@@ -27,6 +30,18 @@ export function setAccountQuery(
   handler: (accountUid: string) => Promise<HMMetadataPayload>,
 ) {
   queryAccount = handler
+}
+
+let queryBatchAccounts:
+  | ((accountUids: string[]) => Promise<Record<string, HMMetadataPayload>>)
+  | null = null
+
+export function setBatchAccountQuery(
+  handler: (
+    accountUids: string[],
+  ) => Promise<Record<string, HMMetadataPayload>>,
+) {
+  queryBatchAccounts = handler
 }
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -71,6 +86,87 @@ export async function loadAccount(
 ): Promise<HMMetadataPayload> {
   if (!queryAccount) throw new Error('queryAccount not injected')
   return await queryAccount(accountUid)
+}
+
+export async function loadBatchAccounts(
+  accountUids: string[],
+): Promise<Record<string, HMMetadataPayload>> {
+  if (!queryBatchAccounts) throw new Error('queryBatchAccounts not injected')
+  return await queryBatchAccounts(accountUids)
+}
+
+export function createBatchAccountsResolver(client: GRPCClient) {
+  async function getBatchAccountsResolved(
+    accountUids: string[],
+  ): Promise<Record<string, HMMetadataPayload>> {
+    if (accountUids.length === 0) return {}
+
+    try {
+      const _accounts = await client.documents.batchGetAccounts({
+        ids: accountUids,
+      })
+
+      if (!_accounts?.accounts) {
+        return {}
+      }
+
+      const resolvedAccounts: Record<string, HMMetadataPayload> = {}
+      const aliasesToResolve: string[] = []
+      const aliasMapping: Record<string, string[]> = {}
+
+      Object.entries(_accounts.accounts).forEach(([id, account]) => {
+        const serverAccount = toPlainMessage(account)
+
+        if (serverAccount.aliasAccount) {
+          const aliasAccount = serverAccount.aliasAccount
+          if (!aliasMapping[aliasAccount]) {
+            aliasMapping[aliasAccount] = []
+          }
+          aliasMapping[aliasAccount].push(id)
+
+          if (!aliasesToResolve.includes(aliasAccount)) {
+            aliasesToResolve.push(aliasAccount)
+          }
+        } else {
+          const serverMetadata = account.metadata?.toJson() || {}
+          const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+          resolvedAccounts[id] = {
+            id: hmId(id),
+            metadata,
+          } as HMMetadataPayload
+        }
+      })
+
+      if (aliasesToResolve.length > 0) {
+        const resolvedAliases = await getBatchAccountsResolved(aliasesToResolve)
+
+        Object.entries(resolvedAliases).forEach(
+          ([resolvedId, resolvedAccount]) => {
+            resolvedAccounts[resolvedId] = resolvedAccount
+
+            if (aliasMapping[resolvedId]) {
+              aliasMapping[resolvedId].forEach((originalId) => {
+                resolvedAccounts[originalId] = resolvedAccount
+              })
+            }
+          },
+        )
+      }
+
+      return resolvedAccounts
+    } catch (error) {
+      const fallbackAccounts: Record<string, HMMetadataPayload> = {}
+      accountUids.forEach((uid) => {
+        fallbackAccounts[uid] = {
+          id: hmId(uid),
+          metadata: {},
+        } as HMMetadataPayload
+      })
+      return fallbackAccounts
+    }
+  }
+
+  return getBatchAccountsResolved
 }
 
 export async function loadResolvedResource(

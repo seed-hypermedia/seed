@@ -4,6 +4,7 @@ import {Params} from '@remix-run/react'
 import {BIG_INT, HMAccount, hmId, parseFragment, unpackHmId} from '@shm/shared'
 import {HMComment, HMMetadataPayload} from '@shm/shared/hm-types'
 import {ListCommentsByReferenceResponse} from '@shm/shared/models/comments-service'
+import {loadBatchAccounts} from '@shm/shared/models/entity'
 
 export const loader = async ({
   request,
@@ -67,25 +68,7 @@ export const loader = async ({
       }) as Array<HMComment>
 
     const authorAccountUids = Array.from(authorAccounts)
-    const _accounts = await grpcClient.documents.batchGetAccounts({
-      ids: authorAccountUids,
-    })
-
-    if (!_accounts?.accounts) {
-      throw new Error('No accounts found')
-    }
-
-    const authors: Record<string, HMMetadataPayload> = {}
-
-    Object.entries(_accounts.accounts).forEach(([id, account]) => {
-      let metadata = (
-        account.toJson({emitDefaultValues: true}) as unknown as HMAccount
-      )?.metadata
-
-      if (metadata) {
-        authors[id] = {id: hmId(id), metadata}
-      }
-    })
+    const authors = await loadBatchAccounts(authorAccountUids)
 
     result = {
       comments,
