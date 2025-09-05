@@ -54,6 +54,26 @@ p.block-paragraph.is-comment *:not(.text-code) {
   list-style-position: outside;
 }
 
+.blocknode-list > .blocknode-content > .relative {
+  position: relative;
+  display: block;
+}
+
+.blocknode-list > .blocknode-content > .relative > [data-slot="popover-trigger"] {
+  display: contents;
+}
+
+.blocknode-list > .blocknode-content > .relative > [data-slot="tooltip-trigger"] {
+  position: absolute;
+  left: -24px;
+  top: 0.5rem;
+  display: block;
+}
+
+.blocknode-list > .blocknode-content p {
+  margin: 0;
+}
+
 /* Legacy CSS for old _BlockNodeList (can be removed once migration is complete) */
 /* .blocknode-list[data-list-type='Unordered'] > ul > .blocknode-content {
   display: list-item !important;
