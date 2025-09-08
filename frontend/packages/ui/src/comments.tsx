@@ -230,7 +230,7 @@ export function BlockDiscussions({
     )
   }
 
-  if (commentsService.data) {
+  if (commentsService.data && commentsService.data.comments.length) {
     panelContent = (
       <>
         {commentsService.data.comments.map((comment) => {
@@ -251,6 +251,12 @@ export function BlockDiscussions({
           )
         })}
       </>
+    )
+  } else {
+    panelContent = (
+      <div className="flex items-center justify-center">
+        <Spinner />
+      </div>
     )
   }
 
