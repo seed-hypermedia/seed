@@ -15,6 +15,10 @@ yarn typecheck
 # Format code
 yarn format:check
 yarn format:write
+
+# Security audit
+yarn security:check       # Check production dependencies for vulnerabilities
+yarn security:check:dev   # Check development dependencies for vulnerabilities
 ```
 
 ### Running Applications
