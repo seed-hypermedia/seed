@@ -1,5 +1,6 @@
 export * from './citation-deduplication'
 export * from './client'
+export * from './interaction-summary'
 export * from './comments'
 export * from './constants'
 export * from './content'

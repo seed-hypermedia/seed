@@ -8,10 +8,10 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
+  createBatchAccountsResolver,
   setAccountQuery,
   setBatchAccountQuery,
   setResourceQuery,
-  createBatchAccountsResolver,
 } from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'

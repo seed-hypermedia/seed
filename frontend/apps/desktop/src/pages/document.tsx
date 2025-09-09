@@ -11,8 +11,8 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useDocumentCitations, useSortedCitations} from '@/models/citations'
-import {useAllDiscussions} from '@/models/comments'
+import {useDocumentCitations} from '@/models/citations'
+import {useInteractionSummary} from '@/models/interaction-summary'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
@@ -25,7 +25,6 @@ import {
 } from '@/models/email-notifications'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useDocumentChanges} from '@/models/versions'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
@@ -45,6 +44,7 @@ import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
+import {calculateBlockCitations} from '@shm/shared'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {pluralS} from '@shm/shared/utils/language'
@@ -379,7 +379,6 @@ function _MainDocumentPage({
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
-                  // @ts-ignore
                   resource={resource.data}
                   isBlockFocused={isBlockFocused}
                 />
@@ -403,9 +402,7 @@ const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
 
 function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
-  const {docCitations} = useSortedCitations(docId)
-  const changes = useDocumentChanges(docId)
-  const comments = useAllDiscussions(docId)
+  const interactionSummary = useInteractionSummary(docId)
 
   const route = useNavRoute()
   const docRoute = route.key === 'document' ? route : null
@@ -417,7 +414,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
       <div className="flex">
         <InteractionSummaryItem
           label="version"
-          count={changes.data?.length || 0}
+          count={interactionSummary.data?.changes || 0}
           onPress={() => {
             replace({...docRoute, accessory: {key: 'versions'}})
           }}
@@ -425,7 +422,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
         />
         <InteractionSummaryItem
           label="citation"
-          count={docCitations.length || 0}
+          count={interactionSummary.data?.citations || 0}
           onPress={() => {
             replace({...docRoute, accessory: {key: 'citations'}})
           }}
@@ -434,7 +431,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
 
         <InteractionSummaryItem
           label="comment"
-          count={comments.data?.length || 0}
+          count={interactionSummary.data?.comments || 0}
           onPress={() => {
             replace({...docRoute, accessory: {key: 'discussions'}})
           }}
@@ -813,28 +810,7 @@ function DocPageContent({
       }}
       blockCitations={useMemo(() => {
         if (!citations.data) return {}
-        const blockCitations: Record<
-          string,
-          {citations: number; comments: number}
-        > = {}
-        // @ts-ignore
-        citations.data.forEach((citation) => {
-          const sourceId = citation.source.id
-          if (!sourceId) return false
-          const targetFragment = citation.targetFragment
-          const targetBlockId = targetFragment?.blockId
-          const blockCounts = targetBlockId
-            ? (blockCitations[targetBlockId] = {
-                citations: 0,
-                comments: 0,
-              })
-            : null
-          if (citation.source.type === 'c' && blockCounts)
-            blockCounts.comments += 1
-          if (citation.source.type === 'd' && blockCounts)
-            blockCounts.citations += 1
-        })
-        return blockCitations
+        return calculateBlockCitations(citations.data)
       }, [citations.data])}
       onBlockCitationClick={(blockId) => {
         if (!docRoute) return
