@@ -15,7 +15,7 @@ import type {Email} from '@/db'
 import {
   useEmailNotificationsWithToken,
   useSetAccountOptions,
-  useSetSubscription,
+  useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
 import {useResource} from '@shm/shared/models/entity'
@@ -102,13 +102,12 @@ export default function EmailNotificationsPage() {
 export function EmailNotificationsContent() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
-  const {mutate: setEmailUnsubscribed} = useSetSubscription(token)
   const {
     data: notifSettings,
     isLoading,
     error,
   } = useEmailNotificationsWithToken(token)
-
+  const {mutate: setEmailUnsubscribed} = useSetEmailUnsubscribed(token)
   if (!token) {
     return <SizableText>No token provided</SizableText>
   }
@@ -149,8 +148,8 @@ export function EmailNotificationsContent() {
               <SizableText>
                 You can enable notifications for the following accounts:
               </SizableText>
-              {notifSettings.accounts.map((account) => (
-                <AccountTitle key={account.id} accountId={account.id} />
+              {notifSettings.subscriptions.map((sub) => (
+                <AccountTitle key={sub.id} accountId={sub.id} />
               ))}
               <Button
                 variant="default"
@@ -163,10 +162,10 @@ export function EmailNotificationsContent() {
             </>
           ) : (
             <>
-              {notifSettings.accounts.map((account) => (
-                <EmailNotificationAccount
-                  key={account.id}
-                  account={account}
+              {notifSettings.subscriptions.map((sub) => (
+                <EmailNotificationSubscription
+                  key={sub.id}
+                  subscription={sub}
                   token={token}
                 />
               ))}
@@ -208,39 +207,39 @@ function AccountTitle({accountId}: {accountId: string}) {
   )
 }
 
-function EmailNotificationAccount({
-  account,
+function EmailNotificationSubscription({
+  subscription,
   token,
 }: {
-  account: Email['accounts'][number]
+  subscription: Email['subscriptions'][number]
   token: string
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <AccountTitle accountId={account.id} />
+      <AccountTitle accountId={subscription.id} />
       <AccountValueCheckbox
         token={token}
         label="Notify on all mentions"
         field="notifyAllMentions"
-        account={account}
+        subscription={subscription}
       />
       <AccountValueCheckbox
         token={token}
         label="Notify on all replies"
         field="notifyAllReplies"
-        account={account}
+        subscription={subscription}
       />
       <AccountValueCheckbox
         token={token}
         label="Notify on owned document changes"
         field="notifyOwnedDocChange"
-        account={account}
+        subscription={subscription}
       />
       <AccountValueCheckbox
         token={token}
         label="Notify on created discussions in your site"
         field="notifySiteDiscussions"
-        account={account}
+        subscription={subscription}
       />
     </div>
   )
@@ -250,7 +249,7 @@ function AccountValueCheckbox({
   token,
   label,
   field,
-  account,
+  subscription,
 }: {
   token: string
   label: string
@@ -259,16 +258,19 @@ function AccountValueCheckbox({
     | 'notifyAllReplies'
     | 'notifyOwnedDocChange'
     | 'notifySiteDiscussions'
-  account: Email['accounts'][number]
+  subscription: Email['subscriptions'][number]
 }) {
   const {mutate: setAccount, isLoading} = useSetAccountOptions(token)
   return (
     <FullCheckbox
       paddingLeft={30}
       // @ts-expect-error
-      value={account[field]}
+      value={subscription[field]}
       onValue={() => {
-        setAccount({accountId: account.id, [field]: !account[field]})
+        setAccount({
+          accountId: subscription.id,
+          [field]: !subscription[field],
+        })
       }}
       isLoading={isLoading}
       label={label}

@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
-import type {BaseAccount} from '@/db'
-import {getAccount, getEmail, setAccount} from '@/db'
+import type {BaseSubscription} from '@/db'
+import {getEmail, getSubscriptionsForAccount, setSubscription} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
 import {getMetadata} from '@/loaders'
 import {BadRequestError, cborApiAction} from '@/server-api'
@@ -48,7 +48,7 @@ const emailNotifierAction = z.discriminatedUnion('action', [
 export type EmailNotifierAction = z.infer<typeof emailNotifierAction>
 
 export type EmailNotifierAccountState = {
-  account: BaseAccount | null
+  subscriptions: BaseSubscription[]
 }
 
 export const action = cborApiAction<EmailNotifierAction, any>(
@@ -87,17 +87,13 @@ export const action = cborApiAction<EmailNotifierAction, any>(
       throw new BadRequestError('Request time invalid')
     }
     if (restPayload.action === 'get-email-notifications') {
-      const account = getAccount(accountId)
-      if (!account) {
-        return {account: null} satisfies EmailNotifierAccountState
-      }
-      return {
-        account,
-      } satisfies EmailNotifierAccountState
+      const subscriptions = getSubscriptionsForAccount(accountId)
+      return withCors(json({subscriptions} satisfies EmailNotifierAccountState))
     }
     if (restPayload.action === 'set-email-notifications') {
-      const email = getEmail(restPayload.email)
-      setAccount({
+      const existingEmail = getEmail(restPayload.email)
+
+      setSubscription({
         id: accountId,
         email: restPayload.email,
         notifyAllMentions: restPayload.notifyAllMentions,
@@ -105,7 +101,8 @@ export const action = cborApiAction<EmailNotifierAction, any>(
         notifyOwnedDocChange: restPayload.notifyOwnedDocChange,
         notifySiteDiscussions: restPayload.notifySiteDiscussions,
       })
-      if (restPayload.email && !email) {
+
+      if (!existingEmail) {
         const metadata = await getMetadata(hmId(accountId))
         if (!metadata.metadata) {
           console.error(
@@ -130,8 +127,10 @@ export const action = cborApiAction<EmailNotifierAction, any>(
           notifySiteDiscussions: restPayload.notifySiteDiscussions,
         })
       }
+
       return {}
     }
+
     throw new BadRequestError('Invalid action')
   },
 )
