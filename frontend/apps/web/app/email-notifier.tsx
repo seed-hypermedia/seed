@@ -146,7 +146,7 @@ async function handleEventsForEmailNotifications(
     })
   }
   for (const email of allEmails) {
-    for (const account of email.accounts) {
+    for (const account of email.subscriptions) {
       const opts = emailOptions[email.email]
       // @ts-expect-error
       if (opts.isUnsubscribed) continue

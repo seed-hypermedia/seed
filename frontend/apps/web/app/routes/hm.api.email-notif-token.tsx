@@ -1,4 +1,9 @@
-import {getEmailWithToken, setAccount, setEmailUnsubscribed} from '@/db'
+import {
+  getEmailWithToken,
+  getSubscription,
+  setEmailUnsubscribed,
+  setSubscription,
+} from '@/db'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {z} from 'zod'
@@ -51,13 +56,28 @@ export const action: ActionFunction = async ({request, params}) => {
     return json({})
   }
   if (body.action === 'set-account-options') {
-    setAccount({
-      id: body.accountId,
-      notifyAllMentions: body.notifyAllMentions,
-      notifyAllReplies: body.notifyAllReplies,
-      notifyOwnedDocChange: body.notifyOwnedDocChange,
-      notifySiteDiscussions: body.notifySiteDiscussions,
+    const {accountId} = body
+    const subscriberEmail = email.email
+    const current = getSubscription(accountId, subscriberEmail)
+
+    const nextNotifyAllMentions =
+      body.notifyAllMentions ?? current?.notifyAllMentions ?? false
+    const nextNotifyAllReplies =
+      body.notifyAllReplies ?? current?.notifyAllReplies ?? false
+    const nextNotifyOwnedDocChange =
+      body.notifyOwnedDocChange ?? current?.notifyOwnedDocChange ?? false
+    const nextNotifySiteDiscussions =
+      body.notifySiteDiscussions ?? current?.notifySiteDiscussions ?? false
+
+    setSubscription({
+      id: accountId,
+      email: subscriberEmail,
+      notifyAllMentions: nextNotifyAllMentions,
+      notifyAllReplies: nextNotifyAllReplies,
+      notifyOwnedDocChange: nextNotifyOwnedDocChange,
+      notifySiteDiscussions: nextNotifySiteDiscussions,
     })
+
     return json({})
   }
   return json({error: 'Invalid action'}, {status: 400})
