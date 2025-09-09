@@ -2,10 +2,11 @@ import {useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
+import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {getContactMetadata} from '@shm/shared/content'
 import {useResources} from '@shm/shared/models/entity'
-import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -18,12 +19,10 @@ import {
   Contact,
   File,
   FilePlus2,
+  Home,
   Library,
-  Plus,
-  UserPlus2,
 } from 'lucide-react'
 import React, {memo} from 'react'
-import {dispatchOnboardingDialog} from './onboarding'
 import {GenericSidebarContainer} from './sidebar-base'
 
 export const AppSidebar = memo(MainAppSidebar)
@@ -31,9 +30,26 @@ export const AppSidebar = memo(MainAppSidebar)
 export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
+  const selectedAccountId = useSelectedAccountId()
+
   return (
     <GenericSidebarContainer>
       <CreateDocumentButton />
+      <SmallListItem
+        active={
+          route.key == 'document' &&
+          route.id.uid == selectedAccountId &&
+          route.id.path?.length == 0
+        }
+        onClick={() => {
+          navigate({
+            key: 'document',
+            id: hmId(selectedAccountId),
+          })
+        }}
+        title="Home"
+        icon={<Home className="size-4" />}
+      />
       <SmallListItem
         active={route.key == 'library'}
         onClick={() => {
@@ -44,16 +60,6 @@ export function MainAppSidebar() {
         icon={<Library className="size-4" />}
         rightHover={[]}
       />
-      {/* <SmallListItem
-        active={route.key == 'explore'}
-        onPress={() => {
-          navigate({key: 'explore'})
-        }}
-        title="Explore Content"
-        bold
-        icon={Sparkles}
-        rightHover={[]}
-      /> */}
       <SmallListItem
         active={route.key == 'contacts'}
         onClick={() => {
@@ -73,8 +79,6 @@ export function MainAppSidebar() {
         bold
       />
       <FavoritesSection />
-      <AccountsSection />
-      {/* <OutlineSection route={route} /> */}
     </GenericSidebarContainer>
   )
 }
@@ -165,64 +169,6 @@ function FavoritesSection() {
           />
         )
       })}
-    </SidebarSection>
-  )
-}
-
-function AccountsSection() {
-  const accountIds = useMyAccountIds()
-  const accounts = useResources(accountIds.data?.map((uid) => hmId(uid)) || [])
-  const contacts = useSelectedAccountContacts()
-  const hasAccounts = !!accountIds.data?.length
-  const route = useNavRoute()
-  const navigate = useNavigate()
-  return (
-    <SidebarSection
-      title="Accounts"
-      accessory={
-        hasAccounts ? (
-          <Tooltip content="Add Account">
-            <Button onClick={() => dispatchOnboardingDialog(true)} size="xs">
-              <Plus />
-            </Button>
-          </Tooltip>
-        ) : undefined
-      }
-    >
-      {accounts.map((account) => {
-        if (!account.data) return null
-        // @ts-expect-error
-        const {id, document} = account.data
-        const metadata = getContactMetadata(
-          id.uid,
-          document?.metadata,
-          contacts.data,
-        )
-        return (
-          <SmallListItem
-            key={id.uid}
-            docId={id.id}
-            title={metadata?.name || 'Untitled'}
-            icon={<HMIcon id={id} metadata={metadata} size={20} />}
-            onClick={() => {
-              navigate({key: 'document', id: latestId(id)})
-            }}
-            active={
-              route.key === 'document' &&
-              route.id.uid === id.uid &&
-              !route.id.path?.length
-            }
-          />
-        )
-      })}
-      {hasAccounts ? null : (
-        <SmallListItem
-          key="add-account"
-          title="Add Account"
-          onClick={() => dispatchOnboardingDialog(true)}
-          icon={<UserPlus2 className="size-4" />}
-        />
-      )}
     </SidebarSection>
   )
 }

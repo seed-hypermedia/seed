@@ -145,7 +145,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
               // isLocked ? '':'pb-2 pr-1',
             )}
           >
-            <IdentitySelector />
+            <IdentitySelector isSidebarVisible={isVisible} />
           </div>
         </div>
       </Panel>
@@ -154,7 +154,11 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   )
 }
 
-function IdentitySelector() {
+function IdentitySelector({
+  isSidebarVisible = false,
+}: {
+  isSidebarVisible?: boolean
+}) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = selectedIdentity
   const myAccounts = useMyAccounts()
@@ -203,6 +207,12 @@ function IdentitySelector() {
       : undefined
   const [isOpen, setIsOpen] = useState(false)
 
+  useEffect(() => {
+    if (typeof isSidebarVisible == 'boolean' && isOpen && !isSidebarVisible) {
+      setIsOpen(false)
+    }
+  }, [isSidebarVisible])
+
   if (!selectedIdentityValue) {
     return (
       <div className="flex w-full flex-row items-center justify-between gap-3 rounded-sm bg-white p-1 shadow-sm">
@@ -236,7 +246,7 @@ function IdentitySelector() {
         </PopoverTrigger>
         <PopoverContent
           side="right"
-          className="flex h-full max-h-[500px] flex-col items-stretch gap-2 p-2"
+          className="z-[51] flex h-full max-h-[500px] flex-col items-stretch gap-2 p-2"
           align="end"
         >
           <ScrollArea className="h-full flex-1 overflow-y-auto">
