@@ -1169,6 +1169,7 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
 AND blobs.id %s :blob_id
+GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY blobs.id %s
 LIMIT :page_size + 1;
 `
