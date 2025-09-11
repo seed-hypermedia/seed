@@ -112,6 +112,7 @@ export function CommentDiscussions({
         />
         {commentEditor}
       </div>
+
       {commentGroupReplies.data?.length > 0 ? (
         commentGroupReplies.data.map((cg) => {
           return (
@@ -120,6 +121,8 @@ export function CommentDiscussions({
                 key={cg.id}
                 commentGroup={cg}
                 authors={commentsService.data?.authors}
+                renderCommentContent={renderCommentContent}
+                onCommentDelete={onCommentDelete}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
               />
@@ -234,16 +237,11 @@ export function BlockDiscussions({
     panelContent = (
       <>
         {commentsService.data.comments.map((comment) => {
-          const allComments = commentsService.data.comments || []
-
-          const isLast =
-            // @ts-expect-error
-            comment.id == allComments[allComments.length - 1].id || false
           return (
             <div key={comment.id} className={cn('border-border border-b p-2')}>
               <Comment
-                isFirst={comment.id == allComments[0]?.id}
-                isLast={isLast}
+                isFirst
+                isLast
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}

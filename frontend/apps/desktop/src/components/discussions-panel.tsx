@@ -117,6 +117,7 @@ function _DiscussionsPanel(props: {
           onBack={() => onAccessory({key: 'discussions'})}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
+          renderCommentContent={renderCommentContent}
         />
       </AppDocContentProvider>
     )
