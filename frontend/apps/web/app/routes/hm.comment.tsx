@@ -43,11 +43,11 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useCallback, useMemo, useState} from 'react'
 
 import {defaultSiteIcon} from '@/meta'
+import {WebSigningProvider} from '@/web-signing-context'
 import {useTx} from '@shm/shared/translation'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {cn} from '@shm/ui/utils'
-import {WebSigningProvider} from '@/web-signing-context'
 import {CommentPayload} from './hm.api.comment'
 import {SyncCommentRequest} from './hm.api.sync-comment'
 
@@ -281,6 +281,7 @@ export default function CreateComment() {
                     <>
                       <Comment
                         isLast={!publishedComment}
+                        isFirst
                         comment={replyComment.comment}
                         renderCommentContent={renderCommentContent}
                         authorMetadata={replyComment.author.metadata}
@@ -419,7 +420,7 @@ function PublishedComment({
   enableWebSigning,
   originHomeId,
   siteHost,
-  isFirst = true,
+  isFirst = false,
   isLast = true,
 }: {
   commentId: string
@@ -464,6 +465,7 @@ function PublishedComment({
       )}
       renderCommentContent={renderCommentContent}
       isLast={isLast}
+      isFirst={isFirst}
       authorMetadata={author.data?.metadata ?? undefined}
     />
   )

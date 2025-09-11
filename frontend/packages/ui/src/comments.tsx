@@ -234,9 +234,16 @@ export function BlockDiscussions({
     panelContent = (
       <>
         {commentsService.data.comments.map((comment) => {
+          const allComments = commentsService.data.comments || []
+
+          const isLast =
+            // @ts-expect-error
+            comment.id == allComments[allComments.length - 1].id || false
           return (
             <div key={comment.id} className={cn('border-border border-b p-2')}>
               <Comment
+                isFirst={comment.id == allComments[0]?.id}
+                isLast={isLast}
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}
@@ -285,10 +292,11 @@ export function CommentGroup({
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
+  const firstComment = commentGroup.comments[0]
 
   return (
     <div className="relative flex flex-col gap-2 p-2">
-      {commentGroup.comments.length > 1 && (
+      {/* {commentGroup.comments.length > 1 && (
         <div
           className="bg-border absolute w-px"
           style={{
@@ -297,13 +305,15 @@ export function CommentGroup({
             left: avatarSize + avatarSize / 2 - 1,
           }}
         />
-      )}
+      )} */}
 
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
+        const isFirstCommentInGroup = !!lastComment && comment === firstComment
         return (
           <Comment
             isLast={isLastCommentInGroup}
+            isFirst={isFirstCommentInGroup}
             key={comment.id}
             comment={comment}
             authorMetadata={authors?.[comment.author]?.metadata}
@@ -327,6 +337,7 @@ export function CommentGroup({
 export function Comment({
   comment,
   replyCount,
+  isFirst = true,
   isLast = false,
   authorMetadata,
   authorId,
@@ -341,6 +352,7 @@ export function Comment({
 }: {
   comment: HMComment
   replyCount?: number
+  isFirst?: boolean
   isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
@@ -421,24 +433,11 @@ export function Comment({
         highlight && 'bg-accent', // TODO: review color for dark theme
       )}
     >
-      {isLast ? (
-        <div
-          className={cn(
-            'absolute z-1 w-3',
-            highlight
-              ? 'bg-accent' // TODO: review color for dark theme
-              : 'dark:bg-background bg-white',
-          )}
-          style={{
-            height: `calc(100% - ${avatarSize}px)`,
-            left: avatarSize - 4,
-            bottom: 0,
-          }}
-        />
-      ) : null}
-
       {heading ? null : (
-        <div className="relative mt-0.5 flex min-w-5">
+        <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
+          {!isFirst ? (
+            <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />
+          ) : null}
           <div
             className={cn(
               'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
@@ -453,11 +452,13 @@ export function Comment({
               <HMIcon id={authorHmId} metadata={authorMetadata} size={20} />
             </div>
           )}
+          {!isLast ? <div className="bg-border h-full w-px" /> : null}
         </div>
       )}
       <div className="flex w-full flex-1 flex-col gap-1">
-        {heading ? <div className="inline">{heading}</div> : null}
-        {heading ? null : (
+        {heading ? (
+          <div className="inline">{heading}</div>
+        ) : (
           <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
             {heading ? null : (
               <div className="flex items-baseline gap-1 overflow-hidden">
@@ -500,6 +501,7 @@ export function Comment({
             </div>
           </div>
         )}
+
         <div>{renderContent(comment)}</div>
         {!highlight && (
           <div
