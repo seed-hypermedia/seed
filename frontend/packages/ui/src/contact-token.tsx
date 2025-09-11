@@ -31,14 +31,7 @@ export function ContactToken({
     return (
       <HoverCard>
         <HoverCardTrigger asChild>
-          <a
-            {...linkProps}
-            className={cn(
-              className,
-              // 'dark:bg-brand-12 dark:border-brand-11 dark:text-gray-200',
-              'text-secondary-foreground',
-            )}
-          >
+          <a {...linkProps} className={cn(className)}>
             {icon}
             {metadata?.name}
           </a>

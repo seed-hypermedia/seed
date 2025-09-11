@@ -33,14 +33,19 @@ export function EventRow({
 export function RouteEventRow({
   children,
   route,
+  className,
 }: {
   children: React.ReactNode
   route: NavRoute | null
+  className?: string
 }) {
   const linkProps = useRouteLink(route)
   return (
     <div
-      className="hover:bg-background m-2 flex items-center rounded-md p-2 break-words hover:dark:bg-black"
+      className={cn(
+        'hover:bg-background m-2 flex items-center rounded-md p-2 break-words hover:dark:bg-black',
+        className,
+      )}
       {...linkProps}
     >
       {children}
@@ -51,11 +56,17 @@ export function RouteEventRow({
 export function EventRowInline({
   children,
   route,
+  className,
 }: {
   children: React.ReactNode
   route: NavRoute | null
+  className?: string
 }) {
-  return <RouteEventRow route={route}>{children}</RouteEventRow>
+  return (
+    <RouteEventRow className={className} route={route}>
+      {children}
+    </RouteEventRow>
+  )
 }
 
 export function EventContact({contact}: {contact?: HMContactItem}) {
@@ -78,17 +89,17 @@ export function EventContacts({contacts}: {contacts: HMContactItem[]}) {
 }
 
 export function EventDescriptionText({children}: {children: React.ReactNode}) {
-  return (
-    <SizableText size="xs" className="truncate overflow-hidden px-2">
+  return children ? (
+    <SizableText size="xs" className="truncate overflow-hidden px-1">
       {children}
     </SizableText>
-  )
+  ) : null
 }
 
 export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
   if (!time) return null
   return (
-    <SizableText size="xs" className="text-muted-foreground self-end px-2 py-1">
+    <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
       {formattedDateShort(time)}
     </SizableText>
   )
