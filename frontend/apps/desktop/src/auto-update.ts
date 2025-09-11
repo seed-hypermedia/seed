@@ -215,6 +215,10 @@ export class AutoUpdater {
   async checkForUpdates(): Promise<void> {
     log.info('[AUTO-UPDATE] Checking for updates START')
     log.info(`[AUTO-UPDATE] Update URL: ${this.updateUrl}`)
+    log.info(`[AUTO-UPDATE] Current app version: ${app.getVersion()}`)
+    log.info(
+      `[AUTO-UPDATE] Platform: ${process.platform}, Architecture: ${process.arch}`,
+    )
 
     const win = BrowserWindow.getFocusedWindow()
     if (!win) {
@@ -223,11 +227,29 @@ export class AutoUpdater {
     }
 
     this.status = {type: 'checking'}
-    win.webContents.send('auto-update:status', this.status)
+    try {
+      win.webContents.send('auto-update:status', this.status)
+    } catch (sendError) {
+      log.error(`[AUTO-UPDATE] Failed to send checking status: ${sendError}`)
+    }
 
     try {
+      log.info(`[AUTO-UPDATE] Fetching update info from: ${this.updateUrl}`)
       const response = await fetch(this.updateUrl)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        log.warn(`[AUTO-UPDATE] Unexpected content type: ${contentType}`)
+      }
+
       const updateInfo: UpdateInfo = await response.json()
+      log.info(
+        `[AUTO-UPDATE] Received update info for version: ${updateInfo.name}`,
+      )
       log.info(
         `[AUTO-UPDATE] Current version: ${app.getVersion()}, Latest version: ${
           updateInfo.name
@@ -249,9 +271,23 @@ export class AutoUpdater {
         this.currentUpdateInfo = null
       }
     } catch (error) {
-      log.error(`[AUTO-UPDATE] Error checking for updates: ${error}`)
-      this.status = {type: 'error', error: JSON.stringify(error)}
-      win.webContents.send('auto-update:status', this.status)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      log.error(`[AUTO-UPDATE] Error checking for updates: ${errorMessage}`)
+      log.error(
+        `[AUTO-UPDATE] Error stack: ${
+          error instanceof Error ? error.stack : 'No stack trace'
+        }`,
+      )
+
+      this.status = {type: 'error', error: errorMessage}
+
+      try {
+        win.webContents.send('auto-update:status', this.status)
+      } catch (sendError) {
+        log.error(`[AUTO-UPDATE] Failed to send error status: ${sendError}`)
+      }
+
       this.currentUpdateInfo = null
     }
   }
@@ -342,52 +378,126 @@ export class AutoUpdater {
 
   private async downloadAndInstall(downloadUrl: string): Promise<void> {
     log.info(`[AUTO-UPDATE] Starting download from: ${downloadUrl}`)
-    const tempPath = path.join(app.getPath('temp'), 'update')
 
-    if (!fs.existsSync(tempPath)) {
-      fs.mkdirSync(tempPath, {recursive: true})
+    // Validate download URL
+    if (!downloadUrl || typeof downloadUrl !== 'string') {
+      log.error(`[AUTO-UPDATE] Invalid download URL: ${downloadUrl}`)
+      throw new Error('Invalid download URL')
     }
 
-    console.log(`== [AUTO-UPDATE] downloadAndInstall ~ tempPath:`, tempPath)
+    const tempPath = path.join(app.getPath('temp'), 'update')
+    log.info(`[AUTO-UPDATE] Using temp path: ${tempPath}`)
+
+    try {
+      if (!fs.existsSync(tempPath)) {
+        log.info(`[AUTO-UPDATE] Creating temp directory: ${tempPath}`)
+        fs.mkdirSync(tempPath, {recursive: true})
+      }
+    } catch (error) {
+      log.error(`[AUTO-UPDATE] Failed to create temp directory: ${error}`)
+      throw new Error(`Failed to create temp directory: ${error}`)
+    }
 
     const win = BrowserWindow.getFocusedWindow()
+    log.info(`[AUTO-UPDATE] Active window ID: ${win?.id || 'none'}`)
 
-    console.log(`== [AUTO-UPDATE] downloadAndInstall ~ win:`, win?.id)
-    if (!win) return
+    if (!win) {
+      log.error('[AUTO-UPDATE] No active window found')
+      throw new Error('No active window found')
+    }
 
     try {
       log.info('[AUTO-UPDATE] Downloading update...')
       this.status = {type: 'downloading', progress: 0}
       win.webContents.send('auto-update:status', this.status)
+      log.info(`[AUTO-UPDATE] Initiating download for: ${downloadUrl}`)
       session.defaultSession.downloadURL(downloadUrl)
-      session.defaultSession.on('will-download', (event: any, item: any) => {
-        // Set download path
 
-        const filePath = path.join(app.getPath('downloads'), item.getFilename())
-        item.setSavePath(filePath)
+      session.defaultSession.on('will-download', (_event: any, item: any) => {
+        log.info(
+          `[AUTO-UPDATE] Download started for file: ${
+            item?.getFilename() || 'unknown'
+          }`,
+        )
+        // Set download path
+        let filePath: string
+        try {
+          const fileName = item.getFilename()
+          if (!fileName) {
+            throw new Error('No filename available from download item')
+          }
+          filePath = path.join(app.getPath('downloads'), fileName)
+          log.info(`[AUTO-UPDATE] Setting download path to: ${filePath}`)
+          item.setSavePath(filePath)
+        } catch (error) {
+          log.error(`[AUTO-UPDATE] Failed to set download path: ${error}`)
+          this.status = {type: 'error', error: 'Failed to set download path'}
+          win.webContents.send('auto-update:status', this.status)
+          return
+        }
 
         // Monitor download progress
         item.on('updated', (_event: any, state: any) => {
-          if (state === 'progressing') {
-            if (item.isPaused()) {
-              log.info('[AUTO-UPDATE] Download paused')
+          try {
+            if (state === 'progressing') {
+              if (item.isPaused()) {
+                log.info('[AUTO-UPDATE] Download paused')
+              } else {
+                const received = item.getReceivedBytes()
+                const total = item.getTotalBytes()
+                if (total > 0) {
+                  const progress = Math.round((received / total) * 100)
+                  log.info(
+                    `[AUTO-UPDATE] Download progress: ${progress}% (${received}/${total} bytes)`,
+                  )
+                  this.status = {type: 'downloading', progress: progress}
+                  win.webContents.send('auto-update:status', this.status)
+                } else {
+                  log.warn('[AUTO-UPDATE] Total download size is 0')
+                }
+              }
             } else {
-              const received = item.getReceivedBytes()
-              const total = item.getTotalBytes()
-              const progress = Math.round((received / total) * 100)
-              log.info(`[AUTO-UPDATE] Download progress: ${progress}%`)
-              this.status = {type: 'downloading', progress: progress}
-              win.webContents.send('auto-update:status', this.status)
+              log.info(`[AUTO-UPDATE] Download state changed to: ${state}`)
             }
+          } catch (error) {
+            log.error(
+              `[AUTO-UPDATE] Error during download progress update: ${error}`,
+            )
           }
         })
 
         // Download complete
-        item.once('done', async (event: any, state: any) => {
+        item.once('done', async (_event: any, state: any) => {
+          log.info(`[AUTO-UPDATE] Download completed with state: ${state}`)
+
           if (state === 'completed') {
-            this.status = {type: 'restarting'}
-            win.webContents.send('auto-update:status', this.status)
-            log.info(`[AUTO-UPDATE] Download successfully saved to ${filePath}`)
+            try {
+              // Verify the file exists and has content
+              const stats = await require('fs/promises').stat(filePath)
+              log.info(
+                `[AUTO-UPDATE] Downloaded file size: ${stats.size} bytes`,
+              )
+
+              if (stats.size === 0) {
+                throw new Error('Downloaded file is empty')
+              }
+
+              this.status = {type: 'restarting'}
+              win.webContents.send('auto-update:status', this.status)
+              log.info(
+                `[AUTO-UPDATE] Download successfully saved to ${filePath}`,
+              )
+            } catch (verifyError) {
+              log.error(
+                `[AUTO-UPDATE] Download verification failed: ${verifyError}`,
+              )
+              this.status = {
+                type: 'error',
+                error: 'Download verification failed',
+              }
+              win.webContents.send('auto-update:status', this.status)
+              return
+            }
 
             if (process.platform === 'darwin') {
               const {exec} = require('child_process')
@@ -525,12 +635,17 @@ export class AutoUpdater {
                     app.getPath('temp'),
                     'launch-seed.sh',
                   )
-                  await fs.writeFile(
-                    launchScriptPath,
-                    `#!/bin/bash
+                  const scriptContent = `#!/bin/bash
 sleep 1
 open -n "/Applications/${appName}.app" --args --relaunch-after-update
-`,
+`
+                  log.info(
+                    `[AUTO-UPDATE] Creating launch script at: ${launchScriptPath}`,
+                  )
+                  log.info(`[AUTO-UPDATE] Script content: ${scriptContent}`)
+                  await fs.writeFile(
+                    launchScriptPath,
+                    scriptContent,
                     {mode: 0o755}, // Make executable
                   )
 
@@ -554,12 +669,19 @@ open -n "/Applications/${appName}.app" --args --relaunch-after-update
                       app.getPath('temp'),
                       'launch-seed-retry.sh',
                     )
-                    fs.writeFileSync(
-                      launchScriptPath,
-                      `#!/bin/bash
+                    const retryScriptContent = `#!/bin/bash
 sleep 2
 open "/Applications/${appName}.app" --args --relaunch-after-update
-`,
+`
+                    log.info(
+                      `[AUTO-UPDATE] Creating retry launch script at: ${launchScriptPath}`,
+                    )
+                    log.info(
+                      `[AUTO-UPDATE] Retry script content: ${retryScriptContent}`,
+                    )
+                    fs.writeFileSync(
+                      launchScriptPath,
+                      retryScriptContent,
                       {mode: 0o755}, // Make executable
                     )
 
@@ -590,6 +712,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 await cleanup()
               }
             } else if (process.platform === 'linux') {
+              log.info('[AUTO-UPDATE] Starting Linux update process')
               try {
                 const {exec} = require('child_process')
                 const util = require('util')
@@ -709,13 +832,25 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 
                   // Create a temporary script to launch the new app after this one quits
                   const launchScriptPath = path.join(tempPath, 'launch-seed.sh')
-                  const fsPromises = require('fs/promises')
-                  await fsPromises.writeFile(
-                    launchScriptPath,
-                    `#!/bin/bash
+                  const linuxScriptContent = `#!/bin/bash
 sleep 1
 ${packageName}
-`,
+`
+                  log.info(
+                    `[AUTO-UPDATE] Creating Linux launch script at: ${launchScriptPath}`,
+                  )
+                  log.info(
+                    `[AUTO-UPDATE] Linux script content: ${linuxScriptContent}`,
+                  )
+
+                  // Create temp directory if it doesn't exist
+                  if (!fs.existsSync(tempPath)) {
+                    await fs.mkdir(tempPath, {recursive: true})
+                  }
+
+                  await fs.writeFile(
+                    launchScriptPath,
+                    linuxScriptContent,
                     {mode: 0o755}, // Make executable
                   )
 
@@ -731,15 +866,20 @@ ${packageName}
                   app.quit()
                 } catch (error) {
                   log.error(`[AUTO-UPDATE] Installation error: ${error}`)
+                  const errorMessage =
+                    error instanceof Error ? error.message : String(error)
+                  log.error(
+                    `[AUTO-UPDATE] Installation error details: ${errorMessage}`,
+                  )
                   this.status = {
                     type: 'error',
-                    error:
-                      error instanceof Error ? error.message : String(error),
+                    error: errorMessage,
                   }
                   win?.webContents.send('auto-update:status', this.status)
 
                   // Attempt rollback if we have previous version info
                   try {
+                    log.info('[AUTO-UPDATE] Attempting rollback...')
                     const versionFile = path.join(backupPath, 'version.txt')
                     if (
                       await fs
@@ -749,21 +889,35 @@ ${packageName}
                     ) {
                       const oldVersion = await fs.readFile(versionFile, 'utf-8')
                       log.info(
-                        `[AUTO-UPDATE] Rolling back to version: ${oldVersion}`,
+                        `[AUTO-UPDATE] Rolling back to version: ${oldVersion.trim()}`,
                       )
 
                       // Remove failed new version
                       await execPromise(
                         `pkexec ${removeCmd} ${packageName}`,
-                      ).catch(() => {})
+                      ).catch((removeError: any) => {
+                        log.warn(
+                          `[AUTO-UPDATE] Could not remove failed package: ${removeError}`,
+                        )
+                      })
 
                       // For DEB packages, we need to force old version installation
                       if (!isRpm) {
-                        const oldVersionNumber = oldVersion.split(' ')[2] // Extract version from dpkg -l output
-                        await execPromise(
-                          `pkexec apt-get install ${packageName}=${oldVersionNumber}`,
-                        )
+                        const oldVersionNumber = oldVersion.trim().split(' ')[2] // Extract version from dpkg -l output
+                        if (oldVersionNumber) {
+                          await execPromise(
+                            `pkexec apt-get install ${packageName}=${oldVersionNumber}`,
+                          ).catch((reinstallError: any) => {
+                            log.error(
+                              `[AUTO-UPDATE] Could not reinstall old version: ${reinstallError}`,
+                            )
+                          })
+                        }
                       }
+                    } else {
+                      log.warn(
+                        '[AUTO-UPDATE] No version file found for rollback',
+                      )
                     }
                   } catch (rollbackError) {
                     log.error(`[AUTO-UPDATE] Rollback error: ${rollbackError}`)
@@ -773,24 +927,172 @@ ${packageName}
                   await cleanup()
                 }
               } catch (error) {
-                log.error(`[AUTO-UPDATE] Error: ${error}`)
+                const errorMessage =
+                  error instanceof Error ? error.message : String(error)
+                log.error(`[AUTO-UPDATE] Linux update error: ${errorMessage}`)
                 this.status = {
                   type: 'error',
-                  error: error instanceof Error ? error.message : String(error),
+                  error: errorMessage,
                 }
                 win?.webContents.send('auto-update:status', this.status)
               }
+            } else if (process.platform === 'win32') {
+              log.info('[AUTO-UPDATE] Starting Windows update process')
+              try {
+                const {exec} = require('child_process')
+                const util = require('util')
+                const execPromise = util.promisify(exec)
+                const fs = require('fs/promises')
+
+                // Windows installer should be .exe or .msi
+                const isExe = filePath.endsWith('.exe')
+                const isMsi = filePath.endsWith('.msi')
+                const appName = IS_PROD_DEV ? 'SeedDev' : 'Seed'
+                const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
+                const backupPath = path.join(tempPath, 'backup')
+
+                log.info(`[AUTO-UPDATE] Variables for Windows update:`)
+                log.info(`[AUTO-UPDATE] - Is EXE: ${isExe}`)
+                log.info(`[AUTO-UPDATE] - Is MSI: ${isMsi}`)
+                log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+                log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
+                log.info(`[AUTO-UPDATE] - Backup path: ${backupPath}`)
+                log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
+
+                const cleanup = async () => {
+                  log.info('[AUTO-UPDATE] Cleaning up Windows update files...')
+                  try {
+                    await fs
+                      .rm(tempPath, {recursive: true, force: true})
+                      .catch(() => {})
+                    await fs.rm(filePath, {force: true}).catch(() => {})
+                  } catch (error) {
+                    log.error(
+                      `[AUTO-UPDATE] Error during Windows cleanup: ${error}`,
+                    )
+                  }
+                }
+
+                // Create temp directories
+                await fs.mkdir(tempPath, {recursive: true})
+                await fs.mkdir(backupPath, {recursive: true})
+
+                if (isExe || isMsi) {
+                  log.info(
+                    `[AUTO-UPDATE] Installing Windows ${
+                      isExe ? 'EXE' : 'MSI'
+                    } package...`,
+                  )
+
+                  // For EXE installers, run silently
+                  if (isExe) {
+                    const installResult = await execPromise(`"${filePath}" /S`)
+                    log.info(
+                      `[AUTO-UPDATE] EXE installation output: ${installResult.stdout}`,
+                    )
+                  } else if (isMsi) {
+                    // For MSI installers, use msiexec
+                    const installResult = await execPromise(
+                      `msiexec /i "${filePath}" /quiet /norestart`,
+                    )
+                    log.info(
+                      `[AUTO-UPDATE] MSI installation output: ${installResult.stdout}`,
+                    )
+                  }
+
+                  // Clean up
+                  await cleanup()
+
+                  log.info(
+                    '[AUTO-UPDATE] Windows update completed successfully',
+                  )
+
+                  // Create a temporary batch script to restart the app
+                  const launchScriptPath = path.join(
+                    tempPath,
+                    'launch-seed.bat',
+                  )
+                  const windowsScriptContent = `@echo off
+timeout /t 2 /nobreak >nul
+start "" "${app.getPath('exe')}"
+`
+
+                  log.info(
+                    `[AUTO-UPDATE] Creating Windows launch script at: ${launchScriptPath}`,
+                  )
+                  log.info(
+                    `[AUTO-UPDATE] Windows script content: ${windowsScriptContent}`,
+                  )
+
+                  // Recreate temp directory for the script
+                  await fs.mkdir(tempPath, {recursive: true})
+                  await fs.writeFile(launchScriptPath, windowsScriptContent)
+
+                  // Execute the script in the background
+                  exec(`"${launchScriptPath}"`, {
+                    detached: true,
+                    stdio: 'ignore',
+                  })
+
+                  // Quit current app
+                  log.info('[AUTO-UPDATE] Quitting Windows app...')
+                  app.quit()
+                } else {
+                  throw new Error(
+                    'Unsupported Windows installer format. Expected .exe or .msi',
+                  )
+                }
+              } catch (error) {
+                const errorMessage =
+                  error instanceof Error ? error.message : String(error)
+                log.error(
+                  `[AUTO-UPDATE] Windows installation error: ${errorMessage}`,
+                )
+                this.status = {
+                  type: 'error',
+                  error: errorMessage,
+                }
+                win?.webContents.send('auto-update:status', this.status)
+              }
+            } else {
+              log.error(
+                `[AUTO-UPDATE] Unsupported platform: ${process.platform}`,
+              )
+              this.status = {
+                type: 'error',
+                error: `Unsupported platform: ${process.platform}`,
+              }
+              win?.webContents.send('auto-update:status', this.status)
             }
-            // log.info(`[AUTO-UPDATE] Download failed: ${state}`)
-            // this.status = {type: 'error', error: 'Download failed'}
-            // win.webContents.send('auto-update:status', this.status)
+          } else {
+            log.error(`[AUTO-UPDATE] Download failed with state: ${state}`)
+            this.status = {type: 'error', error: `Download failed: ${state}`}
+            win?.webContents.send('auto-update:status', this.status)
           }
         })
       })
     } catch (error) {
-      this.status = {type: 'error', error: 'Download error'}
-      win.webContents.send('auto-update:status', this.status)
-      log.error(`[AUTO-UPDATE] Download error: ${error}`)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      log.error(`[AUTO-UPDATE] Download initiation error: ${errorMessage}`)
+      log.error(
+        `[AUTO-UPDATE] Error stack: ${
+          error instanceof Error ? error.stack : 'No stack trace'
+        }`,
+      )
+
+      this.status = {
+        type: 'error',
+        error: `Download error: ${errorMessage}`,
+      }
+
+      try {
+        win.webContents.send('auto-update:status', this.status)
+      } catch (sendError) {
+        log.error(
+          `[AUTO-UPDATE] Failed to send error status to renderer: ${sendError}`,
+        )
+      }
     }
   }
 
