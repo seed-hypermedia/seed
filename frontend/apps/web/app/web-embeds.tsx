@@ -16,6 +16,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
+  WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -37,6 +38,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
+import WebCommenting from './commenting'
 
 injectModels()
 
@@ -429,7 +431,18 @@ function EmbedDocumentComments(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       hideBorder
     >
-      <Discussions targetId={unpackedId} />
+      <Discussions
+        commentEditor={
+          WEB_IDENTITY_ENABLED ? (
+            <WebCommenting
+              docId={unpackedId}
+              enableWebSigning={true}
+              // enableWebSigning={enableWebSigning || false}
+            />
+          ) : null
+        }
+        targetId={unpackedId}
+      />
     </EmbedWrapper>
   )
 }

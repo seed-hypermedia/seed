@@ -1,6 +1,6 @@
 import {EditorBlock, writeableStateStream} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {HMBlockNode} from '@shm/shared/hm-types'
+import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useAccount} from '@shm/shared/src/models/entity'
@@ -12,7 +12,7 @@ import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -84,6 +84,52 @@ export function useCommentEditor(
   }
 }
 
+export interface CommentEditorProps {
+  draft: Array<HMBlockNode>
+  onSubmit: (content: Array<HMBlockNode>) => Promise<void>
+  onDelete: (draftKey: string) => Promise<void>
+  onMedia: () => Promise<void>
+  autoFocus?: boolean
+  signer?: HMMetadata
+}
+
+/**
+ * CommentEditor
+ * props:
+ * - draft: editorDraft if any
+ * - onSubmit: async function that submits the comment
+ *   - content: editor content
+ *   -
+ * - autoFocus?: if we need to focus the editor right away
+ * - onMedia: function that handles how we process images
+ * when paste or included
+ * - signer: account metadata for the signer to render avatar and name
+ * - onDelete: function. self explanatory
+ *
+ * - logic:
+ *   - load editor data depending if there's a draft already
+ * with content or not
+ *   - add listener to editor update to save editor I guess.
+ *     maybe we can just pass the safeDraft function and call it here
+ *   - focus editor if needed (autoFocus?)
+ *   - getContent function is defined here
+ *   - handle cmd+A when the editor is focused
+ *   - pass the function to handle Images when pasted or upload
+ *     and call it inside the editor extension
+ *   - render the editor right away
+ *   -
+ *
+ */
+function _CommentEditor({}: CommentEditorProps) {
+  const {editor} = useCommentEditor()
+
+  const reset = useCallback(() => {
+    editor.removeBlocks(editor.topLevelBlocks)
+  }, [editor.topLevelBlocks])
+
+  return null
+}
+
 export function CommentEditor({
   submitButton,
   handleSubmit,
@@ -94,11 +140,6 @@ export function CommentEditor({
   initialBlocks,
   onContentChange,
 }: {
-  onDiscardDraft?: () => void
-  account?: ReturnType<typeof useAccount>['data']
-  autoFocus?: boolean
-  initialBlocks?: HMBlockNode[]
-  onContentChange?: (blocks: HMBlockNode[]) => void
   submitButton: (opts: {
     reset: () => void
     getContent: (
@@ -123,7 +164,12 @@ export function CommentEditor({
     }>,
     reset: () => void,
   ) => void
+  account?: ReturnType<typeof useAccount>['data']
+  autoFocus?: boolean
   perspectiveAccountUid?: string | null | undefined
+  onDiscardDraft?: () => void
+  initialBlocks?: HMBlockNode[]
+  onContentChange?: (blocks: HMBlockNode[]) => void
 }) {
   const {editor} = useCommentEditor(perspectiveAccountUid)
   // Check if we have non-empty draft content

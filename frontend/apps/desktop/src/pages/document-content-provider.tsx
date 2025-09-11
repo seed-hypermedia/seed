@@ -4,12 +4,11 @@ import {
   EmbedInline,
   QueryBlockDesktop,
 } from '@/components/app-embeds'
+import {useSelectedAccountContacts} from '@/models/contacts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Contact} from '@shm/shared'
 import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
@@ -30,12 +29,10 @@ export function AppDocContentProvider({
   children,
   docId,
   isBlockFocused = false,
-  contacts,
   ...overrides
 }: React.PropsWithChildren<Partial<DocContentContextValue>> & {
   docId?: UnpackedHypermediaId
   isBlockFocused?: boolean
-  contacts?: PlainMessage<Contact>[]
 }) {
   const {saveCidAsFile} = useAppContext()
   const openUrl = useOpenUrl()
@@ -43,6 +40,7 @@ export function AppDocContentProvider({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const experiments = useExperiments()
+  const contacts = useSelectedAccountContacts()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   return (
     <>
@@ -53,7 +51,7 @@ export function AppDocContentProvider({
         textUnit={contentTextUnit}
         entityId={docId}
         debug={false}
-        contacts={contacts}
+        contacts={contacts.data}
         entityComponents={{
           Document: EmbedDocument,
           // @ts-expect-error

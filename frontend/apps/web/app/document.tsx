@@ -23,13 +23,17 @@ import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
+import {supportedLanguages} from '@shm/shared/language-packs'
 import '@shm/shared/styles/document.css'
+import {useTx, useTxString} from '@shm/shared/translation'
 import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DocContent} from '@shm/ui/document-content'
+import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {BlockQuote, Close, HistoryIcon} from '@shm/ui/icons'
@@ -39,9 +43,11 @@ import {
   DocumentOutline,
   useNodesOutline,
 } from '@shm/ui/navigation'
+import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -51,7 +57,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {WebCommenting} from './client-lazy'
+import WebCommenting from './commenting'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDiscussionsPanel} from './discussions-panel'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -62,13 +68,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
-
-import {supportedLanguages} from '@shm/shared/language-packs'
-import {useTx, useTxString} from '@shm/shared/translation'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import documentContentStyles from '@shm/ui/document-content.css?url'
-import {useAutoHideSiteHeader} from '@shm/ui/site-header'
-import {useMedia} from '@shm/ui/use-media'
 import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
@@ -527,6 +526,50 @@ function InnerDocumentPage(
         />
       ) : null
     ) : null
+
+  // const commentEditor = (
+  //   <DocContentProvider
+  //     entityId={docId}
+  //     debug
+  //     comment
+  //     entityComponents={{
+  //       Comment: () => <p>comment</p>,
+  //       Document: () => <p>document</p>,
+  //       Inline: () => <span>inline</span>,
+  //       Query: () => <p>query</p>,
+  //     }}
+  //     onBlockCopy={(props) => {
+  //       console.log('onBlockCopy', props)
+  //     }}
+  //     onBlockCitationClick={(props) => {
+  //       console.log('onBlockCitationClick', props)
+  //     }}
+  //     saveCidAsFile={async (props) => {
+  //       console.log('saveCidAsFile', props)
+  //     }}
+  //     layoutUnit={14}
+  //     textUnit={12}
+  //     collapsedBlocks={new Set()}
+  //     setCollapsedBlocks={(props) => {
+  //       console.log('setCollapsedBlocks', props)
+  //     }}
+  //   >
+  //     <CommentEditor
+  //       submitButton={(props) => (
+  //         <button
+  //           onClick={() => {
+  //             console.log('comment => submit button clicked', props)
+  //           }}
+  //         >
+  //           submit
+  //         </button>
+  //       )}
+  //       handleSubmit={(props) => {
+  //         console.log('comment => handle submit', props)
+  //       }}
+  //     />
+  //   </DocContentProvider>
+  // )
 
   if (activityEnabled && activePanel?.type == 'discussions') {
     panel = (

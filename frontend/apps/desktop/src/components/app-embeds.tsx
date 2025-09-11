@@ -53,6 +53,7 @@ import {
   useState,
 } from 'react'
 import {useNavigate} from '../utils/useNavigate'
+import {CommentBox} from './commenting'
 
 function EmbedWrapper({
   id,
@@ -685,7 +686,10 @@ function EmbedDocumentComments(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       hideBorder
     >
-      <Discussions targetId={unpackedId} />
+      <Discussions
+        commentEditor={<CommentBox docId={unpackedId} />}
+        targetId={unpackedId}
+      />
     </EmbedWrapper>
   )
 }

@@ -406,7 +406,6 @@ function DocumentEditor({
           <AppDocContentProvider
             // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
             importWebFile={importWebFile}
-            contacts={contacts.data}
           >
             <DraftCover
               draftActor={actor}
