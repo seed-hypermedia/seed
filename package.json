@@ -65,8 +65,6 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "rollup": "4.44.0",
-    "ansi-regex": "<=6.1.0",
-    "ansi-styles": "4.3.0",
     "backslash": "<=0.2.0",
     "chalk": "4.1.2",
     "chalk-template": "<=1.1.0",
@@ -78,11 +76,15 @@
     "has-ansi": "<=6.0.0",
     "is-arrayish": "<=0.3.2",
     "simple-swizzle": "<=0.2.2",
-    "slice-ansi": "4.0.0",
-    "strip-ansi": "<=7.1.0",
     "supports-color": "7.2.0",
     "supports-hyperlinks": "<=3.1.0",
-    "wrap-ansi": "<=8.1.0"
+    "ansi-regex": "5.0.1",
+    "ansi-styles": "4.3.0",
+    "slice-ansi": "3.0.0",
+    "string-width": "4.2.3",
+    "strip-ansi": "6.0.1",
+    "wrap-ansi": "7.0.0",
+    "cliui": "7.0.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

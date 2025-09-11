@@ -21,18 +21,25 @@ import './inline-embed.css'
  *
  */
 
-var inlineEmbedPopupElement = document.createElement('div')
-document.body.append(inlineEmbedPopupElement)
-var popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
+var inlineEmbedPopupElement: HTMLElement | null = null
+var popupRoot: ReactDOM.Root | null = null
+
+if (typeof document !== 'undefined') {
+  inlineEmbedPopupElement = document.createElement('div')
+  document.body.append(inlineEmbedPopupElement)
+  popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
+}
 
 export function createInlineEmbedNode(bnEditor: any) {
   let {nodes, plugins} = createAutoCompletePlugin({
     nodeName: 'inline-embed',
     triggerCharacter: '@',
     renderPopup: (state, actions) => {
-      popupRoot.render(
-        <AutocompletePopup editor={bnEditor} state={state} actions={actions} />,
-      )
+      if (popupRoot) {
+        popupRoot.render(
+          <AutocompletePopup editor={bnEditor} state={state} actions={actions} />,
+        )
+      }
     },
   })
 

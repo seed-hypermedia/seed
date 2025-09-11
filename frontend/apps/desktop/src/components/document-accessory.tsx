@@ -6,7 +6,6 @@ import {DocAccessoryOption} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {ReactNode} from 'react'
 import {ActorRefFrom} from 'xstate'
-import {ActivityPanel} from './activity-panel'
 import {CitationsPanel} from './citations-panel'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {DirectoryPanel} from './directory-panel'
@@ -57,15 +56,6 @@ export function useDocumentAccessory({
     accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'activity' && newFeed) {
     accessory = <FeedPanel docId={docId as UnpackedHypermediaId} />
-  } else if (accessoryKey === 'activity') {
-    accessory = (
-      <ActivityPanel
-        docId={docId as UnpackedHypermediaId}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
   } else if (accessoryKey === 'collaborators') {
     // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />
