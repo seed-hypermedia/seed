@@ -24,10 +24,19 @@ import './inline-embed.css'
 var inlineEmbedPopupElement: HTMLElement | null = null
 var popupRoot: ReactDOM.Root | null = null
 
-if (typeof document !== 'undefined') {
-  inlineEmbedPopupElement = document.createElement('div')
-  document.body.append(inlineEmbedPopupElement)
-  popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
+function getOrCreatePopupElement() {
+  if (typeof document === 'undefined') return null
+  
+  if (!inlineEmbedPopupElement) {
+    inlineEmbedPopupElement = document.createElement('div')
+    inlineEmbedPopupElement.style.position = 'absolute'
+    inlineEmbedPopupElement.style.pointerEvents = 'none'
+    inlineEmbedPopupElement.style.zIndex = '9999'
+    document.body.append(inlineEmbedPopupElement)
+    popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
+  }
+  
+  return popupRoot
 }
 
 export function createInlineEmbedNode(bnEditor: any) {
@@ -35,8 +44,9 @@ export function createInlineEmbedNode(bnEditor: any) {
     nodeName: 'inline-embed',
     triggerCharacter: '@',
     renderPopup: (state, actions) => {
-      if (popupRoot) {
-        popupRoot.render(
+      const root = getOrCreatePopupElement()
+      if (root) {
+        root.render(
           <AutocompletePopup editor={bnEditor} state={state} actions={actions} />,
         )
       }
