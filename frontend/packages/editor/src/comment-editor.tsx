@@ -327,15 +327,17 @@ export function CommentEditor({
 
       if (dataTransfer.files.length) {
         for (let i = 0; i < dataTransfer.files.length; i++) {
-          // @ts-expect-error
-          files.push(dataTransfer.files[i])
+          const file = dataTransfer.files[i]
+          if (file) files.push(file)
         }
       } else if (dataTransfer.items.length) {
         for (let i = 0; i < dataTransfer.items.length; i++) {
-          // @ts-expect-error
-          const item = dataTransfer.items[i].getAsFile()
-          if (item) {
-            files.push(item)
+          const dataItem = dataTransfer.items[i]
+          if (dataItem) {
+            const item = dataItem.getAsFile()
+            if (item) {
+              files.push(item)
+            }
           }
         }
       }
@@ -344,7 +346,7 @@ export function CommentEditor({
         const editorElement = document.getElementsByClassName(
           'mantine-Editor-root',
         )[0]
-        // @ts-expect-error
+        if (!editorElement) return
         const editorBoundingBox = editorElement.getBoundingClientRect()
         const posAtCoords = ttEditor.view.posAtCoords({
           left: editorBoundingBox.left + editorBoundingBox.width / 2,
@@ -358,81 +360,80 @@ export function CommentEditor({
         let lastId: string
 
         // using reduce so files get inserted sequentially
-        files
-          // @ts-expect-error
-          .reduce((previousPromise, file, index) => {
-            // @ts-expect-error
-            return previousPromise.then(() => {
-              event.preventDefault()
-              event.stopPropagation()
+        files.reduce((previousPromise, file, index) => {
+          return previousPromise.then(() => {
+            event.preventDefault()
+            event.stopPropagation()
 
-              if (pos) {
-                return handleDragMedia(file, handleFileAttachment).then(
-                  // @ts-expect-error
-                  (props) => {
-                    if (!props) return false
+            if (pos) {
+              return handleDragMedia(file, handleFileAttachment).then(
+                (props) => {
+                  if (!props) return Promise.resolve()
 
-                    const {state} = ttEditor.view
-                    let blockNode
-                    const newId = generateBlockId()
+                  const {state} = ttEditor.view
+                  let blockNode
+                  const newId = generateBlockId()
 
-                    if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                      blockNode = {
-                        id: newId,
-                        type: 'image',
-                        props: {
-                          displaySrc: props.displaySrc,
-                          fileBinary: props.fileBinary,
-                          name: props.name,
-                        },
-                      }
-                    } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                      blockNode = {
-                        id: newId,
-                        type: 'video',
-                        props: {
-                          displaySrc: props.displaySrc,
-                          fileBinary: props.fileBinary,
-                          name: props.name,
-                        },
-                      }
-                    } else {
-                      blockNode = {
-                        id: newId,
-                        type: 'file',
-                        props: {
-                          fileBinary: props.fileBinary,
-                          name: props.name,
-                          size: props.size,
-                        },
-                      }
+                  if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                    blockNode = {
+                      id: newId,
+                      type: 'image',
+                      props: {
+                        displaySrc: props.displaySrc,
+                        fileBinary: props.fileBinary,
+                        name: props.name,
+                      },
                     }
-
-                    const blockInfo = getBlockInfoFromPos(state, pos)
-
-                    if (index === 0) {
-                      ;(editor as BlockNoteEditor).insertBlocks(
-                        // @ts-expect-error
-                        [blockNode],
-                        blockInfo.block.node.attrs.id,
-                        // blockInfo.node.textContent ? 'after' : 'before',
-                        'after',
-                      )
-                    } else {
-                      ;(editor as BlockNoteEditor).insertBlocks(
-                        // @ts-expect-error
-                        [blockNode],
-                        lastId,
-                        'after',
-                      )
+                  } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                    blockNode = {
+                      id: newId,
+                      type: 'video',
+                      props: {
+                        displaySrc: props.displaySrc,
+                        fileBinary: props.fileBinary,
+                        name: props.name,
+                      },
                     }
+                  } else {
+                    blockNode = {
+                      id: newId,
+                      type: 'file',
+                      props: {
+                        fileBinary: props.fileBinary,
+                        name: props.name,
+                        size: props.size,
+                      },
+                    }
+                  }
 
-                    lastId = newId
-                  },
-                )
-              }
-            })
-          }, Promise.resolve())
+                  const blockInfo = getBlockInfoFromPos(state, pos)
+
+                  if (index === 0) {
+                    ;(editor as BlockNoteEditor).insertBlocks(
+                      // @ts-expect-error
+                      [blockNode],
+                      blockInfo.block.node.attrs.id,
+                      // blockInfo.node.textContent ? 'after' : 'before',
+                      'after',
+                    )
+                  } else {
+                    ;(editor as BlockNoteEditor).insertBlocks(
+                      // @ts-expect-error
+                      [blockNode],
+                      lastId,
+                      'after',
+                    )
+                  }
+
+                  lastId = newId
+                  return Promise.resolve()
+                },
+              )
+            } else {
+              return Promise.resolve()
+            }
+          })
+        }, Promise.resolve())
         // .then(() => true) // TODO: @horacio ask Iskak about this
         setIsDragging(false)
         return true
@@ -474,7 +475,6 @@ export function CommentEditor({
             e.stopPropagation()
             editor._tiptapEditor.commands.focus()
           }}
-          // @ts-expect-error
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
@@ -483,6 +483,7 @@ export function CommentEditor({
               handleSubmit(getContent, reset)
               return true
             }
+            return false
           }}
           onDragStart={() => {
             setIsDragging(true)

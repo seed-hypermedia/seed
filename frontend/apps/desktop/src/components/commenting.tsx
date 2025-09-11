@@ -441,7 +441,6 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        {/* @ts-expect-error */}
         <AppDocContentProvider {...context} comment>
           <BlocksContent
             blocks={referenceContent}

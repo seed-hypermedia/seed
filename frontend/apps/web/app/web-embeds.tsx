@@ -39,6 +39,7 @@ import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import WebCommenting from './commenting'
+import {useWebSigning} from './web-signing-context'
 
 injectModels()
 
@@ -48,6 +49,7 @@ function EmbedWrapper({
   viewType = 'Content',
   children,
   isRange = false,
+  noClick = false,
 }: React.PropsWithChildren<{
   id: UnpackedHypermediaId
   parentBlockId: string | null
@@ -55,6 +57,7 @@ function EmbedWrapper({
   viewType?: 'Content' | 'Card'
   embedView?: HMEmbedView
   isRange?: boolean
+  noClick?: boolean
 }>) {
   const docContext = useDocContentContext()
   const {originHomeId} = useUniversalAppContext()
@@ -88,29 +91,33 @@ function EmbedWrapper({
           : undefined
       }
       data-docid={id?.blockRef ? undefined : id?.id}
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const selection = window.getSelection()
-        const hasSelection = selection && selection.toString().length > 0
-        if (hasSelection) {
-          return
-        }
-        const destUrl = createWebHMUrl(id.uid, {
-          hostname: null,
-          blockRange: id.blockRange,
-          blockRef: id.blockRef,
-          version: id.version,
-          latest: id.latest,
-          path: id.path,
-          originHomeId,
-        })
-        if (e.nativeEvent.metaKey) {
-          window.open(destUrl, '_blank')
-        } else {
-          navigate(destUrl)
-        }
-      }}
+      onClick={
+        noClick
+          ? undefined
+          : (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const selection = window.getSelection()
+              const hasSelection = selection && selection.toString().length > 0
+              if (hasSelection) {
+                return
+              }
+              const destUrl = createWebHMUrl(id.uid, {
+                hostname: null,
+                blockRange: id.blockRange,
+                blockRef: id.blockRef,
+                version: id.version,
+                latest: id.latest,
+                path: id.path,
+                originHomeId,
+              })
+              if (e.nativeEvent.metaKey) {
+                window.open(destUrl, '_blank')
+              } else {
+                navigate(destUrl)
+              }
+            }
+      }
       onMouseEnter={() => docContext?.onHoverIn?.(id)}
       onMouseLeave={() => docContext?.onHoverOut?.(id)}
     >
@@ -419,6 +426,7 @@ function QueryStyleList({
 }
 
 function EmbedDocumentComments(props: EntityComponentProps) {
+  const {enableWebSigning} = useWebSigning()
   const unpackedId = unpackHmId(
     props.block.type === 'Embed' ? props.block.link : undefined,
   )
@@ -430,16 +438,22 @@ function EmbedDocumentComments(props: EntityComponentProps) {
       id={unpackedId}
       parentBlockId={props.parentBlockId}
       hideBorder
+      noClick
     >
       <Discussions
         commentEditor={
-          WEB_IDENTITY_ENABLED ? (
-            <WebCommenting
-              docId={unpackedId}
-              enableWebSigning={true}
-              // enableWebSigning={enableWebSigning || false}
-            />
-          ) : null
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            {enableWebSigning || WEB_IDENTITY_ENABLED ? (
+              <WebCommenting
+                docId={unpackedId}
+                enableWebSigning={enableWebSigning}
+              />
+            ) : null}
+          </div>
         }
         targetId={unpackedId}
       />

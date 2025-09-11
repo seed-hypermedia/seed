@@ -26,7 +26,7 @@ var popupRoot: ReactDOM.Root | null = null
 
 function getOrCreatePopupElement() {
   if (typeof document === 'undefined') return null
-  
+
   if (!inlineEmbedPopupElement) {
     inlineEmbedPopupElement = document.createElement('div')
     inlineEmbedPopupElement.style.position = 'absolute'
@@ -35,7 +35,7 @@ function getOrCreatePopupElement() {
     document.body.append(inlineEmbedPopupElement)
     popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
   }
-  
+
   return popupRoot
 }
 
@@ -47,7 +47,11 @@ export function createInlineEmbedNode(bnEditor: any) {
       const root = getOrCreatePopupElement()
       if (root) {
         root.render(
-          <AutocompletePopup editor={bnEditor} state={state} actions={actions} />,
+          <AutocompletePopup
+            editor={bnEditor}
+            state={state}
+            actions={actions}
+          />,
         )
       }
     },
