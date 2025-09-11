@@ -252,12 +252,6 @@ export function BlockDiscussions({
         })}
       </>
     )
-  } else {
-    panelContent = (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
   }
 
   return (
