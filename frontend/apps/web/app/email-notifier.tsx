@@ -188,9 +188,9 @@ async function handleEventsForEmailNotifications(
 
             const changedDoc = await getDocument(unpacked)
             const targetMeta = changedDoc?.metadata ?? {}
-            const docUrl = `${SITE_BASE_URL}/hm/${unpacked.uid}/${(
-              unpacked.path || []
-            ).join('/')}`
+            const docUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${
+              unpacked.uid
+            }/${(unpacked.path || []).join('/')}`
 
             const prevVersionId = {
               ...unpacked,
@@ -365,7 +365,9 @@ async function handleEventsForEmailNotifications(
   }
   for (const newComment of newComments) {
     const comment = newComment.comment
-    const targetDocUrl = `${SITE_BASE_URL}/hm/${comment.targetAccount}${comment.targetPath}`
+    const targetDocUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${
+      comment.targetAccount
+    }${comment.targetPath}`
     const targetDocId = hmId(comment.targetAccount, {
       path: entityQueryPathToHmIdPath(comment.targetPath),
     })

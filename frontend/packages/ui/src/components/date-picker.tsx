@@ -69,7 +69,7 @@ export function DatePicker({
       )}
     >
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger className="w-full">
+        <PopoverTrigger asChild className="w-full">
           <Button
             className={cn(
               'w-full justify-start text-left font-normal',

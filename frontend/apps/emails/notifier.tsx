@@ -23,6 +23,7 @@ import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
 import {EmailContent} from './components/EmailContent'
 import {EmailHeader} from './components/EmailHeader'
+import {NotifSettings} from './components/NotifSettings'
 
 type GroupedNotifications = Record<
   Notification['type'],
@@ -87,7 +88,10 @@ export async function createNotificationsEmail(
     // @ts-ignore
     notifications?.[0].accountMeta,
   )
-  const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${SITE_BASE_URL.replace(
+    /\/$/,
+    '',
+  )}/hm/email-notifications?token=${opts.adminToken}` // Remove trailing slash if SITE_BASE_URL has one
 
   // @ts-ignore
   const text = `${baseNotifsSubject}
@@ -274,7 +278,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
           )
         })}
 
-        {/* <NotifSettings url={notifSettingsUrl} /> */}
+        <NotifSettings url={notifSettingsUrl} />
       </MjmlBody>
       ;
     </Mjml>,

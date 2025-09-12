@@ -48,7 +48,7 @@ export function OptionsDropdown({
       )}
     >
       <DropdownMenu>
-        <DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost" className="no-window-drag">
             <MoreHorizontal className="size-4" />
           </Button>

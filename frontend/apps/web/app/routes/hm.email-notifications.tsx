@@ -33,10 +33,31 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
-  return await loadSiteResource(
-    parsedRequest,
-    hmId(registeredAccountUid, {path: [], latest: true}),
-  )
+
+  // Load the site resource for the header/footer, but don't fail if it doesn't exist
+  try {
+    return await loadSiteResource(
+      parsedRequest,
+      hmId(registeredAccountUid, {path: [], latest: true}),
+    )
+  } catch (error) {
+    console.warn(
+      'Failed to load site resource for email notifications page:',
+      error,
+    )
+    // Return minimal data structure for the page to work
+    return {
+      originHomeId: hmId(registeredAccountUid),
+      siteHost: hostname,
+      homeMetadata: null,
+      id: null,
+      document: null,
+      supportDocuments: [],
+      supportQueries: [],
+      origin: `http://${hostname}`,
+      enableWebSigning: false,
+    }
+  }
 }
 
 export default function EmailNotificationsPage() {
@@ -58,20 +79,23 @@ export default function EmailNotificationsPage() {
       originHomeId={originHomeId}
       siteHost={siteHost}
     >
-      <WebSiteHeader
-        homeMetadata={homeMetadata}
-        originHomeId={originHomeId}
-        docId={id}
-        document={document}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
-        origin={origin}
-      >
-        <Container className="flex-1 gap-4 px-6">
-          <EmailNotificationsContent />
-        </Container>
-      </WebSiteHeader>
-      <PageFooter enableWebSigning={enableWebSigning} />
+      <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
+        <WebSiteHeader
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
+          origin={origin}
+        />
+        <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
+          <Container className="flex-1 gap-4 px-6 py-8">
+            <EmailNotificationsContent />
+          </Container>
+        </div>
+        <PageFooter enableWebSigning={enableWebSigning} />
+      </div>
     </WebSiteProvider>
   )
 }
@@ -79,13 +103,37 @@ export default function EmailNotificationsPage() {
 export function EmailNotificationsContent() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
-  const {data: notifSettings} = useEmailNotificationsWithToken(token)
   const {mutate: setEmailUnsubscribed} = useSetSubscription(token)
+  const {
+    data: notifSettings,
+    isLoading,
+    error,
+  } = useEmailNotificationsWithToken(token)
+
   if (!token) {
     return <SizableText>No token provided</SizableText>
   }
 
-  console.log('notifSettings', notifSettings)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center">
+        <Spinner />
+        <SizableText className="ml-2">
+          Loading notification settings...
+        </SizableText>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-600">
+        <SizableText>
+          Error loading notification settings: {String(error)}
+        </SizableText>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-5">
       {notifSettings ? (

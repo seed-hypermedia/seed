@@ -491,7 +491,7 @@ export function SiteHeaderMenu({
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
           <DropdownMenu>
-            <DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost" className="rounded-full">
                 <ChevronDown className="size-4" />
               </Button>
