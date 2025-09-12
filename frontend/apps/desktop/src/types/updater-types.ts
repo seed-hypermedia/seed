@@ -29,4 +29,4 @@ export type UpdateStatus =
   | {type: 'downloading'; progress: number}
   | {type: 'restarting'}
   | {type: 'error'; error: string}
-  | {type: 'idle'}
+  | {type: 'flatpak-info'; message: string}

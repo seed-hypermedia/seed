@@ -1,4 +1,5 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
+import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
@@ -78,6 +79,41 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
+    new MakerFlatpak({
+      options: {
+        ...commonLinuxConfig.options,
+        base: 'io.atom.electron.BaseApp',
+        baseVersion: '22.08',
+        files: [],
+        runtimeVersion: '22.08',
+        finishArgs: [
+          // Display and audio
+          '--socket=x11',
+          '--socket=pulseaudio',
+          
+          // Network and IPC
+          '--share=network',
+          '--share=ipc',
+          
+          // Graphics and hardware
+          '--device=dri',
+          
+          // File system access (restricted to home)
+          '--filesystem=home',
+          
+          // System integration
+          '--talk-name=org.freedesktop.Notifications',
+          '--talk-name=org.freedesktop.DBus',
+          '--talk-name=org.gtk.vfs.*',
+          
+          // Environment
+          '--env=ELECTRON_TRASH=gio',
+          
+          // Allow daemon execution (be careful with this)
+          '--talk-name=org.freedesktop.systemd1',
+        ],
+      },
+    } as MakerFlatpakConfig),
     new MakerZIP(
       IS_PROD_DEV
         ? (arch) => ({
@@ -117,7 +153,6 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
   plugins: [
     // {
