@@ -3749,6 +3749,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@electron-forge/maker-base@npm:7.9.0":
+  version: 7.9.0
+  resolution: "@electron-forge/maker-base@npm:7.9.0"
+  dependencies:
+    "@electron-forge/shared-types": 7.9.0
+    fs-extra: ^10.0.0
+    which: ^2.0.2
+  checksum: ed98d9ac0cebf943fdc62b39eaf306b13d946978d9f66d5de3571a4728dadcbc20805b51db2086033b2aed29ae0f4d33b3649896221b5b8529f4d144966ff8d8
+  languageName: node
+  linkType: hard
+
 "@electron-forge/maker-deb@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/maker-deb@npm:7.6.0"
@@ -3778,18 +3789,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron-forge/maker-flatpak@npm:7.6.0":
-  version: 7.6.0
-  resolution: "@electron-forge/maker-flatpak@npm:7.6.0"
+"@electron-forge/maker-flatpak@npm:^7.9.0":
+  version: 7.9.0
+  resolution: "@electron-forge/maker-flatpak@npm:7.9.0"
   dependencies:
-    "@electron-forge/maker-base": 7.6.0
-    "@electron-forge/shared-types": 7.6.0
+    "@electron-forge/maker-base": 7.9.0
+    "@electron-forge/shared-types": 7.9.0
     "@malept/electron-installer-flatpak": ^0.11.4
     fs-extra: ^10.0.0
   dependenciesMeta:
     "@malept/electron-installer-flatpak":
       optional: true
-  checksum: bc0ed8b66b501a5c04c957c69456ece7c14646bf9fb65398aad1a691bfbf7ffd40754c9f540b09a85524fddb10b065ebc302c2b366715ed1af04a7aa67e860ad
+  checksum: 7bb1816bdee271ac91d0479e488ca2d35f31a06b7100fbdb2466011d84ca7399167cb09f02fb97adac076f20063209db1a53f5f548608517b012d376e4f98ff5
   languageName: node
   linkType: hard
 
@@ -3905,6 +3916,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@electron-forge/shared-types@npm:7.9.0":
+  version: 7.9.0
+  resolution: "@electron-forge/shared-types@npm:7.9.0"
+  dependencies:
+    "@electron-forge/tracer": 7.9.0
+    "@electron/packager": ^18.3.5
+    "@electron/rebuild": ^3.7.0
+    listr2: ^7.0.2
+  checksum: 0d3aa40722a4d1eba67c76ad96d49970afe9aa55e765f2e948fc2d0007ea218281a172bbd2bf18a4168132bfe54ac8557d5e3efac071f582708ddcbf40c72fba
+  languageName: node
+  linkType: hard
+
 "@electron-forge/template-base@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/template-base@npm:7.6.0"
@@ -3968,6 +3991,15 @@ __metadata:
   dependencies:
     chrome-trace-event: ^1.0.3
   checksum: 8921746becc5ab1d11423a6aa635208d4973103100db9a99ff660ee42ae9b0715f1c197351bbc52c6ac1cbeab53115dcf41329b9106ac18167b994f604d94609
+  languageName: node
+  linkType: hard
+
+"@electron-forge/tracer@npm:7.9.0":
+  version: 7.9.0
+  resolution: "@electron-forge/tracer@npm:7.9.0"
+  dependencies:
+    chrome-trace-event: ^1.0.3
+  checksum: c4ac0302c831e591dc1c27dd19d358714484a5e1cba7417bdfc7ed223946d0529f85f23487124ce0a0a28c982f5e14cd77b3e1b19463927e1f62bbc2740b810a
   languageName: node
   linkType: hard
 
@@ -11851,7 +11883,7 @@ __metadata:
     "@electron-forge/cli": 7.6.0
     "@electron-forge/maker-deb": 7.6.0
     "@electron-forge/maker-dmg": 7.6.0
-    "@electron-forge/maker-flatpak": 7.6.0
+    "@electron-forge/maker-flatpak": ^7.9.0
     "@electron-forge/maker-rpm": 7.6.0
     "@electron-forge/maker-squirrel": 7.6.0
     "@electron-forge/maker-zip": 7.6.0

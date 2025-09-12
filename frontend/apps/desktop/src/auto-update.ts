@@ -42,6 +42,15 @@ export default function autoUpdate() {
     return
   }
 
+  // Check if running inside Flatpak
+  if (isRunningInFlatpak()) {
+    log.info('[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup')
+    setTimeout(() => {
+      handleFlatpakUpdates()
+    }, 2000) // Brief delay to ensure UI is ready
+    return
+  }
+
   // if (!isAutoUpdateSupported()) {
   //   log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
   //   return
@@ -128,7 +137,35 @@ function setup() {
   })
 }
 
+function isRunningInFlatpak(): boolean {
+  // Check for Flatpak environment indicators
+  return (
+    process.env.FLATPAK_ID !== undefined ||
+    process.env.FLATPAK_SANDBOX_DIR !== undefined ||
+    fs.existsSync('/.flatpak-info')
+  )
+}
+
+function handleFlatpakUpdates() {
+  log.info('[AUTO-UPDATE] Running inside Flatpak - using native update mechanism')
+  
+  // Send notification to user about Flatpak updates
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    win.webContents.send('auto-update:status', {
+      type: 'flatpak-info',
+      message: 'Updates are handled by your system package manager. Use "flatpak update" or your software center.'
+    })
+  }
+}
+
 export function customAutoUpdates() {
+  // Check if running inside Flatpak
+  if (isRunningInFlatpak()) {
+    handleFlatpakUpdates()
+    return
+  }
+
   // if (!isAutoUpdateSupported()) {
   //   log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
   //   return
