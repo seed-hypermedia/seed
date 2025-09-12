@@ -59,7 +59,10 @@ export async function sendNotificationsEmail(
     // @ts-expect-error
     notifications[0].accountMeta,
   )
-  const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${SITE_BASE_URL.replace(
+    /\/$/,
+    '',
+  )}/hm/email-notifications?token=${opts.adminToken}`
 
   const text = `${baseNotifsSubject}
 
@@ -157,7 +160,10 @@ export async function sendNotificationWelcomeEmail(
     notifySiteDiscussions: boolean
   },
 ) {
-  const notifSettingsUrl = `${SITE_BASE_URL}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${SITE_BASE_URL.replace(
+    /\/$/,
+    '',
+  )}/hm/email-notifications?token=${opts.adminToken}`
   let whenWillYouBeNotified = ''
   let notifiedFor = ''
   // TODO: improve this somehow

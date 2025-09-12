@@ -9,7 +9,6 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {usePopoverState} from './use-popover-state'
 import {
   Fragment,
   PropsWithChildren,
@@ -24,6 +23,7 @@ import {ScrollArea} from './components/scroll-area'
 import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
+import {usePopoverState} from './use-popover-state'
 
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
@@ -174,7 +174,7 @@ export function HeaderSearch({
           popoverState.onOpenChange(open)
         }}
       >
-        <PopoverTrigger>
+        <PopoverTrigger asChild>
           <Button variant="ghost" size="icon">
             <Search className="size-4" />
           </Button>
