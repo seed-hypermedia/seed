@@ -490,7 +490,9 @@ export class AutoUpdater {
 
               // Test mode - skip actual installation
               if (process.env.AUTO_UPDATE_TEST_MODE === 'true') {
-                log.info('[AUTO-UPDATE] TEST MODE: Skipping installation and restart')
+                log.info(
+                  '[AUTO-UPDATE] TEST MODE: Skipping installation and restart',
+                )
                 this.status = {type: 'idle'}
                 win.webContents.send('auto-update:status', this.status)
                 return
@@ -799,7 +801,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 )
                   .then((result: any) => result.stdout.trim())
                   .catch(() => '')
-                
+
                 if (currentVersion && currentVersion.length > 0) {
                   log.info(`[AUTO-UPDATE] Current version: ${currentVersion}`)
                   await fs.writeFile(
@@ -807,7 +809,9 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                     currentVersion,
                   )
                 } else {
-                  log.warn('[AUTO-UPDATE] Could not detect current package version for rollback')
+                  log.warn(
+                    '[AUTO-UPDATE] Could not detect current package version for rollback',
+                  )
                 }
 
                 // Install new package
@@ -928,12 +932,16 @@ ${packageName}
                             oldVersionNumber = parts[2]
                           }
                         }
-                        
+
                         if (oldVersionNumber) {
-                          log.info(`[AUTO-UPDATE] Attempting to reinstall version: ${oldVersionNumber}`)
+                          log.info(
+                            `[AUTO-UPDATE] Attempting to reinstall version: ${oldVersionNumber}`,
+                          )
                           if (isRpm) {
                             // For RPM, we would need the original package file
-                            log.warn('[AUTO-UPDATE] RPM rollback requires original package file - not implemented')
+                            log.warn(
+                              '[AUTO-UPDATE] RPM rollback requires original package file - not implemented',
+                            )
                           } else {
                             await execPromise(
                               `pkexec apt-get install ${packageName}=${oldVersionNumber} --allow-downgrades -y`,
@@ -944,7 +952,9 @@ ${packageName}
                             })
                           }
                         } else {
-                          log.error('[AUTO-UPDATE] Could not parse old version number from backup')
+                          log.error(
+                            '[AUTO-UPDATE] Could not parse old version number from backup',
+                          )
                         }
                       }
                     } else {
@@ -1156,8 +1166,10 @@ start "" "${app.getPath('exe')}"
   }
 }
 
-const JSONUrl = process.env.AUTO_UPDATE_TEST_URL || (IS_PROD_DEV
-  ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
-  : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json')
+const JSONUrl =
+  process.env.AUTO_UPDATE_TEST_URL ||
+  (IS_PROD_DEV
+    ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
+    : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json')
 
 const updater = new AutoUpdater(JSONUrl)
