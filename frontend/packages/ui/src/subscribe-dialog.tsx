@@ -1,0 +1,127 @@
+import {useState} from 'react'
+import {Button} from './button'
+import {CheckboxField} from './components/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './components/dialog'
+import {Input} from './components/input'
+import {Label} from './components/label'
+
+interface SubscribeDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  accountId?: string
+}
+
+export function SubscribeDialog({
+  open,
+  onOpenChange,
+  accountId,
+}: SubscribeDialogProps) {
+  const [email, setEmail] = useState('')
+  const [isChecked, setIsChecked] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSaveEmail = async () => {
+    if (!accountId) {
+      setError('Site information not available')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/hm/api/public-subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'subscribe',
+          email,
+          accountId,
+          notifySiteDiscussions: isChecked,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to subscribe')
+      }
+
+      // Success - close dialog and reset form
+      setEmail('')
+      setIsChecked(false)
+      onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to subscribe')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const isSaveDisabled = !email.trim() || !isChecked
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Subscribe And Get Notified</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {error && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="example@email.com"
+              value={email}
+              onChangeText={setEmail}
+              disabled={isLoading}
+            />
+          </div>
+
+          <CheckboxField
+            id="notifications"
+            checked={isChecked}
+            onCheckedChange={(checked) => setIsChecked(checked === true)}
+            variant="primary"
+          >
+            Get notified about all the activity happening with your account, as
+            well as all the sites you have subscribed to.
+          </CheckboxField>
+        </div>
+
+        <DialogFooter>
+          <Button
+            onClick={handleSaveEmail}
+            disabled={isSaveDisabled || isLoading}
+            className={cn(
+              'bg-green-600 text-white hover:bg-green-700',
+              (isSaveDisabled || isLoading) &&
+                'bg-gray-300 text-gray-500 hover:bg-gray-300',
+            )}
+          >
+            {isLoading ? 'Subscribing...' : 'Save Email'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Import cn utility
+import {cn} from './utils'
