@@ -1,12 +1,12 @@
-import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
-import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
-import {MakerSquirrel} from '@electron-forge/maker-squirrel'
-import {MakerZIP} from '@electron-forge/maker-zip'
-import {PublisherS3} from '@electron-forge/publisher-s3'
-import type {ForgeConfig} from '@electron-forge/shared-types'
+import { MakerDeb, MakerDebConfig } from '@electron-forge/maker-deb'
+import { MakerFlatpak, MakerFlatpakConfig } from '@electron-forge/maker-flatpak'
+import { MakerRpm, MakerRpmConfig } from '@electron-forge/maker-rpm'
+import { MakerSquirrel } from '@electron-forge/maker-squirrel'
+import { MakerZIP } from '@electron-forge/maker-zip'
+import { PublisherS3 } from '@electron-forge/publisher-s3'
+import type { ForgeConfig } from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
-import {VitePlugin} from '@electron-forge/plugin-vite'
+import { VitePlugin } from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
@@ -153,6 +153,9 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
+    // Flatpak maker - requires: sudo apt install flatpak flatpak-builder elfutils
+    // Uncomment after installing dependencies:
+    new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
   plugins: [
     // {
