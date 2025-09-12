@@ -99,7 +99,7 @@ function setup() {
 
   defaultAutoUpdater.on(
     'update-downloaded',
-    (event, releaseNotes, releaseName) => {
+    (_event, releaseNotes, releaseName) => {
       log.debug('[MAIN][AUTO-UPDATE]: New version downloaded')
       const dialogOpts: MessageBoxOptions = {
         type: 'info',
@@ -487,6 +487,14 @@ export class AutoUpdater {
               log.info(
                 `[AUTO-UPDATE] Download successfully saved to ${filePath}`,
               )
+
+              // Test mode - skip actual installation
+              if (process.env.AUTO_UPDATE_TEST_MODE === 'true') {
+                log.info('[AUTO-UPDATE] TEST MODE: Skipping installation and restart')
+                this.status = {type: 'idle'}
+                win.webContents.send('auto-update:status', this.status)
+                return
+              }
             } catch (verifyError) {
               log.error(
                 `[AUTO-UPDATE] Download verification failed: ${verifyError}`,
@@ -788,13 +796,18 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                   `${
                     isRpm ? 'rpm -q' : 'dpkg -l'
                   } ${packageName} | grep ${packageName}`,
-                ).catch(() => '')
-                if (currentVersion) {
+                )
+                  .then((result: any) => result.stdout.trim())
+                  .catch(() => '')
+                
+                if (currentVersion && currentVersion.length > 0) {
                   log.info(`[AUTO-UPDATE] Current version: ${currentVersion}`)
                   await fs.writeFile(
                     path.join(backupPath, 'version.txt'),
                     currentVersion,
                   )
+                } else {
+                  log.warn('[AUTO-UPDATE] Could not detect current package version for rollback')
                 }
 
                 // Install new package
@@ -903,15 +916,35 @@ ${packageName}
 
                       // For DEB packages, we need to force old version installation
                       if (!isRpm) {
-                        const oldVersionNumber = oldVersion.trim().split(' ')[2] // Extract version from dpkg -l output
+                        // Parse version from command output
+                        let oldVersionNumber = ''
+                        if (isRpm) {
+                          // rpm -q output: "package-version-release"
+                          oldVersionNumber = oldVersion.trim()
+                        } else {
+                          // dpkg -l output: "ii  package  version  architecture  description"
+                          const parts = oldVersion.trim().split(/\s+/)
+                          if (parts.length >= 3) {
+                            oldVersionNumber = parts[2]
+                          }
+                        }
+                        
                         if (oldVersionNumber) {
-                          await execPromise(
-                            `pkexec apt-get install ${packageName}=${oldVersionNumber}`,
-                          ).catch((reinstallError: any) => {
-                            log.error(
-                              `[AUTO-UPDATE] Could not reinstall old version: ${reinstallError}`,
-                            )
-                          })
+                          log.info(`[AUTO-UPDATE] Attempting to reinstall version: ${oldVersionNumber}`)
+                          if (isRpm) {
+                            // For RPM, we would need the original package file
+                            log.warn('[AUTO-UPDATE] RPM rollback requires original package file - not implemented')
+                          } else {
+                            await execPromise(
+                              `pkexec apt-get install ${packageName}=${oldVersionNumber} --allow-downgrades -y`,
+                            ).catch((reinstallError: any) => {
+                              log.error(
+                                `[AUTO-UPDATE] Could not reinstall old version: ${reinstallError}`,
+                              )
+                            })
+                          }
+                        } else {
+                          log.error('[AUTO-UPDATE] Could not parse old version number from backup')
                         }
                       }
                     } else {
@@ -1123,8 +1156,8 @@ start "" "${app.getPath('exe')}"
   }
 }
 
-const JSONUrl = IS_PROD_DEV
+const JSONUrl = process.env.AUTO_UPDATE_TEST_URL || (IS_PROD_DEV
   ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
-  : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
+  : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json')
 
 const updater = new AutoUpdater(JSONUrl)
