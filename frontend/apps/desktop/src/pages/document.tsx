@@ -12,7 +12,6 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDocumentCitations} from '@/models/citations'
-import {useInteractionSummary} from '@/models/interaction-summary'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
@@ -25,12 +24,14 @@ import {
 } from '@/models/email-notifications'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
+import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
   BlockRange,
+  calculateBlockCitations,
   DocumentRoute,
   getCommentTargetId,
   getDocumentTitle,
@@ -44,7 +45,6 @@ import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
-import {calculateBlockCitations} from '@shm/shared'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {pluralS} from '@shm/shared/utils/language'
@@ -329,8 +329,7 @@ function _MainDocumentPage({
     return null
   }
   return (
-    // this data attribute is used by the hypermedia highlight component
-    <div data-docid={id.id} className={cn(panelContainerStyles)}>
+    <div className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
         // @ts-ignore
         siteHomeEntity={siteHomeEntity.data}
@@ -577,7 +576,6 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <Container
       className="dark:bg-background w-full rounded-lg bg-white"
-      data-docid={docId.id}
       style={{
         marginTop: hasCover ? -40 : 0,
         paddingTop: !hasCover ? 60 : 24,

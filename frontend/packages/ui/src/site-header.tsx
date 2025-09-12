@@ -154,8 +154,6 @@ export function SiteHeader({
           hideSiteBarClassName,
           'sm:translate-y-0',
         )}
-        // this data attribute is used by the hypermedia highlight component
-        data-docid={headerHomeId.id}
       >
         <div
           className={cn('flex shrink-0 items-center self-stretch', {
@@ -305,11 +303,7 @@ export function SmallSiteHeader({
   siteHost: string
 }) {
   return (
-    <div
-      className="flex w-screen flex-col items-center bg-white p-3 dark:bg-black"
-      // this data attribute is used by the hypermedia highlight component
-      data-docid={originHomeId.id}
-    >
+    <div className="flex w-screen flex-col items-center bg-white p-3 dark:bg-black">
       <div className="flex w-full max-w-2xl justify-center">
         <div className="px-4 py-2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
