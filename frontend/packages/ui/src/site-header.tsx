@@ -30,6 +30,7 @@ import {
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {SiteLogo} from './site-logo'
+import {SubscribeDialog} from './subscribe-dialog'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
@@ -66,6 +67,8 @@ export function SiteHeader({
   editNavPane?: React.ReactNode
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
+  const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
+
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)
     onShowMobileMenu?.(isOpen)
@@ -175,7 +178,19 @@ export function SiteHeader({
           />
         </div>
 
-        {isCenterLayout ? null : headerSearch}
+        {isCenterLayout ? null : (
+          <div className="flex items-center gap-2">
+            {headerSearch}
+            <Button
+              variant="brand"
+              size="sm"
+              className="text-white"
+              onClick={() => setIsSubscribeDialogOpen(true)}
+            >
+              Subscribe
+            </Button>
+          </div>
+        )}
         <MobileMenu
           open={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
@@ -230,6 +245,12 @@ export function SiteHeader({
               )}
             </>
           )}
+        />
+
+        <SubscribeDialog
+          open={isSubscribeDialogOpen}
+          onOpenChange={setIsSubscribeDialogOpen}
+          accountId={headerHomeId?.uid}
         />
       </header>
     </>
