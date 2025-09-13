@@ -1,4 +1,4 @@
-import {LinksFunction} from '@remix-run/node'
+import { LinksFunction } from '@remix-run/node'
 import {
   isRouteErrorResponse,
   Links,
@@ -8,9 +8,10 @@ import {
   ScrollRestoration,
   useRouteError,
 } from '@remix-run/react'
-import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
-import {SizableText} from '@shm/ui/text'
-import {Providers} from './providers'
+import { captureRemixErrorBoundaryError, withSentry } from '@sentry/remix'
+import { SizableText } from '@shm/ui/text'
+import { useEffect } from 'react'
+import { Providers } from './providers'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 
@@ -19,6 +20,48 @@ export const links: LinksFunction = () => {
     {rel: 'stylesheet', href: globalStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
   ]
+}
+
+function ClientPlausible() {
+  useEffect(() => {
+    const getBaseDomain = (host: string) => {
+      // keep localhost and IPs as-is
+      if (!host || host === 'localhost' || /^[0-9.]+$/.test(host)) return host
+
+      const parts = host.split('.')
+      if (parts.length <= 2) return host
+
+      // common 2nd-level public suffixes that need 3 labels (e.g. something.co.uk -> something.co.uk)
+      const twoLevel = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk', 'sch.uk'])
+
+      const lastTwo = parts.slice(-2).join('.')
+      if (twoLevel.has(lastTwo) && parts.length >= 3) {
+        return parts.slice(-3).join('.')
+      }
+
+      // default: use last two labels (e.g. bob.hyper.media -> hyper.media)
+      return lastTwo
+    }
+
+    const runtimeDomain = getBaseDomain(location.hostname)
+    const domain = process.env.MONITORING_DOMAIN || runtimeDomain
+
+    // don't add twice
+    if ((window as any).plausible) return
+
+    ;(window as any).plausible = (window as any).plausible || function () {
+      ((window as any).plausible.q = (window as any).plausible.q || []).push(arguments)
+    }
+
+    const s = document.createElement('script')
+    s.defer = true
+    s.setAttribute('file-types', 'rpm,deb,dmg,exe')
+    s.setAttribute('data-domain', domain)
+    s.src = 'https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js'
+    document.head.appendChild(s)
+  }, [])
+
+  return null
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
@@ -35,21 +78,7 @@ export function Layout({children}: {children: React.ReactNode}) {
 
         <ScrollRestoration />
         <Scripts />
-        {process.env.MONITORING_DOMAIN && (
-          <>
-            <script
-              defer
-              file-types="rpm,deb,dmg,exe"
-              data-domain={process.env.MONITORING_DOMAIN}
-              src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
-            ></script>
-            <script>
-              {`window.plausible = window.plausible || function() {
-                (window.plausible.q = window.plausible.q || []).push(arguments)
-              }`}
-            </script>
-          </>
-        )}
+        <ClientPlausible />
       </body>
     </html>
   )
