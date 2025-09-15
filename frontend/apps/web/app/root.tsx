@@ -22,8 +22,13 @@ export const links: LinksFunction = () => {
   ]
 }
 
+// enable statistics when SEED_ENABLE_STATISTICS is "true" or "1" at build-time
+const ENABLE_STATS = process.env.SEED_ENABLE_STATISTICS === 'true' || process.env.SEED_ENABLE_STATISTICS === '1'
+
 function ClientPlausible() {
   useEffect(() => {
+    if (!ENABLE_STATS) return // extra-safety: don't inject if disabled at build-time
+
     const getBaseDomain = (host: string) => {
       // keep localhost and IPs as-is
       if (!host || host === 'localhost' || /^[0-9.]+$/.test(host)) return host
@@ -78,7 +83,7 @@ export function Layout({children}: {children: React.ReactNode}) {
 
         <ScrollRestoration />
         <Scripts />
-        <ClientPlausible />
+        {ENABLE_STATS && <ClientPlausible />}
       </body>
     </html>
   )
