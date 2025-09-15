@@ -1685,7 +1685,12 @@ function CommentEmbedHeader({
     <div className="flex flex-wrap justify-between p-3">
       <div className="flex items-center gap-2">
         {author.id && (
-          <HMIcon size={24} id={author.id} name={authorMetadata?.name} icon={authorMetadata?.icon} />
+          <HMIcon
+            size={24}
+            id={author.id}
+            name={authorMetadata?.name}
+            icon={authorMetadata?.icon}
+          />
         )}
         <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
       </div>

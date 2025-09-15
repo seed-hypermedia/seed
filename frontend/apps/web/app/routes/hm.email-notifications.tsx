@@ -197,7 +197,12 @@ function AccountTitle({accountId}: {accountId: string}) {
   return (
     <div className="flex gap-2">
       {entity?.id ? (
-        <HMIcon size={24} id={entity?.id} name={document?.metadata?.name} icon={document?.metadata?.icon} />
+        <HMIcon
+          size={24}
+          id={entity?.id}
+          name={document?.metadata?.name}
+          icon={document?.metadata?.icon}
+        />
       ) : null}
       <SizableText weight="bold">{document?.metadata.name}</SizableText>
     </div>

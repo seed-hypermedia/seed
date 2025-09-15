@@ -69,8 +69,8 @@ import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {getOptimizedImageUrl, WebSiteProvider} from './providers'
 import {WebCommentsService} from './web-comments-service'
-import {WebSiteHeader} from './web-site-header'
 import {WebSigningProvider} from './web-signing-context'
+import {WebSiteHeader} from './web-site-header'
 import {unwrap, Wrapped} from './wrapping'
 
 export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>

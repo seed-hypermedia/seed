@@ -390,7 +390,12 @@ function QueryStyleList({
         })
         const icon =
           id.path?.length == 0 || item.metadata?.icon ? (
-            <HMIcon size={28} id={id} name={item.metadata?.name} icon={item.metadata?.icon} />
+            <HMIcon
+              size={28}
+              id={id}
+              name={item.metadata?.name}
+              icon={item.metadata?.icon}
+            />
           ) : null
         return (
           <Button

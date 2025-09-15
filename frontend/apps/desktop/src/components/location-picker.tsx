@@ -276,7 +276,12 @@ function SearchContent({
             className="justify-start px-2"
           >
             <div className="flex flex-1 items-center justify-start gap-2">
-              <HMIcon id={d.id} name={d.metadata?.name} icon={d.metadata?.icon} size={24} />
+              <HMIcon
+                id={d.id}
+                name={d.metadata?.name}
+                icon={d.metadata?.icon}
+                size={24}
+              />
               <SizableText>{d.metadata?.name}</SizableText>
             </div>
           </Button>
@@ -313,7 +318,11 @@ function LocationPreview({
   const locationBreadcrumbs = useResources(locationBreadcrumbIds)
   return (
     <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
-      <HMIcon id={siteId} name={siteDocument?.metadata?.name} icon={siteDocument?.metadata?.icon} />
+      <HMIcon
+        id={siteId}
+        name={siteDocument?.metadata?.name}
+        icon={siteDocument?.metadata?.icon}
+      />
       <SizableText
         weight="bold"
         className="hover:underline"

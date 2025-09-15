@@ -267,7 +267,11 @@ function IdentitySelector({
                   }}
                 >
                   {option.id ? (
-                    <HMIcon id={option?.id} name={option?.metadata?.name} icon={option?.metadata?.icon} />
+                    <HMIcon
+                      id={option?.id}
+                      name={option?.metadata?.name}
+                      icon={option?.metadata?.icon}
+                    />
                   ) : null}
                   {option.metadata?.name}
                 </div>

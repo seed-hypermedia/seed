@@ -181,7 +181,7 @@ export function LocalWebCommenting({
     data: myAccount.data?.metadata,
     isLoading: myAccount.isLoading,
     dataUpdatedAt: myAccount.dataUpdatedAt,
-    queryKey: ['ACCOUNT', userKeyPair?.id]
+    queryKey: ['ACCOUNT', userKeyPair?.id],
   })
   const tx = useTxString()
 

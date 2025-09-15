@@ -260,7 +260,11 @@ function DonateForm({
           return (
             <div key={author.id.uid} className="flex justify-between">
               <div className="flex items-center gap-4">
-                <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} />
+                <HMIcon
+                  id={author.id}
+                  name={author.metadata?.name}
+                  icon={author.metadata?.icon}
+                />
                 <SizableText color={isAllowedRecipient ? 'default' : 'muted'}>
                   {getMetadataName(author.metadata)}
                 </SizableText>

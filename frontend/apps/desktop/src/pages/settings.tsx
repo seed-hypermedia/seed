@@ -987,7 +987,12 @@ function KeyItem({
       onClick={onSelect}
       className="h-auto w-full items-start"
     >
-      <HMIcon id={id} name={document?.metadata?.name} icon={document?.metadata?.icon} size={24} />
+      <HMIcon
+        id={id}
+        name={document?.metadata?.name}
+        icon={document?.metadata?.icon}
+        size={24}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <SizableText
           weight={isActive ? 'bold' : 'normal'}

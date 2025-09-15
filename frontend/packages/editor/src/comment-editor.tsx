@@ -449,12 +449,16 @@ export function CommentEditor({
     return false
   }
 
-
   return (
     <div className="flex w-full items-start gap-2">
       <div className="flex shrink-0 grow-0">
         {account?.metadata ? (
-          <HMIcon id={account.id} name={account.metadata?.name} icon={account.metadata?.icon} size={32} />
+          <HMIcon
+            id={account.id}
+            name={account.metadata?.name}
+            icon={account.metadata?.icon}
+            size={32}
+          />
         ) : (
           <UIAvatar id="?" label="?" size={32} />
         )}

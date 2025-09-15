@@ -206,7 +206,12 @@ function ExpandChangeGroupButton({
       >
         <Version size={16} color="white" />
       </div>
-      <HMIcon size={iconSize} id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} />
+      <HMIcon
+        size={iconSize}
+        id={author.id}
+        name={author.metadata?.name}
+        icon={author.metadata?.icon}
+      />
       <div className="flex flex-1 flex-col justify-start">
         <p className="h-[${iconSize}px] flex w-full items-center justify-start gap-2 overflow-hidden">
           <SizableText

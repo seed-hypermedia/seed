@@ -170,7 +170,12 @@ function ContactListItem({
         navigate({key: 'contact', id})
       }}
     >
-      <HMIcon size={28} id={id} name={account.metadata?.name} icon={account.metadata?.icon} />
+      <HMIcon
+        size={28}
+        id={id}
+        name={account.metadata?.name}
+        icon={account.metadata?.icon}
+      />
       <span className="text-foreground flex-1 truncate overflow-hidden pl-2 text-left whitespace-nowrap">
         {savedContact ? savedContact.name : getMetadataName(account.metadata)}
       </span>
@@ -216,7 +221,12 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
     <div className="h-full overflow-y-auto">
       <div className="flex min-h-full flex-1 flex-row justify-center p-4">
         <div className="border-border bg-background mx-auto flex w-full max-w-lg flex-col items-center gap-3 rounded-lg border p-4 py-7 dark:bg-black">
-          <HMIcon id={contactId} name={contact.data?.metadata?.name} icon={contact.data?.metadata?.icon} size={80} />
+          <HMIcon
+            id={contactId}
+            name={contact.data?.metadata?.name}
+            icon={contact.data?.metadata?.icon}
+            size={80}
+          />
           <Tooltip content={primaryTooltip}>
             <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
           </Tooltip>

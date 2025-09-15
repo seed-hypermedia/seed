@@ -24,7 +24,7 @@ export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
     console.log('🔄 HMIcon memo: name changed', {
       prev: prevProps.name,
       next: nextProps.name,
-      id: prevProps.id?.uid?.slice(0, 8)
+      id: prevProps.id?.uid?.slice(0, 8),
     })
     return false
   }
@@ -32,7 +32,7 @@ export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
     console.log('🔄 HMIcon memo: icon changed', {
       prev: prevProps.icon,
       next: nextProps.icon,
-      id: prevProps.id?.uid?.slice(0, 8)
+      id: prevProps.id?.uid?.slice(0, 8),
     })
     return false
   }
@@ -138,5 +138,7 @@ export function LoadedHMIcon({
     entity.data?.type === 'document'
       ? entity.data.document?.metadata
       : undefined
-  return <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={size} />
+  return (
+    <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={size} />
+  )
 }

@@ -447,7 +447,12 @@ export function Comment({
           />
           {authorHmId && (
             <div className="size-5">
-              <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
+              <HMIcon
+                id={authorHmId}
+                name={authorMetadata?.name}
+                icon={authorMetadata?.icon}
+                size={20}
+              />
             </div>
           )}
           {!isLast ? <div className="bg-border h-full w-px" /> : null}
