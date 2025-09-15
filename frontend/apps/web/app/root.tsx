@@ -48,29 +48,16 @@ export async function loader({request}: LoaderFunctionArgs) {
   const url = new URL(request.url)
   const runtimeDomain = getBaseDomain(url.hostname)
 
-  console.log('=== Root Loader Debug ===')
-  console.log('Request URL:', request.url)
-  console.log('URL hostname:', url.hostname)
-  console.log('Runtime domain:', runtimeDomain)
-
   // Gate everything on the server so no client env access is needed
   const isProd = process.env.NODE_ENV === 'production'
-  console.log('NODE_ENV:', process.env.NODE_ENV)
-  console.log('isProd:', isProd)
 
   const enableStats =
     process.env.SEED_ENABLE_STATISTICS === 'true' ||
     process.env.SEED_ENABLE_STATISTICS === '1'
-  console.log('SEED_ENABLE_STATISTICS env var:', process.env.SEED_ENABLE_STATISTICS)
-  console.log('enableStats:', enableStats)
 
   const domain = process.env.MONITORING_DOMAIN || runtimeDomain
-  console.log('MONITORING_DOMAIN env var:', process.env.MONITORING_DOMAIN)
-  console.log('Final domain:', domain)
 
   const result = {isProd, enableStats, domain}
-  console.log('Loader result:', result)
-  console.log('=== End Root Loader Debug ===')
 
   return json(result)
 }

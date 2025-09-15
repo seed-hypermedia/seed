@@ -36,8 +36,6 @@ export const loader = async ({
     pageSize: BIG_INT,
   })
 
-  console.log(`== ~ loader ~ mentions:`, mentions)
-
   const comments = await grpcClient.comments.listComments({
     targetAccount: id.uid,
     targetPath: hmIdPathToEntityQueryPath(id.path),
