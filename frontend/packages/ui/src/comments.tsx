@@ -233,7 +233,7 @@ export function BlockDiscussions({
     )
   }
 
-  if (commentsService.data && commentsService.data.comments.length) {
+  if (commentsService.data && commentsService.data.comments && commentsService.data.comments.length) {
     panelContent = (
       <>
         {commentsService.data.comments.map((comment) => {

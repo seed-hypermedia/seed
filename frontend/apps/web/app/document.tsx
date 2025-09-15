@@ -24,6 +24,7 @@ import {
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
 import {supportedLanguages} from '@shm/shared/language-packs'
+import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {pluralS} from '@shm/shared/utils/language'
@@ -37,6 +38,7 @@ import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {BlockQuote, Close, HistoryIcon} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
@@ -58,6 +60,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
 import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDiscussionsPanel} from './discussions-panel'
@@ -872,6 +875,9 @@ function MobileInteractionCardCollapsed({
   onClick: () => void
   commentsCount: number
 }) {
+  const keyPair = useLocalKeyPair()
+  const myAccount = useAccount(keyPair?.id || undefined)
+
   const tx = useTx()
   return (
     <div
@@ -886,7 +892,16 @@ function MobileInteractionCardCollapsed({
         onClick={onClick}
       >
         <div className="shrink-0">
-          <UIAvatar size={24} />
+          {myAccount.data?.id && myAccount.data?.metadata?.icon ? (
+            <HMIcon
+              id={myAccount.data.id}
+              name={myAccount.data?.metadata?.name}
+              icon={myAccount.data?.metadata?.icon}
+              size={32}
+            />
+          ) : (
+            <UIAvatar size={32} />
+          )}
         </div>
         <span className="bg-background ring-px ring-border ml-1 flex-1 truncate rounded-md px-2 py-1 text-left ring">
           {tx('Start a Discussion')}
